@@ -364,6 +364,45 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .as-policy-active { border-color: var(--accent) !important; background: var(--accent-bg) !important; color: var(--text) !important; }
   .as-radio { font-size: 14px; color: var(--accent); flex-shrink: 0; }
 
+  /* Per-session share button (feat 50) */
+  .session-head-right { display: flex; align-items: center; gap: 8px; }
+  .session-share-btn {
+    background: none; border: none; color: var(--text3); cursor: pointer;
+    font-size: 15px; line-height: 1; padding: 2px 5px; border-radius: 6px;
+    font-family: inherit; transition: color 0.15s, background 0.15s;
+  }
+  .session-share-btn:hover { color: var(--accent); background: var(--bg3); }
+
+  /* Export / share modal (feat 50) */
+  #export-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10010;
+    display: flex; align-items: center; justify-content: center; padding: 18px;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  #export-backdrop.open { opacity: 1; pointer-events: auto; }
+  #export-modal {
+    width: 100%; max-width: 440px; max-height: 88vh; overflow-y: auto;
+    background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px;
+    padding: 16px; box-shadow: 0 12px 40px var(--shadow);
+  }
+  .export-modal-head { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+  .export-scope-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .export-date-lbl { display: flex; flex-direction: column; gap: 3px; flex: 1; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
+  .export-date-lbl input { padding: 7px 8px; background: var(--input-bg); border: 1px solid var(--border2); border-radius: 7px; color: var(--text); font-family: inherit; font-size: 13px; }
+  .export-count { font-size: 12px; color: var(--text2); margin: 12px 0; min-height: 16px; }
+  .export-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .export-result-actions { margin-top: 14px; }
+  .export-btn {
+    flex: 1; min-width: 72px; padding: 9px 12px; background: var(--bg3);
+    border: 1px solid var(--border2); border-radius: 8px; color: var(--text2);
+    font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .export-btn.primary { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+  .export-btn:disabled { opacity: 0.5; cursor: default; }
+  .export-preview-wrap { margin-top: 4px; border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--bg3); display: flex; align-items: center; justify-content: center; min-height: 120px; }
+  .export-preview-wrap img { max-width: 100%; height: auto; border-radius: 6px; display: block; }
+  .export-building { font-size: 12px; color: var(--text3); }
+
 .panel {
   display: none;
   padding-top: 48px;
@@ -2083,11 +2122,7 @@ function clearLog() { _eventLog = []; persistLog(); }
 function exportLog() {
   const lines = _eventLog.map(e => `[${e.ts}] ${e.level.toUpperCase().padEnd(5)} ${e.msg}${e.detail ? ' :: ' + e.detail : ''}`);
   const header = `Gym Tracker activity & error log\nGenerated ${new Date().toISOString()}\n${_eventLog.length} entries\n${'='.repeat(40)}\n`;
-  const blob = new Blob([header + lines.join('\n') + '\n'], { type:'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `gym-tracker-log_${new Date().toISOString().slice(0,10)}.txt`;
-  a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBlob(new Blob([header + lines.join('\n') + '\n'], { type:'text/plain' }), `gym-tracker-log_${new Date().toISOString().slice(0,10)}.txt`);
   logInfo('Log exported to flat file');
 }
 
@@ -3087,6 +3122,7 @@ function renderSettingsDrawer() {
       <input type="file" id="drawer-import-file" accept=".json" style="display:none;">
     </div>
     <div class="drawer-data-row">
+      <button class="drawer-btn" id="drawer-export-workout-btn">📤 Export Workout / Range…</button>
       <button class="drawer-btn" id="drawer-export-ref-csv-btn">📋 Export Reference CSV</button>
     </div>
 
@@ -3328,6 +3364,7 @@ function renderSettingsDrawer() {
 
   // Data buttons
   body.querySelector('#drawer-export-btn').addEventListener('click', exportData);
+  body.querySelector('#drawer-export-workout-btn')?.addEventListener('click', () => { closeSettingsDrawer(); openExportDialog({ preset:'week' }); });
   body.querySelector('#drawer-export-ref-csv-btn').addEventListener('click', exportReferenceCsv);
   body.querySelector('#drawer-import-btn').addEventListener('click', () => body.querySelector('#drawer-import-file').click());
   body.querySelector('#drawer-import-file').addEventListener('change', importData);
@@ -3491,6 +3528,118 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(window._toastT);
   });
 });
+
+/* ============================================================
+   EXPORT / SHARE — shared helpers (data export + workout export)
+   ============================================================ */
+// Single download path — reused by JSON/CSV/log/workout exports.
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function downloadText(text, filename, mime) {
+  downloadBlob(new Blob([text], { type: mime || 'text/plain;charset=utf-8' }), filename);
+}
+// Copy text — Clipboard API in a secure context, hidden-textarea fallback otherwise
+// (file:// is treated as secure in current browsers; the fallback covers the rest).
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      toast('Copied to clipboard'); return true;
+    }
+  } catch(e) {}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    ta.remove();
+    toast(ok ? 'Copied to clipboard' : 'Copy failed — select the text manually');
+    return ok;
+  } catch(e) { toast('Copy failed — select the text manually'); return false; }
+}
+// Native share sheet — include the PNG as a File where supported, else share text only.
+async function shareExport(text, blob, baseName) {
+  if (!navigator.share) { toast('Sharing not supported here — use Download or Copy'); return; }
+  try {
+    if (blob && navigator.canShare) {
+      const file = new File([blob], (baseName || 'workout') + '.png', { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text });
+        return;
+      }
+    }
+    await navigator.share({ text });
+  } catch(e) {
+    if (e && e.name === 'AbortError') return;
+    toast('Share canceled');
+  }
+}
+// Shared 0–100 → letter-grade ladder (used by scoring + exports).
+function gradeFor(points) {
+  return points >= 90 ? 'A+' : points >= 80 ? 'A'
+       : points >= 70 ? 'B'  : points >= 60 ? 'C'
+       : points >= 50 ? 'D'  : 'F';
+}
+// Pick a readable foreground (#fff or near-black) for a given hex background.
+function _hexToRgb(hex) {
+  let h = String(hex).trim().replace('#','');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (h.length !== 6 || /[^0-9a-fA-F]/.test(h)) return null;
+  const n = parseInt(h, 16);
+  return [(n>>16)&255, (n>>8)&255, n&255];
+}
+function pickContrast(hex) {
+  const rgb = _hexToRgb(hex);
+  if (!rgb) return '#ffffff';
+  const [r,g,b] = rgb.map(c => { c /= 255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); });
+  const L = 0.2126*r + 0.7152*g + 0.0722*b;
+  return L > 0.45 ? '#16181d' : '#ffffff';
+}
+// Snapshot the active theme's CSS custom properties for canvas drawing.
+function readThemeColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name, fb) => { const x = (cs.getPropertyValue('--' + name) || '').trim(); return x || fb; };
+  const accent = v('accent', '#b48aff');
+  return {
+    bg: v('bg', '#0a0a0a'), bg2: v('bg2', '#111111'), bg3: v('bg3', '#1a1a1a'), bg4: v('bg4', '#222222'),
+    border: v('border', '#1e1e1e'), border2: v('border2', '#2a2a2a'),
+    text: v('text', '#e8e8e8'), text2: v('text2', '#aaaaaa'), text3: v('text3', '#666666'),
+    accent, accent2: v('accent2', '#7c4dff'),
+    good: v('good', '#5fd068'), warn: v('warn', '#e2944a'), danger: v('danger', '#e05050'),
+    isLight: document.documentElement.getAttribute('data-theme') === 'light',
+    onAccent: pickContrast(accent)
+  };
+}
+// Rounded-rect path via arcTo (ctx.roundRect is missing on iOS Safari < 16).
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}
+// Truncate a string with an ellipsis to fit maxW at the ctx's current font.
+function fitText(ctx, str, maxW) {
+  str = String(str);
+  if (ctx.measureText(str).width <= maxW) return str;
+  const ell = '…';
+  let lo = 0, hi = str.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (ctx.measureText(str.slice(0, mid) + ell).width <= maxW) lo = mid; else hi = mid - 1;
+  }
+  return lo > 0 ? str.slice(0, lo) + ell : ell;
+}
 
 /* ============================================================
    HISTORY LOOKUPS (BY TRACKING KEY)
@@ -4020,6 +4169,8 @@ function renderLog(main) {
   main.querySelectorAll('[data-hr-edit]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hrEditSession = el.dataset.hrEdit; render(); }));
   main.querySelectorAll('[data-hr-cancel]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hrEditSession = null; render(); }));
   main.querySelectorAll('[data-hr-save]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); saveWorkoutStats(el.dataset.hrSave); }));
+  // Per-session export/share (feat 50) — stopPropagation so it doesn't trigger card edit
+  main.querySelectorAll('[data-share-session]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); openExportDialog({ preset:'session', sessionDate: el.dataset.shareSession }); }));
   main.querySelectorAll('[data-add-notes], [data-edit-notes]').forEach(el => {
     el.addEventListener('click', e => {
       e.stopPropagation();
@@ -4507,7 +4658,10 @@ function renderSession(session, isToday) {
   return `<div class="session-item">
     <div class="session-head">
       <div class="session-date">${fmtDate(session.date)}${isToday ? ' • Tap an exercise to edit' : ''}</div>
-      <div class="session-time">${fmtTime(session.date)}</div>
+      <div class="session-head-right">
+        <div class="session-time">${fmtTime(session.date)}</div>
+        <button class="session-share-btn" data-share-session="${session.date}" title="Export / share this workout" aria-label="Export workout">⤴</button>
+      </div>
     </div>
     ${renderNotesCard(session)}
     ${exHtml || '<div style="color:#666;font-size:12px;">No exercises yet</div>'}
@@ -5398,20 +5552,406 @@ function renderTrendCard(item) {
   </div>`;
 }
 
+/* ============================================================
+   WORKOUT EXPORT (feat 50) — a single workout or a date range,
+   as a themed image card and/or Strava-ready text. Read-only over
+   state.sessions; no mutation. Strava push is a deferred follow-up
+   (needs a backend) — buildWorkoutText() is shaped for it.
+   ============================================================ */
+
+// Return the sessions matching an export scope, newest-first.
+function selectSessionsForExport(opts) {
+  const all = state.sessions || [];
+  if (opts.preset === 'session') {
+    const s = all.find(x => x.date === opts.sessionDate);
+    return s ? [s] : [];
+  }
+  const now = new Date();
+  let fromMs = -Infinity, toMs = Infinity;
+  if (opts.preset === 'week')        fromMs = startOfWeek(now);
+  else if (opts.preset === 'month')  fromMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  else if (opts.preset === 'last30') fromMs = now.getTime() - 30 * 86400000;
+  else if (opts.preset === 'custom') {
+    // Parse as local midnight / end-of-day so ranges aren't off-by-one in non-UTC zones.
+    if (opts.from) { const d = new Date(opts.from + 'T00:00:00');     if (!isNaN(d)) fromMs = d.getTime(); }
+    if (opts.to)   { const d = new Date(opts.to   + 'T23:59:59.999'); if (!isNaN(d)) toMs   = d.getTime(); }
+  } // 'all' → unbounded
+  return all
+    .filter(s => { const t = new Date(s.date).getTime(); return t >= fromMs && t <= toMs; })
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+// Human-readable label for an export scope.
+function exportScopeLabel(opts, sessions) {
+  if (opts.preset === 'session') {
+    const s = sessions[0];
+    return s ? new Date(s.date).toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' }) : 'Workout';
+  }
+  if (opts.preset === 'week')   return 'This week';
+  if (opts.preset === 'month')  return 'This month';
+  if (opts.preset === 'last30') return 'Last 30 days';
+  if (opts.preset === 'all')    return 'All time';
+  if (opts.preset === 'custom') {
+    const fmt = s => new Date(s + 'T00:00:00').toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+    if (opts.from && opts.to) return `${fmt(opts.from)} – ${fmt(opts.to)}`;
+    if (opts.from) return `Since ${fmt(opts.from)}`;
+    if (opts.to)   return `Up to ${fmt(opts.to)}`;
+    return 'Custom range';
+  }
+  return 'Workouts';
+}
+
+// Use the stored final score for ended sessions; otherwise compute live.
+function sessionScore(session) {
+  return session.finalScore || computeWorkoutScore(session);
+}
+
+// Normalize a session into the shape both the text and image builders consume.
+function summarizeSession(session) {
+  const stats = computeSessionStats(session);
+  const score = sessionScore(session);
+  const start = new Date(session.date);
+  const dateAbs = start.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+  const startT = fmtTime(session.date);
+  const timeRange = session.endedAt ? `${startT}–${fmtTime(session.endedAt)}` : `${startT} · in progress`;
+  const hr = (session.hr && (session.hr.avg != null || session.hr.max != null || session.hr.calories != null)) ? session.hr : null;
+  const exercises = (session.exercises || []).map(ex => {
+    if (ex.cardio) return { name: displayName(ex.varUuid, ex.subUuid), detail: cardioSummary(ex.cardio) || '—', isCardio: true };
+    if (!ex.sets || !ex.sets.length) return null;
+    return { name: displayName(ex.varUuid, ex.subUuid), detail: ex.sets.map(s => `${s.w}×${s.r}`).join(', '), isCardio: false };
+  }).filter(Boolean);
+  return { dateAbs, timeRange, stats, score, hr, exercises, raw: session };
+}
+
+// Build plain, Strava-description-friendly text for one session or a range.
+function buildWorkoutText(sessions, opts) {
+  const unit = state.unit;
+  const nf = n => Number(n).toLocaleString();
+  const blockFor = sm => {
+    const lines = [];
+    lines.push(`${sm.dateAbs} · ${sm.timeRange}`);
+    let stat = `Duration ${sm.stats.elapsedDisplay} · ${sm.stats.totalSets} set${sm.stats.totalSets===1?'':'s'} · ${nf(sm.stats.totalVolume)} ${unit}`;
+    if (sm.score) stat += ` · Score ${sm.score.grade} (${sm.score.points}/100)`;
+    lines.push(stat);
+    if (sm.hr) {
+      const hp = [];
+      if (sm.hr.avg != null) hp.push(`avg ${sm.hr.avg}`);
+      if (sm.hr.max != null) hp.push(`max ${sm.hr.max}`);
+      let hl = hp.length ? 'HR ' + hp.join(' / ') : '';
+      if (sm.hr.calories != null) hl = hl ? `${hl} · ${sm.hr.calories} cal` : `${sm.hr.calories} cal`;
+      if (hl) lines.push(hl);
+    }
+    lines.push('—');
+    if (sm.exercises.length) sm.exercises.forEach(e => lines.push(`${e.name} — ${e.detail}`));
+    else lines.push('(no exercises logged)');
+    return lines.join('\n');
+  };
+
+  const summaries = sessions.map(summarizeSession);
+  const out = [];
+  if (summaries.length === 1) {
+    out.push(blockFor(summaries[0]));
+  } else {
+    const totSets = summaries.reduce((s,x) => s + x.stats.totalSets, 0);
+    const totVol  = summaries.reduce((s,x) => s + x.stats.totalVolume, 0);
+    const totMin  = summaries.reduce((s,x) => s + x.stats.elapsedMin, 0);
+    const scored  = summaries.map(x => x.score).filter(Boolean);
+    const avgPts  = scored.length ? Math.round(scored.reduce((s,x) => s + x.points, 0) / scored.length) : null;
+    const durDisp = totMin >= 60 ? `${Math.floor(totMin/60)}h ${totMin%60}m` : `${totMin}m`;
+    out.push(exportScopeLabel(opts, sessions));
+    let agg = `${summaries.length} workouts · ${totSets} sets · ${nf(totVol)} ${unit} · ${durDisp} total`;
+    if (avgPts != null) agg += ` · avg ${gradeFor(avgPts)}`;
+    out.push(agg);
+    out.push('='.repeat(28));
+    summaries.forEach((sm, i) => {
+      out.push(blockFor(sm));
+      if (i < summaries.length - 1) out.push('-'.repeat(28));
+    });
+  }
+  out.push('');
+  out.push('— GymTracker');
+  return out.join('\n') + '\n';
+}
+
+// Filename stem for downloads (no user-entered text).
+function exportBaseName(opts, sessions) {
+  const ymd = d => { const x = new Date(d); const p = n => String(n).padStart(2,'0'); return `${x.getFullYear()}-${p(x.getMonth()+1)}-${p(x.getDate())}`; };
+  if (opts.preset === 'session' && sessions[0]) return `workout_${ymd(sessions[0].date)}`;
+  if (sessions.length) {
+    const newest = ymd(sessions[0].date), oldest = ymd(sessions[sessions.length-1].date);
+    return newest === oldest ? `workout_${newest}` : `workouts_${oldest}_${newest}`;
+  }
+  return 'workouts';
+}
+
+// Render a themed portrait summary card to a PNG Blob via Canvas 2D.
+// Returns null (not throws) when no 2D context is available (e.g. headless harness).
+function renderWorkoutCard(sessions, opts) {
+  return new Promise(resolve => {
+    const C = readThemeColors();
+    const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+    const W = 600, PAD = 24, GAP = 16, HPAD = 18;
+    const TITLE_FS = 22, SUB_ADV = 20, TITLE_SUB_GAP = 8, STAT_ROW_H = 44, HEADER_BOTTOM = 16;
+    const gridTopRel = HPAD + TITLE_FS + SUB_ADV + TITLE_SUB_GAP;
+    const headerH = gridTopRel + STAT_ROW_H * 2 + HEADER_BOTTOM;
+    const ROW_H = 28, HEAD_ROW_H = 24, DAY_H = 32, MORE_H = 24, GROUP_GAP = 12, FOOTER_H = 46;
+    const MAX_ROWS_SINGLE = 16, MAX_DAYS = 14, MAX_ROWS_DAY = 6;
+
+    const summaries = sessions.map(summarizeSession);
+    const isRange = summaries.length > 1;
+    const unit = state.unit;
+    const nf = n => Number(n).toLocaleString();
+    const volDisp = v => v >= 1000 ? (v/1000).toFixed(1) + 'k' : String(v);
+
+    // ---- Header title/subtitle + 2×3 stat grid ----
+    let title, subtitle, cells;
+    if (!isRange) {
+      const sm = summaries[0];
+      title = sm.dateAbs;
+      subtitle = `${sm.timeRange} · ${sm.stats.exerciseCount} exercise${sm.stats.exerciseCount===1?'':'s'}`;
+      cells = [
+        ['Duration', sm.stats.elapsedDisplay],
+        [`Volume (${unit})`, volDisp(sm.stats.totalVolume)],
+        ['Sets', String(sm.stats.totalSets)],
+        ['Score', sm.score ? sm.score.grade : '—'],
+        ['HR avg/max', (sm.hr && (sm.hr.avg!=null||sm.hr.max!=null)) ? `${sm.hr.avg??'–'}/${sm.hr.max??'–'}` : '—'],
+        ['Calories', (sm.hr && sm.hr.calories!=null) ? String(sm.hr.calories) : '—'],
+      ];
+    } else {
+      const totSets = summaries.reduce((s,x) => s + x.stats.totalSets, 0);
+      const totVol  = summaries.reduce((s,x) => s + x.stats.totalVolume, 0);
+      const totMin  = summaries.reduce((s,x) => s + x.stats.elapsedMin, 0);
+      const totCal  = summaries.reduce((s,x) => s + ((x.hr && x.hr.calories!=null) ? x.hr.calories : 0), 0);
+      const scored  = summaries.map(x => x.score).filter(Boolean);
+      const avgPts  = scored.length ? Math.round(scored.reduce((s,x) => s + x.points, 0) / scored.length) : null;
+      const durDisp = totMin >= 60 ? `${Math.floor(totMin/60)}h ${totMin%60}m` : `${totMin}m`;
+      const fmtShort = d => new Date(d).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+      title = exportScopeLabel(opts, sessions);
+      subtitle = `${fmtShort(sessions[sessions.length-1].date)} – ${fmtShort(sessions[0].date)} · ${summaries.length} workouts`;
+      cells = [
+        ['Workouts', String(summaries.length)],
+        [`Volume (${unit})`, volDisp(totVol)],
+        ['Sets', String(totSets)],
+        ['Avg score', avgPts!=null ? gradeFor(avgPts) : '—'],
+        ['Duration', durDisp],
+        ['Calories', totCal > 0 ? nf(totCal) : '—'],
+      ];
+    }
+
+    // ---- Body items (flat list with per-item heights → drives canvas height) ----
+    const items = [];
+    if (!isRange) {
+      const sm = summaries[0];
+      items.push({ kind:'heading', text:'EXERCISES', h: HEAD_ROW_H });
+      sm.exercises.slice(0, MAX_ROWS_SINGLE).forEach(e => items.push({ kind:'ex', e, h: ROW_H }));
+      if (!sm.exercises.length) items.push({ kind:'more', text:'No exercises logged', h: MORE_H });
+      if (sm.exercises.length > MAX_ROWS_SINGLE) items.push({ kind:'more', text:`+${sm.exercises.length - MAX_ROWS_SINGLE} more exercises`, h: MORE_H });
+    } else {
+      const days = summaries.slice(0, MAX_DAYS);
+      days.forEach((sm, di) => {
+        items.push({ kind:'day', sm, h: DAY_H });
+        sm.exercises.slice(0, MAX_ROWS_DAY).forEach(e => items.push({ kind:'ex', e, h: ROW_H }));
+        if (sm.exercises.length > MAX_ROWS_DAY) items.push({ kind:'more', text:`+${sm.exercises.length - MAX_ROWS_DAY} more`, h: MORE_H });
+        if (di < days.length - 1) items.push({ kind:'gap', h: GROUP_GAP });
+      });
+      if (summaries.length > MAX_DAYS) items.push({ kind:'more', text:`+${summaries.length - MAX_DAYS} more workouts`, h: MORE_H });
+    }
+
+    const contentH = items.reduce((s, it) => s + it.h, 0);
+    const totalH = Math.min(Math.round(PAD + headerH + GAP + contentH + FOOTER_H + PAD), 8000);
+
+    const DPR = Math.min(window.devicePixelRatio || 1, 3);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext && canvas.getContext('2d');
+    if (!ctx) { resolve(null); return; } // harness-safe (no real 2D context)
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(totalH * DPR);
+    ctx.scale(DPR, DPR);
+
+    // text helper: sets font, optional ellipsis-fit, draws, returns drawn width
+    const T = (str, x, y, fs, weight, color, align, maxW) => {
+      ctx.font = `${weight} ${fs}px ${FONT}`;
+      ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic';
+      let s = String(str);
+      if (maxW) s = fitText(ctx, s, maxW);
+      ctx.fillText(s, x, y);
+      return ctx.measureText(s).width;
+    };
+
+    // background
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, totalH);
+
+    // header band
+    const bx = PAD, by = PAD, bw = W - PAD*2;
+    roundRectPath(ctx, bx, by, bw, headerH, 16); ctx.fillStyle = C.accent; ctx.fill();
+    const innerX = bx + HPAD, innerW = bw - HPAD*2;
+    T(title, innerX, by + HPAD + TITLE_FS, TITLE_FS, 700, C.onAccent, 'left', innerW);
+    ctx.globalAlpha = 0.82;
+    T(subtitle, innerX, by + HPAD + TITLE_FS + SUB_ADV, 13, 400, C.onAccent, 'left', innerW);
+    ctx.globalAlpha = 1;
+    const gridTop = by + gridTopRel, colW = innerW / 3;
+    cells.forEach((c, i) => {
+      const cx = innerX + (i % 3) * colW;
+      const vy = gridTop + Math.floor(i/3) * STAT_ROW_H + 22;
+      T(c[1], cx, vy, 20, 700, C.onAccent, 'left', colW - 8);
+      ctx.globalAlpha = 0.78;
+      T(c[0], cx, vy + 15, 9.5, 600, C.onAccent, 'left', colW - 8);
+      ctx.globalAlpha = 1;
+    });
+
+    // body
+    const cX = PAD, cW = W - PAD*2;
+    let y = by + headerH + GAP;
+    items.forEach(it => {
+      if (it.kind === 'heading') {
+        T(it.text, cX, y + 15, 10.5, 700, C.text3, 'left', cW);
+      } else if (it.kind === 'day') {
+        T(it.sm.dateAbs, cX, y + 19, 13.5, 700, C.accent2, 'left', cW * 0.62);
+        const sc = it.sm.score;
+        const right = `${it.sm.stats.totalSets} sets · ${volDisp(it.sm.stats.totalVolume)} ${unit}${sc ? ' · ' + sc.grade : ''}`;
+        T(right, cX + cW, y + 19, 11, 600, C.text3, 'right', cW * 0.6);
+        ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(cX, y + DAY_H - 5); ctx.lineTo(cX + cW, y + DAY_H - 5); ctx.stroke();
+      } else if (it.kind === 'ex') {
+        const e = it.e;
+        const dW = T(e.detail, cX + cW, y + 19, 12.5, 600, e.isCardio ? C.text3 : C.text2, 'right', cW * 0.45);
+        T(e.name, cX, y + 19, 13, 500, C.text, 'left', cW - dW - 16);
+      } else if (it.kind === 'more') {
+        T(it.text, cX, y + 16, 11.5, 600, C.text3, 'left', cW);
+      }
+      y += it.h;
+    });
+
+    // footer
+    const fy = totalH - FOOTER_H;
+    ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD, fy + 6); ctx.lineTo(W - PAD, fy + 6); ctx.stroke();
+    T('GymTracker', PAD, fy + 28, 12, 700, C.text2, 'left');
+    T(isRange ? `${summaries.length} workouts` : 'workout summary', W - PAD, fy + 28, 11, 400, C.text3, 'right');
+
+    try { canvas.toBlob(b => resolve(b), 'image/png'); }
+    catch(e) { resolve(null); }
+  });
+}
+
+/* ---- Export dialog (body-level overlay; works from the Log tab or the drawer) ---- */
+function closeExportDialog() {
+  const b = document.getElementById('export-backdrop');
+  if (b) b.remove();
+}
+function openExportDialog(opts) {
+  closeExportDialog();
+  const st = { opts: Object.assign({ preset: 'session' }, opts || {}), from: '', to: '' };
+  const backdrop = document.createElement('div');
+  backdrop.id = 'export-backdrop';
+  const modal = document.createElement('div');
+  modal.id = 'export-modal';
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) closeExportDialog(); });
+  renderExportPhaseA(modal, st);
+  requestAnimationFrame(() => backdrop.classList.add('open'));
+}
+
+function renderExportPhaseA(modal, st) {
+  const presets = [
+    ['session','This workout'], ['week','This week'], ['month','This month'],
+    ['last30','Last 30 days'], ['all','All time'], ['custom','Custom'],
+  ];
+  const hasSession = !!st.opts.sessionDate;
+  const chips = presets
+    .filter(p => p[0] !== 'session' || hasSession)
+    .map(p => `<button class="drawer-pill ${st.opts.preset===p[0]?'active':''}" data-preset="${p[0]}">${p[1]}</button>`)
+    .join('');
+  modal.innerHTML = `
+    <div class="export-modal-head">📤 Export workout</div>
+    <div class="export-scope-chips">${chips}</div>
+    <div id="export-custom" style="display:${st.opts.preset==='custom'?'flex':'none'};gap:8px;margin-top:10px;">
+      <label class="export-date-lbl">From<input type="date" id="export-from" value="${st.from}"></label>
+      <label class="export-date-lbl">To<input type="date" id="export-to" value="${st.to}"></label>
+    </div>
+    <div id="export-count" class="export-count"></div>
+    <div class="export-actions">
+      <button class="export-btn primary" id="export-build-btn">Build export</button>
+      <button class="export-btn" id="export-cancel-btn">Cancel</button>
+    </div>`;
+  const currentOpts = () => Object.assign({}, st.opts, { from: st.from, to: st.to });
+  const updateCount = () => {
+    const sessions = selectSessionsForExport(currentOpts());
+    const sets = sessions.reduce((s,x) => s + (x.exercises||[]).reduce((c,e) => c + (e.sets ? e.sets.length : 0), 0), 0);
+    modal.querySelector('#export-count').textContent = sessions.length
+      ? `${sessions.length} workout${sessions.length===1?'':'s'} · ${sets} set${sets===1?'':'s'}`
+      : 'No workouts in this range';
+    modal.querySelector('#export-build-btn').disabled = !sessions.length;
+  };
+  modal.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
+    st.opts.preset = b.dataset.preset;
+    modal.querySelectorAll('[data-preset]').forEach(x => x.classList.toggle('active', x === b));
+    modal.querySelector('#export-custom').style.display = st.opts.preset === 'custom' ? 'flex' : 'none';
+    updateCount();
+  }));
+  modal.querySelector('#export-from')?.addEventListener('change', e => { st.from = e.target.value; updateCount(); });
+  modal.querySelector('#export-to')?.addEventListener('change', e => { st.to = e.target.value; updateCount(); });
+  modal.querySelector('#export-cancel-btn').addEventListener('click', closeExportDialog);
+  modal.querySelector('#export-build-btn').addEventListener('click', () => {
+    const opts = currentOpts();
+    const sessions = selectSessionsForExport(opts);
+    if (!sessions.length) { toast('No workouts in this range'); return; }
+    renderExportPhaseB(modal, opts, sessions);
+  });
+  updateCount();
+}
+
+async function renderExportPhaseB(modal, opts, sessions) {
+  const text = buildWorkoutText(sessions, opts);
+  const baseName = exportBaseName(opts, sessions);
+  modal.innerHTML = `
+    <div class="export-modal-head">📤 ${escapeHtml(exportScopeLabel(opts, sessions))}</div>
+    <div class="export-preview-wrap"><div class="export-building">Building image…</div><img id="export-preview" alt="Workout summary" style="display:none;"></div>
+    <div class="export-actions export-result-actions">
+      <button class="export-btn primary" id="export-dl-png" disabled>⬇ PNG</button>
+      <button class="export-btn" id="export-dl-txt">⬇ Text</button>
+      <button class="export-btn" id="export-copy">⧉ Copy</button>
+      ${('share' in navigator) ? '<button class="export-btn" id="export-share">↗ Share</button>' : ''}
+    </div>
+    <div class="export-actions">
+      <button class="export-btn" id="export-back">‹ Back</button>
+      <button class="export-btn" id="export-close-btn">Close</button>
+    </div>`;
+  modal.querySelector('#export-back').addEventListener('click', () => renderExportPhaseA(modal, { opts: Object.assign({}, opts), from: opts.from||'', to: opts.to||'' }));
+  modal.querySelector('#export-close-btn').addEventListener('click', closeExportDialog);
+  modal.querySelector('#export-dl-txt').addEventListener('click', () => { downloadText(text, baseName + '.txt'); toast('Text exported'); });
+  modal.querySelector('#export-copy').addEventListener('click', () => copyText(text));
+
+  let blob = null;
+  try { blob = await renderWorkoutCard(sessions, opts); } catch(e) { blob = null; }
+  if (!document.body.contains(modal)) return; // dialog closed mid-build
+
+  const img = modal.querySelector('#export-preview');
+  const building = modal.querySelector('.export-building');
+  const pngBtn = modal.querySelector('#export-dl-png');
+  if (blob && img) {
+    const url = URL.createObjectURL(blob);
+    img.onload = () => setTimeout(() => URL.revokeObjectURL(url), 8000);
+    img.src = url; img.style.display = 'block';
+    if (building) building.style.display = 'none';
+    pngBtn.disabled = false;
+    pngBtn.addEventListener('click', () => { downloadBlob(blob, baseName + '.png'); toast('Image exported'); });
+  } else if (building) {
+    building.textContent = 'Image unavailable here — text export still works';
+  }
+  const shareBtn = modal.querySelector('#export-share');
+  if (shareBtn) shareBtn.addEventListener('click', () => shareExport(text, blob, baseName));
+}
+
 /* --------- SETTINGS TAB --------- */
 
 function exportData() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type:'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
   // Build filename-safe timestamp: YYYY-MM-DD_HHMMSS
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
   const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  a.href = url;
-  a.download = `overload-tracker_${ts}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([JSON.stringify(state, null, 2)], { type:'application/json' }), `overload-tracker_${ts}.json`);
   toast('Exported as overload-tracker_' + ts + '.json');
 }
 
@@ -5538,16 +6078,10 @@ function exportReferenceCsv() {
   }
 
   const csv = lines.join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
   const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
-  a.href = url;
-  a.download = `gym-reference_${ts}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `gym-reference_${ts}.csv`);
   toast(`Exported ${lines.length - 1} rows → gym-reference_${ts}.csv`);
 }
 function importData(e) {

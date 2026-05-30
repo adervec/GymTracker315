@@ -85,6 +85,18 @@ They share variation **UUIDs**.
 Export/import JSON (merge vs overwrite); auto‑save / auto‑load to file or folder with
 deletion policies (Chromium); settings inside the JSON; CSV export of the reference.
 
+**Workout export (50):** export a single workout (the `⤴` button on any session card) or a date
+range (Settings → Data → *Export Workout / Range…*) as a **themed portrait image** and as **plain
+text**. Scope presets: single workout · this week · this month · last 30 days · all‑time · custom
+from/to (`selectSessionsForExport`). The image is drawn with the **Canvas 2D API** (zero‑deps — no
+html2canvas / SVG `<foreignObject>`, which taints the canvas on iOS Safari): a header band in the
+active theme's `--accent` (header text auto‑contrasted via `pickContrast`), a 2×3 stat grid
+(duration · volume · sets · score · HR · calories), then the exercise list with top sets; height is
+computed before sizing and scaled by `devicePixelRatio` for crisp output. Delivery shares one
+`downloadBlob` helper (the JSON/CSV/log exporters were refactored onto it) plus `copyText`
+(Clipboard API + `<textarea>`/`execCommand` fallback) and `shareExport` (Web Share with the PNG as a
+`File` where `navigator.canShare({files})`). `buildWorkoutText()` produces clean, Strava‑ready text.
+
 ### Profile & preferences — DONE
 - **Profile (34):** name, DOB→age, height, gender → BMI / relative‑strength context.
 - **Hold‑to‑confirm (32):** press‑and‑hold replaces yes/no popups on destructive buttons.
@@ -158,6 +170,12 @@ Ring‑buffer event log in its own storage key; global error capture; in‑drawe
 - **#49** — Make the anatomy chart toggle to externally‑attached, more richly detailed charts and ensure the
   glossary covers everything on them. (Requires source charts that aren't provided; the built‑in stylized
   chart + comprehensive anatomy glossary ship today.)
+- **#50‑Strava** — push the workout summary into the Strava activity the Garmin Forerunner
+  auto‑generates (match by overlapping time window, then `PUT /activities/{id}` description). Deferred:
+  Strava's API only exposes the activity *description/name* (no structured sets), and OAuth needs a
+  server‑side secret + token refresh — so it requires a small backend (the same one the multi‑device
+  sync question is parked on; a serverless worker would cover both). The text export is already
+  Strava‑ready, so this becomes "authenticate + match + PUT" once a backend exists.
 
 ---
 
