@@ -197,6 +197,15 @@ wordmark, height stays 48px (so the rest‑bar/panel/picker offsets are untouche
 every commit, so it never goes stale. The auto‑save status badge is a self‑contained fixed pill (decoupled
 from the old top‑bar `#app-ts` anchor).
 
+### Per‑exercise notes (54) — DONE
+The log‑sets header (`.selected-exercise`) carries a **custom note that sticks to the exercise** —
+add / edit / view / clear inline, persisted globally and re‑shown every time that exercise is logged (the
+Strong/Hevy convention), independent of any session. Stored as `state.exerciseNotes[varUuid] = {text, updatedAt}`
+keyed by **variation** (so the note is stable across grip/sub‑option changes); `getExerciseNote`/`setExerciseNote`
+read/write it and `normalizeState` defaults the map. The header shows "📝 …note… · edit" when set and
+"＋ Add note" when empty; an inline textarea (Save / Cancel / Clear) drives it, toggled by
+`modalState.exNoteEditing` + a `renderModal()` re‑render, and reset on every modal open / exercise switch.
+
 ### Deferred — ONHOLD
 - **#49** — Make the anatomy chart toggle to externally‑attached, more richly detailed charts and ensure the
   glossary covers everything on them. (Requires source charts that aren't provided; the built‑in stylized
@@ -228,3 +237,4 @@ from the old top‑bar `#app-ts` anchor).
 - `parseMapsLatLng` reads coordinates from common Google Maps URL forms or a plain `lat,lng`; it does not call any Maps API.
 - Rest analytics & the recommended‑rest blend only populate from sessions logged **after** feat 51 shipped (older sets lack the `wTs` start timestamp); they fall back to heuristics until then.
 - The build stamp auto‑updates via a git pre‑commit hook; enable it once per clone with `git config core.hooksPath .githooks` (Node must be on PATH). Each commit therefore touches `gym-tracker.html` with the refreshed stamp.
+- Exercise notes are **global per variation** — the same note shows for every grip/sub‑option and in every session; they are intentionally not repeated on per‑session history rows or in the image/text export (easy follow‑ups).

@@ -1129,6 +1129,12 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .selected-ex-name { font-size: 14px; font-weight: 700; color: #fff; }
   .selected-ex-family { font-size: 11px; color: #888; margin-top: 2px; }
   .selected-ex-change { font-size: 11px; color: #b48aff; cursor: pointer; margin-top: 6px; display: inline-block; text-decoration: underline; }
+  .ex-note-row { margin-top: 2px; }
+  .ex-note { font-size: 11px; color: #cdbff0; margin-top: 6px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+  .ex-note-text { color: #cdbff0; }
+  .ex-note-add { font-size: 11px; color: #b48aff; cursor: pointer; margin-top: 6px; display: inline-block; text-decoration: underline; }
+  .ex-note .ex-note-add { margin-top: 0; margin-left: 4px; font-size: 10px; }
+  .ex-note-input { margin-top: 6px; font-size: 13px; resize: vertical; }
 
   /* Subscription in modal */
   .sub-select-wrap { background: #1f1a2a; border: 1px solid #2e2640; border-radius: 7px; padding: 8px 10px; margin: 0 0 10px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -1236,6 +1242,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .selected-ex-name { color: var(--text) !important; }
 .selected-ex-family, .selected-ex-label { color: var(--text2) !important; }
 .selected-ex-change { color: var(--accent) !important; }
+.ex-note, .ex-note-text { color: var(--text2) !important; }
+.ex-note-add { color: var(--accent) !important; }
 .suggestion { background: var(--accent-bg) !important; border-color: var(--accent-border) !important; }
 .tip-block-label { color: var(--text2) !important; }
 .tip-block-text { color: var(--text) !important; }
@@ -1460,6 +1468,21 @@ function familyTitle(varUuid) {
 function trackingKey(varUuid, subUuid) {
   // Unique key for progression tracking — variation+option together
   return subUuid ? `${varUuid}|${subUuid}` : varUuid;
+}
+
+// feat 54 — persistent, per-exercise custom note keyed by variation uuid.
+// "Sticks to the exercise": auto-shows in the log-sets header every time it's logged.
+function getExerciseNote(varUuid) {
+  if (!varUuid || !state.exerciseNotes) return null;
+  return state.exerciseNotes[varUuid] || null;
+}
+function setExerciseNote(varUuid, text) {
+  if (!varUuid) return;
+  if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {};
+  const t = (text || '').trim();
+  if (!t) delete state.exerciseNotes[varUuid];
+  else state.exerciseNotes[varUuid] = { text: t, updatedAt: new Date().toISOString() };
+  saveState();
 }
 
 /* ---- Hide flags (feat 23) ---- */
@@ -2060,6 +2083,7 @@ function normalizeState() {
   if (state.glossaryHighlight === undefined) state.glossaryHighlight = true;
   if (!state.bodyCompUnit) state.bodyCompUnit = state.unit || 'lb';
   if (!state.hiddenCategories || typeof state.hiddenCategories !== 'object') state.hiddenCategories = {};
+  if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
   state.cardioGoals = { weeklyMinutes:0, weeklyDistance:0, weeklySessions:0, distanceUnit:'km', ...(state.cardioGoals||{}) };
 }
 
@@ -6744,7 +6768,8 @@ let modalState = {
   pickerSub: 'all',
   pickerEquip: 'all',
   tipsExpanded: false, // session-level — inherits from state.tipsExpanded on modal open
-  tipsMode: 'concise' // session-level — inherits from state.tipsMode on modal open
+  tipsMode: 'concise', // session-level — inherits from state.tipsMode on modal open
+  exNoteEditing: false // feat 54 — per-exercise note editor open in the header
 };
 function openLogModal() {
   reapAbandonedSet(); // feat 51 — clean up a stale open set after a long gap
@@ -6754,6 +6779,7 @@ function openLogModal() {
   modalState.showPicker = !pending.varUuid;
   modalState.tipsExpanded = !!state.tipsExpanded;
   modalState.tipsMode = state.tipsMode || 'concise';
+  modalState.exNoteEditing = false; // feat 54
   // No clearing of pending — that's what makes it persistent
   if (pending.sets.length === 0) pending.sets = [{ w:'', r:'' }];
   renderModal();
@@ -6777,6 +6803,7 @@ function editExisting(sessionDate, varUuid, subUuid) {
   modalState.showPicker = false;
   modalState.tipsExpanded = !!state.tipsExpanded;
   modalState.tipsMode = state.tipsMode || 'concise';
+  modalState.exNoteEditing = false; // feat 54
   pending.varUuid = varUuid;
   pending.subUuid = subUuid || null;
   if (ex.cardio) {
@@ -7082,6 +7109,7 @@ function bindPicker() {
       }
       savePending();
       modalState.showPicker = false;
+      modalState.exNoteEditing = false; // feat 54
       renderModal();
       updateFAB();
       updateSaveBtn();
@@ -7362,6 +7390,22 @@ function renderSetsForm() {
     `;
   }).join('');
 
+  // feat 54 — per-exercise custom note region for the header
+  const exNote = getExerciseNote(pending.varUuid);
+  let exNoteHtml;
+  if (modalState.exNoteEditing) {
+    exNoteHtml = `<textarea class="ex-note-input" id="trk-ex-note-input" rows="2" placeholder="Setup, cues, machine #, grip…">${escapeHtml(exNote ? exNote.text : '')}</textarea>
+      <div class="btn-row" style="margin-top:6px;">
+        <button class="secondary" id="trk-ex-note-save">Save note</button>
+        <button class="secondary" id="trk-ex-note-cancel">Cancel</button>
+        ${exNote ? '<button class="danger" id="trk-ex-note-clear">Clear</button>' : ''}
+      </div>`;
+  } else if (exNote) {
+    exNoteHtml = `<div class="ex-note">📝 <span class="ex-note-text">${escapeHtml(exNote.text)}</span> <span class="ex-note-add" id="trk-ex-note-edit">edit</span></div>`;
+  } else {
+    exNoteHtml = `<span class="ex-note-add" id="trk-ex-note-edit">＋ Add note</span>`;
+  }
+
   return `
     <div class="selected-exercise">
       <div class="selected-ex-label">${modalState.isEditing ? 'Editing' : 'Logging'}</div>
@@ -7372,6 +7416,7 @@ function renderSetsForm() {
         M.mode==='distance' ? `Carry — log <b>weight × distance</b> instead of reps (distance in your preferred unit).` :
         `Hold — log <b>weight × seconds</b> instead of reps.`
       }</div>` : ''}
+      <div class="ex-note-row">${exNoteHtml}</div>
       ${!modalState.isEditing ? `<span class="selected-ex-change" id="trk-change-exercise">← Change exercise</span>` : ''}
     </div>
 
@@ -7455,10 +7500,12 @@ function renderNeighborHints() {
 function bindSetsForm() {
   document.getElementById('trk-back-to-picker')?.addEventListener('click', () => {
     modalState.showPicker = true;
+    modalState.exNoteEditing = false; // feat 54
     renderModal();
   });
   document.getElementById('trk-change-exercise')?.addEventListener('click', () => {
     modalState.showPicker = true;
+    modalState.exNoteEditing = false; // feat 54
     renderModal();
   });
 
@@ -7480,6 +7527,31 @@ function bindSetsForm() {
     const sec = document.getElementById('trk-tips-section');
     sec.classList.toggle('open');
     modalState.tipsExpanded = sec.classList.contains('open');
+  });
+
+  // feat 54 — per-exercise custom note: add / edit / view / clear from the header
+  document.getElementById('trk-ex-note-edit')?.addEventListener('click', () => {
+    modalState.exNoteEditing = true;
+    renderModal();
+    document.getElementById('trk-ex-note-input')?.focus();
+  });
+  document.getElementById('trk-ex-note-save')?.addEventListener('click', () => {
+    const ta = document.getElementById('trk-ex-note-input');
+    const v = ta ? ta.value : '';
+    setExerciseNote(pending.varUuid, v);
+    modalState.exNoteEditing = false;
+    renderModal();
+    toast(v.trim() ? 'Note saved' : 'Note cleared');
+  });
+  document.getElementById('trk-ex-note-clear')?.addEventListener('click', () => {
+    setExerciseNote(pending.varUuid, '');
+    modalState.exNoteEditing = false;
+    renderModal();
+    toast('Note cleared');
+  });
+  document.getElementById('trk-ex-note-cancel')?.addEventListener('click', () => {
+    modalState.exNoteEditing = false;
+    renderModal();
   });
 
   // Tips mode toggle (concise ↔ full)
@@ -7980,7 +8052,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 5 · 2026-05-31 18:41';
+const APP_BUILD = 'build 6 · 2026-05-31 19:19';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
