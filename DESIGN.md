@@ -157,6 +157,14 @@ imbalance **presets (11)**; over/under‑doing sort. **Cardio goals & adherence 
 tab sets weekly minutes/distance/sessions goals and shows this‑period adherence bars (hidden when cardio
 category is hidden).
 
+### Session analytics (52) — DONE
+A **Sessions** sub‑tab in Trends (`renderSessionTrends`) gives a light, *informational* read on training
+habits — explicitly not progression. From `sessionTrendData()` (per‑session size/length/time, duration via
+`endedAt` else last‑set time): summary tiles (avg length / sets / volume / typical start), sparklines for
+per‑session **volume** and **duration** (`trendSparkSVG`), and bar charts (`trendBarsSVG`) for **time of day**
+(6 buckets), **day of week**, and **workouts per week** (last 10). Reuses `computeSessionStats`/`lastSetTs`/
+`startOfWeek`; charts are theme‑coloured via CSS vars.
+
 ### Categories visibility (8) — DONE
 Settings → Categories hides **cardio / mobility / recovery** entirely: `categoryHidden()` removes them from
 the picker (via `varVisibleInPicker`) and suppresses their features (e.g. cardio goals).

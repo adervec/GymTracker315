@@ -1019,6 +1019,16 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .overall-chart .grid-line { stroke: #1f1f1f; stroke-width: 1; }
   .overall-chart .y-label { font-size: 9px; fill: #555; font-family: -apple-system, sans-serif; }
   .overall-chart .x-label { font-size: 9px; fill: #555; font-family: -apple-system, sans-serif; }
+  /* feat 52 — session-trends sparklines + bar charts (theme-aware) */
+  .trend-spark { width: 100%; height: 48px; display: block; margin-top: 8px; }
+  .trend-spark .spark-line { fill: none; stroke: var(--accent); stroke-width: 1.6; }
+  .trend-spark .spark-area { fill: var(--accent); opacity: 0.12; stroke: none; }
+  .trend-spark .spark-dot { fill: var(--accent); stroke: var(--card-bg); stroke-width: 1.5; }
+  .trend-bars { width: 100%; height: auto; display: block; margin-top: 8px; }
+  .trend-bars .tbar { fill: var(--text3); opacity: 0.5; }
+  .trend-bars .tbar-on { fill: var(--accent); opacity: 0.95; }
+  .trend-bars .tbar-label { fill: var(--text3); font-size: 8px; font-family: -apple-system, system-ui, sans-serif; }
+  .trend-bars .tbar-val { fill: var(--text2); font-size: 8px; font-weight: 700; font-family: -apple-system, system-ui, sans-serif; }
 
   .trend-empty { text-align: center; color: #555; padding: 30px 20px; font-size: 12.5px; }
 
@@ -5759,20 +5769,110 @@ function renderOverallChart(progress) {
   </svg>`;
 }
 
+/* ============================================================
+   SESSION TRENDS (feat 52) — light, informational habits view.
+   ============================================================ */
+// Per-session metrics, oldest→newest. Duration uses endedAt, else last-set time.
+function sessionTrendData() {
+  return (state.sessions || [])
+    .filter(s => s.exercises && s.exercises.length)
+    .map(s => {
+      const st = computeSessionStats(s);
+      const startMs = new Date(s.date).getTime();
+      const endMs = s.endedAt ? new Date(s.endedAt).getTime() : lastSetTs(s);
+      const durMin = (endMs && endMs > startMs) ? Math.round((endMs - startMs) / 60000) : null;
+      const d = new Date(s.date);
+      return { startMs, date: s.date, hour: d.getHours(), dow: d.getDay(),
+               durMin, sets: st.totalSets, reps: st.totalReps, volume: st.totalVolume, exercises: st.exerciseCount };
+    })
+    .sort((a, b) => a.startMs - b.startMs);
+}
+
+// Area+line sparkline for a numeric series (nulls dropped). Theme-coloured via CSS.
+function trendSparkSVG(values) {
+  const v = (values || []).filter(x => x != null && !isNaN(x));
+  if (v.length < 2) return '<div class="trend-empty">Not enough data yet.</div>';
+  const W = 300, H = 48, P = 4, n = v.length;
+  const min = Math.min(...v), max = Math.max(...v), rng = (max - min) || 1;
+  const pts = v.map((y, i) => ({ x: P + (i / (n - 1)) * (W - 2*P), y: H - P - ((y - min) / rng) * (H - 2*P) }));
+  const poly = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const area = `${P},${H-P} ${poly} ${W-P},${H-P}`;
+  const last = pts[pts.length - 1];
+  return `<svg class="trend-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <polygon class="spark-area" points="${area}"></polygon>
+    <polyline class="spark-line" points="${poly}"></polyline>
+    <circle class="spark-dot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="3"></circle>
+  </svg>`;
+}
+
+// Vertical bar chart for [{label,value}]; the max bar is emphasised. Theme-coloured.
+function trendBarsSVG(bars) {
+  const data = bars || [];
+  if (!data.length || data.every(b => !b.value)) return '<div class="trend-empty">No data yet.</div>';
+  const W = 300, H = 72, padB = 16, padT = 12, gap = 4;
+  const max = Math.max(...data.map(b => b.value), 1);
+  const bw = (W - gap * (data.length - 1)) / data.length;
+  let svg = '';
+  data.forEach((b, i) => {
+    const h = (b.value / max) * (H - padB - padT);
+    const x = i * (bw + gap), y = H - padB - h;
+    const on = b.value === max && b.value > 0;
+    svg += `<rect class="tbar ${on ? 'tbar-on' : ''}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" rx="2"></rect>`;
+    if (b.value > 0) svg += `<text class="tbar-val" x="${(x+bw/2).toFixed(1)}" y="${(y-2).toFixed(1)}" text-anchor="middle">${b.value}</text>`;
+    svg += `<text class="tbar-label" x="${(x+bw/2).toFixed(1)}" y="${H-4}" text-anchor="middle">${escapeHtml(b.label)}</text>`;
+  });
+  return `<svg class="trend-bars" viewBox="0 0 ${W} ${H}">${svg}</svg>`;
+}
+
+// The "Sessions" Trends sub-tab content (feat 52). Returns an HTML string.
+function renderSessionTrends() {
+  const data = sessionTrendData();
+  if (!data.length) return `<div class="trend-empty">Log a few workouts to see session trends.</div>`;
+  const unit = state.unit;
+  const recent = data.slice(-20);
+  const fmtMin = m => m >= 60 ? `${Math.floor(m/60)}h ${m%60}m` : `${m}m`;
+  const durs = data.map(d => d.durMin).filter(x => x != null);
+  const avgDur = durs.length ? Math.round(durs.reduce((a,b) => a+b, 0) / durs.length) : null;
+  const avgSets = Math.round(data.reduce((a,d) => a+d.sets, 0) / data.length);
+  const avgVol = Math.round(data.reduce((a,d) => a+d.volume, 0) / data.length);
+  const avgEx = Math.round(data.reduce((a,d) => a+d.exercises, 0) / data.length);
+  const hours = data.map(d => d.hour).slice().sort((a,b) => a-b);
+  const medHour = hours[Math.floor(hours.length/2)];
+  const typicalTime = fmtTime(new Date(2000, 0, 1, medHour, 0));
+  const nowWk = startOfWeek(new Date());
+  let last4 = 0;
+  for (let w = 0; w < 4; w++) { const a = nowWk - w*7*86400000, b = a + 7*86400000; last4 += data.filter(d => d.startMs >= a && d.startMs < b).length; }
+  const perWk = (last4 / 4).toFixed(1);
+
+  const tile = (val, label) => `<div class="stat-tile"><div class="stat-label">${label}</div><div class="stat-value">${val}</div></div>`;
+  const card = (title, sub, chart) => `<div class="trend-card"><div class="trend-card-title">${title}</div><div class="trend-card-sub">${sub}</div>${chart}</div>`;
+
+  let html = `<div style="font-size:11px;color:var(--text3);margin:4px 0 10px;line-height:1.5;">How your sessions look — informational, not progress. Based on ${data.length} workout${data.length===1?'':'s'}.</div>`;
+  html += `<div class="stats-grid">
+    ${tile(avgDur != null ? fmtMin(avgDur) : '—', 'Avg length')}
+    ${tile(avgSets, 'Avg sets')}
+    ${tile(avgVol >= 1000 ? (avgVol/1000).toFixed(1)+'k' : avgVol, 'Avg vol ' + unit)}
+    ${tile('~' + typicalTime, 'Typical start')}
+  </div>`;
+  html += `<div style="font-size:11px;color:var(--text3);margin:8px 0 2px;">~${perWk} workouts/week recently · avg ${avgEx} exercise${avgEx===1?'':'s'} / session</div>`;
+
+  html += card('Workout size', `Volume per session · last ${recent.length}`, trendSparkSVG(recent.map(d => d.volume)));
+  html += card('Workout length', `Minutes per session · last ${recent.length}`, trendSparkSVG(recent.map(d => d.durMin)));
+  const TOD = [['Early', h=>h>=4&&h<7], ['Morning', h=>h>=7&&h<11], ['Midday', h=>h>=11&&h<14], ['Afternoon', h=>h>=14&&h<17], ['Evening', h=>h>=17&&h<21], ['Night', h=>h>=21||h<4]];
+  html += card('Time of day', 'When you train', trendBarsSVG(TOD.map(([label, test]) => ({ label, value: data.filter(d => test(d.hour)).length }))));
+  const DOW = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  html += card('Day of week', 'Which days you train', trendBarsSVG(DOW.map((label, i) => { const target = (i+1) % 7; return { label, value: data.filter(d => d.dow === target).length }; })));
+  const wkBars = [];
+  for (let w = 9; w >= 0; w--) { const a = nowWk - w*7*86400000, b = a + 7*86400000; wkBars.push({ label: w === 0 ? 'now' : '-'+w, value: data.filter(d => d.startMs >= a && d.startMs < b).length }); }
+  html += card('Workouts per week', 'Last 10 weeks', trendBarsSVG(wkBars));
+  return html;
+}
+
 function renderTrends(main) {
   if (state.sessions.length === 0) {
     main.innerHTML = `<div class="empty"><div class="empty-large">📈</div>Log some sessions to see trends</div>`;
     return;
   }
-
-  const overall = computeOverallProgress();
-  const overallTrend = overall && overall.composite.length >= 2
-    ? computeTrend(overall.composite.map(d => ({ date: d.date, oneRM: d.val })))
-    : null;
-
-  let trendList = buildTrendList(trendView === 'overall' ? 'movement' : trendView)
-    .filter(t => t.series.length >= 2)
-    .sort((a, b) => (b.trend?.weeklyPct || 0) - (a.trend?.weeklyPct || 0));
 
   let html = `<div class="trend-tabs">
     <div class="trend-tab ${trendView === 'overall' ? 'active' : ''}" data-trend="overall">Overall</div>
@@ -5780,9 +5880,17 @@ function renderTrends(main) {
     <div class="trend-tab ${trendView === 'muscle' ? 'active' : ''}" data-trend="muscle">Muscle</div>
     <div class="trend-tab ${trendView === 'category' ? 'active' : ''}" data-trend="category">Category</div>
     <div class="trend-tab ${trendView === 'subscription' ? 'active' : ''}" data-trend="subscription">Subscription</div>
+    <div class="trend-tab ${trendView === 'sessions' ? 'active' : ''}" data-trend="sessions">Sessions</div>
   </div>`;
 
-  if (trendView === 'overall') {
+  if (trendView === 'sessions') {
+    // feat 52 — informational session habits (size / length / time-of-day / day-of-week / frequency)
+    html += renderSessionTrends();
+  } else if (trendView === 'overall') {
+    const overall = computeOverallProgress();
+    const overallTrend = overall && overall.composite.length >= 2
+      ? computeTrend(overall.composite.map(d => ({ date: d.date, oneRM: d.val })))
+      : null;
     // Show composite chart + summary
     html += `<div class="trend-card">
       <div class="trend-card-head">
@@ -5816,6 +5924,9 @@ function renderTrends(main) {
       }
     }
   } else {
+    const trendList = buildTrendList(trendView)
+      .filter(t => t.series.length >= 2)
+      .sort((a, b) => (b.trend?.weeklyPct || 0) - (a.trend?.weeklyPct || 0));
     if (trendList.length === 0) {
       html += `<div class="trend-empty">Need at least 2 sessions per ${trendView} to compute trends.</div>`;
     } else {
