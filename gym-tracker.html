@@ -172,30 +172,6 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   box-shadow: 0 2px 12px var(--shadow);
 }
 
-#app-topbar .app-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-  padding: 0 14px;
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  border-right: 1px solid var(--nav-border);
-  flex-shrink: 0;
-}
-
-#app-topbar .app-ts {
-  font-size: 9px;
-  color: var(--text3);
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-  display: block;
-  margin-top: 1px;
-}
-
 .nav-tabs {
   display: flex;
   flex: 1;
@@ -207,18 +183,13 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 22px;
   color: var(--text3);
   cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
   border: none;
   background: transparent;
   transition: color 0.2s, background 0.2s;
   padding: 0 8px;
-  white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -228,12 +199,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   border-bottom: 2px solid var(--accent);
 }
 
-.nav-tab .nav-icon {
-  font-size: 15px;
-  line-height: 1;
-}
-
-/* Settings gear button in topbar */
+/* Settings gear + action buttons in topbar — chunky emoji (feat 53) */
 #app-settings-btn {
   display: flex;
   align-items: center;
@@ -243,7 +209,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   border: none;
   background: transparent;
   color: var(--text3);
-  font-size: 18px;
+  font-size: 20px;
   cursor: pointer;
   border-left: 1px solid var(--nav-border);
   transition: color 0.2s, background 0.2s;
@@ -253,14 +219,14 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 .app-bar-actions { display: flex; align-items: stretch; flex-shrink: 0; }
 .app-bar-btn {
   display: flex; align-items: center; justify-content: center;
-  width: 42px; flex-shrink: 0; border: none; background: transparent;
-  color: var(--text3); font-size: 17px; cursor: pointer;
+  width: 48px; flex-shrink: 0; border: none; background: transparent;
+  color: var(--text3); font-size: 20px; cursor: pointer;
   border-left: 1px solid var(--nav-border); transition: color 0.2s, background 0.2s;
   -webkit-tap-highlight-color: transparent;
 }
-#app-help-btn { font-weight: 800; font-size: 16px; }
+#app-help-btn { font-size: 20px; }
 .app-bar-btn:hover, .app-bar-btn.active { color: var(--accent); background: var(--nav-active); }
-.app-bar-actions #app-settings-btn { width: 42px; }
+.app-bar-actions #app-settings-btn { width: 48px; }
 
 /* Settings drawer */
 #settings-backdrop {
@@ -1353,22 +1319,14 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 
 <!-- ====== TOP APP BAR ====== -->
 <div id="app-topbar">
-  <div class="app-title">
-    🏋️ Gym Tracker
-    <span class="app-ts" id="app-ts"></span>
-  </div>
   <div class="nav-tabs">
-    <button class="nav-tab active" data-panel="panel-tracker" onclick="switchPanel('panel-tracker', this)">
-      <span class="nav-icon">📈</span> Tracker
-    </button>
-    <button class="nav-tab" data-panel="panel-reference" onclick="switchPanel('panel-reference', this)">
-      <span class="nav-icon">📚</span> Reference
-    </button>
+    <button class="nav-tab active" data-panel="panel-tracker" onclick="switchPanel('panel-tracker', this)" title="Tracker" aria-label="Tracker">📈</button>
+    <button class="nav-tab" data-panel="panel-reference" onclick="switchPanel('panel-reference', this)" title="Reference" aria-label="Reference">📚</button>
   </div>
   <div class="app-bar-actions">
-    <button id="app-gloss-btn" class="app-bar-btn" onclick="openGloss()" title="Glossary">📖</button>
-    <button id="app-settings-btn" onclick="openSettingsDrawer()" title="Settings">⚙</button>
-    <button id="app-help-btn" class="app-bar-btn" onclick="openHelp()" title="Help">?</button>
+    <button id="app-gloss-btn" class="app-bar-btn" onclick="openGloss()" title="Glossary" aria-label="Glossary">📖</button>
+    <button id="app-settings-btn" onclick="openSettingsDrawer()" title="Settings" aria-label="Settings">⚙️</button>
+    <button id="app-help-btn" class="app-bar-btn" onclick="openHelp()" title="Help" aria-label="Help">❓</button>
   </div>
 </div>
 
@@ -1403,7 +1361,6 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <header>
   <div class="head-row">
     <h1>📈 Overload Tracker</h1>
-    <span class="ts" id="trk-ts"></span>
   </div>
   <div class="tabs">
     <div class="tab active" data-tab="log">Log</div>
@@ -2357,6 +2314,7 @@ function renderHelp() {
       <li>Switch themes in Settings — many are grouped by mood/category.</li>
     </ul>
     <p style="margin-top:16px;color:var(--text3);font-size:11px;">All data stays in your browser. No account, no sync, no tracking.</p>
+    <p style="margin-top:10px;color:var(--text3);font-size:10.5px;letter-spacing:0.3px;">${escapeHtml(APP_BUILD)}</p>
   `;
 }
 
@@ -2458,15 +2416,14 @@ async function autoSavePrune(dirHandle, cfg) {
   }
 }
 
-// Show a transient status badge in the top bar
+// Show a transient auto-save status badge — fixed bottom-left (feat 53: decoupled from the top bar)
 function autoSaveSetStatus(msg) {
   let el = document.getElementById('autosave-status');
   if (!el) {
-    el = document.createElement('span');
+    el = document.createElement('div');
     el.id = 'autosave-status';
-    el.style.cssText = 'font-size:9px;color:var(--text3);margin-left:6px;letter-spacing:0.3px;transition:opacity 0.4s;';
-    const ts = document.getElementById('app-ts');
-    if (ts && ts.parentNode) ts.parentNode.insertBefore(el, ts.nextSibling);
+    el.style.cssText = 'position:fixed;bottom:12px;left:12px;z-index:9997;font-size:10px;color:var(--text3);background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:3px 8px;letter-spacing:0.3px;transition:opacity 0.4s;pointer-events:none;';
+    document.body.appendChild(el);
   }
   el.textContent = msg;
   el.style.opacity = '1';
@@ -8022,11 +7979,8 @@ document.addEventListener('keydown', e => {
   }
 });
 
-(function() {
-  var BUILD = 'v1.5 · May 27 2026';
-  var el = document.getElementById('trk-ts');
-  if (el) el.textContent = '· ' + BUILD;
-})();
+// feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
+const APP_BUILD = 'build 5 · 2026-05-31 18:41';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -8168,7 +8122,7 @@ setTimeout(() => {
 <!-- ====== REFERENCE PANEL ====== -->
 <div class="panel" id="panel-reference">
 <header>
-  <h1>🏋️ Gym Quick Reference <span id="ref-ts" style="font-size: 11px; color: #555; font-weight: 400; letter-spacing: 0.3px; margin-left: 6px;"></span></h1>
+  <h1>🏋️ Gym Quick Reference</h1>
   <div class="search-row">
     <input type="text" id="ref-search" placeholder="Search exercises, muscles, cues..." autocomplete="off">
     <button id="ref-clear-btn">✕</button>
@@ -14916,12 +14870,7 @@ document.addEventListener('keydown', e => {
 renderGlossCats();
 renderGlossary();
 
-// Set timestamp on load
-(function() {
-  var BUILD = 'v1.5 · May 27 2026';
-  var el = document.getElementById('ref-ts');
-  if (el) el.textContent = '· ' + BUILD;
-})();
+// (build stamp centralized in APP_BUILD — feat 53; shown in Help)
 </script>
 </div>
 
@@ -14935,16 +14884,8 @@ function switchPanel(panelId, btn) {
   window.scrollTo(0, 0);
 }
 
-/* ====== BUILD STAMP ====== */
-(function() {
-  var BUILD = 'v1.5 · May 27 2026';
-  var appTs = document.getElementById('app-ts');
-  if (appTs) appTs.textContent = BUILD;
-  var refTs = document.getElementById('ref-ts');
-  if (refTs) refTs.textContent = '· ' + BUILD;
-  var trkTs = document.getElementById('trk-ts');
-  if (trkTs) trkTs.textContent = '· ' + BUILD;
-})();
+/* ====== BUILD STAMP ====== build number + full timestamp live in APP_BUILD (feat 53),
+   shown discreetly in Help, auto-rewritten by the .githooks pre-commit hook ====== */
 </script>
 
 </body>

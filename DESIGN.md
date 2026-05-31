@@ -189,6 +189,14 @@ link. Workout start pings location to auto‑select the nearest saved gym (≤2 
 ### Activity & error log (35) — DONE
 Ring‑buffer event log in its own storage key; global error capture; in‑drawer viewer; export to `.txt`.
 
+### UI chrome & build stamp (53) — DONE
+The top app bar is **emoji‑only** (📈 / 📚 panel tabs · 📖 / ⚙️ / ❓ actions) to save width on mobile — no
+wordmark, height stays 48px (so the rest‑bar/panel/picker offsets are untouched). The build identity is a
+**single `APP_BUILD` constant** shown discreetly at the foot of the **Help** panel (not the top bar); a tracked
+**`.githooks/pre-commit`** hook (`stamp-build.js`) rewrites it to `build <commit#> · <YYYY‑MM‑DD HH:MM>` on
+every commit, so it never goes stale. The auto‑save status badge is a self‑contained fixed pill (decoupled
+from the old top‑bar `#app-ts` anchor).
+
 ### Deferred — ONHOLD
 - **#49** — Make the anatomy chart toggle to externally‑attached, more richly detailed charts and ensure the
   glossary covers everything on them. (Requires source charts that aren't provided; the built‑in stylized
@@ -219,3 +227,4 @@ Ring‑buffer event log in its own storage key; global error capture; in‑drawe
 - Editing one of several cardio bouts of the *same* machine in a single session targets the first match.
 - `parseMapsLatLng` reads coordinates from common Google Maps URL forms or a plain `lat,lng`; it does not call any Maps API.
 - Rest analytics & the recommended‑rest blend only populate from sessions logged **after** feat 51 shipped (older sets lack the `wTs` start timestamp); they fall back to heuristics until then.
+- The build stamp auto‑updates via a git pre‑commit hook; enable it once per clone with `git config core.hooksPath .githooks` (Node must be on PATH). Each commit therefore touches `gym-tracker.html` with the refreshed stamp.

@@ -1,0 +1,7 @@
+#!/bin/sh
+# feat 53 — auto-stamp the build number + full timestamp into gym-tracker.html on
+# every commit, then re-stage it so the committed file always shows the true build.
+# Enable once per clone:  git config core.hooksPath .githooks
+root="$(git rev-parse --show-toplevel)"
+node "$root/.githooks/stamp-build.js" || exit 0
+git add "$root/gym-tracker.html"
