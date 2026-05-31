@@ -74,7 +74,8 @@ They share variation **UUIDs**.
   sessions[]
 }
 // session: { date, exercises[], endedAt?, endReason?, finalScore?, hr?:{avg,max,calories}, notes? }   (hr = feat 25)
-// exercise: { varUuid, subUuid, sets:[{w,r,ts}], supersetId?, cardio?:{elapsedMin,distance,distanceUnit,steps,power,calories,setting,effort,temp,weather,notes,ts} }
+// exercise: { varUuid, subUuid, sets:[{w,r,wTs?,ts}], supersetId?, cardio?:{elapsedMin,distance,distanceUnit,steps,power,calories,setting,effort,temp,weather,notes,ts} }
+//   set timing (feat 51): wTs = set START (weight entered); ts = set DONE (reps entered). Old sets have ts only.
 ```
 
 ---
@@ -112,6 +113,20 @@ Start/End (12) with confirmation (13); auto‑start/auto‑end; workout score vs
 live chunky estimate (14); pace algorithm (28); balanced‑physique advice (15); per‑element
 visibility toggles (33). **Forerunner stats (25):** manual avg HR / max HR / calories attached to
 any session via an inline ❤️ editor on the session card.
+
+### Smart rest timer & set lifecycle (51) — DONE
+A set now **starts when its weight is entered** (`wTs`) and is **done when reps are entered** (`ts`); the reps
+field stays locked until a weight is present (`isSetOpen`). Only **one open set** is allowed at a time, and an
+open set left without reps for `workoutControls.abandonMinutes` (default 5) is reaped (`reapAbandonedSet`).
+**Add Set:** single‑click adds an empty (or plate‑loader) set, double‑click pre‑fills the previous set's weight
+(`addSetRow`); the old clone button is hidden. A global **rest bar** under the top bar — driven by a single 1 s
+`restTick`, visible across tabs while a workout is active — shows the live *set‑active* time or the rest since the
+last set, colour‑coded against a **recommended range** (`recommendRest`): research‑based bands by exercise nature,
+adjusted by previous‑set intensity (overload level / e1RM / reps) and in‑session fatigue, then blended toward the
+user's own median rest for that exercise (`medianInterSetRest`) as data accrues — clamped 1 s…10 min. Optional
+vibrate / beep fire once per zone transition (settings toggles). The **timeline** draws `wTs→ts` duration bars +
+rest gaps (inter‑exercise rest styled distinctly, legacy ticks for un‑timed sets), and the Log tab shows live
+**set‑time / rest** analytics (`computeRestStats`) with inter‑exercise rest bucketed separately.
 
 ### Tracking modes — DONE
 `exMode()` classifies a variation as **standard** (weight×reps), **bodyweight** (added load; − =
@@ -195,3 +210,4 @@ Ring‑buffer event log in its own storage key; global error capture; in‑drawe
 - Auto‑save/load and GPS need Chromium / geolocation permission; file handles reset on reload.
 - Editing one of several cardio bouts of the *same* machine in a single session targets the first match.
 - `parseMapsLatLng` reads coordinates from common Google Maps URL forms or a plain `lat,lng`; it does not call any Maps API.
+- Rest analytics & the recommended‑rest blend only populate from sessions logged **after** feat 51 shipped (older sets lack the `wTs` start timestamp); they fall back to heuristics until then.

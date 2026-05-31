@@ -403,6 +403,31 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .export-preview-wrap img { max-width: 100%; height: auto; border-radius: 6px; display: block; }
   .export-building { font-size: 12px; color: var(--text3); }
 
+  /* feat 51 — locked reps input + global rest/set timer bar */
+  .set-input:disabled { opacity: 0.4; cursor: not-allowed; }
+  .rest-bar {
+    position: fixed; top: 48px; left: 0; right: 0; z-index: 9998;
+    height: 30px; display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 0 12px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+    font-variant-numeric: tabular-nums; letter-spacing: 0.2px; white-space: nowrap; overflow: hidden;
+    background: var(--bg3); color: var(--text2); border-bottom: 1px solid var(--border2);
+    box-shadow: 0 2px 8px var(--shadow); user-select: none;
+  }
+  .rest-bar > span:first-child { flex-shrink: 0; }
+  .rest-bar .rest-bar-sub { font-weight: 600; font-size: 10.5px; opacity: 0.85; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .rest-bar.open-set { background: rgba(120,140,200,0.16); color: #9db0e0; border-bottom-color: #3a4a6a; }
+  .rest-bar.too-short { background: rgba(226,148,74,0.18); color: var(--warn); border-bottom-color: var(--warn); }
+  .rest-bar.optimal  { background: rgba(95,208,104,0.16); color: var(--good); border-bottom-color: var(--good); }
+  .rest-bar.over     { background: var(--danger-bg); color: var(--danger); border-bottom-color: var(--danger); }
+  .rest-bar.inter-ex { background: var(--bg4); color: var(--text2); border-bottom-color: var(--border2); }
+  .rest-bar.flash    { animation: rest-flash 0.7s ease-in-out infinite; }
+  @keyframes rest-flash { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  body.rest-bar-on .panel { padding-top: 78px; }
+  /* feat 51 — timeline set-duration bars + rest gaps */
+  .timeline-setbar { opacity: 0.9; }
+  .timeline-rest { stroke: var(--text3); stroke-width: 2; opacity: 0.35; }
+  .timeline-rest-ex { stroke: var(--warn); stroke-width: 2; opacity: 0.55; stroke-dasharray: 3 3; }
+
 .panel {
   display: none;
   padding-top: 48px;
@@ -1337,6 +1362,9 @@ input[type=text], input[type=number], input[type=file], select, textarea {
   </div>
 </div>
 
+<!-- feat 51 — global rest/set timer bar (visible across tabs while a workout is active) -->
+<div id="rest-bar" class="rest-bar" style="display:none;" role="status" aria-live="polite" title="Tap to open the workout log"></div>
+
 <!-- ====== SETTINGS DRAWER ====== -->
 <div id="settings-backdrop" onclick="closeSettingsDrawer()"></div>
 <div id="settings-drawer">
@@ -1993,6 +2021,11 @@ let state = {
     autoEndMinutes: 40,        // auto-end if no fresh sets for this many minutes
     showLiveScoreAfterMin: 45, // show chunky live score estimate after this many minutes
     paceAnalysisStartMin: 20,  // pace algorithm kicks in after this many minutes
+    restTimer: true,           // feat 51 — run the global rest-timer tick + bar
+    abandonMinutes: 5,         // delete an open set (weight in, no reps) after this long
+    feedbackVibrate: true,     // vibrate on rest-zone transitions (mobile)
+    feedbackBeep: false,       // subtle WebAudio blip on rest-zone transitions
+    restRecEnabled: true,      // show the recommended-rest band
   },
   // ---- Profile (feat 34) — fed into BMI / age / relative-strength calcs ----
   profile: {
@@ -2048,7 +2081,8 @@ function normalizeState() {
     profile: { name:'', dob:'', heightCm:null, gender:'' },
     dashboard: { stats:true, timeline:true, liveScore:true, pace:true, physique:true },
     longPressConfirm: { enabled:false, ms:1500 },
-    workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20 },
+    workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
+      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true },
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   if (!Array.isArray(state.bodyComp)) state.bodyComp = [];
@@ -3052,6 +3086,55 @@ function renderSettingsDrawer() {
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
                background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Rest timer</div>
+        <div class="drawer-setting-sub">Live colour-coded rest/set timer + a global bar while training</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).restTimer !== false ? 'active' : ''}" data-wc="restTimer" data-wc-val="on">On</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).restTimer === false ? 'active' : ''}" data-wc="restTimer" data-wc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Recommended rest</div>
+        <div class="drawer-setting-sub">Show the target rest band (adapts to your history)</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).restRecEnabled !== false ? 'active' : ''}" data-wc="restRecEnabled" data-wc-val="on">On</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).restRecEnabled === false ? 'active' : ''}" data-wc="restRecEnabled" data-wc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Vibrate cues</div>
+        <div class="drawer-setting-sub">Buzz when you reach / exceed the rest target (mobile)</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).feedbackVibrate !== false ? 'active' : ''}" data-wc="feedbackVibrate" data-wc-val="on">On</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).feedbackVibrate === false ? 'active' : ''}" data-wc="feedbackVibrate" data-wc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Beep cues</div>
+        <div class="drawer-setting-sub">Subtle tone at the rest target (off by default)</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).feedbackBeep === true ? 'active' : ''}" data-wc="feedbackBeep" data-wc-val="on">On</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).feedbackBeep !== true ? 'active' : ''}" data-wc="feedbackBeep" data-wc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Abandon open set after</div>
+        <div class="drawer-setting-sub">Delete an unfinished set (weight in, no reps) after this long</div>
+      </div>
+      <input type="number" id="drawer-abandon-min" value="${(state.workoutControls||{}).abandonMinutes || 5}" min="1" max="30" step="1"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
+               background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
 
     <div class="drawer-section-title">Live Dashboard</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Show or hide each element of the current-workout dashboard.</div>
@@ -3301,6 +3384,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefGlossHl) { state.glossaryHighlight = btn.dataset.prefGlossHl === 'on'; saveState(); installGlossaryHighlight(); }
       else if (btn.dataset.dash) { state.dashboard[btn.dataset.dash] = btn.dataset.dashVal === 'on'; saveState(); }
       else if (btn.dataset.catVis) { state.hiddenCategories[btn.dataset.catVis] = btn.dataset.catVal === 'hide'; saveState(); render(); }
+      else if (btn.dataset.wc) { ensureWC(); state.workoutControls[btn.dataset.wc] = btn.dataset.wcVal === 'on'; saveState(); if (typeof refreshRestBar === 'function') refreshRestBar(); }
       renderSettingsDrawer();
     });
   });
@@ -3345,7 +3429,7 @@ function renderSettingsDrawer() {
   });
 
   // Workout controls
-  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20 }; };
+  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true }; };
   const aeInput = body.querySelector('#drawer-auto-end');
   if (aeInput) aeInput.addEventListener('change', () => {
     const v = parseInt(aeInput.value);
@@ -3360,6 +3444,11 @@ function renderSettingsDrawer() {
   if (psInput) psInput.addEventListener('change', () => {
     const v = parseInt(psInput.value);
     if (!isNaN(v) && v >= 5 && v <= 120) { ensureWC(); state.workoutControls.paceAnalysisStartMin = v; saveState(); toast('Pace after: ' + v + ' min'); }
+  });
+  const abInput = body.querySelector('#drawer-abandon-min');
+  if (abInput) abInput.addEventListener('change', () => {
+    const v = parseInt(abInput.value);
+    if (!isNaN(v) && v >= 1 && v <= 30) { ensureWC(); state.workoutControls.abandonMinutes = v; saveState(); toast('Abandon open set after: ' + v + ' min'); }
   });
 
   // Data buttons
@@ -3950,6 +4039,18 @@ function isSetValid(set, varUuid) {
   return w > 0 && w <= maxWeight && r > 0 && r <= 999 && Number.isInteger(r);
 }
 
+// feat 51 — set lifecycle. A set STARTS when weight is entered (wTs) and is DONE
+// when reps are entered (ts). "Open" = weight in, reps not yet (or zero).
+function isSetOpen(set) {
+  if (!set) return false;
+  const wFilled = set.w !== '' && set.w != null;
+  const rNum = parseFloat(set.r);
+  const rFilled = set.r !== '' && set.r != null && !isNaN(rNum) && rNum > 0;
+  return wFilled && !rFilled;
+}
+function setStartMs(set) { return set && set.wTs ? new Date(set.wTs).getTime() : null; }
+function setDoneMs(set)  { return set && set.ts  ? new Date(set.ts).getTime()  : null; }
+
 // Update save button: disabled if ANY set has a blank or negative/zero w or r,
 // or if there are no valid sets to save.
 function updateSaveBtn() {
@@ -3998,12 +4099,14 @@ function render() {
   else if (currentTab === 'body') renderBody(main);
   else if (currentTab === 'gyms') renderGymsTab(main);
   updateFAB();
+  if (typeof refreshRestBar === 'function') refreshRestBar(); // feat 51
 }
 
 /* --------- LOG TAB --------- */
 function renderLog(main) {
   // Check whether the today session should be auto-ended due to inactivity
   maybeAutoEndActive();
+  reapAbandonedSet(); // feat 51 — catch-up cleanup of a stale open set
 
   const recent = state.sessions.slice(-5).reverse();
   const todaySessions = state.sessions.filter(s => new Date(s.date).toDateString() === new Date().toDateString());
@@ -4114,6 +4217,17 @@ function renderLog(main) {
         </div>
       </div>`;
       html += `<div style="font-size:10.5px;color:#666;margin-bottom:8px;">Started ${stats.startTimeDisplay} · ${stats.exerciseCount} exercise${stats.exerciseCount === 1 ? '' : 's'}</div>`;
+      // feat 51 — rest / set-time analytics (live; stitches the in-progress draft). Shown once timing data exists.
+      const rstats = computeRestStats(today, pending, true);
+      if (rstats.hasTiming) {
+        const cell = (val, label) => `<div class="session-stat"><div class="session-stat-value">${val}</div><div class="session-stat-label">${label}</div></div>`;
+        html += `<div class="session-stats">
+          ${cell(rstats.avgSetTimeSec != null ? formatDuration(rstats.avgSetTimeSec) : '—', 'Avg set')}
+          ${cell(rstats.avgInterSetRestSec != null ? formatDuration(rstats.avgInterSetRestSec) : '—', 'Avg rest')}
+          ${cell(formatDuration(rstats.totalRestSec), 'Total rest')}
+          ${cell(rstats.interExerciseRestSec > 0 ? formatDuration(rstats.interExerciseRestSec) : '—', 'Btwn ex')}
+        </div>`;
+      }
     }
     if (state.dashboard.timeline !== false) html += renderWorkoutTimeline(today);
     html += renderSession(today, true);
@@ -4219,6 +4333,7 @@ function renderWorkoutTimeline(session) {
         w: set.w, r: set.r,
         setIdx,
         ts,
+        wTs: set.wTs ? new Date(set.wTs).getTime() : null, // feat 51 — set start (weight entered)
         isWarmup: !!set.warmup // forward-compat — currently no warmup flag, all sets render full
       });
     });
@@ -4284,14 +4399,35 @@ function renderWorkoutTimeline(session) {
   let marks = '';
   const lineY1 = padT + 2;
   const lineY2 = padT + innerH - 2;
+  const midY = (lineY1 + lineY2) / 2;
+  let hasDuration = false;
+  let prevE = null;
   events.forEach((e, i) => {
-    const x = xFor(e.ts);
     const color = colorForExercise(e.varUuid, e.subUuid);
-    const cls = e.isWarmup ? 'timeline-tick-warmup' : 'timeline-tick';
+    const doneX = xFor(e.ts);
+    // feat 51 — rest gap from the previous set's completion to this set's start.
+    if (prevE) {
+      const gapStartX = xFor(prevE.ts);
+      const gapEndX = (e.wTs != null) ? xFor(e.wTs) : doneX;
+      if (gapEndX - gapStartX > 1.5) {
+        const sameEx = prevE.varUuid === e.varUuid && (prevE.subUuid || '') === (e.subUuid || '');
+        marks += `<line class="${sameEx ? 'timeline-rest' : 'timeline-rest-ex'}" x1="${gapStartX.toFixed(1)}" y1="${midY}" x2="${gapEndX.toFixed(1)}" y2="${midY}"/>`;
+      }
+    }
+    // The set: a duration bar (wTs→ts) when timed, else a legacy instant tick.
+    if (e.wTs != null && e.ts > e.wTs) {
+      hasDuration = true;
+      const x1 = xFor(e.wTs);
+      const bw = Math.max(2, doneX - x1);
+      marks += `<rect class="timeline-setbar" x="${x1.toFixed(1)}" y="${lineY1}" width="${bw.toFixed(1)}" height="${(lineY2 - lineY1).toFixed(1)}" rx="2" fill="${color}"/>`;
+    } else {
+      const cls = e.isWarmup ? 'timeline-tick-warmup' : 'timeline-tick';
+      marks += `<line class="${cls}" x1="${doneX.toFixed(1)}" y1="${lineY1}" x2="${doneX.toFixed(1)}" y2="${lineY2}" stroke="${color}"/>`;
+    }
     // Label: reps above the line. If many close together, alternate y.
     const labelY = padT - 6 + (i % 2 === 0 ? 0 : -10);
-    marks += `<line class="${cls}" x1="${x.toFixed(1)}" y1="${lineY1}" x2="${x.toFixed(1)}" y2="${lineY2}" stroke="${color}"/>`;
-    marks += `<text class="timeline-rep-label" x="${x.toFixed(1)}" y="${labelY}" fill="${color}">${e.r}</text>`;
+    marks += `<text class="timeline-rep-label" x="${doneX.toFixed(1)}" y="${labelY}" fill="${color}">${e.r}</text>`;
+    prevE = e;
   });
 
   // Time axis: show start, midpoint, end times
@@ -4324,7 +4460,7 @@ function renderWorkoutTimeline(session) {
   return `<div class="timeline-card">
     <div class="timeline-head">
       <div class="timeline-title">Workout Timeline</div>
-      <div class="timeline-meta">${setsCount} set${setsCount===1?'':'s'} · ${seenEx.size} exercise${seenEx.size===1?'':'s'}</div>
+      <div class="timeline-meta">${setsCount} set${setsCount===1?'':'s'} · ${seenEx.size} exercise${seenEx.size===1?'':'s'}${hasDuration ? ' · bars = set time, gaps = rest' : ''}</div>
     </div>
     <div class="timeline-svg-wrap">
       <svg class="timeline-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
@@ -4337,6 +4473,38 @@ function renderWorkoutTimeline(session) {
 }
 
 // Aggregate stats for a single session
+// feat 51 — per-session set-time & rest analytics. Set time = ts-wTs; rest = next.wTs-prev.ts.
+// Inter-set (same exercise) and inter-exercise rest are bucketed separately. Null when no wTs data.
+function computeRestStats(session, pending, includePending) {
+  const complete = s => s && s.w !== '' && s.w != null && s.r !== '' && s.r != null;
+  const list = [];
+  (session.exercises || []).forEach(ex => (ex.sets || []).forEach(s => { if (complete(s)) list.push({ s, key: trackingKey(ex.varUuid, ex.subUuid) }); }));
+  const editing = (typeof modalState !== 'undefined') && modalState.isEditing;
+  if (includePending && pending && pending.varUuid && !editing) {
+    (pending.sets || []).forEach(s => { if (complete(s)) list.push({ s, key: trackingKey(pending.varUuid, pending.subUuid) }); });
+  }
+  list.sort((a, b) => (setDoneMs(a.s) || 0) - (setDoneMs(b.s) || 0));
+  let stSum = 0, stN = 0, isSum = 0, isN = 0, ixSum = 0, ixN = 0;
+  for (let i = 0; i < list.length; i++) {
+    const cur = list[i].s, st = setStartMs(cur), dn = setDoneMs(cur);
+    if (st != null && dn != null && dn > st) { stSum += (dn - st) / 1000; stN++; }
+    if (i > 0) {
+      const pd = setDoneMs(list[i-1].s), cs = setStartMs(cur);
+      if (pd != null && cs != null) {
+        const gap = (cs - pd) / 1000;
+        if (gap >= 1 && gap <= 600) { if (list[i].key === list[i-1].key) { isSum += gap; isN++; } else { ixSum += gap; ixN++; } }
+      }
+    }
+  }
+  return {
+    avgSetTimeSec: stN ? stSum / stN : null,
+    avgInterSetRestSec: isN ? isSum / isN : null,
+    totalRestSec: isSum,
+    interExerciseRestSec: ixSum,
+    hasTiming: stN > 0 || isN > 0 || ixN > 0,
+  };
+}
+
 function computeSessionStats(session) {
   const start = new Date(session.date);
   const end = session.endedAt ? new Date(session.endedAt) : new Date();
@@ -4406,6 +4574,29 @@ function maybeAutoEndActive() {
     saveState();
     toast('Workout auto-ended (no activity)');
   }
+}
+
+// feat 51 — delete an open set (weight entered, no reps) left longer than
+// abandonMinutes. Only reaps the in-progress draft (pending) — never a saved set.
+function reapAbandonedSet() {
+  if (!pending.sets || !pending.sets.length) return false;
+  const cfg = state.workoutControls || {};
+  const limMs = Math.max(1, (cfg.abandonMinutes || 5)) * 60000;
+  const before = pending.sets.length;
+  pending.sets = pending.sets.filter(s => {
+    if (isSetOpen(s)) {
+      const startMs = setStartMs(s);
+      if (startMs != null && (Date.now() - startMs) >= limMs) return false;
+    }
+    return true;
+  });
+  if (pending.sets.length === before) return false;
+  if (pending.sets.length === 0) pending.sets = [{ w:'', r:'' }]; // keep placeholder invariant
+  savePending();
+  toast('Removed an abandoned set — no reps for ' + (cfg.abandonMinutes || 5) + ' min');
+  if (typeof logInfo === 'function') logInfo('Abandoned set reaped');
+  if (modalState.open) renderModal();
+  return true;
 }
 
 // Manually start a workout right now. If a session already exists for today,
@@ -4506,6 +4697,120 @@ function computeWorkoutScore(session) {
 
 // Pace analysis: starting ~20 min in, look at saved sets + pending entry state
 // to determine if the workout is moving well. Returns {level, label, hint} or null.
+/* ============================================================
+   REST RECOMMENDATION (feat 51) — pure; no DOM.
+   ============================================================ */
+// Chronological COMPLETED sets for one exercise this session = saved sets + the
+// live draft (pending), unless we're editing a past session. Used by the engine,
+// the rest bar, and analytics so they all agree on "this session's sets".
+function sessionSetsForExercise(session, pending, varUuid, subUuid) {
+  const key = trackingKey(varUuid, subUuid);
+  const complete = s => s && s.w !== '' && s.w != null && s.r !== '' && s.r != null;
+  const out = [];
+  if (session && session.exercises) {
+    session.exercises.forEach(ex => {
+      if (trackingKey(ex.varUuid, ex.subUuid) !== key) return;
+      (ex.sets || []).forEach(s => { if (complete(s)) out.push(s); });
+    });
+  }
+  const editing = (typeof modalState !== 'undefined') && modalState.isEditing;
+  if (pending && pending.varUuid && !editing && trackingKey(pending.varUuid, pending.subUuid) === key) {
+    (pending.sets || []).forEach(s => { if (complete(s)) out.push(s); });
+  }
+  out.sort((a, b) => (setDoneMs(a) || 0) - (setDoneMs(b) || 0));
+  return out;
+}
+
+// Median inter-set rest (seconds) for an exercise across history. Needs both wTs
+// (start) and ts (done), so only populates from sessions logged after feat 51.
+function medianInterSetRest(varUuid, subUuid) {
+  const key = trackingKey(varUuid, subUuid);
+  const gaps = [];
+  (state.sessions || []).forEach(s => {
+    (s.exercises || []).forEach(ex => {
+      if (trackingKey(ex.varUuid, ex.subUuid) !== key) return;
+      const sets = (ex.sets || []).filter(x => x && x.ts).slice().sort((a, b) => setDoneMs(a) - setDoneMs(b));
+      for (let i = 1; i < sets.length; i++) {
+        const prevDone = setDoneMs(sets[i-1]), curStart = setStartMs(sets[i]);
+        if (prevDone == null || curStart == null) continue;
+        const gap = (curStart - prevDone) / 1000;
+        if (gap >= 1 && gap <= 600) gaps.push(gap); // drop noise / inter-exercise leakage
+      }
+    });
+  });
+  if (gaps.length < 5) return { median: null, samples: gaps.length };
+  gaps.sort((a, b) => a - b);
+  const mid = Math.floor(gaps.length / 2);
+  return { median: gaps.length % 2 ? gaps[mid] : (gaps[mid-1] + gaps[mid]) / 2, samples: gaps.length };
+}
+
+// Adaptive fuzzy rest range for the NEXT rest after the previous set of this exercise.
+// Returns {minSec, maxSec, targetSec, basis[]} or null (cardio / unknown exercise).
+function recommendRest(varUuid, subUuid, session, pending) {
+  const info = VAR_INDEX.get(varUuid);
+  if (!info || isCardioVar(varUuid)) return null;
+  const mega = info.family.mega, sub = info.family.sub, mode = exMode(varUuid).mode;
+  const barbell = isBarbellVar(varUuid);
+  const basis = [];
+
+  // Base band [min, target, max] seconds by exercise nature
+  let band;
+  if (mode === 'bodyweight')    { band = [60, 90, 150];  basis.push('bodyweight'); }
+  else if (mode === 'distance') { band = [90, 120, 180]; basis.push('loaded carry'); }
+  else if (mode === 'time')     { band = [45, 75, 120];  basis.push('isometric hold'); }
+  else if (mega === 'core')     { band = [30, 45, 75];   basis.push('core'); }
+  else if (barbell && (mega === 'lower' || mega === 'push' || mega === 'pull')) {
+    if (sub === 'compound' || mega === 'lower') { band = [180, 240, 300]; basis.push('heavy compound'); }
+    else { band = [120, 180, 240]; basis.push('compound barbell'); }
+  }
+  else if (sub === 'arms' || sub === 'shoulders' || sub === 'calves') { band = [45, 60, 90]; basis.push('small isolation'); }
+  else { band = [60, 90, 120]; basis.push('isolation'); }
+  let [minSec, targetSec, maxSec] = band;
+
+  // Intensity of the previous completed set
+  const done = sessionSetsForExercise(session, pending, varUuid, subUuid);
+  const prev = done.length ? done[done.length - 1] : null;
+  if (prev) {
+    let mult = 1;
+    const sc = getOverloadScore(varUuid, subUuid, prev, session ? session.date : new Date().toISOString());
+    if (sc) mult *= (sc.level === 'pr' || sc.level === 'progress') ? 1.2 : sc.level === 'mild' ? 1.1
+                  : (sc.level === 'mild-down' || sc.level === 'down') ? 0.92 : 1.0;
+    const best = getHistoryByKey(varUuid, subUuid).reduce((m, h) => Math.max(m, h.topSet ? h.topSet.oneRM : 0), 0);
+    if (best > 0) { const ratio = estimated1RM(prev.w, prev.r) / best; if (ratio >= 0.95) mult *= 1.1; else if (ratio <= 0.7) mult *= 0.9; }
+    const r = parseFloat(prev.r);
+    if (r <= 5) mult *= 1.1; else if (r >= 15) mult *= 0.9;
+    mult = Math.max(0.8, Math.min(1.4, mult));
+    minSec *= mult; targetSec *= mult; maxSec *= mult;
+    if (mult >= 1.12) basis.push('hard previous set → longer'); else if (mult <= 0.9) basis.push('lighter set → shorter');
+  }
+
+  // Within-session fatigue — later sets get a little more
+  const n = done.length;
+  if (n >= 1) {
+    const fatigue = 1 + Math.min(0.25, 0.05 * n);
+    targetSec *= fatigue; maxSec *= fatigue;
+    if (n >= 2) basis.push('set #' + (n + 1) + ' — fatigue');
+  }
+
+  // Adaptive blend toward the user's own median rest for this exercise
+  const med = medianInterSetRest(varUuid, subUuid);
+  if (med.median != null) {
+    const blend = Math.max(0, Math.min(0.6, med.samples / 20));
+    targetSec = targetSec * (1 - blend) + med.median * blend;
+    minSec = Math.min(minSec, targetSec * 0.7);
+    maxSec = Math.max(maxSec, targetSec * 1.4);
+    basis.push('blended with your history (' + med.samples + ' rests)');
+  } else {
+    basis.push('heuristic — rest history builds as you train');
+  }
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  minSec = clamp(Math.round(minSec), 1, 600);
+  maxSec = clamp(Math.round(maxSec), minSec + 5, 600);
+  targetSec = clamp(Math.round(targetSec), minSec, maxSec);
+  return { minSec, maxSec, targetSec, basis };
+}
+
 function computePaceStatus(session) {
   if (!session) return null;
   const cfg = state.workoutControls || {};
@@ -6374,6 +6679,7 @@ let modalState = {
   tipsMode: 'concise' // session-level — inherits from state.tipsMode on modal open
 };
 function openLogModal() {
+  reapAbandonedSet(); // feat 51 — clean up a stale open set after a long gap
   modalState.open = true;
   modalState.isEditing = false;
   modalState.editingSessionDate = null;
@@ -6414,7 +6720,7 @@ function editExisting(sessionDate, varUuid, subUuid) {
       temp: ex.cardio.temp ?? '', setting: ex.cardio.setting ?? '', weather: ex.cardio.weather ?? '', notes: ex.cardio.notes ?? '' };
   } else {
     pending.cardio = null;
-    pending.sets = ex.sets.map(s => ({ w: s.w, r: s.r, ts: s.ts || null }));
+    pending.sets = ex.sets.map(s => ({ w: s.w, r: s.r, wTs: s.wTs || null, ts: s.ts || null }));
   }
   savePending();
   renderModal();
@@ -6980,7 +7286,7 @@ function renderSetsForm() {
       <div class="${rowClass}">
         <div class="set-num">${i + 1}</div>
         <input class="set-input" type="number" inputmode="decimal" step="any" placeholder="${M.wLabel}" value="${s.w}" data-i="${i}" data-field="w" style="${wOver ? 'color:#ff4444;font-weight:700;' : ''}">
-        <input class="set-input" type="number" inputmode="${M.mode==='standard'||M.mode==='bodyweight'?'numeric':'decimal'}" step="${M.mode==='standard'||M.mode==='bodyweight'?'1':'any'}" placeholder="${M.rLabel}" value="${s.r}" data-i="${i}" data-field="r">
+        <input class="set-input" type="number" inputmode="${M.mode==='standard'||M.mode==='bodyweight'?'numeric':'decimal'}" step="${M.mode==='standard'||M.mode==='bodyweight'?'1':'any'}" placeholder="${M.rLabel}" value="${s.r}" data-i="${i}" data-field="r" ${(s.w !== '' && s.w != null) ? '' : 'disabled title="Enter weight first"'}>
         <button class="set-remove" data-remove="${i}">×</button>
         ${overloadTagHtml}
         ${recordHintHtml}
@@ -7122,6 +7428,13 @@ function bindSetsForm() {
     const row = rows[idx];
     if (!row) return;
     const s = pending.sets[idx];
+    // feat 51 — enforce order: reps stay locked until this row has a weight.
+    const repsInput = row.querySelector('[data-field="r"]');
+    if (repsInput) {
+      const wFilled = s.w !== '' && s.w != null;
+      repsInput.disabled = !wFilled;
+      repsInput.title = wFilled ? '' : 'Enter weight first';
+    }
     const wNum = s.w === '' || s.w == null ? null : parseFloat(s.w);
     const rNum = s.r === '' || s.r == null ? null : parseFloat(s.r);
 
@@ -7186,14 +7499,23 @@ function bindSetsForm() {
       const i = parseInt(input.dataset.i);
       const f = input.dataset.field;
       const val = input.value;
-      pending.sets[i][f] = val === '' ? '' : parseFloat(val);
-      // Stamp last-edit time for this set (used by workout timeline)
-      pending.sets[i].ts = new Date().toISOString();
+      const s = pending.sets[i];
+      s[f] = val === '' ? '' : parseFloat(val);
+      // feat 51 — stamp set START (weight) / DONE (reps) times for rest/set timing.
+      const wFilled = s.w !== '' && s.w != null;
+      if (f === 'w') {
+        if (wFilled && !s.wTs) s.wTs = new Date().toISOString();   // weight entered → set starts
+        else if (!wFilled) { s.wTs = undefined; s.ts = undefined; } // weight cleared → reset both
+      } else if (f === 'r') {
+        const rFilled = s.r !== '' && s.r != null;
+        s.ts = rFilled ? new Date().toISOString() : undefined;      // reps entered → set done
+      }
       savePending();
       updateFAB();
       updateSaveBtn();
       updateRowLive(i);
       if (f === 'w') renderNeighborHints();
+      if (typeof refreshRestBar === 'function') refreshRestBar();
     });
   });
   document.querySelectorAll('[data-remove]').forEach(btn => {
@@ -7208,41 +7530,30 @@ function bindSetsForm() {
     });
   });
   bindPlateLoader();
-  document.getElementById('trk-add-set').addEventListener('click', () => {
-    pending.sets.push({ w: pending.defaultWeight != null ? pending.defaultWeight : '', r:'' });
-    savePending();
-    renderModal();
-    updateSaveBtn();
-  });
+  // feat 51 — single click adds an empty (or plate-loader) set; double click pre-fills the previous set's weight.
+  const addBtn = document.getElementById('trk-add-set');
+  if (addBtn) {
+    let addTapTimer = null;
+    addBtn.addEventListener('click', () => {
+      if (addTapTimer) { clearTimeout(addTapTimer); addTapTimer = null; addSetRow('prev'); return; }
+      addTapTimer = setTimeout(() => { addTapTimer = null; addSetRow('single'); }, 260);
+    });
+    addBtn.addEventListener('dblclick', e => e.preventDefault());
+  }
 
-  // Clone bottom-most set — copies last set's weight+reps as a new set.
-  // NOTE: clone/copy live in the static modal FOOTER (not re-rendered), so we
-  // assign .onclick (idempotent) rather than addEventListener — otherwise every
-  // renderModal() would stack another listener and one tap would add many rows.
-  document.getElementById('trk-clone-last-set').onclick = () => {
-    const last = pending.sets[pending.sets.length - 1];
-    if (!last || (last.w === '' && last.r === '')) { toast('Nothing to clone'); return; }
-    const nowIso = new Date().toISOString();
-    pending.sets.push({ w: last.w, r: last.r, ts: nowIso });
-    savePending();
-    renderModal();
-    updateFAB();
-    updateSaveBtn();
-    // Scroll the new set into view after render
-    try {
-      const container = document.getElementById('trk-sets-container');
-      if (container) container.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    } catch(e) { /* scrollIntoView may not be available in all environments */ }
-  };
+  // feat 51 — the clone button is superseded by double-click on "Add Set"; hide it for now.
+  const cloneBtn = document.getElementById('trk-clone-last-set');
+  if (cloneBtn) { cloneBtn.style.display = 'none'; cloneBtn.disabled = true; cloneBtn.onclick = null; }
 
   document.getElementById('trk-copy-last').onclick = () => {
     const lastSet = getLastSetForExercise(pending.varUuid, pending.subUuid);
     if (!lastSet) { toast('No previous set on record'); return; }
+    if (!enforceSingleOpenSet()) return;
     const nowIso = new Date().toISOString();
     // Find first empty set or append
     const emptyIdx = pending.sets.findIndex(s => !s.w && !s.r);
-    if (emptyIdx >= 0) pending.sets[emptyIdx] = { w: lastSet.w, r: lastSet.r, ts: nowIso };
-    else pending.sets.push({ w: lastSet.w, r: lastSet.r, ts: nowIso });
+    if (emptyIdx >= 0) pending.sets[emptyIdx] = { w: lastSet.w, r: lastSet.r, wTs: nowIso, ts: nowIso };
+    else pending.sets.push({ w: lastSet.w, r: lastSet.r, wTs: nowIso, ts: nowIso });
     savePending();
     renderModal();
     updateFAB();
@@ -7253,11 +7564,12 @@ function bindSetsForm() {
     btn.addEventListener('click', () => {
       const lastSet = getLastSetForExercise(pending.varUuid, pending.subUuid);
       if (!lastSet) return;
+      if (!enforceSingleOpenSet()) return;
       const nowIso = new Date().toISOString();
       let newSet;
-      if (btn.dataset.quick === 'copy') newSet = { w: lastSet.w, r: lastSet.r, ts: nowIso };
-      else if (btn.dataset.quick === 'plus-rep') newSet = { w: lastSet.w, r: lastSet.r + 1, ts: nowIso };
-      else if (btn.dataset.quick === 'plus-weight') newSet = { w: lastSet.w + (state.unit === 'lb' ? 5 : 2.5), r: lastSet.r, ts: nowIso };
+      if (btn.dataset.quick === 'copy') newSet = { w: lastSet.w, r: lastSet.r, wTs: nowIso, ts: nowIso };
+      else if (btn.dataset.quick === 'plus-rep') newSet = { w: lastSet.w, r: lastSet.r + 1, wTs: nowIso, ts: nowIso };
+      else if (btn.dataset.quick === 'plus-weight') newSet = { w: lastSet.w + (state.unit === 'lb' ? 5 : 2.5), r: lastSet.r, wTs: nowIso, ts: nowIso };
       const emptyIdx = pending.sets.findIndex(s => !s.w && !s.r);
       if (emptyIdx >= 0) pending.sets[emptyIdx] = newSet;
       else pending.sets.push(newSet);
@@ -7447,13 +7759,42 @@ function saveSuperset() {
   toast('Superset saved');
 }
 
+// feat 51 — only one unfinished (open) set allowed at a time.
+function enforceSingleOpenSet() {
+  if ((pending.sets || []).some(s => isSetOpen(s))) {
+    toast('Finish the open set first — enter its reps');
+    return false;
+  }
+  return true;
+}
+// feat 51 — add a set row. 'single' → empty (or the plate-loader weight); 'prev' → previous set's weight.
+function addSetRow(mode) {
+  if (!enforceSingleOpenSet()) return;
+  let w = '';
+  if (mode === 'prev') {
+    for (let i = pending.sets.length - 1; i >= 0; i--) {
+      const pw = pending.sets[i].w;
+      if (pw !== '' && pw != null) { w = pw; break; }
+    }
+  } else if (pending.defaultWeight != null) {
+    w = pending.defaultWeight;
+  }
+  const set = { w, r: '' };
+  if (w !== '' && w != null) set.wTs = new Date().toISOString(); // injected weight → set starts now
+  pending.sets.push(set);
+  savePending();
+  renderModal();
+  updateSaveBtn();
+  if (typeof refreshRestBar === 'function') refreshRestBar();
+}
+
 function saveSets() {
   if (!pending.varUuid) { toast('Pick an exercise'); return; }
   const nowIso = new Date().toISOString();
   // Filter to valid sets, preserving each set's last-edit timestamp (fallback to save time)
   const validSets = pending.sets
     .filter(s => isSetValid(s))
-    .map(s => ({ w: s.w, r: s.r, ts: s.ts || nowIso }));
+    .map(s => ({ w: s.w, r: s.r, wTs: s.wTs || undefined, ts: s.ts || nowIso }));
   if (validSets.length === 0) { toast('Enter at least one set'); return; }
 
   // Confirmation popup: show if any infeasible weight OR alwaysConfirm is on
@@ -7554,6 +7895,14 @@ document.getElementById('trk-footer-close').addEventListener('click', closeLogMo
 document.getElementById('trk-modal-backdrop').addEventListener('click', closeLogModal);
 document.getElementById('trk-notes-close').addEventListener('click', closeNotesModal);
 document.getElementById('trk-notes-backdrop').addEventListener('click', closeNotesModal);
+// feat 51 — tapping the global rest bar jumps to the Log tab
+document.getElementById('rest-bar')?.addEventListener('click', () => {
+  const trackerBtn = document.querySelector('.nav-tab[data-panel="panel-tracker"]');
+  if (trackerBtn) switchPanel('panel-tracker', trackerBtn);
+  currentTab = 'log';
+  document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === 'log'));
+  render();
+});
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (document.getElementById('help-panel').classList.contains('open')) closeHelp();
@@ -7568,6 +7917,119 @@ document.addEventListener('keydown', e => {
   if (el) el.textContent = '· ' + BUILD;
 })();
 
+/* ============================================================
+   REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
+   ============================================================ */
+function formatDuration(sec) {
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 60) return sec + 's';
+  const m = Math.floor(sec / 60), s = sec % 60;
+  if (m < 60) return m + ':' + String(s).padStart(2, '0');
+  const h = Math.floor(m / 60);
+  return h + 'h ' + (m % 60) + 'm';
+}
+function safeVibrate(p) { try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(p); } catch(_){} }
+let _restAudioCtx = null;
+function restBeep(freq, dur) {
+  try {
+    if (typeof window === 'undefined') return;
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    _restAudioCtx = _restAudioCtx || new AC();
+    const o = _restAudioCtx.createOscillator(), g = _restAudioCtx.createGain();
+    o.frequency.value = freq; o.type = 'sine'; o.connect(g); g.connect(_restAudioCtx.destination);
+    g.gain.setValueAtTime(0.0009, _restAudioCtx.currentTime);
+    o.start(); o.stop(_restAudioCtx.currentTime + (dur || 0.12));
+  } catch(_){}
+}
+
+// What should the bar show right now? idle | open (active set) | resting.
+function computeRestState() {
+  const session = getActiveSession();
+  if (!session) return { mode: 'idle' };
+  const editing = (typeof modalState !== 'undefined') && modalState.isEditing;
+  const draftVar = (!editing && pending) ? pending.varUuid : null;
+  const draftSub = (!editing && pending) ? (pending.subUuid || null) : null;
+
+  const openSet = draftVar ? (pending.sets || []).find(s => isSetOpen(s) && setStartMs(s) != null) : null;
+  if (openSet) return { mode: 'open', sinceMs: Date.now() - setStartMs(openSet), varUuid: draftVar, subUuid: draftSub };
+
+  let last = null;
+  const consider = (s, v, sub) => { const d = setDoneMs(s); if (d == null) return; if (!last || d > last.doneMs) last = { doneMs: d, varUuid: v, subUuid: sub || null }; };
+  const complete = s => s && s.w !== '' && s.w != null && s.r !== '' && s.r != null;
+  (session.exercises || []).forEach(ex => (ex.sets || []).forEach(s => { if (complete(s)) consider(s, ex.varUuid, ex.subUuid); }));
+  if (draftVar) (pending.sets || []).forEach(s => { if (complete(s)) consider(s, draftVar, draftSub); });
+  if (!last) return { mode: 'idle', varUuid: draftVar };
+
+  const restMs = Date.now() - last.doneMs;
+  const interExercise = !!(draftVar && trackingKey(draftVar, draftSub) !== trackingKey(last.varUuid, last.subUuid));
+  const rec = (state.workoutControls && state.workoutControls.restRecEnabled !== false && !interExercise)
+              ? recommendRest(last.varUuid, last.subUuid, session, pending) : null;
+  return { mode: 'resting', restMs, rec, interExercise, varUuid: last.varUuid, subUuid: last.subUuid };
+}
+
+let _lastRestZone = null;
+// DOM-only update of the global bar — never calls render().
+function refreshRestBar() {
+  const bar = document.getElementById('rest-bar');
+  if (!bar) return;
+  const wc = state.workoutControls || {};
+  const st = computeRestState();
+  const active = st.mode === 'open' || st.mode === 'resting';
+  if (wc.restTimer === false || !active) {
+    bar.style.display = 'none';
+    document.body.classList.remove('rest-bar-on');
+    _lastRestZone = null;
+    return;
+  }
+  const exName = st.varUuid ? displayName(st.varUuid, st.subUuid) : '';
+  let cls = 'rest-bar', main = '', sub = '';
+  if (st.mode === 'open') {
+    cls += ' open-set';
+    main = '⏱ Set ' + formatDuration(st.sinceMs / 1000);
+    sub = exName;
+    _lastRestZone = null;
+  } else {
+    const restSec = st.restMs / 1000;
+    if (st.interExercise) {
+      cls += ' inter-ex';
+      main = 'Rest ' + formatDuration(restSec);
+      sub = 'between exercises';
+      _lastRestZone = null;
+    } else if (st.rec) {
+      const zone = restSec < st.rec.minSec ? 'too-short' : restSec <= st.rec.maxSec ? 'optimal' : 'over';
+      cls += ' ' + zone + (zone === 'over' ? ' flash' : '');
+      main = 'Rest ' + formatDuration(restSec);
+      sub = 'target ' + formatDuration(st.rec.minSec) + '–' + formatDuration(st.rec.maxSec) + (exName ? ' · ' + exName : '');
+      if (zone !== _lastRestZone) {
+        if (zone === 'optimal') { if (wc.feedbackVibrate) safeVibrate([60]); if (wc.feedbackBeep) restBeep(880, 0.12); }
+        else if (zone === 'over') { if (wc.feedbackVibrate) safeVibrate([120,60,120]); if (wc.feedbackBeep) restBeep(440, 0.18); }
+        _lastRestZone = zone;
+      }
+    } else {
+      main = 'Rest ' + formatDuration(restSec);
+      sub = exName;
+      _lastRestZone = null;
+    }
+  }
+  bar.className = cls;
+  bar.innerHTML = '<span>' + escapeHtml(main) + '</span>' + (sub ? '<span class="rest-bar-sub">' + escapeHtml(sub) + '</span>' : '');
+  bar.style.display = 'flex';
+  document.body.classList.add('rest-bar-on');
+}
+
+let _restTickId = null;
+function restTick() {
+  try {
+    if (!getActiveSession()) { refreshRestBar(); return; }
+    reapAbandonedSet();
+    refreshRestBar();
+  } catch(e) { if (typeof logError === 'function') logError('restTick failed', e && e.message); }
+}
+function ensureRestTick() {
+  if (typeof setInterval === 'undefined' || _restTickId != null) return;
+  _restTickId = setInterval(restTick, 1000);
+}
+
 // Tick the elapsed-time stat every minute when on the Log tab and modal is closed
 setInterval(() => {
   if (currentTab === 'log' && !modalState.open) {
@@ -7578,6 +8040,7 @@ setInterval(() => {
 }, 60000);
 
 render();
+ensureRestTick(); // feat 51 — start the global rest-timer tick
 
 // Auto-load on startup — runs after initial render so UI is visible first
 // Uses setTimeout so handle permission prompt doesn't block page paint
