@@ -371,24 +371,33 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 
   /* feat 51 — locked reps input + global rest/set timer bar */
   .set-input:disabled { opacity: 0.4; cursor: not-allowed; }
+  /* feat 56 — opaque track + progress fill, flush under the top bar (no transparency to page content) */
   .rest-bar {
     position: fixed; top: 48px; left: 0; right: 0; z-index: 9998;
-    height: 30px; display: flex; align-items: center; justify-content: center; gap: 8px;
-    padding: 0 12px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+    height: 30px; display: flex; align-items: center; justify-content: center;
+    font-size: 12.5px; font-weight: 700; cursor: pointer;
     font-variant-numeric: tabular-nums; letter-spacing: 0.2px; white-space: nowrap; overflow: hidden;
     background: var(--bg3); color: var(--text2); border-bottom: 1px solid var(--border2);
-    box-shadow: 0 2px 8px var(--shadow); user-select: none;
+    user-select: none;
   }
-  .rest-bar > span:first-child { flex-shrink: 0; }
+  .rest-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; z-index: 0; background: transparent; transition: width 0.9s linear; pointer-events: none; }
+  .rest-bar-label { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 0 12px; }
+  .rest-bar-label > span:first-child { flex-shrink: 0; }
   .rest-bar .rest-bar-sub { font-weight: 600; font-size: 10.5px; opacity: 0.85; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .rest-bar.open-set { background: rgba(120,140,200,0.16); color: #9db0e0; border-bottom-color: #3a4a6a; }
-  .rest-bar.too-short { background: rgba(226,148,74,0.18); color: var(--warn); border-bottom-color: var(--warn); }
-  .rest-bar.optimal  { background: rgba(95,208,104,0.16); color: var(--good); border-bottom-color: var(--good); }
-  .rest-bar.over     { background: var(--danger-bg); color: var(--danger); border-bottom-color: var(--danger); }
-  .rest-bar.inter-ex { background: var(--bg4); color: var(--text2); border-bottom-color: var(--border2); }
-  .rest-bar.flash    { animation: rest-flash 0.7s ease-in-out infinite; }
-  @keyframes rest-flash { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .rest-bar.open-set { color: #9db0e0; border-bottom-color: #3a4a6a; }
+  .rest-bar.open-set .rest-bar-fill { background: rgba(120,140,200,0.24); }
+  .rest-bar.too-short { color: var(--warn); border-bottom-color: var(--warn); }
+  .rest-bar.too-short .rest-bar-fill { background: rgba(226,148,74,0.30); }
+  .rest-bar.optimal { color: var(--good); border-bottom-color: var(--good); }
+  .rest-bar.optimal .rest-bar-fill { background: rgba(95,208,104,0.28); }
+  .rest-bar.over { color: var(--danger); border-bottom-color: var(--danger); }
+  .rest-bar.over .rest-bar-fill { background: rgba(226,74,74,0.34); }
+  .rest-bar.inter-ex { color: var(--text2); border-bottom-color: var(--border2); }
+  .rest-bar.idle { height: 18px; font-size: 10.5px; font-weight: 600; color: var(--text3); }
+  .rest-bar.flash .rest-bar-fill { animation: rest-flash 0.7s ease-in-out infinite; }
+  @keyframes rest-flash { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
   body.rest-bar-on .panel { padding-top: 78px; }
+  body.rest-bar-idle .panel { padding-top: 66px; }
   /* feat 51 — timeline set-duration bars + rest gaps */
   .timeline-setbar { opacity: 0.9; }
   .timeline-rest { stroke: var(--text3); stroke-width: 2; opacity: 0.35; }
@@ -4546,6 +4555,26 @@ function lastSetTs(session) {
   return last;
 }
 
+// feat 56 — most-recent moment any exercise ended (newest set ts, or a session's endedAt), or null
+function lastExerciseEndedMs() {
+  let last = null;
+  (state.sessions || []).forEach(s => {
+    (s.exercises || []).forEach(ex => (ex.sets || []).forEach(set => {
+      if (set && set.ts) { const t = new Date(set.ts).getTime(); if (!isNaN(t) && (last == null || t > last)) last = t; }
+    }));
+    if (s.endedAt) { const t = new Date(s.endedAt).getTime(); if (!isNaN(t) && (last == null || t > last)) last = t; }
+  });
+  return last;
+}
+// feat 56 — compact "days/hours" gap for the idle rest bar
+function formatSinceGap(ms) {
+  const totalMin = Math.max(0, Math.floor(ms / 60000));
+  const d = Math.floor(totalMin / 1440), h = Math.floor((totalMin % 1440) / 60), m = totalMin % 60;
+  if (d > 0) return d + 'd ' + h + 'h';
+  if (h > 0) return h + 'h ' + m + 'm';
+  return m + 'm';
+}
+
 // Returns the today session if one exists and isn't explicitly ended
 function getActiveSession() {
   const todayStr = new Date().toDateString();
@@ -8105,7 +8134,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 7 · 2026-05-31 20:25';
+const APP_BUILD = 'build 8 · 2026-05-31 20:48';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -8158,53 +8187,82 @@ function computeRestState() {
 }
 
 let _lastRestZone = null;
-// DOM-only update of the global bar — never calls render().
+// feat 56 — which colour zone we're in + how full the progress bar is toward the NEXT colour change.
+function restZoneFill(restSec, rec) {
+  if (!rec) return { zone: null, fillPct: 0 };
+  if (restSec < rec.minSec) return { zone: 'too-short', fillPct: Math.max(0, Math.min(100, restSec / rec.minSec * 100)) };
+  if (restSec <= rec.maxSec) { const span = Math.max(1, rec.maxSec - rec.minSec); return { zone: 'optimal', fillPct: Math.max(0, Math.min(100, (restSec - rec.minSec) / span * 100)) }; }
+  return { zone: 'over', fillPct: 100 };
+}
+// DOM-only update of the global bar (opaque track + progress fill) — never calls render().
 function refreshRestBar() {
   const bar = document.getElementById('rest-bar');
   if (!bar) return;
   const wc = state.workoutControls || {};
-  const st = computeRestState();
-  const active = st.mode === 'open' || st.mode === 'resting';
-  if (wc.restTimer === false || !active) {
+  if (wc.restTimer === false) {
     bar.style.display = 'none';
-    document.body.classList.remove('rest-bar-on');
+    document.body.classList.remove('rest-bar-on', 'rest-bar-idle');
     _lastRestZone = null;
     return;
   }
-  const exName = st.varUuid ? displayName(st.varUuid, st.subUuid) : '';
-  let cls = 'rest-bar', main = '', sub = '';
-  if (st.mode === 'open') {
-    cls += ' open-set';
-    main = '⏱ Set ' + formatDuration(st.sinceMs / 1000);
-    sub = exName;
-    _lastRestZone = null;
-  } else {
-    const restSec = st.restMs / 1000;
-    if (st.interExercise) {
-      cls += ' inter-ex';
-      main = 'Rest ' + formatDuration(restSec);
-      sub = 'between exercises';
-      _lastRestZone = null;
-    } else if (st.rec) {
-      const zone = restSec < st.rec.minSec ? 'too-short' : restSec <= st.rec.maxSec ? 'optimal' : 'over';
-      cls += ' ' + zone + (zone === 'over' ? ' flash' : '');
-      main = 'Rest ' + formatDuration(restSec);
-      sub = 'target ' + formatDuration(st.rec.minSec) + '–' + formatDuration(st.rec.maxSec) + (exName ? ' · ' + exName : '');
-      if (zone !== _lastRestZone) {
-        if (zone === 'optimal') { if (wc.feedbackVibrate) safeVibrate([60]); if (wc.feedbackBeep) restBeep(880, 0.12); }
-        else if (zone === 'over') { if (wc.feedbackVibrate) safeVibrate([120,60,120]); if (wc.feedbackBeep) restBeep(440, 0.18); }
-        _lastRestZone = zone;
-      }
-    } else {
-      main = 'Rest ' + formatDuration(restSec);
+  const st = computeRestState();
+  const active = st.mode === 'open' || st.mode === 'resting';
+  let cls = 'rest-bar', main = '', sub = '', fillPct = 0, bodyClass = 'rest-bar-on';
+
+  if (active) {
+    const exName = st.varUuid ? displayName(st.varUuid, st.subUuid) : '';
+    if (st.mode === 'open') {
+      cls += ' open-set';
+      main = '⏱ Set ' + formatDuration(st.sinceMs / 1000);
       sub = exName;
+      fillPct = 100;
       _lastRestZone = null;
+    } else {
+      const restSec = st.restMs / 1000;
+      if (st.interExercise) {
+        cls += ' inter-ex';
+        main = 'Rest ' + formatDuration(restSec);
+        sub = 'between exercises';
+        _lastRestZone = null;
+      } else if (st.rec) {
+        const zf = restZoneFill(restSec, st.rec);
+        cls += ' ' + zf.zone + (zf.zone === 'over' ? ' flash' : '');
+        fillPct = zf.fillPct;
+        main = 'Rest ' + formatDuration(restSec);
+        sub = 'target ' + formatDuration(st.rec.minSec) + '–' + formatDuration(st.rec.maxSec) + (exName ? ' · ' + exName : '');
+        if (zf.zone !== _lastRestZone) {
+          if (zf.zone === 'optimal') { if (wc.feedbackVibrate) safeVibrate([60]); if (wc.feedbackBeep) restBeep(880, 0.12); }
+          else if (zf.zone === 'over') { if (wc.feedbackVibrate) safeVibrate([120,60,120]); if (wc.feedbackBeep) restBeep(440, 0.18); }
+          _lastRestZone = zf.zone;
+        }
+      } else {
+        main = 'Rest ' + formatDuration(restSec);
+        sub = exName;
+        _lastRestZone = null;
+      }
     }
+  } else {
+    // Idle — compact strip with time since the last exercise ended; hide entirely if no history yet.
+    const lastMs = lastExerciseEndedMs();
+    if (lastMs == null) {
+      bar.style.display = 'none';
+      document.body.classList.remove('rest-bar-on', 'rest-bar-idle');
+      _lastRestZone = null;
+      return;
+    }
+    cls += ' idle';
+    bodyClass = 'rest-bar-idle';
+    main = formatSinceGap(Date.now() - lastMs) + ' since last set';
+    _lastRestZone = null;
   }
+
   bar.className = cls;
-  bar.innerHTML = '<span>' + escapeHtml(main) + '</span>' + (sub ? '<span class="rest-bar-sub">' + escapeHtml(sub) + '</span>' : '');
+  bar.innerHTML = '<div class="rest-bar-fill" style="width:' + fillPct + '%"></div>'
+    + '<div class="rest-bar-label"><span>' + escapeHtml(main) + '</span>'
+    + (sub ? '<span class="rest-bar-sub">' + escapeHtml(sub) + '</span>' : '') + '</div>';
   bar.style.display = 'flex';
-  document.body.classList.add('rest-bar-on');
+  document.body.classList.add(bodyClass);
+  document.body.classList.remove(bodyClass === 'rest-bar-on' ? 'rest-bar-idle' : 'rest-bar-on');
 }
 
 let _restTickId = null;

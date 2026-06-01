@@ -128,6 +128,17 @@ vibrate / beep fire once per zone transition (settings toggles). The **timeline*
 rest gaps (inter‑exercise rest styled distinctly, legacy ticks for un‑timed sets), and the Log tab shows live
 **set‑time / rest** analytics (`computeRestStats`) with inter‑exercise rest bucketed separately.
 
+### Rest bar — opaque progress bar in the top bar (56) — DONE
+The feat‑51 bar was reworked into a **solid, opaque** strip flush under the emoji top bar (zone colours no longer
+use `rgba` whole‑bar tints, so page content never shows through). It now doubles as a **progress bar**: an
+absolutely‑positioned `.rest-bar-fill` grows left→right to show how far through the *current* colour zone you are —
+how close the next colour change is (`restZoneFill`: `restSec/minSec` in the orange zone,
+`(restSec−minSec)/(maxSec−minSec)` in the green zone ⇒ 50 % at mid‑green; 100 % + flash in the red over‑zone, with
+the flash now animating the *fill* rather than the whole bar so opacity is preserved). When **not** working out it
+stays visible as a **compact 18 px strip** ("`<d>d <h>h since last set`" via `lastExerciseEndedMs`/`formatSinceGap`),
+expanding to the 30 px timer while training; `body.rest-bar-on` (78 px) / `body.rest-bar-idle` (66 px) drive the
+panel offset. Hidden only when the timer setting is off or no set has been logged yet.
+
 ### Tracking modes — DONE
 `exMode()` classifies a variation as **standard** (weight×reps), **bodyweight** (added load; − =
 assist; shows effective load — feat 26), **distance** (carries — feat 27), or **time** (holds — 27).
