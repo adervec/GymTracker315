@@ -806,6 +806,9 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .physique-mega { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
   .physique-sub { font-size: 10px; color: var(--text3); }
   .physique-body { font-size: 12px; color: var(--text2); line-height: 1.45; }
+  .remaining-items { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+  .remaining-chip { font-size: 11px; font-weight: 600; color: var(--accent); background: transparent; border: 1px solid var(--accent); border-radius: 999px; padding: 4px 10px; cursor: pointer; line-height: 1.2; font-family: inherit; }
+  .remaining-chip:hover { background: var(--accent); color: #fff; }
 
   /* Help overlay (feat 21) */
   #help-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 360; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
@@ -2297,7 +2300,7 @@ function renderHelp() {
     <h3>Workout session</h3>
     <ul>
       <li><b>▶ Start Workout</b> begins the clock (a session also auto-starts on your first set). It auto-ends after the configured inactivity window, or end it manually.</li>
-      <li>The live dashboard shows session stats, a <b>timeline</b>, a <b>pace</b> pill, a <b>live score estimate</b>, and <b>balanced-physique advice</b>. Toggle each in Settings → Live Dashboard.</li>
+      <li>The live dashboard shows session stats, a <b>timeline</b>, a <b>pace</b> pill, a <b>live score estimate</b>, and a <b>remaining-exercises</b> suggester. Toggle each in Settings → Live Dashboard.</li>
       <li>Workouts are scored 0–100 on progressive-overload progress vs. prior sessions.</li>
     </ul>
 
@@ -3134,7 +3137,7 @@ function renderSettingsDrawer() {
       ['timeline','Workout timeline',"Per-set time chart"],
       ['liveScore','Live score estimate',"Chunky overload grade"],
       ['pace','Pace pill',"Brisk / on-pace / resting"],
-      ['physique','Balanced-physique advice',"What this session needs next"],
+      ['physique','Remaining exercises',"Suggested lifts to round out the session"],
     ].map(([key,label,sub]) => `
       <div class="drawer-setting-row">
         <div>
@@ -4152,13 +4155,15 @@ function renderLog(main) {
       }
     }
 
-    // Balanced-physique advice (feat 15) — surface what's missing to round out the dominant mega
+    // Remaining-exercises evaluation (feat 55) — what's still needed to round out the session
     if (!today.endedAt && state.dashboard.physique !== false) {
-      const advice = computePhysiqueAdvice(today);
-      if (advice) {
+      const rem = computeRemainingWork(today);
+      if (rem) {
+        const chips = rem.items.map(it => `<button class="remaining-chip" data-remvar="${it.varUuid}">${escapeHtml(it.label)}: ${escapeHtml(it.title)}</button>`).join('');
         html += `<div class="physique-card">
-          <div class="physique-head"><span class="physique-mega">${escapeHtml(advice.megaLabel)} day</span><span class="physique-sub">${advice.hitCount}/${advice.targetCount} core areas hit</span></div>
-          <div class="physique-body">${escapeHtml(advice.message)}</div>
+          <div class="physique-head"><span class="physique-mega">${escapeHtml(rem.megaLabel)} day</span><span class="physique-sub">${rem.hitCount}/${rem.targetCount} areas hit</span></div>
+          <div class="physique-body">${escapeHtml(rem.message)}</div>
+          ${chips ? `<div class="remaining-items">${chips}</div>` : ''}
         </div>`;
       }
     }
@@ -4262,6 +4267,10 @@ function renderLog(main) {
       const subUuid = el.dataset.subuuid || null;
       editExisting(sessionDate, varUuid, subUuid);
     });
+  });
+  // feat 55 — tap a "remaining" suggestion to jump straight into logging that exercise
+  main.querySelectorAll('.remaining-chip[data-remvar]').forEach(el => {
+    el.addEventListener('click', () => startExerciseFromSuggestion(el.dataset.remvar));
   });
   // Superset link buttons (feat 39)
   main.querySelectorAll('.ss-link-btn').forEach(btn => {
@@ -4848,51 +4857,81 @@ function computePaceStatus(session) {
   return { level, label, hint, setsPerMin, minutesSinceLastSet };
 }
 
-// Balanced-physique advice (feat 15). Detect the dominant mega and surface
-// the still-missing core areas for THAT category only — never clutter a push
-// session with pull advice. Returns null if too early or no clear dominant.
-const MEGA_REQUIRED_SUBS = {
-  push:  { label:'Push',  required:['chest','shoulders','triceps'], names:{chest:'chest',shoulders:'shoulders',triceps:'triceps'} },
-  pull:  { label:'Pull',  required:['back','shoulders','biceps'],   names:{back:'lats / back',shoulders:'rear delts',biceps:'biceps'} },
-  lower: { label:'Lower', required:['quads','hamstrings','glutes','calves'], names:{quads:'quads',hamstrings:'hams',glutes:'glutes',calves:'calves'} },
-  core:  { label:'Core',  required:['core'], names:{core:'direct ab work'} },
+// Remaining-exercises evaluation (feat 55, supersedes the feat-15 physique card).
+// Detect the dominant mega and suggest specific still-needed exercises to round out
+// the session. Tallies by getBP() — the clean per-exercise bodypart — because the old
+// version compared family.sub against keys like 'triceps'/'biceps'/'core' that are never
+// a sub, so those areas always read "light". Returns null if too early / no clear dominant.
+const MEGA_TARGET_BP = {
+  push:  { label:'Push',  bps:['chest','shoulders','triceps'] },
+  pull:  { label:'Pull',  bps:['back','biceps'] },
+  lower: { label:'Lower', bps:['quads','hamstrings','glutes','calves'] },
+  core:  { label:'Core',  bps:['core'] },
 };
-function computePhysiqueAdvice(session) {
+function computeRemainingWork(session) {
   if (!session || !session.exercises || session.exercises.length === 0) return null;
-  const totalSets = session.exercises.reduce((s, ex) => s + ex.sets.length, 0);
+  const totalSets = session.exercises.reduce((s, ex) => s + (ex.sets ? ex.sets.length : 0), 0);
   const elapsedMin = (Date.now() - new Date(session.date).getTime()) / 60000;
   if (totalSets < 4 || elapsedMin < 5) return null; // not enough signal yet
 
-  // Tally sets per mega and per sub
+  // Tally sets per mega and per clean bodypart; remember what's already been trained.
   const megaSets = { push:0, pull:0, lower:0, core:0 };
-  const subSets = {};
+  const bpSets = {};
+  const doneVars = new Set();
   session.exercises.forEach(ex => {
+    if (ex.cardio || !ex.sets || ex.sets.length === 0) return; // strength only
     const info = VAR_INDEX.get(ex.varUuid);
     if (!info || !info.family) return;
+    doneVars.add(ex.varUuid);
     const m = info.family.mega;
-    const s = info.family.sub;
     if (megaSets[m] !== undefined) megaSets[m] += ex.sets.length;
-    subSets[s] = (subSets[s] || 0) + ex.sets.length;
+    const bp = getBP(info.family);
+    bpSets[bp] = (bpSets[bp] || 0) + ex.sets.length;
   });
   // Dominant mega — must hold > 50% of mega-classified sets
-  const classified = Object.values(megaSets).reduce((a,b) => a+b, 0);
+  const classified = megaSets.push + megaSets.pull + megaSets.lower + megaSets.core;
   if (classified < 3) return null;
   let dom = null, domSets = 0;
   for (const m in megaSets) if (megaSets[m] > domSets) { dom = m; domSets = megaSets[m]; }
   if (!dom || domSets / classified < 0.5) return null;
 
-  const def = MEGA_REQUIRED_SUBS[dom];
+  const def = MEGA_TARGET_BP[dom];
   if (!def) return null;
-  const hit = def.required.filter(s => (subSets[s] || 0) >= 2);
-  const missing = def.required.filter(s => (subSets[s] || 0) < 2);
-  let message;
-  if (missing.length === 0) {
-    message = `Nicely rounded ${def.label.toLowerCase()} — every core area has solid work.`;
-  } else {
-    const names = missing.map(s => def.names[s] || s).join(', ');
-    message = `Still light on: ${names}. Add a set or two to round out this ${def.label.toLowerCase()} session.`;
+  const hit = def.bps.filter(bp => (bpSets[bp] || 0) >= 2);
+  const missing = def.bps.filter(bp => (bpSets[bp] || 0) < 2);
+
+  // Familiarity: how many sessions each strength variation appears in (one pass).
+  const freq = {};
+  (state.sessions || []).forEach(s => {
+    const seen = new Set();
+    (s.exercises || []).forEach(ex => {
+      if (ex.cardio || !ex.sets || ex.sets.length === 0) return;
+      if (!seen.has(ex.varUuid)) { freq[ex.varUuid] = (freq[ex.varUuid] || 0) + 1; seen.add(ex.varUuid); }
+    });
+  });
+
+  // One suggested exercise per missing bp (cap 3): a visible variation for that bodypart,
+  // not already done this session, preferring the user's most-used; else the first visible.
+  const items = [];
+  for (const bp of missing) {
+    if (items.length >= 3) break;
+    let best = null, bestFreq = -1;
+    for (const f of FAMILIES) {
+      if (f.mega !== dom || getBP(f) !== bp) continue;
+      for (const v of (f.variations || [])) {
+        if (doneVars.has(v.uuid) || !varVisibleInPicker(f, v)) continue;
+        const fr = freq[v.uuid] || 0;
+        if (fr > bestFreq) { bestFreq = fr; best = { bp, label: BP_LABELS[bp] || bp, varUuid: v.uuid, title: v.title }; }
+      }
+    }
+    if (best) items.push(best);
   }
-  return { mega: dom, megaLabel: def.label, message, hitCount: hit.length, targetCount: def.required.length };
+
+  const coveredAll = missing.length === 0;
+  const message = coveredAll
+    ? `Nicely rounded ${def.label.toLowerCase()} — every core area covered.`
+    : `Still light on: ${missing.map(bp => (BP_LABELS[bp] || bp)).join(', ')}.`;
+  return { mega: dom, megaLabel: def.label, hitCount: hit.length, targetCount: def.bps.length, items, coveredAll, message };
 }
 
 function cardioSummary(c) {
@@ -6771,6 +6810,20 @@ let modalState = {
   tipsMode: 'concise', // session-level — inherits from state.tipsMode on modal open
   exNoteEditing: false // feat 54 — per-exercise note editor open in the header
 };
+// feat 55 — jump straight into logging a suggested "remaining" exercise.
+function startExerciseFromSuggestion(varUuid) {
+  const info = VAR_INDEX.get(varUuid);
+  if (!info) return;
+  pending.varUuid = varUuid;
+  pending.subUuid = info.variation.subscription ? info.variation.subscription.options[0].uuid : null;
+  pending.cardio = null;
+  pending.defaultWeight = null;
+  const last = getLastSetForExercise(varUuid, pending.subUuid);
+  pending.sets = last ? [{ w: last.w, r: last.r }] : [{ w: '', r: '' }];
+  savePending();
+  openLogModal();
+}
+
 function openLogModal() {
   reapAbandonedSet(); // feat 51 — clean up a stale open set after a long gap
   modalState.open = true;
@@ -8052,7 +8105,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 6 · 2026-05-31 19:19';
+const APP_BUILD = 'build 7 · 2026-05-31 20:25';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

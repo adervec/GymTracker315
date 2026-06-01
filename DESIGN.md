@@ -110,7 +110,7 @@ computed before sizing and scaled by `devicePixelRatio` for crisp output. Delive
 
 ### Workout session dashboard — DONE
 Start/End (12) with confirmation (13); auto‑start/auto‑end; workout score vs prior sessions;
-live chunky estimate (14); pace algorithm (28); balanced‑physique advice (15); per‑element
+live chunky estimate (14); pace algorithm (28); a remaining‑exercises suggester (55, superseding balanced‑physique 15); per‑element
 visibility toggles (33). **Forerunner stats (25):** manual avg HR / max HR / calories attached to
 any session via an inline ❤️ editor on the session card.
 
@@ -206,6 +206,17 @@ read/write it and `normalizeState` defaults the map. The header shows "📝 …n
 "＋ Add note" when empty; an inline textarea (Save / Cancel / Clear) drives it, toggled by
 `modalState.exNoteEditing` + a `renderModal()` re‑render, and reset on every modal open / exercise switch.
 
+### Remaining‑exercises evaluation (55) — DONE
+The live "what's left to round out this session" card (upgrades the feat‑15 balance card, same `dashboard.physique`
+toggle). `computeRemainingWork(session)` finds the dominant mega and the still‑light **bodyparts** via `getBP()`
+(the clean per‑exercise bodypart — `push`→chest/shoulders/triceps, `pull`→back/biceps, `lower`→quads/hams/glutes/calves,
+`core`), then suggests one specific, currently‑visible exercise per missing area (excluding what's already done,
+preferring the user's most‑used). Suggestions render as **tappable chips** — `startExerciseFromSuggestion(varUuid)`
+opens the log modal preset to that exercise. Recomputed on every submit (it lives in `renderLog`). This also fixes a
+latent feat‑15 bug: the old card tallied `family.sub` against keys (`triceps`/`biceps`/`core`) that are never a `sub`,
+so those areas always read "light". The **projected grade** (Live score estimate) already reevaluated per submit and
+is unchanged.
+
 ### Deferred — ONHOLD
 - **#49** — Make the anatomy chart toggle to externally‑attached, more richly detailed charts and ensure the
   glossary covers everything on them. (Requires source charts that aren't provided; the built‑in stylized
@@ -238,3 +249,4 @@ read/write it and `normalizeState` defaults the map. The header shows "📝 …n
 - Rest analytics & the recommended‑rest blend only populate from sessions logged **after** feat 51 shipped (older sets lack the `wTs` start timestamp); they fall back to heuristics until then.
 - The build stamp auto‑updates via a git pre‑commit hook; enable it once per clone with `git config core.hooksPath .githooks` (Node must be on PATH). Each commit therefore touches `gym-tracker.html` with the refreshed stamp.
 - Exercise notes are **global per variation** — the same note shows for every grip/sub‑option and in every session; they are intentionally not repeated on per‑session history rows or in the image/text export (easy follow‑ups).
+- The remaining‑exercises suggester uses the coarse `getBP` bodypart map (compound lower lifts count as quads; only the four strength megas are covered) and surfaces one suggestion per missing area — a nudge to round out balance, not a full program.
