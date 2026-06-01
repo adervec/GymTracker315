@@ -1426,8 +1426,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
   <div class="modal-body" id="trk-modal-body"></div>
   <div class="modal-footer" id="trk-modal-footer">
     <button class="mf-save" id="trk-save-btn" disabled>💾 Save Sets</button>
-    <button class="mf-btn" id="trk-clone-last-set" title="Clone last set"><span class="mf-icon">⧉</span><span class="mf-label">Clone</span></button>
-    <button class="mf-btn" id="trk-copy-last" title="Copy from history"><span class="mf-icon">📋</span><span class="mf-label">Copy</span></button>
+    <button class="mf-btn" id="trk-add-set" title="Add a set"><span class="mf-icon">➕</span><span class="mf-label">Add</span></button>
+    <button class="mf-btn" id="trk-copy-last" title="Copy weight to next set"><span class="mf-icon">📋</span><span class="mf-label">Copy</span></button>
     <button class="mf-btn" id="trk-modal-clear" title="Clear all sets"><span class="mf-icon">🗑</span><span class="mf-label">Clear</span></button>
     <button class="mf-btn" id="trk-footer-close" title="Close"><span class="mf-icon">✕</span><span class="mf-label">Close</span></button>
   </div>
@@ -2048,6 +2048,7 @@ let state = {
     feedbackBeep: false,       // subtle WebAudio blip on rest-zone transitions
     restRecEnabled: true,      // show the recommended-rest band
     onScreenNumpad: false,     // feat 57 — in-app numpad for set entry instead of the native mobile keyboard
+    prefillFromHistory: false, // feat 58 — copy last session's set into the first set on exercise start
   },
   // ---- Profile (feat 34) — fed into BMI / age / relative-strength calcs ----
   profile: {
@@ -2104,7 +2105,7 @@ function normalizeState() {
     dashboard: { stats:true, timeline:true, liveScore:true, pace:true, physique:true },
     longPressConfirm: { enabled:false, ms:1500 },
     workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
-      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false },
+      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false },
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   if (!Array.isArray(state.bodyComp)) state.bodyComp = [];
@@ -3131,6 +3132,16 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">Prefill from last session</div>
+        <div class="drawer-setting-sub">Copy your last set's weight & reps into the first set when you start an exercise</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).prefillFromHistory ? 'active' : ''}" data-wc="prefillFromHistory" data-wc-val="on">On</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).prefillFromHistory !== true ? 'active' : ''}" data-wc="prefillFromHistory" data-wc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">Recommended rest</div>
         <div class="drawer-setting-sub">Show the target rest band (adapts to your history)</div>
       </div>
@@ -3462,7 +3473,7 @@ function renderSettingsDrawer() {
   });
 
   // Workout controls
-  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false }; };
+  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false }; };
   const aeInput = body.querySelector('#drawer-auto-end');
   if (aeInput) aeInput.addEventListener('change', () => {
     const v = parseInt(aeInput.value);
@@ -6877,7 +6888,7 @@ function startExerciseFromSuggestion(varUuid) {
   pending.subUuid = info.variation.subscription ? info.variation.subscription.options[0].uuid : null;
   pending.cardio = null;
   pending.defaultWeight = null;
-  const last = getLastSetForExercise(varUuid, pending.subUuid);
+  const last = (state.workoutControls && state.workoutControls.prefillFromHistory) ? getLastSetForExercise(varUuid, pending.subUuid) : null;
   pending.sets = last ? [{ w: last.w, r: last.r }] : [{ w: '', r: '' }];
   savePending();
   openLogModal();
@@ -7065,6 +7076,7 @@ function renderNotesCard(session) {
 
 function renderModal() {
   const body = document.getElementById('trk-modal-body');
+  let isSets = false; // feat 58 — track whether the strength sets form is showing (for the footer Add button)
   if (modalState.supersetMode && modalState.supersetPick === 'done') {
     body.innerHTML = renderSupersetForm();
     bindSupersetForm();
@@ -7078,7 +7090,11 @@ function renderModal() {
     body.innerHTML = renderSetsForm();
     bindSetsForm();
     renderNeighborHints();
+    isSets = true;
   }
+  // feat 58 — the footer "Add" button is sets-only (the footer is shared across picker/cardio/superset forms)
+  const addFb = document.getElementById('trk-add-set');
+  if (addFb) addFb.style.display = isSets ? '' : 'none';
 }
 
 /* ----- Picker ----- */
@@ -7214,9 +7230,9 @@ function bindPicker() {
         pending.cardio = freshCardio();
       } else {
         pending.cardio = null;
-        // Prefill sets with last logged if available
-        const lastSet = getLastSetForExercise(varUuid, pending.subUuid);
-        if (pending.sets.length === 1 && !pending.sets[0].w && !pending.sets[0].r && lastSet) {
+        // feat 58 — only prefill from history when the user opts in (default off)
+        const lastSet = (state.workoutControls && state.workoutControls.prefillFromHistory) ? getLastSetForExercise(varUuid, pending.subUuid) : null;
+        if (lastSet && pending.sets.length === 1 && !pending.sets[0].w && !pending.sets[0].r) {
           pending.sets = [{ w: lastSet.w, r: lastSet.r }];
         }
       }
@@ -7435,16 +7451,7 @@ function renderSetsForm() {
     currentSessionDate = todaySession ? todaySession.date : new Date().toISOString();
   }
 
-  // Quick buttons reference last logged set from history
-  let quickFillHtml = '';
-  if (lastSet) {
-    quickFillHtml = `<div class="quick-buttons">
-      <span style="font-size:10px;color:#666;align-self:center;margin-right:4px;">LAST:</span>
-      <div class="quick-btn" data-quick="copy">${lastSet.w}×${lastSet.r}</div>
-      <div class="quick-btn" data-quick="plus-rep">+1 rep</div>
-      <div class="quick-btn" data-quick="plus-weight">+${state.unit === 'lb' ? '5' : '2.5'}${state.unit}</div>
-    </div>`;
-  }
+  // feat 58 — the "LAST:" quick-fill row was removed; Copy now builds the next set's weight.
 
   // Build set rows with overload coloring + record hint on the bottom-most set
   const setsHtml = pending.sets.map((s, i) => {
@@ -7552,7 +7559,6 @@ function renderSetsForm() {
       <div class="suggestion-label">${suggestion.label}</div>
       <div class="suggestion-text">${suggestion.text}</div>
     </div>` : ''}
-    ${quickFillHtml}
     ${renderPlateLoader()}
 
     <div class="card-title" style="margin-top:14px;">Sets</div>
@@ -7562,9 +7568,7 @@ function renderSetsForm() {
     <div id="trk-sets-container">${setsHtml}</div>
     <div id="trk-neighbor-hints"></div>
 
-    <div class="btn-row" style="margin-top:10px;">
-      <button class="secondary" id="trk-add-set">+ Add Set</button>
-    </div>
+    <!-- feat 58 — Add Set moved to the footer button row -->
 
     <div style="height:8px;"></div>
     ${modalState.isEditing ? '<button class="danger full" id="trk-delete-ex-btn" style="margin-top:4px;">🗑 Delete This Exercise</button>' : ''}
@@ -7812,9 +7816,9 @@ function bindSetsForm() {
   document.getElementById('trk-sub-select')?.addEventListener('change', e => {
     pending.subUuid = e.target.value;
     savePending();
-    // Re-render to update suggestion and prefill from new key's history
-    const lastSet = getLastSetForExercise(pending.varUuid, pending.subUuid);
-    if (pending.sets.length === 1 && !pending.sets[0].w && !pending.sets[0].r && lastSet) {
+    // Re-render to update suggestion; feat 58 — prefill from history only when opted in
+    const lastSet = (state.workoutControls && state.workoutControls.prefillFromHistory) ? getLastSetForExercise(pending.varUuid, pending.subUuid) : null;
+    if (lastSet && pending.sets.length === 1 && !pending.sets[0].w && !pending.sets[0].r) {
       pending.sets = [{ w: lastSet.w, r: lastSet.r }];
     }
     renderModal();
@@ -7886,55 +7890,10 @@ function bindSetsForm() {
     });
   });
   bindPlateLoader();
-  // feat 51 — single click adds an empty (or plate-loader) set; double click pre-fills the previous set's weight.
-  const addBtn = document.getElementById('trk-add-set');
-  if (addBtn) {
-    let addTapTimer = null;
-    addBtn.addEventListener('click', () => {
-      if (addTapTimer) { clearTimeout(addTapTimer); addTapTimer = null; addSetRow('prev'); return; }
-      addTapTimer = setTimeout(() => { addTapTimer = null; addSetRow('single'); }, 260);
-    });
-    addBtn.addEventListener('dblclick', e => e.preventDefault());
-  }
-
-  // feat 51 — the clone button is superseded by double-click on "Add Set"; hide it for now.
-  const cloneBtn = document.getElementById('trk-clone-last-set');
-  if (cloneBtn) { cloneBtn.style.display = 'none'; cloneBtn.disabled = true; cloneBtn.onclick = null; }
-
-  document.getElementById('trk-copy-last').onclick = () => {
-    const lastSet = getLastSetForExercise(pending.varUuid, pending.subUuid);
-    if (!lastSet) { toast('No previous set on record'); return; }
-    if (!enforceSingleOpenSet()) return;
-    const nowIso = new Date().toISOString();
-    // Find first empty set or append
-    const emptyIdx = pending.sets.findIndex(s => !s.w && !s.r);
-    if (emptyIdx >= 0) pending.sets[emptyIdx] = { w: lastSet.w, r: lastSet.r, wTs: nowIso, ts: nowIso };
-    else pending.sets.push({ w: lastSet.w, r: lastSet.r, wTs: nowIso, ts: nowIso });
-    savePending();
-    renderModal();
-    updateFAB();
-    updateSaveBtn();
-  };
-
-  document.querySelectorAll('[data-quick]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const lastSet = getLastSetForExercise(pending.varUuid, pending.subUuid);
-      if (!lastSet) return;
-      if (!enforceSingleOpenSet()) return;
-      const nowIso = new Date().toISOString();
-      let newSet;
-      if (btn.dataset.quick === 'copy') newSet = { w: lastSet.w, r: lastSet.r, wTs: nowIso, ts: nowIso };
-      else if (btn.dataset.quick === 'plus-rep') newSet = { w: lastSet.w, r: lastSet.r + 1, wTs: nowIso, ts: nowIso };
-      else if (btn.dataset.quick === 'plus-weight') newSet = { w: lastSet.w + (state.unit === 'lb' ? 5 : 2.5), r: lastSet.r, wTs: nowIso, ts: nowIso };
-      const emptyIdx = pending.sets.findIndex(s => !s.w && !s.r);
-      if (emptyIdx >= 0) pending.sets[emptyIdx] = newSet;
-      else pending.sets.push(newSet);
-      savePending();
-      renderModal();
-      updateFAB();
-      updateSaveBtn();
-    });
-  });
+  // feat 58 — Add Set: single click adds a fresh set (no double-click behaviour). Footer button (static).
+  document.getElementById('trk-add-set').onclick = () => addSetRow('single');
+  // feat 58 — Copy: build the next set's weight from the bottommost set / nearest above / history.
+  document.getElementById('trk-copy-last').onclick = copyWeightToNextSet;
 
   document.getElementById('trk-save-btn').onclick = saveSets;
   document.getElementById('trk-delete-ex-btn')?.addEventListener('click', deleteExercise);
@@ -8124,6 +8083,33 @@ function enforceSingleOpenSet() {
   return true;
 }
 // feat 51 — add a set row. 'single' → empty (or the plate-loader weight); 'prev' → previous set's weight.
+// feat 58 — Copy button: set up the NEXT set's weight (never copies reps).
+//  • bottommost set has a weight  → add a new set carrying that weight (≡ old Add-Set double-click)
+//  • bottommost set is empty      → fill it from the nearest weighted set above, else from history
+function copyWeightToNextSet() {
+  if (!enforceSingleOpenSet()) return;
+  if (!pending.sets || !pending.sets.length) pending.sets = [{ w: '', r: '' }];
+  const sets = pending.sets;
+  const lastIdx = sets.length - 1;
+  const bottom = sets[lastIdx];
+  const hasW = v => v !== '' && v != null;
+  if (hasW(bottom.w)) {
+    sets.push({ w: bottom.w, r: '', wTs: new Date().toISOString() });
+  } else {
+    let src = null;
+    for (let i = lastIdx - 1; i >= 0; i--) { if (hasW(sets[i].w)) { src = sets[i].w; break; } }
+    if (src == null) { const h = getLastSetForExercise(pending.varUuid, pending.subUuid); if (h && hasW(h.w)) src = h.w; }
+    if (src == null) { toast('No previous weight to copy'); return; }
+    bottom.w = src;
+    if (!bottom.wTs) bottom.wTs = new Date().toISOString();
+  }
+  savePending();
+  renderModal();
+  updateFAB();
+  updateSaveBtn();
+  if (typeof refreshRestBar === 'function') refreshRestBar();
+}
+
 function addSetRow(mode) {
   if (!enforceSingleOpenSet()) return;
   let w = '';
@@ -8270,7 +8256,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 10 · 2026-06-01 08:07';
+const APP_BUILD = 'build 11 · 2026-06-01 08:17';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

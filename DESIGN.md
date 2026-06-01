@@ -151,6 +151,17 @@ the reps-locked-until-weight rule, overload tags and the rest bar behave identic
 module scope so both paths can call it. With the option off, native keyboard entry is unchanged (cardio/superset/HR
 inputs still use it).
 
+### Set-form button rework + opt-in prefill (58) — DONE
+The set-action buttons now live on one row — the modal footer is **Save · Add · Copy · Clear · Close** (the old hidden
+Clone is gone; the body "+ Add Set" row and the "LAST: …" quick-fill row are removed). The footer `Add`/`Copy` are
+sets-only (`renderModal` hides `#trk-add-set` for the picker/cardio/superset forms, since the footer is shared).
+**Add Set** is now single-click = a fresh empty set (or the plate-loader default); the old double-click-for-previous-
+weight behaviour is gone. **Copy** (`copyWeightToNextSet`) builds the *next* set's weight only: if the bottom set has a
+weight it appends a new set carrying it (≡ the old double-click), else it fills the empty bottom set from the nearest
+weighted set above, else from history (`getLastSetForExercise`) — it never copies reps. Auto-prefilling the first set
+from the last session is now an **opt-in** `workoutControls.prefillFromHistory` (**default off**); the three
+start-an-exercise prefill sites (picker tap, sub-option change, suggestion chip) are gated on it.
+
 ### Tracking modes — DONE
 `exMode()` classifies a variation as **standard** (weight×reps), **bodyweight** (added load; − =
 assist; shows effective load — feat 26), **distance** (carries — feat 27), or **time** (holds — 27).
