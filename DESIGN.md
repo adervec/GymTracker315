@@ -139,6 +139,18 @@ stays visible as a **compact 18 px strip** ("`<d>d <h>h since last set`" via `la
 expanding to the 30 px timer while training; `body.rest-bar-on` (78 px) / `body.rest-bar-idle` (66 px) drive the
 panel offset. Hidden only when the timer setting is off or no set has been logged yet.
 
+### On-screen numpad for set entry (57) — DONE
+An opt-in `workoutControls.onScreenNumpad` (Settings → On-screen numpad) replaces the native mobile keyboard for the
+weight/reps set inputs, whose slide-in used to reflow the form ("jump around"). When on, `renderSetsForm` renders the
+inputs as `type="text" inputmode="none" readonly` (no keyboard fires) and a tap opens a **fixed bottom-sheet numpad**
+(`#trk-numpad`); being `position:fixed` it never reflows the form. Keys (digits · `.` · `±` · `⌫` · Clear · Next ·
+Done) are built by the pure **`numpadApplyKey(buf, key, {decimal, sign, maxLen})`** — decimal only for weight and
+time/distance reps, `±` for bodyweight "assist" weight, integer reps otherwise. Entry flows through the shared
+**`commitSetField(i, f, val)`** (extracted from the native input handler, used by both paths) so `wTs`/`ts` stamping,
+the reps-locked-until-weight rule, overload tags and the rest bar behave identically; `updateRowLive` was hoisted to
+module scope so both paths can call it. With the option off, native keyboard entry is unchanged (cardio/superset/HR
+inputs still use it).
+
 ### Tracking modes — DONE
 `exMode()` classifies a variation as **standard** (weight×reps), **bodyweight** (added load; − =
 assist; shows effective load — feat 26), **distance** (carries — feat 27), or **time** (holds — 27).

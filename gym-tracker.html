@@ -398,6 +398,22 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   @keyframes rest-flash { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
   body.rest-bar-on .panel { padding-top: 78px; }
   body.rest-bar-idle .panel { padding-top: 66px; }
+  /* feat 57 — on-screen numpad bottom sheet */
+  #trk-numpad-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 10059; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  #trk-numpad-backdrop.open { opacity: 1; pointer-events: auto; }
+  .numpad-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10060; background: var(--bg2); border-top: 1px solid var(--border2); border-radius: 16px 16px 0 0; transform: translateY(110%); transition: transform 0.28s cubic-bezier(.32,.72,0,1); box-shadow: 0 -8px 32px var(--shadow); padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)); user-select: none; }
+  .numpad-sheet.open { transform: translateY(0); }
+  .np-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .np-title { font-size: 12px; font-weight: 700; color: var(--text2); }
+  .np-display { font-size: 30px; font-weight: 800; text-align: center; color: var(--text); font-variant-numeric: tabular-nums; padding: 4px 0 10px; min-height: 40px; }
+  .np-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .np-key { font-size: 20px; font-weight: 700; padding: 14px 0; background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px; color: var(--text); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .np-key:active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .np-key-empty { background: transparent; border: none; cursor: default; }
+  .np-close { font-size: 12px; font-weight: 700; padding: 6px 14px; }
+  .np-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .np-key.np-wide { flex: 1; font-size: 14px; padding: 12px 0; }
+  .np-next { background: var(--accent); color: #fff; border-color: var(--accent); }
   /* feat 51 — timeline set-duration bars + rest gaps */
   .timeline-setbar { opacity: 0.9; }
   .timeline-rest { stroke: var(--text3); stroke-width: 2; opacity: 0.35; }
@@ -1352,6 +1368,9 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 
 <!-- feat 51 — global rest/set timer bar (visible across tabs while a workout is active) -->
 <div id="rest-bar" class="rest-bar" style="display:none;" role="status" aria-live="polite" title="Tap to open the workout log"></div>
+<!-- feat 57 — optional in-app numpad for set entry (avoids the native mobile keyboard) -->
+<div id="trk-numpad-backdrop"></div>
+<div id="trk-numpad" class="numpad-sheet" role="dialog" aria-label="On-screen numpad"></div>
 
 <!-- ====== SETTINGS DRAWER ====== -->
 <div id="settings-backdrop" onclick="closeSettingsDrawer()"></div>
@@ -2028,6 +2047,7 @@ let state = {
     feedbackVibrate: true,     // vibrate on rest-zone transitions (mobile)
     feedbackBeep: false,       // subtle WebAudio blip on rest-zone transitions
     restRecEnabled: true,      // show the recommended-rest band
+    onScreenNumpad: false,     // feat 57 — in-app numpad for set entry instead of the native mobile keyboard
   },
   // ---- Profile (feat 34) — fed into BMI / age / relative-strength calcs ----
   profile: {
@@ -2084,7 +2104,7 @@ function normalizeState() {
     dashboard: { stats:true, timeline:true, liveScore:true, pace:true, physique:true },
     longPressConfirm: { enabled:false, ms:1500 },
     workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
-      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true },
+      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false },
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   if (!Array.isArray(state.bodyComp)) state.bodyComp = [];
@@ -3101,6 +3121,16 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">On-screen numpad</div>
+        <div class="drawer-setting-sub">Tap weight/reps to enter via an in-app keypad — avoids the mobile keyboard reflowing the form</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="on">On</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad !== true ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">Recommended rest</div>
         <div class="drawer-setting-sub">Show the target rest band (adapts to your history)</div>
       </div>
@@ -3387,7 +3417,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefGlossHl) { state.glossaryHighlight = btn.dataset.prefGlossHl === 'on'; saveState(); installGlossaryHighlight(); }
       else if (btn.dataset.dash) { state.dashboard[btn.dataset.dash] = btn.dataset.dashVal === 'on'; saveState(); }
       else if (btn.dataset.catVis) { state.hiddenCategories[btn.dataset.catVis] = btn.dataset.catVal === 'hide'; saveState(); render(); }
-      else if (btn.dataset.wc) { ensureWC(); state.workoutControls[btn.dataset.wc] = btn.dataset.wcVal === 'on'; saveState(); if (typeof refreshRestBar === 'function') refreshRestBar(); }
+      else if (btn.dataset.wc) { ensureWC(); state.workoutControls[btn.dataset.wc] = btn.dataset.wcVal === 'on'; saveState(); if (typeof refreshRestBar === 'function') refreshRestBar(); if (typeof modalState !== 'undefined' && modalState.open) renderModal(); }
       renderSettingsDrawer();
     });
   });
@@ -3432,7 +3462,7 @@ function renderSettingsDrawer() {
   });
 
   // Workout controls
-  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true }; };
+  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false }; };
   const aeInput = body.querySelector('#drawer-auto-end');
   if (aeInput) aeInput.addEventListener('change', () => {
     const v = parseInt(aeInput.value);
@@ -6908,6 +6938,7 @@ function editExisting(sessionDate, varUuid, subUuid) {
 
 function closeLogModal() {
   modalState.open = false;
+  if (typeof closeNumpad === 'function') closeNumpad(); // feat 57 — don't leave the numpad sheet open
   document.getElementById('trk-modal').classList.remove('open');
   document.getElementById('trk-modal-backdrop').classList.remove('open');
   document.body.style.overflow = '';
@@ -7460,11 +7491,17 @@ function renderSetsForm() {
 
     const maxW = state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb;
     const wOver = s.w !== '' && s.w != null && parseFloat(s.w) > maxW;
+    // feat 57 — in on-screen-numpad mode the inputs are readonly text (suppresses the native keyboard); a tap opens the in-app numpad.
+    const np = !!(state.workoutControls && state.workoutControls.onScreenNumpad);
+    const repsIm = (M.mode==='standard'||M.mode==='bodyweight') ? 'numeric' : 'decimal';
+    const wAttrs = np ? 'type="text" inputmode="none" readonly' : 'type="number" inputmode="decimal" step="any"';
+    const rAttrs = np ? 'type="text" inputmode="none" readonly' : `type="number" inputmode="${repsIm}" step="${M.mode==='standard'||M.mode==='bodyweight'?'1':'any'}"`;
+    const npCls = np ? ' numpad-mode' : '';
     return `
       <div class="${rowClass}">
         <div class="set-num">${i + 1}</div>
-        <input class="set-input" type="number" inputmode="decimal" step="any" placeholder="${M.wLabel}" value="${s.w}" data-i="${i}" data-field="w" style="${wOver ? 'color:#ff4444;font-weight:700;' : ''}">
-        <input class="set-input" type="number" inputmode="${M.mode==='standard'||M.mode==='bodyweight'?'numeric':'decimal'}" step="${M.mode==='standard'||M.mode==='bodyweight'?'1':'any'}" placeholder="${M.rLabel}" value="${s.r}" data-i="${i}" data-field="r" ${(s.w !== '' && s.w != null) ? '' : 'disabled title="Enter weight first"'}>
+        <input class="set-input${npCls}" ${wAttrs} placeholder="${M.wLabel}" value="${s.w}" data-i="${i}" data-field="w" style="${wOver ? 'color:#ff4444;font-weight:700;' : ''}">
+        <input class="set-input${npCls}" ${rAttrs} placeholder="${M.rLabel}" value="${s.r}" data-i="${i}" data-field="r" ${(s.w !== '' && s.w != null) ? '' : 'disabled title="Enter weight first"'}>
         <button class="set-remove" data-remove="${i}">×</button>
         ${overloadTagHtml}
         ${recordHintHtml}
@@ -7579,6 +7616,187 @@ function renderNeighborHints() {
   el.innerHTML = intro + hintCard(lighter, 'lighter', '▼ Lighter') + hintCard(heavier, 'heavier', '▲ Heavier');
 }
 
+// Live-update one set row's colours + bottom record hint (no full re-render). Module-scope (feat 57)
+// so both the native-input path and the on-screen numpad can refresh the row.
+function updateRowLive(idx) {
+  const rows = document.querySelectorAll('#trk-sets-container .set-row');
+  const row = rows[idx];
+  if (!row) return;
+  const s = pending.sets[idx];
+  // feat 51 — enforce order: reps stay locked until this row has a weight.
+  const repsInput = row.querySelector('[data-field="r"]');
+  if (repsInput) {
+    const wFilled = s.w !== '' && s.w != null;
+    repsInput.disabled = !wFilled;
+    repsInput.title = wFilled ? '' : 'Enter weight first';
+  }
+  const wNum = s.w === '' || s.w == null ? null : parseFloat(s.w);
+  const rNum = s.r === '' || s.r == null ? null : parseFloat(s.r);
+
+  // Compute current session date
+  const todayStr = new Date().toDateString();
+  let currentSessionDate;
+  if (modalState.isEditing && modalState.editingSessionDate) {
+    currentSessionDate = modalState.editingSessionDate;
+  } else {
+    const todaySession = state.sessions.find(ss => new Date(ss.date).toDateString() === todayStr);
+    currentSessionDate = todaySession ? todaySession.date : new Date().toISOString();
+  }
+
+  // Remove old overload classes, tag, and hint
+  row.className = 'set-row';
+  row.querySelectorAll('.set-overload-tag, .record-hint').forEach(el => el.remove());
+
+  if (wNum > 0 && rNum > 0) {
+    const score = getOverloadScore(pending.varUuid, pending.subUuid, { w: wNum, r: rNum }, currentSessionDate);
+    if (score) {
+      row.classList.add(`overload-${score.level}`);
+      const tag = document.createElement('div');
+      tag.className = `set-overload-tag ${score.level}`;
+      tag.textContent = score.label;
+      row.appendChild(tag);
+    }
+  }
+
+  // Bottom-row record hint
+  const isLast = idx === pending.sets.length - 1;
+  if (isLast) {
+    let hintHtml = null;
+    if (wNum > 0 && (rNum == null || rNum <= 0)) {
+      const rec = getBestRepsAtWeight(pending.varUuid, pending.subUuid, wNum);
+      if (rec) {
+        const dateStr = fmtDate(rec.date);
+        const exactnessNote = rec.exact ? '' : ` <span style="color:#6f88c0">(at ${rec.weight}${state.unit})</span>`;
+        hintHtml = `<span class="hint-action">Best reps at ${wNum}${state.unit}:</span> <b>${rec.reps} reps</b> on ${dateStr}${exactnessNote} — beat <b>${rec.reps + 1}</b> for a record`;
+      } else {
+        hintHtml = `<span class="hint-action">${wNum}${state.unit}:</span> first time at this weight — set a baseline`;
+      }
+    } else if (rNum > 0 && (wNum == null || wNum <= 0)) {
+      const rec = getBestWeightAtReps(pending.varUuid, pending.subUuid, rNum);
+      if (rec) {
+        const dateStr = fmtDate(rec.date);
+        hintHtml = `<span class="hint-action">Best weight at ${rNum} reps:</span> <b>${rec.weight}${state.unit}</b> on ${dateStr} — beat it to set a record`;
+      } else {
+        hintHtml = `<span class="hint-action">${rNum} reps:</span> first time at this rep count — set a baseline`;
+      }
+    }
+    if (hintHtml) {
+      const hint = document.createElement('div');
+      hint.className = 'record-hint';
+      hint.innerHTML = hintHtml;
+      row.appendChild(hint);
+    }
+  }
+}
+
+// feat 51/57 — apply a weight/reps value to a set; the native input AND the on-screen numpad both use this path.
+function commitSetField(i, f, val) {
+  const s = pending.sets[i];
+  if (!s) return;
+  const n = parseFloat(val);
+  s[f] = (val === '' || val == null || isNaN(n)) ? '' : n;
+  const wFilled = s.w !== '' && s.w != null;
+  if (f === 'w') {
+    if (wFilled && !s.wTs) s.wTs = new Date().toISOString();        // weight entered → set starts
+    else if (!wFilled) { s.wTs = undefined; s.ts = undefined; }     // weight cleared → reset both
+  } else if (f === 'r') {
+    const rFilled = s.r !== '' && s.r != null;
+    s.ts = rFilled ? new Date().toISOString() : undefined;          // reps entered → set done
+  }
+  savePending();
+  updateFAB();
+  updateSaveBtn();
+  updateRowLive(i);
+  if (f === 'w') renderNeighborHints();
+  if (typeof refreshRestBar === 'function') refreshRestBar();
+}
+
+/* feat 57 — optional in-app numpad (avoids the native mobile keyboard reflowing the form) */
+function numpadApplyKey(buf, key, opts) {
+  opts = opts || {};
+  const maxLen = opts.maxLen || 7;
+  if (key === 'back') return buf.slice(0, -1);
+  if (key === 'clear') return '';
+  if (key === 'sign') { if (!opts.sign) return buf; return buf.charAt(0) === '-' ? buf.slice(1) : '-' + buf; }
+  if (key === '.') { if (!opts.decimal || buf.indexOf('.') !== -1) return buf; return (buf === '' || buf === '-') ? buf + '0.' : buf + '.'; }
+  if (/^[0-9]$/.test(key)) {
+    const digits = buf.replace('-', '').replace('.', '');
+    if (digits.length >= maxLen) return buf;
+    if (buf === '0') return key;        // replace a lone leading zero
+    if (buf === '-0') return '-' + key;
+    return buf + key;
+  }
+  return buf;
+}
+function openNumpad(i, field) {
+  const s = pending.sets[i];
+  if (!s) return;
+  const cur = s[field];
+  modalState.numpad = { open: true, i: i, field: field, buf: (cur === '' || cur == null) ? '' : String(cur) };
+  renderNumpad();
+  document.getElementById('trk-numpad')?.classList.add('open');
+  document.getElementById('trk-numpad-backdrop')?.classList.add('open');
+}
+function closeNumpad() {
+  if (modalState.numpad) modalState.numpad.open = false;
+  document.getElementById('trk-numpad')?.classList.remove('open');
+  document.getElementById('trk-numpad-backdrop')?.classList.remove('open');
+}
+function numpadNext() {
+  const np = modalState.numpad;
+  if (!np) return;
+  if (np.field === 'w') openNumpad(np.i, 'r');
+  else if (np.i + 1 < pending.sets.length) openNumpad(np.i + 1, 'w');
+  else closeNumpad();
+}
+function renderNumpad() {
+  const sheet = document.getElementById('trk-numpad');
+  if (!sheet) return;
+  const np = modalState.numpad;
+  if (!np || !np.open || !pending.varUuid) { sheet.innerHTML = ''; return; }
+  const M = exMode(pending.varUuid);
+  const isW = np.field === 'w';
+  const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
+  const sign = isW && M.mode === 'bodyweight';
+  const label = isW ? (M.wLabel + ' (' + state.unit + ')') : M.rLabel;
+  const disp = np.buf === '' ? '0' : np.buf;
+  const key = (k, txt, cls) => `<button class="np-key${cls ? ' ' + cls : ''}" data-np="${k}">${txt}</button>`;
+  sheet.innerHTML = `
+    <div class="np-head"><span class="np-title">Set ${np.i + 1} · ${escapeHtml(label)}</span><button class="np-key np-close" data-np="done">Done</button></div>
+    <div class="np-display">${escapeHtml(disp)}</div>
+    <div class="np-grid">
+      ${['1','2','3','4','5','6','7','8','9'].map(d => key(d, d)).join('')}
+      ${decimal ? key('.', '.') : '<span class="np-key np-key-empty"></span>'}
+      ${key('0', '0')}
+      ${key('back', '⌫')}
+    </div>
+    <div class="np-actions">
+      ${sign ? key('sign', '±', 'np-wide') : ''}
+      ${key('clear', 'Clear', 'np-wide')}
+      ${key('next', 'Next', 'np-wide np-next')}
+    </div>`;
+  bindNumpadKeys();
+}
+function bindNumpadKeys() {
+  const sheet = document.getElementById('trk-numpad');
+  if (!sheet) return;
+  const disp = sheet.querySelector('.np-display');
+  sheet.querySelectorAll('[data-np]').forEach(btn => btn.addEventListener('click', () => {
+    const k = btn.dataset.np, np = modalState.numpad;
+    if (!np) return;
+    if (k === 'done') { closeNumpad(); return; }
+    if (k === 'next') { numpadNext(); return; }
+    const M = exMode(pending.varUuid), isW = np.field === 'w';
+    const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
+    const sign = isW && M.mode === 'bodyweight';
+    np.buf = numpadApplyKey(np.buf, k, { decimal: decimal, sign: sign, maxLen: 7 });
+    if (disp) disp.textContent = np.buf === '' ? '0' : np.buf;
+    const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + np.i + '"][data-field="' + np.field + '"]');
+    if (inp) inp.value = np.buf;
+    commitSetField(np.i, np.field, np.buf);
+  }));
+}
+
 function bindSetsForm() {
   document.getElementById('trk-back-to-picker')?.addEventListener('click', () => {
     modalState.showPicker = true;
@@ -7644,102 +7862,18 @@ function bindSetsForm() {
     renderModal();
   };
 
-  // Live-update row colors & bottom record hint on input — no full re-render
-  function updateRowLive(idx) {
-    const rows = document.querySelectorAll('#trk-sets-container .set-row');
-    const row = rows[idx];
-    if (!row) return;
-    const s = pending.sets[idx];
-    // feat 51 — enforce order: reps stay locked until this row has a weight.
-    const repsInput = row.querySelector('[data-field="r"]');
-    if (repsInput) {
-      const wFilled = s.w !== '' && s.w != null;
-      repsInput.disabled = !wFilled;
-      repsInput.title = wFilled ? '' : 'Enter weight first';
-    }
-    const wNum = s.w === '' || s.w == null ? null : parseFloat(s.w);
-    const rNum = s.r === '' || s.r == null ? null : parseFloat(s.r);
-
-    // Compute current session date
-    const todayStr = new Date().toDateString();
-    let currentSessionDate;
-    if (modalState.isEditing && modalState.editingSessionDate) {
-      currentSessionDate = modalState.editingSessionDate;
-    } else {
-      const todaySession = state.sessions.find(ss => new Date(ss.date).toDateString() === todayStr);
-      currentSessionDate = todaySession ? todaySession.date : new Date().toISOString();
-    }
-
-    // Remove old overload classes, tag, and hint
-    row.className = 'set-row';
-    row.querySelectorAll('.set-overload-tag, .record-hint').forEach(el => el.remove());
-
-    if (wNum > 0 && rNum > 0) {
-      const score = getOverloadScore(pending.varUuid, pending.subUuid, { w: wNum, r: rNum }, currentSessionDate);
-      if (score) {
-        row.classList.add(`overload-${score.level}`);
-        const tag = document.createElement('div');
-        tag.className = `set-overload-tag ${score.level}`;
-        tag.textContent = score.label;
-        row.appendChild(tag);
-      }
-    }
-
-    // Bottom-row record hint
-    const isLast = idx === pending.sets.length - 1;
-    if (isLast) {
-      let hintHtml = null;
-      if (wNum > 0 && (rNum == null || rNum <= 0)) {
-        const rec = getBestRepsAtWeight(pending.varUuid, pending.subUuid, wNum);
-        if (rec) {
-          const dateStr = fmtDate(rec.date);
-          const exactnessNote = rec.exact ? '' : ` <span style="color:#6f88c0">(at ${rec.weight}${state.unit})</span>`;
-          hintHtml = `<span class="hint-action">Best reps at ${wNum}${state.unit}:</span> <b>${rec.reps} reps</b> on ${dateStr}${exactnessNote} — beat <b>${rec.reps + 1}</b> for a record`;
-        } else {
-          hintHtml = `<span class="hint-action">${wNum}${state.unit}:</span> first time at this weight — set a baseline`;
-        }
-      } else if (rNum > 0 && (wNum == null || wNum <= 0)) {
-        const rec = getBestWeightAtReps(pending.varUuid, pending.subUuid, rNum);
-        if (rec) {
-          const dateStr = fmtDate(rec.date);
-          hintHtml = `<span class="hint-action">Best weight at ${rNum} reps:</span> <b>${rec.weight}${state.unit}</b> on ${dateStr} — beat it to set a record`;
-        } else {
-          hintHtml = `<span class="hint-action">${rNum} reps:</span> first time at this rep count — set a baseline`;
-        }
-      }
-      if (hintHtml) {
-        const hint = document.createElement('div');
-        hint.className = 'record-hint';
-        hint.innerHTML = hintHtml;
-        row.appendChild(hint);
-      }
-    }
-  }
+  // feat 57 — updateRowLive is defined at module scope so commitSetField + the numpad can both call it.
 
   document.querySelectorAll('#trk-sets-container input').forEach(input => {
-    input.addEventListener('input', () => {
-      const i = parseInt(input.dataset.i);
-      const f = input.dataset.field;
-      const val = input.value;
-      const s = pending.sets[i];
-      s[f] = val === '' ? '' : parseFloat(val);
-      // feat 51 — stamp set START (weight) / DONE (reps) times for rest/set timing.
-      const wFilled = s.w !== '' && s.w != null;
-      if (f === 'w') {
-        if (wFilled && !s.wTs) s.wTs = new Date().toISOString();   // weight entered → set starts
-        else if (!wFilled) { s.wTs = undefined; s.ts = undefined; } // weight cleared → reset both
-      } else if (f === 'r') {
-        const rFilled = s.r !== '' && s.r != null;
-        s.ts = rFilled ? new Date().toISOString() : undefined;      // reps entered → set done
-      }
-      savePending();
-      updateFAB();
-      updateSaveBtn();
-      updateRowLive(i);
-      if (f === 'w') renderNeighborHints();
-      if (typeof refreshRestBar === 'function') refreshRestBar();
-    });
+    input.addEventListener('input', () => commitSetField(parseInt(input.dataset.i), input.dataset.field, input.value));
   });
+  // feat 57 — in on-screen-numpad mode, tapping a set input opens the in-app numpad instead of the native keyboard
+  if (state.workoutControls && state.workoutControls.onScreenNumpad) {
+    document.querySelectorAll('#trk-sets-container .set-input.numpad-mode').forEach(input => {
+      input.addEventListener('mousedown', e => e.preventDefault()); // prevent focus → no scroll / no native keyboard
+      input.addEventListener('click', () => { if (!input.disabled) openNumpad(parseInt(input.dataset.i), input.dataset.field); });
+    });
+  }
   document.querySelectorAll('[data-remove]').forEach(btn => {
     btn.addEventListener('click', () => {
       const i = parseInt(btn.dataset.remove);
@@ -8125,6 +8259,8 @@ document.getElementById('rest-bar')?.addEventListener('click', () => {
   document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === 'log'));
   render();
 });
+// feat 57 — tap outside the numpad to dismiss it
+document.getElementById('trk-numpad-backdrop')?.addEventListener('click', closeNumpad);
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (document.getElementById('help-panel').classList.contains('open')) closeHelp();
@@ -8134,7 +8270,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 8 · 2026-05-31 20:48';
+const APP_BUILD = 'build 9 · 2026-06-01 07:35';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
