@@ -275,6 +275,13 @@ They share variation **UUIDs**.
   `saveSets` tags each valid set with its sub and **groups them into one exercise entry per sub** (so each grip tracks
   separately under its own `varUuid|subUuid`), stripping the temp field. Off (default) = the original single-sub
   behaviour; editing mode always uses the one selected sub.
+- **Strava activities auto-load (feat 89):** mirrors the feat-73 biometrics auto-load for Strava — `state.stravaAutoLoad
+  {enabled,mode}` (∈ SETTINGS_KEYS), `_stravaLoad{File,Dir}Handle`, and `stravaLoad{NewestInDir,Apply,Now,PickFolder,
+  PickFile,Disable}` reusing the same `bioIdb*` IndexedDB handle store (keys `stravaDir`/`stravaFile`). Pick a folder/file
+  (e.g. where `strava-sync.py` writes); the handle persists across reloads, and on boot (`stravaLoadNow(true,false)`) +
+  "Sync Now" it imports the newest `strava|activities|gymtracker` file via `importStravaActivities(text,{silent})` (which
+  gained a silent option) — always merging. Settings → Data → Strava shows the auto-load controls (gated by
+  `autoLoadSupported`).
 
 ---
 

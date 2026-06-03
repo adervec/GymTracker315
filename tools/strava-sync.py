@@ -22,6 +22,9 @@ USAGE
 
 Then in GymTracker:  Settings -> Data -> Strava -> "Import activities" -> pick the JSON,
 then "Reconcile" to link workouts, enrich HR/calories/duration, and copy descriptions.
+For hands-off use, instead point Strava "Auto-load folder" at the folder this writes to (keep
+the filename containing "strava"/"activities"); the app re-imports the newest file on every open
+and on "Sync Now". Re-run this script on a schedule to keep it current.
 
 NOTE: Strava rotates refresh tokens and rate-limits (~100 req / 15 min). The activity list is
 "summary" data; that's all GymTracker needs to match by start time. Adjust if Strava changes.

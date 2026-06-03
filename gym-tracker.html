@@ -2422,7 +2422,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2564,6 +2564,7 @@ function normalizeState() {
     workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
       restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false, mixSubvariations:false },
     bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
+    stravaAutoLoad: { enabled:false, mode:'folder' }, // feat 89
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   if (!Array.isArray(state.bodyComp)) state.bodyComp = [];
@@ -3284,6 +3285,84 @@ function bioLoadDisable() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
   renderSettingsDrawer();
   toast('Biometrics auto-load disabled');
+}
+
+/* ---- feat 89 — Strava activities auto-load (mirrors biometrics auto-load; reuses the bioIdb* handle store) ---- */
+let _stravaLoadFileHandle = null, _stravaLoadDirHandle = null;
+async function stravaLoadNewestInDir(dirHandle) {
+  const named = [], anyJson = [];
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind !== 'file') continue;
+    if (/\.(json|csv|txt)$/i.test(name) && /(strava|activit|gymtracker)/i.test(name)) named.push({ name, handle });
+    else if (/\.json$/i.test(name)) anyJson.push({ name, handle });
+  }
+  const pool = named.length ? named : anyJson;
+  if (!pool.length) return null;
+  let best = null, bestT = -1;
+  for (const e of pool) { try { const f = await e.handle.getFile(); if (f.lastModified > bestT) { bestT = f.lastModified; best = e.handle; } } catch(_) {} }
+  return best;
+}
+async function stravaLoadApply(fileHandle, silent) {
+  const file = await fileHandle.getFile();
+  const text = await file.text();
+  return importStravaActivities(text, { silent: !!silent });
+}
+async function stravaLoadNow(silent, interactive) {
+  const cfg = state.stravaAutoLoad;
+  if (!cfg || !cfg.enabled) return;
+  try {
+    let handle = cfg.mode === 'file' ? _stravaLoadFileHandle : _stravaLoadDirHandle;
+    if (!handle) {
+      const saved = await bioIdbGet(cfg.mode === 'file' ? 'stravaFile' : 'stravaDir');
+      if (saved) {
+        let perm = 'granted';
+        if (saved.queryPermission) perm = await (interactive && saved.requestPermission ? saved.requestPermission({ mode: 'read' }) : saved.queryPermission({ mode: 'read' }));
+        if (perm === 'granted') { if (cfg.mode === 'file') _stravaLoadFileHandle = saved; else _stravaLoadDirHandle = saved; handle = saved; }
+        else { if (!silent) autoSaveSetStatus('⚠ Strava: tap Sync now to allow access'); return; }
+      }
+    }
+    if (!handle) { if (!silent) autoSaveSetStatus('⚠ Strava: re-pick file/folder'); return; }
+    const fileHandle = cfg.mode === 'file' ? handle : await stravaLoadNewestInDir(handle);
+    if (!fileHandle) { if (!silent) autoSaveSetStatus('⚠ Strava: no file found'); return; }
+    const res = await stravaLoadApply(fileHandle, silent);
+    if (!silent && res) autoSaveSetStatus(`✓ Strava: ${res.added + res.updated} activit${res.added + res.updated === 1 ? 'y' : 'ies'}${res.strength ? (' · ' + res.strength + ' strength') : ''}`);
+  } catch(err) {
+    if (!silent) autoSaveSetStatus('⚠ Strava load failed');
+  }
+}
+async function stravaLoadPickFolder() {
+  if (!autoLoadSupported() || !('showDirectoryPicker' in window)) { toast('Directory picker not supported in this browser'); return; }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'read' });
+    _stravaLoadDirHandle = handle; _stravaLoadFileHandle = null;
+    await bioIdbSet('stravaDir', handle); await bioIdbDel('stravaFile');
+    state.stravaAutoLoad = { ...state.stravaAutoLoad, enabled: true, mode: 'folder' };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+    renderSettingsDrawer();
+    const fileHandle = await stravaLoadNewestInDir(handle);
+    if (fileHandle) { const res = await stravaLoadApply(fileHandle, false); if (res) renderSettingsDrawer(); }
+    else toast(`Folder set: ${handle.name} (no Strava file yet)`);
+  } catch(e) { if (e && e.name !== 'AbortError') toast('Could not pick folder'); }
+}
+async function stravaLoadPickFile() {
+  if (!autoLoadSupported()) { toast('File System API not supported in this browser'); return; }
+  try {
+    const [handle] = await window.showOpenFilePicker({ types: [{ description: 'Strava activities JSON/CSV', accept: { 'application/json': ['.json'], 'text/csv': ['.csv'], 'text/plain': ['.txt'] } }], multiple: false });
+    _stravaLoadFileHandle = handle; _stravaLoadDirHandle = null;
+    await bioIdbSet('stravaFile', handle); await bioIdbDel('stravaDir');
+    state.stravaAutoLoad = { ...state.stravaAutoLoad, enabled: true, mode: 'file' };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+    renderSettingsDrawer();
+    const res = await stravaLoadApply(handle, false); if (res) renderSettingsDrawer();
+  } catch(e) { if (e && e.name !== 'AbortError') toast('Could not pick file'); }
+}
+function stravaLoadDisable() {
+  _stravaLoadFileHandle = null; _stravaLoadDirHandle = null;
+  state.stravaAutoLoad = { ...state.stravaAutoLoad, enabled: false };
+  bioIdbDel('stravaFile'); bioIdbDel('stravaDir');
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+  renderSettingsDrawer();
+  toast('Strava auto-load disabled');
 }
 
 /* ============================================================
@@ -4329,6 +4408,28 @@ function renderSettingsDrawer() {
       <button class="drawer-btn" id="strava-reconcile-btn">🔗 Reconcile${(state.stravaActivities && state.stravaActivities.filter(a => isStrengthType(a.sportType)).length) ? ` (${state.stravaActivities.filter(a => isStrengthType(a.sportType)).length})` : ''}</button>
       <input type="file" id="strava-import-file" accept=".json,.csv,.txt" style="display:none;">
     </div>
+    ${autoLoadSupported() ? `
+    <div style="font-size:11px;color:var(--text3);margin:10px 0 8px;line-height:1.5;">Or <b>auto-load</b> on app open + Sync Now from a remembered file/folder (e.g. where <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">strava-sync.py</code> writes). Always merges.</div>
+    ${state.stravaAutoLoad && state.stravaAutoLoad.enabled ? `
+      <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">
+          ${state.stravaAutoLoad.mode === 'file' ? '📄 File mode' : '📁 Folder mode'}
+          ${(_stravaLoadFileHandle || _stravaLoadDirHandle) ? '' : ' <span style="color:var(--warn);font-size:10px;">(tap Sync Now to allow access)</span>'}
+        </div>
+        <div style="color:var(--text2);">${state.stravaAutoLoad.mode === 'folder' ? 'Reads the newest Strava file in the folder' : 'Reads the chosen file'}</div>
+      </div>
+      <div class="drawer-data-row" style="flex-wrap:wrap;">
+        <button class="drawer-btn" id="strava-repick-btn">${state.stravaAutoLoad.mode === 'file' ? '📄 Re-pick File' : '📁 Re-pick Folder'}</button>
+        <button class="drawer-btn" id="strava-sync-now-btn">⬇ Sync Now</button>
+        <button class="drawer-btn danger" id="strava-al-disable-btn">✕ Disable auto-load</button>
+      </div>
+    ` : `
+      <div class="drawer-data-row" style="flex-wrap:wrap;">
+        <button class="drawer-btn" id="strava-al-pick-folder-btn">📁 Auto-load folder</button>
+        <button class="drawer-btn" id="strava-al-pick-file-btn">📄 Auto-load file</button>
+      </div>
+    `}
+    ` : ''}
 
     <div class="drawer-section-title" style="margin-top:18px;">Exercise media (bulk)</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
@@ -4560,6 +4661,12 @@ function renderSettingsDrawer() {
     const rd = new FileReader(); rd.onload = () => { const r = importStravaActivities(String(rd.result || '')); renderSettingsDrawer(); if (r && r.strength) openStravaModal(); }; rd.readAsText(f);
   });
   body.querySelector('#strava-reconcile-btn')?.addEventListener('click', openStravaModal);
+  // feat 89 — Strava activities auto-load
+  body.querySelector('#strava-al-pick-folder-btn')?.addEventListener('click', stravaLoadPickFolder);
+  body.querySelector('#strava-al-pick-file-btn')?.addEventListener('click', stravaLoadPickFile);
+  body.querySelector('#strava-repick-btn')?.addEventListener('click', () => { state.stravaAutoLoad.mode === 'file' ? stravaLoadPickFile() : stravaLoadPickFolder(); });
+  body.querySelector('#strava-sync-now-btn')?.addEventListener('click', () => { stravaLoadNow(false, true).catch(() => {}); });
+  body.querySelector('#strava-al-disable-btn')?.addEventListener('click', stravaLoadDisable);
 
   // feat 84 — bulk exercise-media export/import
   body.querySelector('#exmedia-export-btn')?.addEventListener('click', exportExerciseList);
@@ -8805,10 +8912,11 @@ function parseStravaActivities(text) {
   }
   return out;
 }
-function importStravaActivities(text) {
-  if (roBlocked('import Strava activities')) return null;
+function importStravaActivities(text, opts) {
+  opts = opts || {};
+  if (!opts.silent && roBlocked('import Strava activities')) return null;
   const parsed = parseStravaActivities(text);
-  if (!parsed || !parsed.length) { toast('No activities found in that file'); return null; }
+  if (!parsed || !parsed.length) { if (!opts.silent) toast('No activities found in that file'); return null; }
   state.stravaActivities = state.stravaActivities || [];
   const byId = {}; state.stravaActivities.forEach(a => byId[a.id] = a);
   let added = 0, updated = 0;
@@ -8816,7 +8924,7 @@ function importStravaActivities(text) {
   saveState();
   const strength = parsed.filter(a => isStrengthType(a.sportType)).length;
   logInfo('Strava activities imported', `${added} new · ${updated} updated · ${strength} strength`);
-  toast(`Imported ${added + updated} activit${added + updated === 1 ? 'y' : 'ies'} (${strength} strength)`);
+  if (!opts.silent) toast(`Imported ${added + updated} activit${added + updated === 1 ? 'y' : 'ies'} (${strength} strength)`);
   return { added, updated, strength };
 }
 function _sessStartMs(s) { return new Date(s.date).getTime(); }
@@ -10637,7 +10745,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 29 · 2026-06-03 14:57';
+const APP_BUILD = 'build 30 · 2026-06-03 15:09';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -11107,6 +11215,10 @@ setTimeout(() => {
   // feat 73 — biometrics auto-load (separate channel, always merges); silent, no permission prompt on boot
   if (state.bioAutoLoad && state.bioAutoLoad.enabled) {
     bioLoadNow(true, false).catch(() => {});
+  }
+  // feat 89 — Strava activities auto-load (same pattern)
+  if (state.stravaAutoLoad && state.stravaAutoLoad.enabled) {
+    stravaLoadNow(true, false).catch(() => {});
   }
 }, 300);
 </script>
