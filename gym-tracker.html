@@ -661,6 +661,12 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-load { margin-left: auto; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 999px; white-space: nowrap; border: 1px solid var(--border2); color: var(--text3); }
   .plan-load.light { color: var(--good); border-color: var(--good); }
   .plan-load.heavy { color: var(--warn); border-color: var(--warn); }
+  /* feat 83 — one attached video per plan */
+  .plan-media-edit { margin-bottom: 12px; }
+  .plan-media-add { display: flex; gap: 8px; }
+  .plan-media-attached { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 8px; }
+  .plan-media-attached .pme-info { flex: 1; font-size: 12px; font-weight: 700; color: var(--accent); }
+  .plan-watch { font-size: 11px; font-weight: 800; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 3px 10px; border-radius: 999px; cursor: pointer; font-family: inherit; margin-left: auto; }
   .plan-steps { display: flex; flex-direction: column; gap: 5px; }
   .plan-step { padding: 6px 8px; border-radius: 7px; background: var(--bg3); border: 1px solid transparent; }
   .plan-step.current { border-color: var(--accent-border); background: var(--accent-bg); }
@@ -5184,11 +5190,22 @@ function openExerciseMedia(uuid, fallbackTitle, movementId) {
   document.getElementById('media-modal')?.classList.add('open');
 }
 // All clips across the context's keys (variation + movement), de-duped, tagged with their source.
+// feat 83 — `_mediaCtx.items` is an explicit, read-only list (used to view a plan's single attached video).
 function combinedMediaItems() {
   if (!_mediaCtx) return [];
+  if (_mediaCtx.items) return _mediaCtx.items.filter(Boolean).map(m => ({ ...m, _klabel: '' }));
   const seen = new Set(), all = [];
-  _mediaCtx.keys.forEach(k => getExerciseMedia(k.id).forEach(m => { const key = m.embedUrl || m.url; if (!seen.has(key)) { seen.add(key); all.push({ ...m, _key: k.id, _klabel: k.label }); } }));
+  (_mediaCtx.keys || []).forEach(k => getExerciseMedia(k.id).forEach(m => { const key = m.embedUrl || m.url; if (!seen.has(key)) { seen.add(key); all.push({ ...m, _key: k.id, _klabel: k.label }); } }));
   return all;
+}
+// View a single web-media item read-only (no manage UI) — used for a plan's attached video.
+function openPlanMedia(planId) {
+  const plan = getPlan(planId); if (!plan || !plan.media) return;
+  _mediaCtx = { title: plan.name, keys: [], items: [plan.media] };
+  _mediaMode = 'view';
+  renderMediaModal();
+  document.getElementById('media-backdrop')?.classList.add('open');
+  document.getElementById('media-modal')?.classList.add('open');
 }
 function closeExerciseMedia() {
   if (_mediaIO) { try { _mediaIO.disconnect(); } catch (e) {} _mediaIO = null; }
@@ -5228,7 +5245,7 @@ function renderMediaModal() {
       <div class="media-track" id="media-track">${slides}</div>
       ${dots}
       <div class="media-hint">Streams live from the web — nothing is downloaded. If a clip stays blank the creator may block embedding; use Open ↗.</div>
-      <div class="media-actions"><button onclick="mediaSetMode('manage')">✎ Manage links</button></div>
+      ${_mediaCtx.items ? '' : `<div class="media-actions"><button onclick="mediaSetMode('manage')">✎ Manage links</button></div>`}
     </div>`;
   } else {
     const sections = keys.map(k => {
@@ -5596,6 +5613,7 @@ function renderPlansOverlay() {
     ${(state.plans || []).map(p => `<div class="plan-row">
       <div class="plan-row-main"><div class="plan-row-name">${escapeHtml(p.name)}</div>${p.desc?`<div class="plan-row-desc">${escapeHtml(p.desc)}</div>`:''}<div class="plan-row-sub"><span class="plan-intensity" title="Intensity ${planIntensity(p)}/5">${intensityDots(p)}</span> · ~${estimatePlanMinutes(p)} min · ${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets</div></div>
       <div class="plan-row-actions">
+        ${p.media ? `<button class="drawer-btn" data-plan-media="${p.id}" title="Watch attached video">🎬</button>` : ''}
         <button class="drawer-btn" data-plan-use="${p.id}">Use</button>
         <button class="drawer-btn" data-plan-edit="${p.id}">Edit</button>
         <button class="drawer-btn danger" data-plan-del="${p.id}">Del</button>
@@ -5606,6 +5624,7 @@ function renderPlansOverlay() {
   bindPlansList(body);
 }
 function bindPlansList(body) {
+  body.querySelectorAll('[data-plan-media]').forEach(b => b.addEventListener('click', () => openPlanMedia(b.dataset.planMedia)));
   body.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
   body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; renderPlansOverlay(); }));
   body.querySelectorAll('[data-plan-del]').forEach(b => b.addEventListener('click', () => { guardedConfirm('Delete this plan?', b).then(ok => { if (ok) { state.plans = (state.plans || []).filter(p => p.id !== b.dataset.planDel); saveState(); renderPlansOverlay(); } }); }));
@@ -5615,7 +5634,11 @@ function renderPlanEditor(body, plan) {
   if (_plansAddOptStep != null) { renderOptionPicker(body, plan); return; }
   body.innerHTML = `<button class="drawer-btn" id="plan-back-btn">← All plans</button>
     <input type="text" id="plan-name-input" value="${escapeAttr(plan.name)}" placeholder="Plan name" style="width:100%;margin:10px 0 6px;padding:9px 11px;font-size:15px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
-    <textarea id="plan-desc-input" placeholder="Plan description — theme & benefits (optional)" rows="2" style="width:100%;margin:0 0 12px;padding:8px 11px;font-size:12.5px;line-height:1.5;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);resize:vertical;">${escapeHtml(plan.desc||'')}</textarea>
+    <textarea id="plan-desc-input" placeholder="Plan description — theme & benefits (optional)" rows="2" style="width:100%;margin:0 0 10px;padding:8px 11px;font-size:12.5px;line-height:1.5;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);resize:vertical;">${escapeHtml(plan.desc||'')}</textarea>
+    <div class="plan-media-edit">${plan.media
+      ? `<div class="plan-media-attached"><span class="pme-info">${mediaPlatformIcon(plan.media.platform)} ${mediaPlatformName(plan.media.platform)} video attached</span><button class="drawer-btn" id="plan-media-view">▶ Preview</button><button class="drawer-btn danger" id="plan-media-del" aria-label="Remove">🗑</button></div>`
+      : `<div class="plan-media-add"><input type="url" id="plan-media-input" inputmode="url" placeholder="🎬 Attach a video — YouTube / Shorts / TikTok / Reel" autocomplete="off" autocapitalize="off" spellcheck="false" style="flex:1;min-width:0;padding:8px 10px;font-size:12.5px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);"><button class="drawer-btn" id="plan-media-add-btn">Attach</button></div>`
+    }</div>
     ${plan.steps.map((st, i) => `<div class="plan-edit-step">
       <div class="plan-edit-step-head"><span class="plan-edit-step-num">Step ${i+1}</span>
         <div class="plan-edit-step-btns">
@@ -5640,6 +5663,12 @@ function bindPlanEditor(body, plan) {
   if (nameInp) nameInp.addEventListener('change', () => { plan.name = nameInp.value.trim() || 'Plan'; save(); });
   const descInp = body.querySelector('#plan-desc-input');
   if (descInp) descInp.addEventListener('change', () => { plan.desc = descInp.value.trim(); save(); });
+  // feat 83 — one attached web video per plan
+  const planMediaAdd = () => { const inp = body.querySelector('#plan-media-input'); if (!inp) return; const parsed = parseMediaUrl(inp.value); if (!parsed) { toast('Could not read that link'); return; } plan.media = parsed; save(); renderPlansOverlay(); toast('Video attached'); };
+  body.querySelector('#plan-media-add-btn')?.addEventListener('click', planMediaAdd);
+  body.querySelector('#plan-media-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); planMediaAdd(); } });
+  body.querySelector('#plan-media-view')?.addEventListener('click', () => openPlanMedia(plan.id));
+  body.querySelector('#plan-media-del')?.addEventListener('click', () => { delete plan.media; save(); renderPlansOverlay(); });
   body.querySelectorAll('[data-step-desc]').forEach(inp => inp.addEventListener('change', () => { const st = plan.steps[+inp.dataset.stepDesc]; if (st) { st.desc = inp.value.trim(); save(); } }));
   body.querySelectorAll('[data-step-up]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.stepUp; if (i > 0) { [plan.steps[i-1], plan.steps[i]] = [plan.steps[i], plan.steps[i-1]]; save(); renderPlansOverlay(); } }));
   body.querySelectorAll('[data-step-down]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.stepDown; if (i < plan.steps.length-1) { [plan.steps[i+1], plan.steps[i]] = [plan.steps[i], plan.steps[i+1]]; save(); renderPlansOverlay(); } }));
@@ -5689,7 +5718,7 @@ function renderPlanGuide(session) {
   }).join('');
   return `<div class="plan-card">
     <div class="plan-card-head"><span class="plan-card-name">📋 ${escapeHtml(plan.name)}</span><span class="plan-card-eta">${eta.remainingMin > 0 ? `~${eta.remainingMin} min left · ETA ${eta.etaTime.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}` : 'plan complete 🎉'}</span></div>
-    <div class="plan-card-meta"><span class="plan-intensity" title="Intensity ${planIntensity(plan)}/5">${intensityDots(plan)}</span><span class="plan-est">~${estimatePlanMinutes(plan)} min · ${planTotalSets(plan)} sets</span></div>
+    <div class="plan-card-meta"><span class="plan-intensity" title="Intensity ${planIntensity(plan)}/5">${intensityDots(plan)}</span><span class="plan-est">~${estimatePlanMinutes(plan)} min · ${planTotalSets(plan)} sets</span>${plan.media ? `<button class="plan-watch" id="plan-watch-btn">🎬 Watch</button>` : ''}</div>
     ${plan.desc ? `<div class="plan-card-desc">${escapeHtml(plan.desc)}</div>` : ''}
     <div class="plan-steps">${steps}</div>
     <div class="plan-card-actions"><button class="plan-act" id="plan-change-btn">Change plan</button><button class="plan-act danger" id="plan-abandon-btn">Abandon</button></div>
@@ -5886,6 +5915,7 @@ function renderLog(main) {
   });
   // Workout plan (feat 70)
   main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
+  main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
   main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
   main.querySelector('#plan-abandon-btn')?.addEventListener('click', () => { const s = getActiveSession(); if (s) { s.planId = undefined; saveState(); toast('Plan abandoned'); render(); } });
   main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', () => { const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt], st.load); }));
@@ -10438,7 +10468,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 23 · 2026-06-03 13:25';
+const APP_BUILD = 'build 24 · 2026-06-03 13:33';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
