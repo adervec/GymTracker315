@@ -723,6 +723,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .choice-backdrop.open .choice-sheet { transform: translateY(0); }
   .choice-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
   .choice-msg { font-size: 13px; color: var(--text2); line-height: 1.5; margin-bottom: 14px; white-space: pre-line; }
+  .choice-input { width: 100%; box-sizing: border-box; margin-bottom: 14px; padding: 10px 12px; font-size: 15px; border-radius: 9px; font-family: inherit; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); }
   .choice-actions { display: flex; flex-direction: column; gap: 8px; }
   .choice-btn { padding: 11px 14px; border-radius: 9px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; text-align: center; }
   .choice-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -2725,7 +2726,7 @@ function attachLongPress(btn, ms, onComplete, label) {
 // Resolve true when the user confirms. When hold-to-confirm is ON and a button is
 // supplied, the first tap arms a press-and-hold; otherwise a standard confirm() runs.
 function guardedConfirm(message, btnEl) {
-  if (!longPressEnabled() || !btnEl) return Promise.resolve(window.confirm(message));
+  if (!longPressEnabled() || !btnEl) return confirmDialog(message); // feat 86 — themed instead of native confirm()
   return new Promise(resolve => {
     if (btnEl.dataset.lpArmed === '1') return;       // already waiting on a hold
     btnEl.dataset.lpArmed = '1';
@@ -4467,10 +4468,9 @@ function renderSettingsDrawer() {
   body.querySelector('#drawer-import-file').addEventListener('change', importData);
   setupConfirmButton(body.querySelector('#drawer-reset-btn'), 'Hold to erase all data', (held) => {
     if (roBlocked('reset data')) return;
-    if (held || confirm('Delete ALL data? Cannot be undone.')) {
-      state.sessions = []; clearPending(); saveState(); render(); closeSettingsDrawer();
-      logWarn('All session data reset by user'); toast('All data cleared');
-    }
+    const doReset = () => { state.sessions = []; clearPending(); saveState(); render(); closeSettingsDrawer(); logWarn('All session data reset by user'); toast('All data cleared'); };
+    if (held) doReset();
+    else confirmDialog('Delete ALL data? This cannot be undone.', { title: 'Reset all data', danger: true, okLabel: 'Delete everything' }).then(ok => { if (ok) doReset(); });
   });
 
   // Auto-save buttons
@@ -5091,6 +5091,42 @@ function choiceDialog(opts) {
     if (opts.dismissable !== false) back.addEventListener('click', e => { if (e.target === back) finish(null); });
     document.body.appendChild(back);
     requestAnimationFrame(() => back.classList.add('open'));
+  });
+}
+// feat 86 — themed replacements for native confirm()/prompt(), built on the choiceDialog sheet.
+function confirmDialog(message, opts) {
+  opts = opts || {};
+  return choiceDialog({
+    title: opts.title || 'Confirm',
+    message: message,
+    choices: [
+      { label: opts.okLabel || 'OK', value: true, style: opts.danger ? 'danger' : 'primary' },
+      { label: opts.cancelLabel || 'Cancel', value: false },
+    ],
+  }).then(v => v === true);
+}
+function promptDialog(opts) {
+  opts = opts || {};
+  return new Promise(resolve => {
+    const back = document.createElement('div');
+    back.className = 'choice-backdrop';
+    const sheet = document.createElement('div');
+    sheet.className = 'choice-sheet';
+    sheet.innerHTML = `<div class="choice-title">${escapeHtml(opts.title || '')}</div>` +
+      (opts.message ? `<div class="choice-msg">${escapeHtml(opts.message)}</div>` : '') +
+      `<input class="choice-input" type="text" value="${escapeAttr(opts.value || '')}" placeholder="${escapeAttr(opts.placeholder || '')}" autocomplete="off" autocapitalize="${opts.autocapitalize || 'sentences'}" spellcheck="false" maxlength="${opts.maxLength || 80}">` +
+      `<div class="choice-actions"><button class="choice-btn primary" data-pd="ok">${escapeHtml(opts.okLabel || 'OK')}</button><button class="choice-btn" data-pd="cancel">${escapeHtml(opts.cancelLabel || 'Cancel')}</button></div>`;
+    const input = sheet.querySelector('.choice-input');
+    let done = false;
+    const finish = (val) => { if (done) return; done = true; back.classList.remove('open'); setTimeout(() => back.remove(), 200); resolve(val); };
+    const ok = () => { const v = input.value.trim(); finish(v || null); };
+    sheet.querySelector('[data-pd="ok"]').addEventListener('click', ok);
+    sheet.querySelector('[data-pd="cancel"]').addEventListener('click', () => finish(null));
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ok(); } else if (e.key === 'Escape') finish(null); });
+    back.appendChild(sheet);
+    back.addEventListener('click', e => { if (e.target === back) finish(null); });
+    document.body.appendChild(back);
+    requestAnimationFrame(() => { back.classList.add('open'); try { input.focus(); } catch (e) {} });
   });
 }
 
@@ -6404,10 +6440,9 @@ function endWorkout(skipConfirm) {
         { label: 'Continue workout', value: 'continue' },
       ],
     }).then(choice => {
-      if (choice === 'save') { if (saveSets() === false) return; } // save failed/cancelled → stay in workout
-      else if (choice === 'discard') { clearPending(); render(); }
-      else return;                                                 // 'continue' or dismissed → stay
-      finalizeEndWorkout(active, true);                            // the dialog already confirmed intent
+      if (choice === 'save') { saveSets().then(ok => { if (ok) finalizeEndWorkout(active, true); }); return; } // feat 86 — save async; end only if it saved
+      if (choice === 'discard') { clearPending(); render(); finalizeEndWorkout(active, true); return; }
+      // 'continue' or dismissed → stay in the workout
     });
     return;
   }
@@ -6419,23 +6454,24 @@ function finalizeEndWorkout(active, skipConfirm) {
   if (!active || active.endedAt) return;
   const stats = computeSessionStats(active);
   const score = computeWorkoutScore(active);
-  if (!skipConfirm) {
-    let msg = `End workout?\n\nDuration: ${stats.elapsedDisplay}\nExercises: ${stats.exerciseCount}\nSets: ${stats.totalSets}`;
-    if (score) msg += `\nScore: ${score.grade} (${score.points}/100)`;
-    msg += `\n\nOnce ended you can still edit exercises but the timer stops.`;
-    if (!confirm(msg)) return;
-  }
-  active.endedAt = new Date().toISOString();
-  active.endReason = 'manual';
-  modalState.setup = {}; modalState.setupOpen = false; // feat 85 — clear persisted equipment setup at workout end
-  stopMetronome(); // feat 69 — stop the beat when the workout ends
-  hrFinalize(active); // feat 72 — roll the recorded HR samples into the session's avg/max
-  // Store final score on the session for posterity
-  if (score) active.finalScore = score;
-  saveState();
-  render();
-  logInfo('Workout ended', (score ? score.grade + ' ' + score.points : '') + ' · ' + stats.totalSets + ' sets');
-  toast(score ? `🏁 Workout ended · ${score.grade}` : '🏁 Workout ended');
+  const finish = () => {
+    if (active.endedAt) return;
+    active.endedAt = new Date().toISOString();
+    active.endReason = 'manual';
+    modalState.setup = {}; modalState.setupOpen = false; // feat 85 — clear persisted equipment setup at workout end
+    stopMetronome(); // feat 69 — stop the beat when the workout ends
+    hrFinalize(active); // feat 72 — roll the recorded HR samples into the session's avg/max
+    if (score) active.finalScore = score; // store final score for posterity
+    saveState();
+    render();
+    logInfo('Workout ended', (score ? score.grade + ' ' + score.points : '') + ' · ' + stats.totalSets + ' sets');
+    toast(score ? `🏁 Workout ended · ${score.grade}` : '🏁 Workout ended');
+  };
+  if (skipConfirm) { finish(); return; }
+  let msg = `End workout?\n\nDuration: ${stats.elapsedDisplay}\nExercises: ${stats.exerciseCount}\nSets: ${stats.totalSets}`;
+  if (score) msg += `\nScore: ${score.grade} (${score.points}/100)`;
+  msg += `\n\nOnce ended you can still edit exercises but the timer stops.`;
+  confirmDialog(msg, { title: 'End workout', okLabel: 'End workout' }).then(ok => { if (ok) finish(); }); // feat 86
 }
 
 // Compute a workout score (0-100) based on progressive overload progress.
@@ -6960,37 +6996,32 @@ function deleteAllHistory() {
   const totalSessions = state.sessions.length;
   const totalSets = state.sessions.reduce((c, s) => c + s.exercises.reduce((c2, e) => c2 + e.sets.length, 0), 0);
   if (totalSessions === 0) { toast('No history to delete'); return; }
-  // Step 1: offer export
-  const wantsExport = confirm(
-    `Delete all history?\n\n` +
-    `${totalSessions} session${totalSessions===1?'':'s'}, ${totalSets} sets will be permanently deleted.\n\n` +
-    `Tap OK to export a backup JSON first, or Cancel to skip the export step.`
-  );
-  if (wantsExport) {
-    exportData();
-    // Give the browser a moment to start the download before confirming destructive action
-    setTimeout(() => {
-      finalConfirmDeleteAll();
-    }, 600);
-  } else {
-    finalConfirmDeleteAll();
-  }
+  // feat 86 — themed 3-way choice replaces the two stacked native confirms
+  choiceDialog({
+    title: 'Delete all history',
+    message: `${totalSessions} session${totalSessions===1?'':'s'}, ${totalSets} sets will be permanently deleted. Export a backup first?`,
+    choices: [
+      { label: '⬆ Export backup, then delete', value: 'export', style: 'primary' },
+      { label: '🗑 Delete without backup', value: 'delete', style: 'danger' },
+      { label: 'Cancel', value: 'cancel' },
+    ],
+  }).then(choice => {
+    if (choice === 'export') { exportData(); setTimeout(finalConfirmDeleteAll, 600); } // let the download start first
+    else if (choice === 'delete') finalConfirmDeleteAll();
+  });
 }
 
 function finalConfirmDeleteAll() {
-  const proceed = confirm(
-    `FINAL CONFIRMATION\n\n` +
-    `All history is about to be permanently deleted. This cannot be undone.\n\n` +
-    `Tap OK to delete everything.`
-  );
-  if (!proceed) { toast('Deletion cancelled'); return; }
-  state.sessions = [];
-  clearPending();
-  saveState();
-  historyView = 'list';
-  historyKey = null;
-  render();
-  toast('All history deleted');
+  confirmDialog('All history is about to be permanently deleted. This cannot be undone.', { title: 'Final confirmation', okLabel: 'Delete everything', danger: true }).then(ok => {
+    if (!ok) { toast('Deletion cancelled'); return; }
+    state.sessions = [];
+    clearPending();
+    saveState();
+    historyView = 'list';
+    historyKey = null;
+    render();
+    toast('All history deleted');
+  });
 }
 
 function renderExerciseDetail(main, key) {
@@ -7061,9 +7092,10 @@ function renderExerciseDetail(main, key) {
       const subUuid = btn.dataset.subuuid || null;
       const name = displayName(varUuid, subUuid);
       if (roBlocked('delete sets')) return;
-      if (!confirm(`Delete this set from ${fmtDate(date)}?\n\n${name}\n\nThis cannot be undone.`)) return;
-      const session = state.sessions.find(s => s.date === date);
-      if (session) {
+      confirmDialog(`Delete this set from ${fmtDate(date)}?\n\n${name}\n\nThis cannot be undone.`, { title: 'Delete set', danger: true, okLabel: 'Delete' }).then(ok => { // feat 86
+        if (!ok) return;
+        const session = state.sessions.find(s => s.date === date);
+        if (!session) return;
         session.exercises = session.exercises.filter(e =>
           !(e.varUuid === varUuid && (e.subUuid || null) === (subUuid || null))
         );
@@ -7076,12 +7108,9 @@ function renderExerciseDetail(main, key) {
         const stillHas = state.sessions.some(s =>
           s.exercises.some(e => e.varUuid === varUuid && (e.subUuid || null) === (subUuid || null))
         );
-        if (!stillHas) {
-          historyView = 'list';
-          historyKey = null;
-        }
+        if (!stillHas) { historyView = 'list'; historyKey = null; }
         render();
-      }
+      });
     });
   });
 }
@@ -9055,14 +9084,16 @@ function saveNotes() {
 }
 
 function clearNotes() {
-  if (!confirm('Clear all notes for this session?')) return;
-  const session = state.sessions.find(s => s.date === notesEditingSession);
-  if (!session) return;
-  delete session.notes;
-  saveState();
-  closeNotesModal();
-  render();
-  toast('Notes cleared');
+  confirmDialog('Clear all notes for this session?', { title: 'Clear notes', danger: true, okLabel: 'Clear' }).then(ok => { // feat 86
+    if (!ok) return;
+    const session = state.sessions.find(s => s.date === notesEditingSession);
+    if (!session) return;
+    delete session.notes;
+    saveState();
+    closeNotesModal();
+    render();
+    toast('Notes cleared');
+  });
 }
 
 function renderNotesCard(session) {
@@ -9273,11 +9304,12 @@ function bindPickerResults() {
     el.addEventListener('click', () => {
       const famId = el.dataset.addVarFam;
       const fam = FAMILIES.find(f => f.id === famId);
-      const name = prompt(`New variation for "${fam ? fam.title : ''}":\n(flagged as a manual addition)`);
-      if (name && name.trim()) {
-        const cv = addCustomVariation(famId, name);
-        if (cv) { renderModal(); bindPicker && bindPicker(); toast('Added "' + cv.title + '"'); }
-      }
+      promptDialog({ title: 'New variation', message: `New variation for "${fam ? fam.title : ''}" (flagged as a manual addition)`, placeholder: 'Variation name', okLabel: 'Add' }).then(name => {
+        if (name && name.trim()) {
+          const cv = addCustomVariation(famId, name);
+          if (cv) { renderModal(); bindPicker && bindPicker(); toast('Added "' + cv.title + '"'); }
+        }
+      });
     });
   });
 }
@@ -9473,7 +9505,7 @@ function bindSetup(ns, rerender) {
   at(`[data-${ns}-toppersub]`).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const k = b.getAttribute(`data-${ns}-toppersub`), st = setupState('pin'); st.toppers[k] = Math.max(0, (st.toppers[k] || 0) - 1); if (!st.toppers[k]) delete st.toppers[k]; rerender(); }));
   at(`[data-${ns}-pinprof]`).forEach(b => b.addEventListener('click', () => { const p = (state.pinProfiles || []).find(x => x.id === b.getAttribute(`data-${ns}-pinprof`)); if (p) { const st = setupState('pin'); st.inc = p.inc; st.profileId = p.id; } rerender(); }));
   at(`[data-${ns}-pinprofdel]`).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const id = b.getAttribute(`data-${ns}-pinprofdel`); state.pinProfiles = (state.pinProfiles || []).filter(x => x.id !== id); const st = setupState('pin'); if (st.profileId === id) st.profileId = null; saveState(); rerender(); }));
-  at(`[data-${ns}-pinprofsave]`).forEach(b => b.addEventListener('click', () => { const st = setupState('pin'); const nm = (typeof prompt === 'function') ? prompt('Name this machine (e.g. Lat Pulldown):', '') : ''; if (!nm || !nm.trim()) return; const id = 'pp' + Date.now(); state.pinProfiles = state.pinProfiles || []; state.pinProfiles.push({ id, name: nm.trim().slice(0, 24), inc: st.inc || (state.unit === 'kg' ? 5 : 10) }); st.profileId = id; saveState(); rerender(); }));
+  at(`[data-${ns}-pinprofsave]`).forEach(b => b.addEventListener('click', () => { const st = setupState('pin'); promptDialog({ title: 'Name this machine', placeholder: 'e.g. Lat Pulldown', maxLength: 24, okLabel: 'Save' }).then(nm => { if (!nm || !nm.trim()) return; const id = 'pp' + Date.now(); state.pinProfiles = state.pinProfiles || []; state.pinProfiles.push({ id, name: nm.trim().slice(0, 24), inc: st.inc || (state.unit === 'kg' ? 5 : 10) }); st.profileId = id; saveState(); rerender(); }); }));
   at(`[data-${ns}-toolsel]`).forEach(sel => sel.addEventListener('change', () => { setSetupOverride(pending.varUuid, sel.value); rerender(); }));
 }
 function applySetupWeight(total) {
@@ -10425,87 +10457,88 @@ function addSetRow(mode) {
 }
 
 function saveSets() {
-  if (roBlocked('log sets')) return false;
-  if (!pending.varUuid) { toast('Pick an exercise'); return false; }
+  // feat 86 — returns a Promise<boolean> (themed confirm replaces native confirm()).
+  if (roBlocked('log sets')) return Promise.resolve(false);
+  if (!pending.varUuid) { toast('Pick an exercise'); return Promise.resolve(false); }
   const nowIso = new Date().toISOString();
   // Filter to valid sets, preserving each set's last-edit timestamp (fallback to save time)
   const validSets = pending.sets
     .filter(s => isSetValid(s))
     .map(s => ({ w: s.w, r: s.r, wTs: s.wTs || undefined, ts: s.ts || nowIso }));
-  if (validSets.length === 0) { toast('Enter at least one set'); return false; }
+  if (validSets.length === 0) { toast('Enter at least one set'); return Promise.resolve(false); }
   // feat 63 — a bodyweight exercise needs a recorded bodyweight to be meaningful; block until one exists.
   if (exMode(pending.varUuid).mode === 'bodyweight' && getCurrentBodyweightKg() == null) {
-    toast('⚖️ Log your bodyweight first (Body tab) to save bodyweight exercises'); return false;
+    toast('⚖️ Log your bodyweight first (Body tab) to save bodyweight exercises'); return Promise.resolve(false);
   }
-
+  const commit = () => {
+    if (modalState.isEditing) {
+      const session = state.sessions.find(s => s.date === modalState.editingSessionDate);
+      if (session) {
+        const ex = session.exercises.find(e =>
+          e.varUuid === pending.varUuid && (e.subUuid || null) === (pending.subUuid || null)
+        );
+        if (ex) ex.sets = validSets;
+        else session.exercises.push({ varUuid: pending.varUuid, subUuid: pending.subUuid, sets: validSets });
+      }
+      saveState();
+      toast('Updated');
+    } else {
+      const todayStr = new Date().toDateString();
+      let session = state.sessions.find(s => new Date(s.date).toDateString() === todayStr);
+      if (!session) {
+        session = { date: new Date().toISOString(), exercises: [] };
+        state.sessions.push(session);
+      }
+      const existing = session.exercises.find(e =>
+        e.varUuid === pending.varUuid && (e.subUuid || null) === (pending.subUuid || null)
+      );
+      if (existing) existing.sets = [...existing.sets, ...validSets];
+      else session.exercises.push({ varUuid: pending.varUuid, subUuid: pending.subUuid, sets: validSets });
+      saveState();
+      toast(`Saved ${validSets.length} set${validSets.length === 1 ? '' : 's'}`);
+    }
+    clearPending();
+    closeLogModal();
+    render();
+    return true;
+  };
   // Confirmation popup: show if any infeasible weight OR alwaysConfirm is on
   const hasInfeasible = validSets.some(s => !isSetFeasible(s));
   if (hasInfeasible || state.alwaysConfirm) {
     const info = VAR_INDEX.get(pending.varUuid);
     const exName = info ? info.variation.title : 'this exercise';
-    let msg;
+    let msg, title = 'Save sets', danger = false;
     if (hasInfeasible) {
       msg = `⚠️ One or more weights exceed the limit (${state.maxWeightLb} ${state.unit}).\n\nSave ${validSets.length} set${validSets.length === 1 ? '' : 's'} for ${exName} anyway?`;
+      title = 'Over the weight limit'; danger = true;
     } else {
       const setLines = validSets.map((s, i) => `  Set ${i+1}: ${s.w}${state.unit} × ${s.r} reps`).join('\n');
       msg = `Save ${validSets.length} set${validSets.length === 1 ? '' : 's'} for ${exName}?\n\n${setLines}`;
     }
-    if (!confirm(msg)) return false;
+    return confirmDialog(msg, { title, okLabel: 'Save', danger }).then(ok => ok ? commit() : false);
   }
-
-  if (modalState.isEditing) {
-    const session = state.sessions.find(s => s.date === modalState.editingSessionDate);
-    if (session) {
-      const ex = session.exercises.find(e =>
-        e.varUuid === pending.varUuid && (e.subUuid || null) === (pending.subUuid || null)
-      );
-      if (ex) ex.sets = validSets;
-      else session.exercises.push({ varUuid: pending.varUuid, subUuid: pending.subUuid, sets: validSets });
-    }
-    saveState();
-    toast('Updated');
-  } else {
-    const todayStr = new Date().toDateString();
-    let session = state.sessions.find(s => new Date(s.date).toDateString() === todayStr);
-    if (!session) {
-      session = { date: new Date().toISOString(), exercises: [] };
-      state.sessions.push(session);
-    }
-    const existing = session.exercises.find(e =>
-      e.varUuid === pending.varUuid && (e.subUuid || null) === (pending.subUuid || null)
-    );
-    if (existing) {
-      existing.sets = [...existing.sets, ...validSets];
-    } else {
-      session.exercises.push({ varUuid: pending.varUuid, subUuid: pending.subUuid, sets: validSets });
-    }
-    saveState();
-    toast(`Saved ${validSets.length} set${validSets.length === 1 ? '' : 's'}`);
-  }
-  // After save, clear pending and close
-  clearPending();
-  closeLogModal();
-  render();
-  return true;
+  return Promise.resolve(commit());
 }
 
 function deleteExercise() {
   if (roBlocked('delete')) return;
-  if (!confirm('Delete this exercise from the session?')) return;
-  const session = state.sessions.find(s => s.date === modalState.editingSessionDate);
-  if (session) {
-    session.exercises = session.exercises.filter(e =>
-      !(e.varUuid === pending.varUuid && (e.subUuid || null) === (pending.subUuid || null))
-    );
-    if (session.exercises.length === 0) {
-      state.sessions = state.sessions.filter(s => s.date !== modalState.editingSessionDate);
+  confirmDialog('Delete this exercise from the session?', { title: 'Delete exercise', danger: true, okLabel: 'Delete' }).then(ok => { // feat 86
+    if (!ok) return;
+    const session = state.sessions.find(s => s.date === modalState.editingSessionDate);
+    if (session) {
+      session.exercises = session.exercises.filter(e =>
+        !(e.varUuid === pending.varUuid && (e.subUuid || null) === (pending.subUuid || null))
+      );
+      if (session.exercises.length === 0) {
+        state.sessions = state.sessions.filter(s => s.date !== modalState.editingSessionDate);
+      }
+      saveState();
     }
-    saveState();
-  }
-  clearPending();
-  closeLogModal();
-  render();
-  toast('Deleted');
+    clearPending();
+    closeLogModal();
+    render();
+    toast('Deleted');
+  });
 }
 
 /* ============================================================
@@ -10559,7 +10592,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 26 · 2026-06-03 14:23';
+const APP_BUILD = 'build 27 · 2026-06-03 14:39';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
