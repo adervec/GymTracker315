@@ -508,6 +508,28 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-card-actions { display: flex; gap: 8px; margin-top: 9px; }
   .plan-act { flex: 1; font-size: 12px; font-weight: 700; background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); padding: 7px; border-radius: 8px; cursor: pointer; font-family: inherit; }
   .plan-act.danger { color: var(--danger); }
+  /* Heart-rate monitor (feat 72) */
+  .hr-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 8px 11px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; }
+  .hr-bar.on { border-color: var(--danger); }
+  .hr-bar-icon { font-size: 16px; flex-shrink: 0; }
+  .hr-bar-bpm { font-size: 20px; font-weight: 800; color: var(--danger); font-variant-numeric: tabular-nums; line-height: 1; }
+  .hr-bar-unit { font-size: 11px; color: var(--text3); }
+  .hr-bar-dev { font-size: 11px; color: var(--text3); margin-left: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+  .hr-bar-status { flex: 1; font-size: 12px; color: var(--text3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hr-bar-btn { font-size: 12px; font-weight: 700; background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); padding: 6px 11px; border-radius: 8px; cursor: pointer; font-family: inherit; white-space: nowrap; flex-shrink: 0; }
+  .hr-bar-btn.primary { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  .hr-chart-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
+  .hr-chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .hr-chart-title { font-size: 12px; font-weight: 700; color: var(--text); }
+  .hr-chart-stats { font-size: 10.5px; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .hr-chart { width: 100%; height: auto; display: block; }
+  .hrc-set { fill: var(--danger); opacity: 0.15; }
+  .hrc-line { fill: none; stroke: var(--danger); stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; }
+  .hrc-avg { stroke: var(--text3); stroke-width: 0.7; stroke-dasharray: 3 3; opacity: 0.6; }
+  .hrc-lbl { font-size: 7px; fill: var(--text3); }
+  .hr-chart-legend { font-size: 10px; color: var(--text3); margin-top: 5px; display: flex; align-items: center; gap: 4px; }
+  .hrc-legend-set { display: inline-block; width: 14px; height: 9px; background: var(--danger); opacity: 0.15; border-radius: 2px; }
+  .hrc-legend-gap { opacity: 0.5; }
   /* Choice dialog (feat 62) */
   .choice-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.62); z-index: 10070; display: flex; align-items: center; justify-content: center; padding: 24px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
   .choice-backdrop.open { opacity: 1; pointer-events: auto; }
@@ -2146,7 +2168,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
-  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds',
+  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
   'hiddenCategories','cardioGoals'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
@@ -2258,6 +2280,8 @@ let state = {
   ttsTips: true,
   // ---- Workout metronome (feat 69) — customizable beat. On/off is per-workout (runtime, not persisted). ----
   metronome: { bpm: 60, audio: true, haptic: false, freq: 880, accentFreq: 1320, accentEvery: 0, vol: 0.3 },
+  // ---- Last heart-rate device (feat 72) — for Web Bluetooth auto-reconnect ----
+  hrDevice: null,
   // ---- Category visibility (feat 8): hide cardio / mobility / recovery entirely ----
   hiddenCategories: {},   // { cardio:true, mobility:true, recovery:true }
   // ---- Cardio goals (feat 7) ----
@@ -5018,7 +5042,7 @@ function renderLog(main) {
         <button class="metro-bpm-btn" id="metro-bpm-up" aria-label="Faster">+</button>
       </div>
       <button class="metro-cfg" id="metro-cfg-btn" title="Metronome settings">⚙</button>
-    </div>`;
+    </div>` + renderHrBar();
   } else {
     html += `<div class="workout-controls">
       <button class="wc-btn start" id="wc-start-btn">▶ Start Workout</button>
@@ -5222,6 +5246,8 @@ function renderLog(main) {
     const si = document.getElementById('settings-search');
     if (si) { si.value = 'metronome'; _settingsSearch = 'metronome'; si.dispatchEvent(new Event('input', { bubbles: true })); }
   });
+  main.querySelector('#hr-connect-btn')?.addEventListener('click', hrConnect);       // feat 72
+  main.querySelector('#hr-disconnect-btn')?.addEventListener('click', hrDisconnect);
 }
 
 // Color hash for exercise UUIDs — used in workout timeline
@@ -5549,6 +5575,7 @@ function reapAbandonedSet() {
 function startWorkout() {
   if (roBlocked('start a workout')) return;
   stopMetronome(); // feat 69 — metronome defaults OFF at the start of every workout
+  hrTryReconnect(); // feat 72 — try to bring the last HR monitor back for the new workout
   const existing = getActiveSession();
   if (existing) { toast('Workout already in progress'); return; }
   const session = { date: new Date().toISOString(), exercises: [], startedManually: true };
@@ -5605,6 +5632,7 @@ function finalizeEndWorkout(active, skipConfirm) {
   active.endedAt = new Date().toISOString();
   active.endReason = 'manual';
   stopMetronome(); // feat 69 — stop the beat when the workout ends
+  hrFinalize(active); // feat 72 — roll the recorded HR samples into the session's avg/max
   // Store final score on the session for posterity
   if (score) active.finalScore = score;
   saveState();
@@ -5985,6 +6013,7 @@ function renderSession(session, isToday) {
     ${planBadge}
     ${renderNotesCard(session)}
     ${exHtml || '<div style="color:#666;font-size:12px;">No exercises yet</div>'}
+    ${renderHrChart(session)}
     ${renderWorkoutStats(session)}
   </div>`;
 }
@@ -9219,6 +9248,7 @@ applyExtraVariations();
 applyCustomVariations();
 installGlossaryHighlight();
 applyI18n(document); // feat 61 — translate tagged static markup (attrs/text) for the active language
+hrTryReconnect(); // feat 72 — auto-reconnect the last heart-rate device if the browser remembers it
 logInfo('App loaded', (state.sessions ? state.sessions.length : 0) + ' sessions');
 
 document.querySelectorAll('.tab[data-tab]').forEach(t => {
@@ -9259,7 +9289,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 13 · 2026-06-03 03:55';
+const APP_BUILD = 'build 14 · 2026-06-03 07:42';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -9340,6 +9370,147 @@ function changeMetroBpm(delta) {
   saveState();
   refreshMetronomeUI();
   restartMetronomeIfRunning();                    // apply the new tempo immediately
+}
+
+/* ============================================================
+   HEART-RATE MONITOR (feat 72) — Web Bluetooth, standard Heart Rate Service (0x180D).
+   Connects to a broadcasting strap or a watch in "broadcast HR" mode; remembers the last
+   device and auto-reconnects; records a detailed per-session BPM time series so the trend
+   (and the HR effect of each set vs. rest) is visible in history. Android Chrome / Edge only.
+   ============================================================ */
+let _hrDevice = null, _hrChar = null, _hrConnected = false, _hrLastBpm = null, _hrReconnectTimer = null, _hrSampleN = 0;
+function hrSupported() { return typeof navigator !== 'undefined' && !!navigator.bluetooth; }
+// Parse a Heart Rate Measurement value (flags byte then 8- or 16-bit BPM; optional energy).
+function parseHrValue(value) {
+  try {
+    const flags = value.getUint8(0);
+    const bpm = (flags & 0x01) ? value.getUint16(1, true) : value.getUint8(1);
+    return { bpm };
+  } catch (e) { return { bpm: 0 }; }
+}
+function _hrNotify(e) { const r = parseHrValue(e.target.value); if (r && r.bpm > 0 && r.bpm < 300) hrOnSample(r.bpm); }
+function hrOnSample(bpm) {
+  _hrLastBpm = bpm;
+  const s = getActiveSession();
+  if (s && !s.endedAt) {
+    if (!Array.isArray(s.hrSamples)) s.hrSamples = [];
+    const ms = Math.max(0, Date.now() - new Date(s.date).getTime());
+    const last = s.hrSamples[s.hrSamples.length - 1];
+    if (!last || ms - last[0] >= 900) {            // ~1 Hz to keep detail without bloating storage
+      s.hrSamples.push([ms, bpm]);
+      if ((++_hrSampleN % 8) === 0) saveState();    // throttle persistence
+    }
+  }
+  const el = document.getElementById('hr-live-bpm'); if (el) el.textContent = bpm;
+}
+async function hrConnectDevice(dev) {
+  const server = await dev.gatt.connect();
+  const svc = await server.getPrimaryService('heart_rate');
+  const ch = await svc.getCharacteristic('heart_rate_measurement');
+  await ch.startNotifications();
+  ch.removeEventListener('characteristicvaluechanged', _hrNotify);
+  ch.addEventListener('characteristicvaluechanged', _hrNotify);
+  _hrDevice = dev; _hrChar = ch; _hrConnected = true;
+  if (!dev._hrBound) { dev.addEventListener('gattserverdisconnected', hrOnDisconnect); dev._hrBound = true; }
+  if (_hrReconnectTimer) { clearInterval(_hrReconnectTimer); _hrReconnectTimer = null; }
+  if (typeof render === 'function') render();
+}
+function hrOnDisconnect() {
+  _hrConnected = false;
+  saveState();
+  if (typeof render === 'function') render();
+  hrScheduleReconnect();                            // always try to get the previous device back
+}
+function hrScheduleReconnect() {
+  if (_hrReconnectTimer || !_hrDevice) return;
+  let tries = 0;
+  _hrReconnectTimer = setInterval(() => {
+    if (_hrConnected) { clearInterval(_hrReconnectTimer); _hrReconnectTimer = null; return; }
+    if (++tries > 20 || !_hrDevice) { clearInterval(_hrReconnectTimer); _hrReconnectTimer = null; return; }
+    hrConnectDevice(_hrDevice).catch(() => {});     // succeeds once the device is back in range
+  }, 6000);
+}
+// User gesture: pick a heart-rate device and remember it.
+async function hrConnect() {
+  if (!hrSupported()) { toast('Web Bluetooth not supported here — use a Chromium browser on Android, or enter HR manually'); return; }
+  try {
+    const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }], optionalServices: ['battery_service'] });
+    await hrConnectDevice(dev);
+    state.hrDevice = { id: dev.id, name: dev.name || 'HR monitor' }; saveState();
+    toast('💓 Connected: ' + (dev.name || 'HR monitor'));
+  } catch (e) { if (e && e.name !== 'NotFoundError') toast('HR connect failed — put the watch/strap in broadcast mode'); }
+}
+// Auto-reconnect (no chooser) to the previously-used device if the browser remembers it.
+async function hrTryReconnect() {
+  if (_hrConnected || !hrSupported() || !state.hrDevice || !navigator.bluetooth.getDevices) return;
+  try {
+    const devs = await navigator.bluetooth.getDevices();
+    const dev = devs.find(d => d.id === state.hrDevice.id);
+    if (dev) await hrConnectDevice(dev);
+  } catch (e) { /* out of range / not granted — leave it to the manual button */ }
+}
+function hrDisconnect() {
+  if (_hrReconnectTimer) { clearInterval(_hrReconnectTimer); _hrReconnectTimer = null; }
+  try { if (_hrChar) _hrChar.removeEventListener('characteristicvaluechanged', _hrNotify); } catch (e) {}
+  try { if (_hrDevice && _hrDevice.gatt && _hrDevice.gatt.connected) _hrDevice.gatt.disconnect(); } catch (e) {}
+  _hrConnected = false;
+  if (typeof render === 'function') render();
+}
+// Roll the recorded samples into the session's avg/max HR on workout end.
+function hrFinalize(session) {
+  if (!session || !Array.isArray(session.hrSamples) || !session.hrSamples.length) return;
+  const bpms = session.hrSamples.map(s => s[1]);
+  session.hr = { ...(session.hr || {}), avg: Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length), max: Math.max.apply(null, bpms) };
+}
+// Connect/live bar on the Log tab during a workout.
+function renderHrBar() {
+  if (!hrSupported()) return '';
+  const dev = state.hrDevice;
+  if (_hrConnected) {
+    return `<div class="hr-bar on">
+      <span class="hr-bar-icon">💓</span><span class="hr-bar-bpm" id="hr-live-bpm">${_hrLastBpm != null ? _hrLastBpm : '–'}</span><span class="hr-bar-unit">bpm</span>
+      <span class="hr-bar-dev">${escapeHtml(dev ? dev.name : 'monitor')}</span>
+      <button class="hr-bar-btn" id="hr-disconnect-btn">Disconnect</button>
+    </div>`;
+  }
+  return `<div class="hr-bar">
+    <span class="hr-bar-icon">💓</span><span class="hr-bar-status">${dev ? ('Last: ' + escapeHtml(dev.name)) : 'Heart-rate monitor'}</span>
+    <button class="hr-bar-btn primary" id="hr-connect-btn">${dev ? 'Reconnect' : 'Connect HR'}</button>
+  </div>`;
+}
+// Detailed HR trend with shaded set periods (so the rise-during-set / recover-during-rest pattern shows).
+function renderHrChart(session) {
+  const samples = session.hrSamples;
+  if (!Array.isArray(samples) || samples.length < 3) return '';
+  const W = 320, H = 112, padL = 26, padB = 14, padT = 8;
+  const start = new Date(session.date).getTime();
+  const endMs = session.endedAt ? (new Date(session.endedAt).getTime() - start) : Math.max(samples[samples.length - 1][0], Date.now() - start);
+  const span = Math.max(1, endMs);
+  const bpms = samples.map(s => s[1]);
+  let lo = Math.floor((Math.min.apply(null, bpms) - 5) / 10) * 10, hi = Math.ceil((Math.max.apply(null, bpms) + 5) / 10) * 10;
+  if (hi - lo < 20) hi = lo + 20;
+  const x = ms => padL + (ms / span) * (W - padL - 4);
+  const y = bpm => padT + (1 - (bpm - lo) / (hi - lo)) * (H - padT - padB);
+  let bands = '';
+  (session.exercises || []).forEach(ex => (ex.sets || []).forEach(set => {
+    if (set.wTs && set.ts) {
+      const a = new Date(set.wTs).getTime() - start, b = new Date(set.ts).getTime() - start;
+      if (b > a) bands += `<rect x="${x(a).toFixed(1)}" y="${padT}" width="${Math.max(1, x(b) - x(a)).toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" class="hrc-set"/>`;
+    }
+  }));
+  const pts = samples.map(s => `${x(s[0]).toFixed(1)},${y(s[1]).toFixed(1)}`).join(' ');
+  const avg = Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length);
+  return `<div class="hr-chart-card">
+    <div class="hr-chart-head"><span class="hr-chart-title">❤️ Heart rate</span><span class="hr-chart-stats">avg ${avg} · max ${Math.max.apply(null, bpms)} · min ${Math.min.apply(null, bpms)} bpm</span></div>
+    <svg class="hr-chart" viewBox="0 0 ${W} ${H}" aria-label="Heart rate trend">
+      ${bands}
+      <line x1="${padL}" y1="${y(avg).toFixed(1)}" x2="${W - 4}" y2="${y(avg).toFixed(1)}" class="hrc-avg"/>
+      <polyline points="${pts}" class="hrc-line"/>
+      <text x="2" y="${(y(hi) + 7).toFixed(1)}" class="hrc-lbl">${hi}</text>
+      <text x="2" y="${y(lo).toFixed(1)}" class="hrc-lbl">${lo}</text>
+    </svg>
+    <div class="hr-chart-legend"><span class="hrc-legend-set"></span> set <span class="hrc-legend-gap">·</span> gaps = rest / recovery</div>
+  </div>`;
 }
 
 // What should the bar show right now? idle | open (active set) | resting.
