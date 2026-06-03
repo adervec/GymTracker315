@@ -270,9 +270,9 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 .snd-chip:active { transform: scale(0.92); }
 
 /* feat 75 — exercise reference media (carousel + manager) */
-#media-backdrop { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,0.66); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
-#media-backdrop.open { opacity: 1; pointer-events: auto; }
-#media-modal {
+#media-backdrop, #strava-backdrop { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,0.66); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+#media-backdrop.open, #strava-backdrop.open { opacity: 1; pointer-events: auto; }
+#media-modal, #strava-modal {
   position: fixed; z-index: 10051; left: 50%; top: 50%;
   transform: translate(-50%,-50%) scale(0.96); opacity: 0; pointer-events: none;
   width: min(440px, calc(100vw - 22px)); max-height: calc(100vh - 36px);
@@ -280,7 +280,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   border: 1px solid var(--border2); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
   overflow: hidden; transition: opacity 0.2s ease, transform 0.2s ease;
 }
-#media-modal.open { opacity: 1; pointer-events: auto; transform: translate(-50%,-50%) scale(1); }
+#media-modal.open, #strava-modal.open { opacity: 1; pointer-events: auto; transform: translate(-50%,-50%) scale(1); }
 .media-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border2); flex-shrink: 0; }
 .media-head .media-title { flex: 1; font-size: 14px; font-weight: 800; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .media-head .media-count { font-size: 11px; color: var(--text3); font-weight: 700; white-space: nowrap; }
@@ -368,6 +368,27 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 .ref-meta.b-med { cursor: pointer; }
 .ref-meta.b-med:active { transform: scale(0.9); }
 .ref-meta .rm-ct { font-size: 9px; font-weight: 800; color: var(--accent); margin-left: 1px; }
+
+/* feat 77 — Strava reconciliation overlay */
+.strava-empty { text-align: center; color: var(--text3); font-size: 12.5px; line-height: 1.6; padding: 24px 6px; }
+.strava-empty code { background: var(--bg4); padding: 1px 5px; border-radius: 4px; }
+.strava-summary { font-size: 11px; color: var(--text3); font-weight: 700; margin-bottom: 12px; }
+.strava-sec-title { font-size: 10.5px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin: 14px 2px 8px; }
+.strava-sec-title .ss-n { color: var(--accent); }
+.strava-row { display: flex; align-items: center; gap: 10px; padding: 9px 11px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px; margin-bottom: 7px; }
+.strava-row.linked { border-color: var(--accent-border); }
+.strava-row.dim { opacity: 0.62; }
+.strava-row .sr-main { flex: 1; min-width: 0; }
+.strava-row .sr-a { font-size: 12.5px; color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strava-row .sr-b { font-size: 11px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+.strava-row .sr-delta { color: var(--accent); font-weight: 700; }
+.strava-row .sr-link { flex-shrink: 0; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 8px; font-size: 12px; font-weight: 800; padding: 7px 14px; cursor: pointer; font-family: inherit; }
+.strava-row .sr-actcol { display: flex; gap: 6px; flex-shrink: 0; }
+.strava-row .sr-mini { background: var(--bg4); border: 1px solid var(--border2); color: var(--text2); border-radius: 7px; font-size: 12px; width: 30px; height: 30px; cursor: pointer; font-family: inherit; }
+.strava-linkall { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--accent-border); background: var(--accent-bg); color: var(--accent); font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; margin-bottom: 4px; }
+.strava-push { width: 100%; margin-top: 14px; padding: 9px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.strava-pushnote { font-size: 10.5px; color: var(--text3); line-height: 1.5; margin-top: 7px; }
+.strava-pushnote code { background: var(--bg4); padding: 1px 4px; border-radius: 3px; }
 
 /* Settings drawer */
 #settings-backdrop {
@@ -1662,6 +1683,10 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <div id="media-backdrop" onclick="closeExerciseMedia()"></div>
 <div id="media-modal" role="dialog" aria-label="Reference videos"></div>
 
+<!-- feat 77 — Strava reconciliation -->
+<div id="strava-backdrop" onclick="closeStravaModal()"></div>
+<div id="strava-modal" role="dialog" aria-label="Strava reconciliation"></div>
+
 <!-- feat 62 — read-only mode indicator -->
 <div id="ro-banner">🔒 Read-only</div>
 
@@ -2319,7 +2344,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2500,6 +2525,7 @@ function normalizeState() {
   if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
   if (!state.exerciseMedia || typeof state.exerciseMedia !== 'object') state.exerciseMedia = {}; // feat 75 — per-exercise reference video links
   if (['detailed','tree','table'].indexOf(state.refView) < 0) state.refView = 'detailed'; // feat 76 — reference view mode
+  if (!Array.isArray(state.stravaActivities)) state.stravaActivities = []; // feat 77 — imported Strava strength activities
   state.cardioGoals = { weeklyMinutes:0, weeklyDistance:0, weeklySessions:0, distanceUnit:'km', ...(state.cardioGoals||{}) };
 }
 
@@ -4199,6 +4225,18 @@ function renderSettingsDrawer() {
     </div>
     `}
 
+    <div class="drawer-section-title" style="margin-top:18px;">Strava reconciliation</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+      Match your logged workouts to Strava strength activities (e.g. auto-synced from your watch). A browser can't reach
+      Strava directly, so import a file from <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/strava-sync.py</code>
+      or your Strava data export, then reconcile — link, enrich (HR / calories / duration), and copy a description back to Strava.
+    </div>
+    <div class="drawer-data-row" style="flex-wrap:wrap;">
+      <button class="drawer-btn" id="strava-import-btn">⬇ Import activities (JSON / CSV)</button>
+      <button class="drawer-btn" id="strava-reconcile-btn">🔗 Reconcile${(state.stravaActivities && state.stravaActivities.filter(a => isStrengthType(a.sportType)).length) ? ` (${state.stravaActivities.filter(a => isStrengthType(a.sportType)).length})` : ''}</button>
+      <input type="file" id="strava-import-file" accept=".json,.csv,.txt" style="display:none;">
+    </div>
+
     <div class="drawer-section-title">Danger Zone</div>
     <div class="drawer-data-row" style="margin-top:6px;">
       <button class="drawer-btn danger" id="drawer-reset-btn">🗑 Reset All Data</button>
@@ -4410,6 +4448,14 @@ function renderSettingsDrawer() {
   });
   body.querySelector('#bio-sync-now-btn')?.addEventListener('click', () => { bioLoadNow(false, true).catch(() => {}); });
   body.querySelector('#bio-disable-btn')?.addEventListener('click', bioLoadDisable);
+
+  // feat 77 — Strava reconciliation
+  body.querySelector('#strava-import-btn')?.addEventListener('click', () => body.querySelector('#strava-import-file').click());
+  body.querySelector('#strava-import-file')?.addEventListener('change', e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    const rd = new FileReader(); rd.onload = () => { const r = importStravaActivities(String(rd.result || '')); renderSettingsDrawer(); if (r && r.strength) openStravaModal(); }; rd.readAsText(f);
+  });
+  body.querySelector('#strava-reconcile-btn')?.addEventListener('click', openStravaModal);
 
   // Auto-load merge mode rows
   body.querySelectorAll('.as-policy-row[data-al-merge]').forEach(row => {
@@ -8429,6 +8475,174 @@ function importBiometrics(text, opts) {
 }
 
 /* ============================================================
+   STRAVA RECONCILIATION (feat 77) — link GymTracker sessions to Strava strength activities.
+   A browser can't reach Strava directly (OAuth needs a client secret + no CORS), so activities
+   arrive as a file: a JSON from tools/strava-sync.py, or a Strava bulk-export activities.csv.
+   We match by start-time proximity, can enrich a session with Strava HR/calories/duration, and
+   generate a description to copy/push back onto the (otherwise blank) Strava activity.
+   ============================================================ */
+const STRAVA_MATCH_WINDOW_MIN = 120;     // max minutes between start times to propose a match
+function isStrengthType(t) { return /weight|strength|workout|crossfit|functional/i.test(String(t || '')); }
+function _stNum(v) { return (v == null || v === '' || isNaN(+v)) ? null : Math.round(+v); }
+function normStravaActivity(r) {
+  if (!r) return null;
+  const id = r.id != null ? String(r.id) : (r['Activity ID'] != null ? String(r['Activity ID']) : null);
+  const rawDate = r.start_date || r.startDate || r.start_date_local || r['Activity Date'] || r.date;
+  if (!id || !rawDate) return null;
+  const d = new Date(rawDate); if (isNaN(d.getTime())) return null;
+  return {
+    id,
+    name: String(r.name || r['Activity Name'] || 'Workout'),
+    sportType: String(r.sport_type || r.sportType || r.type || r['Activity Type'] || ''),
+    startDate: d.toISOString(),
+    elapsedSec: _stNum(r.elapsed_time || r.elapsedSec || r['Elapsed Time']),
+    avgHr: _stNum(r.average_heartrate || r.avgHr || r['Average Heart Rate']),
+    maxHr: _stNum(r.max_heartrate || r.maxHr || r['Max Heart Rate']),
+    calories: _stNum(r.calories || r['Calories']),
+    description: String(r.description || ''),
+  };
+}
+function parseStravaActivities(text) {
+  text = String(text || '').trim(); if (!text) return null;
+  const out = [];
+  if (text[0] === '{' || text[0] === '[') {
+    let data; try { data = JSON.parse(text); } catch (e) { return null; }
+    const arr = Array.isArray(data) ? data : (data.activities || data.data || []);
+    (arr || []).forEach(r => { const a = normStravaActivity(r); if (a) out.push(a); });
+  } else {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return null;
+    const splitCsv = l => { const o = []; let cur = '', q = false; for (let i = 0; i < l.length; i++) { const c = l[i]; if (c === '"') { if (q && l[i + 1] === '"') { cur += '"'; i++; } else q = !q; } else if (c === ',' && !q) { o.push(cur); cur = ''; } else cur += c; } o.push(cur); return o.map(s => s.trim()); };
+    const hdr = splitCsv(lines[0]);
+    for (let i = 1; i < lines.length; i++) {
+      const cells = splitCsv(lines[i]); if (cells.length < 2) continue;
+      const r = {}; hdr.forEach((h, j) => r[h] = cells[j]);
+      const a = normStravaActivity(r); if (a) out.push(a);
+    }
+  }
+  return out;
+}
+function importStravaActivities(text) {
+  if (roBlocked('import Strava activities')) return null;
+  const parsed = parseStravaActivities(text);
+  if (!parsed || !parsed.length) { toast('No activities found in that file'); return null; }
+  state.stravaActivities = state.stravaActivities || [];
+  const byId = {}; state.stravaActivities.forEach(a => byId[a.id] = a);
+  let added = 0, updated = 0;
+  parsed.forEach(a => { if (byId[a.id]) { Object.assign(byId[a.id], a); updated++; } else { state.stravaActivities.push(a); byId[a.id] = a; added++; } });
+  saveState();
+  const strength = parsed.filter(a => isStrengthType(a.sportType)).length;
+  logInfo('Strava activities imported', `${added} new · ${updated} updated · ${strength} strength`);
+  toast(`Imported ${added + updated} activit${added + updated === 1 ? 'y' : 'ies'} (${strength} strength)`);
+  return { added, updated, strength };
+}
+function _sessStartMs(s) { return new Date(s.date).getTime(); }
+// Buckets: linked (session.stravaId resolves), proposed (greedy start-time match), gymOnly, stravaOnly.
+function reconcileStravaBuckets() {
+  const acts = (state.stravaActivities || []).filter(a => isStrengthType(a.sportType));
+  const actById = {}; acts.forEach(a => actById[a.id] = a);
+  const linked = [], proposed = [], gymOnly = [], stravaOnly = [], linkedActIds = new Set(), unlinkedSessions = [];
+  (state.sessions || []).forEach(s => {
+    if (s.stravaId && actById[s.stravaId]) { linked.push({ session: s, activity: actById[s.stravaId] }); linkedActIds.add(s.stravaId); }
+    else unlinkedSessions.push(s);
+  });
+  const unlinkedActs = acts.filter(a => !linkedActIds.has(a.id));
+  const pairs = [];
+  unlinkedSessions.forEach((s, si) => unlinkedActs.forEach((a, ai) => {
+    const dMin = Math.abs(_sessStartMs(s) - new Date(a.startDate).getTime()) / 60000;
+    if (dMin <= STRAVA_MATCH_WINDOW_MIN) pairs.push({ si, ai, dMin });
+  }));
+  pairs.sort((x, y) => x.dMin - y.dMin);
+  const usedS = new Set(), usedA = new Set();
+  pairs.forEach(p => { if (usedS.has(p.si) || usedA.has(p.ai)) return; usedS.add(p.si); usedA.add(p.ai); proposed.push({ session: unlinkedSessions[p.si], activity: unlinkedActs[p.ai], deltaMin: Math.round(p.dMin) }); });
+  unlinkedSessions.forEach((s, si) => { if (!usedS.has(si)) gymOnly.push(s); });
+  unlinkedActs.forEach((a, ai) => { if (!usedA.has(ai)) stravaOnly.push(a); });
+  const byDateDesc = (a, b) => new Date(b.date || b.startDate) - new Date(a.date || a.startDate);
+  gymOnly.sort(byDateDesc); stravaOnly.sort(byDateDesc);
+  return { linked, proposed, gymOnly, stravaOnly };
+}
+function linkStrava(sessionDate, activityId, enrich) {
+  const s = (state.sessions || []).find(x => x.date === sessionDate); if (!s) return;
+  const a = (state.stravaActivities || []).find(x => x.id === activityId); if (!a) return;
+  s.stravaId = activityId;
+  if (enrich !== false) {
+    if (!s.hr && (a.avgHr != null || a.calories != null)) s.hr = { avg: a.avgHr, max: a.maxHr, calories: a.calories };
+    if (!s.endedAt && a.elapsedSec) { const end = new Date(new Date(s.date).getTime() + a.elapsedSec * 1000); if (end < new Date()) { s.endedAt = end.toISOString(); s.endReason = s.endReason || 'strava'; } }
+  }
+  saveState();
+}
+function unlinkStrava(sessionDate) { const s = (state.sessions || []).find(x => x.date === sessionDate); if (!s) return; delete s.stravaId; saveState(); }
+function linkAllProposedStrava() { reconcileStravaBuckets().proposed.forEach(p => linkStrava(p.session.date, p.activity.id)); }
+function stravaDescriptionFor(session) {
+  const u = state.unit || 'lb';
+  const lines = []; let totVol = 0, totSets = 0, totReps = 0;
+  (session.exercises || []).forEach(ex => {
+    const info = VAR_INDEX.get(ex.varUuid);
+    const title = info ? info.variation.title : 'Exercise';
+    if (ex.cardio) { lines.push(`• ${title}${ex.cardio.elapsedMin ? ` — ${ex.cardio.elapsedMin} min` : ''}`); return; }
+    const sets = (ex.sets || []).filter(s => (s.w !== '' && s.w != null) || (s.r !== '' && s.r != null));
+    if (!sets.length) return;
+    let top = sets[0]; sets.forEach(s => { if ((parseFloat(s.w) || 0) > (parseFloat(top.w) || 0)) top = s; });
+    sets.forEach(s => { totVol += (setVolume(s) || 0); totReps += (parseFloat(s.r) || 0); totSets++; });
+    const tw = (top.w !== '' && top.w != null) ? top.w : '?', tr = (top.r !== '' && top.r != null) ? top.r : '?';
+    lines.push(`• ${title}: ${sets.length} set${sets.length === 1 ? '' : 's'}, top ${tw}${u} × ${tr}`);
+  });
+  if (!lines.length) return '';
+  return `${lines.join('\n')}\n\n${Math.round(totVol).toLocaleString()} ${u} volume · ${totSets} sets · ${totReps} reps\n— logged in GymTracker`;
+}
+function copyStravaDescription(sessionDate) {
+  const s = (state.sessions || []).find(x => x.date === sessionDate); if (!s) return;
+  const txt = stravaDescriptionFor(s);
+  if (!txt) { toast('No set detail to describe'); return; }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => toast('Description copied'), () => toast('Copy failed'));
+  else toast('Clipboard not available');
+}
+function exportStravaPush() {
+  const payload = reconcileStravaBuckets().linked.map(({ session, activity }) => ({ id: activity.id, description: stravaDescriptionFor(session) })).filter(x => x.description.trim());
+  if (!payload.length) { toast('No linked workouts with detail to push'); return; }
+  downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), `strava-push_${new Date().toISOString().slice(0, 10)}.json`);
+  toast(`Push file ready (${payload.length})`);
+}
+
+/* ---- Strava reconcile overlay ---- */
+let _stravaModalOpen = false;
+function openStravaModal() { renderStravaModal(); document.getElementById('strava-backdrop')?.classList.add('open'); document.getElementById('strava-modal')?.classList.add('open'); _stravaModalOpen = true; }
+function closeStravaModal() { document.getElementById('strava-backdrop')?.classList.remove('open'); document.getElementById('strava-modal')?.classList.remove('open'); _stravaModalOpen = false; }
+function _stFmt(dLike, extra) { const d = new Date(dLike); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + (extra || ''); }
+function _stSessSummary(s) { const n = (s.exercises || []).length; return `${n} exercise${n === 1 ? '' : 's'}`; }
+function _stActExtra(a) { const mn = a.elapsedSec ? ` · ${Math.round(a.elapsedSec / 60)}m` : ''; return mn + (a.calories ? ` · ${a.calories}cal` : ''); }
+function renderStravaModal() {
+  const modal = document.getElementById('strava-modal'); if (!modal) return;
+  const bk = reconcileStravaBuckets();
+  const totalActs = (state.stravaActivities || []).filter(a => isStrengthType(a.sportType)).length;
+  const head = `<div class="media-head"><div class="media-title">🔗 Strava Reconciliation</div><button class="media-close" onclick="closeStravaModal()" aria-label="Close">✕</button></div>`;
+  let body;
+  if (!totalActs) {
+    body = `<div class="media-body"><div class="strava-empty">No Strava strength activities imported yet.<br><br>Run <code>tools/strava-sync.py</code> (or use your Strava data export) and import the file via <b>Settings → Data → Strava</b>.</div></div>`;
+  } else {
+    const sec = (title, n, html) => n ? `<div class="strava-sec-title">${title} <span class="ss-n">${n}</span></div>${html}` : '';
+    const proposed = bk.proposed.map(({ session, activity, deltaMin }) => `<div class="strava-row">
+      <div class="sr-main"><div class="sr-a">🏋️ ${_stFmt(session.date)} · ${_stSessSummary(session)}</div><div class="sr-b">⌚ ${escapeHtml(activity.name)} · ${_stFmt(activity.startDate, _stActExtra(activity))} <span class="sr-delta">±${deltaMin}m</span></div></div>
+      <button class="sr-link" onclick="linkStrava('${session.date}','${activity.id}');renderStravaModal();">Link</button></div>`).join('');
+    const linked = bk.linked.map(({ session, activity }) => `<div class="strava-row linked">
+      <div class="sr-main"><div class="sr-a">🏋️ ${_stFmt(session.date)} · ${_stSessSummary(session)}</div><div class="sr-b">⌚ ${escapeHtml(activity.name)} · ${_stFmt(activity.startDate, _stActExtra(activity))}</div></div>
+      <div class="sr-actcol"><button class="sr-mini" onclick="copyStravaDescription('${session.date}')" title="Copy description for Strava">📋</button><button class="sr-mini" onclick="unlinkStrava('${session.date}');renderStravaModal();" title="Unlink">✕</button></div></div>`).join('');
+    const gymOnly = bk.gymOnly.map(s => `<div class="strava-row dim"><div class="sr-main"><div class="sr-a">🏋️ ${_stFmt(s.date)} · ${_stSessSummary(s)}</div><div class="sr-b">no matching Strava activity</div></div></div>`).join('');
+    const stravaOnly = bk.stravaOnly.map(a => `<div class="strava-row dim"><div class="sr-main"><div class="sr-a">⌚ ${escapeHtml(a.name)} · ${_stFmt(a.startDate, _stActExtra(a))}</div><div class="sr-b">no GymTracker log</div></div></div>`).join('');
+    body = `<div class="media-body">
+      <div class="strava-summary">${totalActs} strength · ${bk.linked.length} linked · ${bk.proposed.length} proposed · ${bk.gymOnly.length + bk.stravaOnly.length} unmatched</div>
+      ${bk.proposed.length ? `<button class="strava-linkall" onclick="linkAllProposedStrava();renderStravaModal();">🔗 Link all ${bk.proposed.length} proposed</button>` : ''}
+      ${sec('Proposed matches', bk.proposed.length, proposed)}
+      ${sec('Linked', bk.linked.length, linked)}
+      ${sec('GymTracker only', bk.gymOnly.length, gymOnly)}
+      ${sec('Strava only', bk.stravaOnly.length, stravaOnly)}
+      ${bk.linked.length ? `<button class="strava-push" onclick="exportStravaPush()">⬇ Generate Strava push file (descriptions)</button><div class="strava-pushnote">Pushing needs <code>strava-sync.py --push</code> with write access. Or tap 📋 to copy a description and paste it into Strava.</div>` : ''}
+    </div>`;
+  }
+  modal.innerHTML = head + body;
+}
+
+/* ============================================================
    LOG MODAL — picker + sets entry
    ============================================================ */
 let modalState = {
@@ -9910,7 +10124,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 18 · 2026-06-03 10:45';
+const APP_BUILD = 'build 19 · 2026-06-03 11:30';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
