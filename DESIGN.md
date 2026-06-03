@@ -222,6 +222,16 @@ They share variation **UUIDs**.
   the Barbell Setup configurator — symmetric, largest plate inside-out, **height ∝ weight**, theme-coloured by size band
   (`--accent` / `--accent2` / `--text3`), with a `+N more per side` label past 11 plates. Built from the same
   `st.plates` map, so it updates live on every add/remove.
+- **Baseline-adaptive plans + intensity/ETA (feat 82):** plan steps carry a relative **`load`** (`light`/`moderate`/
+  `heavy` → 0.7/0.85/0.95) and plans a **1-5 `intensity`**. `baselineWeightVar` (heaviest set in the most recent
+  session that trained a variation) × `loadFactor(load)`, rounded to the unit increment, yields a **suggested working
+  weight** shown per step in the plan guide ("heavy · ≈190lb", with a "% of baseline" tooltip). Starting a step seeds
+  that weight into the first set **and pre-loads the matching equipment picker** (`_planLoadCtx` threaded through both
+  `startExerciseFromSuggestion` and the picker-tap path → `seedSetupForWeight` → `solveSetupState`: `greedyPlates` solves
+  a barbell/plate/landmine loadout, `nearestInList` snaps dumbbell/kettlebell/med-ball, pin rounds to its increment).
+  `estimatePlanMinutes` (≈2.5 min/set + 1/exercise, **rounded to 15 min**) and `intensityDots` show on plan cards + the
+  guide. Six new seed plans (Heavy Lower, Upper Hypertrophy, Express 30, Posterior Chain, Powerbuilding A, Athletic Full
+  Body); `intensity`/`load` backfilled for existing users in the seed-merge.
 
 ---
 

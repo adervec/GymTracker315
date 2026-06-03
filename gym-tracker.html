@@ -654,6 +654,13 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-row-desc { font-size: 11px; color: var(--text2); line-height: 1.45; margin: 2px 0; }
   .plan-hist-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); padding: 2px 8px; border-radius: 10px; margin-top: 4px; }
   .plan-card-eta { font-size: 11px; color: var(--text3); font-variant-numeric: tabular-nums; }
+  /* feat 82 — plan intensity / estimate / per-step relative load */
+  .plan-card-meta { display: flex; align-items: center; gap: 10px; margin: -3px 0 8px; }
+  .plan-intensity { font-size: 11px; letter-spacing: 1.5px; color: var(--accent); }
+  .plan-est { font-size: 11px; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .plan-load { margin-left: auto; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 999px; white-space: nowrap; border: 1px solid var(--border2); color: var(--text3); }
+  .plan-load.light { color: var(--good); border-color: var(--good); }
+  .plan-load.heavy { color: var(--warn); border-color: var(--warn); }
   .plan-steps { display: flex; flex-direction: column; gap: 5px; }
   .plan-step { padding: 6px 8px; border-radius: 7px; background: var(--bg3); border: 1px solid transparent; }
   .plan-step.current { border-color: var(--accent-border); background: var(--accent-bg); }
@@ -2553,12 +2560,14 @@ function normalizeState() {
     const ex = state.plans.find(p => p.id === sp.id);
     if (ex) {
       if (!ex.desc && sp.desc) ex.desc = sp.desc;
-      if (Array.isArray(ex.steps) && ex.steps.length === sp.steps.length) ex.steps.forEach((st, i) => { if (st && !st.desc && sp.steps[i] && sp.steps[i].desc) st.desc = sp.steps[i].desc; });
+      if (!ex.intensity && sp.intensity) ex.intensity = sp.intensity; // feat 82
+      if (Array.isArray(ex.steps) && ex.steps.length === sp.steps.length) ex.steps.forEach((st, i) => { if (!st) return; if (!st.desc && sp.steps[i] && sp.steps[i].desc) st.desc = sp.steps[i].desc; if (!st.load && sp.steps[i] && sp.steps[i].load) st.load = sp.steps[i].load; }); // feat 82
     } else if (!state.seededPlanIds.includes(sp.id)) {
       state.plans.push(cloneSeedPlan(sp));
     }
     if (!state.seededPlanIds.includes(sp.id)) state.seededPlanIds.push(sp.id);
   });
+  (state.plans || []).forEach(p => { if (!(p.intensity >= 1 && p.intensity <= 5)) p.intensity = p.intensity || 3; (p.steps || []).forEach(st => { if (st && !st.load) st.load = 'moderate'; }); }); // feat 82 defaults
   if (!state.bodyCompUnit) state.bodyCompUnit = state.unit || 'lb';
   if (!state.hiddenCategories || typeof state.hiddenCategories !== 'object') state.hiddenCategories = {};
   if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
@@ -5405,44 +5414,59 @@ function render() {
    ============================================================ */
 function _mvOpt(familyId) { return { type:'movement', familyId }; }
 function _vrOpt(uuid) { return { type:'variation', uuid }; }
-function _pstep(sets, options, desc) { return { sets: sets || 3, options: options || [], desc: desc || '' }; }
+function _pstep(sets, options, desc, load) { return { sets: sets || 3, options: options || [], desc: desc || '', load: load || 'moderate' }; }
+// feat 82 — plans carry an intensity (1-5); each step carries a relative load (light/moderate/heavy)
+// that's applied to the user's recent baseline weight to suggest a working weight.
 const SEED_PLANS = [
   // —— Classic splits ——
-  { id:'seed-push', name:'Push Day', desc:'Chest, shoulders & triceps in one hit. Heavy presses while fresh, then flyes and raises to finish the muscles off.', steps:[
-    _pstep(4,[_mvOpt('flat-bench-press')],'Main strength press — go heavy.'), _pstep(3,[_mvOpt('incline-bench-press')],'Bias the upper chest.'), _pstep(3,[_mvOpt('shoulder-press')]), _pstep(3,[_mvOpt('chest-fly'),_mvOpt('dips')]), _pstep(3,[_mvOpt('lateral-raise')],'Side-delt width — light and strict.'), _pstep(3,[_mvOpt('tricep-extension')]) ] },
-  { id:'seed-pull', name:'Pull Day', desc:'Back width and thickness plus biceps. Big vertical pull, hard rows, then rear delts and arms.', steps:[
-    _pstep(4,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'Vertical pull for lat width.'), _pstep(4,[_mvOpt('row')],'Horizontal pull for back thickness.'), _pstep(3,[_mvOpt('rear-delt')]), _pstep(3,[_mvOpt('bicep-curl')]), _pstep(2,[_mvOpt('hammer-curl')]), _pstep(2,[_mvOpt('shrugs')]) ] },
-  { id:'seed-legs', name:'Leg Day', desc:'Quads, hams, glutes & calves. Squat heavy up front, then machines and accessories to cover every angle.', steps:[
-    _pstep(4,[_mvOpt('squat')],'The big one — drive hard out of the hole.'), _pstep(3,[_mvOpt('leg-press'),_mvOpt('lunge')]), _pstep(3,[_mvOpt('leg-curl')],'Never skip the hamstrings.'), _pstep(3,[_mvOpt('leg-extension')]), _pstep(3,[_mvOpt('hip-thrust')]), _pstep(4,[_mvOpt('calf-raise')]) ] },
-  { id:'seed-upper', name:'Upper Body', desc:'Balanced upper session for a 4-day upper/lower split — pushes and pulls paired so nothing lags.', steps:[
-    _pstep(3,[_mvOpt('flat-bench-press'),_mvOpt('incline-bench-press')]), _pstep(3,[_mvOpt('row'),_mvOpt('lat-pulldown')]), _pstep(3,[_mvOpt('shoulder-press')]), _pstep(3,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')]), _pstep(2,[_mvOpt('bicep-curl')]), _pstep(2,[_mvOpt('tricep-extension')]) ] },
-  { id:'seed-lower', name:'Lower Body', desc:'The lower half of an upper/lower split — a heavy squat and hinge, then targeted quad, ham & calf work.', steps:[
-    _pstep(4,[_mvOpt('squat')]), _pstep(3,[_mvOpt('deadlift')],'Hinge for posterior-chain strength.'), _pstep(3,[_mvOpt('leg-curl')]), _pstep(3,[_mvOpt('leg-extension')]), _pstep(3,[_mvOpt('hip-thrust'),_mvOpt('lunge')]), _pstep(3,[_mvOpt('calf-raise')]) ] },
-  { id:'seed-fb-a', name:'Full Body A', desc:'Hit everything in one session — ideal 3x/week. A squat, a press, a row, and a little arms.', steps:[
-    _pstep(3,[_mvOpt('squat')]), _pstep(3,[_mvOpt('flat-bench-press')]), _pstep(3,[_mvOpt('row')]), _pstep(2,[_mvOpt('shoulder-press')]), _pstep(2,[_mvOpt('bicep-curl')]), _pstep(2,[_mvOpt('calf-raise')]) ] },
-  { id:'seed-fb-b', name:'Full Body B', desc:'The B-day counterpart — hinge, incline press, vertical pull, and single-leg work for balanced coverage.', steps:[
-    _pstep(3,[_mvOpt('deadlift')]), _pstep(3,[_mvOpt('incline-bench-press')]), _pstep(3,[_mvOpt('lat-pulldown'),_mvOpt('pull-up')]), _pstep(2,[_mvOpt('lunge')]), _pstep(2,[_mvOpt('lateral-raise')]), _pstep(2,[_mvOpt('tricep-extension')]) ] },
-  { id:'seed-core', name:'Core & Conditioning', desc:'A short finisher or standalone core day — dynamic abs, anti-movement stability, obliques and low back.', steps:[
+  { id:'seed-push', name:'Push Day', intensity:4, desc:'Chest, shoulders & triceps in one hit. Heavy presses while fresh, then flyes and raises to finish the muscles off.', steps:[
+    _pstep(4,[_mvOpt('flat-bench-press')],'Main strength press — go heavy.','heavy'), _pstep(3,[_mvOpt('incline-bench-press')],'Bias the upper chest.','heavy'), _pstep(3,[_mvOpt('shoulder-press')]), _pstep(3,[_mvOpt('chest-fly'),_mvOpt('dips')],'','light'), _pstep(3,[_mvOpt('lateral-raise')],'Side-delt width — light and strict.','light'), _pstep(3,[_mvOpt('tricep-extension')],'','light') ] },
+  { id:'seed-pull', name:'Pull Day', intensity:4, desc:'Back width and thickness plus biceps. Big vertical pull, hard rows, then rear delts and arms.', steps:[
+    _pstep(4,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'Vertical pull for lat width.','heavy'), _pstep(4,[_mvOpt('row')],'Horizontal pull for back thickness.','heavy'), _pstep(3,[_mvOpt('rear-delt')],'','light'), _pstep(3,[_mvOpt('bicep-curl')],'','light'), _pstep(2,[_mvOpt('hammer-curl')],'','light'), _pstep(2,[_mvOpt('shrugs')]) ] },
+  { id:'seed-legs', name:'Leg Day', intensity:5, desc:'Quads, hams, glutes & calves. Squat heavy up front, then machines and accessories to cover every angle.', steps:[
+    _pstep(4,[_mvOpt('squat')],'The big one — drive hard out of the hole.','heavy'), _pstep(3,[_mvOpt('leg-press'),_mvOpt('lunge')]), _pstep(3,[_mvOpt('leg-curl')],'Never skip the hamstrings.'), _pstep(3,[_mvOpt('leg-extension')],'','light'), _pstep(3,[_mvOpt('hip-thrust')]), _pstep(4,[_mvOpt('calf-raise')],'','light') ] },
+  { id:'seed-upper', name:'Upper Body', intensity:4, desc:'Balanced upper session for a 4-day upper/lower split — pushes and pulls paired so nothing lags.', steps:[
+    _pstep(3,[_mvOpt('flat-bench-press'),_mvOpt('incline-bench-press')],'','heavy'), _pstep(3,[_mvOpt('row'),_mvOpt('lat-pulldown')],'','heavy'), _pstep(3,[_mvOpt('shoulder-press')]), _pstep(3,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')]), _pstep(2,[_mvOpt('bicep-curl')],'','light'), _pstep(2,[_mvOpt('tricep-extension')],'','light') ] },
+  { id:'seed-lower', name:'Lower Body', intensity:5, desc:'The lower half of an upper/lower split — a heavy squat and hinge, then targeted quad, ham & calf work.', steps:[
+    _pstep(4,[_mvOpt('squat')],'','heavy'), _pstep(3,[_mvOpt('deadlift')],'Hinge for posterior-chain strength.','heavy'), _pstep(3,[_mvOpt('leg-curl')]), _pstep(3,[_mvOpt('leg-extension')],'','light'), _pstep(3,[_mvOpt('hip-thrust'),_mvOpt('lunge')]), _pstep(3,[_mvOpt('calf-raise')],'','light') ] },
+  { id:'seed-fb-a', name:'Full Body A', intensity:3, desc:'Hit everything in one session — ideal 3x/week. A squat, a press, a row, and a little arms.', steps:[
+    _pstep(3,[_mvOpt('squat')],'','heavy'), _pstep(3,[_mvOpt('flat-bench-press')],'','heavy'), _pstep(3,[_mvOpt('row')]), _pstep(2,[_mvOpt('shoulder-press')]), _pstep(2,[_mvOpt('bicep-curl')],'','light'), _pstep(2,[_mvOpt('calf-raise')],'','light') ] },
+  { id:'seed-fb-b', name:'Full Body B', intensity:3, desc:'The B-day counterpart — hinge, incline press, vertical pull, and single-leg work for balanced coverage.', steps:[
+    _pstep(3,[_mvOpt('deadlift')],'','heavy'), _pstep(3,[_mvOpt('incline-bench-press')],'','heavy'), _pstep(3,[_mvOpt('lat-pulldown'),_mvOpt('pull-up')]), _pstep(2,[_mvOpt('lunge')]), _pstep(2,[_mvOpt('lateral-raise')],'','light'), _pstep(2,[_mvOpt('tricep-extension')],'','light') ] },
+  { id:'seed-core', name:'Core & Conditioning', intensity:2, desc:'A short finisher or standalone core day — dynamic abs, anti-movement stability, obliques and low back.', steps:[
     _pstep(3,[_mvOpt('abs-dynamic')]), _pstep(3,[_mvOpt('core-stability')]), _pstep(2,[_mvOpt('obliques')]), _pstep(2,[_mvOpt('back-extension')]) ] },
   // —— Station / one-zone plans — claim a single spot and stay put (great for a crowded gym) ——
-  { id:'seed-rack', name:'Squat Rack Strength', desc:'One power rack, one barbell, zero wandering. Squat, hinge, press and row all from the same station — perfect when the floor is packed and you want to stay posted up in one zone.', steps:[
-    _pstep(4,[_mvOpt('squat')],'Rack the bar and back-squat.'), _pstep(3,[_mvOpt('deadlift')],'Same bar — RDL or pull from the pins.'), _pstep(3,[_mvOpt('shoulder-press')],'Strict barbell OHP in the rack.'), _pstep(3,[_mvOpt('row')],'Bent-over barbell row.'), _pstep(2,[_mvOpt('shrugs')],'Barbell shrugs to finish.'), _pstep(3,[_mvOpt('calf-raise')],'Standing calf raises holding the bar.') ] },
-  { id:'seed-db', name:'Dumbbell Corner', desc:'One pair of dumbbells in one corner — a complete full-body session without touching a machine or barbell. Ideal when every rack and station is taken.', steps:[
-    _pstep(3,[_mvOpt('flat-bench-press')],'DB bench or floor press.'), _pstep(3,[_mvOpt('row')],'One-arm DB row.'), _pstep(3,[_mvOpt('shoulder-press')],'Seated or standing DB press.'), _pstep(3,[_mvOpt('lunge')],'Walking or stationary DB lunges.'), _pstep(2,[_mvOpt('bicep-curl')]), _pstep(2,[_mvOpt('tricep-extension')]), _pstep(2,[_mvOpt('lateral-raise')]) ] },
-  { id:'seed-cable', name:'One Cable Station', desc:'Set up at a single cable stack and flow through the whole upper body — push, pull and arms — without ever stepping away. Constant tension, tiny footprint.', steps:[
-    _pstep(3,[_mvOpt('lat-pulldown')],'High pulley.'), _pstep(3,[_mvOpt('row')],'Seated cable row.'), _pstep(3,[_mvOpt('chest-fly')],'Cable crossover.'), _pstep(3,[_mvOpt('rear-delt')],'Cable face pulls.'), _pstep(2,[_mvOpt('tricep-extension')],'Rope pushdowns.'), _pstep(2,[_mvOpt('bicep-curl')],'Cable curls.'), _pstep(2,[_mvOpt('lateral-raise')]) ] },
-  { id:'seed-bench-db', name:'Bench + Dumbbells', desc:'A flat bench and one pair of dumbbells — claim that single spot and stay. Press, fly, row and curl all from the bench.', steps:[
-    _pstep(4,[_mvOpt('flat-bench-press')]), _pstep(3,[_mvOpt('chest-fly')]), _pstep(3,[_mvOpt('row')],'Chest-supported or one-arm row off the bench.'), _pstep(3,[_mvOpt('shoulder-press')]), _pstep(2,[_mvOpt('tricep-extension')],'Lying DB extensions.'), _pstep(2,[_mvOpt('bicep-curl')],'Seated DB curls.') ] },
+  { id:'seed-rack', name:'Squat Rack Strength', intensity:5, desc:'One power rack, one barbell, zero wandering. Squat, hinge, press and row all from the same station — perfect when the floor is packed and you want to stay posted up in one zone.', steps:[
+    _pstep(4,[_mvOpt('squat')],'Rack the bar and back-squat.','heavy'), _pstep(3,[_mvOpt('deadlift')],'Same bar — RDL or pull from the pins.','heavy'), _pstep(3,[_mvOpt('shoulder-press')],'Strict barbell OHP in the rack.'), _pstep(3,[_mvOpt('row')],'Bent-over barbell row.'), _pstep(2,[_mvOpt('shrugs')],'Barbell shrugs to finish.'), _pstep(3,[_mvOpt('calf-raise')],'Standing calf raises holding the bar.','light') ] },
+  { id:'seed-db', name:'Dumbbell Corner', intensity:3, desc:'One pair of dumbbells in one corner — a complete full-body session without touching a machine or barbell. Ideal when every rack and station is taken.', steps:[
+    _pstep(3,[_mvOpt('flat-bench-press')],'DB bench or floor press.','heavy'), _pstep(3,[_mvOpt('row')],'One-arm DB row.','heavy'), _pstep(3,[_mvOpt('shoulder-press')],'Seated or standing DB press.'), _pstep(3,[_mvOpt('lunge')],'Walking or stationary DB lunges.'), _pstep(2,[_mvOpt('bicep-curl')],'','light'), _pstep(2,[_mvOpt('tricep-extension')],'','light'), _pstep(2,[_mvOpt('lateral-raise')],'','light') ] },
+  { id:'seed-cable', name:'One Cable Station', intensity:3, desc:'Set up at a single cable stack and flow through the whole upper body — push, pull and arms — without ever stepping away. Constant tension, tiny footprint.', steps:[
+    _pstep(3,[_mvOpt('lat-pulldown')],'High pulley.','heavy'), _pstep(3,[_mvOpt('row')],'Seated cable row.','heavy'), _pstep(3,[_mvOpt('chest-fly')],'Cable crossover.'), _pstep(3,[_mvOpt('rear-delt')],'Cable face pulls.','light'), _pstep(2,[_mvOpt('tricep-extension')],'Rope pushdowns.','light'), _pstep(2,[_mvOpt('bicep-curl')],'Cable curls.','light'), _pstep(2,[_mvOpt('lateral-raise')],'','light') ] },
+  { id:'seed-bench-db', name:'Bench + Dumbbells', intensity:3, desc:'A flat bench and one pair of dumbbells — claim that single spot and stay. Press, fly, row and curl all from the bench.', steps:[
+    _pstep(4,[_mvOpt('flat-bench-press')],'','heavy'), _pstep(3,[_mvOpt('chest-fly')],'','light'), _pstep(3,[_mvOpt('row')],'Chest-supported or one-arm row off the bench.'), _pstep(3,[_mvOpt('shoulder-press')]), _pstep(2,[_mvOpt('tricep-extension')],'Lying DB extensions.','light'), _pstep(2,[_mvOpt('bicep-curl')],'Seated DB curls.','light') ] },
   // —— Focus / specialty ——
-  { id:'seed-arms', name:'Arms Blaster', desc:'A dedicated biceps + triceps pump you can superset in one corner with dumbbells or a single cable. Big arms, minimal footprint.', steps:[
-    _pstep(3,[_mvOpt('bicep-curl')],'Superset A — curl…'), _pstep(3,[_mvOpt('tricep-extension')],'…straight into a triceps extension.'), _pstep(3,[_mvOpt('hammer-curl')],'Superset B — hammers…'), _pstep(3,[_mvOpt('tricep-extension')],'…paired with pushdowns.'), _pstep(2,[_mvOpt('reverse-curl'),_mvOpt('wrist-curl')],'Forearm finisher.') ] },
-  { id:'seed-glute', name:'Glute Focus', desc:'Build and round out the glutes — hip thrust, hinge, lunge and abduction — mostly from one bench-and-barbell area.', steps:[
-    _pstep(4,[_mvOpt('hip-thrust')],'The glute money-maker — squeeze hard at the top.'), _pstep(3,[_mvOpt('deadlift')],'Romanian deadlift for the stretch.'), _pstep(3,[_mvOpt('lunge')]), _pstep(3,[_mvOpt('glute-accessories')],'Abductions / kickbacks.'), _pstep(2,[_mvOpt('back-extension')]) ] },
-  { id:'seed-beginner', name:'Beginner Full Body', desc:'New to lifting? A simple, safe full-body template — one move per major area, mostly machines and basics. Learn the patterns and build a base.', steps:[
-    _pstep(3,[_mvOpt('leg-press')],'Easier to learn than a free squat.'), _pstep(3,[_mvOpt('flat-bench-press')]), _pstep(3,[_mvOpt('lat-pulldown')]), _pstep(2,[_mvOpt('shoulder-press')]), _pstep(2,[_mvOpt('bicep-curl')]), _pstep(2,[_mvOpt('abs-dynamic')]) ] },
+  { id:'seed-arms', name:'Arms Blaster', intensity:2, desc:'A dedicated biceps + triceps pump you can superset in one corner with dumbbells or a single cable. Big arms, minimal footprint.', steps:[
+    _pstep(3,[_mvOpt('bicep-curl')],'Superset A — curl…','light'), _pstep(3,[_mvOpt('tricep-extension')],'…straight into a triceps extension.','light'), _pstep(3,[_mvOpt('hammer-curl')],'Superset B — hammers…','light'), _pstep(3,[_mvOpt('tricep-extension')],'…paired with pushdowns.','light'), _pstep(2,[_mvOpt('reverse-curl'),_mvOpt('wrist-curl')],'Forearm finisher.','light') ] },
+  { id:'seed-glute', name:'Glute Focus', intensity:4, desc:'Build and round out the glutes — hip thrust, hinge, lunge and abduction — mostly from one bench-and-barbell area.', steps:[
+    _pstep(4,[_mvOpt('hip-thrust')],'The glute money-maker — squeeze hard at the top.','heavy'), _pstep(3,[_mvOpt('deadlift')],'Romanian deadlift for the stretch.','heavy'), _pstep(3,[_mvOpt('lunge')]), _pstep(3,[_mvOpt('glute-accessories')],'Abductions / kickbacks.','light'), _pstep(2,[_mvOpt('back-extension')],'','light') ] },
+  { id:'seed-beginner', name:'Beginner Full Body', intensity:2, desc:'New to lifting? A simple, safe full-body template — one move per major area, mostly machines and basics. Learn the patterns and build a base.', steps:[
+    _pstep(3,[_mvOpt('leg-press')],'Easier to learn than a free squat.'), _pstep(3,[_mvOpt('flat-bench-press')]), _pstep(3,[_mvOpt('lat-pulldown')]), _pstep(2,[_mvOpt('shoulder-press')]), _pstep(2,[_mvOpt('bicep-curl')],'','light'), _pstep(2,[_mvOpt('abs-dynamic')]) ] },
+  // —— Tranche 2 (feat 82) — strength / hypertrophy / express / specialty ——
+  { id:'seed-strength-lower', name:'Heavy Lower (Strength)', intensity:5, desc:'Low-rep, high-load posterior & quad strength. Big squat and pull at the top end of your baseline, then a little accessory work — minimal sets, maximal intent.', steps:[
+    _pstep(5,[_mvOpt('squat')],'Top-end working sets — heavy triples/fives.','heavy'), _pstep(4,[_mvOpt('deadlift')],'Heavy pulls — leave one in the tank.','heavy'), _pstep(3,[_mvOpt('leg-press')],'Back-off volume for the quads.'), _pstep(3,[_mvOpt('leg-curl')]), _pstep(3,[_mvOpt('calf-raise')],'','light') ] },
+  { id:'seed-hyper-upper', name:'Upper Hypertrophy', intensity:3, desc:'Higher-rep pump work for the upper body — moderate loads, lots of sets, short rests. Chase the burn, not the bar.', steps:[
+    _pstep(4,[_mvOpt('incline-bench-press')],'Moderate load, controlled tempo.'), _pstep(4,[_mvOpt('lat-pulldown'),_mvOpt('row')]), _pstep(3,[_mvOpt('chest-fly')],'','light'), _pstep(3,[_mvOpt('lateral-raise')],'Strict, light, lots of reps.','light'), _pstep(3,[_mvOpt('bicep-curl')],'','light'), _pstep(3,[_mvOpt('tricep-extension')],'','light') ] },
+  { id:'seed-express', name:'Express 30', intensity:3, desc:'In and out in half an hour. Four compounds, three sets each, brisk rests — the highest-value movements when time is short.', steps:[
+    _pstep(3,[_mvOpt('squat'),_mvOpt('leg-press')],'','heavy'), _pstep(3,[_mvOpt('flat-bench-press')],'','heavy'), _pstep(3,[_mvOpt('row'),_mvOpt('lat-pulldown')]), _pstep(3,[_mvOpt('shoulder-press')]) ] },
+  { id:'seed-posterior', name:'Posterior Chain', intensity:4, desc:'Everything on the back of the body — hinge, thrust, row and rear delts. Bullet-proof the lower back and build a powerful backside.', steps:[
+    _pstep(4,[_mvOpt('deadlift')],'The cornerstone hinge.','heavy'), _pstep(3,[_mvOpt('hip-thrust')],'','heavy'), _pstep(3,[_mvOpt('row')]), _pstep(3,[_mvOpt('leg-curl')]), _pstep(3,[_mvOpt('rear-delt')],'','light'), _pstep(3,[_mvOpt('back-extension')],'','light') ] },
+  { id:'seed-powerbuild', name:'Powerbuilding A', intensity:5, desc:'Strength first, size second. Open with a heavy main lift in the low reps, then pile on hypertrophy accessories. The best of both worlds.', steps:[
+    _pstep(5,[_mvOpt('flat-bench-press')],'Heavy top sets — powerlifting style.','heavy'), _pstep(4,[_mvOpt('squat')],'Second heavy compound.','heavy'), _pstep(3,[_mvOpt('row')]), _pstep(3,[_mvOpt('shoulder-press')]), _pstep(3,[_mvOpt('tricep-extension')],'','light'), _pstep(3,[_mvOpt('bicep-curl')],'','light') ] },
+  { id:'seed-athletic', name:'Athletic Full Body', intensity:4, desc:'Train like an athlete — explosive compounds, single-leg work and a hard core finish. Full-body power and resilience.', steps:[
+    _pstep(4,[_mvOpt('squat'),_mvOpt('deadlift')],'Explosive, powerful reps.','heavy'), _pstep(3,[_mvOpt('shoulder-press'),_mvOpt('flat-bench-press')]), _pstep(3,[_mvOpt('pull-up'),_mvOpt('row')]), _pstep(3,[_mvOpt('lunge')],'Single-leg stability.'), _pstep(3,[_mvOpt('abs-dynamic'),_mvOpt('core-stability')],'Core finisher.','light') ] },
 ];
 function cloneSeedPlan(sp) {
-  return { id:sp.id, name:sp.name, desc:sp.desc||'', steps:sp.steps.map(s => ({ id:newUuid(), sets:s.sets, desc:s.desc||'', options:s.options.map(o => ({ ...o })) })) };
+  return { id:sp.id, name:sp.name, desc:sp.desc||'', intensity:sp.intensity||3, steps:sp.steps.map(s => ({ id:newUuid(), sets:s.sets, desc:s.desc||'', load:s.load||'moderate', options:s.options.map(o => ({ ...o })) })) };
 }
 function cloneSeedPlans() { return SEED_PLANS.map(cloneSeedPlan); }
 function getPlan(id) { return (state.plans || []).find(p => p.id === id) || null; }
@@ -5492,9 +5516,55 @@ function computePlanETA(session, plan) {
   const remMin = Math.round(remainingSets * perSetSec / 60);
   return { remainingSets, remainingMin: remMin, etaTime: new Date(Date.now() + remMin * 60000) };
 }
+/* ---- feat 82 — baseline-adaptive plans: relative load → suggested weight, picker pre-load, ETA, intensity ---- */
+function loadFactor(load) { return load === 'heavy' ? 0.95 : load === 'light' ? 0.7 : 0.85; }
+function weightInc() { return state.unit === 'kg' ? 2.5 : 5; }
+// Baseline = heaviest set weight in the most recent session that trained this variation.
+function baselineWeightVar(varUuid) {
+  let best = null, bestT = -1;
+  (state.sessions || []).forEach(s => { const t = new Date(s.date).getTime(); (s.exercises || []).forEach(ex => {
+    if (ex.varUuid !== varUuid || ex.cardio || !ex.sets || !ex.sets.length) return;
+    if (t >= bestT) { let top = 0; ex.sets.forEach(set => { const w = parseFloat(set.w) || 0; if (w > top) top = w; }); if (top > 0) { bestT = t; best = top; } }
+  }); });
+  return best;
+}
+function baselineWeightForOption(o) {
+  if (!o) return null;
+  if (o.type === 'variation') return baselineWeightVar(o.uuid);
+  if (o.type === 'movement') { const f = FAMILIES.find(x => x.id === o.familyId); if (!f) return null; let best = null; (f.variations || []).forEach(v => { if (v.uuid) { const b = baselineWeightVar(v.uuid); if (b != null && (best == null || b > best)) best = b; } }); return best; }
+  return null;
+}
+function suggestedWeightFromBase(base, load) { if (base == null) return null; const inc = weightInc(); return Math.max(inc, Math.round(base * loadFactor(load) / inc) * inc); }
+function suggestedWeightForOption(o, load) { return suggestedWeightFromBase(baselineWeightForOption(o), load); }
+function suggestedWeightForVar(varUuid, load) { return suggestedWeightFromBase(baselineWeightVar(varUuid), load); }
+// Static per-plan estimate, rounded to 15 min (~2.5 min/working set incl rest + ~1 min/exercise transition).
+function estimatePlanMinutes(plan) { const sets = planTotalSets(plan), steps = (plan.steps || []).length; return Math.max(15, Math.round((sets * 2.5 + steps) / 15) * 15); }
+function planIntensity(plan) { const n = plan && plan.intensity; return (n >= 1 && n <= 5) ? n : 3; }
+function intensityDots(plan) { const n = planIntensity(plan); return '●'.repeat(n) + '○'.repeat(5 - n); }
+// "Pickable" suggested weight — pre-load the matching picker to approximate the target.
+function greedyPlates(perSide, denoms) { const plates = {}; let rem = Math.max(0, perSide); denoms.forEach(d => { while (rem >= d - 0.001) { plates[d] = (plates[d] || 0) + 1; rem -= d; } }); return plates; }
+function nearestInList(target, list) { let best = list[0], bd = Math.abs(list[0] - target); list.forEach(w => { const d = Math.abs(w - target); if (d < bd) { bd = d; best = w; } }); return best; }
+function solveSetupState(kind, target) {
+  if (kind === 'barbell') { const cfg = plateConfig(); return { bar: cfg.def, plates: greedyPlates((target - cfg.def) / 2, cfg.plates) }; }
+  if (kind === 'dumbbell') return { weight: nearestInList(target, dumbbellWeights()), perHand: true };
+  if (kind === 'kettlebell') return { weight: nearestInList(target, kettlebellWeights()), double: false };
+  if (kind === 'medicineball') return { weight: nearestInList(target, medballWeights()) };
+  if (kind === 'plate') return { plates: greedyPlates(target, plateConfig().plates) };
+  if (kind === 'landmine') return { plates: greedyPlates(target, plateConfig().plates), addBar: false };
+  if (kind === 'pin') { const inc = state.unit === 'kg' ? 5 : 10; return { stack: Math.max(0, Math.round(target / inc) * inc), toppers: {}, inc, profileId: null }; }
+  return (typeof defaultSetupState === 'function') ? defaultSetupState(kind) : {};
+}
+function seedSetupForWeight(varUuid, target) {
+  if (target == null) return;
+  const kind = setupKindFor(varUuid); if (!kind) return;
+  if (!modalState.setup) modalState.setup = {};
+  modalState.setup[kind] = solveSetupState(kind, target);
+}
+let _planLoadCtx = null; // load tag carried from a tapped plan step into the exercise start
 // Start logging a plan option: a variation jumps straight in; a movement opens the picker filtered to it.
-function startExerciseFromPlanOption(o) {
+function startExerciseFromPlanOption(o, load) {
   if (!o) return;
+  _planLoadCtx = load || null;
   if (o.type === 'variation') { startExerciseFromSuggestion(o.uuid); return; }
   const f = FAMILIES.find(x => x.id === o.familyId);
   pending.varUuid = null; pending.subUuid = null; pending.cardio = null; pending.sets = [{ w:'', r:'' }]; savePending();
@@ -5524,7 +5594,7 @@ function renderPlansOverlay() {
   if (plan) { renderPlanEditor(body, plan); return; }
   body.innerHTML = `<div class="plan-list-intro">Plans are optional and suggestions only — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
     ${(state.plans || []).map(p => `<div class="plan-row">
-      <div class="plan-row-main"><div class="plan-row-name">${escapeHtml(p.name)}</div>${p.desc?`<div class="plan-row-desc">${escapeHtml(p.desc)}</div>`:''}<div class="plan-row-sub">${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets</div></div>
+      <div class="plan-row-main"><div class="plan-row-name">${escapeHtml(p.name)}</div>${p.desc?`<div class="plan-row-desc">${escapeHtml(p.desc)}</div>`:''}<div class="plan-row-sub"><span class="plan-intensity" title="Intensity ${planIntensity(p)}/5">${intensityDots(p)}</span> · ~${estimatePlanMinutes(p)} min · ${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets</div></div>
       <div class="plan-row-actions">
         <button class="drawer-btn" data-plan-use="${p.id}">Use</button>
         <button class="drawer-btn" data-plan-edit="${p.id}">Edit</button>
@@ -5608,14 +5678,18 @@ function renderPlanGuide(session) {
     const s = stepStatus(session, st), impossible = stepImpossibleInGym(st);
     const cls = s.done ? 'done' : (i === curIdx ? 'current' : '');
     const opts = (st.options || []).map((o, oi) => `<button class="plan-opt" data-plan-step="${i}" data-plan-opt="${oi}">${escapeHtml(optionLabel(o))}</button>`).join('<span class="plan-opt-or">or</span>');
+    const load = st.load || 'moderate';
+    const sug = (st.options && st.options[0]) ? suggestedWeightForOption(st.options[0], load) : null;
+    const loadBadge = `<span class="plan-load ${load}" title="${sug != null ? `≈${loadFactor(load) * 100 | 0}% of your recent baseline` : 'relative load'}">${load}${sug != null ? ` · ≈${sug}${state.unit}` : ''}</span>`;
     return `<div class="plan-step ${cls}">
-      <div class="plan-step-top"><span class="plan-step-num">${s.done ? '✓' : (i+1)}</span><span class="plan-step-sets">${s.logged}/${st.sets} sets</span>${impossible ? `<span class="plan-step-warn" title="No option is available in the current gym">⚠ gym</span>` : ''}</div>
+      <div class="plan-step-top"><span class="plan-step-num">${s.done ? '✓' : (i+1)}</span><span class="plan-step-sets">${s.logged}/${st.sets} sets</span>${loadBadge}${impossible ? `<span class="plan-step-warn" title="No option is available in the current gym">⚠ gym</span>` : ''}</div>
       <div class="plan-step-opts">${opts || '<span style="color:var(--text3);font-size:11px;">(no exercises)</span>'}</div>
       ${st.desc ? `<div class="plan-step-desc">${escapeHtml(st.desc)}</div>` : ''}
     </div>`;
   }).join('');
   return `<div class="plan-card">
     <div class="plan-card-head"><span class="plan-card-name">📋 ${escapeHtml(plan.name)}</span><span class="plan-card-eta">${eta.remainingMin > 0 ? `~${eta.remainingMin} min left · ETA ${eta.etaTime.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}` : 'plan complete 🎉'}</span></div>
+    <div class="plan-card-meta"><span class="plan-intensity" title="Intensity ${planIntensity(plan)}/5">${intensityDots(plan)}</span><span class="plan-est">~${estimatePlanMinutes(plan)} min · ${planTotalSets(plan)} sets</span></div>
     ${plan.desc ? `<div class="plan-card-desc">${escapeHtml(plan.desc)}</div>` : ''}
     <div class="plan-steps">${steps}</div>
     <div class="plan-card-actions"><button class="plan-act" id="plan-change-btn">Change plan</button><button class="plan-act danger" id="plan-abandon-btn">Abandon</button></div>
@@ -5814,7 +5888,7 @@ function renderLog(main) {
   main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
   main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
   main.querySelector('#plan-abandon-btn')?.addEventListener('click', () => { const s = getActiveSession(); if (s) { s.planId = undefined; saveState(); toast('Plan abandoned'); render(); } });
-  main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', () => { const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt]); }));
+  main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', () => { const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt], st.load); }));
   // Superset link buttons (feat 39)
   main.querySelectorAll('.ss-link-btn').forEach(btn => {
     btn.addEventListener('click', e => {
@@ -8709,6 +8783,8 @@ function startExerciseFromSuggestion(varUuid) {
   pending.defaultWeight = null;
   const last = (state.workoutControls && state.workoutControls.prefillFromHistory) ? getLastSetForExercise(varUuid, pending.subUuid) : null;
   pending.sets = last ? [{ w: last.w, r: last.r }] : [{ w: '', r: '' }];
+  // feat 82 — started from a plan step: seed the suggested weight (baseline × load) + pre-load the picker
+  if (_planLoadCtx) { const sug = suggestedWeightForVar(varUuid, _planLoadCtx); if (sug != null) { pending.sets = [{ w: sug, r: '' }]; seedSetupForWeight(varUuid, sug); } _planLoadCtx = null; }
   savePending();
   openLogModal();
 }
@@ -9061,7 +9137,9 @@ function bindPickerResults() {
         if (lastSet && pending.sets.length === 1 && !pending.sets[0].w && !pending.sets[0].r) {
           pending.sets = [{ w: lastSet.w, r: lastSet.r }];
         }
+        if (_planLoadCtx) { const sug = suggestedWeightForVar(varUuid, _planLoadCtx); if (sug != null) { pending.sets = [{ w: sug, r: '' }]; seedSetupForWeight(varUuid, sug); } } // feat 82 — picked a variation for a plan step
       }
+      _planLoadCtx = null; // clear whether or not we used it
       savePending();
       speakRandomTip(pending.varUuid); // feat 66 — annunciate a random tip for the picked exercise
       modalState.showPicker = false;
@@ -10360,7 +10438,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 22 · 2026-06-03 12:33';
+const APP_BUILD = 'build 23 · 2026-06-03 13:25';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
