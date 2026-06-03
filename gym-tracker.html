@@ -269,6 +269,65 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 .snd-chip.active { opacity: 1; filter: none; background: var(--accent-bg); border-color: var(--accent-border); }
 .snd-chip:active { transform: scale(0.92); }
 
+/* feat 75 — exercise reference media (carousel + manager) */
+#media-backdrop { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,0.66); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+#media-backdrop.open { opacity: 1; pointer-events: auto; }
+#media-modal {
+  position: fixed; z-index: 10051; left: 50%; top: 50%;
+  transform: translate(-50%,-50%) scale(0.96); opacity: 0; pointer-events: none;
+  width: min(440px, calc(100vw - 22px)); max-height: calc(100vh - 36px);
+  display: flex; flex-direction: column; background: var(--bg2);
+  border: 1px solid var(--border2); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  overflow: hidden; transition: opacity 0.2s ease, transform 0.2s ease;
+}
+#media-modal.open { opacity: 1; pointer-events: auto; transform: translate(-50%,-50%) scale(1); }
+.media-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border2); flex-shrink: 0; }
+.media-head .media-title { flex: 1; font-size: 14px; font-weight: 800; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-head .media-count { font-size: 11px; color: var(--text3); font-weight: 700; white-space: nowrap; }
+.media-head .media-close { background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); width: 30px; height: 30px; border-radius: 8px; font-size: 14px; cursor: pointer; flex-shrink: 0; font-family: inherit; }
+.media-body { overflow-y: auto; padding: 12px 14px 14px; }
+.media-track { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.media-track::-webkit-scrollbar { display: none; }
+.media-slide { flex: 0 0 100%; scroll-snap-align: center; }
+.media-frame-wrap { position: relative; width: 100%; aspect-ratio: 9 / 16; max-height: 64vh; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border2); }
+.media-frame-wrap.land { aspect-ratio: 16 / 9; }
+.media-frame-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.media-fallback { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 18px; color: var(--text2); font-size: 12.5px; }
+.media-fallback .mf-ico { font-size: 38px; }
+.media-fallback a { color: var(--accent); font-weight: 700; text-decoration: none; font-size: 14px; }
+.media-slide-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--text3); }
+.media-slide-meta a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.media-dots { display: flex; justify-content: center; gap: 6px; margin-top: 11px; }
+.media-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); cursor: pointer; transition: background 0.15s; }
+.media-dot.active { background: var(--accent); }
+.media-hint { font-size: 11px; color: var(--text3); line-height: 1.5; margin-top: 11px; }
+.media-actions { display: flex; gap: 8px; margin-top: 12px; }
+.media-actions button { flex: 1; padding: 9px; border-radius: 9px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.media-actions button:active { background: var(--bg4); }
+.media-add-row { display: flex; gap: 8px; margin-bottom: 11px; }
+.media-add-row input { flex: 1; min-width: 0; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); border-radius: 9px; padding: 9px 11px; font-size: 13px; font-family: inherit; }
+.media-add-row button { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 9px; padding: 0 16px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; flex-shrink: 0; }
+.media-list-item { display: flex; align-items: center; gap: 10px; padding: 9px 11px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px; margin-bottom: 8px; }
+.media-list-item .mli-ico { font-size: 18px; flex-shrink: 0; }
+.media-list-item .mli-main { flex: 1; min-width: 0; }
+.media-list-item .mli-plat { font-size: 12px; font-weight: 700; color: var(--text); }
+.media-list-item .mli-url { font-size: 10.5px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-list-item .mli-open { color: var(--accent); font-size: 15px; text-decoration: none; flex-shrink: 0; }
+.media-list-item .mli-del { background: none; border: none; color: var(--danger); font-size: 14px; cursor: pointer; flex-shrink: 0; padding: 2px; }
+.media-empty { text-align: center; color: var(--text3); font-size: 12px; line-height: 1.6; padding: 16px 0; }
+/* Reference badge-row media button (mirrors .ref-hide-btn) */
+.ref-media-btn { background: transparent; border: 1px solid var(--border2); color: var(--text3); border-radius: 6px; font-size: 11px; padding: 3px 8px; cursor: pointer; margin-left: 6px; font-family: inherit; }
+.ref-media-btn:hover { color: var(--accent); border-color: var(--accent); }
+/* Log-Sets header media button */
+.ex-media-row { margin-top: 8px; }
+.ex-media-btn { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 8px; font-size: 12px; font-weight: 700; padding: 7px 12px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 4px; }
+.ex-media-btn:active { filter: brightness(0.92); }
+.media-src-tag { display: inline-block; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 4px; padding: 1px 5px; margin-left: 5px; vertical-align: middle; }
+.media-sec-label { font-size: 10.5px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin: 4px 2px 7px; }
+.media-sec-label + .media-add-row { margin-top: 0; }
+/* Reference movement-header media button (slightly distinct from the per-variation one) */
+.ref-media-btn.mov { border-style: dashed; }
+
 /* Settings drawer */
 #settings-backdrop {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -1558,6 +1617,10 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <div id="sound-menu-backdrop" onclick="closeSoundMenu()"></div>
 <div id="sound-menu" role="dialog" aria-label="Sound and haptics"></div>
 
+<!-- feat 75 — exercise reference media (carousel + manager) -->
+<div id="media-backdrop" onclick="closeExerciseMedia()"></div>
+<div id="media-modal" role="dialog" aria-label="Reference videos"></div>
+
 <!-- feat 62 — read-only mode indicator -->
 <div id="ro-banner">🔒 Read-only</div>
 
@@ -2215,7 +2278,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2394,6 +2457,7 @@ function normalizeState() {
   if (!state.bodyCompUnit) state.bodyCompUnit = state.unit || 'lb';
   if (!state.hiddenCategories || typeof state.hiddenCategories !== 'object') state.hiddenCategories = {};
   if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
+  if (!state.exerciseMedia || typeof state.exerciseMedia !== 'object') state.exerciseMedia = {}; // feat 75 — per-exercise reference video links
   state.cardioGoals = { weeklyMinutes:0, weeklyDistance:0, weeklySessions:0, distanceUnit:'km', ...(state.cardioGoals||{}) };
 }
 
@@ -4886,6 +4950,211 @@ function openReferenceFor(varUuid) {
   if (typeof switchPanel === 'function' && tab) switchPanel('panel-reference', tab);
   const si = document.getElementById('ref-search');
   if (si) { si.value = term; si.dispatchEvent(new Event('input', { bubbles: true })); si.blur(); }
+}
+
+/* ============================================================
+   EXERCISE REFERENCE MEDIA (feat 75) — attach web video links (YouTube / Shorts /
+   TikTok / Instagram Reels) to a variation and review them in a swipeable carousel.
+   Nothing is cached: each clip is a live iframe embed. Unembeddable links fall back to
+   an "Open ↗" card. Keyed by variation uuid (shared between Reference and Log Sets).
+   ============================================================ */
+function mediaPlatformIcon(p) { return p === 'youtube' ? '▶️' : p === 'tiktok' ? '🎵' : p === 'instagram' ? '📷' : '🔗'; }
+function mediaPlatformName(p) { return p === 'youtube' ? 'YouTube' : p === 'tiktok' ? 'TikTok' : p === 'instagram' ? 'Instagram' : 'Link'; }
+function parseMediaUrl(raw) {
+  let url = String(raw || '').trim();
+  if (!url) return null;
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  let u; try { u = new URL(url); } catch (e) { return null; }
+  const host = u.hostname.replace(/^www\./, '').toLowerCase();
+  const mk = (platform, vid, embedUrl) => ({ platform, vid: vid || null, embedUrl: embedUrl || null, watchUrl: url, url });
+  if (/(^|\.)youtube\.com$/.test(host) || host === 'youtu.be' || /(^|\.)youtube-nocookie\.com$/.test(host)) {
+    let id = null;
+    if (host === 'youtu.be') id = u.pathname.slice(1).split('/')[0];
+    else if (u.pathname.startsWith('/shorts/')) id = u.pathname.split('/')[2];
+    else if (u.pathname.startsWith('/embed/')) id = u.pathname.split('/')[2];
+    else id = u.searchParams.get('v');
+    id = (id || '').replace(/[^\w-]/g, '');
+    return mk('youtube', id || null, id ? `https://www.youtube-nocookie.com/embed/${id}?playsinline=1&rel=0` : null);
+  }
+  if (/(^|\.)tiktok\.com$/.test(host)) {
+    const m = u.pathname.match(/\/video\/(\d+)/) || u.pathname.match(/\/(\d{8,})/);
+    if (m) return mk('tiktok', m[1], `https://www.tiktok.com/player/v1/${m[1]}`);
+    return mk('tiktok', null, null); // vm./short links need resolving — fall back to Open ↗
+  }
+  if (/(^|\.)instagram\.com$/.test(host)) {
+    const m = u.pathname.match(/\/(reels?|p|tv)\/([^/]+)/);
+    if (m) { const kind = m[1] === 'reels' ? 'reel' : m[1]; return mk('instagram', m[2], `https://www.instagram.com/${kind}/${m[2]}/embed`); }
+    return mk('instagram', null, null);
+  }
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(host)) return null; // reject non-domains (typos / pasted noise)
+  return mk('link', null, null);
+}
+function getExerciseMedia(uuid) { if (!uuid || !state.exerciseMedia) return []; return state.exerciseMedia[uuid] || []; }
+function addExerciseMedia(uuid, url) {
+  if (!uuid) return { ok: false, err: 'No exercise selected' };
+  if (roBlocked('add reference video')) return { ok: false, err: null };
+  const parsed = parseMediaUrl(url);
+  if (!parsed) return { ok: false, err: 'Could not read that link' };
+  state.exerciseMedia = state.exerciseMedia || {};
+  const list = state.exerciseMedia[uuid] = state.exerciseMedia[uuid] || [];
+  if (list.some(m => m.url === parsed.url || (parsed.embedUrl && m.embedUrl === parsed.embedUrl))) return { ok: false, err: 'Already added' };
+  list.push({ ...parsed, addedAt: new Date().toISOString() });
+  saveState();
+  logInfo('Reference video added', mediaPlatformName(parsed.platform) + (parsed.embedUrl ? '' : ' (link only)'));
+  return { ok: true, item: parsed };
+}
+function removeExerciseMedia(uuid, idx) {
+  if (roBlocked('remove reference video')) return;
+  const list = state.exerciseMedia && state.exerciseMedia[uuid];
+  if (!list) return;
+  list.splice(idx, 1);
+  if (!list.length) delete state.exerciseMedia[uuid];
+  saveState();
+}
+function mediaTitleFor(id, fallback) {
+  try { const i = VAR_INDEX.get(id); if (i && i.variation) return i.variation.title; } catch (e) {}
+  try { const f = FAMILIES.find(x => x.id === id); if (f) return f.title; } catch (e) {} // movement/family id
+  return fallback || 'Exercise';
+}
+// Combined count for a button: its own media + (optionally) its movement's, de-duped.
+function _mediaCombinedCount(uuid, mov) {
+  let n = getExerciseMedia(uuid).length;
+  if (mov && mov !== uuid) { const seen = new Set(getExerciseMedia(uuid).map(m => m.embedUrl || m.url)); getExerciseMedia(mov).forEach(m => { if (!seen.has(m.embedUrl || m.url)) n++; }); }
+  return n;
+}
+// Keep every 🎬 count badge (Reference + Log-Sets) fresh without a full re-render.
+function refreshMediaCounts() {
+  document.querySelectorAll('[data-media-label]').forEach(btn => {
+    const base = btn.getAttribute('data-media-label') || '🎬';
+    const n = _mediaCombinedCount(btn.getAttribute('data-media-uuid') || '', btn.getAttribute('data-media-mov') || '');
+    btn.textContent = base + (n ? ` (${n})` : '');
+  });
+}
+
+let _mediaCtx = null;          // { keys:[{id,label}], title }
+let _mediaMode = 'view';       // 'view' | 'manage'
+let _mediaIO = null;           // IntersectionObserver for lazy iframe loading
+// movementId (optional) lets a variation's carousel also include its whole-movement clips.
+function openExerciseMedia(uuid, fallbackTitle, movementId) {
+  if (!uuid) { toast('No exercise selected'); return; }
+  const keys = [{ id: uuid, label: (movementId && movementId !== uuid) ? 'This variation' : 'This exercise' }];
+  if (movementId && movementId !== uuid) keys.push({ id: movementId, label: 'Whole movement: ' + mediaTitleFor(movementId, 'movement') });
+  _mediaCtx = { keys, title: mediaTitleFor(uuid, fallbackTitle) };
+  _mediaMode = combinedMediaItems().length ? 'view' : 'manage';
+  renderMediaModal();
+  document.getElementById('media-backdrop')?.classList.add('open');
+  document.getElementById('media-modal')?.classList.add('open');
+}
+// All clips across the context's keys (variation + movement), de-duped, tagged with their source.
+function combinedMediaItems() {
+  if (!_mediaCtx) return [];
+  const seen = new Set(), all = [];
+  _mediaCtx.keys.forEach(k => getExerciseMedia(k.id).forEach(m => { const key = m.embedUrl || m.url; if (!seen.has(key)) { seen.add(key); all.push({ ...m, _key: k.id, _klabel: k.label }); } }));
+  return all;
+}
+function closeExerciseMedia() {
+  if (_mediaIO) { try { _mediaIO.disconnect(); } catch (e) {} _mediaIO = null; }
+  const modal = document.getElementById('media-modal');
+  document.getElementById('media-backdrop')?.classList.remove('open');
+  modal?.classList.remove('open');
+  // Blank the modal after the close transition so any iframe stops playing.
+  setTimeout(() => { if (modal && !modal.classList.contains('open')) modal.innerHTML = ''; }, 230);
+  _mediaCtx = null;
+  refreshMediaCounts();
+}
+function mediaSetMode(m) { _mediaMode = m; renderMediaModal(); }
+function renderMediaModal() {
+  const modal = document.getElementById('media-modal'); if (!modal || !_mediaCtx) return;
+  const { keys, title } = _mediaCtx;
+  const items = combinedMediaItems();
+  const multi = keys.length > 1;
+  const head = `<div class="media-head">
+    <div class="media-title">🎬 ${escapeHtml(title)}</div>
+    <div class="media-count">${items.length ? items.length + (items.length === 1 ? ' clip' : ' clips') : ''}</div>
+    <button class="media-close" onclick="closeExerciseMedia()" aria-label="Close">✕</button>
+  </div>`;
+  let bodyHtml;
+  if (_mediaMode === 'view' && items.length) {
+    const slides = items.map((m, i) => {
+      const land = m.platform === 'youtube';
+      const tag = (multi && m._klabel) ? `<span class="media-src-tag">${escapeHtml(m._klabel.replace(/:.*$/, ''))}</span>` : '';
+      const inner = m.embedUrl
+        ? `<div class="media-frame-wrap ${land ? 'land' : ''}"><iframe data-src="${escapeAttr(m.embedUrl)}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`
+        : `<div class="media-frame-wrap ${land ? 'land' : ''}"><div class="media-fallback"><div class="mf-ico">${mediaPlatformIcon(m.platform)}</div><div>This ${mediaPlatformName(m.platform)} link can't be embedded.</div><a href="${escapeAttr(m.watchUrl)}" target="_blank" rel="noopener noreferrer">Open ↗</a></div></div>`;
+      return `<div class="media-slide" data-idx="${i}">${inner}
+        <div class="media-slide-meta"><span>${mediaPlatformIcon(m.platform)} ${mediaPlatformName(m.platform)}${tag}</span><a href="${escapeAttr(m.watchUrl)}" target="_blank" rel="noopener noreferrer">Open original ↗</a></div>
+      </div>`;
+    }).join('');
+    const dots = items.length > 1 ? `<div class="media-dots">${items.map((_, i) => `<span class="media-dot ${i === 0 ? 'active' : ''}" data-dot="${i}"></span>`).join('')}</div>` : '';
+    bodyHtml = `<div class="media-body">
+      <div class="media-track" id="media-track">${slides}</div>
+      ${dots}
+      <div class="media-hint">Streams live from the web — nothing is downloaded. If a clip stays blank the creator may block embedding; use Open ↗.</div>
+      <div class="media-actions"><button onclick="mediaSetMode('manage')">✎ Manage links</button></div>
+    </div>`;
+  } else {
+    const sections = keys.map(k => {
+      const list = getExerciseMedia(k.id);
+      const rows = list.length ? list.map((m, i) => `<div class="media-list-item">
+        <span class="mli-ico">${mediaPlatformIcon(m.platform)}</span>
+        <div class="mli-main"><div class="mli-plat">${mediaPlatformName(m.platform)}${m.embedUrl ? '' : ' · link only'}</div><div class="mli-url">${escapeHtml(m.watchUrl)}</div></div>
+        <a class="mli-open" href="${escapeAttr(m.watchUrl)}" target="_blank" rel="noopener noreferrer" title="Open">↗</a>
+        <button class="mli-del" data-key="${escapeAttr(k.id)}" data-del="${i}" aria-label="Remove">🗑</button>
+      </div>`).join('') : `<div class="media-empty">None yet.</div>`;
+      return `${multi ? `<div class="media-sec-label">${escapeHtml(k.label)}</div>` : ''}
+        <div class="media-add-row"><input class="media-url-input" data-key="${escapeAttr(k.id)}" type="url" inputmode="url" placeholder="Paste YouTube / Shorts / TikTok / Reel link" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="media-add-btn" data-key="${escapeAttr(k.id)}">Add</button></div>
+        ${rows}`;
+    }).join('');
+    bodyHtml = `<div class="media-body">
+      <div class="media-hint" style="margin-top:0;margin-bottom:11px;">Attach form-reference clips (YouTube, Shorts, TikTok, Instagram Reels). They stream live — nothing is cached. Some creators block embedding; those open via Open ↗.</div>
+      ${sections}
+      ${items.length ? `<div class="media-actions"><button onclick="mediaSetMode('view')">▶ View carousel</button></div>` : ''}
+    </div>`;
+  }
+  modal.innerHTML = head + bodyHtml;
+  if (_mediaMode === 'view' && items.length) bindMediaCarousel(); else bindMediaManage();
+}
+function bindMediaCarousel() {
+  const track = document.getElementById('media-track'); if (!track) return;
+  if (_mediaIO) { try { _mediaIO.disconnect(); } catch (e) {} }
+  const loadSlide = slide => { const f = slide.querySelector('iframe[data-src]'); if (f && !f.src) f.src = f.getAttribute('data-src'); };
+  if (typeof IntersectionObserver !== 'undefined') {
+    _mediaIO = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if (en.isIntersecting) {
+          loadSlide(en.target);
+          const idx = +en.target.dataset.idx;
+          document.querySelectorAll('.media-dot').forEach(d => d.classList.toggle('active', +d.dataset.dot === idx));
+        }
+      });
+    }, { root: track, threshold: 0.6 });
+    track.querySelectorAll('.media-slide').forEach(s => _mediaIO.observe(s));
+  } else {
+    track.querySelectorAll('.media-slide').forEach(loadSlide);
+  }
+  const first = track.querySelector('.media-slide'); if (first) loadSlide(first); // ensure the first plays immediately
+  document.querySelectorAll('.media-dot').forEach(d => d.addEventListener('click', () => {
+    const slide = track.querySelector(`.media-slide[data-idx="${d.dataset.dot}"]`);
+    if (slide) track.scrollTo({ left: slide.offsetLeft - track.offsetLeft, behavior: 'smooth' });
+  }));
+}
+function bindMediaManage() {
+  const doAdd = key => {
+    const inp = document.querySelector(`.media-url-input[data-key="${(key || '').replace(/"/g, '')}"]`); if (!inp) return;
+    const res = addExerciseMedia(key, inp.value);
+    if (!res.ok) { if (res.err) toast(res.err); return; }
+    inp.value = '';
+    renderMediaModal();
+    refreshMediaCounts();
+    toast('Video added');
+  };
+  document.querySelectorAll('.media-add-btn').forEach(b => b.addEventListener('click', () => doAdd(b.getAttribute('data-key'))));
+  document.querySelectorAll('.media-url-input').forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doAdd(inp.getAttribute('data-key')); } }));
+  document.querySelectorAll('.mli-del').forEach(b => b.addEventListener('click', () => {
+    removeExerciseMedia(b.getAttribute('data-key'), +b.dataset.del);
+    renderMediaModal();
+    refreshMediaCounts();
+  }));
 }
 
 // Category helpers (feat 6/8). Cardio entries are time/metric based, not progressive overload.
@@ -8813,6 +9082,7 @@ function renderSetsForm() {
         `Hold — log <b>weight × seconds</b> instead of reps.`
       }</div>` : ''}
       <div class="ex-note-row">${exNoteHtml}</div>
+      <div class="ex-media-row"><button class="ex-media-btn" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}" data-media-label="🎬 Reference videos">🎬 Reference videos${(() => { const n = _mediaCombinedCount(pending.varUuid, info.family && info.family.id); return n ? ` (${n})` : ''; })()}</button></div>
       ${!modalState.isEditing ? `<span class="selected-ex-change" id="trk-change-exercise">← Change exercise</span>` : ''}
     </div>
 
@@ -9153,6 +9423,9 @@ function bindSetsForm() {
     sec.classList.toggle('open');
     modalState.tipsExpanded = sec.classList.contains('open');
   });
+
+  // feat 75 — reference videos for this exercise (carousel / manager); includes whole-movement clips
+  document.getElementById('trk-ex-media-btn')?.addEventListener('click', () => { const fi = VAR_INDEX.get(pending.varUuid); openExerciseMedia(pending.varUuid, null, fi && fi.family ? fi.family.id : null); });
 
   // feat 54 — per-exercise custom note: add / edit / view / clear from the header
   document.getElementById('trk-ex-note-edit')?.addEventListener('click', () => {
@@ -9595,7 +9868,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 16 · 2026-06-03 09:27';
+const APP_BUILD = 'build 17 · 2026-06-03 10:19';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -16160,6 +16433,7 @@ function renderRef() {
           ${importanceBadge(ex.id, ex.mega)}
           ${megaBadge(ex.mega)}
           <button class="ref-hide-btn" onclick="event.stopPropagation();refToggleMovementHidden('${ex.id}', this)">${isMovementHidden(ex.id) ? '🙈 Movement hidden' : '👁 Hide movement'}</button>
+          <button class="ref-media-btn mov" data-media-uuid="${ex.id}" data-media-label="🎬 Movement" onclick="event.stopPropagation();openExerciseMedia('${ex.id}')">🎬 Movement${getExerciseMedia(ex.id).length ? ` (${getExerciseMedia(ex.id).length})` : ''}</button>
         </div>
       </div>
       <div class="exercise-body">
@@ -16187,6 +16461,7 @@ function renderRef() {
                       ${v.best ? `<div class="var-best">${v.best}</div>` : ''}
                       ${sub ? `<div class="var-sub-indicator" title="${sub.options.length} option${sub.options.length===1?'':'s'} available">⚙ ${sub.options.length}</div>` : ''}
                       ${v.uuid ? `<button class="ref-hide-btn" onclick="event.stopPropagation();refToggleVarHidden('${v.uuid}', this)">${isVarHidden(v.uuid) ? '🙈 Hidden' : '👁 Hide'}</button>` : ''}
+                      ${v.uuid ? `<button class="ref-media-btn" data-media-uuid="${v.uuid}" data-media-mov="${ex.id}" data-media-label="🎬" onclick="event.stopPropagation();openExerciseMedia('${v.uuid}', null, '${ex.id}')">🎬${_mediaCombinedCount(v.uuid, ex.id) ? ` (${_mediaCombinedCount(v.uuid, ex.id)})` : ''}</button>` : ''}
                     </div>
                   </div>
                   <div class="variation-body">
