@@ -62,6 +62,63 @@ They share variation **UUIDs**.
   filtering. Collapse state is persisted in `state.settingsCollapse` (in `SETTINGS_KEYS`, so it survives reloads
   and is kept on merge-imports); the **Theme** section is collapsed by default (43 swatches were the bulk) and
   shows the active theme as a header hint. Theme swatches were also compacted (6 cols, 24px dots).
+- **Internationalization groundwork (feat 61):** `t(key, params)` resolves a string for the active language
+  (`state.lang`, persisted in `SETTINGS_KEYS`; default *and only* option `'en'`) with **current → English → raw
+  key** fallback and `{name}` interpolation. **`applyI18n(root)`** translates static markup tagged with
+  `data-i18n` (text) / `data-i18n-title` / `data-i18n-aria` / `data-i18n-placeholder` (attributes) and runs on
+  load and on every **`setLang()`**. Adding a language is **data-only**: push to `LANGUAGES` (code + native name)
+  and add a matching `I18N[code]` dictionary — the Settings → *Language* picker (built from `LANGUAGES`) and the
+  switch machinery handle the rest. Only the top bar + settings chrome are wired so far; JS-rendered strings use
+  `t()`, and section titles can be translated safely via a `data-sec-id` override (keeps collapse IDs stable).
+- **Read-only mode (feat 62):** `state.readonly` (Settings → Preferences, default off). `isReadonly()` +
+  `roBlocked(action)` gate the main write paths (`saveSets`, `startWorkout`/`endWorkout`, `deleteExercise`,
+  history set-delete, `importData`, `saveBodyEntry`, `saveNotes`, gym add/delete/edit, reset-all); `render()`
+  toggles a `body.readonly` class that hides the FAB and shows the `#ro-banner` indicator. Settings/preferences
+  stay editable (so the mode can be turned back off).
+- **Choice dialog + unsaved-set guard (feat 62):** `choiceDialog({title, message, choices})` is a reusable
+  promise-based 3-button modal. `endWorkout()` now checks `hasUnsavedSets()` (unsaved sets sitting in `pending`)
+  and forces **Save & end / Discard & end / Continue** before finishing via `finalizeEndWorkout()`. `saveSets()`
+  now returns `true`/`false` so the dialog knows whether the save succeeded.
+- **Biometric freshness (feat 63):** bodyweight exercises (`exMode().mode==='bodyweight'`) can't be saved with no
+  recorded bodyweight (`getCurrentBodyweightKg()`). `startWorkout()` surfaces `biometricWarnings()` — bodyweight
+  missing/stale by default (`warnStaleBodyweight`), other biometrics opt-in (`warnOtherBiometrics`, default off),
+  threshold `biometricStaleDays` (default 14 ≈ 2 weeks). Configured in Settings → *Biometrics*.
+- **OSK Next/Done swap + About (feat 62):** the on-screen numpad's *Next* and *Done* swapped places (Next → header,
+  Done → primary action). Settings → *About* now carries an **Early Access** disclaimer, a *Built by Adam Eryavec,
+  P.Eng. with Claude Code* credit, and the `APP_BUILD` stamp.
+- **OSK calculator + log-set fixes (feat 65):** a persistent 🧮 toggle adds `( ) ÷ × − +` keys and a safe
+  BEDMAS evaluator (`evalExpr`, input restricted to arithmetic) so `45+45×2` commits `135`. `addSetRow` now
+  enforces ≤1 incomplete row (no more stacked blanks); the exercise picker re-renders results-only on keystroke
+  (`renderPickerResults`/`bindPickerResults`) so the search ✕ no longer jiggles.
+- **TTS + UI polish (feat 66/67):** `speakRandomTip()` reads a random cue/tip aloud on exercise select
+  (`state.ttsTips`, default on). App-wide `user-select: none` (form fields exempt) — supersedes the old
+  highlight→glossary gesture. Tips & Details has an *Open full reference entry* link (`openReferenceFor`).
+- **Workout metronome (feat 69):** customizable audio+haptic beat (`state.metronome`: bpm/audio/freq/vol/haptic/
+  accentEvery, in `SETTINGS_KEYS`). Engine is a `setInterval` ticker driving a WebAudio click + `navigator.vibrate`;
+  on/off is **runtime-only and resets OFF on `startWorkout`/end**. Toggle + BPM ±5 live on the Log tab during a
+  workout; full config in Settings → *Metronome*.
+- **Muscle-volume roll-up fix (feat 69):** `MUSCLE_CONTRIB` uses head-level ids (e.g. `biceps-long/short`); the
+  `'muscle'`-level Volume view never rolled them to the parent (`biceps`), so multi-head muscles read blank and
+  only single-part muscles like **brachialis** showed. `getWeeklyMuscleVolume` now applies **`toMuscleContrib`**
+  (head→parent) for muscle level, mirroring `toHeadContrib` for head level.
+- **Workout plans (feat 70):** `state.plans` (in `SETTINGS_KEYS`, seeded once from `SEED_PLANS` — 8 plans:
+  PPL / Upper / Lower / 2× Full Body / Core). A plan = `{id, name, steps:[{id, sets, options:[{type:'movement',
+  familyId} | {type:'variation', uuid}]}]}` — ordered, **suggested-not-enforced** steps; each option is a whole
+  movement or a specific variation. Optionally attached to a session via **`session.planId`** (changeable/
+  abandonable mid-workout). On the Log tab `renderPlanGuide` shows the plan card (per-step `logged/target` sets,
+  current/done state, tap-an-option to log it, **live ETA** from `computePlanETA` = remaining sets ×
+  `computeRestStats` set+rest times, and a **⚠ gym** warning via `stepImpossibleInGym` when an active gym can do
+  none of a step's options). The feat-55 auto PUSH/PULL/LOWER/CORE suggester (`computeRemainingWork`) is gated to
+  run **only when no plan is attached**. The plans overlay (`#plans-panel`) is a full builder: list → editor
+  (name, add/reorder/delete steps, per-step set count, add movement/variation options via a search picker) → use.
+- **Plan descriptions, history & more plans (feat 71):** plans and steps carry an optional `desc` (shown on the
+  card, list, and editor). Seeding is now **additive by id** with a `state.seededPlanIds` ledger (new seed plans
+  append for existing users; deleted ones don't reappear) and **backfills descriptions** onto pristine seed
+  plans. Library grew to **15** with rich theme/benefit blurbs, including **station / one-zone** plans (Squat
+  Rack Strength, Dumbbell Corner, One Cable Station, Bench + Dumbbells) for staying posted up when the gym is
+  packed, plus Arms Blaster / Glute Focus / Beginner Full Body. History (`renderSession`) shows a **plan badge**
+  with full/partial completion (`stepStatus` over the session). The reference page's circular glossary **FAB was
+  removed** — the top-bar 📖 is the single entry point.
 
 ---
 

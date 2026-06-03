@@ -317,6 +317,11 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 .drawer-section-content { padding-bottom: 8px; }
 .drawer-section-content > .drawer-setting-row:last-child { border-bottom: none; }
 .settings-no-results { text-align: center; color: var(--text3); padding: 32px 16px; font-size: 13px; }
+.about-ea { margin-top: 12px; padding: 10px 12px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 9px; font-size: 11.5px; color: var(--text2); line-height: 1.5; display: flex; gap: 8px; flex-wrap: wrap; }
+.about-ea-tag { font-weight: 800; color: var(--warn); white-space: nowrap; }
+.about-credit { margin-top: 12px; font-size: 12px; color: var(--text2); line-height: 1.6; }
+.about-credit strong { color: var(--text); }
+.about-build { margin-top: 10px; font-size: 10.5px; color: var(--text3); letter-spacing: 0.3px; font-family: ui-monospace, Menlo, Consolas, monospace; }
 .drawer-data-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .drawer-btn {
   padding: 8px 14px; background: var(--bg3); border: 1px solid var(--border2);
@@ -429,7 +434,96 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .np-close { font-size: 12px; font-weight: 700; padding: 6px 14px; }
   .np-actions { display: flex; gap: 8px; margin-top: 8px; }
   .np-key.np-wide { flex: 1; font-size: 14px; padding: 12px 0; }
-  .np-next { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .np-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* Calculator mode (feat 65) */
+  .np-calc-toggle { background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; color: var(--text2); font-size: 15px; line-height: 1; padding: 6px 9px; cursor: pointer; font-family: inherit; margin-left: auto; margin-right: 6px; -webkit-tap-highlight-color: transparent; }
+  .np-calc-toggle.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .np-ops { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 8px; }
+  .np-ops .np-key { font-size: 18px; padding: 12px 0; font-weight: 800; color: var(--accent); }
+  /* Workout metronome (feat 69) */
+  .metronome-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 8px 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; }
+  .metro-toggle { flex: 1; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; white-space: nowrap; }
+  .metro-toggle.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .metro-bpm-ctl { display: flex; align-items: center; gap: 4px; }
+  .metro-bpm-btn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 18px; font-weight: 700; cursor: pointer; font-family: inherit; line-height: 1; }
+  .metro-bpm { font-size: 12px; font-weight: 700; color: var(--text2); min-width: 54px; text-align: center; font-variant-numeric: tabular-nums; }
+  .metro-cfg { width: 34px; height: 30px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 15px; cursor: pointer; font-family: inherit; }
+  /* Workout plans (feat 70) */
+  #plans-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 10000; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+  #plans-backdrop.open { opacity: 1; pointer-events: auto; }
+  #plans-panel { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg2); border-top: 1px solid var(--border2); border-radius: 16px 16px 0 0; z-index: 10001; transform: translateY(100%); transition: transform 0.3s cubic-bezier(.32,.72,0,1); max-height: 86vh; overflow-y: auto; box-shadow: 0 -8px 32px var(--shadow); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  #plans-panel.open { transform: translateY(0); }
+  #plans-handle { width: 36px; height: 4px; background: var(--border2); border-radius: 2px; margin: 10px auto 0; }
+  #plans-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg2); z-index: 2; }
+  #plans-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  #plans-close { background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); padding: 5px 11px; border-radius: 7px; font-size: 13px; cursor: pointer; font-family: inherit; }
+  #plans-body { padding: 14px 16px 24px; }
+  .plan-list-intro { font-size: 12px; color: var(--text3); line-height: 1.5; margin-bottom: 12px; }
+  .plan-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .plan-row-main { flex: 1; min-width: 0; }
+  .plan-row-name { font-size: 14px; font-weight: 600; color: var(--text); }
+  .plan-row-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .plan-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .plan-edit-step { background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; padding: 9px 10px; margin-bottom: 8px; }
+  .plan-edit-step-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .plan-edit-step-num { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
+  .plan-edit-step-btns button { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text2); font-size: 13px; cursor: pointer; font-family: inherit; margin-left: 3px; }
+  .plan-edit-step-btns button.danger { color: var(--danger); }
+  .plan-edit-step-btns button:disabled { opacity: 0.35; }
+  .plan-edit-opts { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-bottom: 7px; }
+  .plan-edit-opt { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 3px 4px 3px 8px; border-radius: 12px; }
+  .plan-edit-opt button { background: none; border: none; color: var(--accent); font-size: 14px; cursor: pointer; line-height: 1; padding: 0 2px; }
+  .plan-edit-add-opt { font-size: 11.5px; background: var(--bg2); border: 1px dashed var(--border2); color: var(--text2); padding: 4px 9px; border-radius: 12px; cursor: pointer; font-family: inherit; }
+  .plan-edit-sets { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); }
+  .optpick-fam { border-bottom: 1px solid var(--border); padding: 6px 0; }
+  .optpick-fam-head { display: flex; align-items: center; justify-content: space-between; }
+  .optpick-fam-head span { font-size: 13px; color: var(--text); font-weight: 600; }
+  .optpick-add { font-size: 11px; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 3px 9px; border-radius: 10px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .optpick-var { display: block; width: 100%; text-align: left; font-size: 12px; background: none; border: none; color: var(--text2); padding: 4px 0 4px 10px; cursor: pointer; font-family: inherit; }
+  .optpick-var:active { color: var(--accent); }
+  .plan-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; padding: 8px 11px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; }
+  .plan-bar-none { font-size: 12px; color: var(--text3); }
+  .plan-pick-btn { font-size: 12px; font-weight: 700; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 6px 11px; border-radius: 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .plan-card { margin: 0 0 10px; padding: 10px 12px; background: var(--bg2); border: 1px solid var(--border2); border-left: 3px solid var(--accent); border-radius: 10px; }
+  .plan-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .plan-card-name { font-size: 14px; font-weight: 700; color: var(--text); }
+  .plan-card-desc { font-size: 11.5px; color: var(--text2); line-height: 1.5; margin: -2px 0 8px; }
+  .plan-step-desc { font-size: 11px; color: var(--text3); line-height: 1.45; margin-top: 4px; }
+  .plan-row-desc { font-size: 11px; color: var(--text2); line-height: 1.45; margin: 2px 0; }
+  .plan-hist-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); padding: 2px 8px; border-radius: 10px; margin-top: 4px; }
+  .plan-card-eta { font-size: 11px; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .plan-steps { display: flex; flex-direction: column; gap: 5px; }
+  .plan-step { padding: 6px 8px; border-radius: 7px; background: var(--bg3); border: 1px solid transparent; }
+  .plan-step.current { border-color: var(--accent-border); background: var(--accent-bg); }
+  .plan-step.done { opacity: 0.6; }
+  .plan-step-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+  .plan-step-num { width: 18px; height: 18px; border-radius: 50%; background: var(--bg4); color: var(--text2); font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .plan-step.done .plan-step-num { background: var(--good); color: #06270f; }
+  .plan-step-sets { font-size: 11px; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .plan-step-warn { font-size: 10px; font-weight: 700; color: var(--warn); margin-left: auto; }
+  .plan-step-opts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .plan-opt { font-size: 12px; font-weight: 600; background: var(--bg2); border: 1px solid var(--border2); color: var(--text); padding: 4px 9px; border-radius: 7px; cursor: pointer; font-family: inherit; }
+  .plan-opt:active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .plan-opt-or { font-size: 10px; color: var(--text3); }
+  .plan-card-actions { display: flex; gap: 8px; margin-top: 9px; }
+  .plan-act { flex: 1; font-size: 12px; font-weight: 700; background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); padding: 7px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+  .plan-act.danger { color: var(--danger); }
+  /* Choice dialog (feat 62) */
+  .choice-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.62); z-index: 10070; display: flex; align-items: center; justify-content: center; padding: 24px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .choice-backdrop.open { opacity: 1; pointer-events: auto; }
+  .choice-sheet { background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; max-width: 360px; width: 100%; padding: 18px 18px 14px; box-shadow: 0 12px 40px var(--shadow); transform: translateY(10px); transition: transform 0.2s; }
+  .choice-backdrop.open .choice-sheet { transform: translateY(0); }
+  .choice-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .choice-msg { font-size: 13px; color: var(--text2); line-height: 1.5; margin-bottom: 14px; white-space: pre-line; }
+  .choice-actions { display: flex; flex-direction: column; gap: 8px; }
+  .choice-btn { padding: 11px 14px; border-radius: 9px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; text-align: center; }
+  .choice-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .choice-btn.danger { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
+  .choice-btn:active { transform: scale(0.98); }
+  /* Read-only mode (feat 62) */
+  #ro-banner { display: none; position: fixed; top: 50px; left: 50%; transform: translateX(-50%); z-index: 9996; background: var(--warn); color: #1a1a1a; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 0 0 8px 8px; letter-spacing: 0.5px; pointer-events: none; box-shadow: 0 2px 8px var(--shadow); }
+  body.readonly #ro-banner { display: block; }
+  body.readonly .fab { display: none !important; }
   /* feat 51 — timeline set-duration bars + rest gaps */
   .timeline-setbar { opacity: 0.9; }
   .timeline-rest { stroke: var(--text3); stroke-width: 2; opacity: 0.35; }
@@ -461,6 +555,9 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0a0a0a; color: #e8e8e8; line-height: 1.5; }
+  /* feat 66 — behave like a native app: text isn't selectable, except form fields & a few copyable bits. */
+  html, body { -webkit-user-select: none; -ms-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  input, textarea, select, [contenteditable="true"], .tip-uuid { -webkit-user-select: text; -ms-user-select: text; user-select: text; -webkit-touch-callout: default; }
   header { position: sticky; top: 0; background: #0a0a0a; border-bottom: 1px solid #222; padding: 10px 14px; z-index: 100; }
   h1 { font-size: 17px; margin: 0 0 8px 0; color: #fff; font-weight: 600; }
   .search-row { display: flex; gap: 6px; }
@@ -732,6 +829,8 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .tips-section { background: #141414; border: 1px solid #1f1f1f; border-radius: 8px; margin: 10px 0; overflow: hidden; }
   .tips-header { display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; cursor: pointer; user-select: none; -webkit-user-select: none; }
   .tips-header:active { background: #181020; }
+  .tips-ref-link { display: block; width: 100%; text-align: left; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); font-size: 12px; font-weight: 700; padding: 8px 11px; border-radius: 7px; cursor: pointer; font-family: inherit; margin-bottom: 10px; }
+  .tips-ref-link:active { filter: brightness(1.1); }
   .tips-title { font-size: 11px; font-weight: 700; color: #b48aff; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
   .tips-chevron { color: #888; font-size: 12px; transition: transform 0.2s; }
   .tips-section.open .tips-chevron { transform: rotate(90deg); }
@@ -821,6 +920,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .wc-btn.end { background: linear-gradient(135deg, #3a2a2a, #2a1a1a); border-color: #5a3a3a; color: #e8b8b8; }
   .wc-btn.end:active { transform: scale(0.98); }
   .wc-btn.ended { background: #1a1a1a; border-color: #2a2a2a; color: #777; cursor: default; }
+  .wc-btn.plans { flex: 0 0 auto; background: var(--bg3); border-color: var(--border2); color: var(--text2); }
 
   .workout-score-card { background: linear-gradient(135deg, #1f1426 0%, #14101a 100%); border: 1px solid #3a2a4a; border-left: 3px solid #b48aff; border-radius: 8px; padding: 9px 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
   .workout-score-grade { font-size: 22px; font-weight: 800; color: #b48aff; line-height: 1; min-width: 36px; text-align: center; font-variant-numeric: tabular-nums; }
@@ -1380,15 +1480,18 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <!-- ====== TOP APP BAR ====== -->
 <div id="app-topbar">
   <div class="nav-tabs">
-    <button class="nav-tab active" data-panel="panel-tracker" onclick="switchPanel('panel-tracker', this)" title="Tracker" aria-label="Tracker">📈</button>
-    <button class="nav-tab" data-panel="panel-reference" onclick="switchPanel('panel-reference', this)" title="Reference" aria-label="Reference">📚</button>
+    <button class="nav-tab active" data-panel="panel-tracker" onclick="switchPanel('panel-tracker', this)" title="Tracker" aria-label="Tracker" data-i18n-title="nav.tracker" data-i18n-aria="nav.tracker">📈</button>
+    <button class="nav-tab" data-panel="panel-reference" onclick="switchPanel('panel-reference', this)" title="Reference" aria-label="Reference" data-i18n-title="nav.reference" data-i18n-aria="nav.reference">📚</button>
   </div>
   <div class="app-bar-actions">
-    <button id="app-gloss-btn" class="app-bar-btn" onclick="openGloss()" title="Glossary" aria-label="Glossary">📖</button>
-    <button id="app-settings-btn" onclick="openSettingsDrawer()" title="Settings" aria-label="Settings">⚙️</button>
-    <button id="app-help-btn" class="app-bar-btn" onclick="openHelp()" title="Help" aria-label="Help">❓</button>
+    <button id="app-gloss-btn" class="app-bar-btn" onclick="openGloss()" title="Glossary" aria-label="Glossary" data-i18n-title="action.glossary" data-i18n-aria="action.glossary">📖</button>
+    <button id="app-settings-btn" onclick="openSettingsDrawer()" title="Settings" aria-label="Settings" data-i18n-title="app.settings" data-i18n-aria="app.settings">⚙️</button>
+    <button id="app-help-btn" class="app-bar-btn" onclick="openHelp()" title="Help" aria-label="Help" data-i18n-title="app.help" data-i18n-aria="app.help">❓</button>
   </div>
 </div>
+
+<!-- feat 62 — read-only mode indicator -->
+<div id="ro-banner">🔒 Read-only</div>
 
 <!-- feat 51 — global rest/set timer bar (visible across tabs while a workout is active) -->
 <div id="rest-bar" class="rest-bar" style="display:none;" role="status" aria-live="polite" title="Tap to open the workout log"></div>
@@ -1401,16 +1504,27 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <div id="settings-drawer">
   <div id="settings-drawer-handle"></div>
   <div id="settings-drawer-header">
-    <div id="settings-drawer-title">Settings</div>
-    <button id="settings-drawer-close" onclick="closeSettingsDrawer()">Done</button>
+    <div id="settings-drawer-title" data-i18n="app.settings">Settings</div>
+    <button id="settings-drawer-close" onclick="closeSettingsDrawer()" data-i18n="app.done">Done</button>
   </div>
   <div id="settings-search-row">
-    <input type="text" id="settings-search" placeholder="Search settings…" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <input type="text" id="settings-search" placeholder="Search settings…" data-i18n-placeholder="settings.search" autocomplete="off" autocapitalize="off" spellcheck="false">
     <button id="settings-search-clear" type="button" aria-label="Clear search">✕</button>
   </div>
   <div id="settings-drawer-body">
     <!-- populated by renderSettingsDrawer() -->
   </div>
+</div>
+
+<!-- ====== WORKOUT PLANS OVERLAY (feat 70) ====== -->
+<div id="plans-backdrop" onclick="closePlansOverlay()"></div>
+<div id="plans-panel">
+  <div id="plans-handle"></div>
+  <div id="plans-header">
+    <div id="plans-title">📋 Workout Plans</div>
+    <button id="plans-close" onclick="closePlansOverlay()">Done</button>
+  </div>
+  <div id="plans-body"><!-- populated by renderPlansOverlay() --></div>
 </div>
 
 <!-- ====== HELP OVERLAY (feat 21) ====== -->
@@ -1737,11 +1851,13 @@ function newGym(name, templateId) {
   return gym;
 }
 function deleteGym(id) {
+  if (roBlocked('delete a gym')) return;
   state.gyms = state.gyms.filter(g => g.id !== id);
   if (state.activeGymId === id) state.activeGymId = null;
   saveState();
 }
 function gymToggleShow(gym, uuid) {
+  if (roBlocked('change a gym')) return;
   gym.show = gym.show || {};
   if (gym.show[uuid]) delete gym.show[uuid]; else { gym.show[uuid] = true; if (gym.hide) delete gym.hide[uuid]; }
   saveState();
@@ -1961,6 +2077,18 @@ function toHeadContrib(contrib) {
   }
   return out;
 }
+// feat 69 fix — MUSCLE_CONTRIB uses head-level ids (e.g. biceps-long/short); roll them up to their
+// parent muscle (biceps) for the 'muscle'-level Volume view, which otherwise read blank for any
+// multi-head muscle (biceps/triceps/quads) and surfaced only single-muscle parts like brachialis.
+function toMuscleContrib(contrib) {
+  const out = {};
+  for (const id in contrib) {
+    const mu = MUSCLE_INDEX[id];
+    const key = (mu && mu.parent) ? mu.parent : id;
+    out[key] = (out[key] || 0) + contrib[id];
+  }
+  return out;
+}
 // Muscle weighting (feat 10/11): 1.0 default; null state → all defaults.
 function muscleWeight(muscleId) {
   if (!state.muscleWeights) return 1;
@@ -1981,7 +2109,7 @@ function getWeeklyMuscleVolume(weekOffset = 0, level = 'muscle') {
     s.exercises.forEach(ex => {
       let contrib = muscleContribForVar(ex.varUuid);
       if (!contrib) return;
-      if (level === 'head') contrib = toHeadContrib(contrib);
+      contrib = (level === 'head') ? toHeadContrib(contrib) : toMuscleContrib(contrib); // feat 69 fix
       const n = ex.sets.length;
       for (const mid in contrib) acc[mid] = (acc[mid]||0) + contrib[mid] * n;
     });
@@ -2017,7 +2145,8 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 // On overwrite imports, these are replaced with the file's values.
 const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
-  'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse',
+  'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
+  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds',
   'hiddenCategories','cardioGoals'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
@@ -2115,6 +2244,20 @@ let state = {
   glossaryAsPage: true,
   // ---- Settings drawer per-section collapse state (feat 60); Theme collapsed by default ----
   settingsCollapse: { theme: true },
+  // ---- Interface language (feat 61); English only for now ----
+  lang: 'en',
+  // ---- Read-only mode (feat 62): everything viewable, nothing changeable ----
+  readonly: false,
+  // ---- Biometric freshness warnings (feat 63) ----
+  warnStaleBodyweight: true,    // warn at workout start if bodyweight is missing / stale
+  warnOtherBiometrics: false,   // also warn for other biometrics (body fat, muscle, etc.) — default off
+  biometricStaleDays: 14,       // a reading older than this counts as "stale" (~2 weeks)
+  // ---- On-screen-keypad calculator mode (feat 65); persistent, default off ----
+  calcMode: false,
+  // ---- Speak a random tip when an exercise is selected (feat 66); default on ----
+  ttsTips: true,
+  // ---- Workout metronome (feat 69) — customizable beat. On/off is per-workout (runtime, not persisted). ----
+  metronome: { bpm: 60, audio: true, haptic: false, freq: 880, accentFreq: 1320, accentEvery: 0, vol: 0.3 },
   // ---- Category visibility (feat 8): hide cardio / mobility / recovery entirely ----
   hiddenCategories: {},   // { cardio:true, mobility:true, recovery:true }
   // ---- Cardio goals (feat 7) ----
@@ -2148,6 +2291,27 @@ function normalizeState() {
   if (state.glossaryHighlight === undefined) state.glossaryHighlight = true;
   if (state.glossaryAsPage === undefined) state.glossaryAsPage = true;
   if (!state.settingsCollapse || typeof state.settingsCollapse !== 'object') state.settingsCollapse = { theme: true };
+  if (!state.lang || typeof state.lang !== 'string') state.lang = 'en';
+  if (typeof state.readonly !== 'boolean') state.readonly = false;
+  if (typeof state.warnStaleBodyweight !== 'boolean') state.warnStaleBodyweight = true;
+  if (typeof state.warnOtherBiometrics !== 'boolean') state.warnOtherBiometrics = false;
+  if (!(state.biometricStaleDays > 0)) state.biometricStaleDays = 14;
+  if (typeof state.calcMode !== 'boolean') state.calcMode = false;
+  if (typeof state.ttsTips !== 'boolean') state.ttsTips = true;
+  state.metronome = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, ...(state.metronome && typeof state.metronome === 'object' ? state.metronome : {}) };
+  // feat 70/71 — seed + merge plans by id: new seed plans append for existing users; backfill seed descriptions.
+  if (!Array.isArray(state.plans)) state.plans = [];
+  if (!Array.isArray(state.seededPlanIds)) state.seededPlanIds = [];
+  SEED_PLANS.forEach(sp => {
+    const ex = state.plans.find(p => p.id === sp.id);
+    if (ex) {
+      if (!ex.desc && sp.desc) ex.desc = sp.desc;
+      if (Array.isArray(ex.steps) && ex.steps.length === sp.steps.length) ex.steps.forEach((st, i) => { if (st && !st.desc && sp.steps[i] && sp.steps[i].desc) st.desc = sp.steps[i].desc; });
+    } else if (!state.seededPlanIds.includes(sp.id)) {
+      state.plans.push(cloneSeedPlan(sp));
+    }
+    if (!state.seededPlanIds.includes(sp.id)) state.seededPlanIds.push(sp.id);
+  });
   if (!state.bodyCompUnit) state.bodyCompUnit = state.unit || 'lb';
   if (!state.hiddenCategories || typeof state.hiddenCategories !== 'object') state.hiddenCategories = {};
   if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
@@ -2721,6 +2885,69 @@ function autoLoadDisable() {
    ============================================================ */
 // The 5 original themes live in CSS [data-theme] blocks. The rest are palette-driven
 // (feat 22): applied by setting CSS custom properties inline so no extra CSS is needed.
+/* ============================================================
+   INTERNATIONALIZATION (i18n) — groundwork (feat 61)
+   English is the only language for now. To add one later:
+     1) add an entry to LANGUAGES (code + native name);
+     2) add a matching dictionary to I18N keyed by that code;
+     3) translate UI either declaratively in static markup
+        (data-i18n / data-i18n-title / data-i18n-aria / data-i18n-placeholder,
+        picked up by applyI18n) or in JS via t('key').
+   t() falls back: current language → English → the raw key. Supports
+   {name} interpolation, e.g. t('greet', { name:'Sam' }).
+   ============================================================ */
+const LANGUAGES = [
+  { code: 'en', label: 'English', native: 'English' },
+  // { code: 'es', label: 'Spanish', native: 'Español' },  // example — also add an I18N.es dictionary below
+];
+const I18N = {
+  en: {
+    'app.title': 'Gym Tracker',
+    'app.settings': 'Settings',
+    'app.help': 'Help',
+    'app.done': 'Done',
+    'nav.tracker': 'Tracker',
+    'nav.reference': 'Reference',
+    'action.glossary': 'Glossary',
+    'settings.search': 'Search settings…',
+    'settings.language': 'Language',
+    'settings.languageSub': 'Interface language (English only for now)',
+    // Common strings — seeded so future dictionaries have a starting point.
+    'common.save': 'Save', 'common.cancel': 'Cancel', 'common.delete': 'Delete',
+    'common.close': 'Close', 'common.reset': 'Reset', 'common.on': 'On', 'common.off': 'Off',
+  },
+  // es: { 'app.settings': 'Ajustes', /* … */ },
+};
+function currentLang() { return (typeof state !== 'undefined' && state && state.lang) || 'en'; }
+// Translate a key for the active language (English fallback, then the key itself).
+function t(key, params) {
+  const dict = I18N[currentLang()] || I18N.en;
+  let s = (dict && dict[key] != null) ? dict[key] : (I18N.en[key] != null ? I18N.en[key] : key);
+  if (params) s = String(s).replace(/\{(\w+)\}/g, (m, k) => (params[k] != null ? params[k] : m));
+  return s;
+}
+// Translate a static DOM subtree: text + common attributes. Safe to call repeatedly.
+function applyI18n(root) {
+  root = root || document;
+  root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+  root.querySelectorAll('[data-i18n-title]').forEach(el => { el.setAttribute('title', t(el.getAttribute('data-i18n-title'))); });
+  root.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria'))); });
+  root.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.setAttribute('placeholder', t(el.getAttribute('data-i18n-placeholder'))); });
+  if (root === document) { try { document.documentElement.setAttribute('lang', currentLang()); } catch (e) {} }
+}
+// Switch language: persist, re-apply static translations, re-render dynamic UI.
+function setLang(code) {
+  if (!LANGUAGES.some(l => l.code === code)) return;
+  state.lang = code;
+  saveState();
+  applyI18n(document);
+  if (typeof render === 'function') render();
+  if (typeof renderRef === 'function') renderRef();
+  const dr = document.getElementById('settings-drawer');
+  if (dr && dr.classList.contains('open') && typeof renderSettingsDrawer === 'function') renderSettingsDrawer();
+  if (typeof logInfo === 'function') logInfo('Language set', code);
+}
+
 const BUILTIN_THEMES = ['dark','light','midnight','forest','ember'];
 const THEME_VARS = ['bg','bg2','bg3','bg4','border','border2','text','text2','text3','accent','accent2',
   'accent-bg','accent-border','card-bg','nav-bg','nav-active','nav-border','header-bg','input-bg',
@@ -2886,7 +3113,8 @@ function decorateSettingsSections(body) {
   nodes.forEach(node => {
     const isTitle = node.nodeType === 1 && node.classList && node.classList.contains('drawer-section-title');
     if (isTitle) {
-      const id = _secId(node.textContent);
+      // Prefer an explicit data-sec-id so collapse IDs stay stable even if the title text is translated.
+      const id = (node.dataset && node.dataset.secId) ? node.dataset.secId : _secId(node.textContent);
       const hint = (node.dataset && node.dataset.hint) ? node.dataset.hint : '';
       const sec = document.createElement('div');
       sec.className = 'drawer-section';
@@ -3114,6 +3342,14 @@ function renderSettingsDrawer() {
       </div>
     `).join('')}
 
+    <div class="drawer-section-title" data-sec-id="language">${t('settings.language')}</div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-sub" style="margin-top:0;max-width:200px;">${t('settings.languageSub')}</div>
+      <select id="drawer-lang-select" class="vw-select" style="max-width:150px;">
+        ${LANGUAGES.map(l => `<option value="${l.code}" ${currentLang()===l.code?'selected':''}>${escapeHtml(l.native||l.label)}</option>`).join('')}
+      </select>
+    </div>
+
     <div class="drawer-section-title">Profile</div>
     <div class="drawer-setting-row">
       <div class="drawer-setting-label">Name</div>
@@ -3149,6 +3385,26 @@ function renderSettingsDrawer() {
       <div class="drawer-pill-group">
         <button class="drawer-pill ${state.unit === 'lb' ? 'active' : ''}" data-pref-unit="lb">LB</button>
         <button class="drawer-pill ${state.unit === 'kg' ? 'active' : ''}" data-pref-unit="kg">KG</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Read-only mode</div>
+        <div class="drawer-setting-sub">View everything; block logging, edits, deletes &amp; imports</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${state.readonly === true ? 'active' : ''}" data-pref-readonly="on">On</button>
+        <button class="drawer-pill ${state.readonly !== true ? 'active' : ''}" data-pref-readonly="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Speak a tip on select</div>
+        <div class="drawer-setting-sub">Read a random cue/tip aloud when you pick an exercise (text-to-speech)</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${state.ttsTips !== false ? 'active' : ''}" data-pref-tts="on">On</button>
+        <button class="drawer-pill ${state.ttsTips === false ? 'active' : ''}" data-pref-tts="off">Off</button>
       </div>
     </div>
     <div class="drawer-setting-row">
@@ -3314,6 +3570,82 @@ function renderSettingsDrawer() {
       <input type="number" id="drawer-abandon-min" value="${(state.workoutControls||{}).abandonMinutes || 5}" min="1" max="30" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
                background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+
+    <div class="drawer-section-title">Biometrics</div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Warn on stale bodyweight</div>
+        <div class="drawer-setting-sub">At workout start, warn if your bodyweight is missing or old</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${state.warnStaleBodyweight !== false ? 'active' : ''}" data-pref-bw-warn="on">On</button>
+        <button class="drawer-pill ${state.warnStaleBodyweight === false ? 'active' : ''}" data-pref-bw-warn="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Warn on other biometrics</div>
+        <div class="drawer-setting-sub">Also warn for stale body-fat, muscle, bone &amp; water readings</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${state.warnOtherBiometrics === true ? 'active' : ''}" data-pref-bio-warn="on">On</button>
+        <button class="drawer-pill ${state.warnOtherBiometrics !== true ? 'active' : ''}" data-pref-bio-warn="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Stale after</div>
+        <div class="drawer-setting-sub">A reading older than this counts as stale</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="number" id="drawer-biometric-stale" value="${state.biometricStaleDays || 14}" min="1" max="365" step="1"
+          style="width:64px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+        <span style="font-size:12px;color:var(--text3);">days</span>
+      </div>
+    </div>
+
+    <div class="drawer-section-title">Metronome</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">A customizable audio/haptic beat for pacing reps. Toggle it on the Log tab during a workout (off by default each workout).</div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">Tempo (BPM)</div>
+      <input type="number" id="drawer-metro-bpm" value="${metroCfg().bpm}" min="20" max="300" step="1"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">Audio beep</div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${metroCfg().audio !== false ? 'active' : ''}" data-pref-metro="audio-on">On</button>
+        <button class="drawer-pill ${metroCfg().audio === false ? 'active' : ''}" data-pref-metro="audio-off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">Beep pitch (Hz)</div>
+      <input type="number" id="drawer-metro-freq" value="${metroCfg().freq}" min="200" max="3000" step="20"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">Volume (%)</div>
+      <input type="number" id="drawer-metro-vol" value="${Math.round((metroCfg().vol || 0.3) * 100)}" min="1" max="100" step="1"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">Haptic (vibrate)</div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${metroCfg().haptic ? 'active' : ''}" data-pref-metro="haptic-on">On</button>
+        <button class="drawer-pill ${!metroCfg().haptic ? 'active' : ''}" data-pref-metro="haptic-off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Accent every</div>
+        <div class="drawer-setting-sub">A higher downbeat every N beats (0 = off)</div>
+      </div>
+      <input type="number" id="drawer-metro-accent" value="${metroCfg().accentEvery || 0}" min="0" max="16" step="1"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-data-row">
+      <button class="drawer-btn" id="drawer-metro-test">▶ Test beat</button>
     </div>
 
     <div class="drawer-section-title">Live Dashboard</div>
@@ -3550,6 +3882,15 @@ function renderSettingsDrawer() {
     <div style="font-size:12px;color:var(--text2);line-height:1.6;">
       Beat last session: more reps, more weight, or more sets. e1RM = weight × (1 + reps/30). All data stays in your browser.
     </div>
+    <div class="about-ea">
+      <span class="about-ea-tag">⚠️ Early Access</span>
+      <span>Active early-access build — features and data formats may still change. Keep your own backups via Settings → Data → Export JSON.</span>
+    </div>
+    <div class="about-credit">
+      Designed &amp; built by <strong>Adam Eryavec, P.Eng.</strong><br>
+      Developed with <strong>Claude Code</strong> (Anthropic).
+    </div>
+    <div class="about-build">${escapeHtml(APP_BUILD)}</div>
   `;
 
   decorateSettingsSections(body); // group the flat titles + rows into collapsible sections (cleanup)
@@ -3565,6 +3906,10 @@ function renderSettingsDrawer() {
     });
   });
 
+  // Language picker (feat 61)
+  const langSel = body.querySelector('#drawer-lang-select');
+  if (langSel) langSel.addEventListener('change', () => setLang(langSel.value));
+
   // Pref pills
   body.querySelectorAll('.drawer-pill').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -3576,6 +3921,11 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefLp) { state.longPressConfirm.enabled = btn.dataset.prefLp === 'on'; saveState(); toast('Hold-to-confirm: ' + (state.longPressConfirm.enabled?'on':'off')); logInfo('Hold-to-confirm ' + (state.longPressConfirm.enabled?'enabled':'disabled')); }
       else if (btn.dataset.prefGlossHl) { state.glossaryHighlight = btn.dataset.prefGlossHl === 'on'; saveState(); installGlossaryHighlight(); }
       else if (btn.dataset.prefGlossView) { state.glossaryAsPage = btn.dataset.prefGlossView === 'page'; saveState(); toast('Glossary: ' + (state.glossaryAsPage ? 'full page' : 'slide-in')); }
+      else if (btn.dataset.prefReadonly) { state.readonly = btn.dataset.prefReadonly === 'on'; saveState(); render(); toast('Read-only mode: ' + (state.readonly ? 'on' : 'off')); }
+      else if (btn.dataset.prefTts) { state.ttsTips = btn.dataset.prefTts === 'on'; saveState(); if (state.ttsTips) toast('Tips will be read aloud'); else { try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} toast('Tip narration off'); } }
+      else if (btn.dataset.prefMetro) { const m = { ...metroCfg() }; const k = btn.dataset.prefMetro; if (k === 'audio-on') m.audio = true; else if (k === 'audio-off') m.audio = false; else if (k === 'haptic-on') m.haptic = true; else if (k === 'haptic-off') m.haptic = false; state.metronome = m; saveState(); }
+      else if (btn.dataset.prefBwWarn) { state.warnStaleBodyweight = btn.dataset.prefBwWarn === 'on'; saveState(); }
+      else if (btn.dataset.prefBioWarn) { state.warnOtherBiometrics = btn.dataset.prefBioWarn === 'on'; saveState(); }
       else if (btn.dataset.dash) { state.dashboard[btn.dataset.dash] = btn.dataset.dashVal === 'on'; saveState(); }
       else if (btn.dataset.catVis) { state.hiddenCategories[btn.dataset.catVis] = btn.dataset.catVal === 'hide'; saveState(); render(); }
       else if (btn.dataset.wc) { ensureWC(); state.workoutControls[btn.dataset.wc] = btn.dataset.wcVal === 'on'; saveState(); if (typeof refreshRestBar === 'function') refreshRestBar(); if (typeof modalState !== 'undefined' && modalState.open) renderModal(); }
@@ -3644,6 +3994,22 @@ function renderSettingsDrawer() {
     const v = parseInt(abInput.value);
     if (!isNaN(v) && v >= 1 && v <= 30) { ensureWC(); state.workoutControls.abandonMinutes = v; saveState(); toast('Abandon open set after: ' + v + ' min'); }
   });
+  const bsInput = body.querySelector('#drawer-biometric-stale');
+  if (bsInput) bsInput.addEventListener('change', () => {
+    const v = parseInt(bsInput.value);
+    if (!isNaN(v) && v >= 1 && v <= 365) { state.biometricStaleDays = v; saveState(); toast('Stale after: ' + v + ' days'); }
+  });
+  // Metronome settings (feat 69)
+  const setMetro = (patch) => { state.metronome = { ...metroCfg(), ...patch }; saveState(); restartMetronomeIfRunning(); refreshMetronomeUI(); };
+  const mBpm = body.querySelector('#drawer-metro-bpm');
+  if (mBpm) mBpm.addEventListener('change', () => { const v = parseInt(mBpm.value); if (!isNaN(v) && v >= 20 && v <= 300) setMetro({ bpm: v }); });
+  const mFreq = body.querySelector('#drawer-metro-freq');
+  if (mFreq) mFreq.addEventListener('change', () => { const v = parseInt(mFreq.value); if (!isNaN(v) && v >= 200 && v <= 3000) setMetro({ freq: v }); });
+  const mVol = body.querySelector('#drawer-metro-vol');
+  if (mVol) mVol.addEventListener('change', () => { const v = parseInt(mVol.value); if (!isNaN(v) && v >= 1 && v <= 100) setMetro({ vol: v / 100 }); });
+  const mAccent = body.querySelector('#drawer-metro-accent');
+  if (mAccent) mAccent.addEventListener('change', () => { const v = parseInt(mAccent.value); if (!isNaN(v) && v >= 0 && v <= 16) setMetro({ accentEvery: v }); });
+  body.querySelector('#drawer-metro-test')?.addEventListener('click', () => { const c = metroCfg(); metroBeep(c.freq || 880, c.vol); if (c.haptic) safeVibrate([30]); });
 
   // Data buttons
   body.querySelector('#drawer-export-btn').addEventListener('click', exportData);
@@ -3652,6 +4018,7 @@ function renderSettingsDrawer() {
   body.querySelector('#drawer-import-btn').addEventListener('click', () => body.querySelector('#drawer-import-file').click());
   body.querySelector('#drawer-import-file').addEventListener('change', importData);
   setupConfirmButton(body.querySelector('#drawer-reset-btn'), 'Hold to erase all data', (held) => {
+    if (roBlocked('reset data')) return;
     if (held || confirm('Delete ALL data? Cannot be undone.')) {
       state.sessions = []; clearPending(); saveState(); render(); closeSettingsDrawer();
       logWarn('All session data reset by user'); toast('All data cleared');
@@ -4190,6 +4557,107 @@ function getCurrentBodyweightKg() {
   return s.length ? s[0].weightKg : null;
 }
 
+/* ---- Read-only mode (feat 62) — view everything, change nothing. ---- */
+function isReadonly() { return state.readonly === true; }
+// Returns true (and toasts) when an action must be blocked because read-only is on.
+function roBlocked(action) {
+  if (!isReadonly()) return false;
+  toast('🔒 Read-only mode is on — turn it off in Settings to ' + (action || 'make changes'));
+  return true;
+}
+
+/* ---- Biometric freshness warnings (feat 63) ---- */
+function biometricStaleDays() { return (state.biometricStaleDays > 0) ? state.biometricStaleDays : 14; }
+function daysSinceIso(iso) { const ms = new Date(iso).getTime(); return isNaN(ms) ? Infinity : (Date.now() - ms) / 86400000; }
+function latestBodyCompWith(field) { return sortedBodyComp().find(e => e[field] != null) || null; }
+// Freshness warnings shown when a workout starts: bodyweight (if enabled) + other biometrics (opt-in).
+function biometricWarnings() {
+  const out = [], thr = biometricStaleDays();
+  if (state.warnStaleBodyweight !== false) {
+    const bw = latestBodyCompWith('weightKg');
+    if (!bw) out.push('no bodyweight recorded');
+    else { const d = daysSinceIso(bw.date); if (d > thr) out.push('bodyweight is ' + Math.round(d) + 'd old'); }
+  }
+  if (state.warnOtherBiometrics === true) {
+    [['bodyFatPct','body fat'],['muscleMass','muscle mass'],['boneMass','bone mass'],['bodyWaterPct','body water']].forEach(([f, label]) => {
+      const e = latestBodyCompWith(f);
+      if (!e) out.push('no ' + label + ' recorded');
+      else { const d = daysSinceIso(e.date); if (d > thr) out.push(label + ' is ' + Math.round(d) + 'd old'); }
+    });
+  }
+  return out;
+}
+
+// Unsaved sets sitting in the current log entry (feat 62 — guarded when ending a workout).
+function hasUnsavedSets() {
+  return !!(pending && pending.varUuid && pending.sets &&
+    pending.sets.some(s => (s.w !== '' && s.w != null) || (s.r !== '' && s.r != null)));
+}
+
+/* Reusable promise-based choice dialog (feat 62). Resolves to the chosen value, or null if dismissed. */
+function choiceDialog(opts) {
+  return new Promise(resolve => {
+    const back = document.createElement('div');
+    back.className = 'choice-backdrop';
+    const sheet = document.createElement('div');
+    sheet.className = 'choice-sheet';
+    sheet.innerHTML = `<div class="choice-title">${escapeHtml(opts.title || '')}</div>` +
+      (opts.message ? `<div class="choice-msg">${escapeHtml(opts.message)}</div>` : '') +
+      `<div class="choice-actions"></div>`;
+    const actions = sheet.querySelector('.choice-actions');
+    let done = false;
+    const finish = (val) => { if (done) return; done = true; back.classList.remove('open'); setTimeout(() => back.remove(), 200); resolve(val); };
+    (opts.choices || []).forEach(c => {
+      const b = document.createElement('button');
+      b.className = 'choice-btn' + (c.style ? ' ' + c.style : '');
+      b.textContent = c.label;
+      b.addEventListener('click', () => finish(c.value));
+      actions.appendChild(b);
+    });
+    back.appendChild(sheet);
+    if (opts.dismissable !== false) back.addEventListener('click', e => { if (e.target === back) finish(null); });
+    document.body.appendChild(back);
+    requestAnimationFrame(() => back.classList.add('open'));
+  });
+}
+
+/* ---- Speak a random tip when an exercise is selected (feat 66) ---- */
+function collectExerciseTips(varUuid) {
+  const info = VAR_INDEX.get(varUuid);
+  if (!info) return [];
+  const v = info.variation || {}, f = info.family || {}, out = [];
+  if (v.cue) out.push(v.cue);
+  if (v.tip) out.push(v.tip);
+  if (f.quickCue) out.push(f.quickCue);
+  const g = f.general || {};
+  ['setup', 'movement', 'mistakes'].forEach(k => { if (Array.isArray(g[k])) g[k].forEach(s => { if (s) out.push(s); }); });
+  return out;
+}
+function speakRandomTip(varUuid) {
+  if (state.ttsTips === false) return;
+  if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
+  const tips = collectExerciseTips(varUuid);
+  if (!tips.length) return;
+  const tip = tips[Math.floor(Math.random() * tips.length)];
+  try {
+    window.speechSynthesis.cancel();                 // never stack utterances
+    const u = new SpeechSynthesisUtterance(String(tip).slice(0, 240));
+    u.rate = 1; u.pitch = 1; u.lang = 'en-US';
+    window.speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+/* Open the Reference panel filtered to a given exercise (feat 67 — Tips & Details → full reference). */
+function openReferenceFor(varUuid) {
+  const info = VAR_INDEX.get(varUuid);
+  const term = info ? (info.variation.title || info.family.title || '') : '';
+  if (typeof closeLogModal === 'function') closeLogModal();
+  const tab = document.querySelector('.nav-tab[data-panel="panel-reference"]');
+  if (typeof switchPanel === 'function' && tab) switchPanel('panel-reference', tab);
+  const si = document.getElementById('ref-search');
+  if (si) { si.value = term; si.dispatchEvent(new Event('input', { bubbles: true })); si.blur(); }
+}
+
 // Category helpers (feat 6/8). Cardio entries are time/metric based, not progressive overload.
 function megaOf(varUuid) { const i = VAR_INDEX.get(varUuid); return i ? i.family.mega : null; }
 function isCardioVar(varUuid) { return megaOf(varUuid) === 'cardio'; }
@@ -4286,8 +4754,9 @@ function updateSaveBtn() {
 let currentTab = 'log';
 
 function render() {
+  document.body.classList.toggle('readonly', isReadonly()); // feat 62 — read-only mode
   const main = document.getElementById('trk-main');
-  document.getElementById('trk-fab').style.display = (currentTab === 'log') ? 'flex' : 'none';
+  document.getElementById('trk-fab').style.display = (currentTab === 'log' && !isReadonly()) ? 'flex' : 'none';
   if (currentTab === 'log') renderLog(main);
   else if (currentTab === 'history') renderHistory(main);
   else if (currentTab === 'volume') renderVolume(main);
@@ -4299,6 +4768,232 @@ function render() {
 }
 
 /* --------- LOG TAB --------- */
+/* ============================================================
+   WORKOUT PLANS (feat 70)
+   plan = { id, name, steps:[ { id, sets, options:[ {type:'movement',familyId} | {type:'variation',uuid} ] } ] }
+   Steps are an ordered, SUGGESTED-not-enforced sequence. A plan is optionally attached to a session via
+   session.planId; it can be changed or abandoned mid-workout. Auto PUSH/PULL/LOWER/CORE suggestions still
+   run whenever no plan is attached.
+   ============================================================ */
+function _mvOpt(familyId) { return { type:'movement', familyId }; }
+function _vrOpt(uuid) { return { type:'variation', uuid }; }
+function _pstep(sets, options, desc) { return { sets: sets || 3, options: options || [], desc: desc || '' }; }
+const SEED_PLANS = [
+  // —— Classic splits ——
+  { id:'seed-push', name:'Push Day', desc:'Chest, shoulders & triceps in one hit. Heavy presses while fresh, then flyes and raises to finish the muscles off.', steps:[
+    _pstep(4,[_mvOpt('flat-bench-press')],'Main strength press — go heavy.'), _pstep(3,[_mvOpt('incline-bench-press')],'Bias the upper chest.'), _pstep(3,[_mvOpt('shoulder-press')]), _pstep(3,[_mvOpt('chest-fly'),_mvOpt('dips')]), _pstep(3,[_mvOpt('lateral-raise')],'Side-delt width — light and strict.'), _pstep(3,[_mvOpt('tricep-extension')]) ] },
+  { id:'seed-pull', name:'Pull Day', desc:'Back width and thickness plus biceps. Big vertical pull, hard rows, then rear delts and arms.', steps:[
+    _pstep(4,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'Vertical pull for lat width.'), _pstep(4,[_mvOpt('row')],'Horizontal pull for back thickness.'), _pstep(3,[_mvOpt('rear-delt')]), _pstep(3,[_mvOpt('bicep-curl')]), _pstep(2,[_mvOpt('hammer-curl')]), _pstep(2,[_mvOpt('shrugs')]) ] },
+  { id:'seed-legs', name:'Leg Day', desc:'Quads, hams, glutes & calves. Squat heavy up front, then machines and accessories to cover every angle.', steps:[
+    _pstep(4,[_mvOpt('squat')],'The big one — drive hard out of the hole.'), _pstep(3,[_mvOpt('leg-press'),_mvOpt('lunge')]), _pstep(3,[_mvOpt('leg-curl')],'Never skip the hamstrings.'), _pstep(3,[_mvOpt('leg-extension')]), _pstep(3,[_mvOpt('hip-thrust')]), _pstep(4,[_mvOpt('calf-raise')]) ] },
+  { id:'seed-upper', name:'Upper Body', desc:'Balanced upper session for a 4-day upper/lower split — pushes and pulls paired so nothing lags.', steps:[
+    _pstep(3,[_mvOpt('flat-bench-press'),_mvOpt('incline-bench-press')]), _pstep(3,[_mvOpt('row'),_mvOpt('lat-pulldown')]), _pstep(3,[_mvOpt('shoulder-press')]), _pstep(3,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')]), _pstep(2,[_mvOpt('bicep-curl')]), _pstep(2,[_mvOpt('tricep-extension')]) ] },
+  { id:'seed-lower', name:'Lower Body', desc:'The lower half of an upper/lower split — a heavy squat and hinge, then targeted quad, ham & calf work.', steps:[
+    _pstep(4,[_mvOpt('squat')]), _pstep(3,[_mvOpt('deadlift')],'Hinge for posterior-chain strength.'), _pstep(3,[_mvOpt('leg-curl')]), _pstep(3,[_mvOpt('leg-extension')]), _pstep(3,[_mvOpt('hip-thrust'),_mvOpt('lunge')]), _pstep(3,[_mvOpt('calf-raise')]) ] },
+  { id:'seed-fb-a', name:'Full Body A', desc:'Hit everything in one session — ideal 3x/week. A squat, a press, a row, and a little arms.', steps:[
+    _pstep(3,[_mvOpt('squat')]), _pstep(3,[_mvOpt('flat-bench-press')]), _pstep(3,[_mvOpt('row')]), _pstep(2,[_mvOpt('shoulder-press')]), _pstep(2,[_mvOpt('bicep-curl')]), _pstep(2,[_mvOpt('calf-raise')]) ] },
+  { id:'seed-fb-b', name:'Full Body B', desc:'The B-day counterpart — hinge, incline press, vertical pull, and single-leg work for balanced coverage.', steps:[
+    _pstep(3,[_mvOpt('deadlift')]), _pstep(3,[_mvOpt('incline-bench-press')]), _pstep(3,[_mvOpt('lat-pulldown'),_mvOpt('pull-up')]), _pstep(2,[_mvOpt('lunge')]), _pstep(2,[_mvOpt('lateral-raise')]), _pstep(2,[_mvOpt('tricep-extension')]) ] },
+  { id:'seed-core', name:'Core & Conditioning', desc:'A short finisher or standalone core day — dynamic abs, anti-movement stability, obliques and low back.', steps:[
+    _pstep(3,[_mvOpt('abs-dynamic')]), _pstep(3,[_mvOpt('core-stability')]), _pstep(2,[_mvOpt('obliques')]), _pstep(2,[_mvOpt('back-extension')]) ] },
+  // —— Station / one-zone plans — claim a single spot and stay put (great for a crowded gym) ——
+  { id:'seed-rack', name:'Squat Rack Strength', desc:'One power rack, one barbell, zero wandering. Squat, hinge, press and row all from the same station — perfect when the floor is packed and you want to stay posted up in one zone.', steps:[
+    _pstep(4,[_mvOpt('squat')],'Rack the bar and back-squat.'), _pstep(3,[_mvOpt('deadlift')],'Same bar — RDL or pull from the pins.'), _pstep(3,[_mvOpt('shoulder-press')],'Strict barbell OHP in the rack.'), _pstep(3,[_mvOpt('row')],'Bent-over barbell row.'), _pstep(2,[_mvOpt('shrugs')],'Barbell shrugs to finish.'), _pstep(3,[_mvOpt('calf-raise')],'Standing calf raises holding the bar.') ] },
+  { id:'seed-db', name:'Dumbbell Corner', desc:'One pair of dumbbells in one corner — a complete full-body session without touching a machine or barbell. Ideal when every rack and station is taken.', steps:[
+    _pstep(3,[_mvOpt('flat-bench-press')],'DB bench or floor press.'), _pstep(3,[_mvOpt('row')],'One-arm DB row.'), _pstep(3,[_mvOpt('shoulder-press')],'Seated or standing DB press.'), _pstep(3,[_mvOpt('lunge')],'Walking or stationary DB lunges.'), _pstep(2,[_mvOpt('bicep-curl')]), _pstep(2,[_mvOpt('tricep-extension')]), _pstep(2,[_mvOpt('lateral-raise')]) ] },
+  { id:'seed-cable', name:'One Cable Station', desc:'Set up at a single cable stack and flow through the whole upper body — push, pull and arms — without ever stepping away. Constant tension, tiny footprint.', steps:[
+    _pstep(3,[_mvOpt('lat-pulldown')],'High pulley.'), _pstep(3,[_mvOpt('row')],'Seated cable row.'), _pstep(3,[_mvOpt('chest-fly')],'Cable crossover.'), _pstep(3,[_mvOpt('rear-delt')],'Cable face pulls.'), _pstep(2,[_mvOpt('tricep-extension')],'Rope pushdowns.'), _pstep(2,[_mvOpt('bicep-curl')],'Cable curls.'), _pstep(2,[_mvOpt('lateral-raise')]) ] },
+  { id:'seed-bench-db', name:'Bench + Dumbbells', desc:'A flat bench and one pair of dumbbells — claim that single spot and stay. Press, fly, row and curl all from the bench.', steps:[
+    _pstep(4,[_mvOpt('flat-bench-press')]), _pstep(3,[_mvOpt('chest-fly')]), _pstep(3,[_mvOpt('row')],'Chest-supported or one-arm row off the bench.'), _pstep(3,[_mvOpt('shoulder-press')]), _pstep(2,[_mvOpt('tricep-extension')],'Lying DB extensions.'), _pstep(2,[_mvOpt('bicep-curl')],'Seated DB curls.') ] },
+  // —— Focus / specialty ——
+  { id:'seed-arms', name:'Arms Blaster', desc:'A dedicated biceps + triceps pump you can superset in one corner with dumbbells or a single cable. Big arms, minimal footprint.', steps:[
+    _pstep(3,[_mvOpt('bicep-curl')],'Superset A — curl…'), _pstep(3,[_mvOpt('tricep-extension')],'…straight into a triceps extension.'), _pstep(3,[_mvOpt('hammer-curl')],'Superset B — hammers…'), _pstep(3,[_mvOpt('tricep-extension')],'…paired with pushdowns.'), _pstep(2,[_mvOpt('reverse-curl'),_mvOpt('wrist-curl')],'Forearm finisher.') ] },
+  { id:'seed-glute', name:'Glute Focus', desc:'Build and round out the glutes — hip thrust, hinge, lunge and abduction — mostly from one bench-and-barbell area.', steps:[
+    _pstep(4,[_mvOpt('hip-thrust')],'The glute money-maker — squeeze hard at the top.'), _pstep(3,[_mvOpt('deadlift')],'Romanian deadlift for the stretch.'), _pstep(3,[_mvOpt('lunge')]), _pstep(3,[_mvOpt('glute-accessories')],'Abductions / kickbacks.'), _pstep(2,[_mvOpt('back-extension')]) ] },
+  { id:'seed-beginner', name:'Beginner Full Body', desc:'New to lifting? A simple, safe full-body template — one move per major area, mostly machines and basics. Learn the patterns and build a base.', steps:[
+    _pstep(3,[_mvOpt('leg-press')],'Easier to learn than a free squat.'), _pstep(3,[_mvOpt('flat-bench-press')]), _pstep(3,[_mvOpt('lat-pulldown')]), _pstep(2,[_mvOpt('shoulder-press')]), _pstep(2,[_mvOpt('bicep-curl')]), _pstep(2,[_mvOpt('abs-dynamic')]) ] },
+];
+function cloneSeedPlan(sp) {
+  return { id:sp.id, name:sp.name, desc:sp.desc||'', steps:sp.steps.map(s => ({ id:newUuid(), sets:s.sets, desc:s.desc||'', options:s.options.map(o => ({ ...o })) })) };
+}
+function cloneSeedPlans() { return SEED_PLANS.map(cloneSeedPlan); }
+function getPlan(id) { return (state.plans || []).find(p => p.id === id) || null; }
+function getActivePlan() { const s = getActiveSession(); return (s && s.planId) ? getPlan(s.planId) : null; }
+function planTotalSets(p) { return (p.steps || []).reduce((n, s) => n + (s.sets || 0), 0); }
+function optionLabel(o) {
+  if (!o) return '?';
+  if (o.type === 'variation') { const i = VAR_INDEX.get(o.uuid); return i ? i.variation.title : 'Variation'; }
+  if (o.type === 'movement') { const f = FAMILIES.find(x => x.id === o.familyId); return f ? f.title : 'Movement'; }
+  return '?';
+}
+function optionMatchesVar(o, varUuid) {
+  if (!o) return false;
+  if (o.type === 'variation') return o.uuid === varUuid;
+  if (o.type === 'movement') { const i = VAR_INDEX.get(varUuid); return !!(i && i.family.id === o.familyId); }
+  return false;
+}
+function stepLoggedSets(session, step) {
+  let n = 0;
+  (session.exercises || []).forEach(ex => { if ((step.options || []).some(o => optionMatchesVar(o, ex.varUuid))) n += (ex.sets || []).length; });
+  return n;
+}
+function stepStatus(session, step) {
+  const logged = stepLoggedSets(session, step), target = step.sets || 0;
+  return { logged, target, done: target > 0 ? logged >= target : logged > 0, started: logged > 0 };
+}
+function currentPlanStepIndex(session, plan) {
+  for (let i = 0; i < plan.steps.length; i++) if (!stepStatus(session, plan.steps[i]).done) return i;
+  return plan.steps.length;
+}
+// Gym feasibility: a step is "impossible" only if an active gym is set and NO option can be performed there.
+function optionDoableInGym(o) {
+  if (o.type === 'variation') { const i = VAR_INDEX.get(o.uuid); return !!(i && varVisibleInPicker(i.family, i.variation)); }
+  if (o.type === 'movement') { const f = FAMILIES.find(x => x.id === o.familyId); return !!(f && (f.variations || []).some(v => varVisibleInPicker(f, v))); }
+  return false;
+}
+function stepImpossibleInGym(step) {
+  if (!getActiveGym()) return false;
+  return (step.options || []).length > 0 && !step.options.some(optionDoableInGym);
+}
+// Rough live ETA: remaining suggested sets × (avg set time + avg inter-set rest), defaults if no timing yet.
+function computePlanETA(session, plan) {
+  let remainingSets = 0;
+  (plan.steps || []).forEach(st => { remainingSets += Math.max(0, (st.sets || 0) - stepStatus(session, st).logged); });
+  const rs = computeRestStats(session, pending, true);
+  const perSetSec = (rs.avgSetTimeSec || 35) + (rs.avgInterSetRestSec || 105);
+  const remMin = Math.round(remainingSets * perSetSec / 60);
+  return { remainingSets, remainingMin: remMin, etaTime: new Date(Date.now() + remMin * 60000) };
+}
+// Start logging a plan option: a variation jumps straight in; a movement opens the picker filtered to it.
+function startExerciseFromPlanOption(o) {
+  if (!o) return;
+  if (o.type === 'variation') { startExerciseFromSuggestion(o.uuid); return; }
+  const f = FAMILIES.find(x => x.id === o.familyId);
+  pending.varUuid = null; pending.subUuid = null; pending.cardio = null; pending.sets = [{ w:'', r:'' }]; savePending();
+  modalState.pickerMega = 'all'; modalState.pickerSub = 'all'; modalState.pickerEquip = 'all';
+  modalState.pickerSearch = f ? f.title : '';
+  openLogModal();
+  modalState.showPicker = true;
+  renderModal();
+}
+
+/* ---- Plans overlay (list + builder) ---- */
+let _plansEditId = null, _plansAddOptStep = null, _plansOptSearch = '';
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; renderPlansOverlay(); document.getElementById('plans-backdrop').classList.add('open'); document.getElementById('plans-panel').classList.add('open'); document.body.style.overflow = 'hidden'; }
+function openPlanPicker() { openPlansOverlay(); }
+function closePlansOverlay() { document.getElementById('plans-backdrop').classList.remove('open'); document.getElementById('plans-panel').classList.remove('open'); document.body.style.overflow = ''; }
+function planUseForWorkout(id) {
+  if (roBlocked('start a workout')) return;
+  let s = getActiveSession();
+  if (!s) { startWorkout(); s = getActiveSession(); }   // start a workout if not already in one
+  if (!s) return;
+  s.planId = id; saveState(); closePlansOverlay(); render(); toast('Using plan for this workout');
+}
+function renderPlansOverlay() {
+  const body = document.getElementById('plans-body');
+  if (!body) return;
+  const plan = _plansEditId ? getPlan(_plansEditId) : null;
+  if (plan) { renderPlanEditor(body, plan); return; }
+  body.innerHTML = `<div class="plan-list-intro">Plans are optional and suggestions only — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
+    ${(state.plans || []).map(p => `<div class="plan-row">
+      <div class="plan-row-main"><div class="plan-row-name">${escapeHtml(p.name)}</div>${p.desc?`<div class="plan-row-desc">${escapeHtml(p.desc)}</div>`:''}<div class="plan-row-sub">${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets</div></div>
+      <div class="plan-row-actions">
+        <button class="drawer-btn" data-plan-use="${p.id}">Use</button>
+        <button class="drawer-btn" data-plan-edit="${p.id}">Edit</button>
+        <button class="drawer-btn danger" data-plan-del="${p.id}">Del</button>
+      </div>
+    </div>`).join('')}
+    ${(state.plans || []).length === 0 ? '<div class="plan-list-intro">No plans yet.</div>' : ''}
+    <button class="drawer-btn" id="plan-new-btn" style="margin-top:10px;">+ New plan</button>`;
+  bindPlansList(body);
+}
+function bindPlansList(body) {
+  body.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
+  body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; renderPlansOverlay(); }));
+  body.querySelectorAll('[data-plan-del]').forEach(b => b.addEventListener('click', () => { guardedConfirm('Delete this plan?', b).then(ok => { if (ok) { state.plans = (state.plans || []).filter(p => p.id !== b.dataset.planDel); saveState(); renderPlansOverlay(); } }); }));
+  body.querySelector('#plan-new-btn')?.addEventListener('click', () => { const p = { id: newUuid(), name: 'New Plan', steps: [{ id:newUuid(), sets:3, options:[] }] }; state.plans = state.plans || []; state.plans.push(p); saveState(); _plansEditId = p.id; renderPlansOverlay(); });
+}
+function renderPlanEditor(body, plan) {
+  if (_plansAddOptStep != null) { renderOptionPicker(body, plan); return; }
+  body.innerHTML = `<button class="drawer-btn" id="plan-back-btn">← All plans</button>
+    <input type="text" id="plan-name-input" value="${escapeAttr(plan.name)}" placeholder="Plan name" style="width:100%;margin:10px 0 6px;padding:9px 11px;font-size:15px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    <textarea id="plan-desc-input" placeholder="Plan description — theme & benefits (optional)" rows="2" style="width:100%;margin:0 0 12px;padding:8px 11px;font-size:12.5px;line-height:1.5;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);resize:vertical;">${escapeHtml(plan.desc||'')}</textarea>
+    ${plan.steps.map((st, i) => `<div class="plan-edit-step">
+      <div class="plan-edit-step-head"><span class="plan-edit-step-num">Step ${i+1}</span>
+        <div class="plan-edit-step-btns">
+          <button data-step-up="${i}" ${i===0?'disabled':''}>↑</button>
+          <button data-step-down="${i}" ${i===plan.steps.length-1?'disabled':''}>↓</button>
+          <button data-step-del="${i}" class="danger">✕</button>
+        </div></div>
+      <div class="plan-edit-opts">
+        ${st.options.map((o, oi) => `<span class="plan-edit-opt">${escapeHtml(optionLabel(o))}<button data-opt-del="${i}:${oi}" aria-label="remove">×</button></span>`).join('')}
+        <button class="plan-edit-add-opt" data-add-opt="${i}">+ exercise</button>
+      </div>
+      <div class="plan-edit-sets"><span>Suggested sets</span><input type="number" data-step-sets="${i}" value="${st.sets}" min="1" max="20" style="width:56px;padding:5px 7px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);"></div>
+      <input type="text" data-step-desc="${i}" value="${escapeAttr(st.desc||'')}" placeholder="Step note (optional)" style="width:100%;margin-top:6px;padding:5px 8px;font-size:12px;border-radius:6px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);">
+    </div>`).join('')}
+    <button class="drawer-btn" id="plan-add-step-btn" style="margin-top:8px;">+ Add step</button>`;
+  bindPlanEditor(body, plan);
+}
+function bindPlanEditor(body, plan) {
+  const save = () => saveState();
+  body.querySelector('#plan-back-btn')?.addEventListener('click', () => { _plansEditId = null; renderPlansOverlay(); });
+  const nameInp = body.querySelector('#plan-name-input');
+  if (nameInp) nameInp.addEventListener('change', () => { plan.name = nameInp.value.trim() || 'Plan'; save(); });
+  const descInp = body.querySelector('#plan-desc-input');
+  if (descInp) descInp.addEventListener('change', () => { plan.desc = descInp.value.trim(); save(); });
+  body.querySelectorAll('[data-step-desc]').forEach(inp => inp.addEventListener('change', () => { const st = plan.steps[+inp.dataset.stepDesc]; if (st) { st.desc = inp.value.trim(); save(); } }));
+  body.querySelectorAll('[data-step-up]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.stepUp; if (i > 0) { [plan.steps[i-1], plan.steps[i]] = [plan.steps[i], plan.steps[i-1]]; save(); renderPlansOverlay(); } }));
+  body.querySelectorAll('[data-step-down]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.stepDown; if (i < plan.steps.length-1) { [plan.steps[i+1], plan.steps[i]] = [plan.steps[i], plan.steps[i+1]]; save(); renderPlansOverlay(); } }));
+  body.querySelectorAll('[data-step-del]').forEach(b => b.addEventListener('click', () => { plan.steps.splice(+b.dataset.stepDel, 1); save(); renderPlansOverlay(); }));
+  body.querySelectorAll('[data-step-sets]').forEach(inp => inp.addEventListener('change', () => { const v = parseInt(inp.value); if (!isNaN(v) && v >= 1 && v <= 20) { plan.steps[+inp.dataset.stepSets].sets = v; save(); } }));
+  body.querySelectorAll('[data-opt-del]').forEach(b => b.addEventListener('click', () => { const [si, oi] = b.dataset.optDel.split(':').map(Number); plan.steps[si].options.splice(oi, 1); save(); renderPlansOverlay(); }));
+  body.querySelectorAll('[data-add-opt]').forEach(b => b.addEventListener('click', () => { _plansAddOptStep = +b.dataset.addOpt; _plansOptSearch = ''; renderPlansOverlay(); }));
+  body.querySelector('#plan-add-step-btn')?.addEventListener('click', () => { plan.steps.push({ id:newUuid(), sets:3, options:[] }); save(); renderPlansOverlay(); });
+}
+function renderOptionPicker(body, plan) {
+  const q = (_plansOptSearch || '').trim().toLowerCase();
+  const fams = FAMILIES.filter(f => !q || f.title.toLowerCase().includes(q) || (f.variations||[]).some(v => v.title.toLowerCase().includes(q))).slice(0, q ? 40 : 16);
+  body.innerHTML = `<button class="drawer-btn" id="optpick-back">← Back to plan</button>
+    <div style="font-size:11px;color:var(--text3);margin:8px 0;">Add a whole <b>movement</b> (any variation counts) or a specific <b>variation</b> as an option for this step.</div>
+    <input type="text" id="optpick-search" placeholder="Search movements / variations…" value="${escapeAttr(_plansOptSearch)}" autocomplete="off" style="width:100%;margin-bottom:8px;padding:9px 11px;font-size:14px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    <div id="optpick-list">${fams.map(f => `<div class="optpick-fam">
+        <div class="optpick-fam-head"><span>${escapeHtml(f.title)}</span><button class="optpick-add" data-pick-mv="${f.id}">+ movement</button></div>
+        ${(q ? (f.variations||[]).filter(v => f.title.toLowerCase().includes(q) || v.title.toLowerCase().includes(q)) : []).map(v => `<button class="optpick-var" data-pick-vr="${v.uuid}">+ ${escapeHtml(v.title)}</button>`).join('')}
+      </div>`).join('')}</div>`;
+  const addOpt = (o) => { const plan2 = getPlan(_plansEditId); if (plan2 && plan2.steps[_plansAddOptStep]) { plan2.steps[_plansAddOptStep].options.push(o); saveState(); } _plansAddOptStep = null; renderPlansOverlay(); };
+  body.querySelector('#optpick-back')?.addEventListener('click', () => { _plansAddOptStep = null; renderPlansOverlay(); });
+  const si = body.querySelector('#optpick-search');
+  if (si) { si.addEventListener('input', () => { _plansOptSearch = si.value; renderOptionPicker(body, plan); document.getElementById('optpick-search')?.focus(); }); setTimeout(() => si.focus(), 50); }
+  body.querySelectorAll('[data-pick-mv]').forEach(b => b.addEventListener('click', () => addOpt(_mvOpt(b.dataset.pickMv))));
+  body.querySelectorAll('[data-pick-vr]').forEach(b => b.addEventListener('click', () => addOpt(_vrOpt(b.dataset.pickVr))));
+}
+// Active-workout plan guide (or a "use a plan" prompt when none).
+function renderPlanGuide(session) {
+  const plan = getActivePlan();
+  if (!plan) {
+    return `<div class="plan-bar"><span class="plan-bar-none">No plan · auto suggestions on</span><button class="plan-pick-btn" id="plan-pick-btn">📋 Use a plan</button></div>`;
+  }
+  const eta = computePlanETA(session, plan);
+  const curIdx = currentPlanStepIndex(session, plan);
+  const steps = plan.steps.map((st, i) => {
+    const s = stepStatus(session, st), impossible = stepImpossibleInGym(st);
+    const cls = s.done ? 'done' : (i === curIdx ? 'current' : '');
+    const opts = (st.options || []).map((o, oi) => `<button class="plan-opt" data-plan-step="${i}" data-plan-opt="${oi}">${escapeHtml(optionLabel(o))}</button>`).join('<span class="plan-opt-or">or</span>');
+    return `<div class="plan-step ${cls}">
+      <div class="plan-step-top"><span class="plan-step-num">${s.done ? '✓' : (i+1)}</span><span class="plan-step-sets">${s.logged}/${st.sets} sets</span>${impossible ? `<span class="plan-step-warn" title="No option is available in the current gym">⚠ gym</span>` : ''}</div>
+      <div class="plan-step-opts">${opts || '<span style="color:var(--text3);font-size:11px;">(no exercises)</span>'}</div>
+      ${st.desc ? `<div class="plan-step-desc">${escapeHtml(st.desc)}</div>` : ''}
+    </div>`;
+  }).join('');
+  return `<div class="plan-card">
+    <div class="plan-card-head"><span class="plan-card-name">📋 ${escapeHtml(plan.name)}</span><span class="plan-card-eta">${eta.remainingMin > 0 ? `~${eta.remainingMin} min left · ETA ${eta.etaTime.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}` : 'plan complete 🎉'}</span></div>
+    ${plan.desc ? `<div class="plan-card-desc">${escapeHtml(plan.desc)}</div>` : ''}
+    <div class="plan-steps">${steps}</div>
+    <div class="plan-card-actions"><button class="plan-act" id="plan-change-btn">Change plan</button><button class="plan-act danger" id="plan-abandon-btn">Abandon</button></div>
+  </div>`;
+}
+
 function renderLog(main) {
   // Check whether the today session should be auto-ended due to inactivity
   maybeAutoEndActive();
@@ -4314,10 +5009,20 @@ function renderLog(main) {
   if (active) {
     html += `<div class="workout-controls">
       <button class="wc-btn end" id="wc-end-btn">⏹ End Workout</button>
+    </div>
+    <div class="metronome-bar">
+      <button class="metro-toggle ${metronomeRunning() ? 'on' : ''}" id="metro-toggle-btn">${metronomeRunning() ? '⏸' : '▶'} Metronome</button>
+      <div class="metro-bpm-ctl">
+        <button class="metro-bpm-btn" id="metro-bpm-down" aria-label="Slower">−</button>
+        <span class="metro-bpm" id="metro-bpm-val">${metroCfg().bpm} bpm</span>
+        <button class="metro-bpm-btn" id="metro-bpm-up" aria-label="Faster">+</button>
+      </div>
+      <button class="metro-cfg" id="metro-cfg-btn" title="Metronome settings">⚙</button>
     </div>`;
   } else {
     html += `<div class="workout-controls">
       <button class="wc-btn start" id="wc-start-btn">▶ Start Workout</button>
+      <button class="wc-btn plans" id="wc-plans-btn">📋 Plans</button>
     </div>`;
   }
 
@@ -4357,8 +5062,11 @@ function renderLog(main) {
       }
     }
 
-    // Remaining-exercises evaluation (feat 55) — what's still needed to round out the session
-    if (!today.endedAt && state.dashboard.physique !== false) {
+    // Workout plan guide (feat 70) — shown when active; the auto-suggester below runs only when no plan is attached.
+    if (!today.endedAt) html += renderPlanGuide(today);
+
+    // Remaining-exercises evaluation (feat 55) — auto PUSH/PULL/LOWER/CORE suggestions only apply with NO plan.
+    if (!today.endedAt && state.dashboard.physique !== false && !getActivePlan()) {
       const rem = computeRemainingWork(today);
       if (rem) {
         const chips = rem.items.map(it => `<button class="remaining-chip" data-remvar="${it.varUuid}">${escapeHtml(it.label)}: ${escapeHtml(it.title)}</button>`).join('');
@@ -4474,6 +5182,11 @@ function renderLog(main) {
   main.querySelectorAll('.remaining-chip[data-remvar]').forEach(el => {
     el.addEventListener('click', () => startExerciseFromSuggestion(el.dataset.remvar));
   });
+  // Workout plan (feat 70)
+  main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
+  main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
+  main.querySelector('#plan-abandon-btn')?.addEventListener('click', () => { const s = getActiveSession(); if (s) { s.planId = undefined; saveState(); toast('Plan abandoned'); render(); } });
+  main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', () => { const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt]); }));
   // Superset link buttons (feat 39)
   main.querySelectorAll('.ss-link-btn').forEach(btn => {
     btn.addEventListener('click', e => {
@@ -4497,8 +5210,18 @@ function renderLog(main) {
   // Workout control buttons
   const startBtn = main.querySelector('#wc-start-btn');
   if (startBtn) startBtn.addEventListener('click', startWorkout);
+  main.querySelector('#wc-plans-btn')?.addEventListener('click', openPlansOverlay);
   const endBtn = main.querySelector('#wc-end-btn');
   if (endBtn) setupConfirmButton(endBtn, 'Hold to end workout', (held) => endWorkout(held));
+  // Metronome controls (feat 69)
+  main.querySelector('#metro-toggle-btn')?.addEventListener('click', toggleMetronome);
+  main.querySelector('#metro-bpm-down')?.addEventListener('click', () => changeMetroBpm(-5));
+  main.querySelector('#metro-bpm-up')?.addEventListener('click', () => changeMetroBpm(5));
+  main.querySelector('#metro-cfg-btn')?.addEventListener('click', () => {
+    openSettingsDrawer();
+    const si = document.getElementById('settings-search');
+    if (si) { si.value = 'metronome'; _settingsSearch = 'metronome'; si.dispatchEvent(new Event('input', { bubbles: true })); }
+  });
 }
 
 // Color hash for exercise UUIDs — used in workout timeline
@@ -4824,13 +5547,18 @@ function reapAbandonedSet() {
 // Manually start a workout right now. If a session already exists for today,
 // this is a no-op (you're already in one).
 function startWorkout() {
+  if (roBlocked('start a workout')) return;
+  stopMetronome(); // feat 69 — metronome defaults OFF at the start of every workout
   const existing = getActiveSession();
   if (existing) { toast('Workout already in progress'); return; }
   const session = { date: new Date().toISOString(), exercises: [], startedManually: true };
   state.sessions.push(session);
   saveState();
   render();
-  toast('💪 Workout started');
+  // feat 63 — warn at workout start if bodyweight (and optionally other biometrics) is missing or stale.
+  const warns = biometricWarnings();
+  if (warns.length) { toast('⚠️ Workout started — ' + warns.join(' · ')); logWarn('Stale/missing biometrics at workout start', warns.join('; ')); }
+  else toast('💪 Workout started');
   logInfo('Workout started');
   // feat 38 — ping location to auto-select the nearest saved gym, if any have coords
   if ((state.gyms || []).some(g => g.lat != null)) pingLocationSelectGym(true);
@@ -4839,8 +5567,33 @@ function startWorkout() {
 // Manually end the active workout with confirmation (feat 13).
 // skipConfirm=true when triggered via hold-to-confirm (feat 32) — the hold IS the confirm.
 function endWorkout(skipConfirm) {
+  if (roBlocked('end the workout')) return;
   const active = getActiveSession();
   if (!active) { toast('No active workout'); return; }
+  // feat 62 — if the current log entry has unsaved sets, the user must choose first.
+  if (hasUnsavedSets()) {
+    choiceDialog({
+      title: 'Unsaved sets',
+      message: 'You have unsaved sets in the log. Save them, discard them, or keep the workout going?',
+      choices: [
+        { label: '💾 Save sets & end', value: 'save', style: 'primary' },
+        { label: '🗑 Discard & end', value: 'discard', style: 'danger' },
+        { label: 'Continue workout', value: 'continue' },
+      ],
+    }).then(choice => {
+      if (choice === 'save') { if (saveSets() === false) return; } // save failed/cancelled → stay in workout
+      else if (choice === 'discard') { clearPending(); render(); }
+      else return;                                                 // 'continue' or dismissed → stay
+      finalizeEndWorkout(active, true);                            // the dialog already confirmed intent
+    });
+    return;
+  }
+  finalizeEndWorkout(active, skipConfirm);
+}
+
+// Actually end the active workout (after any unsaved-set resolution).
+function finalizeEndWorkout(active, skipConfirm) {
+  if (!active || active.endedAt) return;
   const stats = computeSessionStats(active);
   const score = computeWorkoutScore(active);
   if (!skipConfirm) {
@@ -4851,6 +5604,7 @@ function endWorkout(skipConfirm) {
   }
   active.endedAt = new Date().toISOString();
   active.endReason = 'manual';
+  stopMetronome(); // feat 69 — stop the beat when the workout ends
   // Store final score on the session for posterity
   if (score) active.finalScore = score;
   saveState();
@@ -5167,6 +5921,14 @@ function cardioSummary(c) {
   return parts.join(' · ');
 }
 function renderSession(session, isToday) {
+  // feat 71 — show plan usage (full / partial) in history when a plan was attached.
+  const _plan = session.planId ? getPlan(session.planId) : null;
+  let planBadge = '';
+  if (_plan) {
+    const total = _plan.steps.length;
+    const doneSteps = (_plan.steps || []).reduce((n, st) => n + (stepStatus(session, st).done ? 1 : 0), 0);
+    planBadge = `<div class="plan-hist-badge">📋 ${escapeHtml(_plan.name)} · ${doneSteps}/${total} step${total===1?'':'s'}${(total > 0 && doneSteps >= total) ? ' ✓ full' : ' · partial'}</div>`;
+  }
   const exHtml = session.exercises.map((ex, exIdx) => {
     const info = VAR_INDEX.get(ex.varUuid);
     // Cardio entry (feat 6) — time/metrics, no set pills, no volume
@@ -5220,6 +5982,7 @@ function renderSession(session, isToday) {
         <button class="session-share-btn" data-share-session="${session.date}" title="Export / share this workout" aria-label="Export workout">⤴</button>
       </div>
     </div>
+    ${planBadge}
     ${renderNotesCard(session)}
     ${exHtml || '<div style="color:#666;font-size:12px;">No exercises yet</div>'}
     ${renderWorkoutStats(session)}
@@ -5464,6 +6227,7 @@ function renderExerciseDetail(main, key) {
       const varUuid = btn.dataset.varuuid;
       const subUuid = btn.dataset.subuuid || null;
       const name = displayName(varUuid, subUuid);
+      if (roBlocked('delete sets')) return;
       if (!confirm(`Delete this set from ${fmtDate(date)}?\n\n${name}\n\nThis cannot be undone.`)) return;
       const session = state.sessions.find(s => s.date === date);
       if (session) {
@@ -6743,6 +7507,7 @@ function exportReferenceCsv() {
   toast(`Exported ${lines.length - 1} rows → gym-reference_${ts}.csv`);
 }
 function importData(e) {
+  if (roBlocked('import data')) { e.target.value = ''; return; }
   const file = e.target.files[0];
   if (!file) return;
   e.target.value = ''; // reset so same file can be re-chosen
@@ -6985,6 +7750,7 @@ function renderBody(main) {
 }
 
 function saveBodyEntry(main) {
+  if (roBlocked('save body measurements')) return;
   const dateVal = document.getElementById('bc-date').value;
   if (!dateVal) { toast('Pick a date'); return; }
   const weightKg = bodyInputToKg(document.getElementById('bc-weight').value);
@@ -7169,6 +7935,7 @@ function closeNotesModal() {
 }
 
 function saveNotes() {
+  if (roBlocked('save notes')) return;
   if (!notesEditingSession) return;
   const session = state.sessions.find(s => s.date === notesEditingSession);
   if (!session) return;
@@ -7270,7 +8037,6 @@ function filterVariations() {
 
 function renderPicker() {
   const subFilters = SUB_FILTERS[modalState.pickerMega] || [{id:'all',label:'All'}];
-  const results = filterVariations();
   return `
     <div class="picker">
       ${modalState.supersetMode
@@ -7290,7 +8056,15 @@ function renderPicker() {
         ${EQUIPMENT.map(e => `<div class="pill equip ${modalState.pickerEquip === e.id ? 'active' : ''}" data-equip="${e.id}">${e.label}</div>`).join('')}
       </div>
     </div>
-    <div style="font-size:10.5px;color:#666;margin:4px 0 6px 2px;">${results.reduce((s, r) => s + r.variations.length, 0)} variation${results.length === 1 ? '' : 's'}</div>
+    <div id="trk-picker-results-wrap">${renderPickerResults()}</div>
+  `;
+}
+
+// feat 68 — results are a separate fragment so typing re-renders only the list, leaving the search
+// input and its ✕ button untouched (fixes the jiggly/inconsistent clear button + focus juggling).
+function renderPickerResults() {
+  const results = filterVariations();
+  return `<div style="font-size:10.5px;color:#666;margin:4px 0 6px 2px;">${results.reduce((s, r) => s + r.variations.length, 0)} variation${results.length === 1 ? '' : 's'}</div>
     <div class="picker-results">
       ${results.length === 0
         ? `<div class="picker-empty">No exercises match</div>`
@@ -7308,8 +8082,7 @@ function renderPicker() {
             <div class="picker-add-var" data-add-var-fam="${r.family.id}">+ Add custom variation</div>
           </div>
         `).join('')}
-    </div>
-  `;
+    </div>`;
 }
 
 function bindPicker() {
@@ -7318,14 +8091,9 @@ function bindPicker() {
     input.addEventListener('input', () => {
       modalState.pickerSearch = input.value;
       document.getElementById('trk-picker-clear-search').classList.toggle('show', !!input.value);
-      // Re-render results only
-      const body = document.getElementById('trk-modal-body');
-      body.innerHTML = renderPicker();
-      bindPicker();
-      // Restore focus and cursor
-      const newInput = document.getElementById('trk-picker-input');
-      newInput.focus();
-      newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+      // feat 68 — re-render ONLY the results so the input + ✕ stay mounted (no jiggle, no focus juggling).
+      const wrap = document.getElementById('trk-picker-results-wrap');
+      if (wrap) { wrap.innerHTML = renderPickerResults(); bindPickerResults(); }
     });
   }
   document.getElementById('trk-picker-clear-search')?.addEventListener('click', () => {
@@ -7359,6 +8127,11 @@ function bindPicker() {
   });
   document.getElementById('trk-ss2-cancel')?.addEventListener('click', exitSuperset);
 
+  bindPickerResults();
+}
+
+// feat 68 — bind just the result rows; re-callable after a results-only re-render.
+function bindPickerResults() {
   document.querySelectorAll('.picker-var').forEach(el => {
     el.addEventListener('click', () => {
       const varUuid = el.dataset.varuuid;
@@ -7389,6 +8162,7 @@ function bindPicker() {
         }
       }
       savePending();
+      speakRandomTip(pending.varUuid); // feat 66 — annunciate a random tip for the picked exercise
       modalState.showPicker = false;
       modalState.exNoteEditing = false; // feat 54
       renderModal();
@@ -7467,7 +8241,16 @@ function bindPlateLoader() {
   });
 }
 
+// feat 65 — collapse any extra fully-empty rows so the form never shows >1 incomplete blank row.
+function normalizePendingRows() {
+  if (!Array.isArray(pending.sets)) return;
+  const isBlank = s => (s.w === '' || s.w == null) && (s.r === '' || s.r == null);
+  let seenBlank = false;
+  pending.sets = pending.sets.filter(s => { if (isBlank(s)) { if (seenBlank) return false; seenBlank = true; } return true; });
+  if (!pending.sets.length) pending.sets = [{ w: '', r: '' }];
+}
 function renderSetsForm() {
+  normalizePendingRows();
   const info = VAR_INDEX.get(pending.varUuid);
   if (!info) {
     return `<div class="empty">Exercise not found. <button class="ghost sm" id="trk-back-to-picker" style="margin-top:10px;">← Pick again</button></div>`;
@@ -7587,7 +8370,7 @@ function renderSetsForm() {
           <div class="tips-chevron">›</div>
         </div>
       </div>
-      <div class="tips-content">${tipBlocks}</div>
+      <div class="tips-content"><button class="tips-ref-link" id="trk-tips-ref-btn" type="button">📚 Open full reference entry →</button>${tipBlocks}</div>
     </div>`;
   }
 
@@ -7868,11 +8651,41 @@ function commitSetField(i, f, val) {
 }
 
 /* feat 57 — optional in-app numpad (avoids the native mobile keyboard reflowing the form) */
+/* ---- OSK calculator (feat 65) ---- safe BEDMAS evaluator for the numpad.
+   Input is restricted to digits/operators/parens only, so Function() can't reach anything. */
+function evalExpr(expr) {
+  if (expr == null) return null;
+  const clean = String(expr).replace(/×/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-').trim();
+  if (!clean || !/\d/.test(clean)) return null;
+  if (!/^[0-9.+\-*/() ]+$/.test(clean)) return null;     // arithmetic characters only
+  if (/[+\-*/.]$/.test(clean)) return null;              // trailing operator → incomplete
+  try {
+    const r = Function('"use strict"; return (' + clean + ');')();
+    if (typeof r !== 'number' || !isFinite(r)) return null;
+    return Math.round(r * 1000) / 1000;
+  } catch (e) { return null; }
+}
+// "45+45×2 = 135" once the expression is complete; otherwise just the raw buffer.
+function isExpr(buf) { return /[+\-*/×÷−()]/.test(String(buf || '').slice(1)); }
+function formatCalcDisplay(buf) {
+  if (!buf) return '0';
+  if (isExpr(buf)) { const r = evalExpr(buf); if (r != null) return buf + ' = ' + r; }
+  return buf;
+}
+
 function numpadApplyKey(buf, key, opts) {
   opts = opts || {};
   const maxLen = opts.maxLen || 7;
   if (key === 'back') return buf.slice(0, -1);
   if (key === 'clear') return '';
+  if (opts.calc) {
+    // Calculator mode: build a free-form expression (display operators stored verbatim).
+    const opMap = { add: '+', sub: '−', mul: '×', div: '÷', lparen: '(', rparen: ')' };
+    if (key in opMap) return (buf + opMap[key]).slice(0, 32);
+    if (key === '.') return (buf + '.').slice(0, 32);
+    if (/^[0-9]$/.test(key)) return (buf + key).slice(0, 32);
+    return buf;
+  }
   if (key === 'sign') { if (!opts.sign) return buf; return buf.charAt(0) === '-' ? buf.slice(1) : '-' + buf; }
   if (key === '.') { if (!opts.decimal || buf.indexOf('.') !== -1) return buf; return (buf === '' || buf === '-') ? buf + '0.' : buf + '.'; }
   if (/^[0-9]$/.test(key)) {
@@ -7914,24 +8727,35 @@ function renderNumpad() {
   const isW = np.field === 'w';
   const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
   const sign = isW && M.mode === 'bodyweight';
+  const calc = state.calcMode === true;
   const label = isW ? (M.wLabel + ' (' + state.unit + ')') : M.rLabel;
-  const disp = np.buf === '' ? '0' : np.buf;
+  const disp = calc ? formatCalcDisplay(np.buf) : (np.buf === '' ? '0' : np.buf);
   const key = (k, txt, cls) => `<button class="np-key${cls ? ' ' + cls : ''}" data-np="${k}">${txt}</button>`;
   sheet.innerHTML = `
-    <div class="np-head"><span class="np-title">Set ${np.i + 1} · ${escapeHtml(label)}</span><button class="np-key np-close" data-np="done">Done</button></div>
+    <div class="np-head"><span class="np-title">Set ${np.i + 1} · ${escapeHtml(label)}</span><button class="np-calc-toggle ${calc ? 'active' : ''}" data-np="calctoggle" title="Calculator (BEDMAS)">🧮</button><button class="np-key np-close" data-np="next">Next</button></div>
     <div class="np-display">${escapeHtml(disp)}</div>
+    ${calc ? `<div class="np-ops">${key('lparen','(')}${key('rparen',')')}${key('div','÷')}${key('mul','×')}${key('sub','−')}${key('add','+')}</div>` : ''}
     <div class="np-grid">
       ${['1','2','3','4','5','6','7','8','9'].map(d => key(d, d)).join('')}
-      ${decimal ? key('.', '.') : '<span class="np-key np-key-empty"></span>'}
+      ${(decimal || calc) ? key('.', '.') : '<span class="np-key np-key-empty"></span>'}
       ${key('0', '0')}
       ${key('back', '⌫')}
     </div>
     <div class="np-actions">
-      ${sign ? key('sign', '±', 'np-wide') : ''}
+      ${(sign && !calc) ? key('sign', '±', 'np-wide') : ''}
       ${key('clear', 'Clear', 'np-wide')}
-      ${key('next', 'Next', 'np-wide np-next')}
+      ${key('done', 'Done', 'np-wide np-primary')}
     </div>`;
   bindNumpadKeys();
+}
+// Collapse the calculator expression to its numeric result and commit it (on Next/Done).
+function finalizeCalc(np) {
+  const r = evalExpr(np.buf);
+  if (r == null) return;
+  np.buf = String(r);
+  const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + np.i + '"][data-field="' + np.field + '"]');
+  if (inp) inp.value = np.buf;
+  commitSetField(np.i, np.field, np.buf);
 }
 function bindNumpadKeys() {
   const sheet = document.getElementById('trk-numpad');
@@ -7940,16 +8764,25 @@ function bindNumpadKeys() {
   sheet.querySelectorAll('[data-np]').forEach(btn => btn.addEventListener('click', () => {
     const k = btn.dataset.np, np = modalState.numpad;
     if (!np) return;
-    if (k === 'done') { closeNumpad(); return; }
-    if (k === 'next') { numpadNext(); return; }
+    if (k === 'calctoggle') { state.calcMode = !state.calcMode; saveState(); renderNumpad(); return; }   // feat 65 — persistent
+    const calc = state.calcMode === true;
+    if (k === 'done') { if (calc) finalizeCalc(np); closeNumpad(); return; }
+    if (k === 'next') { if (calc) finalizeCalc(np); numpadNext(); return; }
     const M = exMode(pending.varUuid), isW = np.field === 'w';
     const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
     const sign = isW && M.mode === 'bodyweight';
-    np.buf = numpadApplyKey(np.buf, k, { decimal: decimal, sign: sign, maxLen: 7 });
-    if (disp) disp.textContent = np.buf === '' ? '0' : np.buf;
+    np.buf = numpadApplyKey(np.buf, k, { decimal: decimal, sign: sign, maxLen: 7, calc: calc });
     const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + np.i + '"][data-field="' + np.field + '"]');
-    if (inp) inp.value = np.buf;
-    commitSetField(np.i, np.field, np.buf);
+    if (calc) {
+      if (disp) disp.textContent = formatCalcDisplay(np.buf);
+      const r = evalExpr(np.buf);                 // commit the running result; leave field untouched mid-expression
+      if (r != null) { if (inp) inp.value = String(r); commitSetField(np.i, np.field, String(r)); }
+      else if (np.buf === '') { if (inp) inp.value = ''; commitSetField(np.i, np.field, ''); }
+    } else {
+      if (disp) disp.textContent = np.buf === '' ? '0' : np.buf;
+      if (inp) inp.value = np.buf;
+      commitSetField(np.i, np.field, np.buf);
+    }
   }));
 }
 
@@ -7979,6 +8812,7 @@ function bindSetsForm() {
   });
 
   // Tips section toggle
+  document.getElementById('trk-tips-ref-btn')?.addEventListener('click', (e) => { e.stopPropagation(); openReferenceFor(pending.varUuid); });
   document.getElementById('trk-tips-header')?.addEventListener('click', () => {
     const sec = document.getElementById('trk-tips-section');
     sec.classList.toggle('open');
@@ -8263,7 +9097,16 @@ function copyWeightToNextSet() {
 }
 
 function addSetRow(mode) {
-  if (!enforceSingleOpenSet()) return;
+  // feat 65 — keep at most ONE incomplete row. If one already exists, focus it instead of stacking another.
+  const incIdx = (pending.sets || []).findIndex(s => !isSetValid(s));
+  if (incIdx !== -1) {
+    const s = pending.sets[incIdx];
+    if (isSetOpen(s)) toast('Finish the open set first — enter its reps');
+    const field = (s.w !== '' && s.w != null) ? 'r' : 'w';
+    if (state.workoutControls && state.workoutControls.onScreenNumpad && typeof openNumpad === 'function') openNumpad(incIdx, field);
+    else { const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + incIdx + '"][data-field="' + field + '"]'); if (inp) { inp.focus(); inp.scrollIntoView({ block: 'nearest' }); } }
+    return;
+  }
   let w = '';
   if (mode === 'prev') {
     for (let i = pending.sets.length - 1; i >= 0; i--) {
@@ -8283,13 +9126,18 @@ function addSetRow(mode) {
 }
 
 function saveSets() {
-  if (!pending.varUuid) { toast('Pick an exercise'); return; }
+  if (roBlocked('log sets')) return false;
+  if (!pending.varUuid) { toast('Pick an exercise'); return false; }
   const nowIso = new Date().toISOString();
   // Filter to valid sets, preserving each set's last-edit timestamp (fallback to save time)
   const validSets = pending.sets
     .filter(s => isSetValid(s))
     .map(s => ({ w: s.w, r: s.r, wTs: s.wTs || undefined, ts: s.ts || nowIso }));
-  if (validSets.length === 0) { toast('Enter at least one set'); return; }
+  if (validSets.length === 0) { toast('Enter at least one set'); return false; }
+  // feat 63 — a bodyweight exercise needs a recorded bodyweight to be meaningful; block until one exists.
+  if (exMode(pending.varUuid).mode === 'bodyweight' && getCurrentBodyweightKg() == null) {
+    toast('⚖️ Log your bodyweight first (Body tab) to save bodyweight exercises'); return false;
+  }
 
   // Confirmation popup: show if any infeasible weight OR alwaysConfirm is on
   const hasInfeasible = validSets.some(s => !isSetFeasible(s));
@@ -8303,7 +9151,7 @@ function saveSets() {
       const setLines = validSets.map((s, i) => `  Set ${i+1}: ${s.w}${state.unit} × ${s.r} reps`).join('\n');
       msg = `Save ${validSets.length} set${validSets.length === 1 ? '' : 's'} for ${exName}?\n\n${setLines}`;
     }
-    if (!confirm(msg)) return;
+    if (!confirm(msg)) return false;
   }
 
   if (modalState.isEditing) {
@@ -8339,9 +9187,11 @@ function saveSets() {
   clearPending();
   closeLogModal();
   render();
+  return true;
 }
 
 function deleteExercise() {
+  if (roBlocked('delete')) return;
   if (!confirm('Delete this exercise from the session?')) return;
   const session = state.sessions.find(s => s.date === modalState.editingSessionDate);
   if (session) {
@@ -8368,6 +9218,7 @@ loadState();
 applyExtraVariations();
 applyCustomVariations();
 installGlossaryHighlight();
+applyI18n(document); // feat 61 — translate tagged static markup (attrs/text) for the active language
 logInfo('App loaded', (state.sessions ? state.sessions.length : 0) + ' sessions');
 
 document.querySelectorAll('.tab[data-tab]').forEach(t => {
@@ -8408,7 +9259,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 12 · 2026-06-02 21:10';
+const APP_BUILD = 'build 13 · 2026-06-03 03:55';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -8433,6 +9284,62 @@ function restBeep(freq, dur) {
     g.gain.setValueAtTime(0.0009, _restAudioCtx.currentTime);
     o.start(); o.stop(_restAudioCtx.currentTime + (dur || 0.12));
   } catch(_){}
+}
+
+/* ---- Workout metronome (feat 69) — customizable audio + haptic; on/off is per-workout (runtime only). ---- */
+let _metroId = null, _metroBeat = 0;
+function metroCfg() {
+  const d = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3 };
+  return { ...d, ...(state.metronome || {}) };
+}
+function metronomeRunning() { return _metroId != null; }
+function metroBeep(freq, vol) {
+  try {
+    if (typeof window === 'undefined') return;
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    _restAudioCtx = _restAudioCtx || new AC();
+    if (_restAudioCtx.state === 'suspended') _restAudioCtx.resume();
+    const o = _restAudioCtx.createOscillator(), g = _restAudioCtx.createGain();
+    o.frequency.value = freq; o.type = 'sine'; o.connect(g); g.connect(_restAudioCtx.destination);
+    const t = _restAudioCtx.currentTime, v = Math.max(0.01, Math.min(1, vol == null ? 0.3 : vol));
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    o.start(t); o.stop(t + 0.08);
+  } catch (e) {}
+}
+function metroTick() {
+  const c = metroCfg();
+  const accent = (c.accentEvery > 1) && (_metroBeat % c.accentEvery === 0);
+  if (c.audio !== false) metroBeep(accent ? (c.accentFreq || 1320) : (c.freq || 880), c.vol);
+  if (c.haptic) safeVibrate(accent ? [45] : [22]);
+  _metroBeat++;
+}
+function startMetronome() {
+  if (_metroId != null) return;
+  const bpm = Math.max(20, Math.min(300, metroCfg().bpm || 60));
+  _metroBeat = 0;
+  metroTick();                                   // immediate downbeat (also unlocks audio on the user gesture)
+  _metroId = setInterval(metroTick, 60000 / bpm);
+  refreshMetronomeUI();
+}
+function stopMetronome() {
+  if (_metroId != null) { clearInterval(_metroId); _metroId = null; }
+  refreshMetronomeUI();
+}
+function toggleMetronome() { metronomeRunning() ? stopMetronome() : startMetronome(); }
+function restartMetronomeIfRunning() { if (metronomeRunning()) { stopMetronome(); startMetronome(); } }
+function refreshMetronomeUI() {
+  const btn = document.getElementById('metro-toggle-btn');
+  if (btn) { btn.classList.toggle('on', metronomeRunning()); btn.textContent = (metronomeRunning() ? '⏸' : '▶') + ' Metronome'; }
+  const bpmEl = document.getElementById('metro-bpm-val');
+  if (bpmEl) bpmEl.textContent = metroCfg().bpm + ' bpm';
+}
+function changeMetroBpm(delta) {
+  const next = Math.max(20, Math.min(300, (metroCfg().bpm || 60) + delta));
+  state.metronome = { ...metroCfg(), bpm: next };
+  saveState();
+  refreshMetronomeUI();
+  restartMetronomeIfRunning();                    // apply the new tempo immediately
 }
 
 // What should the bar show right now? idle | open (active set) | resting.
@@ -8613,7 +9520,7 @@ setTimeout(() => {
   <div id="ref-exercises"></div>
 </main>
 
-<button class="gloss-btn" id="ref-gloss-btn" title="Open glossary" aria-label="Open glossary">📖</button>
+<!-- feat 71 — glossary FAB removed; the top-bar 📖 button is the single entry point -->
 <div class="gloss-backdrop" id="ref-gloss-backdrop"></div>
 <aside class="gloss-panel" id="ref-gloss-panel" aria-label="Glossary">
   <div class="gloss-header">
@@ -15349,7 +16256,6 @@ function showOnChart(term) {
 }
 
 document.getElementById('ref-gloss-chart-btn').addEventListener('click', toggleGlossChart);
-document.getElementById('ref-gloss-btn').addEventListener('click', openGloss);
 document.getElementById('ref-gloss-close').addEventListener('click', closeGloss);
 document.getElementById('ref-gloss-backdrop').addEventListener('click', closeGloss);
 document.getElementById('ref-gloss-search').addEventListener('input', e => {
