@@ -637,6 +637,17 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-edit-opt button { background: none; border: none; color: var(--accent); font-size: 14px; cursor: pointer; line-height: 1; padding: 0 2px; }
   .plan-edit-add-opt { font-size: 11.5px; background: var(--bg2); border: 1px dashed var(--border2); color: var(--text2); padding: 4px 9px; border-radius: 12px; cursor: pointer; font-family: inherit; }
   .plan-edit-sets { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); }
+  /* feat 85 — editable plan intensity + per-step load */
+  .plan-edit-intensity { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .pei-lbl { font-size: 12px; color: var(--text3); font-weight: 700; }
+  .pei-hint { font-size: 10px; color: var(--text3); margin-left: 2px; }
+  .pei-pill { width: 30px; height: 28px; border-radius: 7px; border: 1px solid var(--border2); background: var(--input-bg); color: var(--text2); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .pei-pill.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  .plan-edit-load { display: flex; align-items: center; gap: 6px; margin-top: 7px; font-size: 12px; color: var(--text3); }
+  .pel-pill { font-size: 11px; font-weight: 700; text-transform: capitalize; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border2); background: var(--input-bg); color: var(--text3); cursor: pointer; font-family: inherit; }
+  .pel-pill.active { background: var(--bg4); color: var(--text); border-color: var(--text3); }
+  .pel-pill.light.active { color: var(--good); border-color: var(--good); }
+  .pel-pill.heavy.active { color: var(--warn); border-color: var(--warn); }
   .optpick-fam { border-bottom: 1px solid var(--border); padding: 6px 0; }
   .optpick-fam-head { display: flex; align-items: center; justify-content: space-between; }
   .optpick-fam-head span { font-size: 13px; color: var(--text); font-weight: 600; }
@@ -1032,7 +1043,12 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .tips-chevron { color: #888; font-size: 12px; transition: transform 0.2s; }
   .tips-section.open .tips-chevron { transform: rotate(90deg); }
   .tips-content { display: none; padding: 0 12px 11px 12px; border-top: 1px solid #1f1f1f; }
-  .tips-section.open .tips-content { display: block; padding-top: 10px; }
+  /* feat 85 — cap tips height so long details never bury the sets */
+  .tips-section.open .tips-content { display: block; padding-top: 10px; max-height: 38vh; overflow-y: auto; }
+  /* feat 85 — SETS in their own resizable, independently-scrollable panel */
+  .sets-section { border: 1px solid var(--border2); border-radius: 9px; background: var(--bg2); padding: 6px 8px 4px; }
+  .sets-section .set-header { position: sticky; top: 0; background: var(--bg2); z-index: 1; padding-top: 2px; }
+  .sets-scroll { max-height: 40vh; min-height: 84px; overflow-y: auto; resize: vertical; }
   .tip-block { margin-bottom: 10px; }
   .tip-block:last-child { margin-bottom: 0; }
   .tip-block-label { font-size: 9.5px; color: #80a0ff; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; margin-bottom: 3px; }
@@ -5705,6 +5721,7 @@ function renderPlanEditor(body, plan) {
       ? `<div class="plan-media-attached"><span class="pme-info">${mediaPlatformIcon(plan.media.platform)} ${mediaPlatformName(plan.media.platform)} video attached</span><button class="drawer-btn" id="plan-media-view">▶ Preview</button><button class="drawer-btn danger" id="plan-media-del" aria-label="Remove">🗑</button></div>`
       : `<div class="plan-media-add"><input type="url" id="plan-media-input" inputmode="url" placeholder="🎬 Attach a video — YouTube / Shorts / TikTok / Reel" autocomplete="off" autocapitalize="off" spellcheck="false" style="flex:1;min-width:0;padding:8px 10px;font-size:12.5px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);"><button class="drawer-btn" id="plan-media-add-btn">Attach</button></div>`
     }</div>
+    <div class="plan-edit-intensity"><span class="pei-lbl">Intensity</span>${[1,2,3,4,5].map(n => `<button class="pei-pill ${planIntensity(plan) === n ? 'active' : ''}" data-plan-intensity="${n}">${n}</button>`).join('')}<span class="pei-hint">1 easy · 5 brutal</span></div>
     ${plan.steps.map((st, i) => `<div class="plan-edit-step">
       <div class="plan-edit-step-head"><span class="plan-edit-step-num">Step ${i+1}</span>
         <div class="plan-edit-step-btns">
@@ -5717,6 +5734,7 @@ function renderPlanEditor(body, plan) {
         <button class="plan-edit-add-opt" data-add-opt="${i}">+ exercise</button>
       </div>
       <div class="plan-edit-sets"><span>Suggested sets</span><input type="number" data-step-sets="${i}" value="${st.sets}" min="1" max="20" style="width:56px;padding:5px 7px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);"></div>
+      <div class="plan-edit-load"><span>Load vs baseline</span>${['light','moderate','heavy'].map(l => `<button class="pel-pill ${l} ${(st.load||'moderate')===l ? 'active' : ''}" data-step-load="${i}:${l}">${l}</button>`).join('')}</div>
       <input type="text" data-step-desc="${i}" value="${escapeAttr(st.desc||'')}" placeholder="Step note (optional)" style="width:100%;margin-top:6px;padding:5px 8px;font-size:12px;border-radius:6px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);">
     </div>`).join('')}
     <button class="drawer-btn" id="plan-add-step-btn" style="margin-top:8px;">+ Add step</button>`;
@@ -5729,6 +5747,9 @@ function bindPlanEditor(body, plan) {
   if (nameInp) nameInp.addEventListener('change', () => { plan.name = nameInp.value.trim() || 'Plan'; save(); });
   const descInp = body.querySelector('#plan-desc-input');
   if (descInp) descInp.addEventListener('change', () => { plan.desc = descInp.value.trim(); save(); });
+  // feat 85 — editable intensity (per plan) + load (per step) for custom plans
+  body.querySelectorAll('[data-plan-intensity]').forEach(b => b.addEventListener('click', () => { plan.intensity = +b.dataset.planIntensity; save(); renderPlansOverlay(); }));
+  body.querySelectorAll('[data-step-load]').forEach(b => b.addEventListener('click', () => { const [si, l] = b.dataset.stepLoad.split(':'); if (plan.steps[+si]) { plan.steps[+si].load = l; save(); renderPlansOverlay(); } }));
   // feat 83 — one attached web video per plan
   const planMediaAdd = () => { const inp = body.querySelector('#plan-media-input'); if (!inp) return; const parsed = parseMediaUrl(inp.value); if (!parsed) { toast('Could not read that link'); return; } plan.media = parsed; save(); renderPlansOverlay(); toast('Video attached'); };
   body.querySelector('#plan-media-add-btn')?.addEventListener('click', planMediaAdd);
@@ -6354,6 +6375,7 @@ function startWorkout() {
   if (existing) { toast('Workout already in progress'); return; }
   const session = { date: new Date().toISOString(), exercises: [], startedManually: true };
   state.sessions.push(session);
+  modalState.setup = {}; modalState.setupOpen = false; // feat 85 — equipment setup persists *within* a workout; fresh at begin
   saveState();
   render();
   // feat 63 — warn at workout start if bodyweight (and optionally other biometrics) is missing or stale.
@@ -6405,6 +6427,7 @@ function finalizeEndWorkout(active, skipConfirm) {
   }
   active.endedAt = new Date().toISOString();
   active.endReason = 'manual';
+  modalState.setup = {}; modalState.setupOpen = false; // feat 85 — clear persisted equipment setup at workout end
   stopMetronome(); // feat 69 — stop the beat when the workout ends
   hrFinalize(active); // feat 72 — roll the recorded HR samples into the session's avg/max
   // Store final score on the session for posterity
@@ -9221,7 +9244,7 @@ function bindPickerResults() {
       pending.subUuid = info && info.variation.subscription
         ? info.variation.subscription.options[0].uuid
         : null;
-      modalState.setup = {}; modalState.setupOpen = false; pending.defaultWeight = null; // reset equipment setup per exercise (feat 41/78/79)
+      modalState.setupOpen = false; pending.defaultWeight = null; // feat 85 — collapse the configurator on exercise switch, but KEEP the loaded setup (persists by type within the workout)
       if (isCardioVar(varUuid)) {
         // Cardio is tracked as time + metrics, not weight×reps (feat 6)
         pending.sets = [];
@@ -9765,10 +9788,12 @@ function renderSetsForm() {
     ${renderSetupInline()}
 
     <div class="card-title" style="margin-top:14px;">Sets</div>
-    <div class="set-header">
-      <div>#</div><div>WEIGHT</div><div>REPS</div><div></div>
+    <div class="sets-section">
+      <div class="set-header">
+        <div>#</div><div>WEIGHT</div><div>REPS</div><div></div>
+      </div>
+      <div id="trk-sets-container" class="sets-scroll">${setsHtml}</div>
     </div>
-    <div id="trk-sets-container">${setsHtml}</div>
     <div id="trk-neighbor-hints"></div>
 
     <!-- feat 58 — Add Set moved to the footer button row -->
@@ -10534,7 +10559,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 25 · 2026-06-03 14:10';
+const APP_BUILD = 'build 26 · 2026-06-03 14:23';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
