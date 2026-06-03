@@ -3,5 +3,11 @@
 # every commit, then re-stage it so the committed file always shows the true build.
 # Enable once per clone:  git config core.hooksPath .githooks
 root="$(git rev-parse --show-toplevel)"
+# Fast static checks (syntax/lint/build-stamp/python) gate every commit so a stray
+# token can't break the whole inline <script> unnoticed. Skips cleanly if the test
+# suite isn't present; bypass in a pinch with: git commit --no-verify
+if [ -f "$root/test/check.mjs" ]; then
+  node "$root/test/check.mjs" || { echo "pre-commit: static checks failed (see above). Fix, or bypass with: git commit --no-verify" >&2; exit 1; }
+fi
 node "$root/.githooks/stamp-build.js" || exit 0
 git add "$root/gym-tracker.html"

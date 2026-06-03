@@ -10704,7 +10704,7 @@ applyExtraVariations();
 applyCustomVariations();
 installGlossaryHighlight();
 applyI18n(document); // feat 61 — translate tagged static markup (attrs/text) for the active language
-hrTryReconnect(); // feat 72 — auto-reconnect the last heart-rate device if the browser remembers it
+setTimeout(hrTryReconnect, 0); // feat 72 — auto-reconnect last HR device; deferred so it runs after boot completes (this INIT block is above the `let _hrConnected` declaration, so calling synchronously here hit its temporal-dead-zone and silently rejected — auto-reconnect never actually ran)
 logInfo('App loaded', (state.sessions ? state.sessions.length : 0) + ' sessions');
 
 document.querySelectorAll('.tab[data-tab]').forEach(t => {
@@ -10745,7 +10745,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 30 · 2026-06-03 15:09';
+const APP_BUILD = 'build 31 · 2026-06-03 15:45';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

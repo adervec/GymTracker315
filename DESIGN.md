@@ -510,7 +510,9 @@ is unchanged.
 - **Cardio is data‑shaped to opt out of strength math**: empty `sets` means every volume/score/trend
   function ignores it automatically; a guard in History skips zero‑set entries.
 - **Separate log storage** so JSON export/import stays clean.
-- **Headless validation harness** (`node` + DOM stub) runs all blocks and exercises every render path.
+- **Two-layer test suite** (see §6): a zero-dependency static check (parses every inline `<script>`, lints,
+  verifies the build stamp + Python helpers) plus a Playwright behavioral suite that boots the real file in
+  headless Chromium and asserts the pure helpers + a clean boot. GitHub Actions runs both on every push/PR.
 
 ## 5. Known limitations
 - Per‑muscle distribution is directional (explicit map for major lifts, even split otherwise), not lab‑accurate.
@@ -522,3 +524,31 @@ is unchanged.
 - The build stamp auto‑updates via a git pre‑commit hook; enable it once per clone with `git config core.hooksPath .githooks` (Node must be on PATH). Each commit therefore touches `gym-tracker.html` with the refreshed stamp.
 - Exercise notes are **global per variation** — the same note shows for every grip/sub‑option and in every session; they are intentionally not repeated on per‑session history rows or in the image/text export (easy follow‑ups).
 - The remaining‑exercises suggester uses the coarse `getBP` bodypart map (compound lower lifts count as quads; only the four strength megas are covered) and surfaces one suggestion per missing area — a nudge to round out balance, not a full program.
+
+## 6. Testing & CI
+The app is one ~1.4 MB self‑contained file, so the test tooling lives alongside it (`package.json`, `test/`,
+`playwright.config.mjs`, `.github/workflows/ci.yml`) and never touches the shipped HTML. Two layers:
+
+**Layer 1 — static checks (`npm run check`, zero dependencies, ~1 s).** `test/check.mjs` extracts every inline
+`<script>` block and parses each with `vm.Script` (this is what catches a stray token that would otherwise break
+the whole script at load — the exact failure mode that has bitten this repo). It also lints for native
+`confirm/alert/prompt` calls (the themed dialogs replaced them), `debugger` statements and external `<script src>`
+(the file must stay single‑file); checks `APP_BUILD` is well‑formed; greps that the critical functions are still
+defined; and `py_compile`s the three `tools/*.py` helpers. Wired into the pre‑commit hook so a parse break can't be
+committed (bypass with `git commit --no-verify`).
+
+**Layer 2 — behavioral suite (`npm test`, Playwright + headless Chromium).** `test/app.spec.mjs` serves the file
+over `http://127.0.0.1` (a tiny zero‑dep server, `test/serve.mjs`) and, in an isolated context per test, asserts:
+the app boots with **no console/page errors** and renders its shell; the critical globals are exposed; and the pure
+helpers compute correctly — `estimated1RM` (Epley), `kgToLb`/`lbToKg` round‑trip, `parseMediaUrl`
+(YouTube/TikTok/Instagram id extraction + junk rejection), `estimatePlanMinutes`/`intensityDots`, `autoLoadSupported`,
+`normalizeState` → `saveState` sync defaults, and a silent `importStravaActivities` merge. `npm test` runs the static
+checks first (`pretest`).
+
+**CI.** `.github/workflows/ci.yml` runs both layers on every push to `main`/`dev` and on PRs (Ubuntu, Node 20 +
+Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwright report as an artifact.
+
+> The behavioral suite paid for itself on day one: its clean‑boot assertion caught a real shipped bug — the feat‑72
+> HR auto‑reconnect call in the INIT block ran *above* the `let _hrConnected` declaration, so it threw a
+> temporal‑dead‑zone rejection on every load and **auto‑reconnect never actually ran**. Fixed by deferring the call
+> one tick (`setTimeout(hrTryReconnect, 0)`) so it fires after the script finishes initializing.
