@@ -179,6 +179,14 @@ They share variation **UUIDs**.
   and tags each slide "This variation"/"Whole movement"); manage mode shows one add/remove section per level. The
   Reference movement header has its own "🎬 Movement" button. `refreshMediaCounts()` recomputes every `[data-media-label]`
   badge (variation-only, movement-only, or combined via `data-media-mov`) without a re-render.
+- **Reference compact views (feat 76):** a Detailed / 🌳 Tree / ▦ Table toggle (`#ref-view-toggle`, persisted in
+  **`state.refView`** ∈ SETTINGS_KEYS) at the top of the Reference panel; `renderRef()` branches to `renderRefTree` /
+  `renderRefTable` before its detailed render. **Tree** = collapsible movements → compact variation rows; **Table** =
+  one row per variation (Movement · Variation · Group `megaBadge` · Meta). Both flag attached metadata *without* showing
+  details via `refMetaBadges(uuid, movId)` — **📝** note (feat 54, per-variation) and **🎬**(+count) video links (feat
+  75, own row only); the 🎬 badge opens the carousel (`stopPropagation`), tapping the row elsewhere calls `refDrillTo` to
+  jump to the full detailed entry (expanded + scrolled, toggle re-synced). `syncRefViewToggle` keeps the segmented
+  control in sync.
 
 ---
 

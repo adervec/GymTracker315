@@ -328,6 +328,47 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 /* Reference movement-header media button (slightly distinct from the per-variation one) */
 .ref-media-btn.mov { border-style: dashed; }
 
+/* feat 76 — reference compact views (tree + table) */
+.ref-view-toggle { display: flex; margin-bottom: 10px; border: 1px solid var(--border2); border-radius: 9px; overflow: hidden; background: var(--bg3); }
+.ref-view-toggle button { flex: 1; padding: 7px 6px; border: none; background: transparent; color: var(--text3); font-size: 11.5px; font-weight: 700; cursor: pointer; font-family: inherit; border-right: 1px solid var(--border2); -webkit-tap-highlight-color: transparent; }
+.ref-view-toggle button:last-child { border-right: none; }
+.ref-view-toggle button.active { background: var(--accent-bg); color: var(--accent); }
+/* tree */
+.ref-tree { display: flex; flex-direction: column; gap: 6px; }
+.rt-mov { background: var(--card-bg); border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.rt-mov.is-hidden { opacity: 0.5; }
+.rt-mov-head { display: flex; align-items: center; gap: 8px; padding: 9px 11px; cursor: pointer; user-select: none; }
+.rt-mov-head:active { background: var(--bg3); }
+.rt-chev { color: var(--text3); font-size: 10px; transition: transform 0.15s; flex-shrink: 0; width: 10px; }
+.rt-mov.open .rt-chev { transform: rotate(90deg); }
+.rt-icon { font-size: 15px; flex-shrink: 0; }
+.rt-mov-title { flex: 1; font-size: 13px; font-weight: 700; color: var(--text); }
+.rt-count { font-size: 10px; color: var(--text3); background: var(--bg3); border-radius: 10px; padding: 1px 7px; font-weight: 700; flex-shrink: 0; }
+.rt-vars { display: none; flex-direction: column; border-top: 1px solid var(--border2); }
+.rt-mov.open .rt-vars { display: flex; }
+.rt-var { display: flex; align-items: center; gap: 8px; padding: 7px 11px 7px 30px; cursor: pointer; border-top: 1px solid var(--border2); }
+.rt-var:first-child { border-top: none; }
+.rt-var:active { background: var(--bg3); }
+.rt-var.is-hidden { opacity: 0.5; }
+.rt-var-title { flex: 1; font-size: 12px; color: var(--text2); }
+.rt-meta { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+/* table */
+.ref-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ref-table th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); padding: 6px 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 1; }
+.ref-table td { padding: 7px 8px; border-bottom: 1px solid var(--border2); color: var(--text2); vertical-align: middle; }
+.ref-table tr { cursor: pointer; }
+.ref-table tbody tr:active { background: var(--bg3); }
+.ref-table tr.is-hidden { opacity: 0.5; }
+.rtb-mov { color: var(--text3); font-size: 11px; max-width: 28vw; }
+.rtb-var { color: var(--text); font-weight: 600; }
+.rtb-meta { white-space: nowrap; text-align: center; }
+.rtb-dash { color: var(--text3); }
+/* metadata badges (shared by tree + table) */
+.ref-meta { font-size: 12.5px; display: inline-flex; align-items: center; line-height: 1; }
+.ref-meta.b-med { cursor: pointer; }
+.ref-meta.b-med:active { transform: scale(0.9); }
+.ref-meta .rm-ct { font-size: 9px; font-weight: 800; color: var(--accent); margin-left: 1px; }
+
 /* Settings drawer */
 #settings-backdrop {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -2278,7 +2319,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2458,6 +2499,7 @@ function normalizeState() {
   if (!state.hiddenCategories || typeof state.hiddenCategories !== 'object') state.hiddenCategories = {};
   if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
   if (!state.exerciseMedia || typeof state.exerciseMedia !== 'object') state.exerciseMedia = {}; // feat 75 — per-exercise reference video links
+  if (['detailed','tree','table'].indexOf(state.refView) < 0) state.refView = 'detailed'; // feat 76 — reference view mode
   state.cardioGoals = { weeklyMinutes:0, weeklyDistance:0, weeklySessions:0, distanceUnit:'km', ...(state.cardioGoals||{}) };
 }
 
@@ -9868,7 +9910,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 17 · 2026-06-03 10:19';
+const APP_BUILD = 'build 18 · 2026-06-03 10:45';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -10376,6 +10418,11 @@ setTimeout(() => {
 </header>
 
 <main>
+  <div class="ref-view-toggle" id="ref-view-toggle">
+    <button data-view="detailed" type="button">☰ Detailed</button>
+    <button data-view="tree" type="button">🌳 Tree</button>
+    <button data-view="table" type="button">▦ Table</button>
+  </div>
   <div class="results-count" id="ref-results-count"></div>
   <div id="ref-exercises"></div>
 </main>
@@ -16420,6 +16467,10 @@ function renderRef() {
   resultsCount.textContent = `${filtered.length} movement${filtered.length === 1 ? '' : 's'} · ${totalVariations} variation${totalVariations === 1 ? '' : 's'}`;
   if (filtered.length === 0) { main.innerHTML = '<div class="no-results">No exercises match your filters.</div>'; return; }
 
+  const view = state.refView || 'detailed';
+  if (view === 'tree') { main.innerHTML = renderRefTree(filtered); return; }
+  if (view === 'table') { main.innerHTML = renderRefTable(filtered); return; }
+
   main.innerHTML = filtered.map(ex => `
     <div class="exercise ${isMovementHidden(ex.id) ? 'is-hidden' : ''}" data-id="ref-${ex.id}" data-mega="${ex.mega}">
       <div class="exercise-header" onclick="toggleEx('${ex.id}')">
@@ -16507,6 +16558,71 @@ function toggleVar(vid) {
   event.stopPropagation();
   document.querySelector(`.variation[data-vid="${vid}"]`).classList.toggle('open');
 }
+
+/* ---- feat 76 — reference compact views (tree + table) with metadata indicators ----
+   Badges flag attached metadata WITHOUT showing details: 📝 note (feat 54), 🎬 video links
+   (feat 75). Notes are per-variation; movement rows show only their own movement-level clips. */
+function refMetaBadges(uuid, movId) {
+  if (!uuid) return '';
+  const note = getExerciseNote(uuid);
+  const med = getExerciseMedia(uuid).length; // this row's own attachments
+  let s = '';
+  if (note) s += `<span class="ref-meta b-note" title="Has a note">📝</span>`;
+  if (med) {
+    const args = movId ? `'${uuid}', null, '${movId}'` : `'${uuid}'`;
+    s += `<span class="ref-meta b-med" title="${med} video${med === 1 ? '' : 's'} attached" onclick="event.stopPropagation();openExerciseMedia(${args})">🎬${med > 1 ? '<span class="rm-ct">' + med + '</span>' : ''}</span>`;
+  }
+  return s;
+}
+function renderRefTree(filtered) {
+  return `<div class="ref-tree">` + filtered.map(ex => {
+    const vars = (ex.variations || []).map(v => `
+      <div class="rt-var ${v.uuid && isVarHidden(v.uuid) ? 'is-hidden' : ''}" onclick="refDrillTo('${ex.id}','${ex.id}-${v.id}')">
+        <span class="rt-var-title">${v.title}</span>
+        <span class="rt-meta">${v.uuid ? refMetaBadges(v.uuid, ex.id) : ''}</span>
+      </div>`).join('');
+    return `<div class="rt-mov ${isMovementHidden(ex.id) ? 'is-hidden' : ''}">
+      <div class="rt-mov-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="rt-chev">▶</span>
+        <span class="rt-icon">${icons[ex.icon] || icons.machine}</span>
+        <span class="rt-mov-title">${ex.title}</span>
+        <span class="rt-meta">${refMetaBadges(ex.id)}</span>
+        <span class="rt-count">${(ex.variations || []).length}</span>
+      </div>
+      <div class="rt-vars">${vars}</div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+function renderRefTable(filtered) {
+  const rows = [];
+  filtered.forEach(ex => {
+    (ex.variations || []).forEach(v => {
+      const meta = v.uuid ? refMetaBadges(v.uuid, ex.id) : '';
+      rows.push(`<tr class="${v.uuid && isVarHidden(v.uuid) ? 'is-hidden' : ''}" onclick="refDrillTo('${ex.id}','${ex.id}-${v.id}')">
+        <td class="rtb-mov">${ex.title}</td>
+        <td class="rtb-var">${v.title}</td>
+        <td class="rtb-grp">${megaBadge(ex.mega)}</td>
+        <td class="rtb-meta">${meta || '<span class="rtb-dash">—</span>'}</td>
+      </tr>`);
+    });
+  });
+  return `<table class="ref-table"><thead><tr><th>Movement</th><th>Variation</th><th>Group</th><th>Meta</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+}
+function syncRefViewToggle() {
+  const vt = document.getElementById('ref-view-toggle'); if (!vt) return;
+  const v = state.refView || 'detailed';
+  vt.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+}
+// Tap a compact-view row → jump to the full detailed entry, expanded + scrolled into view.
+function refDrillTo(exId, vid) {
+  state.refView = 'detailed'; saveState(); syncRefViewToggle(); renderRef();
+  const exEl = document.querySelector(`.exercise[data-id="ref-${exId}"]`);
+  if (exEl) {
+    exEl.classList.add('open');
+    if (vid) { const vEl = exEl.querySelector(`.variation[data-vid="${vid}"]`); if (vEl) vEl.classList.add('open'); }
+    setTimeout(() => exEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);
+  }
+}
 function refLogExercise(varUuid) {
   if (!varUuid || pending.varUuid) return; // only if nothing is being logged
   // Switch to Tracker panel
@@ -16549,6 +16665,14 @@ equipFilter.querySelectorAll('.equip-pill').forEach(pill => {
     renderRef();
   });
 });
+// feat 76 — Detailed / Tree / Table view toggle
+(function () {
+  const vt = document.getElementById('ref-view-toggle'); if (!vt) return;
+  vt.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    state.refView = btn.dataset.view; saveState(); syncRefViewToggle(); renderRef();
+  }));
+  syncRefViewToggle();
+})();
 
 // Mirror the built-in extra variations (feat 17/18) into the reference dataset
 // so they're documented here too, not just trackable.
