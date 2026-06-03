@@ -1071,6 +1071,10 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .set-remove { background: transparent; color: #555; border: none; font-size: 18px; padding: 4px; cursor: pointer; }
   .set-remove:active { color: #ff9090; }
   .set-header { display: grid; grid-template-columns: 30px 1fr 1fr 30px; gap: 8px; font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.4px; padding-bottom: 4px; }
+  /* feat 88 — per-set sub-variation selector */
+  .set-sub-row { display: flex; align-items: center; gap: 8px; margin: -1px 0 7px 30px; }
+  .set-sub-lbl { font-size: 9.5px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+  .set-sub-select { flex: 1; min-width: 0; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); border-radius: 7px; padding: 5px 8px; font-size: 12px; font-family: inherit; }
   .set-header > div { text-align: center; }
 
   .quick-buttons { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
@@ -2481,6 +2485,7 @@ let state = {
     restRecEnabled: true,      // show the recommended-rest band
     onScreenNumpad: false,     // feat 57 — in-app numpad for set entry instead of the native mobile keyboard
     prefillFromHistory: false, // feat 58 — copy last session's set into the first set on exercise start
+    mixSubvariations: false,   // feat 88 — per-set sub-variation selection in one log (default off)
   },
   // ---- Profile (feat 34) — fed into BMI / age / relative-strength calcs ----
   profile: {
@@ -2557,7 +2562,7 @@ function normalizeState() {
     dashboard: { stats:true, timeline:true, liveScore:true, pace:true, physique:true },
     longPressConfirm: { enabled:false, ms:1500 },
     workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
-      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false },
+      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false, mixSubvariations:false },
     bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
@@ -3935,6 +3940,16 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">Mix sub-variations in one log</div>
+        <div class="drawer-setting-sub">For exercises with grip/bar/angle options, pick a sub-variation per set; on save they split into separate tracked entries</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).mixSubvariations ? 'active' : ''}" data-wc="mixSubvariations" data-wc-val="on">On</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).mixSubvariations !== true ? 'active' : ''}" data-wc="mixSubvariations" data-wc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">Recommended rest</div>
         <div class="drawer-setting-sub">Show the target rest band (adapts to your history)</div>
       </div>
@@ -4427,7 +4442,7 @@ function renderSettingsDrawer() {
   });
 
   // Workout controls
-  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false }; };
+  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false, mixSubvariations:false }; };
   const aeInput = body.querySelector('#drawer-auto-end');
   if (aeInput) aeInput.addEventListener('change', () => {
     const v = parseInt(aeInput.value);
@@ -9724,6 +9739,9 @@ function renderSetsForm() {
 
   // feat 58 — the "LAST:" quick-fill row was removed; Copy now builds the next set's weight.
 
+  // feat 88 — per-set sub-variation selector (only with a subscription, the setting on, and not while editing)
+  const mixSub = !!(sub && state.workoutControls && state.workoutControls.mixSubvariations && !modalState.isEditing);
+
   // Build set rows with overload coloring + record hint on the bottom-most set
   const setsHtml = pending.sets.map((s, i) => {
     const isLast = i === pending.sets.length - 1;
@@ -9784,6 +9802,7 @@ function renderSetsForm() {
         ${overloadTagHtml}
         ${recordHintHtml}
       </div>
+      ${mixSub ? `<div class="set-sub-row"><span class="set-sub-lbl">${escapeHtml(sub.label)}</span><select class="set-sub-select" data-set-sub="${i}">${sub.options.map(o => `<option value="${o.uuid}" ${((s.subUuid || pending.subUuid) === o.uuid) ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select></div>` : ''}
     `;
   }).join('');
 
@@ -10202,6 +10221,10 @@ function bindSetsForm() {
   document.querySelectorAll('#trk-sets-container input').forEach(input => {
     input.addEventListener('input', () => commitSetField(parseInt(input.dataset.i), input.dataset.field, input.value));
   });
+  // feat 88 — per-set sub-variation selection
+  document.querySelectorAll('#trk-sets-container [data-set-sub]').forEach(sel => {
+    sel.addEventListener('change', () => { const i = parseInt(sel.dataset.setSub); if (pending.sets[i]) { pending.sets[i].subUuid = sel.value; savePending(); } });
+  });
   // feat 57 — in on-screen-numpad mode, tapping a set input opens the in-app numpad instead of the native keyboard
   if (state.workoutControls && state.workoutControls.onScreenNumpad) {
     document.querySelectorAll('#trk-sets-container .set-input.numpad-mode').forEach(input => {
@@ -10475,15 +10498,19 @@ function saveSets() {
   if (roBlocked('log sets')) return Promise.resolve(false);
   if (!pending.varUuid) { toast('Pick an exercise'); return Promise.resolve(false); }
   const nowIso = new Date().toISOString();
+  // feat 88 — mix sub-variations: tag each valid set with its sub-option, for grouping on save
+  const info0 = VAR_INDEX.get(pending.varUuid);
+  const mix = !!(info0 && info0.variation.subscription && state.workoutControls && state.workoutControls.mixSubvariations && !modalState.isEditing);
   // Filter to valid sets, preserving each set's last-edit timestamp (fallback to save time)
   const validSets = pending.sets
     .filter(s => isSetValid(s))
-    .map(s => ({ w: s.w, r: s.r, wTs: s.wTs || undefined, ts: s.ts || nowIso }));
+    .map(s => ({ w: s.w, r: s.r, wTs: s.wTs || undefined, ts: s.ts || nowIso, _sub: (mix ? (s.subUuid || pending.subUuid) : pending.subUuid) || null }));
   if (validSets.length === 0) { toast('Enter at least one set'); return Promise.resolve(false); }
   // feat 63 — a bodyweight exercise needs a recorded bodyweight to be meaningful; block until one exists.
   if (exMode(pending.varUuid).mode === 'bodyweight' && getCurrentBodyweightKg() == null) {
     toast('⚖️ Log your bodyweight first (Body tab) to save bodyweight exercises'); return Promise.resolve(false);
   }
+  const clean = s => ({ w: s.w, r: s.r, wTs: s.wTs, ts: s.ts }); // drop the temp _sub before storing
   const commit = () => {
     if (modalState.isEditing) {
       const session = state.sessions.find(s => s.date === modalState.editingSessionDate);
@@ -10491,8 +10518,8 @@ function saveSets() {
         const ex = session.exercises.find(e =>
           e.varUuid === pending.varUuid && (e.subUuid || null) === (pending.subUuid || null)
         );
-        if (ex) ex.sets = validSets;
-        else session.exercises.push({ varUuid: pending.varUuid, subUuid: pending.subUuid, sets: validSets });
+        if (ex) ex.sets = validSets.map(clean);
+        else session.exercises.push({ varUuid: pending.varUuid, subUuid: pending.subUuid, sets: validSets.map(clean) });
       }
       saveState();
       toast('Updated');
@@ -10503,11 +10530,15 @@ function saveSets() {
         session = { date: new Date().toISOString(), exercises: [] };
         state.sessions.push(session);
       }
-      const existing = session.exercises.find(e =>
-        e.varUuid === pending.varUuid && (e.subUuid || null) === (pending.subUuid || null)
-      );
-      if (existing) existing.sets = [...existing.sets, ...validSets];
-      else session.exercises.push({ varUuid: pending.varUuid, subUuid: pending.subUuid, sets: validSets });
+      // feat 88 — group the saved sets by sub-option → one exercise entry per sub (mix off = a single group)
+      const order = [], groups = {};
+      validSets.forEach(s => { const k = s._sub || ''; if (!groups[k]) { groups[k] = []; order.push(k); } groups[k].push(clean(s)); });
+      order.forEach(k => {
+        const subU = k || null;
+        const existing = session.exercises.find(e => e.varUuid === pending.varUuid && (e.subUuid || null) === subU);
+        if (existing) existing.sets = [...existing.sets, ...groups[k]];
+        else session.exercises.push({ varUuid: pending.varUuid, subUuid: subU, sets: groups[k] });
+      });
       saveState();
       toast(`Saved ${validSets.length} set${validSets.length === 1 ? '' : 's'}`);
     }
@@ -10606,7 +10637,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 28 · 2026-06-03 14:46';
+const APP_BUILD = 'build 29 · 2026-06-03 14:57';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

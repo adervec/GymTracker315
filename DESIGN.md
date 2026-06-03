@@ -269,6 +269,12 @@ They share variation **UUIDs**.
   per-variation **loading-tool override** (`state.exerciseSetup`) is now assignable **from the Reference panel** too: each
   variation body with a relevant tool shows a `🛠 Loading tool` `<select>` (Auto · {detected} / 7 kinds / None) wired to
   `setSetupOverride` — which also lets you re-enable a tool after setting it to None.
+- **Mix sub-variations in one log (feat 88):** a default-OFF setting (`workoutControls.mixSubvariations`, Settings →
+  Workout Session) lets you pick a **sub-option per set** for exercises that have a subscription (grip/bar/angle). When
+  on (and not editing), each set row in the Log modal gets a `.set-sub-select` (`data-set-sub` → `set.subUuid`); on save
+  `saveSets` tags each valid set with its sub and **groups them into one exercise entry per sub** (so each grip tracks
+  separately under its own `varUuid|subUuid`), stripping the temp field. Off (default) = the original single-sub
+  behaviour; editing mode always uses the one selected sub.
 
 ---
 
