@@ -228,6 +228,47 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 .app-bar-btn:hover, .app-bar-btn.active { color: var(--accent); background: var(--nav-active); }
 .app-bar-actions #app-settings-btn { width: 48px; }
 
+/* feat 74 — sound & haptics top-bar control + quick menu */
+#app-sound-btn { position: relative; }
+#app-sound-btn .snd-main { line-height: 1; }
+#app-sound-btn .snd-haptic-badge { position: absolute; right: 6px; bottom: 5px; font-size: 9px; line-height: 1; pointer-events: none; }
+#app-sound-btn.muted-all { color: var(--text3); opacity: 0.78; }
+#sound-menu-backdrop { position: fixed; inset: 0; z-index: 10000; background: transparent; opacity: 0; pointer-events: none; }
+#sound-menu-backdrop.open { opacity: 1; pointer-events: auto; }
+#sound-menu {
+  position: fixed; z-index: 10001; top: 52px; right: 6px;
+  width: 250px; max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 60px); overflow-y: auto;
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px;
+  box-shadow: 0 12px 36px var(--shadow); padding: 12px;
+  transform-origin: top right; transform: scale(0.95); opacity: 0; pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+#sound-menu.open { transform: scale(1); opacity: 1; pointer-events: auto; }
+.snd-menu-title { font-size: 11px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 0.7px; margin: 2px 2px 10px; }
+.snd-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 11px; background: var(--bg3); border: 1px solid var(--border2); margin-bottom: 8px; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
+.snd-row:active { background: var(--bg4); }
+.snd-row .snd-emoji { font-size: 18px; width: 22px; text-align: center; }
+.snd-row .snd-label { flex: 1; font-size: 13px; font-weight: 700; color: var(--text); }
+.snd-row .snd-state { font-size: 10.5px; font-weight: 800; padding: 3px 10px; border-radius: 999px; letter-spacing: 0.4px; }
+.snd-row .snd-state.on { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); }
+.snd-row .snd-state.off { background: var(--bg4); color: var(--text3); border: 1px solid var(--border2); }
+.snd-vol { display: flex; align-items: center; gap: 9px; padding: 0 6px 10px; }
+.snd-vol input[type=range] { flex: 1; accent-color: var(--accent); height: 22px; }
+.snd-vol .snd-vol-val { font-size: 11px; color: var(--text3); width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+.snd-test { width: 100%; padding: 9px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.snd-test:active { background: var(--bg4); }
+.snd-more { display: block; width: 100%; text-align: center; margin-top: 8px; padding: 4px; font-size: 11px; color: var(--text3); background: none; border: none; cursor: pointer; font-family: inherit; }
+.snd-more:hover { color: var(--accent); }
+.snd-src-title { font-size: 10px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 0.6px; margin: 12px 2px 7px; border-top: 1px solid var(--border2); padding-top: 11px; }
+.snd-src { display: flex; align-items: center; gap: 9px; padding: 4px 6px; margin-bottom: 3px; }
+.snd-src .snd-emoji { font-size: 15px; width: 20px; text-align: center; }
+.snd-src-label { flex: 1; font-size: 12.5px; color: var(--text); font-weight: 600; }
+.snd-chips { display: flex; gap: 5px; }
+.snd-chip { width: 31px; height: 28px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; opacity: 0.4; filter: grayscale(0.55); transition: opacity 0.15s, background 0.15s; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+.snd-chip.active { opacity: 1; filter: none; background: var(--accent-bg); border-color: var(--accent-border); }
+.snd-chip:active { transform: scale(0.92); }
+
 /* Settings drawer */
 #settings-backdrop {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -1506,11 +1547,16 @@ input[type=text], input[type=number], input[type=file], select, textarea {
     <button class="nav-tab" data-panel="panel-reference" onclick="switchPanel('panel-reference', this)" title="Reference" aria-label="Reference" data-i18n-title="nav.reference" data-i18n-aria="nav.reference">📚</button>
   </div>
   <div class="app-bar-actions">
+    <button id="app-sound-btn" class="app-bar-btn sound-btn" onclick="toggleSoundMenu(event)" title="Sound & haptics" aria-label="Sound and haptics"><span class="snd-main">🔊</span><span class="snd-haptic-badge">📳</span></button>
     <button id="app-gloss-btn" class="app-bar-btn" onclick="openGloss()" title="Glossary" aria-label="Glossary" data-i18n-title="action.glossary" data-i18n-aria="action.glossary">📖</button>
     <button id="app-settings-btn" onclick="openSettingsDrawer()" title="Settings" aria-label="Settings" data-i18n-title="app.settings" data-i18n-aria="app.settings">⚙️</button>
     <button id="app-help-btn" class="app-bar-btn" onclick="openHelp()" title="Help" aria-label="Help" data-i18n-title="app.help" data-i18n-aria="app.help">❓</button>
   </div>
 </div>
+
+<!-- feat 74 — sound & haptics quick menu -->
+<div id="sound-menu-backdrop" onclick="closeSoundMenu()"></div>
+<div id="sound-menu" role="dialog" aria-label="Sound and haptics"></div>
 
 <!-- feat 62 — read-only mode indicator -->
 <div id="ro-banner">🔒 Read-only</div>
@@ -2169,7 +2215,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2328,6 +2374,10 @@ function normalizeState() {
   if (typeof state.calcMode !== 'boolean') state.calcMode = false;
   if (typeof state.ttsTips !== 'boolean') state.ttsTips = true;
   state.metronome = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, ...(state.metronome && typeof state.metronome === 'object' ? state.metronome : {}) };
+  // feat 74 — master audio/haptics gate (controls every beep, buzz and TTS); volume 0..1
+  state.sound = { audio:true, haptics:true, volume:1, ...(state.sound && typeof state.sound === 'object' ? state.sound : {}) };
+  if (typeof state.sound.volume !== 'number' || isNaN(state.sound.volume)) state.sound.volume = 1;
+  state.sound.volume = Math.max(0, Math.min(1, state.sound.volume));
   // feat 70/71 — seed + merge plans by id: new seed plans append for existing users; backfill seed descriptions.
   if (!Array.isArray(state.plans)) state.plans = [];
   if (!Array.isArray(state.seededPlanIds)) state.seededPlanIds = [];
@@ -4814,6 +4864,7 @@ function collectExerciseTips(varUuid) {
 }
 function speakRandomTip(varUuid) {
   if (state.ttsTips === false) return;
+  if (typeof sndAudioOn === 'function' && !sndAudioOn()) return;   // feat 74 — master audio gate
   if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
   const tips = collectExerciseTips(varUuid);
   if (!tips.length) return;
@@ -4821,7 +4872,7 @@ function speakRandomTip(varUuid) {
   try {
     window.speechSynthesis.cancel();                 // never stack utterances
     const u = new SpeechSynthesisUtterance(String(tip).slice(0, 240));
-    u.rate = 1; u.pitch = 1; u.lang = 'en-US';
+    u.rate = 1; u.pitch = 1; u.lang = 'en-US'; u.volume = sndVol();
     window.speechSynthesis.speak(u);
   } catch (e) {}
 }
@@ -9544,7 +9595,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 15 · 2026-06-03 08:16';
+const APP_BUILD = 'build 16 · 2026-06-03 09:27';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -9557,16 +9608,120 @@ function formatDuration(sec) {
   const h = Math.floor(m / 60);
   return h + 'h ' + (m % 60) + 'm';
 }
-function safeVibrate(p) { try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(p); } catch(_){} }
+// feat 74 — master sound/haptics gate; every beep/buzz/TTS routes through these checks.
+function sndState() { return state.sound || (state.sound = { audio:true, haptics:true, volume:1 }); }
+function sndAudioOn() { return sndState().audio !== false; }
+function sndHapticOn() { return sndState().haptics !== false; }
+function sndVol() { const v = sndState().volume; return (v == null || isNaN(v)) ? 1 : Math.max(0, Math.min(1, v)); }
+function safeVibrate(p) { try { if (!sndHapticOn()) return; if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(p); } catch(_){} }
+
+/* ---- feat 74 — top-bar sound/haptics icon + quick menu ---- */
+function soundIconGlyph() {
+  if (!sndAudioOn()) return '🔇';
+  const v = sndVol();
+  return v <= 0.01 ? '🔇' : v <= 0.34 ? '🔈' : v <= 0.67 ? '🔉' : '🔊';
+}
+function refreshSoundIcon() {
+  const btn = document.getElementById('app-sound-btn'); if (!btn) return;
+  const main = btn.querySelector('.snd-main'); if (main) main.textContent = soundIconGlyph();
+  const badge = btn.querySelector('.snd-haptic-badge'); if (badge) badge.style.display = sndHapticOn() ? 'block' : 'none';
+  btn.classList.toggle('muted-all', !sndAudioOn() && !sndHapticOn());
+  const lbl = `Sound ${sndAudioOn() ? Math.round(sndVol() * 100) + '%' : 'muted'} · Haptics ${sndHapticOn() ? 'on' : 'off'}`;
+  btn.title = lbl; btn.setAttribute('aria-label', lbl);
+}
+let _soundMenuOpen = false;
+function toggleSoundMenu(e) { if (e && e.stopPropagation) e.stopPropagation(); _soundMenuOpen ? closeSoundMenu() : openSoundMenu(); }
+function openSoundMenu() {
+  const menu = document.getElementById('sound-menu'), bd = document.getElementById('sound-menu-backdrop');
+  if (!menu || !bd) return;
+  renderSoundMenu();
+  const btn = document.getElementById('app-sound-btn');
+  if (btn) { const r = btn.getBoundingClientRect(); menu.style.right = Math.max(6, window.innerWidth - r.right) + 'px'; menu.style.top = (r.bottom + 4) + 'px'; }
+  bd.classList.add('open'); menu.classList.add('open'); _soundMenuOpen = true;
+  if (btn) btn.classList.add('active');
+}
+function closeSoundMenu() {
+  const menu = document.getElementById('sound-menu'), bd = document.getElementById('sound-menu-backdrop');
+  if (menu) menu.classList.remove('open'); if (bd) bd.classList.remove('open');
+  _soundMenuOpen = false;
+  document.getElementById('app-sound-btn')?.classList.remove('active');
+}
+function persistSound() { saveState(); renderSoundMenu(); refreshSoundIcon(); }
+function soundPreviewBeep() { try { metroBeep(880, 0.35); } catch (e) {} }
+// Per-source sound/haptic toggles surfaced in the quick menu (each gated by the master switch above).
+function soundSources() {
+  const wc = state.workoutControls || (state.workoutControls = {});
+  const m = state.metronome || (state.metronome = {});
+  return [
+    { emoji: '🎵', label: 'Metronome', chips: [
+      { kind: 'audio',  get: () => m.audio !== false, set: v => { m.audio = v; } },
+      { kind: 'haptic', get: () => !!m.haptic,        set: v => { m.haptic = v; } },
+    ] },
+    { emoji: '🔔', label: 'Rest cues', chips: [
+      { kind: 'audio',  get: () => !!wc.feedbackBeep,         set: v => { wc.feedbackBeep = v; } },
+      { kind: 'haptic', get: () => wc.feedbackVibrate !== false, set: v => { wc.feedbackVibrate = v; } },
+    ] },
+    { emoji: '🗣️', label: 'Spoken tips', chips: [
+      { kind: 'audio',  get: () => state.ttsTips !== false, set: v => { state.ttsTips = v; } },
+    ] },
+  ];
+}
+function renderSoundMenu() {
+  const menu = document.getElementById('sound-menu'); if (!menu) return;
+  const aOn = sndAudioOn(), hOn = sndHapticOn(), vol = Math.round(sndVol() * 100);
+  const sources = soundSources();
+  const srcRows = sources.map((s, i) => {
+    const chips = s.chips.map((c, j) => `<button class="snd-chip ${c.get() ? 'active' : ''}" data-si="${i}" data-ci="${j}" title="${c.kind === 'audio' ? 'Sound' : 'Vibration'}" aria-label="${s.label} ${c.kind === 'audio' ? 'sound' : 'vibration'}">${c.kind === 'audio' ? '🔊' : '📳'}</button>`).join('');
+    return `<div class="snd-src"><span class="snd-emoji">${s.emoji}</span><span class="snd-src-label">${s.label}</span><span class="snd-chips">${chips}</span></div>`;
+  }).join('');
+  menu.innerHTML = `
+    <div class="snd-menu-title">Sound &amp; Haptics</div>
+    <div class="snd-row" id="snd-audio-row" role="button" tabindex="0">
+      <span class="snd-emoji">${aOn ? '🔊' : '🔇'}</span>
+      <span class="snd-label">Audio</span>
+      <span class="snd-state ${aOn ? 'on' : 'off'}">${aOn ? 'ON' : 'MUTED'}</span>
+    </div>
+    <div class="snd-vol" ${aOn ? '' : 'style="opacity:0.4;pointer-events:none;"'}>
+      <span class="snd-emoji" style="font-size:13px;">🔈</span>
+      <input type="range" id="snd-vol-range" min="0" max="100" step="5" value="${vol}" aria-label="Master volume">
+      <span class="snd-vol-val">${vol}%</span>
+    </div>
+    <div class="snd-row" id="snd-haptic-row" role="button" tabindex="0">
+      <span class="snd-emoji">📳</span>
+      <span class="snd-label">Haptics</span>
+      <span class="snd-state ${hOn ? 'on' : 'off'}">${hOn ? 'ON' : 'OFF'}</span>
+    </div>
+    <div class="snd-src-title">Per sound ${(aOn || hOn) ? '' : '· all muted above'}</div>
+    ${srcRows}
+    <button class="snd-test" id="snd-test-btn">▶ Test</button>
+    <button class="snd-more" id="snd-more-btn">Sound settings →</button>
+  `;
+  menu.querySelector('#snd-audio-row').onclick = () => { sndState().audio = !sndAudioOn(); persistSound(); if (sndAudioOn()) soundPreviewBeep(); };
+  menu.querySelector('#snd-haptic-row').onclick = () => { sndState().haptics = !sndHapticOn(); persistSound(); if (sndHapticOn()) safeVibrate([30]); };
+  const range = menu.querySelector('#snd-vol-range');
+  range.oninput = (e) => { sndState().volume = (+e.target.value) / 100; const val = menu.querySelector('.snd-vol-val'); if (val) val.textContent = (+e.target.value) + '%'; refreshSoundIcon(); };
+  range.onchange = (e) => { sndState().volume = (+e.target.value) / 100; saveState(); refreshSoundIcon(); soundPreviewBeep(); };
+  menu.querySelectorAll('.snd-chip').forEach(chip => {
+    chip.onclick = () => {
+      const s = sources[+chip.dataset.si]; const c = s.chips[+chip.dataset.ci];
+      const nv = !c.get(); c.set(nv); saveState();
+      chip.classList.toggle('active', nv);
+      if (nv) { if (c.kind === 'audio') soundPreviewBeep(); else safeVibrate([25]); }
+    };
+  });
+  menu.querySelector('#snd-test-btn').onclick = () => { soundPreviewBeep(); if (sndHapticOn()) safeVibrate([40]); if (!sndAudioOn() && !sndHapticOn()) toast('Audio and haptics are both off'); };
+  menu.querySelector('#snd-more-btn').onclick = () => { closeSoundMenu(); openSettingsDrawer(); };
+}
 let _restAudioCtx = null;
 function restBeep(freq, dur) {
   try {
     if (typeof window === 'undefined') return;
+    if (!sndAudioOn()) return;                       // feat 74 — master audio gate
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     _restAudioCtx = _restAudioCtx || new AC();
     const o = _restAudioCtx.createOscillator(), g = _restAudioCtx.createGain();
     o.frequency.value = freq; o.type = 'sine'; o.connect(g); g.connect(_restAudioCtx.destination);
-    g.gain.setValueAtTime(0.0009, _restAudioCtx.currentTime);
+    g.gain.setValueAtTime(0.0009 * sndVol(), _restAudioCtx.currentTime);
     o.start(); o.stop(_restAudioCtx.currentTime + (dur || 0.12));
   } catch(_){}
 }
@@ -9581,12 +9736,13 @@ function metronomeRunning() { return _metroId != null; }
 function metroBeep(freq, vol) {
   try {
     if (typeof window === 'undefined') return;
+    if (!sndAudioOn()) return;                       // feat 74 — master audio gate
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     _restAudioCtx = _restAudioCtx || new AC();
     if (_restAudioCtx.state === 'suspended') _restAudioCtx.resume();
     const o = _restAudioCtx.createOscillator(), g = _restAudioCtx.createGain();
     o.frequency.value = freq; o.type = 'sine'; o.connect(g); g.connect(_restAudioCtx.destination);
-    const t = _restAudioCtx.currentTime, v = Math.max(0.01, Math.min(1, vol == null ? 0.3 : vol));
+    const t = _restAudioCtx.currentTime, v = Math.max(0.01, Math.min(1, (vol == null ? 0.3 : vol) * sndVol()));
     g.gain.setValueAtTime(v, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
     o.start(t); o.stop(t + 0.08);
@@ -9896,6 +10052,7 @@ setInterval(() => {
 
 render();
 ensureRestTick(); // feat 51 — start the global rest-timer tick
+refreshSoundIcon(); // feat 74 — reflect saved audio/haptics state in the top-bar icon
 
 // Auto-load on startup — runs after initial render so UI is visible first
 // Uses setTimeout so handle permission prompt doesn't block page paint
