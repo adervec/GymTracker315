@@ -17,8 +17,12 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'on-first-retry',
   },
+  // GymTracker is built for Android Chrome, so we test both a desktop Chromium
+  // viewport and an emulated Pixel (mobile UA, touch, small viewport) — the boot
+  // + render assertions are the ones that benefit from the mobile profile.
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile-pixel', use: { ...devices['Pixel 7'] } },
   ],
   webServer: {
     command: `node test/serve.mjs ${PORT}`,
