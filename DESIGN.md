@@ -128,6 +128,28 @@ They share variation **UUIDs**.
   `session.hr` avg/max on end. A Log-tab `renderHrBar` shows live BPM + connect/disconnect; **`renderHrChart`** draws
   the per-session trend with **set periods shaded** (`set.wTs→ts`) so the rise-during-set / recover-during-rest
   pattern is visible in history. Manual HR entry (feat 25) stays as the iOS fallback.
+- **Garmin biometrics import (feat 73):** a browser cannot read Garmin directly (no public per-user API, internal
+  Connect endpoints are non-CORS + behind SSO, no web access to the phone health store), so data arrives as a **file**.
+  Body tab → **"Import biometrics"** (`#bc-import-btn`) reads a JSON or CSV via `importBiometrics()` →
+  `parseBiometrics()`. **JSON** shape `{bodyComp:[{date, weightKg, bodyFatPct?, muscleMassKg?, boneMassKg?,
+  bodyWaterPct?}], sleep:[{date, score?, note?}]}` (also accepts `weightLb`/`*MassLb`); **CSV** is tolerant — columns
+  detected by header keyword (date/weight/fat/muscle/bone/water), unit inferred from the weight header (`lb`/`kg`,
+  else `state.bodyCompUnit`). `normBiometricEntry()` normalizes to the canonical `bodyComp` entry (kg, noon-UTC date,
+  rounded), merged **dedupe-by-calendar-day** exactly like `saveBodyEntry`. Sleep rows are matched to a workout's
+  calendar day (`dayKey` anchors date-only strings to noon UTC so they don't slip a day in western TZs) and written to
+  **`session.sleep`** (a short string, e.g. `"Score 78 · 7h12m"`), surfaced + editable in the workout-stats card
+  (feat 25) and shown as `😴 …` in history. **`tools/garmin-sync.py`** (community `garminconnect` lib) logs in locally
+  with the user's own credentials and writes that JSON from Index S2 body-comp + last-night sleep score. Kept lean:
+  one optional sleep field, no per-metric ingestion beyond the S2 set.
+- **Biometrics auto-load (feat 73):** Settings → Data → **"Biometrics Auto-Load (Garmin)"** picks a file or folder
+  (`bioLoadPickFile`/`bioLoadPickFolder`) and **always merges** (never overwrites) — independent of the main
+  Auto-Save/Load; `state.bioAutoLoad{enabled,mode}`. Unlike the main Auto-Load (memory-only handles), the handle is
+  **persisted in IndexedDB** (`gymtracker-fs` store; tiny `bioIdbGet/Set/Del` wrappers) so it survives reloads.
+  `bioLoadNow(silent, interactive)` restores it, checks `queryPermission` on boot (silent, no prompt) /
+  `requestPermission` on the **Sync Now** gesture, then imports via `importBiometrics(text, {silent})`. Folder mode reads
+  the newest file matching `bio|garmin|weight|gymtracker` (`.json|.csv|.txt`) by last-modified. Boot hook fires
+  `bioLoadNow(true,false)` after the main auto-load. `importBiometrics` now takes `{silent}` and returns
+  `{added, sleepN}` for status reporting.
 
 ---
 

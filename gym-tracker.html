@@ -2169,7 +2169,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals'];
+  'hiddenCategories','cardioGoals','bioAutoLoad'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2216,6 +2216,10 @@ let state = {
     enabled: false,
     mode: 'file',        // 'file' | 'folder'
     mergeMode: 'merge',  // 'merge' | 'overwrite'
+  },
+  bioAutoLoad: {         // feat 73 — auto-import Garmin biometrics (JSON/CSV) from a file/folder; always merges
+    enabled: false,
+    mode: 'folder',      // 'file' | 'folder'
   },
   workoutControls: {
     autoEndMinutes: 40,        // auto-end if no fresh sets for this many minutes
@@ -2305,6 +2309,7 @@ function normalizeState() {
     longPressConfirm: { enabled:false, ms:1500 },
     workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
       restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false },
+    bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   if (!Array.isArray(state.bodyComp)) state.bodyComp = [];
@@ -2902,6 +2907,118 @@ function autoLoadDisable() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
   renderSettingsDrawer();
   toast('Auto-load disabled');
+}
+
+/* ============================================================
+   BIOMETRICS AUTO-LOAD (feat 73) — auto-import a Garmin biometrics JSON/CSV from a
+   remembered file/folder. Unlike the main Auto-Load this ALWAYS merges (never overwrites
+   sessions) and is not mutually exclusive with Auto-Save/Auto-Load. The directory/file
+   handle is persisted in IndexedDB so it survives reloads (the main Auto-Load keeps handles
+   in memory only); on boot we silently re-import if read permission is still granted.
+   ============================================================ */
+let _bioLoadFileHandle = null;  // FileSystemFileHandle
+let _bioLoadDirHandle  = null;  // FileSystemDirectoryHandle
+let _bioIdb = null;
+function _bioIdbOpen() {
+  return new Promise((res, rej) => {
+    if (_bioIdb) return res(_bioIdb);
+    if (typeof indexedDB === 'undefined') return rej(new Error('no idb'));
+    const r = indexedDB.open('gymtracker-fs', 1);
+    r.onupgradeneeded = () => { try { r.result.createObjectStore('handles'); } catch(e) {} };
+    r.onsuccess = () => { _bioIdb = r.result; res(r.result); };
+    r.onerror = () => rej(r.error);
+  });
+}
+async function bioIdbSet(key, val) {
+  try { const db = await _bioIdbOpen(); await new Promise((res, rej) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').put(val, key); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); } catch(e) {}
+}
+async function bioIdbGet(key) {
+  try { const db = await _bioIdbOpen(); return await new Promise((res, rej) => { const tx = db.transaction('handles', 'readonly'); const rq = tx.objectStore('handles').get(key); rq.onsuccess = () => res(rq.result || null); rq.onerror = () => rej(rq.error); }); } catch(e) { return null; }
+}
+async function bioIdbDel(key) {
+  try { const db = await _bioIdbOpen(); await new Promise((res) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').delete(key); tx.oncomplete = () => res(); tx.onerror = () => res(); }); } catch(e) {}
+}
+
+// Newest biometrics-looking file in a directory (by last-modified); falls back to any .json
+async function bioLoadNewestInDir(dirHandle) {
+  const named = [], anyJson = [];
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind !== 'file') continue;
+    if (/\.(json|csv|txt)$/i.test(name) && /(bio|garmin|weight|gymtracker)/i.test(name)) named.push({ name, handle });
+    else if (/\.json$/i.test(name)) anyJson.push({ name, handle });
+  }
+  const pool = named.length ? named : anyJson;
+  if (!pool.length) return null;
+  let best = null, bestT = -1;
+  for (const e of pool) { try { const f = await e.handle.getFile(); if (f.lastModified > bestT) { bestT = f.lastModified; best = e.handle; } } catch(_) {} }
+  return best;
+}
+async function bioLoadApply(fileHandle, silent) {
+  const file = await fileHandle.getFile();
+  const text = await file.text();
+  return importBiometrics(text, { silent: !!silent });
+}
+// silent: no toast/status; interactive: allowed to prompt for permission (must be in a user gesture)
+async function bioLoadNow(silent, interactive) {
+  const cfg = state.bioAutoLoad;
+  if (!cfg || !cfg.enabled) return;
+  try {
+    let handle = cfg.mode === 'file' ? _bioLoadFileHandle : _bioLoadDirHandle;
+    if (!handle) {
+      const saved = await bioIdbGet(cfg.mode === 'file' ? 'bioFile' : 'bioDir');
+      if (saved) {
+        let perm = 'granted';
+        if (saved.queryPermission) perm = await (interactive && saved.requestPermission ? saved.requestPermission({ mode: 'read' }) : saved.queryPermission({ mode: 'read' }));
+        if (perm === 'granted') { if (cfg.mode === 'file') _bioLoadFileHandle = saved; else _bioLoadDirHandle = saved; handle = saved; }
+        else { if (!silent) autoSaveSetStatus('⚠ Biometrics: tap Sync now to allow access'); return; }
+      }
+    }
+    if (!handle) { if (!silent) autoSaveSetStatus('⚠ Biometrics: re-pick file/folder'); return; }
+    const fileHandle = cfg.mode === 'file' ? handle : await bioLoadNewestInDir(handle);
+    if (!fileHandle) { if (!silent) autoSaveSetStatus('⚠ Biometrics: no file found'); return; }
+    const res = await bioLoadApply(fileHandle, silent);
+    if (!silent && res) autoSaveSetStatus(`✓ Biometrics: ${res.added} measure${res.added !== 1 ? 's' : ''}${res.sleepN ? (' · ' + res.sleepN + ' sleep') : ''}`);
+  } catch(err) {
+    if (!silent) autoSaveSetStatus('⚠ Biometrics load failed');
+  }
+}
+async function bioLoadPickFolder() {
+  if (!autoLoadSupported() || !('showDirectoryPicker' in window)) { toast('Directory picker not supported in this browser'); return; }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'read' });
+    _bioLoadDirHandle = handle; _bioLoadFileHandle = null;
+    await bioIdbSet('bioDir', handle); await bioIdbDel('bioFile');
+    state.bioAutoLoad = { ...state.bioAutoLoad, enabled: true, mode: 'folder' };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+    renderSettingsDrawer();
+    const fileHandle = await bioLoadNewestInDir(handle);
+    if (fileHandle) { const res = await bioLoadApply(fileHandle, false); if (res) toast(`Biometrics: ${res.added} measurement${res.added !== 1 ? 's' : ''}${res.sleepN ? (' + ' + res.sleepN + ' sleep') : ''} loaded`); }
+    else toast(`Folder set: ${handle.name} (no biometrics file yet)`);
+  } catch(e) { if (e && e.name !== 'AbortError') toast('Could not pick folder'); }
+}
+async function bioLoadPickFile() {
+  if (!autoLoadSupported()) { toast('File System API not supported in this browser'); return; }
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types: [{ description: 'Biometrics JSON/CSV', accept: { 'application/json': ['.json'], 'text/csv': ['.csv'], 'text/plain': ['.txt'] } }],
+      multiple: false,
+    });
+    _bioLoadFileHandle = handle; _bioLoadDirHandle = null;
+    await bioIdbSet('bioFile', handle); await bioIdbDel('bioDir');
+    state.bioAutoLoad = { ...state.bioAutoLoad, enabled: true, mode: 'file' };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+    renderSettingsDrawer();
+    const res = await bioLoadApply(handle, false);
+    if (res) toast(`Biometrics: ${res.added} measurement${res.added !== 1 ? 's' : ''}${res.sleepN ? (' + ' + res.sleepN + ' sleep') : ''} loaded`);
+  } catch(e) { if (e && e.name !== 'AbortError') toast('Could not pick file'); }
+}
+function bioLoadDisable() {
+  _bioLoadFileHandle = null; _bioLoadDirHandle = null;
+  state.bioAutoLoad = { ...state.bioAutoLoad, enabled: false };
+  bioIdbDel('bioFile'); bioIdbDel('bioDir');
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+  renderSettingsDrawer();
+  toast('Biometrics auto-load disabled');
 }
 
 /* ============================================================
@@ -3890,6 +4007,35 @@ function renderSettingsDrawer() {
         <button class="drawer-btn" id="al-pick-folder-btn">📁 Pick Folder</button>
       </div>
     `}
+
+    <div class="drawer-section-title" style="margin-top:18px;">Biometrics Auto-Load (Garmin)</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+      Auto-imports body composition + sleep from a biometrics JSON/CSV (e.g. written by
+      <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/garmin-sync.py</code>)
+      on load &amp; on Sync Now. Always <b>merges</b> into your data (never overwrites). Independent of Auto-Save/Load;
+      the folder/file is remembered across reloads.
+    </div>
+    ${state.bioAutoLoad && state.bioAutoLoad.enabled ? `
+      <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">
+          ${state.bioAutoLoad.mode === 'file' ? '📄 File mode' : '📁 Folder mode'}
+          ${(_bioLoadFileHandle || _bioLoadDirHandle) ? '' : ' <span style="color:var(--warn);font-size:10px;">(tap Sync Now to allow access)</span>'}
+        </div>
+        <div style="color:var(--text2);">
+          ${state.bioAutoLoad.mode === 'folder' ? 'Reads the newest biometrics file in the folder' : 'Reads the chosen file'}
+        </div>
+      </div>
+      <div class="drawer-data-row" style="flex-wrap:wrap;">
+        <button class="drawer-btn" id="bio-repick-btn">${state.bioAutoLoad.mode === 'file' ? '📄 Re-pick File' : '📁 Re-pick Folder'}</button>
+        <button class="drawer-btn" id="bio-sync-now-btn">⬇ Sync Now</button>
+        <button class="drawer-btn danger" id="bio-disable-btn">✕ Disable</button>
+      </div>
+    ` : `
+      <div class="drawer-data-row" style="flex-wrap:wrap;">
+        <button class="drawer-btn" id="bio-pick-folder-btn">📁 Pick Folder</button>
+        <button class="drawer-btn" id="bio-pick-file-btn">📄 Pick File</button>
+      </div>
+    `}
     ` : `
     <div class="drawer-section-title" style="margin-top:18px;">Auto-Save / Auto-Load</div>
     <div style="font-size:11px;color:var(--text3);line-height:1.5;">
@@ -4099,6 +4245,15 @@ function renderSettingsDrawer() {
     autoLoadNow(false).catch(() => {});
   });
   body.querySelector('#al-disable-btn')?.addEventListener('click', autoLoadDisable);
+
+  // Biometrics auto-load buttons (feat 73)
+  body.querySelector('#bio-pick-folder-btn')?.addEventListener('click', bioLoadPickFolder);
+  body.querySelector('#bio-pick-file-btn')?.addEventListener('click', bioLoadPickFile);
+  body.querySelector('#bio-repick-btn')?.addEventListener('click', () => {
+    state.bioAutoLoad.mode === 'file' ? bioLoadPickFile() : bioLoadPickFolder();
+  });
+  body.querySelector('#bio-sync-now-btn')?.addEventListener('click', () => { bioLoadNow(false, true).catch(() => {}); });
+  body.querySelector('#bio-disable-btn')?.addEventListener('click', bioLoadDisable);
 
   // Auto-load merge mode rows
   body.querySelectorAll('.as-policy-row[data-al-merge]').forEach(row => {
@@ -6030,23 +6185,30 @@ function renderWorkoutStats(session) {
         <div><label class="cardio-lbl">Max HR</label><input class="cardio-input" data-hr-field="max" data-hr-session="${session.date}" type="number" inputmode="numeric" min="0" value="${v('max')}" placeholder="bpm"></div>
         <div><label class="cardio-lbl">Calories</label><input class="cardio-input" data-hr-field="calories" data-hr-session="${session.date}" type="number" inputmode="numeric" min="0" value="${v('calories')}" placeholder="kcal"></div>
       </div>
+      <div style="margin-top:8px;"><label class="cardio-lbl">Sleep (last night)</label><input class="cardio-input" id="hr-sleep-input" type="text" value="${escapeAttr(session.sleep||'')}" placeholder="e.g. 78 · 7h12m"></div>
       <div style="display:flex;gap:6px;margin-top:8px;">
         <button class="drawer-btn" data-hr-save="${session.date}">Save</button>
         <button class="drawer-btn" data-hr-cancel="1">Cancel</button>
       </div>
     </div>`;
   }
+  const sleepStr = session.sleep ? ` · 😴 ${escapeHtml(session.sleep)}` : '';
   if (hr && (hr.avg != null || hr.max != null || hr.calories != null)) {
     const parts = [hr.avg!=null?`Avg ${hr.avg}`:'', hr.max!=null?`Max ${hr.max}`:'', hr.calories!=null?`${hr.calories} cal`:''].filter(Boolean).join(' · ');
-    return `<div class="hr-line" data-hr-edit="${session.date}">❤️ ${parts} <span class="hr-edit-link">edit</span></div>`;
+    return `<div class="hr-line" data-hr-edit="${session.date}">❤️ ${parts}${sleepStr} <span class="hr-edit-link">edit</span></div>`;
   }
-  return `<div class="hr-line add" data-hr-edit="${session.date}">❤️ + Add workout HR / calories</div>`;
+  if (session.sleep) {
+    return `<div class="hr-line" data-hr-edit="${session.date}">😴 ${escapeHtml(session.sleep)} <span class="hr-edit-link">edit</span></div>`;
+  }
+  return `<div class="hr-line add" data-hr-edit="${session.date}">❤️ + Add HR / calories / sleep</div>`;
 }
 function saveWorkoutStats(date) {
   const session = state.sessions.find(s => s.date === date);
   if (!session) return;
   const get = f => { const el = document.querySelector(`[data-hr-field="${f}"][data-hr-session="${date}"]`); const x = el ? parseFloat(el.value) : NaN; return isNaN(x) ? null : x; };
   const avg = get('avg'), max = get('max'), calories = get('calories');
+  const sleepEl = document.getElementById('hr-sleep-input'); const sleepVal = sleepEl ? sleepEl.value.trim() : '';
+  if (sleepVal) session.sleep = sleepVal; else delete session.sleep;
   session.hr = (avg == null && max == null && calories == null) ? null : { avg, max, calories };
   saveState(); hrEditSession = null; logInfo('Workout stats saved', `${avg||'-'}/${max||'-'} ${calories||'-'}cal`); render(); toast('Workout stats saved');
 }
@@ -7709,6 +7871,8 @@ function renderBody(main) {
   }
 
   html += `<button class="${bodyFormOpen ? 'ghost' : ''} full" id="bc-add-btn" style="margin-bottom:12px;${bodyFormOpen?'':'background:var(--accent-bg);border:1px solid var(--accent-border);color:var(--accent);padding:10px;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer;width:100%;'}">${bodyFormOpen ? '✕ Cancel' : '+ Add Measurement'}</button>`;
+  html += `<button class="ghost" id="bc-import-btn" style="width:100%;margin-bottom:12px;font-size:12px;padding:8px;border-radius:8px;font-family:inherit;cursor:pointer;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);">⬇ Import biometrics (Garmin export · JSON / CSV)</button>
+    <input type="file" id="bc-import-file" accept=".json,.csv,.txt" style="display:none;">`;
 
   if (bodyFormOpen) {
     const e = bodyEditDate ? entries.find(x => x.date === bodyEditDate) : null;
@@ -7765,6 +7929,11 @@ function renderBody(main) {
   main.querySelector('#bc-add-btn')?.addEventListener('click', () => {
     bodyFormOpen = !bodyFormOpen; if (!bodyFormOpen) bodyEditDate = null; renderBody(main);
   });
+  main.querySelector('#bc-import-btn')?.addEventListener('click', () => main.querySelector('#bc-import-file').click());
+  main.querySelector('#bc-import-file')?.addEventListener('change', e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    const rd = new FileReader(); rd.onload = () => importBiometrics(String(rd.result || '')); rd.readAsText(f);
+  });
   main.querySelector('#bc-save-btn')?.addEventListener('click', () => saveBodyEntry(main));
   main.querySelectorAll('[data-bc-edit]').forEach(b => b.addEventListener('click', () => {
     bodyEditDate = b.dataset.bcEdit; bodyFormOpen = true; renderBody(main);
@@ -7809,6 +7978,92 @@ function saveBodyEntry(main) {
   bodyFormOpen = false; bodyEditDate = null;
   renderBody(main);
   toast('Measurement saved');
+}
+
+/* ---- Import biometrics (feat 73) — from a Garmin weight CSV export or the helper-script JSON.
+   A browser can't read Garmin directly (no public per-user API + CORS + SSO), so data arrives as a
+   file: a small JSON written by tools/garmin-sync.py, or Garmin Connect's own weight CSV export.
+   Canonical JSON shape: { bodyComp:[{date, weightKg, bodyFatPct?, muscleMassKg?, boneMassKg?,
+   bodyWaterPct?}], sleep:[{date, score?, note?}] }. ---- */
+function _bioNum(v) { return (v == null || v === '' || isNaN(+v)) ? null : Math.round(+v * 10) / 10; }
+function _bioKg(v) { return (v == null || v === '' || isNaN(+v) || +v <= 0) ? null : Math.round(+v * 100) / 100; }
+function normBiometricEntry(r) {
+  if (!r || !r.date) return null;
+  const d = new Date(r.date); if (isNaN(d.getTime())) return null;
+  let wkg = r.weightKg != null ? +r.weightKg : (r.weightLb != null ? lbToKg(+r.weightLb) : null);
+  if (wkg == null || !(wkg > 0)) return null;
+  const isoDate = String(r.date).length > 10 ? d.toISOString() : (String(r.date).slice(0, 10) + 'T12:00:00.000Z');
+  return {
+    date: isoDate,
+    weightKg: Math.round(wkg * 100) / 100,
+    bodyFatPct: _bioNum(r.bodyFatPct),
+    muscleMassKg: r.muscleMassKg != null ? _bioKg(r.muscleMassKg) : (r.muscleMassLb != null ? _bioKg(lbToKg(+r.muscleMassLb)) : null),
+    boneMassKg: r.boneMassKg != null ? _bioKg(r.boneMassKg) : (r.boneMassLb != null ? _bioKg(lbToKg(+r.boneMassLb)) : null),
+    bodyWaterPct: _bioNum(r.bodyWaterPct),
+    note: r.note || null,
+  };
+}
+function parseBiometrics(text) {
+  text = String(text || '').trim(); if (!text) return null;
+  const bodyComp = [], sleep = [];
+  if (text[0] === '{' || text[0] === '[') {
+    let data; try { data = JSON.parse(text); } catch (e) { return null; }
+    const arr = Array.isArray(data) ? data : (data.bodyComp || data.weight || data.entries || []);
+    (arr || []).forEach(r => { const e = normBiometricEntry(r); if (e) bodyComp.push(e); });
+    const sl = (!Array.isArray(data) && (data.sleep || data.sleeps)) || [];
+    (sl || []).forEach(s => { if (s && s.date) sleep.push({ date: s.date, score: s.score != null ? s.score : null, note: s.note || '' }); });
+  } else {
+    // Tolerant CSV (Garmin weight export): detect columns by header keyword.
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return null;
+    const split = l => l.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+    const hdr = split(lines[0]).map(h => h.toLowerCase());
+    const col = kws => hdr.findIndex(h => kws.some(k => h.includes(k)));
+    const ci = { date: col(['date', 'time']), weight: col(['weight']), fat: col(['fat']), muscle: col(['muscle', 'skeletal']), bone: col(['bone']), water: col(['water']) };
+    if (ci.date < 0 || ci.weight < 0) return null;
+    const wHdr = hdr[ci.weight] || '';
+    const wUnit = /lb|pound/.test(wHdr) ? 'lb' : (/kg/.test(wHdr) ? 'kg' : state.bodyCompUnit);
+    const toKg = v => wUnit === 'lb' ? lbToKg(parseFloat(v)) : parseFloat(v);
+    for (let i = 1; i < lines.length; i++) {
+      const r = split(lines[i]); if (r.length <= ci.weight) continue;
+      const w = parseFloat(r[ci.weight]); if (!r[ci.date] || isNaN(w)) continue;
+      const e = normBiometricEntry({
+        date: r[ci.date], weightKg: toKg(r[ci.weight]),
+        bodyFatPct: ci.fat >= 0 ? r[ci.fat] : null,
+        muscleMassKg: ci.muscle >= 0 ? toKg(r[ci.muscle]) : null,
+        boneMassKg: ci.bone >= 0 ? toKg(r[ci.bone]) : null,
+        bodyWaterPct: ci.water >= 0 ? r[ci.water] : null,
+      });
+      if (e) bodyComp.push(e);
+    }
+  }
+  return { bodyComp, sleep };
+}
+function importBiometrics(text, opts) {
+  opts = opts || {};
+  if (!opts.silent && roBlocked('import biometrics')) return null;
+  const parsed = parseBiometrics(text);
+  if (!parsed || (!parsed.bodyComp.length && !parsed.sleep.length)) { if (!opts.silent) toast('No biometric rows found in that file'); return null; }
+  let added = 0;
+  parsed.bodyComp.forEach(e => {
+    state.bodyComp = state.bodyComp.filter(x => new Date(x.date).toDateString() !== new Date(e.date).toDateString());
+    state.bodyComp.push(e); added++;
+  });
+  let sleepN = 0;
+  // Match a sleep day to a workout's calendar day. A date-only string ("2026-06-01") is
+  // anchored to noon UTC (the app's convention) so it doesn't slip to the previous day in
+  // western timezones; a full session timestamp is read in local time as-is.
+  const dayKey = v => { const t = String(v); const d = t.length > 10 ? new Date(t) : new Date(t.slice(0, 10) + 'T12:00:00.000Z'); return isNaN(d.getTime()) ? '' : d.toDateString(); };
+  parsed.sleep.forEach(s => {
+    const k = dayKey(s.date); if (!k) return;
+    const sess = state.sessions.find(x => dayKey(x.date) === k);
+    if (sess) { const str = [s.score != null ? ('Score ' + s.score) : '', s.note || ''].filter(Boolean).join(' · '); if (str) { sess.sleep = str; sleepN++; } }
+  });
+  saveState();
+  logInfo('Biometrics imported', added + ' measurements · ' + sleepN + ' sleep');
+  if (typeof render === 'function') render();
+  if (!opts.silent) toast('Imported ' + added + ' measurement' + (added === 1 ? '' : 's') + (sleepN ? (' + ' + sleepN + ' sleep') : ''));
+  return { added, sleepN };
 }
 
 /* ============================================================
@@ -9289,7 +9544,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 14 · 2026-06-03 07:42';
+const APP_BUILD = 'build 15 · 2026-06-03 08:16';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -9649,6 +9904,10 @@ setTimeout(() => {
     autoLoadNow(true).then(() => {
       // Re-render silently after loading; status badge shown by autoLoadNow if not silent
     }).catch(() => {});
+  }
+  // feat 73 — biometrics auto-load (separate channel, always merges); silent, no permission prompt on boot
+  if (state.bioAutoLoad && state.bioAutoLoad.enabled) {
+    bioLoadNow(true, false).catch(() => {});
   }
 }, 300);
 </script>
