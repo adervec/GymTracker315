@@ -1277,6 +1277,9 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .setup-toolsel label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; flex-shrink: 0; }
   .setup-toolsel select { flex: 1; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); border-radius: 7px; padding: 6px 8px; font-size: 12px; font-family: inherit; }
   .plate-toggle.slim { color: var(--text3); border-style: solid; font-size: 11px; padding: 6px 10px; }
+  .setup-svg { width: 17px; height: 17px; vertical-align: -3px; flex-shrink: 0; }
+  .setup-x { margin-left: 6px; color: var(--text3); font-size: 10px; padding: 0 1px; }
+  .setup-x:active { color: var(--danger); }
   /* Obscure superset (feat 43) */
   .ss2-start { font-size: 11px; color: var(--accent); cursor: pointer; text-align: center; padding: 6px; border: 1px dashed var(--border2); border-radius: 8px; margin-bottom: 8px; }
   .ss2-start:hover { background: var(--accent-bg); }
@@ -2378,7 +2381,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2561,6 +2564,7 @@ function normalizeState() {
   if (['detailed','tree','table'].indexOf(state.refView) < 0) state.refView = 'detailed'; // feat 76 — reference view mode
   if (!Array.isArray(state.stravaActivities)) state.stravaActivities = []; // feat 77 — imported Strava strength activities
   if (!state.exerciseSetup || typeof state.exerciseSetup !== 'object') state.exerciseSetup = {}; // feat 79 — per-variation setup-tool override
+  if (!Array.isArray(state.pinProfiles)) state.pinProfiles = []; // feat 80 — named pin-stack machine profiles [{id,name,inc}]
   state.cardioGoals = { weeklyMinutes:0, weeklyDistance:0, weeklySessions:0, distanceUnit:'km', ...(state.cardioGoals||{}) };
 }
 
@@ -9107,6 +9111,19 @@ const SETUP_META = {
 };
 function setupLabel(kind) { return (SETUP_META[kind] || {}).label || ''; }
 function setupIcon(kind) { return (SETUP_META[kind] || {}).icon || '🏋'; }
+// feat 80 — stylized, theme-matching SVG glyphs (inherit the button's colour via currentColor).
+function setupIconSvg(kind) {
+  const paths = {
+    barbell:      '<path d="M3 9v6M5.5 7v10"/><path d="M6 12h12" stroke-width="2.4"/><path d="M18.5 7v10M21 9v6"/>',
+    dumbbell:     '<path d="M3 8.5v7M6 10v4"/><path d="M6 12h12" stroke-width="2.4"/><path d="M18 10v4M21 8.5v7"/>',
+    kettlebell:   '<path d="M9 7.5a3 3 0 0 1 6 0"/><circle cx="12" cy="14.5" r="5.3"/>',
+    medicineball: '<circle cx="12" cy="12" r="8"/><path d="M4.3 10.4c5 3 10.4 3 15.4 0M12 4v16"/>',
+    plate:        '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.3"/>',
+    landmine:     '<circle cx="4.6" cy="19.4" r="1.7"/><path d="M5.6 18.4 16 7.2"/><circle cx="17.6" cy="6" r="3.1"/>',
+    pin:          '<rect x="7.5" y="4" width="9" height="15.5" rx="1.2"/><path d="M9.6 8h4.8M9.6 11h4.8"/><circle cx="15.4" cy="13.6" r="1.4" fill="currentColor"/>',
+  };
+  return `<svg class="setup-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[kind] || paths.barbell}</svg>`;
+}
 function autoSetupKind(varUuid) {
   const i = VAR_INDEX.get(varUuid); if (!i) return null;
   const t = ((i.variation.title || '') + ' ' + (i.variation.id || '') + ' ' + (i.family.title || '')).toLowerCase();
@@ -9146,7 +9163,7 @@ function defaultSetupState(kind) {
   if (kind === 'medicineball') return { weight: '' };
   if (kind === 'plate') return { plates: {} };
   if (kind === 'landmine') return { plates: {}, addBar: false };
-  if (kind === 'pin') return { stack: '', toppers: {}, inc: (state.unit === 'kg' ? 5 : 10) };
+  if (kind === 'pin') return { stack: '', toppers: {}, inc: (state.unit === 'kg' ? 5 : 10), profileId: null };
   return {};
 }
 function setupState(kind) { if (!modalState.setup) modalState.setup = {}; if (!modalState.setup[kind]) modalState.setup[kind] = defaultSetupState(kind); return modalState.setup[kind]; }
@@ -9202,7 +9219,9 @@ function renderSetupBody(kind, ns) {
   }
   if (kind === 'pin') {
     const inc = st.inc || (u === 'kg' ? 5 : 10), incs = u === 'kg' ? [2.5, 5, 10] : [5, 10, 15];
-    return `<div class="setup-lbl">Stack (pin) — step by ${inc} ${u}</div>${_stepperRow(ns, st.stack === '' ? '—' : st.stack)}
+    const profs = state.pinProfiles || [];
+    const profRow = `<div class="setup-lbl">Machine profile (saved stacks)</div><div class="setup-pills">${profs.map(p => `<button class="setup-pill ${st.profileId === p.id ? 'active' : ''}" data-${ns}-pinprof="${p.id}">${escapeHtml(p.name)} <span class="setup-bd">·${p.inc}</span><span class="setup-x" data-${ns}-pinprofdel="${p.id}" title="Delete">✕</span></button>`).join('')}<button class="setup-pill" data-${ns}-pinprofsave="1">＋ Save</button></div>`;
+    return `${profRow}<div class="setup-lbl">Stack (pin) — step by ${inc} ${u}</div>${_stepperRow(ns, st.stack === '' ? '—' : st.stack)}
       <div class="setup-lbl">Increment</div><div class="setup-pills">${incs.map(n => `<button class="setup-pill ${inc === n ? 'active' : ''}" data-${ns}-pininc="${n}">${n}</button>`).join('')}</div>
       <div class="setup-lbl">Toppers — add-on plates on the stack (tap to add · ×N remove)</div><div class="setup-pills">${topperWeights().map(w => `<button class="setup-pill big" data-${ns}-topper="${w}">+${w}${st.toppers[w] ? `<span class="setup-ct" data-${ns}-toppersub="${w}">×${st.toppers[w]}</span>` : ''}</button>`).join('')}</div>
       <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">· stack ${st.stack || 0}${plateSum(st.toppers) ? ` + ${plateSum(st.toppers)} toppers` : ''}</span></div>`;
@@ -9237,6 +9256,9 @@ function bindSetup(ns, rerender) {
   at(`[data-${ns}-pininc]`).forEach(b => b.addEventListener('click', () => { setupState('pin').inc = parseFloat(b.getAttribute(`data-${ns}-pininc`)); rerender(); }));
   at(`[data-${ns}-topper]`).forEach(b => b.addEventListener('click', () => { const k = b.getAttribute(`data-${ns}-topper`), st = setupState('pin'); st.toppers[k] = (st.toppers[k] || 0) + 1; rerender(); }));
   at(`[data-${ns}-toppersub]`).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const k = b.getAttribute(`data-${ns}-toppersub`), st = setupState('pin'); st.toppers[k] = Math.max(0, (st.toppers[k] || 0) - 1); if (!st.toppers[k]) delete st.toppers[k]; rerender(); }));
+  at(`[data-${ns}-pinprof]`).forEach(b => b.addEventListener('click', () => { const p = (state.pinProfiles || []).find(x => x.id === b.getAttribute(`data-${ns}-pinprof`)); if (p) { const st = setupState('pin'); st.inc = p.inc; st.profileId = p.id; } rerender(); }));
+  at(`[data-${ns}-pinprofdel]`).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const id = b.getAttribute(`data-${ns}-pinprofdel`); state.pinProfiles = (state.pinProfiles || []).filter(x => x.id !== id); const st = setupState('pin'); if (st.profileId === id) st.profileId = null; saveState(); rerender(); }));
+  at(`[data-${ns}-pinprofsave]`).forEach(b => b.addEventListener('click', () => { const st = setupState('pin'); const nm = (typeof prompt === 'function') ? prompt('Name this machine (e.g. Lat Pulldown):', '') : ''; if (!nm || !nm.trim()) return; const id = 'pp' + Date.now(); state.pinProfiles = state.pinProfiles || []; state.pinProfiles.push({ id, name: nm.trim().slice(0, 24), inc: st.inc || (state.unit === 'kg' ? 5 : 10) }); st.profileId = id; saveState(); rerender(); }));
   at(`[data-${ns}-toolsel]`).forEach(sel => sel.addEventListener('change', () => { setSetupOverride(pending.varUuid, sel.value); rerender(); }));
 }
 function applySetupWeight(total) {
@@ -9251,9 +9273,9 @@ function renderSetupInline() {
   if (isCardioVar(pending.varUuid)) return '';
   const kind = setupKindFor(pending.varUuid); if (!kind) return '';
   const total = setupTotal(kind);
-  if (!modalState.setupOpen) return `<div class="plate-toggle" id="trk-setup-toggle">${setupIcon(kind)} ${setupLabel(kind)}${total ? ` · ${total} ${state.unit}` : ''}</div>`;
+  if (!modalState.setupOpen) return `<div class="plate-toggle" id="trk-setup-toggle">${setupIconSvg(kind)} ${setupLabel(kind)}${total ? ` · ${total} ${state.unit}` : ''}</div>`;
   return `<div class="plate-panel">
-    <div class="plate-head"><span>${setupIcon(kind)} ${setupLabel(kind)}</span><span id="trk-setup-toggle" class="plate-close">✕</span></div>
+    <div class="plate-head"><span>${setupIconSvg(kind)} ${setupLabel(kind)}</span><span id="trk-setup-toggle" class="plate-close">✕</span></div>
     ${renderSetupBody(kind, 'inl')}
     ${renderToolSelector('inl')}
     <div class="plate-actions"><button class="drawer-btn" id="trk-setup-apply">Set as weight →</button><button class="drawer-btn" id="trk-setup-clear">Clear</button></div>
@@ -9272,7 +9294,7 @@ function renderNpSetup() {
   const open = modalState.setupOpen, total = setupTotal(kind);
   return `<div class="np-setup ${open ? 'open' : ''}">
     <div class="np-setup-bar">
-      <button class="np-setup-use" data-np-setup-use ${total > 0 ? '' : 'disabled'}>${setupIcon(kind)} ${setupLabel(kind)}${total > 0 ? `: ${total} ${state.unit}` : ''}</button>
+      <button class="np-setup-use" data-np-setup-use ${total > 0 ? '' : 'disabled'}>${setupIconSvg(kind)} ${setupLabel(kind)}${total > 0 ? `: ${total} ${state.unit}` : ''}</button>
       <button class="np-setup-cfg" data-np-setup-toggle aria-label="Configure">${open ? '▾' : '⚙'}</button>
     </div>
     ${open ? `<div class="np-setup-body">${renderSetupBody(kind, 'np')}<button class="np-setup-apply" data-np-setup-use ${total > 0 ? '' : 'disabled'}>Use ${total} ${state.unit} →</button>${renderToolSelector('np')}</div>` : ''}
@@ -10320,7 +10342,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 20 · 2026-06-03 12:22';
+const APP_BUILD = 'build 21 · 2026-06-03 12:31';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

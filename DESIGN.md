@@ -212,6 +212,12 @@ They share variation **UUIDs**.
   back to the **family's primary (first-listed) `equip`**. A per-variation **override** (`state.exerciseSetup`, ∈
   SETTINGS_KEYS) via the in-configurator Tool selector sets a specific tool or **None**. State is `modalState.setup[kind]`
   / `modalState.setupOpen` (reset per exercise); `setupTotal`/`plateSum` compute the loaded weight.
+- **Pin profiles + picker graphics (feat 80):** Pin Setup gains **named machine profiles** — `state.pinProfiles`
+  (`[{id,name,inc}]`, ∈ SETTINGS_KEYS): a "Machine profile" row of saved-stack chips (tap to apply that machine's
+  increment, ✕ to delete) plus **＋ Save** (names the current increment via `prompt`); the active one is tracked on the
+  pin state's `profileId`. And every picker now shows a **stylized theme-matching SVG glyph** via `setupIconSvg(kind)`
+  (barbell/dumbbell/kettlebell/med-ball/plate/landmine/pin, `stroke="currentColor"` so it inherits the button's accent)
+  in place of the emoji on the chunky OSK button and inline toggle/header.
 
 ---
 
