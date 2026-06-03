@@ -262,6 +262,13 @@ They share variation **UUIDs**.
   (`Promise<boolean>`): the commit logic is extracted into an inner `commit()` gated behind `confirmDialog`, and its one
   return-value caller (the end-workout "Save & end" path) was updated to `.then`. No `confirm`/`prompt`/`alert` calls
   remain.
+- **Smith/custom bar + assign-picker-from-Reference (feat 87):** Barbell Setup gains a **custom bar weight** input
+  (`data-{ns}-barcustom` → `st.bar`) alongside the preset pills, and detects **Smith** variations (`isSmithVar`, title/id
+  match) — `barbellBars()` swaps in counterbalanced-carriage presets (`[15,20,25,45,0]` lb), `defaultSetupState` seeds a
+  lighter 25 lb / 15 kg default, and the body shows a "Smith carriage — effective weight" label + note. And the
+  per-variation **loading-tool override** (`state.exerciseSetup`) is now assignable **from the Reference panel** too: each
+  variation body with a relevant tool shows a `🛠 Loading tool` `<select>` (Auto · {detected} / 7 kinds / None) wired to
+  `setSetupOverride` — which also lets you re-enable a tool after setting it to None.
 
 ---
 

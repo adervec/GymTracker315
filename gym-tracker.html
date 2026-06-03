@@ -930,6 +930,10 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
     font-family: inherit; letter-spacing: 0.3px; transition: background 0.15s;
   }
   .ref-log-btn:hover { background: #2a1a48; color: #c4a0ff; }
+  /* feat 87 — assign the loading-tool picker from Reference */
+  .ref-setup-tool { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; font-size: 11px; color: var(--text3); }
+  .ref-setup-tool span { white-space: nowrap; }
+  .ref-setup-tool select { flex: 1; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); border-radius: 7px; padding: 6px 8px; font-size: 12px; font-family: inherit; }
   .var-cue { background: #14101a; border-left: 2px solid #c98aff; padding: 7px 10px; border-radius: 4px; margin-top: 8px; font-size: 12.5px; font-style: italic; color: #c8b8d8; }
   .var-section { margin-top: 9px; }
   .var-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: #c98aff; margin-bottom: 4px; font-weight: 700; }
@@ -1280,6 +1284,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .setup-pill { position: relative; padding: 7px 11px; border-radius: 8px; font-size: 13px; font-weight: 600; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text2); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
   .setup-pill.big { font-size: 14px; font-weight: 700; color: var(--text); }
   .setup-pill.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  .setup-barcustom { width: 62px; padding: 6px 8px; border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); text-align: center; }
   .setup-ct { display: inline-block; margin-left: 4px; font-size: 11px; color: var(--accent); background: var(--accent-bg); border-radius: 5px; padding: 0 5px; }
   .setup-total { margin-top: 10px; font-size: 13px; color: var(--text2); }
   .setup-total b { color: var(--text); font-size: 15px; }
@@ -9388,7 +9393,7 @@ function setSetupOverride(varUuid, val) {
 }
 function plateSum(plates) { let s = 0; for (const k in plates) s += parseFloat(k) * plates[k]; return Math.round(s * 100) / 100; }
 function defaultSetupState(kind) {
-  if (kind === 'barbell') { const c = plateConfig(); return { bar: c.def, plates: {} }; }
+  if (kind === 'barbell') { const c = plateConfig(); return { bar: (typeof isSmithVar === 'function' && isSmithVar(pending.varUuid)) ? (state.unit === 'kg' ? 15 : 25) : c.def, plates: {} }; } // feat 87 — lighter default for a Smith carriage
   if (kind === 'dumbbell') return { weight: '', perHand: true };
   if (kind === 'kettlebell') return { weight: '', double: false };
   if (kind === 'medicineball') return { weight: '' };
@@ -9433,12 +9438,20 @@ function renderBarbellSvg(st) {
   let xl = cx - innerOff - plateW; shown.forEach(pl => { const h = hFor(pl); s += `<rect x="${xl}" y="${by - h / 2}" width="${plateW}" height="${h}" rx="1.5" fill="${fill(pl)}" stroke="var(--bg2)" stroke-width="0.6"/>`; xl -= plateW + gap; });
   return `<div class="bb-illus"><svg viewBox="0 0 240 76" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${s}${extra > 0 ? `<text x="${cx}" y="70" text-anchor="middle" fill="var(--text3)" font-size="9">+${extra} more per side</text>` : ''}</svg></div>`;
 }
+// feat 87 — Smith machines run a counterbalanced carriage; the "bar" weight is its (machine-specific)
+// effective weight, so Smith variations get lighter presets + a custom field instead of a 45 lb bar.
+function isSmithVar(varUuid) { const i = VAR_INDEX.get(varUuid); return !!(i && /smith/i.test((i.variation.title || '') + ' ' + (i.variation.id || ''))); }
+function barbellBars() { return isSmithVar(pending.varUuid) ? (state.unit === 'kg' ? [7, 10, 15, 20, 0] : [15, 20, 25, 45, 0]) : plateConfig().bars; }
 function renderSetupBody(kind, ns) {
   const st = setupState(kind), u = state.unit, total = setupTotal(kind);
   if (kind === 'barbell') {
     const cfg = plateConfig(), perSide = Math.round(((total - st.bar) / 2) * 100) / 100;
     const bd = cfg.plates.filter(pl => st.plates[pl]).map(pl => `${st.plates[pl]}×${pl}`).join(' + ') || 'bar only';
-    return `<div class="setup-lbl">Bar</div><div class="setup-pills">${cfg.bars.map(b => `<button class="setup-pill ${st.bar === b ? 'active' : ''}" data-${ns}-bar="${b}">${b}</button>`).join('')}</div>
+    const bars = barbellBars(), smith = isSmithVar(pending.varUuid);
+    const barPills = bars.map(b => `<button class="setup-pill ${st.bar === b ? 'active' : ''}" data-${ns}-bar="${b}">${b}</button>`).join('');
+    return `<div class="setup-lbl">${smith ? 'Smith carriage — effective weight' : 'Bar'}</div>
+      <div class="setup-pills">${barPills}<input class="setup-barcustom" type="number" inputmode="decimal" min="0" step="0.5" data-${ns}-barcustom value="${bars.indexOf(st.bar) < 0 ? st.bar : ''}" placeholder="custom" aria-label="Custom bar weight"></div>
+      ${smith ? `<div class="setup-bd" style="margin-top:5px;line-height:1.45;">Smith bars are counterbalanced — set your machine's effective bar weight (often 15–30${u}, sometimes near 0).</div>` : ''}
       <div class="setup-lbl">Plates — per side (tap to add · ×N remove)</div>${_plateGrid(ns, st)}
       ${renderBarbellSvg(st)}
       <div class="setup-total">Total <b>${total} ${u}</b> <span class="setup-bd">· bar ${st.bar} + ${perSide}/side · ${bd}</span></div>`;
@@ -9489,6 +9502,7 @@ function bindSetup(ns, rerender) {
   const at = sel => document.querySelectorAll(sel);
   const stepInc = (state.unit === 'kg' ? 2 : 5);
   at(`[data-${ns}-bar]`).forEach(b => b.addEventListener('click', () => { setupState('barbell').bar = parseFloat(b.getAttribute(`data-${ns}-bar`)); rerender(); }));
+  at(`[data-${ns}-barcustom]`).forEach(inp => inp.addEventListener('change', () => { const v = parseFloat(inp.value); if (!isNaN(v) && v >= 0) { setupState('barbell').bar = Math.round(v * 100) / 100; rerender(); } })); // feat 87 — custom bar weight
   at(`[data-${ns}-padd]`).forEach(b => b.addEventListener('click', () => { const k = b.getAttribute(`data-${ns}-padd`), st = setupState(kind); st.plates[k] = (st.plates[k] || 0) + 1; rerender(); }));
   at(`[data-${ns}-psub]`).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const k = b.getAttribute(`data-${ns}-psub`), st = setupState(kind); st.plates[k] = Math.max(0, (st.plates[k] || 0) - 1); if (!st.plates[k]) delete st.plates[k]; rerender(); }));
   at(`[data-${ns}-set]`).forEach(b => b.addEventListener('click', () => { setupState(kind).weight = parseFloat(b.getAttribute(`data-${ns}-set`)); rerender(); }));
@@ -10592,7 +10606,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 27 · 2026-06-03 14:39';
+const APP_BUILD = 'build 28 · 2026-06-03 14:46';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -17223,6 +17237,14 @@ function renderRef() {
                         }).join('')}</div>
                       </div>`;
                     })()}
+                    ${v.uuid && (autoSetupKind(v.uuid) || (state.exerciseSetup && state.exerciseSetup[v.uuid])) ? (() => {
+                      const ov = (state.exerciseSetup && state.exerciseSetup[v.uuid]) || 'auto', auto = autoSetupKind(v.uuid);
+                      return `<div class="ref-setup-tool"><span>🛠 Loading tool</span><select onclick="event.stopPropagation()" onchange="setSetupOverride('${v.uuid}', this.value)">
+                        <option value="auto"${ov === 'auto' ? ' selected' : ''}>Auto${auto ? ' · ' + setupLabel(auto) : ' · none'}</option>
+                        ${SETUP_KINDS.map(k => `<option value="${k}"${ov === k ? ' selected' : ''}>${setupLabel(k)}</option>`).join('')}
+                        <option value="none"${ov === 'none' ? ' selected' : ''}>None</option>
+                      </select></div>`;
+                    })() : ''}
                     ${!pending.varUuid ? `<button class="ref-log-btn" onclick="event.stopPropagation();refLogExercise('${v.uuid || ''}')">▶ Log this exercise</button>` : ''}
                   </div>
                 </div>
