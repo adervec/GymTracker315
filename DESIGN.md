@@ -30,6 +30,13 @@ Two parallel exercise datasets are intentional: **`FAMILIES`** drives logging,
 the picker, volume and tracking; **`exercises`** drives the reference documentation.
 They share variation **UUIDs**.
 
+> **Adding/removing a variation touches BOTH datasets.** Put the variation in the readable
+> `exercises` block (full cue/setup/movement/mistakes/programming/position docs) **and** in the
+> compact `FAMILIES` JSON (`{id, uuid, title, cue, tip, warning, best, subscription}`) under the
+> matching family — using the **same UUID** in both. Editing only `exercises` documents the move
+> but leaves it unloggable (it won't appear in the tracker picker); editing only `FAMILIES` makes it
+> loggable but undocumented. (E.g. the Freemotion functional-trainer variations — feat 59.)
+
 > **Latent bug fixed earlier:** both blocks declared a global `function render()`;
 > block 2's reference one clobbered block 1's tracker one after load. The reference
 > function was renamed **`renderRef()`**. An init simulation (`node` + DOM stub) is
@@ -44,6 +51,17 @@ They share variation **UUIDs**.
 - **Reference panel:** searchable/filterable movement library.
 - **Overlays:** Settings drawer, Help panel, Glossary panel (with anatomy chart), Log modal, Notes modal.
 - The Glossary overlay relocates to `<body>` on open so it works from any panel and is themed globally.
+- **Glossary view (feat 59):** opens as a full page by default, or a right-side slide-in drawer
+  (Settings → Reference → *Glossary view*, persisted as `glossaryAsPage`, default `true`). Same panel and
+  content either way — page mode just drops the slide animation/backdrop and goes edge-to-edge. The panel's
+  z-index sits above the top bar so its header/✕ are never occluded in either mode.
+- **Settings drawer cleanup (feat 60):** the drawer template stays flat (`.drawer-section-title` + sibling
+  rows); after every render, **`decorateSettingsSections()`** wraps each title + its following siblings into a
+  collapsible `.drawer-section`, so the giant template is untouched. A header search box (kept *outside*
+  `#settings-drawer-body` so it survives re-renders) drives **`applySettingsFilter()`** for row/section-level
+  filtering. Collapse state is persisted in `state.settingsCollapse` (in `SETTINGS_KEYS`, so it survives reloads
+  and is kept on merge-imports); the **Theme** section is collapsed by default (43 swatches were the bulk) and
+  shows the active theme as a header hint. Theme swatches were also compacted (6 cols, 24px dots).
 
 ---
 
