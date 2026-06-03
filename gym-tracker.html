@@ -1243,6 +1243,40 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plate-bd { font-size: 10.5px; color: var(--text3); }
   .plate-actions { display: flex; gap: 6px; margin-top: 8px; }
   .plate-note { font-size: 10px; color: var(--text3); margin-top: 8px; line-height: 1.5; }
+  /* Equipment "X Setup" controls (feat 78) — shared by inline panel + OSK numpad */
+  .setup-lbl { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; margin: 8px 0 5px; }
+  .setup-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .setup-pills.wrap { max-height: 116px; overflow-y: auto; }
+  .setup-pill { position: relative; padding: 7px 11px; border-radius: 8px; font-size: 13px; font-weight: 600; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text2); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .setup-pill.big { font-size: 14px; font-weight: 700; color: var(--text); }
+  .setup-pill.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  .setup-ct { display: inline-block; margin-left: 4px; font-size: 11px; color: var(--accent); background: var(--accent-bg); border-radius: 5px; padding: 0 5px; }
+  .setup-total { margin-top: 10px; font-size: 13px; color: var(--text2); }
+  .setup-total b { color: var(--text); font-size: 15px; }
+  .setup-bd { font-size: 10.5px; color: var(--text3); }
+  .setup-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .setup-step { width: 40px; height: 40px; border-radius: 9px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 22px; font-weight: 700; cursor: pointer; font-family: inherit; line-height: 1; flex-shrink: 0; }
+  .setup-step:active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .setup-val { flex: 1; text-align: center; font-size: 19px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+  .setup-val span { font-size: 12px; color: var(--text3); font-weight: 600; }
+  .setup-mode { padding: 8px 11px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text2); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; flex-shrink: 0; }
+  .setup-mode.on { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  /* OSK numpad setup strip */
+  .np-setup { margin-bottom: 8px; }
+  .np-setup-bar { display: flex; gap: 8px; }
+  .np-setup-use { flex: 1; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--accent-border); background: var(--accent-bg); color: var(--accent); font-size: 14px; font-weight: 800; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .np-setup-use:active { background: var(--accent); color: #fff; }
+  .np-setup-use:disabled { opacity: 0.5; cursor: default; }
+  .np-setup-cfg { width: 46px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 16px; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .np-setup-body { background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px; padding: 8px 11px; margin-top: 8px; max-height: 36vh; overflow-y: auto; }
+  .np-setup-apply { width: 100%; margin-top: 10px; padding: 11px; border-radius: 9px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; }
+  .np-setup-apply:disabled { opacity: 0.5; }
+  .np-setup-cfg.wide { width: auto; flex: 1; font-size: 13px; font-weight: 700; }
+  /* Per-variation tool override selector */
+  .setup-toolsel { display: flex; align-items: center; gap: 8px; margin-top: 11px; padding-top: 9px; border-top: 1px solid var(--border2); }
+  .setup-toolsel label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; flex-shrink: 0; }
+  .setup-toolsel select { flex: 1; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); border-radius: 7px; padding: 6px 8px; font-size: 12px; font-family: inherit; }
+  .plate-toggle.slim { color: var(--text3); border-style: solid; font-size: 11px; padding: 6px 10px; }
   /* Obscure superset (feat 43) */
   .ss2-start { font-size: 11px; color: var(--accent); cursor: pointer; text-align: center; padding: 6px; border: 1px dashed var(--border2); border-radius: 8px; margin-bottom: 8px; }
   .ss2-start:hover { background: var(--accent-bg); }
@@ -2344,7 +2378,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2526,6 +2560,7 @@ function normalizeState() {
   if (!state.exerciseMedia || typeof state.exerciseMedia !== 'object') state.exerciseMedia = {}; // feat 75 — per-exercise reference video links
   if (['detailed','tree','table'].indexOf(state.refView) < 0) state.refView = 'detailed'; // feat 76 — reference view mode
   if (!Array.isArray(state.stravaActivities)) state.stravaActivities = []; // feat 77 — imported Strava strength activities
+  if (!state.exerciseSetup || typeof state.exerciseSetup !== 'object') state.exerciseSetup = {}; // feat 79 — per-variation setup-tool override
   state.cardioGoals = { weeklyMinutes:0, weeklyDistance:0, weeklySessions:0, distanceUnit:'km', ...(state.cardioGoals||{}) };
 }
 
@@ -9008,7 +9043,7 @@ function bindPickerResults() {
       pending.subUuid = info && info.variation.subscription
         ? info.variation.subscription.options[0].uuid
         : null;
-      modalState.plate = null; modalState.plateOpen = false; pending.defaultWeight = null; // reset plate loader per exercise (feat 41)
+      modalState.setup = {}; modalState.setupOpen = false; pending.defaultWeight = null; // reset equipment setup per exercise (feat 41/78/79)
       if (isCardioVar(varUuid)) {
         // Cardio is tracked as time + metrics, not weight×reps (feat 6)
         pending.sets = [];
@@ -9055,50 +9090,208 @@ function isBarbellVar(varUuid) {
   const i = VAR_INDEX.get(varUuid);
   return !!(i && i.family.equip && i.family.equip.includes('barbell'));
 }
-function plateTotal() {
-  const p = modalState.plate; if (!p) return 0;
-  let perSide = 0; for (const k in p.plates) perSide += parseFloat(k) * p.plates[k];
-  return Math.round((p.bar + 2 * perSide) * 100) / 100;
+/* ----- Equipment "X Setup" tools (feat 41/42 + 78/79) — Barbell · Dumbbell · Kettlebell ·
+   Medicine Ball · Plate · Landmine · Pin pickers. The tool is AUTO-DETECTED from the variation's
+   own equipment (equipment is variation-specific, not family-wide), overridable per variation via
+   state.exerciseSetup. Bodies + binders are shared between the inline sets-form panel ('inl') and
+   the OSK numpad ('np') via a namespace, so there's one source of truth. ----- */
+const SETUP_KINDS = ['barbell', 'dumbbell', 'kettlebell', 'medicineball', 'plate', 'landmine', 'pin'];
+const SETUP_META = {
+  barbell:      { label: 'Barbell Setup', icon: '🏋' },
+  dumbbell:     { label: 'Dumbbell Setup', icon: '🏋' },
+  kettlebell:   { label: 'Kettlebell Setup', icon: '🔔' },
+  medicineball: { label: 'Medicine Ball', icon: '⚫' },
+  plate:        { label: 'Plate Picker', icon: '🥏' },
+  landmine:     { label: 'Landmine Setup', icon: '📐' },
+  pin:          { label: 'Pin Setup', icon: '📌' },
+};
+function setupLabel(kind) { return (SETUP_META[kind] || {}).label || ''; }
+function setupIcon(kind) { return (SETUP_META[kind] || {}).icon || '🏋'; }
+function autoSetupKind(varUuid) {
+  const i = VAR_INDEX.get(varUuid); if (!i) return null;
+  const t = ((i.variation.title || '') + ' ' + (i.variation.id || '') + ' ' + (i.family.title || '')).toLowerCase();
+  if (/landmine|meadows/.test(t)) return 'landmine';
+  if (/medicine|med ball|wall ball|slam ball/.test(t)) return 'medicineball';
+  if (/kettlebell|\bkb\b/.test(t)) return 'kettlebell';
+  if (/dumbbell|\bdb\b/.test(t)) return 'dumbbell';
+  if (/\bgoblet\b/.test(t)) return 'dumbbell';                                    // held DB/KB lift (single-weight picker)
+  if (/smith/.test(t)) return 'barbell';                                          // smith bar lives inside Barbell Setup
+  if (/plate-?load|iso-?lateral|\bmts\b|t-?bar|hammer strength|leverage/.test(t)) return 'plate';
+  if (/barbell|\bbb\b|ez-?bar|trap-?bar|safety-?bar|\bssb\b|cambered/.test(t)) return 'barbell';
+  if (/cable|pulley|pushdown|pulldown|crossover|\brope\b|freemotion|roc-?it|d-?handle/.test(t)) return 'pin';
+  if (/machine|selectoriz|\bstack\b|fixed/.test(t)) return 'pin';
+  if (/\bbodyweight\b|body ?weight/.test(t)) return null;                          // explicitly bodyweight → no loading tool
+  const mode = (typeof exMode === 'function') ? exMode(varUuid).mode : 'standard';
+  if (mode === 'bodyweight') return /weighted/.test(t) ? 'plate' : null;          // added-load calisthenics → plate picker; pure BW → none
+  if (mode === 'time' || mode === 'distance') return null;                        // holds / carries — no loading tool by default
+  const eq = i.family.equip || [], map = { barbell: 'barbell', dumbbell: 'dumbbell', kettlebell: 'kettlebell', cable: 'pin', machine: 'pin' };
+  for (let n = 0; n < eq.length; n++) { if (map[eq[n]]) return map[eq[n]]; }      // silent variation → the family's primary (first-listed) equipment
+  return null;
 }
-function renderPlateLoader() {
-  if (!isBarbellVar(pending.varUuid)) return '';
-  const cfg = plateConfig();
-  if (!modalState.plate) modalState.plate = { bar: cfg.def, plates: {} };
-  const p = modalState.plate;
-  const total = plateTotal();
-  if (!modalState.plateOpen) {
-    return `<div class="plate-toggle" id="trk-plate-toggle">🏋 Plate loader${total ? ` · ${total} ${state.unit}` : ''}</div>`;
+function setupKindFor(varUuid) {
+  const ov = state.exerciseSetup && state.exerciseSetup[varUuid];
+  if (ov) return ov === 'none' ? null : ov;
+  return autoSetupKind(varUuid);
+}
+function setSetupOverride(varUuid, val) {
+  state.exerciseSetup = state.exerciseSetup || {};
+  if (!val || val === 'auto') delete state.exerciseSetup[varUuid]; else state.exerciseSetup[varUuid] = val;
+  saveState();
+}
+function plateSum(plates) { let s = 0; for (const k in plates) s += parseFloat(k) * plates[k]; return Math.round(s * 100) / 100; }
+function defaultSetupState(kind) {
+  if (kind === 'barbell') { const c = plateConfig(); return { bar: c.def, plates: {} }; }
+  if (kind === 'dumbbell') return { weight: '', perHand: true };
+  if (kind === 'kettlebell') return { weight: '', double: false };
+  if (kind === 'medicineball') return { weight: '' };
+  if (kind === 'plate') return { plates: {} };
+  if (kind === 'landmine') return { plates: {}, addBar: false };
+  if (kind === 'pin') return { stack: '', toppers: {}, inc: (state.unit === 'kg' ? 5 : 10) };
+  return {};
+}
+function setupState(kind) { if (!modalState.setup) modalState.setup = {}; if (!modalState.setup[kind]) modalState.setup[kind] = defaultSetupState(kind); return modalState.setup[kind]; }
+function dumbbellWeights() { return state.unit === 'kg' ? [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44, 50] : [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 110, 120]; }
+function kettlebellWeights() { return state.unit === 'kg' ? [8, 10, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48] : [18, 26, 35, 44, 53, 62, 70, 80, 88, 97, 106]; }
+function medballWeights() { return state.unit === 'kg' ? [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20] : [4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 40, 50]; }
+function topperWeights() { return state.unit === 'kg' ? [1.25, 2.5, 5] : [2.5, 5, 10]; }
+function setupTotal(kind) {
+  if (!kind) return 0;
+  const st = setupState(kind);
+  if (kind === 'barbell') return Math.round((st.bar + 2 * plateSum(st.plates)) * 100) / 100;
+  if (kind === 'dumbbell') { const w = parseFloat(st.weight) || 0; return st.perHand ? w : Math.round(w * 2 * 100) / 100; }
+  if (kind === 'kettlebell') { const w = parseFloat(st.weight) || 0; return st.double ? Math.round(w * 2 * 100) / 100 : w; }
+  if (kind === 'medicineball') return parseFloat(st.weight) || 0;
+  if (kind === 'plate') return plateSum(st.plates);
+  if (kind === 'landmine') return Math.round((plateSum(st.plates) + (st.addBar ? (state.unit === 'kg' ? 10 : 25) : 0)) * 100) / 100;
+  if (kind === 'pin') return Math.round(((parseFloat(st.stack) || 0) + plateSum(st.toppers)) * 100) / 100;
+  return 0;
+}
+
+function _plateGrid(ns, st) { return `<div class="setup-pills">${plateConfig().plates.map(pl => `<button class="setup-pill big" data-${ns}-padd="${pl}">${pl}${st.plates[pl] ? `<span class="setup-ct" data-${ns}-psub="${pl}">×${st.plates[pl]}</span>` : ''}</button>`).join('')}</div>`; }
+function _pillRow(items, cur, ns) { return `<div class="setup-pills wrap">${items.map(w => `<button class="setup-pill ${('' + cur) === ('' + w) ? 'active' : ''}" data-${ns}-set="${w}">${w}</button>`).join('')}</div>`; }
+function _stepperRow(ns, valTxt, modeBtn) { return `<div class="setup-row"><button class="setup-step" data-${ns}-step="-1" aria-label="less">−</button><div class="setup-val">${valTxt} <span>${state.unit}</span></div><button class="setup-step" data-${ns}-step="1" aria-label="more">+</button>${modeBtn || ''}</div>`; }
+function renderSetupBody(kind, ns) {
+  const st = setupState(kind), u = state.unit, total = setupTotal(kind);
+  if (kind === 'barbell') {
+    const cfg = plateConfig(), perSide = Math.round(((total - st.bar) / 2) * 100) / 100;
+    const bd = cfg.plates.filter(pl => st.plates[pl]).map(pl => `${st.plates[pl]}×${pl}`).join(' + ') || 'bar only';
+    return `<div class="setup-lbl">Bar</div><div class="setup-pills">${cfg.bars.map(b => `<button class="setup-pill ${st.bar === b ? 'active' : ''}" data-${ns}-bar="${b}">${b}</button>`).join('')}</div>
+      <div class="setup-lbl">Plates — per side (tap to add · ×N remove)</div>${_plateGrid(ns, st)}
+      <div class="setup-total">Total <b>${total} ${u}</b> <span class="setup-bd">· bar ${st.bar} + ${perSide}/side · ${bd}</span></div>`;
   }
-  const perSide = Math.round(((total - p.bar) / 2) * 100) / 100;
-  const breakdown = cfg.plates.filter(pl => p.plates[pl]).map(pl => `${p.plates[pl]}×${pl}`).join(' + ') || 'bar only';
+  if (kind === 'dumbbell') {
+    return `<div class="setup-lbl">Dumbbell — tap a weight</div>${_pillRow(dumbbellWeights(), st.weight, ns)}
+      ${_stepperRow(ns, st.weight === '' ? '—' : st.weight, `<button class="setup-mode ${st.perHand ? '' : 'on'}" data-${ns}-mode="1">${st.perHand ? 'per hand' : 'total ×2'}</button>`)}
+      <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">${st.perHand ? '(per dumbbell)' : `(${st.weight || 0} × 2)`}</span></div>`;
+  }
+  if (kind === 'kettlebell') {
+    return `<div class="setup-lbl">Kettlebell — tap a weight</div>${_pillRow(kettlebellWeights(), st.weight, ns)}
+      ${_stepperRow(ns, st.weight === '' ? '—' : st.weight, `<button class="setup-mode ${st.double ? 'on' : ''}" data-${ns}-mode="1">${st.double ? 'double ×2' : 'single'}</button>`)}
+      <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">${st.double ? `(${st.weight || 0} × 2 bells)` : '(one bell)'}</span></div>`;
+  }
+  if (kind === 'medicineball') {
+    return `<div class="setup-lbl">Medicine / slam ball — tap a weight</div>${_pillRow(medballWeights(), st.weight, ns)}
+      ${_stepperRow(ns, st.weight === '' ? '—' : st.weight)}
+      <div class="setup-total">Enter <b>${total} ${u}</b></div>`;
+  }
+  if (kind === 'plate' || kind === 'landmine') {
+    const bd = plateConfig().plates.filter(pl => st.plates[pl]).map(pl => `${st.plates[pl]}×${pl}`).join(' + ') || 'none';
+    return `<div class="setup-lbl">${kind === 'landmine' ? 'Plates on the loaded end' : 'Plates loaded'} (tap to add · ×N remove)</div>${_plateGrid(ns, st)}
+      ${kind === 'landmine' ? `<div class="setup-row" style="margin-top:8px;"><button class="setup-mode ${st.addBar ? 'on' : ''}" data-${ns}-lmbar="1">${st.addBar ? '✓ ' : ''}+ bar (~${u === 'kg' ? 10 : 25} ${u})</button></div>` : ''}
+      <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">· ${bd}</span></div>`;
+  }
+  if (kind === 'pin') {
+    const inc = st.inc || (u === 'kg' ? 5 : 10), incs = u === 'kg' ? [2.5, 5, 10] : [5, 10, 15];
+    return `<div class="setup-lbl">Stack (pin) — step by ${inc} ${u}</div>${_stepperRow(ns, st.stack === '' ? '—' : st.stack)}
+      <div class="setup-lbl">Increment</div><div class="setup-pills">${incs.map(n => `<button class="setup-pill ${inc === n ? 'active' : ''}" data-${ns}-pininc="${n}">${n}</button>`).join('')}</div>
+      <div class="setup-lbl">Toppers — add-on plates on the stack (tap to add · ×N remove)</div><div class="setup-pills">${topperWeights().map(w => `<button class="setup-pill big" data-${ns}-topper="${w}">+${w}${st.toppers[w] ? `<span class="setup-ct" data-${ns}-toppersub="${w}">×${st.toppers[w]}</span>` : ''}</button>`).join('')}</div>
+      <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">· stack ${st.stack || 0}${plateSum(st.toppers) ? ` + ${plateSum(st.toppers)} toppers` : ''}</span></div>`;
+  }
+  return '';
+}
+function renderToolSelector(ns) {
+  const ovVal = (state.exerciseSetup && state.exerciseSetup[pending.varUuid]) || 'auto';
+  const auto = autoSetupKind(pending.varUuid);
+  return `<div class="setup-toolsel"><label>Tool</label><select data-${ns}-toolsel>
+    <option value="auto"${ovVal === 'auto' ? ' selected' : ''}>Auto${auto ? ' · ' + setupLabel(auto) : ' · none'}</option>
+    ${SETUP_KINDS.map(k => `<option value="${k}"${ovVal === k ? ' selected' : ''}>${setupLabel(k)}</option>`).join('')}
+    <option value="none"${ovVal === 'none' ? ' selected' : ''}>None (type manually)</option>
+  </select></div>`;
+}
+function bindSetup(ns, rerender) {
+  const kind = setupKindFor(pending.varUuid);
+  const at = sel => document.querySelectorAll(sel);
+  const stepInc = (state.unit === 'kg' ? 2 : 5);
+  at(`[data-${ns}-bar]`).forEach(b => b.addEventListener('click', () => { setupState('barbell').bar = parseFloat(b.getAttribute(`data-${ns}-bar`)); rerender(); }));
+  at(`[data-${ns}-padd]`).forEach(b => b.addEventListener('click', () => { const k = b.getAttribute(`data-${ns}-padd`), st = setupState(kind); st.plates[k] = (st.plates[k] || 0) + 1; rerender(); }));
+  at(`[data-${ns}-psub]`).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const k = b.getAttribute(`data-${ns}-psub`), st = setupState(kind); st.plates[k] = Math.max(0, (st.plates[k] || 0) - 1); if (!st.plates[k]) delete st.plates[k]; rerender(); }));
+  at(`[data-${ns}-set]`).forEach(b => b.addEventListener('click', () => { setupState(kind).weight = parseFloat(b.getAttribute(`data-${ns}-set`)); rerender(); }));
+  at(`[data-${ns}-step]`).forEach(b => b.addEventListener('click', () => {
+    const st = setupState(kind), dir = parseInt(b.getAttribute(`data-${ns}-step`), 10);
+    if (kind === 'pin') { const pi = st.inc || (state.unit === 'kg' ? 5 : 10); st.stack = Math.max(0, Math.round(((parseFloat(st.stack) || 0) + pi * dir) * 100) / 100); }
+    else { st.weight = Math.max(0, Math.round(((parseFloat(st.weight) || 0) + stepInc * dir) * 100) / 100); }
+    rerender();
+  }));
+  at(`[data-${ns}-mode]`).forEach(b => b.addEventListener('click', () => { const st = setupState(kind); if (kind === 'dumbbell') st.perHand = !st.perHand; else if (kind === 'kettlebell') st.double = !st.double; rerender(); }));
+  at(`[data-${ns}-lmbar]`).forEach(b => b.addEventListener('click', () => { const st = setupState('landmine'); st.addBar = !st.addBar; rerender(); }));
+  at(`[data-${ns}-pininc]`).forEach(b => b.addEventListener('click', () => { setupState('pin').inc = parseFloat(b.getAttribute(`data-${ns}-pininc`)); rerender(); }));
+  at(`[data-${ns}-topper]`).forEach(b => b.addEventListener('click', () => { const k = b.getAttribute(`data-${ns}-topper`), st = setupState('pin'); st.toppers[k] = (st.toppers[k] || 0) + 1; rerender(); }));
+  at(`[data-${ns}-toppersub]`).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const k = b.getAttribute(`data-${ns}-toppersub`), st = setupState('pin'); st.toppers[k] = Math.max(0, (st.toppers[k] || 0) - 1); if (!st.toppers[k]) delete st.toppers[k]; rerender(); }));
+  at(`[data-${ns}-toolsel]`).forEach(sel => sel.addEventListener('change', () => { setSetupOverride(pending.varUuid, sel.value); rerender(); }));
+}
+function applySetupWeight(total) {
+  pending.defaultWeight = total;
+  if (!pending.sets.length) pending.sets = [{ w: total, r: '' }];
+  else pending.sets = pending.sets.map(s => (s.w === '' || s.w == null) ? { ...s, w: total } : s);
+  savePending();
+}
+/* Inline (sets-form) version — only when the OSK numpad is off (otherwise the OSK provides it). */
+function renderSetupInline() {
+  if (state.workoutControls && state.workoutControls.onScreenNumpad) return '';
+  if (isCardioVar(pending.varUuid)) return '';
+  const kind = setupKindFor(pending.varUuid); if (!kind) return '';
+  const total = setupTotal(kind);
+  if (!modalState.setupOpen) return `<div class="plate-toggle" id="trk-setup-toggle">${setupIcon(kind)} ${setupLabel(kind)}${total ? ` · ${total} ${state.unit}` : ''}</div>`;
   return `<div class="plate-panel">
-    <div class="plate-head"><span>🏋 Plate Loader</span><span id="trk-plate-toggle" class="plate-close">✕</span></div>
-    <div class="plate-section-lbl">Bar</div>
-    <div class="plate-bars">${cfg.bars.map(b => `<button class="plate-bar-pill ${p.bar===b?'active':''}" data-plate-bar="${b}">${b}</button>`).join('')}</div>
-    <div class="plate-section-lbl">Plates — per side (tap to add, tap ×N to remove)</div>
-    <div class="plate-grid">${cfg.plates.map(pl => `<button class="plate-pill" data-plate-add="${pl}">${pl}${p.plates[pl] ? `<span class="plate-count" data-plate-sub="${pl}">×${p.plates[pl]}</span>` : ''}</button>`).join('')}</div>
-    <div class="plate-total">Total <b>${total} ${state.unit}</b> <span class="plate-bd">· bar ${p.bar} + ${perSide}/side · ${breakdown}</span></div>
-    <div class="plate-actions">
-      <button class="drawer-btn" id="trk-plate-apply">Set as weight →</button>
-      <button class="drawer-btn" id="trk-plate-clear">Clear plates</button>
-    </div>
-    <div class="plate-note">Symmetric per-side loading. Asymmetric is only relevant for a few obscure lifts (e.g. landmine) and isn't modeled here.</div>
+    <div class="plate-head"><span>${setupIcon(kind)} ${setupLabel(kind)}</span><span id="trk-setup-toggle" class="plate-close">✕</span></div>
+    ${renderSetupBody(kind, 'inl')}
+    ${renderToolSelector('inl')}
+    <div class="plate-actions"><button class="drawer-btn" id="trk-setup-apply">Set as weight →</button><button class="drawer-btn" id="trk-setup-clear">Clear</button></div>
   </div>`;
 }
-function bindPlateLoader() {
-  document.getElementById('trk-plate-toggle')?.addEventListener('click', () => { modalState.plateOpen = !modalState.plateOpen; renderModal(); });
-  document.querySelectorAll('[data-plate-bar]').forEach(b => b.addEventListener('click', () => { modalState.plate.bar = parseFloat(b.dataset.plateBar); renderModal(); }));
-  document.querySelectorAll('[data-plate-add]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.plateAdd; modalState.plate.plates[k] = (modalState.plate.plates[k] || 0) + 1; renderModal(); }));
-  document.querySelectorAll('[data-plate-sub]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const k = b.dataset.plateSub; modalState.plate.plates[k] = Math.max(0, (modalState.plate.plates[k] || 0) - 1); if (!modalState.plate.plates[k]) delete modalState.plate.plates[k]; renderModal(); }));
-  document.getElementById('trk-plate-clear')?.addEventListener('click', () => { modalState.plate.plates = {}; renderModal(); });
-  document.getElementById('trk-plate-apply')?.addEventListener('click', () => {
-    const t = plateTotal();
-    pending.defaultWeight = t;
-    if (!pending.sets.length) pending.sets = [{ w: t, r: '' }];
-    else pending.sets = pending.sets.map(s => (s.w === '' || s.w == null) ? { ...s, w: t } : s);
-    savePending(); renderModal(); updateSaveBtn();
-    toast('Loaded ' + t + ' ' + state.unit);
-  });
+function bindSetupInline() {
+  if (state.workoutControls && state.workoutControls.onScreenNumpad) return;
+  document.getElementById('trk-setup-toggle')?.addEventListener('click', () => { modalState.setupOpen = !modalState.setupOpen; renderModal(); });
+  bindSetup('inl', renderModal);
+  document.getElementById('trk-setup-clear')?.addEventListener('click', () => { const k = setupKindFor(pending.varUuid); if (k && modalState.setup) modalState.setup[k] = defaultSetupState(k); renderModal(); });
+  document.getElementById('trk-setup-apply')?.addEventListener('click', () => { const t = setupTotal(setupKindFor(pending.varUuid)); applySetupWeight(t); renderModal(); updateSaveBtn(); toast('Loaded ' + t + ' ' + state.unit); });
+}
+/* OSK version — a chunky "Use {weight}" button at the top of the numpad + an expandable configurator. */
+function renderNpSetup() {
+  const kind = setupKindFor(pending.varUuid); if (!kind) return '';
+  const open = modalState.setupOpen, total = setupTotal(kind);
+  return `<div class="np-setup ${open ? 'open' : ''}">
+    <div class="np-setup-bar">
+      <button class="np-setup-use" data-np-setup-use ${total > 0 ? '' : 'disabled'}>${setupIcon(kind)} ${setupLabel(kind)}${total > 0 ? `: ${total} ${state.unit}` : ''}</button>
+      <button class="np-setup-cfg" data-np-setup-toggle aria-label="Configure">${open ? '▾' : '⚙'}</button>
+    </div>
+    ${open ? `<div class="np-setup-body">${renderSetupBody(kind, 'np')}<button class="np-setup-apply" data-np-setup-use ${total > 0 ? '' : 'disabled'}>Use ${total} ${state.unit} →</button>${renderToolSelector('np')}</div>` : ''}
+  </div>`;
+}
+function bindNpSetup() {
+  const sheet = document.getElementById('trk-numpad'); if (!sheet) return;
+  sheet.querySelectorAll('[data-np-setup-toggle]').forEach(b => b.addEventListener('click', () => { modalState.setupOpen = !modalState.setupOpen; renderNumpad(); }));
+  sheet.querySelectorAll('[data-np-setup-use]').forEach(b => b.addEventListener('click', () => {
+    const np = modalState.numpad; if (!np) return;
+    const kind = setupKindFor(pending.varUuid), total = setupTotal(kind);
+    if (!(total > 0)) { modalState.setupOpen = true; renderNumpad(); return; }
+    np.buf = String(total);
+    const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + np.i + '"][data-field="' + np.field + '"]');
+    if (inp) inp.value = np.buf;
+    commitSetField(np.i, np.field, np.buf);
+    numpadNext();
+  }));
+  bindSetup('np', renderNumpad);
 }
 
 // feat 65 — collapse any extra fully-empty rows so the form never shows >1 incomplete blank row.
@@ -9355,7 +9548,7 @@ function renderSetsForm() {
       <div class="suggestion-label">${suggestion.label}</div>
       <div class="suggestion-text">${suggestion.text}</div>
     </div>` : ''}
-    ${renderPlateLoader()}
+    ${renderSetupInline()}
 
     <div class="card-title" style="margin-top:14px;">Sets</div>
     <div class="set-header">
@@ -9589,11 +9782,13 @@ function renderNumpad() {
   const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
   const sign = isW && M.mode === 'bodyweight';
   const calc = state.calcMode === true;
+  const kind = isW ? setupKindFor(pending.varUuid) : null; // feat 78 — equipment setup tool in the OSK
   const label = isW ? (M.wLabel + ' (' + state.unit + ')') : M.rLabel;
   const disp = calc ? formatCalcDisplay(np.buf) : (np.buf === '' ? '0' : np.buf);
   const key = (k, txt, cls) => `<button class="np-key${cls ? ' ' + cls : ''}" data-np="${k}">${txt}</button>`;
   sheet.innerHTML = `
     <div class="np-head"><span class="np-title">Set ${np.i + 1} · ${escapeHtml(label)}</span><button class="np-calc-toggle ${calc ? 'active' : ''}" data-np="calctoggle" title="Calculator (BEDMAS)">🧮</button><button class="np-key np-close" data-np="next">Next</button></div>
+    ${kind ? renderNpSetup() : ''}
     <div class="np-display">${escapeHtml(disp)}</div>
     ${calc ? `<div class="np-ops">${key('lparen','(')}${key('rparen',')')}${key('div','÷')}${key('mul','×')}${key('sub','−')}${key('add','+')}</div>` : ''}
     <div class="np-grid">
@@ -9608,6 +9803,7 @@ function renderNumpad() {
       ${key('done', 'Done', 'np-wide np-primary')}
     </div>`;
   bindNumpadKeys();
+  if (kind) bindNpSetup();
 }
 // Collapse the calculator expression to its numeric result and commit it (on Next/Done).
 function finalizeCalc(np) {
@@ -9739,7 +9935,7 @@ function bindSetsForm() {
       updateSaveBtn();
     });
   });
-  bindPlateLoader();
+  bindSetupInline();
   // feat 58 — Add Set: single click adds a fresh set (no double-click behaviour). Footer button (static).
   document.getElementById('trk-add-set').onclick = () => addSetRow('single');
   // feat 58 — Copy: build the next set's weight from the bottommost set / nearest above / history.
@@ -10124,7 +10320,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 19 · 2026-06-03 11:30';
+const APP_BUILD = 'build 20 · 2026-06-03 12:22';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
