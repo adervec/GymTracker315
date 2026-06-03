@@ -1280,6 +1280,8 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .setup-svg { width: 17px; height: 17px; vertical-align: -3px; flex-shrink: 0; }
   .setup-x { margin-left: 6px; color: var(--text3); font-size: 10px; padding: 0 1px; }
   .setup-x:active { color: var(--danger); }
+  .bb-illus { margin: 11px 0 3px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 9px; padding: 4px 6px; }
+  .bb-illus svg { width: 100%; height: 62px; display: block; }
   /* Obscure superset (feat 43) */
   .ss2-start { font-size: 11px; color: var(--accent); cursor: pointer; text-align: center; padding: 6px; border: 1px dashed var(--border2); border-radius: 8px; margin-bottom: 8px; }
   .ss2-start:hover { background: var(--accent-bg); }
@@ -9187,6 +9189,21 @@ function setupTotal(kind) {
 function _plateGrid(ns, st) { return `<div class="setup-pills">${plateConfig().plates.map(pl => `<button class="setup-pill big" data-${ns}-padd="${pl}">${pl}${st.plates[pl] ? `<span class="setup-ct" data-${ns}-psub="${pl}">×${st.plates[pl]}</span>` : ''}</button>`).join('')}</div>`; }
 function _pillRow(items, cur, ns) { return `<div class="setup-pills wrap">${items.map(w => `<button class="setup-pill ${('' + cur) === ('' + w) ? 'active' : ''}" data-${ns}-set="${w}">${w}</button>`).join('')}</div>`; }
 function _stepperRow(ns, valTxt, modeBtn) { return `<div class="setup-row"><button class="setup-step" data-${ns}-step="-1" aria-label="less">−</button><div class="setup-val">${valTxt} <span>${state.unit}</span></div><button class="setup-step" data-${ns}-step="1" aria-label="more">+</button>${modeBtn || ''}</div>`; }
+// feat 81 — live loaded-barbell illustration: draws the plates actually on the bar (height ∝ weight,
+// largest inside-out, symmetric), theme-coloured by size band. Re-renders on every plate change.
+function renderBarbellSvg(st) {
+  const cfg = plateConfig(), maxPl = cfg.plates[0];
+  const list = []; cfg.plates.forEach(pl => { for (let i = 0; i < (st.plates[pl] || 0); i++) list.push(pl); });
+  const cx = 120, by = 38, shaftW = 224, plateW = 5, gap = 2, innerOff = 22;
+  const hFor = pl => 13 + (pl / maxPl) * 31;
+  const fill = pl => pl >= (state.unit === 'kg' ? 15 : 25) ? 'var(--accent)' : pl >= (state.unit === 'kg' ? 5 : 10) ? 'var(--accent2)' : 'var(--text3)';
+  const shown = list.slice(0, 11), extra = list.length - shown.length;
+  let s = `<rect x="${cx - shaftW / 2}" y="${by - 2}" width="${shaftW}" height="4" rx="2" fill="var(--text3)"/>`;
+  s += `<rect x="${cx + innerOff - 3}" y="${by - 7}" width="3" height="14" rx="1" fill="var(--text2)"/><rect x="${cx - innerOff}" y="${by - 7}" width="3" height="14" rx="1" fill="var(--text2)"/>`;
+  let xr = cx + innerOff; shown.forEach(pl => { const h = hFor(pl); s += `<rect x="${xr}" y="${by - h / 2}" width="${plateW}" height="${h}" rx="1.5" fill="${fill(pl)}" stroke="var(--bg2)" stroke-width="0.6"/>`; xr += plateW + gap; });
+  let xl = cx - innerOff - plateW; shown.forEach(pl => { const h = hFor(pl); s += `<rect x="${xl}" y="${by - h / 2}" width="${plateW}" height="${h}" rx="1.5" fill="${fill(pl)}" stroke="var(--bg2)" stroke-width="0.6"/>`; xl -= plateW + gap; });
+  return `<div class="bb-illus"><svg viewBox="0 0 240 76" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${s}${extra > 0 ? `<text x="${cx}" y="70" text-anchor="middle" fill="var(--text3)" font-size="9">+${extra} more per side</text>` : ''}</svg></div>`;
+}
 function renderSetupBody(kind, ns) {
   const st = setupState(kind), u = state.unit, total = setupTotal(kind);
   if (kind === 'barbell') {
@@ -9194,6 +9211,7 @@ function renderSetupBody(kind, ns) {
     const bd = cfg.plates.filter(pl => st.plates[pl]).map(pl => `${st.plates[pl]}×${pl}`).join(' + ') || 'bar only';
     return `<div class="setup-lbl">Bar</div><div class="setup-pills">${cfg.bars.map(b => `<button class="setup-pill ${st.bar === b ? 'active' : ''}" data-${ns}-bar="${b}">${b}</button>`).join('')}</div>
       <div class="setup-lbl">Plates — per side (tap to add · ×N remove)</div>${_plateGrid(ns, st)}
+      ${renderBarbellSvg(st)}
       <div class="setup-total">Total <b>${total} ${u}</b> <span class="setup-bd">· bar ${st.bar} + ${perSide}/side · ${bd}</span></div>`;
   }
   if (kind === 'dumbbell') {
@@ -10342,7 +10360,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 21 · 2026-06-03 12:31';
+const APP_BUILD = 'build 22 · 2026-06-03 12:33';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

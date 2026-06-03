@@ -218,6 +218,10 @@ They share variation **UUIDs**.
   pin state's `profileId`. And every picker now shows a **stylized theme-matching SVG glyph** via `setupIconSvg(kind)`
   (barbell/dumbbell/kettlebell/med-ball/plate/landmine/pin, `stroke="currentColor"` so it inherits the button's accent)
   in place of the emoji on the chunky OSK button and inline toggle/header.
+- **Live loaded-barbell illustration (feat 81):** `renderBarbellSvg(st)` draws the plates actually on the bar inside
+  the Barbell Setup configurator — symmetric, largest plate inside-out, **height ∝ weight**, theme-coloured by size band
+  (`--accent` / `--accent2` / `--text3`), with a `+N more per side` label past 11 plates. Built from the same
+  `st.plates` map, so it updates live on every add/remove.
 
 ---
 
