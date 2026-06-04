@@ -311,6 +311,14 @@ They share variation **UUIDs**.
   nav) is escapable three ways: a prominent **✕ Close** button (safe-area-padded so it clears a phone notch), the
   **Escape** key, and the **device Back button** (open pushes a history entry; `popstate` closes the reader without
   leaving the app).
+- **UI tap feedback on every button (feat 92):** `state.uiFeedback {audio,haptic}` (default **ON**, ∈ SETTINGS_KEYS)
+  drives a single capture-phase `click` listener (`uiTapFeedback`) on `document`. For any interactive target —
+  `_uiFeedbackTarget()` matches semantic controls (`button`/`a`/`[role=button]`/`[onclick]`/`select`) or, for the app's
+  clickable divs, walks up to 4 ancestors looking for `cursor:pointer` — it plays a crisp `uiClickSound()` (a short
+  1100→620 Hz triangle blip on the shared `_restAudioCtx`) and a `safeVibrate(8)` buzz. Both still route through the
+  feat-74 master gates (`sndAudioOn`/`sndHapticOn` + volume), and a new **"Button taps"** row in the sound quick-menu
+  toggles the audio/haptic independently. Capture phase means it fires even when a handler stops propagation; text
+  inputs (cursor `text`) are skipped. Covered by `test/feedback.spec.mjs`.
 
 ---
 

@@ -2618,7 +2618,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2783,6 +2783,8 @@ function normalizeState() {
   state.sound = { audio:true, haptics:true, volume:1, ...(state.sound && typeof state.sound === 'object' ? state.sound : {}) };
   if (typeof state.sound.volume !== 'number' || isNaN(state.sound.volume)) state.sound.volume = 1;
   state.sound.volume = Math.max(0, Math.min(1, state.sound.volume));
+  // feat 92 — UI tap feedback (a click + haptic on every button), default ON; gated by the masters above.
+  state.uiFeedback = { audio:true, haptic:true, ...(state.uiFeedback && typeof state.uiFeedback === 'object' ? state.uiFeedback : {}) };
   // feat 70/71 — seed + merge plans by id: new seed plans append for existing users; backfill seed descriptions.
   if (!Array.isArray(state.plans)) state.plans = [];
   if (!Array.isArray(state.seededPlanIds)) state.seededPlanIds = [];
@@ -10943,8 +10945,12 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// feat 92 — global UI tap feedback: a subtle click + haptic on every interactive control
+// (default ON, gated by the master switches + the "Button taps" toggle in the sound menu).
+document.addEventListener('click', uiTapFeedback, true);
+
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 35 · 2026-06-04 18:03';
+const APP_BUILD = 'build 36 · 2026-06-04 18:11';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -11012,6 +11018,10 @@ function soundSources() {
     ] },
     { emoji: '🗣️', label: 'Spoken tips', chips: [
       { kind: 'audio',  get: () => state.ttsTips !== false, set: v => { state.ttsTips = v; } },
+    ] },
+    { emoji: '👆', label: 'Button taps', chips: [
+      { kind: 'audio',  get: () => (state.uiFeedback || {}).audio !== false, set: v => { (state.uiFeedback || (state.uiFeedback = {})).audio = v; } },
+      { kind: 'haptic', get: () => (state.uiFeedback || {}).haptic !== false, set: v => { (state.uiFeedback || (state.uiFeedback = {})).haptic = v; } },
     ] },
   ];
 }
@@ -11096,6 +11106,44 @@ function metroBeep(freq, vol) {
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
     o.start(t); o.stop(t + 0.08);
   } catch (e) {}
+}
+// feat 92 — UI tap feedback: a crisp, soft click + short haptic on every interactive control.
+function uiClickSound() {
+  try {
+    if (!sndAudioOn()) return;                       // master audio gate
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    _restAudioCtx = _restAudioCtx || new AC();
+    if (_restAudioCtx.state === 'suspended') _restAudioCtx.resume();
+    const t = _restAudioCtx.currentTime;
+    const o = _restAudioCtx.createOscillator(), g = _restAudioCtx.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(1100, t); o.frequency.exponentialRampToValueAtTime(620, t + 0.03);
+    o.connect(g); g.connect(_restAudioCtx.destination);
+    const v = Math.max(0.004, Math.min(1, 0.085 * sndVol()));
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
+    o.start(t); o.stop(t + 0.05);
+  } catch (e) {}
+}
+// What gets tap feedback: semantic controls, or the app's clickable divs (cursor:pointer).
+function _uiFeedbackTarget(el) {
+  if (!el || el.nodeType !== 1 || !el.closest) return null;
+  const semantic = el.closest('button, a[href], [role="button"], [onclick], select, summary');
+  if (semantic) return semantic.disabled ? null : semantic;
+  let n = el;
+  for (let i = 0; i < 4 && n && n.nodeType === 1; i++, n = n.parentElement) {
+    try { if (getComputedStyle(n).cursor === 'pointer') return n; } catch (e) {}
+  }
+  return null;
+}
+function uiTapFeedback(e) {
+  try {
+    const uf = state.uiFeedback || {};
+    if (uf.audio === false && uf.haptic === false) return;       // source fully off
+    if (!_uiFeedbackTarget(e.target)) return;                    // not an interactive control
+    if (uf.haptic !== false) safeVibrate(8);                     // safeVibrate checks the master haptic gate
+    if (uf.audio !== false) uiClickSound();                      // uiClickSound checks the master audio gate
+  } catch (_) {}
 }
 function metroTick() {
   const c = metroCfg();
