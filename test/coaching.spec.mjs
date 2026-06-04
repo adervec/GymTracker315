@@ -93,12 +93,31 @@ test('Coaching tab renders three discipline cards linking the bundled guides', a
   await expect(page.locator('#coaching-content .coach-card')).toHaveCount(3);
   const ids = await page.locator('#coaching-content .coach-card').evaluateAll((els) => els.map((e) => e.id));
   expect(ids).toEqual(['coach-endurance', 'coach-bouldering', 'coach-grip']);
-  const hrefs = await page.locator('#coaching-content a.coach-chip.guide').evaluateAll((a) => a.map((x) => x.getAttribute('href')));
-  expect(hrefs).toEqual([
-    'Guides/endurance-reference.html',
-    'Guides/bouldering-guide.html',
-    'Guides/coc-masterclass.html',
-  ]);
+  const gids = await page.locator('#coaching-content button.coach-chip.guide').evaluateAll((b) => b.map((x) => x.getAttribute('data-guide')));
+  expect(gids).toEqual(['endurance', 'bouldering', 'coc']);
+});
+
+test('guides are embedded in-file and open in the themed in-app reader', async ({ page }) => {
+  // all three guides are baked in as inert <template>s — no external /Guides needed
+  expect(await page.locator('template[id^="guide-"]').count()).toBe(3);
+
+  await page.click('.nav-tab[data-panel="panel-coaching"]');
+  await page.click('#coach-bouldering button.coach-chip.guide');
+
+  // reader overlay opens with an iframe whose srcdoc carries the guide + a theme override
+  await expect(page.locator('#guide-reader')).toHaveClass(/open/);
+  const srcdoc = await page.locator('#guide-reader-frame').getAttribute('srcdoc');
+  expect(srcdoc.length).toBeGreaterThan(2000);
+  expect(srcdoc).not.toContain('Guides/');                 // no external file reference
+  expect(srcdoc).toMatch(/font-family:[^!]+!important/);     // app theme/font injected
+
+  // the guide actually renders inside the frame
+  const body = page.frameLocator('#guide-reader-frame').locator('body');
+  await expect(body).toBeVisible();
+  expect((await body.innerText()).length).toBeGreaterThan(50);
+
+  await page.click('#guide-reader-back');
+  await expect(page.locator('#guide-reader')).not.toHaveClass(/open/);
 });
 
 test('crosslink: a coaching chip opens that activity in the Reference', async ({ page }) => {

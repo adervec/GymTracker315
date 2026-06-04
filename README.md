@@ -7,9 +7,10 @@ equipment setup (barbell/dumbbell/kettlebell/plate/landmine/pin…), per-exercis
 media, biometrics + Strava sync, and offline-first localStorage persistence. Built for
 **Android Chrome / Chromium**.
 
-The entire app is one self-contained file: [`gym-tracker.html`](gym-tracker.html) (~1.4 MB,
-inline HTML/CSS/JS, no build step, no runtime dependencies). Design notes and the per-feature
-changelog live in [`DESIGN.md`](DESIGN.md).
+The entire app is one self-contained file: [`gym-tracker.html`](gym-tracker.html) (~1.7 MB,
+inline HTML/CSS/JS, no build step, no runtime dependencies — the coaching guides are baked in too,
+so you can distribute just this one file). Design notes and the per-feature changelog live in
+[`DESIGN.md`](DESIGN.md).
 
 ## Run it
 
@@ -65,7 +66,8 @@ Optional local sync helpers (Python standard library only — you supply your ow
 ```
 gym-tracker.html          the app (everything)
 DESIGN.md                 design decisions + per-feature changelog
-tools/                    optional Python sync helpers
+Guides/                   source coaching guides (baked into the HTML)
+tools/                    Python sync helpers + embed-guides.mjs (bakes Guides/ into the app)
 test/
   check.mjs               Layer 1 — static checks (zero deps)
   serve.mjs               tiny static server for the suite

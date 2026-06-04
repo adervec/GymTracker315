@@ -12,6 +12,10 @@ import vm from 'node:vm';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const html = readFileSync(join(root, 'gym-tracker.html'), 'utf8');
+// The embedded /Guides live in an inert, marker-delimited block (feat 91) near the end of
+// the file, after every app <script>. Strip that block so the guides' own scripts/styles
+// aren't checked as app code (app line numbers are unaffected since the block comes last).
+const appHtml = html.replace(/<!-- GUIDES:START[\s\S]*?GUIDES:END -->/g, '');
 
 let checks = 0, fails = 0;
 const ok = (m) => { checks++; console.log('  ✓ ' + m); };
@@ -22,12 +26,12 @@ const section = (t) => console.log('\n' + t);
 const scripts = [];
 const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
 let m;
-while ((m = re.exec(html))) {
+while ((m = re.exec(appHtml))) {
   if (/\bsrc\s*=/i.test(m[1])) continue; // external script -- flagged separately below
-  const line = html.slice(0, m.index).split('\n').length;
+  const line = appHtml.slice(0, m.index).split('\n').length;
   scripts.push({ code: m[2], line });
 }
-console.log(`gym-tracker.html: ${(html.length / 1024 / 1024).toFixed(2)} MB, ${scripts.length} inline <script> block(s)`);
+console.log(`gym-tracker.html: ${(html.length / 1024 / 1024).toFixed(2)} MB, ${scripts.length} inline app <script> block(s) (excl. embedded guides)`);
 
 // ---- 1. Syntax: every inline block must parse ----
 section('Syntax');
@@ -55,7 +59,7 @@ else ok('no native confirm()/alert()/prompt() calls');
 
 if (/\bdebugger\b/.test(noComments)) bad('debugger statement present'); else ok('no debugger statements');
 
-if (/<script\b[^>]*\bsrc\s*=/i.test(html)) bad('external <script src=...> present -- keep the app single-file'); else ok('no external <script src> (single-file preserved)');
+if (/<script\b[^>]*\bsrc\s*=/i.test(appHtml)) bad('external <script src=...> present -- keep the app single-file'); else ok('no external <script src> (single-file preserved)');
 
 // ---- 3. Build stamp: APP_BUILD must exist and be well-formed (the pre-commit hook writes it) ----
 section('Build stamp');

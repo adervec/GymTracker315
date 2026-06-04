@@ -296,6 +296,18 @@ They share variation **UUIDs**.
   `forearms`, `neck`, `jaw` added to `BP_LABELS` + `BODY_PARTS`; a `FOREARM_FAMILIES` override in `getBP()` reclassifies
   grip/wrist work (sourced as `pull::arms` → biceps) to `forearms`, and `BP_MAP` gains `neck::strength`/`jaw::strength`/
   `cardio::climbing`. Covered by `test/coaching.spec.mjs`.
+- **Guides baked into the single file + in-app themed reader (feat 91):** the three `/Guides` HTML docs are
+  embedded into `gym-tracker.html` as inert, marker-delimited `<template id="guide-*">` blocks by
+  `tools/embed-guides.mjs` (idempotent — re-run when a guide changes; strips their external font `<link>`s to stay
+  offline). The Coaching tab's guide chips are now buttons → `openGuide(gid)` opens a full-screen reader
+  (`#guide-reader`, z-index above the app chrome) whose `<iframe srcdoc>` = the template's HTML +
+  `buildGuideTheme()`. That override reads the app's **live** theme (`getComputedStyle` of `--bg/--bg2/--bg3/--text/
+  --text3/--accent/--border2` + the body font) and injects it over each guide — remapping bouldering's CSS variables
+  (`--paper/--ink/--tape`…) and the hard-coded dark palettes of the coc/endurance guides — so all three adopt the app
+  theme + font (bouldering flips from its light "field-guide" look to dark). The iframe still runs each guide's own
+  script, so the collapsible coc cards and the data-driven endurance reference (69 topics built at runtime) keep
+  working. The app is now fully self-contained — distribute `gym-tracker.html` alone. `test/check.mjs` strips the
+  `GUIDES:START…END` block so the embedded guides aren't linted as app code.
 
 ---
 
