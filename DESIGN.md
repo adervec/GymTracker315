@@ -282,6 +282,20 @@ They share variation **UUIDs**.
   "Sync Now" it imports the newest `strava|activities|gymtracker` file via `importStravaActivities(text,{silent})` (which
   gained a silent option) — always merging. Settings → Data → Strava shows the auto-load controls (gated by
   `autoLoadSupported`).
+- **Coaching & Progression tab + new disciplines (feat 90):** a third top-level panel (`panel-coaching`, 🧭) built
+  from the bundled `/Guides` (endurance reference, bouldering, Captains-of-Crush grip). `renderCoaching()` builds three
+  cards (Endurance / Bouldering / Grip & Digit Strength) from a `COACHING` data array — distilled cues, zone models,
+  progression protocols and the CoC gripper ladder. **Crosslinking:** each card's chips call `openInReference(search,
+  mega)` (sets `#ref-search` / clicks a mega pill, then `switchPanel`); a guide chip opens the full bundled guide; and
+  the Reference panel carries a `coach-banner` back to the tab (`goPanel`). **New trackable families** arrive via a new
+  `EXTRA_FAMILIES` + `applyExtraFamilies()` injector (mirrors `EXTRA_VARIATIONS`, pushes whole families into `FAMILIES`
+  + `VAR_INDEX` + the Reference `exercises`): `neck-training` (mega `neck`), `jaw-training` (mega `jaw`), and `climbing`
+  (mega `cardio`, so `isCardioVar()` logs **bouldering as a cardio session**). Grip/digit work (pinch hold, support
+  hang, thick-bar, finger-extension band) is added to the existing `grip-training` family via `EXTRA_VARIATIONS`; the
+  keyword-driven `exMode()` already routes holds/hangs → time and the rest → weight×reps. **Trainable muscles updated:**
+  `forearms`, `neck`, `jaw` added to `BP_LABELS` + `BODY_PARTS`; a `FOREARM_FAMILIES` override in `getBP()` reclassifies
+  grip/wrist work (sourced as `pull::arms` → biceps) to `forearms`, and `BP_MAP` gains `neck::strength`/`jaw::strength`/
+  `cardio::climbing`. Covered by `test/coaching.spec.mjs`.
 
 ---
 

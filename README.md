@@ -71,6 +71,7 @@ test/
   serve.mjs               tiny static server for the suite
   app.spec.mjs            Layer 2 — boot + pure-helper behavior
   setup.spec.mjs          Layer 2 — equipment-setup / plate-math solvers
+  coaching.spec.mjs       Layer 2 — Coaching tab, new families & muscles, crosslinks
 playwright.config.mjs     Playwright config (desktop + Pixel projects)
 .github/workflows/ci.yml  CI
 ```

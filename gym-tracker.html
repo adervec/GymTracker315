@@ -1735,6 +1735,28 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .gloss-panel.as-page { right: 0; left: 0; width: 100%; max-width: none; border-left: none; box-shadow: none; transform: none; transition: none; display: none; }
 .gloss-panel.as-page.open { display: flex; }
 .gloss-panel.as-page.chart-open { width: 100%; max-width: none; }
+/* feat 90 — Coaching & Progression tab */
+.coach-wrap { padding: 8px 2px 64px; }
+.coach-intro { color: var(--text3); font-size: 13px; line-height: 1.55; margin: 2px 4px 14px; }
+.coach-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
+.coach-card-head { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 6px; }
+.coach-card-icon { font-size: 26px; line-height: 1.1; }
+.coach-card-title { font-size: 18px; font-weight: 700; color: var(--text); }
+.coach-card-sub { font-size: 11.5px; color: var(--text3); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+.coach-blurb { font-size: 13px; color: var(--text); opacity: 0.86; line-height: 1.55; margin: 4px 0 6px; }
+.coach-sec { margin-top: 13px; }
+.coach-sec-h { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); font-weight: 700; margin-bottom: 5px; }
+.coach-sec ul { margin: 0; padding-left: 17px; }
+.coach-sec li { font-size: 12.5px; line-height: 1.5; margin-bottom: 3px; color: var(--text); }
+.coach-sec li b { color: var(--accent); font-weight: 600; }
+.coach-xref { margin-top: 14px; }
+.coach-xref-label { font-size: 10.5px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 7px; }
+.coach-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.coach-chip { background: var(--bg3); border: 1px solid var(--border2); border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer; color: var(--text); white-space: nowrap; }
+.coach-chip:active { transform: scale(0.96); }
+.coach-chip.guide { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); text-decoration: none; display: inline-block; }
+.coach-banner { display: flex; align-items: center; gap: 9px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 11px; padding: 11px 13px; margin: 0 2px 14px; cursor: pointer; font-size: 13px; color: var(--text); font-weight: 600; }
+.coach-banner .arr { margin-left: auto; color: var(--accent); font-size: 16px; }
 </style>
 </head>
 <body>
@@ -1744,6 +1766,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
   <div class="nav-tabs">
     <button class="nav-tab active" data-panel="panel-tracker" onclick="switchPanel('panel-tracker', this)" title="Tracker" aria-label="Tracker" data-i18n-title="nav.tracker" data-i18n-aria="nav.tracker">📈</button>
     <button class="nav-tab" data-panel="panel-reference" onclick="switchPanel('panel-reference', this)" title="Reference" aria-label="Reference" data-i18n-title="nav.reference" data-i18n-aria="nav.reference">📚</button>
+    <button class="nav-tab" data-panel="panel-coaching" onclick="switchPanel('panel-coaching', this)" title="Coaching &amp; Progression" aria-label="Coaching and Progression">🧭</button>
   </div>
   <div class="app-bar-actions">
     <button id="app-sound-btn" class="app-bar-btn sound-btn" onclick="toggleSoundMenu(event)" title="Sound & haptics" aria-label="Sound and haptics"><span class="snd-main">🔊</span><span class="snd-haptic-badge">📳</span></button>
@@ -1877,12 +1900,19 @@ const BP_MAP = {
   'lower::calves': 'calves', 'lower::compound': 'quads', 'lower::lower-back': 'back',
   'core::abs': 'core', 'core::stability': 'core', 'core::static': 'core',
   'full::olympic': 'fullbody', 'full::crossfit': 'fullbody', 'full::strongman': 'fullbody', 'full::specialty': 'fullbody',
-  'cardio::machine': 'conditioning', 'cardio::steady': 'conditioning', 'cardio::plyo': 'conditioning', 'cardio::conditioning': 'conditioning',
+  'cardio::machine': 'conditioning', 'cardio::steady': 'conditioning', 'cardio::plyo': 'conditioning', 'cardio::conditioning': 'conditioning', 'cardio::climbing': 'conditioning',
+  'grip::forearms': 'forearms', 'neck::strength': 'neck', 'jaw::strength': 'jaw', // feat 90 — new trainable muscles
   'mobility::dynamic': 'mobility', 'mobility::static': 'mobility', 'mobility::foam': 'mobility',
   'recovery::breathing': 'recovery', 'recovery::corrective': 'recovery', 'recovery::sleep': 'recovery',
   'workouts::splits': 'workout', 'workouts::templates': 'workout', 'workouts::warmup': 'workout', 'workouts::wod': 'workout'
 };
-function getBP(family) { return BP_MAP[`${family.mega}::${family.sub}`] || 'other'; }
+// Grip/forearm families live under pull::arms in the source data (which maps to
+// biceps); override them to the dedicated 'forearms' muscle (feat 90).
+const FOREARM_FAMILIES = new Set(['grip-training', 'wrist-curl']);
+function getBP(family) {
+  if (family && FOREARM_FAMILIES.has(family.id)) return 'forearms';
+  return BP_MAP[`${family.mega}::${family.sub}`] || 'other';
+}
 
 // Build lookup tables: uuid → { family, variation, fullName }
 const VAR_INDEX = new Map(); // variation uuid → info
@@ -2074,6 +2104,35 @@ const EXTRA_VARIATIONS = [
     mistakes:['Yanking with the arms','Uneven reps side to side'],
     programming:{'Hypertrophy':'3 × 12-15 each side'},
     tip:'Add a little rotation to loaded crunches to bring the obliques into a machine you can progressively overload.' },
+  // feat 90 — grip / digit-strength additions (attach to the existing Grip Training family → Forearms)
+  { movementId:'grip-training', id:'plate-pinch-hold', uuid:'c0ac0031-0031-4031-8031-000000000031', title:'Plate Pinch Hold', best:'Pinch / Thumb',
+    cue:'Pinch two plates smooth-side-out between thumb and fingers. Hold for time — log seconds as reps.',
+    setup:['Two 5-10kg plates, smooth sides out','Stand tall, plate at your side','Chalk if you have it'],
+    movement:['Pinch and lift just off the rack/floor','Hold for the target time','Set down before the grip fails — do both hands'],
+    mistakes:['Letting fingers wrap the edge (that\'s not a pinch)','Going so heavy the hold is <10s','Skipping the off-hand'],
+    programming:{'Strength':'3-5 × 20-45s each hand, 2x/week'},
+    tip:'Thumb-driven pinch closes the final gap in crush strength. Progress +2.5kg or +5s.' },
+  { movementId:'grip-training', id:'support-bar-hang', uuid:'c0ac0033-0033-4033-8033-000000000033', title:'Two-Hand Bar Dead Hang', best:'Support Grip',
+    cue:'Hang from a pull-up bar, strap-free. Hold for time to build support-grip endurance.',
+    setup:['Pull-up bar, double-overhand grip, no straps','Shoulders active (slight pull, not fully dead)'],
+    movement:['Hang and hold for the target time','Keep the bar deep in the fingers','Drop before the grip slips, not after'],
+    mistakes:['Using straps (defeats the purpose)','Fully passive shoulders for long holds','Chasing time over clean position'],
+    programming:{'Endurance':'3-5 × 30-60s'},
+    tip:'Add bodyweight via a belt once 60s is easy. Pairs well with farmer carries for support grip.' },
+  { movementId:'grip-training', id:'thick-bar-hold', uuid:'c0ac0034-0034-4034-8034-000000000034', title:'Thick-Bar / Fat-Grip Hold', best:'Open Hand',
+    cue:'Deadlift-hold on a thick bar (or Fat Gripz). Open-hand grip — no thumb wrap on the fingers.',
+    setup:['Thick bar or Fat Gripz on a barbell','Load 60-80% of your normal deadlift hold','Chalk up'],
+    movement:['Lift to a standing hold','Hold for time, fingers fighting to stay closed','Lower under control'],
+    mistakes:['Bar too thin to challenge the open hand','Hitching the back to hold longer','No chalk on heavy holds'],
+    programming:{'Strength':'5 × 10-20s @ 60-80% deadlift'},
+    tip:'Open-hand/thick-bar strength carries over to barbells, climbing and strongman holds.' },
+  { movementId:'grip-training', id:'finger-extension-band', uuid:'c0ac0032-0032-4032-8032-000000000032', title:'Finger Extension (Band)', best:'Antagonist / Tendon Health',
+    cue:'Rubber band around the fingertips. Open the hand against the band — balances all that gripping.',
+    setup:['Loop a rubber band / grip-extension band over all five fingertips','Hand relaxed and closed'],
+    movement:['Spread the fingers open against the band','Open fully, pause','Close slowly — keep tension'],
+    mistakes:['Snapping open and closed','Skipping it (extensors get neglected)','Only using one band tension'],
+    programming:{'Prehab':'3 × 20-25, most sessions'},
+    tip:'Trains the finger extensors — the antagonist work that wards off elbow tendinopathy from heavy gripping.' },
 ];
 
 function applyExtraVariations() {
@@ -2085,6 +2144,135 @@ function applyExtraVariations() {
                 best: ev.best || '', subscription: null, _extra: true };
     fam.variations.push(v);
     VAR_INDEX.set(ev.uuid, { family: fam, variation: v, bp: getBP(fam), _extra: true });
+  });
+}
+
+/* ---- feat 90 — whole NEW trackable families (not just variations of existing ones):
+   neck strength, jaw strength, and climbing/bouldering (cardio-shaped). Same readable
+   shape as the reference `exercises` entries; applyExtraFamilies() injects them into the
+   tracker (FAMILIES + VAR_INDEX) and a mirror in the Reference panel adds them there too.
+   New muscles come from BP_MAP ('neck::strength'→neck, 'jaw::strength'→jaw). Bouldering
+   sits under mega 'cardio' so isCardioVar() treats it as a cardio session. ---- */
+const EXTRA_FAMILIES = [
+  { id:'neck-training', title:'Neck Training', tag:'Neck • Strength', mega:'neck', sub:'strength',
+    equip:['plate','machine','band','bodyweight'], icon:'dumbbell',
+    keywords:'neck harness flexion extension lateral capital wrestler bridge sternocleidomastoid trap',
+    quickCue:'Train flexion, extension and both sides. Light load, slow tempo, never jerk or bridge under heavy load.',
+    general:{
+      setup:['Support the head through a full but comfortable range','Start with no added load to groove the pattern','Neck neutral to start — no cranking into end range'],
+      movement:['Move slowly (2-3s each way), pause briefly','Add small increments only when 15 clean reps are easy','Breathe — do not strain'],
+      mistakes:['Going too heavy too soon','Fast/jerky reps','Full-bridge work before months of base','Training to failure on the neck'] },
+    variations:[
+      { id:'neck-flex-weighted', uuid:'c0ac0002-0002-4002-8002-000000000002', title:'Weighted Neck Flexion', best:'Front of Neck',
+        cue:'Lie face-up, plate wrapped in a towel on the forehead. Curl chin toward chest.',
+        setup:['Lie supine on a bench, head off the edge','Light plate on a towel over the forehead','Hold the plate in place'],
+        movement:['Nod the chin toward the chest','Pause 1s at the top','Lower slowly to a neutral/slightly-extended start'],
+        mistakes:['Snapping the head up','Too much range into extension','Heavy load early'],
+        programming:{'Strength':'3-4 × 10-15','Hypertrophy':'3 × 12-20'},
+        tip:'Builds the sternocleidomastoid / deep neck flexors — useful for contact sports and posture.' },
+      { id:'neck-ext-weighted', uuid:'c0ac0001-0001-4001-8001-000000000001', title:'Weighted Neck Extension', best:'Back of Neck',
+        cue:'Lie face-down, plate on a towel on the back of the head. Extend the neck up.',
+        setup:['Lie prone on a bench, head off the edge','Light plate on a towel over the back of the head'],
+        movement:['Raise the head, looking forward','Pause 1s','Lower slowly under control'],
+        mistakes:['Hyperextending hard at the top','Using momentum','Going heavy before adapting'],
+        programming:{'Strength':'3-4 × 10-15'},
+        tip:'Trains the upper-trap / neck extensors. Pair with flexion for balanced development.' },
+      { id:'neck-lateral', uuid:'c0ac0003-0003-4003-8003-000000000003', title:'Lateral Neck Raise', best:'Sides of Neck',
+        cue:'Side-lying, plate on a towel on the side of the head. Raise the ear toward the shoulder.',
+        setup:['Lie on your side on a bench, head off the edge','Light plate on a towel on the upper side of the head'],
+        movement:['Raise the head toward the ceiling-side shoulder','Pause 1s','Lower slowly — do both sides evenly'],
+        mistakes:['Uneven sides','Rotating the head instead of tilting','Heavy load early'],
+        programming:{'Strength':'3 × 10-15 each side'},
+        tip:'Do not skip the sides — lateral flexion strength matters for neck robustness.' },
+      { id:'neck-harness-ext', uuid:'c0ac0004-0004-4004-8004-000000000004', title:'Neck Harness Extension', best:'Loaded Extension',
+        cue:'Head-harness with a plate hung on the chain. Nod through a controlled range.',
+        setup:['Fit the head harness snugly','Hang a light plate on the strap','Seated, torso braced, slight forward lean'],
+        movement:['Lower the head forward under control','Extend back up to neutral','Smooth tempo, no bouncing'],
+        mistakes:['Swinging the plate','Excessive range','Holding your breath'],
+        programming:{'Strength':'3-4 × 12-15'},
+        tip:'The harness lets you load extension precisely — progress in tiny jumps.' },
+      { id:'neck-iso-hold', uuid:'c0ac0005-0005-4005-8005-000000000005', title:'Neck Isometric Hold', best:'Beginner / Rehab',
+        cue:'Press the head into your hand (or a band) and hold — no movement. All four directions.',
+        setup:['Palm or band against the forehead / back / each side of the head','Neck neutral'],
+        movement:['Push the head into the resistance and hold','Stay still — match the force, do not move','Switch directions: front, back, both sides'],
+        mistakes:['Letting the head actually move','Maximal effort cold','Holding the breath'],
+        programming:{'Endurance':'3 × 15-30s each direction'},
+        tip:'The safest place to start neck training — build a base of isometrics before loading dynamically.' },
+    ] },
+  { id:'jaw-training', title:'Jaw Training', tag:'Jaw • Masseter', mega:'jaw', sub:'strength',
+    equip:['bodyweight'], icon:'dumbbell',
+    keywords:'jaw masseter mewing jawline chew gum bite trainer jawzrsize tmj facial',
+    quickCue:'Train the masseter with resistance biting and isometric clench. Build slowly — the jaw joint (TMJ) is delicate.',
+    general:{
+      setup:['Warm up the jaw with gentle open/close before resistance','Use a soft bite trainer or dense gum, not your teeth alone','Keep effort moderate — pain is a stop sign'],
+      movement:['Bite/clench slowly and evenly on both sides','Avoid clenching to the point of joint pain','Relax fully between efforts'],
+      mistakes:['Going too hard and irritating the TMJ','Chewing only on one side','Daily maximal training — the jaw needs recovery too'] },
+    variations:[
+      { id:'jaw-exerciser-reps', uuid:'c0ac0011-0011-4011-8011-000000000011', title:'Jaw Exerciser (Reps)', best:'Masseter Reps',
+        cue:'Silicone bite trainer between the molars. Bite to close, release. Log the resistance level as the weight.',
+        setup:['Place the bite trainer evenly on both sides','Start on the lowest resistance level'],
+        movement:['Bite down to close','Release with control','Keep both sides even'],
+        mistakes:['Front-teeth biting (use the molars)','Jumping resistance levels too fast','Pushing through joint pain'],
+        programming:{'Strength':'3 × 10-15 (both sides)'},
+        tip:'Record the resistance level in the weight field and reps as reps — progress the level slowly.' },
+      { id:'jaw-mastic-hold', uuid:'c0ac0012-0012-4012-8012-000000000012', title:'Mastic Gum Hold', best:'Masseter Endurance',
+        cue:'Chew a dense mastic / hard gum for time, alternating sides. Log minutes.',
+        setup:['Split the gum so you can work both sides','Sit upright, relaxed shoulders'],
+        movement:['Chew steadily, switching sides regularly','Stop if the joint aches','Build duration over weeks'],
+        mistakes:['One-sided chewing','Marathon sessions early on','Ignoring jaw clicking/pain'],
+        programming:{'Endurance':'2-3 × 5-10 min'},
+        tip:'Endurance work for the masseter — great for jawline development without joint stress if kept moderate.' },
+      { id:'jaw-iso-clench', uuid:'c0ac0013-0013-4013-8013-000000000013', title:'Isometric Jaw Clench', best:'No Equipment',
+        cue:'Place a fist/knuckles under the chin, open the mouth against the resistance and hold.',
+        setup:['Knuckles or palm under the chin','Mouth slightly open, neutral jaw'],
+        movement:['Press the jaw open against the resistance and hold still','Then resist closing the same way','Keep force sub-maximal'],
+        mistakes:['Maximal force on the TMJ','Letting the jaw shift sideways','Holding the breath'],
+        programming:{'Endurance':'3 × 10-20s'},
+        tip:'Equipment-free way to load the jaw isometrically — the gentlest entry point.' },
+    ] },
+  { id:'climbing', title:'Climbing & Bouldering', tag:'Cardio • Grip + Full Body', mega:'cardio', sub:'climbing',
+    equip:['bodyweight'], icon:'cardio',
+    keywords:'bouldering climbing rock gym v-scale font grades crimp send flash project route problem',
+    quickCue:'Logged like a cardio session — duration, effort and notes. Footwork first; respect finger/tendon recovery.',
+    general:{
+      setup:['Warm up progressively: easy traverses → harder problems → only then near-limit','Cold fingers injure first and heal slowest','Prefer open-hand grips early; ease into crimping'],
+      movement:['Drive from the legs; place the toe deliberately and keep eyes on the foothold','Hang from straight arms — let the skeleton bear load','Turn a hip to the wall to extend reach','Move quietly = precise footwork'],
+      mistakes:['Grade-chasing over movement quality','Aggressive crimping while cold','Climbing through sharp finger/elbow pain','Hangboarding before ~1 year of consistent climbing'] },
+    variations:[
+      { id:'bouldering-indoor', uuid:'c0ac0021-0021-4021-8021-000000000021', title:'Bouldering (Indoor)', best:'Power + Technique',
+        cue:'Short, powerful problems on pads. Mix volume (flash easier) with projecting (limit problems).',
+        setup:['Warm up easy → hard before limit attempts','Pick a focus: volume/technique or projecting'],
+        movement:['Read the problem from the ground','Body tension on overhangs; heel/toe hooks as a third hand','Commit to dynamic moves — hesitation is the failure mode'],
+        mistakes:['Skipping the warm-up','Only projecting (no easy volume)','Crimping hard when pumped'],
+        programming:{'Volume':'2-4 sessions/week, full rest days between'},
+        tip:'Log session duration + effort; note max grade and sends in the notes for now.' },
+      { id:'climbing-toprope', uuid:'c0ac0022-0022-4022-8022-000000000022', title:'Sport / Top-Rope Climbing', best:'Endurance',
+        cue:'Longer routes — pacing, rest positions and forearm endurance over single-move power.',
+        setup:['Warm up on easy routes','Plan rests/clips before committing'],
+        movement:['Find no-hands rests and shake out','Straight arms between moves to save the forearms','Breathe and pace the route'],
+        mistakes:['Over-gripping the whole route','Skipping rests','Death-gripping holds'],
+        programming:{'Volume':'1-3 sessions/week'},
+        tip:'More aerobic/endurance-leaning than bouldering — great as easy-day climbing volume.' },
+      { id:'bouldering-outdoor', uuid:'c0ac0023-0023-4023-8023-000000000023', title:'Outdoor Bouldering', best:'Skin + Skill',
+        cue:'Real rock — friction, skin and problem-solving. Bigger falls, more rest between burns.',
+        setup:['Check pads/landing and spotters','Manage skin — outdoor rock is abrasive'],
+        movement:['Brush holds, plan the sequence','Rest fully between hard burns','Mind skin and tips — stop before they split'],
+        mistakes:['Burning skin out early','Too many attempts without rest','Ignoring landing safety'],
+        programming:{'Volume':'As conditions/skin allow'},
+        tip:'Skin and conditions limit outdoor volume more than fitness — log it and note the rock/grade.' },
+    ] },
+];
+
+function applyExtraFamilies() {
+  if (typeof EXTRA_FAMILIES === 'undefined') return;
+  EXTRA_FAMILIES.forEach(ef => {
+    if (FAMILIES.some(f => f.id === ef.id)) return; // already injected
+    const fam = { id: ef.id, title: ef.title, mega: ef.mega, sub: ef.sub,
+      equip: ef.equip || [], icon: ef.icon || '', quickCue: ef.quickCue || '', _extraFamily: true,
+      variations: ef.variations.map(v => ({ id: v.id, uuid: v.uuid, title: v.title, cue: v.cue || '',
+        tip: v.tip || '', best: v.best || '', subscription: null, _extra: true })) };
+    FAMILIES.push(fam);
+    fam.variations.forEach(v => VAR_INDEX.set(v.uuid, { family: fam, variation: v, bp: getBP(fam), _extra: true }));
   });
 }
 
@@ -2192,8 +2380,8 @@ const EQUIPMENT = [
 // Equipment categories a gym can stock (feat 36) — excludes the 'all' filter pseudo-entry.
 const GYM_EQUIP = EQUIPMENT.filter(e => e.id !== 'all');
 
-const BODY_PARTS = ['chest','back','shoulders','biceps','triceps','quads','hamstrings','glutes','calves','core','fullbody','conditioning','mobility'];
-const BP_LABELS = { chest:'Chest', back:'Back', shoulders:'Shoulders', biceps:'Biceps', triceps:'Triceps', quads:'Quads', hamstrings:'Hams', glutes:'Glutes', calves:'Calves', core:'Core', fullbody:'Full Body', conditioning:'Cond', mobility:'Mobility', recovery:'Recovery', workout:'Workout' };
+const BODY_PARTS = ['chest','back','shoulders','biceps','triceps','forearms','quads','hamstrings','glutes','calves','core','neck','jaw','fullbody','conditioning','mobility'];
+const BP_LABELS = { chest:'Chest', back:'Back', shoulders:'Shoulders', biceps:'Biceps', triceps:'Triceps', forearms:'Forearms', quads:'Quads', hamstrings:'Hams', glutes:'Glutes', calves:'Calves', core:'Core', neck:'Neck', jaw:'Jaw', fullbody:'Full Body', conditioning:'Cond', mobility:'Mobility', recovery:'Recovery', workout:'Workout' };
 
 // Volume landmarks (working sets/wk per muscle)
 const VOLUME_TARGETS = {
@@ -6828,7 +7016,7 @@ function computePaceStatus(session) {
 // a sub, so those areas always read "light". Returns null if too early / no clear dominant.
 const MEGA_TARGET_BP = {
   push:  { label:'Push',  bps:['chest','shoulders','triceps'] },
-  pull:  { label:'Pull',  bps:['back','biceps'] },
+  pull:  { label:'Pull',  bps:['back','biceps','forearms'] },
   lower: { label:'Lower', bps:['quads','hamstrings','glutes','calves'] },
   core:  { label:'Core',  bps:['core'] },
 };
@@ -10700,6 +10888,7 @@ function deleteExercise() {
 loadLog();
 installErrorHandlers();
 loadState();
+applyExtraFamilies(); // feat 90 — inject the new neck / jaw / climbing families first
 applyExtraVariations();
 applyCustomVariations();
 installGlossaryHighlight();
@@ -10745,7 +10934,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 32 · 2026-06-03 16:22';
+const APP_BUILD = 'build 33 · 2026-06-04 07:57';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -11257,6 +11446,7 @@ setTimeout(() => {
 </header>
 
 <main>
+  <div class="coach-banner" onclick="goPanel('panel-coaching')">🧭 <span>Coaching &amp; Progression — endurance, bouldering &amp; grip training</span><span class="arr">›</span></div>
   <div class="ref-view-toggle" id="ref-view-toggle">
     <button data-view="detailed" type="button">☰ Detailed</button>
     <button data-view="tree" type="button">🌳 Tree</button>
@@ -17537,6 +17727,21 @@ equipFilter.querySelectorAll('.equip-pill').forEach(pill => {
   });
 })();
 
+// feat 90 — mirror the new whole families (neck / jaw / climbing) into the Reference dataset.
+(function injectExtraFamiliesIntoReference() {
+  if (typeof EXTRA_FAMILIES === 'undefined') return;
+  EXTRA_FAMILIES.forEach(ef => {
+    if (exercises.some(e => e.id === ef.id)) return;
+    exercises.push({
+      id: ef.id, title: ef.title, tag: ef.tag || '', mega: ef.mega, sub: ef.sub,
+      equip: ef.equip || [], icon: ef.icon || '', keywords: ef.keywords || '',
+      quickCue: ef.quickCue || '',
+      general: ef.general || { setup: [], movement: [], mistakes: [] },
+      variations: ef.variations.map(v => ({ ...v })),
+    });
+  });
+})();
+
 renderSubFilters();
 renderRef();
 
@@ -18113,6 +18318,151 @@ renderGlossary();
 // (build stamp centralized in APP_BUILD — feat 53; shown in Help)
 </script>
 </div>
+
+<div class="panel" id="panel-coaching">
+  <header>
+    <h1>🧭 Coaching &amp; Progression</h1>
+  </header>
+  <main>
+    <div class="coach-wrap">
+      <div class="coach-intro">Coaching &amp; progression for the disciplines the tracker now covers. Tap a chip to jump to that activity in the Reference, or open the full bundled guide for the deep dive.</div>
+      <div id="coaching-content"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* feat 90 — Coaching & Progression: distilled, trackable coaching for endurance,
+   bouldering and grip/digit strength, cross-linked to the Reference activities and to
+   the full guides bundled in /Guides. */
+const COACHING = [
+  { id:'coach-endurance', icon:'🏃', title:'Endurance', sub:'Run · Bike · Swim · Row · Ski · more',
+    blurb:'Build a big aerobic base, then sharpen it. Most volume should feel easy; a small slice should feel hard. Consistency beats heroics.',
+    guide:{ href:'Guides/endurance-reference.html', label:'Endurance reference' },
+    sections:[
+      { h:'5-zone model (HR / %FTP)', items:[
+        '<b>Z1-2</b> easy 65-75% maxHR / 55-75% FTP — conversational, burns fat',
+        '<b>Z3</b> tempo / sweet-spot 80-87% maxHR / 76-90% FTP',
+        '<b>Z4</b> threshold 88-95% maxHR / 91-105% FTP',
+        '<b>Z5</b> VO2 >95% maxHR / >105% FTP' ] },
+      { h:'80 / 20 polarized', items:[
+        '~80% of weekly time easy (Z1-2), ~20% hard (Z4+)',
+        'Skip the Z3 "gray zone" on purpose — easy easy, hard hard',
+        'Base first: ~70-80% of volume in Z2 before adding intensity' ] },
+      { h:'Periodize & test', items:[
+        'Base → Build → Peak → Taper → Race → Recover',
+        '3-5 week build blocks + a deload week (-20-30% volume)',
+        'Re-test every 6-8 wks: bike FTP (20min x 0.95), swim CSS, monthly 2K row' ] },
+      { h:'Session menu', items:[
+        'Run: 8-12 x 400m @5K pace; tempo 20-40 min',
+        'Bike: sweet spot 2x20 @88-92% FTP; VO2 5x3min @110-120%',
+        'Row: steady 22-26 spm @2:00-2:15/500m; intervals 4-8 x 500m',
+        'ROI order: sleep → fuel → consistency → volume → intensity' ] } ],
+    xref:{ label:'Open in Reference', chips:[
+      { label:'All cardio', mega:'cardio' },
+      { label:'Treadmill / run', search:'treadmill' },
+      { label:'Bike', search:'bike' },
+      { label:'Rower', search:'rower' },
+      { label:'SkiErg / climber', search:'ski' } ] } },
+  { id:'coach-bouldering', icon:'🧗', title:'Bouldering & Climbing', sub:'Logged as a cardio session',
+    blurb:'Technique first, strength second. Climb with better climbers, film yourself, and respect that fingers and skin recover slower than muscle.',
+    guide:{ href:'Guides/bouldering-guide.html', label:'Bouldering guide' },
+    sections:[
+      { h:'Technique cues', items:[
+        '<b>Feet first</b> — place the toe deliberately, eyes on the foothold',
+        '<b>Straight arms</b> — hang from the skeleton, not the biceps',
+        '<b>Hips to the wall</b> — turn a hip in to extend reach',
+        'Move quietly — silence means precise footwork' ] },
+      { h:'Progression (V-scale)', items:[
+        '2-4 sessions/week with full rest days between',
+        'Mix <b>volume / flash</b> days (easy problems) with <b>project</b> days (limit problems)',
+        'Chase movement quality, not the grade number',
+        'Commit to dynamic moves — hesitation is the failure mode' ] },
+      { h:'Stay healthy', items:[
+        'Warm up easy → hard before any near-limit attempt — cold fingers injure first',
+        'Open-hand grips early; ease into crimping',
+        'Stop on sharp finger or elbow pain',
+        '<b>No hangboarding</b> until ~1 year of consistent climbing' ] },
+      { h:'What to log', items:[
+        'Duration + effort — it is logged like a cardio session',
+        'Note max grade, sends vs attempts, flashes, wall angle',
+        'Trains forearms/grip, lats/back, core, shoulders + legs' ] } ],
+    xref:{ label:'Open in Reference', chips:[
+      { label:'Climbing & Bouldering', search:'bouldering' },
+      { label:'Grip work', search:'grip' } ] } },
+  { id:'coach-grip', icon:'✊', title:'Grip & Digit Strength', sub:'Crush · Pinch · Support · Extension',
+    blurb:'Grip is a neural skill across several independent qualities. Train the system; test rarely. Tendons need more recovery than muscle — never train it daily.',
+    guide:{ href:'Guides/coc-masterclass.html', label:'Captains of Crush masterclass' },
+    sections:[
+      { h:'The four grips', items:[
+        '<b>Crush</b> — closing a gripper (MMS reps, negatives, overcrushes)',
+        '<b>Pinch</b> — thumb vs fingers (plate pinch 3-5 x 20-45s/hand)',
+        '<b>Support</b> — holding for time (carries, dead hangs 3-5 x 30-60s)',
+        '<b>Extension</b> — band finger-opens 3 x 20-25 to balance it all' ] },
+      { h:'CoC gripper ladder (lbs to close)', items:[
+        'Guide 60 · Sport 80 · Trainer 100 · No.1 140 · No.2 195 · No.3 280 · No.4 365',
+        'Train one level above your current clean close',
+        'Off-hand usually lags 1-2 levels — train it too' ] },
+      { h:'12-week wave', items:[
+        '<b>Wks 1-4</b> volume / technique — 3x/wk, RPE 6-7, stop 2 short of failure',
+        '<b>Wks 5-8</b> intensity — 2-3x/wk, RPE 8-9, negatives & overcrushes',
+        '<b>Wks 9-11</b> peak singles; <b>Wk 12</b> test, then a 7-10 day deload' ] },
+      { h:'Set the gripper right', items:[
+        'Bottom handle deep in the palm-heel, not on the finger calluses',
+        'Pinky wraps low — pinky leverage beats index',
+        'Squeeze fingers first, thumb anchors last',
+        'Elbow pain → pause crush 1-2 wks, hit extensors & reverse curls' ] } ],
+    xref:{ label:'Open in Reference', chips:[
+      { label:'Grip Training', search:'grip' },
+      { label:'Wrist & forearm', search:'wrist' },
+      { label:'Farmer carry', search:'carry' } ] } },
+];
+function goPanel(panelId) {
+  const btn = document.querySelector('.nav-tab[data-panel="' + panelId + '"]');
+  if (btn && typeof switchPanel === 'function') switchPanel(panelId, btn);
+}
+function openInReference(search, mega) {
+  goPanel('panel-reference');
+  if (mega) { const pill = document.querySelector('#ref-mega-filter .mega-pill[data-mega="' + mega + '"]'); if (pill) pill.click(); }
+  const input = document.getElementById('ref-search');
+  if (input) { input.value = search || ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
+  window.scrollTo(0, 0);
+}
+function renderCoaching() {
+  const wrap = document.getElementById('coaching-content');
+  if (!wrap || typeof escapeHtml !== 'function') return;
+  wrap.innerHTML = COACHING.map(function (c) {
+    const head = '<div class="coach-card-head"><div class="coach-card-icon">' + c.icon + '</div>' +
+      '<div><div class="coach-card-title">' + escapeHtml(c.title) + '</div>' +
+      '<div class="coach-card-sub">' + escapeHtml(c.sub) + '</div></div></div>';
+    const secs = c.sections.map(function (s) {
+      return '<div class="coach-sec"><div class="coach-sec-h">' + escapeHtml(s.h) + '</div><ul>' +
+        s.items.map(function (it) { return '<li>' + it + '</li>'; }).join('') + '</ul></div>';
+    }).join('');
+    const chips = c.xref.chips.map(function (ch) {
+      return '<button class="coach-chip" data-coach-search="' + escapeAttr(ch.search || '') +
+        '" data-coach-mega="' + escapeAttr(ch.mega || '') + '">' + escapeHtml(ch.label) + ' ›</button>';
+    }).join('') +
+      '<a class="coach-chip guide" href="' + escapeAttr(c.guide.href) + '" target="_blank" rel="noopener">📖 ' +
+      escapeHtml(c.guide.label) + ' ↗</a>';
+    return '<div class="coach-card" id="' + c.id + '">' + head +
+      '<div class="coach-blurb">' + escapeHtml(c.blurb) + '</div>' + secs +
+      '<div class="coach-xref"><div class="coach-xref-label">' + escapeHtml(c.xref.label) +
+      '</div><div class="coach-chips">' + chips + '</div></div></div>';
+  }).join('');
+}
+function bindCoaching() {
+  const wrap = document.getElementById('coaching-content');
+  if (!wrap) return;
+  wrap.addEventListener('click', function (e) {
+    const chip = e.target.closest('.coach-chip');
+    if (!chip || chip.classList.contains('guide')) return;
+    openInReference(chip.dataset.coachSearch, chip.dataset.coachMega);
+  });
+}
+renderCoaching();
+bindCoaching();
+</script>
 
 <script>
 /* ====== TOP NAV SWITCHER ====== */
