@@ -1760,9 +1760,9 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 /* feat 91 — in-app guide reader (embedded /Guides, themed to the app) */
 #guide-reader { position: fixed; inset: 0; z-index: 10080; background: var(--bg); display: none; flex-direction: column; }
 #guide-reader.open { display: flex; }
-.guide-reader-bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg2); border-bottom: 1px solid var(--border2); flex: 0 0 auto; }
-.guide-reader-back { background: var(--bg3); border: 1px solid var(--border2); color: var(--text); border-radius: 8px; padding: 7px 13px; font-size: 14px; cursor: pointer; }
-.guide-reader-back:active { transform: scale(0.96); }
+.guide-reader-bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); background: var(--bg2); border-bottom: 1px solid var(--border2); flex: 0 0 auto; }
+.guide-reader-close { background: var(--bg3); border: 1.5px solid var(--accent); color: var(--text); border-radius: 9px; padding: 9px 16px; font-size: 14px; font-weight: 700; min-height: 40px; letter-spacing: 0.3px; cursor: pointer; flex: 0 0 auto; }
+.guide-reader-close:active { transform: scale(0.96); }
 .guide-reader-title { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .guide-reader-frame { flex: 1 1 auto; width: 100%; border: 0; background: var(--bg); }
 </style>
@@ -10935,6 +10935,8 @@ document.getElementById('rest-bar')?.addEventListener('click', () => {
 document.getElementById('trk-numpad-backdrop')?.addEventListener('click', closeNumpad);
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    const gr = document.getElementById('guide-reader');
+    if (gr && gr.classList.contains('open')) { if (typeof closeGuide === 'function') closeGuide(); return; }
     if (document.getElementById('help-panel').classList.contains('open')) closeHelp();
     else if (document.getElementById('trk-notes-modal').classList.contains('open')) closeNotesModal();
     else if (document.getElementById('trk-modal').classList.contains('open')) closeLogModal();
@@ -10942,7 +10944,7 @@ document.addEventListener('keydown', e => {
 });
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 34 · 2026-06-04 08:24';
+const APP_BUILD = 'build 35 · 2026-06-04 18:03';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -18492,31 +18494,47 @@ function buildGuideTheme() {
     + '.section-title,.card-tag,a{color:' + accent + '!important;}a{text-decoration:none;}'
     + '</style>';
 }
-function openGuide(gid) {
-  const tpl = document.getElementById('guide-' + gid);
-  if (!tpl) return;
-  let ov = document.getElementById('guide-reader');
-  if (!ov) {
-    ov = document.createElement('div');
-    ov.id = 'guide-reader';
-    ov.innerHTML = '<div class="guide-reader-bar"><button type="button" class="guide-reader-back" id="guide-reader-back">‹ Back</button>'
-      + '<span class="guide-reader-title" id="guide-reader-title"></span></div>'
-      + '<iframe class="guide-reader-frame" id="guide-reader-frame" title="Guide" referrerpolicy="no-referrer"></iframe>';
-    document.body.appendChild(ov);
-    ov.querySelector('#guide-reader-back').addEventListener('click', closeGuide);
-  }
-  ov.querySelector('#guide-reader-title').textContent = tpl.getAttribute('data-title') || 'Guide';
-  ov.querySelector('#guide-reader-frame').srcdoc = '<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' + tpl.innerHTML + buildGuideTheme();
-  ov.classList.add('open');
-  document.body.style.overflow = 'hidden';
+function isGuideOpen() {
+  const ov = document.getElementById('guide-reader');
+  return !!(ov && ov.classList.contains('open'));
 }
-function closeGuide() {
+let _guidePushedState = false;
+function _guideHide() {
   const ov = document.getElementById('guide-reader');
   if (!ov) return;
   ov.classList.remove('open');
   const f = ov.querySelector('#guide-reader-frame');
   if (f) f.srcdoc = '';
   document.body.style.overflow = '';
+}
+function openGuide(gid) {
+  const tpl = document.getElementById('guide-' + gid);
+  if (!tpl) return;
+  const wasOpen = isGuideOpen();
+  let ov = document.getElementById('guide-reader');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'guide-reader';
+    ov.innerHTML = '<div class="guide-reader-bar"><button type="button" class="guide-reader-close" id="guide-reader-back" aria-label="Close guide">✕ Close</button>'
+      + '<span class="guide-reader-title" id="guide-reader-title"></span></div>'
+      + '<iframe class="guide-reader-frame" id="guide-reader-frame" title="Guide" referrerpolicy="no-referrer"></iframe>';
+    document.body.appendChild(ov);
+    ov.querySelector('#guide-reader-back').addEventListener('click', closeGuide);
+    // The phone/browser Back button (and the swipe-back gesture) closes the reader — the
+    // natural "escape" on mobile, since the reader covers the app's top nav.
+    window.addEventListener('popstate', function () { if (isGuideOpen()) { _guidePushedState = false; _guideHide(); } });
+  }
+  ov.querySelector('#guide-reader-title').textContent = tpl.getAttribute('data-title') || 'Guide';
+  ov.querySelector('#guide-reader-frame').srcdoc = '<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' + tpl.innerHTML + buildGuideTheme();
+  ov.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  if (!wasOpen) { try { history.pushState({ guideReader: 1 }, ''); _guidePushedState = true; } catch (e) {} }
+}
+function closeGuide() {
+  if (!isGuideOpen()) return;
+  _guideHide();
+  // pop the history entry we pushed on open so the device Back button stays in sync
+  if (_guidePushedState) { _guidePushedState = false; try { history.back(); } catch (e) {} }
 }
 renderCoaching();
 bindCoaching();

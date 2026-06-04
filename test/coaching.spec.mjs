@@ -120,6 +120,32 @@ test('guides are embedded in-file and open in the themed in-app reader', async (
   await expect(page.locator('#guide-reader')).not.toHaveClass(/open/);
 });
 
+test('the guide reader can be escaped three ways (close button, Escape, Back)', async ({ page }) => {
+  await page.click('.nav-tab[data-panel="panel-coaching"]');
+  const reader = page.locator('#guide-reader');
+  const openGrip = () => page.click('#coach-grip button.coach-chip.guide');
+
+  // 1) the close button is clearly labelled
+  await openGrip();
+  await expect(reader).toHaveClass(/open/);
+  await expect(page.locator('#guide-reader-back')).toHaveText(/Close/);
+  await page.click('#guide-reader-back');
+  await expect(reader).not.toHaveClass(/open/);
+
+  // 2) the Escape key closes it
+  await openGrip();
+  await expect(reader).toHaveClass(/open/);
+  await page.keyboard.press('Escape');
+  await expect(reader).not.toHaveClass(/open/);
+
+  // 3) the browser / hardware Back button closes it (does not leave the app)
+  await openGrip();
+  await expect(reader).toHaveClass(/open/);
+  await page.goBack();
+  await expect(reader).not.toHaveClass(/open/);
+  await expect(page.locator('#panel-coaching')).toHaveClass(/active/); // still in the app
+});
+
 test('crosslink: a coaching chip opens that activity in the Reference', async ({ page }) => {
   await page.click('.nav-tab[data-panel="panel-coaching"]');
   await page.click('#coach-endurance .coach-chip[data-coach-search="bike"]');

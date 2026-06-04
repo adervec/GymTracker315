@@ -307,7 +307,10 @@ They share variation **UUIDs**.
   theme + font (bouldering flips from its light "field-guide" look to dark). The iframe still runs each guide's own
   script, so the collapsible coc cards and the data-driven endurance reference (69 topics built at runtime) keep
   working. The app is now fully self-contained — distribute `gym-tracker.html` alone. `test/check.mjs` strips the
-  `GUIDES:START…END` block so the embedded guides aren't linted as app code.
+  `GUIDES:START…END` block so the embedded guides aren't linted as app code. The reader (which covers the app's top
+  nav) is escapable three ways: a prominent **✕ Close** button (safe-area-padded so it clears a phone notch), the
+  **Escape** key, and the **device Back button** (open pushes a history entry; `popstate` closes the reader without
+  leaving the app).
 
 ---
 
