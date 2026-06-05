@@ -602,6 +602,8 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   #trk-numpad-backdrop.open { opacity: 1; pointer-events: auto; }
   .numpad-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10060; background: var(--bg2); border-top: 1px solid var(--border2); border-radius: 16px 16px 0 0; transform: translateY(110%); transition: transform 0.28s cubic-bezier(.32,.72,0,1); box-shadow: 0 -8px 32px var(--shadow); padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)); user-select: none; }
   .numpad-sheet.open { transform: translateY(0); }
+  .np-rep-hint { font-size: 11px; color: var(--text3); text-align: center; padding: 5px 0 1px; letter-spacing: 0.2px; } /* feat 97 */
+  .np-rep-hint b { color: var(--accent); font-weight: 700; }
   .np-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   .np-title { font-size: 12px; font-weight: 700; color: var(--text2); }
   .np-display { font-size: 30px; font-weight: 800; text-align: center; color: var(--text); font-variant-numeric: tabular-nums; padding: 4px 0 10px; min-height: 40px; }
@@ -1065,7 +1067,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .tips-section.open .tips-chevron { transform: rotate(90deg); }
   .tips-content { display: none; padding: 0 12px 11px 12px; border-top: 1px solid #1f1f1f; }
   /* feat 85 — cap tips height so long details never bury the sets */
-  .tips-section.open .tips-content { display: block; padding-top: 10px; max-height: 38vh; overflow-y: auto; }
+  .tips-section.open .tips-content { display: block; padding-top: 10px; max-height: 22vh; overflow-y: auto; } /* feat 97 — capped so an open tips panel never pushes the sets pane off-screen */
   /* feat 85 — SETS in their own resizable, independently-scrollable panel */
   .sets-section { border: 1px solid var(--border2); border-radius: 9px; background: var(--bg2); padding: 6px 8px 4px; }
   .sets-section .set-header { position: sticky; top: 0; background: var(--bg2); z-index: 1; padding-top: 2px; }
@@ -1359,6 +1361,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .lp-holding { position: relative; overflow: hidden; }
   .lp-holding::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--lp, 0%); background: rgba(255,255,255,0.18); pointer-events: none; transition: none; }
   .lp-holding[data-lp-label]::before { content: attr(data-lp-label); position: absolute; left: 0; right: 0; bottom: 100%; margin-bottom: 4px; font-size: 10px; color: var(--warn); white-space: nowrap; text-align: center; }
+  .lp-holding.lp-armed::after { background: color-mix(in srgb, var(--accent) 30%, transparent); } /* feat 97 — tap is now valid (charging toward long-press) */
 
   .ended-banner { background: #1a1a1a; border: 1px solid #2a2a2a; border-left: 3px solid #777; border-radius: 7px; padding: 7px 11px; font-size: 11px; color: #888; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
   .ended-banner-reason { color: #aaa; font-weight: 700; }
@@ -2794,7 +2797,7 @@ function normalizeState() {
     dashboard: { stats:true, timeline:true, liveScore:true, pace:true, physique:true },
     longPressConfirm: { enabled:false, ms:1500 },
     workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
-      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false, mixSubvariations:false },
+      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false },
     bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
     stravaAutoLoad: { enabled:false, mode:'folder' }, // feat 89
   };
@@ -2995,22 +2998,30 @@ function trackerPressCfg() {
 function attachTrackerPress(btn, onShort, onLong, label) {
   if (!btn) return () => {};
   let timer = null, raf = null, start = 0, longFired = false;
-  const clear = () => { clearTimeout(timer); cancelAnimationFrame(raf); btn.classList.remove('lp-holding'); btn.style.removeProperty('--lp'); btn.removeAttribute('data-lp-label'); };
+  const clear = () => { clearTimeout(timer); cancelAnimationFrame(raf); btn.classList.remove('lp-holding', 'lp-armed'); btn.style.removeProperty('--lp'); btn.removeAttribute('data-lp-label'); };
   const begin = (e) => {
     if (e && e.preventDefault) e.preventDefault();
     const cfg = trackerPressCfg();
     start = Date.now(); longFired = false;
-    if (onLong) btn.classList.add('lp-holding');
+    // Always show a progress fill while a non-instant press charges: toward shortMs first (the
+    // accidental-tap guard "arming"), then toward longMs (the long-press shortcut). An instant tap
+    // with no long action shows nothing. lp-armed = the tap now registers on release.
+    const showProgress = cfg.shortMs > 0 || !!onLong;
+    if (!showProgress) return;
+    const target = onLong ? cfg.longMs : cfg.shortMs;
+    btn.classList.add('lp-holding');
     const tick = () => {
-      const el = Date.now() - start, pct = Math.min(1, el / cfg.longMs);
-      btn.style.setProperty('--lp', (pct * 100).toFixed(0) + '%');
-      if (label && el > 200) btn.setAttribute('data-lp-label', label + '… ' + Math.max(0, Math.ceil((cfg.longMs - el) / 1000)) + 's');
-      if (pct < 1) raf = requestAnimationFrame(tick);
+      const el = Date.now() - start;
+      const armed = el >= cfg.shortMs;
+      btn.classList.toggle('lp-armed', armed);
+      btn.style.setProperty('--lp', (target > 0 ? Math.min(100, (el / target) * 100) : 100).toFixed(0) + '%');
+      if (!armed) btn.setAttribute('data-lp-label', 'hold…');
+      else if (onLong) btn.setAttribute('data-lp-label', (label || 'Hold') + ' ' + Math.max(0, Math.ceil((cfg.longMs - el) / 1000)) + 's');
+      else btn.setAttribute('data-lp-label', 'release ✓');
+      if (el < (onLong ? cfg.longMs : cfg.shortMs)) raf = requestAnimationFrame(tick);
     };
-    if (onLong) {
-      raf = requestAnimationFrame(tick);
-      timer = setTimeout(() => { longFired = true; clear(); try { safeVibrate(20); } catch (_) {} onLong(); }, cfg.longMs);
-    }
+    raf = requestAnimationFrame(tick);
+    if (onLong) timer = setTimeout(() => { longFired = true; clear(); try { safeVibrate(20); } catch (_) {} onLong(); }, cfg.longMs);
   };
   const release = () => {
     if (longFired) { clear(); return; }                 // long-press already fired
@@ -4496,9 +4507,6 @@ function renderSettingsDrawer() {
           <button class="drawer-pill ${categoryHidden(key) ? 'active' : ''}" data-cat-vis="${key}" data-cat-val="hide">Hide</button>
         </div>
       </div>`).join('')}
-
-    <div class="drawer-section-title">Gyms</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.5;">Gym management now lives in its own <b>Gyms</b> tab (Tracker → Gyms).${getActiveGym() ? ` Active gym: <b>${escapeHtml(getActiveGym().name)}</b>.` : ''}</div>
 
     <div class="drawer-section-title">Reference</div>
     <div class="drawer-setting-row">
@@ -10535,6 +10543,7 @@ function renderNumpad() {
     <div class="np-head"><span class="np-title">Set ${np.i + 1} · ${escapeHtml(label)}</span><button class="np-calc-toggle ${calc ? 'active' : ''}" data-np="calctoggle" title="Calculator (BEDMAS)">🧮</button><button class="np-key np-close" data-np="next">Next</button></div>
     ${kind ? renderNpSetup() : ''}
     <div class="np-display">${escapeHtml(disp)}</div>
+    ${(!isW && (M.mode === 'standard' || M.mode === 'bodyweight')) ? `<div class="np-rep-hint">🎯 Strength <b>1–5</b> · Hypertrophy <b>6–12</b> · Pump <b>15–20+</b></div>` : ''}
     ${calc ? `<div class="np-ops">${key('lparen','(')}${key('rparen',')')}${key('div','÷')}${key('mul','×')}${key('sub','−')}${key('add','+')}</div>` : ''}
     <div class="np-grid">
       ${['1','2','3','4','5','6','7','8','9'].map(d => key(d, d)).join('')}
@@ -11090,7 +11099,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 41 · 2026-06-05 19:15';
+const APP_BUILD = 'build 42 · 2026-06-05 19:28';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -59,6 +59,44 @@ test('attachTrackerPress: a tap fires onShort, a hold fires onLong (not both)', 
   expect(r.final.longN).toBe(1);
 });
 
+test('progress indicator: a non-instant short press shows a charging fill that then arms', async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    state.trackerPress = { shortMs: 300, longMs: 2000 };
+    const btn = document.createElement('button');
+    document.body.appendChild(btn);
+    attachTrackerPress(btn, () => {}, null, ''); // short-only, non-instant
+    const snap = () => ({ holding: btn.classList.contains('lp-holding'), armed: btn.classList.contains('lp-armed'), lp: parseFloat(btn.style.getPropertyValue('--lp')) || 0 });
+    btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 130));
+    const charging = snap();   // before shortMs: holding, not yet armed, fill growing
+    await new Promise((r) => setTimeout(r, 260));
+    const armed = snap();      // past shortMs: armed
+    btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    const released = snap();   // cleared on release
+    return { charging, armed, released };
+  });
+  expect(r.charging.holding).toBe(true);
+  expect(r.charging.armed).toBe(false);
+  expect(r.charging.lp).toBeGreaterThan(0);
+  expect(r.armed.armed).toBe(true);
+  expect(r.released.holding).toBe(false);
+});
+
+test('progress indicator: an instant tap with no long action shows nothing', async ({ page }) => {
+  const holding = await page.evaluate(async () => {
+    state.trackerPress = { shortMs: 0, longMs: 2000 };
+    const btn = document.createElement('button');
+    document.body.appendChild(btn);
+    attachTrackerPress(btn, () => {}, null, ''); // instant + no long -> no indicator
+    btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 60));
+    const h = btn.classList.contains('lp-holding');
+    btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    return h;
+  });
+  expect(holding).toBe(false);
+});
+
 test('a press shorter than shortMs is ignored (accidental-tap guard)', async ({ page }) => {
   const fired = await page.evaluate(async () => {
     state.trackerPress = { shortMs: 300, longMs: 2000 };

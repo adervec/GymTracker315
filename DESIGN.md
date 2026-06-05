@@ -360,6 +360,15 @@ They share variation **UUIDs**.
   ignored as an accidental tap). The long-press time also now drives the existing destructive **hold-to-confirm**
   (`attachLongPress` defaults its hold to `trackerPress.longMs`). Specific per-button long-press shortcuts are
   wired on request. Covered by `test/press.spec.mjs`.
+- **Tracker log UX pass (feat 97):** removed the wasted "Gym management moved" disclaimer from Settings; capped
+  the in-modal Tips panel at 22vh (was 38vh) so an open Tips section no longer pushes the Sets pane off-screen;
+  made the **on-screen numpad the default** (`workoutControls.onScreenNumpad`), which moves the plate/pin/bar
+  **equipment setup into the keypad as a ⚙ toggle** (`renderNpSetup`) instead of the inline configurator — keeping
+  the Sets pane visible on mobile; added rep-range **ghost text** under the numpad when entering reps (Strength
+  1–5 · Hypertrophy 6–12 · Pump 15–20+). Also extended `attachTrackerPress` (feat 96) with a **two-phase progress
+  indicator**: a charging fill toward `shortMs` (the accidental-tap "arming") then toward `longMs`, with an
+  `lp-armed` accent-tint once the tap is valid (an instant tap with no long action shows nothing). Covered by
+  `test/press.spec.mjs`.
 
 ---
 
