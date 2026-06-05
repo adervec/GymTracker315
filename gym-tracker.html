@@ -2634,7 +2634,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2821,6 +2821,11 @@ function normalizeState() {
   state.sound.volume = Math.max(0, Math.min(1, state.sound.volume));
   // feat 92 — UI tap feedback (a click + haptic on every button), default ON; gated by the masters above.
   state.uiFeedback = { audio:true, haptic:true, ...(state.uiFeedback && typeof state.uiFeedback === 'object' ? state.uiFeedback : {}) };
+  // feat 96 — Tracker-tab button press timing: short tap (held >= shortMs; 0 = instant) vs press-and-hold
+  // long-press (>= longMs) for a separate shortcut. Long is kept at least 1s beyond short.
+  state.trackerPress = { shortMs:0, longMs:2000, ...(state.trackerPress && typeof state.trackerPress === 'object' ? state.trackerPress : {}) };
+  state.trackerPress.shortMs = Math.max(0, Math.min(5000, state.trackerPress.shortMs | 0));
+  state.trackerPress.longMs = Math.max(state.trackerPress.shortMs + 1000, Math.min(10000, (state.trackerPress.longMs | 0) || 2000));
   // feat 70/71 — seed + merge plans by id: new seed plans append for existing users; backfill seed descriptions.
   if (!Array.isArray(state.plans)) state.plans = [];
   if (!Array.isArray(state.seededPlanIds)) state.seededPlanIds = [];
@@ -2948,7 +2953,7 @@ function longPressEnabled() { return !!(state.longPressConfirm && state.longPres
 function attachLongPress(btn, ms, onComplete, label) {
   if (!btn) return () => {};
   let timer = null, raf = null, start = 0;
-  const holdMs = ms || (state.longPressConfirm && state.longPressConfirm.ms) || 1500;
+  const holdMs = ms || (state.trackerPress && state.trackerPress.longMs) || (state.longPressConfirm && state.longPressConfirm.ms) || 1500;
   const origText = btn.innerHTML;
   const begin = (e) => {
     e.preventDefault();
@@ -2974,6 +2979,49 @@ function attachLongPress(btn, ms, onComplete, label) {
   btn.addEventListener('pointerleave', cancel);
   btn.addEventListener('pointercancel', cancel);
   return cancel;
+}
+
+// feat 96 — Tracker-tab press timing config (short tap vs long-press shortcut). longMs kept >= shortMs + 1s.
+function trackerPressCfg() {
+  const c = state.trackerPress || {};
+  const shortMs = Math.max(0, c.shortMs || 0);
+  const longMs = Math.max(shortMs + 1000, c.longMs || 2000);
+  return { shortMs, longMs };
+}
+// Attach short/long press to a Tracker-tab button: a tap (released >= shortMs) fires onShort, a
+// press-and-hold (>= longMs) fires onLong — a *separate* shortcut. Reuses the attachLongPress visual
+// (lp-holding fill). A release before shortMs is ignored (accidental-tap guard; default shortMs 0 = instant).
+// Wire a button through this INSTEAD of an onclick handler so the two don't double-fire.
+function attachTrackerPress(btn, onShort, onLong, label) {
+  if (!btn) return () => {};
+  let timer = null, raf = null, start = 0, longFired = false;
+  const clear = () => { clearTimeout(timer); cancelAnimationFrame(raf); btn.classList.remove('lp-holding'); btn.style.removeProperty('--lp'); btn.removeAttribute('data-lp-label'); };
+  const begin = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const cfg = trackerPressCfg();
+    start = Date.now(); longFired = false;
+    if (onLong) btn.classList.add('lp-holding');
+    const tick = () => {
+      const el = Date.now() - start, pct = Math.min(1, el / cfg.longMs);
+      btn.style.setProperty('--lp', (pct * 100).toFixed(0) + '%');
+      if (label && el > 200) btn.setAttribute('data-lp-label', label + '… ' + Math.max(0, Math.ceil((cfg.longMs - el) / 1000)) + 's');
+      if (pct < 1) raf = requestAnimationFrame(tick);
+    };
+    if (onLong) {
+      raf = requestAnimationFrame(tick);
+      timer = setTimeout(() => { longFired = true; clear(); try { safeVibrate(20); } catch (_) {} onLong(); }, cfg.longMs);
+    }
+  };
+  const release = () => {
+    if (longFired) { clear(); return; }                 // long-press already fired
+    const held = Date.now() - start; clear();
+    if (held >= trackerPressCfg().shortMs && onShort) onShort(); // a deliberate tap
+  };
+  btn.addEventListener('pointerdown', begin);
+  btn.addEventListener('pointerup', release);
+  btn.addEventListener('pointerleave', clear);          // sliding off cancels — no action
+  btn.addEventListener('pointercancel', clear);
+  return clear;
 }
 
 // Resolve true when the user confirms. When hold-to-confirm is ON and a button is
@@ -4175,6 +4223,28 @@ function renderSettingsDrawer() {
     </div>` : ''}
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">Tracker button presses</div>
+        <div class="drawer-setting-sub">Short tap vs. press-and-hold on the Tracker tab. Hold triggers a button's long-press shortcut (and hold-to-confirm).</div>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">Short press <span style="color:var(--text3);font-weight:400;">(0 = instant)</span></div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="number" id="tp-short" value="${(state.trackerPress.shortMs / 1000)}" min="0" max="5" step="0.1"
+          style="width:60px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+        <span style="font-size:12px;color:var(--text3);">sec</span>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">Long press</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="number" id="tp-long" value="${(state.trackerPress.longMs / 1000)}" min="1" max="10" step="0.5"
+          style="width:60px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+        <span style="font-size:12px;color:var(--text3);">sec</span>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">Highlight → glossary</div>
         <div class="drawer-setting-sub">Select &amp; hold text 5s to open its glossary entry</div>
       </div>
@@ -4766,6 +4836,10 @@ function renderSettingsDrawer() {
   if (ph) ph.addEventListener('change', () => { const v = parseFloat(ph.value); state.profile.heightCm = (!isNaN(v) && v > 0) ? v : null; saveState(); });
   const lpms = body.querySelector('#lp-ms');
   if (lpms) lpms.addEventListener('change', () => { const v = parseFloat(lpms.value); if (!isNaN(v) && v >= 0.5) { state.longPressConfirm.ms = Math.round(v*1000); saveState(); } });
+  const tpShort = body.querySelector('#tp-short'); // feat 96
+  if (tpShort) tpShort.addEventListener('change', () => { const v = parseFloat(tpShort.value); if (!isNaN(v) && v >= 0) { state.trackerPress.shortMs = Math.max(0, Math.min(5000, Math.round(v*1000))); if (state.trackerPress.longMs < state.trackerPress.shortMs + 1000) state.trackerPress.longMs = state.trackerPress.shortMs + 1000; saveState(); } });
+  const tpLong = body.querySelector('#tp-long'); // feat 96
+  if (tpLong) tpLong.addEventListener('change', () => { const v = parseFloat(tpLong.value); if (!isNaN(v) && v >= 1) { state.trackerPress.longMs = Math.max(state.trackerPress.shortMs + 1000, Math.min(10000, Math.round(v*1000))); saveState(); } });
 
   // Reference: hidden flags + custom variations (feat 23 / 16)
   body.querySelector('#reset-hidden-btn')?.addEventListener('click', () => {
@@ -11016,7 +11090,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 40 · 2026-06-04 23:29';
+const APP_BUILD = 'build 41 · 2026-06-05 19:15';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

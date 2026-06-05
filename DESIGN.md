@@ -352,6 +352,14 @@ They share variation **UUIDs**.
   union**: sessions keyed by `id || 'd:'+date`, newest `sessionTs` wins, tombstones drop a session only when
   the deletion is at least as new as its last edit, and settings do a coarse whole-object LWW via a
   `saveState`-stamped top-level `savedAt`. Covered by `test/sync.spec.mjs`.
+- **Tracker button press timing (feat 96):** `state.trackerPress { shortMs, longMs }` (default `{0, 2000}`, ∈
+  SETTINGS_KEYS, in Settings → Preferences) defines a **short tap** (released ≥ `shortMs`; 0 = instant) vs a
+  **press-and-hold long-press** (held ≥ `longMs`) that fires a *separate* shortcut, for Tracker-tab buttons.
+  `longMs` is always kept ≥ `shortMs` + 1 s. `attachTrackerPress(btn, onShort, onLong, label)` classifies the
+  press (reusing the `attachLongPress` `lp-holding` fill + a haptic on long-press; a release under `shortMs` is
+  ignored as an accidental tap). The long-press time also now drives the existing destructive **hold-to-confirm**
+  (`attachLongPress` defaults its hold to `trackerPress.longMs`). Specific per-button long-press shortcuts are
+  wired on request. Covered by `test/press.spec.mjs`.
 
 ---
 
