@@ -2639,27 +2639,47 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
 // merge:     sessions are merged by date; settings from the file are ignored.
+// feat 95 — session identity + delete tombstones, for robust cross-device last-write-wins sync.
+function newSession(extra) { const now = new Date().toISOString(); return { id: newUuid(), date: now, updatedAt: now, exercises: [], ...(extra || {}) }; }
+function touchSession(s) { if (s) s.updatedAt = new Date().toISOString(); return s; }
+// Legacy (id-less) sessions key by date so two devices migrating the same session don't fork into duplicates.
+function sessionKey(s) { return s && (s.id || ('d:' + s.date)); }
+// Effective last-modified: explicit updatedAt / endedAt / date, OR the newest set ts (set logging already
+// stamps each set, so it needs no explicit touch). ISO strings compare lexicographically = chronologically.
+function sessionTs(s) {
+  if (!s) return '';
+  let t = s.updatedAt || s.endedAt || s.date || '';
+  (s.exercises || []).forEach(ex => (ex.sets || []).forEach(set => { if (set && set.ts && set.ts > t) t = set.ts; }));
+  return t;
+}
+function tombstoneSession(s) {
+  if (!s) return;
+  if (!Array.isArray(state.deletedSessions)) state.deletedSessions = [];
+  const k = sessionKey(s), now = new Date().toISOString();
+  const e = state.deletedSessions.find(t => t.id === k);
+  if (e) e.deletedAt = now; else state.deletedSessions.push({ id: k, deletedAt: now });
+}
 function applyImport(data, mode) {
-  if (mode === 'overwrite') {
-    state = { ...state, ...data };
-  } else {
-    // Merge sessions only — leave local settings untouched
-    const merged = [...state.sessions];
-    (data.sessions || []).forEach(incoming => {
-      const idx = merged.findIndex(s => s.date === incoming.date);
-      if (idx >= 0) {
-        const existEx = merged[idx].exercises;
-        const toAdd = incoming.exercises.filter(ie =>
-          !existEx.some(ee => ee.varUuid === ie.varUuid && ee.subUuid === ie.subUuid)
-        );
-        merged[idx] = { ...merged[idx], exercises: [...existEx, ...toAdd] };
-      } else {
-        merged.push(incoming);
-      }
-    });
-    merged.sort((a, b) => new Date(b.date) - new Date(a.date));
-    // Keep all local state; only update sessions
-    state = { ...state, sessions: merged };
+  if (mode === 'overwrite') { state = { ...state, ...data }; return; }
+  // Merge: last-write-wins UNION of sessions by stable key; a tombstone removes a session only when the
+  // deletion is at least as new as the session's last edit (so edit-after-delete on another device wins).
+  const byKey = new Map();
+  (state.sessions || []).forEach(s => byKey.set(sessionKey(s), s));
+  (data.sessions || []).forEach(inc => {
+    const k = sessionKey(inc), cur = byKey.get(k);
+    if (!cur || sessionTs(inc) >= sessionTs(cur)) byKey.set(k, inc);
+  });
+  const tombs = new Map();
+  const addTomb = t => { if (t && t.id && t.deletedAt) { const e = tombs.get(t.id); if (!e || t.deletedAt > e.deletedAt) tombs.set(t.id, t); } };
+  (state.deletedSessions || []).forEach(addTomb);
+  (data.deletedSessions || []).forEach(addTomb);
+  tombs.forEach(t => { const s = byKey.get(t.id); if (s && t.deletedAt >= sessionTs(s)) byKey.delete(t.id); });
+  const merged = [...byKey.values()].sort((a, b) => new Date(b.date) - new Date(a.date));
+  state = { ...state, sessions: merged, deletedSessions: [...tombs.values()] };
+  // Settings: coarse whole-object last-write-wins — adopt the file's settings only if it saved later.
+  if (data.savedAt && (!state.savedAt || data.savedAt > state.savedAt)) {
+    SETTINGS_KEYS.forEach(k => { if (k in data) state[k] = data[k]; });
+    state.savedAt = data.savedAt;
   }
 }
 
@@ -2825,6 +2845,13 @@ function normalizeState() {
   if (!state.exerciseSetup || typeof state.exerciseSetup !== 'object') state.exerciseSetup = {}; // feat 79 — per-variation setup-tool override
   if (!Array.isArray(state.pinProfiles)) state.pinProfiles = []; // feat 80 — named pin-stack machine profiles [{id,name,inc}]
   state.cardioGoals = { weeklyMinutes:0, weeklyDistance:0, weeklySessions:0, distanceUnit:'km', ...(state.cardioGoals||{}) };
+  // feat 95 — sync data model: backfill updatedAt on existing sessions (NOT id — legacy sessions stay
+  // date-keyed so two devices migrating the same session don't fork), default + prune the tombstone list.
+  if (!Array.isArray(state.sessions)) state.sessions = [];
+  state.sessions.forEach(s => { if (s && !s.updatedAt) s.updatedAt = s.endedAt || s.date || new Date().toISOString(); });
+  if (!Array.isArray(state.deletedSessions)) state.deletedSessions = [];
+  const _tombMin = new Date(Date.now() - 365 * 86400000).toISOString();
+  state.deletedSessions = state.deletedSessions.filter(t => t && t.id && t.deletedAt && t.deletedAt > _tombMin);
 }
 
 function loadState() {
@@ -2840,6 +2867,7 @@ function loadState() {
   applyTheme(state.theme || 'dark');
 }
 function saveState() {
+  state.savedAt = new Date().toISOString(); // feat 95 — coarse settings last-write-wins on sync
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
   autoSaveTrigger();
 }
@@ -6762,7 +6790,7 @@ function startWorkout() {
   hrTryReconnect(); // feat 72 — try to bring the last HR monitor back for the new workout
   const existing = getActiveSession();
   if (existing) { toast('Workout already in progress'); return; }
-  const session = { date: new Date().toISOString(), exercises: [], startedManually: true };
+  const session = newSession({ startedManually: true });
   state.sessions.push(session);
   modalState.setup = {}; modalState.setupOpen = false; // feat 85 — equipment setup persists *within* a workout; fresh at begin
   saveState();
@@ -7241,6 +7269,7 @@ function saveWorkoutStats(date) {
   const sleepEl = document.getElementById('hr-sleep-input'); const sleepVal = sleepEl ? sleepEl.value.trim() : '';
   if (sleepVal) session.sleep = sleepVal; else delete session.sleep;
   session.hr = (avg == null && max == null && calories == null) ? null : { avg, max, calories };
+  touchSession(session); // feat 95
   saveState(); hrEditSession = null; logInfo('Workout stats saved', `${avg||'-'}/${max||'-'} ${calories||'-'}cal`); render(); toast('Workout stats saved');
 }
 
@@ -7367,6 +7396,7 @@ function deleteAllHistory() {
 function finalConfirmDeleteAll() {
   confirmDialog('All history is about to be permanently deleted. This cannot be undone.', { title: 'Final confirmation', okLabel: 'Delete everything', danger: true }).then(ok => {
     if (!ok) { toast('Deletion cancelled'); return; }
+    state.sessions.forEach(tombstoneSession); // feat 95 — tombstone each so the wipe propagates on sync
     state.sessions = [];
     clearPending();
     saveState();
@@ -9182,6 +9212,7 @@ function linkStrava(sessionDate, activityId, enrich) {
   const s = (state.sessions || []).find(x => x.date === sessionDate); if (!s) return;
   const a = (state.stravaActivities || []).find(x => x.id === activityId); if (!a) return;
   s.stravaId = activityId;
+  touchSession(s); // feat 95
   if (enrich !== false) {
     if (!s.hr && (a.avgHr != null || a.calories != null)) s.hr = { avg: a.avgHr, max: a.maxHr, calories: a.calories };
     if (!s.endedAt && a.elapsedSec) { const end = new Date(new Date(s.date).getTime() + a.elapsedSec * 1000); if (end < new Date()) { s.endedAt = end.toISOString(); s.endReason = s.endReason || 'strava'; } }
@@ -9431,6 +9462,7 @@ function saveNotes() {
   } else {
     session.notes = notes;
   }
+  touchSession(session); // feat 95
   saveState();
   closeNotesModal();
   render();
@@ -9443,6 +9475,7 @@ function clearNotes() {
     const session = state.sessions.find(s => s.date === notesEditingSession);
     if (!session) return;
     delete session.notes;
+    touchSession(session); // feat 95
     saveState();
     closeNotesModal();
     render();
@@ -10679,13 +10712,15 @@ function saveCardio() {
     if (session) {
       const ex = session.exercises.find(e => e.varUuid === pending.varUuid && (e.subUuid||null) === (pending.subUuid||null) && e.cardio);
       if (ex) ex.cardio = cardio; else session.exercises.push(entry);
+      touchSession(session); // feat 95
     }
     saveState(); toast('Cardio updated');
   } else {
     const todayStr = new Date().toDateString();
     let session = state.sessions.find(s => new Date(s.date).toDateString() === todayStr);
-    if (!session) { session = { date: new Date().toISOString(), exercises: [] }; state.sessions.push(session); }
+    if (!session) { session = newSession(); state.sessions.push(session); }
     session.exercises.push(entry); // each cardio bout is its own entry
+    touchSession(session); // feat 95
     saveState();
     logInfo('Cardio logged', displayName(pending.varUuid, pending.subUuid) + ' · ' + mins + ' min');
     toast(`Logged ${mins} min cardio`);
@@ -10751,7 +10786,7 @@ function saveSuperset() {
   if (!validA.length && !validB.length) { toast('Enter at least one set'); return; }
   const todayStr = new Date().toDateString();
   let session = state.sessions.find(s => new Date(s.date).toDateString() === todayStr);
-  if (!session) { session = { date: new Date().toISOString(), exercises: [] }; state.sessions.push(session); }
+  if (!session) { session = newSession(); state.sessions.push(session); }
   const sid = 'ss-' + newUuid().slice(0, 8);
   if (validA.length) session.exercises.push({ varUuid: ss.a.varUuid, subUuid: ss.a.subUuid, sets: validA, supersetId: sid });
   if (validB.length) session.exercises.push({ varUuid: ss.b.varUuid, subUuid: ss.b.subUuid, sets: validB, supersetId: sid });
@@ -10861,7 +10896,7 @@ function saveSets() {
       const todayStr = new Date().toDateString();
       let session = state.sessions.find(s => new Date(s.date).toDateString() === todayStr);
       if (!session) {
-        session = { date: new Date().toISOString(), exercises: [] };
+        session = newSession();
         state.sessions.push(session);
       }
       // feat 88 — group the saved sets by sub-option → one exercise entry per sub (mix off = a single group)
@@ -10909,7 +10944,10 @@ function deleteExercise() {
         !(e.varUuid === pending.varUuid && (e.subUuid || null) === (pending.subUuid || null))
       );
       if (session.exercises.length === 0) {
+        tombstoneSession(session); // feat 95 — record the deletion so it propagates on sync
         state.sessions = state.sessions.filter(s => s.date !== modalState.editingSessionDate);
+      } else {
+        touchSession(session);
       }
       saveState();
     }
@@ -10978,7 +11016,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 39 · 2026-06-04 23:17';
+const APP_BUILD = 'build 40 · 2026-06-04 23:29';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

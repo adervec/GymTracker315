@@ -341,6 +341,17 @@ They share variation **UUIDs**.
   *unofficial* `garminconnect` library (Strava/YouTube helpers use official APIs). Audit confirmed: no
   bundled third-party libraries (vanilla single file; Playwright is a dev-only Apache-2.0 dep), no committed
   secrets, no remote fonts/CDN/trackers. Covered by `test/legal.spec.mjs`.
+- **Sync data model (feat 95):** the foundation for cross-device Google Drive sync (Phase 2 of the plan).
+  Every session now carries a stable `id` (`newSession()` → `crypto.randomUUID()`) + `updatedAt`; existing
+  sessions are backfilled on load (`normalizeState` sets `updatedAt = endedAt || date` but **NOT** an id — so
+  two devices migrating the same legacy session don't fork into duplicates; legacy sessions key by date).
+  Deletions push a tombstone to `state.deletedSessions [{id, deletedAt}]` (`deleteExercise` session-removal,
+  the full `finalConfirmDeleteAll` wipe; pruned > 1 yr). `touchSession()` bumps `updatedAt` on the non-set
+  edits (cardio, notes, sleep, HR, Strava link); set logging needs none since `sessionTs()` already takes the
+  newest set `ts`. `applyImport()`'s merge mode was rewritten from a naive date-merge into a **last-write-wins
+  union**: sessions keyed by `id || 'd:'+date`, newest `sessionTs` wins, tombstones drop a session only when
+  the deletion is at least as new as its last edit, and settings do a coarse whole-object LWW via a
+  `saveState`-stamped top-level `savedAt`. Covered by `test/sync.spec.mjs`.
 
 ---
 
