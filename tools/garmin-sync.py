@@ -12,6 +12,12 @@ except the call to Garmin) and writes a JSON in the exact shape the app imports.
 Index S2 smart-scale metrics (weight / body fat / muscle mass / bone mass / body water)
 map 1:1 to the app's body-composition entry, plus optional last-night sleep score.
 
+NOTE (unofficial - read before using): Garmin provides no public per-user read API, so this relies
+on the community `garminconnect` library, which talks to Garmin Connect's private, undocumented
+endpoints using your login. That may conflict with Garmin's Terms of Service, and the endpoints can
+change or be blocked at any time. Use it for your OWN personal data only, at your own risk, and check
+Garmin's current terms. The Strava and YouTube helpers, by contrast, use official APIs with your own keys.
+
 ----------------------------------------------------------------------------------------
 SETUP (once):
     py -m pip install garminconnect          (Windows)   or   pip3 install garminconnect

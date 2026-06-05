@@ -1,6 +1,7 @@
 # GymTracker
 
 [![CI](https://github.com/adervec/GymTracker/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/adervec/GymTracker/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A single-file workout tracker — log lifts and cardio, follow adaptive plans, picker-driven
 equipment setup (barbell/dumbbell/kettlebell/plate/landmine/pin…), per-exercise reference
@@ -66,11 +67,12 @@ This auto-stamps the build number into `gym-tracker.html` and runs the static ch
 
 ## Helper scripts
 
-Optional local sync helpers (Python standard library only — you supply your own API keys/tokens):
+Optional — you run them locally with your own credentials/API keys; they write JSON files the app
+imports. Their output and any tokens are git-ignored.
 
-- `tools/garmin-sync.py` — pull bodyweight / sleep biometrics.
-- `tools/strava-sync.py` — pull strength activities (and optionally push descriptions back).
-- `tools/youtube-media.py` — match a creator's Shorts to your exercises for the media carousel.
+- `tools/strava-sync.py` — pull strength activities (official Strava API + your own OAuth app); optional description push-back.
+- `tools/youtube-media.py` — match a creator's Shorts to your exercises (official YouTube Data API + your own free key).
+- `tools/garmin-sync.py` — pull bodyweight / sleep biometrics. **Unofficial:** Garmin has no public per-user read API, so this uses the community [`garminconnect`](https://github.com/cyberjunky/python-garminconnect) library (your Garmin login → Garmin Connect's private endpoints). That may conflict with Garmin's Terms of Service and can break or be blocked at any time — personal use, at your own risk.
 
 ## Layout
 
@@ -88,3 +90,34 @@ test/
 playwright.config.mjs     Playwright config (desktop + Pixel projects)
 .github/workflows/ci.yml  CI
 ```
+
+## Disclaimer
+
+GymTracker is a personal training log built by a software developer — **not** a doctor, coach,
+physiotherapist, or lawyer. Its plans, cues, coaching notes, and bundled guides are **educational
+only** and may not be right for you. Consult a qualified professional before starting or changing a
+program, especially with any injury or health condition. Exercise carries a real risk of injury —
+warm up, start light, and stop on sharp pain. **You use this app and follow its content entirely at
+your own risk.** It is provided "as is" under the MIT License, without warranty of any kind; the
+author is not liable for any injury, loss, or damage.
+
+Training concepts referenced (HR zones, 80/20 polarized, periodization, MEV/MAV/MRV, e1RM, …) are
+widely-known frameworks, attributed where relevant via the in-app glossary and links; the guides and
+exercise cues are otherwise the author's own writing.
+
+## Privacy
+
+No account, no servers, no analytics — nothing is sent to the author. Your data lives in your
+browser's `localStorage`, plus any local files or your **own** cloud storage if you enable
+auto-save/sync. The helper scripts run locally with your own credentials.
+
+## Trademarks
+
+Product and brand names referenced (e.g. Captains of Crush, Hoist / Roc-It, Life Fitness, Fat Gripz,
+Concept2, StairMaster, VersaClimber, Strava, Garmin) belong to their respective owners. GymTracker is
+independent — not affiliated with, endorsed by, or sponsored by any of them — and uses these names
+only descriptively. Captains of Crush gripper ratings are IronMind's and vary unit-to-unit.
+
+## License
+
+[MIT](LICENSE) © 2026 Adam Eryavec. Built with [Claude Code](https://claude.com/claude-code).

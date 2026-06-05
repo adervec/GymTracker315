@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!--
+  GymTracker — https://github.com/adervec/GymTracker — MIT License, Copyright (c) 2026 Adam Eryavec.
+  A personal training log. NOT medical, coaching, or professional advice; provided "as is" without
+  warranty, use at your own risk. Brand/product names belong to their owners; this project is
+  independent and not affiliated with them. Full disclaimer: in-app Help, or the README.
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3000,6 +3006,16 @@ function _onSelectionChange() {
 /* ============================================================
    HELP OVERLAY (feat 21)
    ============================================================ */
+// feat 94 — single source for the legal disclaimer, shown in Help and Settings -> About.
+function legalDisclaimerHtml() {
+  return `
+    <p><b>Not professional advice.</b> GymTracker is a personal training log built by a software developer — not a doctor, coach, physiotherapist, or lawyer. Its plans, cues, coaching notes and the bundled guides are educational only and may not be right for you. Consult a qualified professional before starting or changing a program, especially with any injury or health condition. Exercise carries a real risk of injury — warm up, start light, and stop on sharp pain. You use this app and follow its content entirely at your own risk.</p>
+    <p><b>No warranty.</b> Provided "as is" under the MIT License, without warranty of any kind; the author is not liable for any injury, loss, or damage arising from its use.</p>
+    <p><b>Trademarks.</b> Product and brand names (e.g. Captains of Crush, Hoist / Roc-It, Life Fitness, Fat Gripz, Concept2, StairMaster, VersaClimber, Strava, Garmin) belong to their respective owners. GymTracker is independent — not affiliated with, endorsed by, or sponsored by them — and uses these names only descriptively. Captains of Crush gripper ratings are IronMind's and vary unit-to-unit.</p>
+    <p><b>Your data.</b> Everything stays in your browser (and, if you turn it on, your own cloud storage). No account, no servers, no analytics — nothing is sent to the author.</p>
+    <p><b>References.</b> Widely-known training concepts (HR zones, 80/20 polarized, periodization, MEV/MAV/MRV, e1RM, etc.) are referenced for education; see the in-app glossary and the linked sources for further reading.</p>
+  `;
+}
 function openHelp() {
   renderHelp();
   document.getElementById('help-backdrop').classList.add('open');
@@ -3071,6 +3087,7 @@ function renderHelp() {
       <li>Press <span class="help-kbd">Esc</span> to close modals and overlays.</li>
       <li>Switch themes in Settings — many are grouped by mood/category.</li>
     </ul>
+    <h3>Disclaimer &amp; licence</h3>${legalDisclaimerHtml()}
     <p style="margin-top:16px;color:var(--text3);font-size:11px;">All data stays in your browser. No account, no sync, no tracking.</p>
     <p style="margin-top:10px;color:var(--text3);font-size:10.5px;letter-spacing:0.3px;">${escapeHtml(APP_BUILD)}</p>
   `;
@@ -4664,6 +4681,7 @@ function renderSettingsDrawer() {
       <span class="about-ea-tag">⚠️ Early Access</span>
       <span>Active early-access build — features and data formats may still change. Keep your own backups via Settings → Data → Export JSON.</span>
     </div>
+    <details style="margin:10px 0;font-size:11.5px;color:var(--text2);line-height:1.55;"><summary style="cursor:pointer;color:var(--text);font-weight:600;padding:4px 0;">⚖️ Disclaimer, trademarks &amp; licence (MIT)</summary><div style="margin-top:4px;">${legalDisclaimerHtml()}</div></details>
     <div class="about-credit">
       Designed &amp; built by <strong>Adam Eryavec, P.Eng.</strong><br>
       Developed with <strong>Claude Code</strong> (Anthropic).
@@ -10960,7 +10978,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 37 · 2026-06-04 22:00';
+const APP_BUILD = 'build 38 · 2026-06-04 22:29';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

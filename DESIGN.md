@@ -331,6 +331,16 @@ They share variation **UUIDs**.
   single-file source; the PWA files are deploy artifacts. `test/check.mjs` validates the PWA assets and
   `test/pwa.spec.mjs` checks the manifest, head wiring, and that the SW registers + caches the shell.
   *(Phase 1 of the PWA + Google-Drive-sync plan; data-model hardening + Drive sync follow.)*
+- **Open-source / going-public legal (feat 94):** added a top-level `LICENSE` (MIT, © 2026 Adam Eryavec)
+  and a single in-app disclaimer source, `legalDisclaimerHtml()`, surfaced in both **Help** (a "Disclaimer
+  & licence" section) and **Settings → About** (a collapsible `<details>`): not-professional-advice +
+  exercise-at-your-own-risk, no-warranty (MIT), trademarks-belong-to-owners / not-affiliated (Captains of
+  Crush, Hoist/Roc-It, Life Fitness, Strava, Garmin, …), data-stays-local, and a references note. A license
+  + disclaimer banner comment heads `gym-tracker.html`. README gained Disclaimer / Privacy / Trademarks /
+  License sections + a MIT badge; `tools/garmin-sync.py` and the README flag that the Garmin helper uses the
+  *unofficial* `garminconnect` library (Strava/YouTube helpers use official APIs). Audit confirmed: no
+  bundled third-party libraries (vanilla single file; Playwright is a dev-only Apache-2.0 dep), no committed
+  secrets, no remote fonts/CDN/trackers. Covered by `test/legal.spec.mjs`.
 
 ---
 
