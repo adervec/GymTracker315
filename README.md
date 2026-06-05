@@ -21,6 +21,17 @@ Access auto-load and other secure-context features work):
 npm run serve     # serves the repo at http://127.0.0.1:4321/gym-tracker.html
 ```
 
+## Install (PWA)
+
+Deployed to GitHub Pages: **https://adervec.github.io/GymTracker/** — open it in mobile or desktop
+Chrome and use *Install app* / *Add to Home Screen*. It's offline-first: a service worker caches the
+app shell, so it launches and works without a connection.
+
+**Deploy** (`.github/workflows/deploy.yml`): on every push to `dev` it runs the static check, bakes the
+guides, copies `gym-tracker.html` → `index.html`, adds the manifest / service worker / icons, and stamps
+the SW cache version from the build number, then publishes to Pages. One-time setup: in the repo,
+**Settings → Pages → Source: GitHub Actions**. Regenerate icons with `node tools/make-icons.mjs`.
+
 ## Develop & test
 
 The app ships as plain HTML, but the repo carries a two-layer test suite so a regression can't

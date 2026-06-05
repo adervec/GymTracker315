@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Gym Tracker</title>
+<!-- feat 93 — PWA / installability (icons + manifest are deploy artifacts; absent in standalone-file use) -->
+<meta name="description" content="GymTracker — log lifts and cardio, follow adaptive plans, picker-driven equipment setup, and built-in coaching guides. Offline-first.">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GymTracker">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
 /* =============================================
    THEME VARIABLES
@@ -10950,7 +10960,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 36 · 2026-06-04 18:11';
+const APP_BUILD = 'build 37 · 2026-06-04 22:00';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -23107,5 +23117,24 @@ render();
 
 </template>
 <!-- GUIDES:END -->
+<script>
+// feat 93 — register the PWA service worker for offline + installability. Skipped on file://
+// (and any failure is swallowed) so standalone-file use and the test harness are unaffected.
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      reg.addEventListener('updatefound', function () {
+        var nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', function () {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            try { toast('🔄 Update ready — reopen the app to apply'); } catch (e) {}
+          }
+        });
+      });
+    }).catch(function () {});
+  });
+}
+</script>
 </body>
 </html>

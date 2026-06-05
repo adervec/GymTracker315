@@ -4,7 +4,7 @@
 // a stray token that breaks the whole inline <script> at parse time.
 //
 //   node test/check.mjs            -> exits 0 if all checks pass, 1 otherwise
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -81,7 +81,21 @@ for (const name of MUST) {
   if (declared) ok(`${name}()`); else bad(`${name}() NOT found (renamed or removed?)`);
 }
 
-// ---- 5. Python helper scripts must compile ----
+// ---- 5. PWA assets present + valid (feat 93) ----
+section('PWA assets');
+const pwaFiles = ['manifest.webmanifest', 'sw.js', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'apple-touch-icon.png'];
+for (const f of pwaFiles) { if (existsSync(join(root, f))) ok(`${f} present`); else bad(`${f} missing`); }
+try {
+  const mf = JSON.parse(readFileSync(join(root, 'manifest.webmanifest'), 'utf8'));
+  if (mf.name && mf.start_url && Array.isArray(mf.icons) && mf.icons.length) ok('manifest.webmanifest valid (name/start_url/icons)');
+  else bad('manifest.webmanifest missing name/start_url/icons');
+} catch (e) { bad('manifest.webmanifest invalid JSON -> ' + e.message); }
+try { new vm.Script(readFileSync(join(root, 'sw.js'), 'utf8'), { filename: 'sw.js' }); ok('sw.js parses'); }
+catch (e) { bad('sw.js SYNTAX ERROR -> ' + e.message); }
+if (/<link rel="manifest"/.test(html)) ok('app <head> links the manifest'); else bad('app missing <link rel="manifest">');
+if (/navigator\.serviceWorker\.register/.test(appHtml)) ok('app registers a service worker'); else bad('app missing SW registration');
+
+// ---- 6. Python helper scripts must compile ----
 section('Python helper scripts');
 const pybin = ['python3', 'python', 'py'].find((bin) => {
   try { return spawnSync(bin, ['--version'], { stdio: 'ignore' }).status === 0; } catch { return false; }
