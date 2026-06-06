@@ -418,6 +418,15 @@ They share variation **UUIDs**.
   utterance's `onend` so a fast tempo doesn't clip words — the cues self-pace to speech length) and the master audio
   gate. The target exercise is the pending log exercise, else `currentOrLastExercise()`. `stopMetronome` cancels any
   in-progress chant. Covered by `test/metronome.spec.mjs`.
+- **Metronome set-active gating + rest-cue timer (feat 104):** two parts. (1) `metronome.setActiveOnly`
+  (**default on**) makes `metroTick` stay silent unless `metroSetActive()` (an open set — weight entered, reps
+  pending) so the beat only sounds while you're actually repping; an Off pill restores free-run. (2) A **separate,
+  configurable audible rest timer** `state.restCues {enabled,mode,target,interval,countdown,endCue,audio,haptic,freq}`
+  (in `SETTINGS_KEYS`, default **off**), independent of the recommended-rest zone beeps. `restCueTick()` (hooked into
+  the 1 Hz `restTick`, fires ≤ once per integer second via `_lastRestCueSec`) emits, during same-exercise rest:
+  **count-up** interval beeps + an end cue at `target`; or **countdown** interval beeps, a per-second tick over the
+  final `countdown` seconds, and a distinct triple end cue at zero. Countdown mode also shows `⏳ remaining` on the
+  rest bar. Both configured in Settings → Metronome / Rest timer cues. Covered by `test/restcues.spec.mjs`.
 
 ---
 

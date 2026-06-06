@@ -51,7 +51,7 @@ test('a mantra tick advances a chant and does not beep; stop cancels speech', as
     let ex = null;
     for (const [uuid] of VAR_INDEX) { if (collectExerciseTips(uuid).length) { ex = uuid; break; } }
     pending = { varUuid: ex, subUuid: null, sets: [] };
-    state.metronome = { ...metroCfg(), mantra: true, audio: true };
+    state.metronome = { ...metroCfg(), mantra: true, audio: true, setActiveOnly: false }; // free-run to isolate the mantra branch
     state.sound = { audio: true, haptics: true, volume: 1 };
     _metroMantraIdx = 0; _metroSpeaking = false;
     let beeps = 0; const realBeep = window.metroBeep; window.metroBeep = () => { beeps++; };

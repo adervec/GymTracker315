@@ -2663,7 +2663,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2844,7 +2844,9 @@ function normalizeState() {
   if (!(state.biometricStaleDays > 0)) state.biometricStaleDays = 14;
   if (typeof state.calcMode !== 'boolean') state.calcMode = false;
   if (typeof state.ttsTips !== 'boolean') state.ttsTips = true;
-  state.metronome = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, ...(state.metronome && typeof state.metronome === 'object' ? state.metronome : {}) };
+  state.metronome = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, mantra:false, setActiveOnly:true, ...(state.metronome && typeof state.metronome === 'object' ? state.metronome : {}) };
+  // feat 104 — separate, richly-configurable audible rest timer (count up / countdown + interval cues)
+  state.restCues = { enabled:false, mode:'down', target:90, interval:30, countdown:3, endCue:true, audio:true, haptic:true, freq:784, ...(state.restCues && typeof state.restCues === 'object' ? state.restCues : {}) };
   // feat 74 — master audio/haptics gate (controls every beep, buzz and TTS); volume 0..1
   state.sound = { audio:true, haptics:true, volume:1, ...(state.sound && typeof state.sound === 'object' ? state.sound : {}) };
   if (typeof state.sound.volume !== 'number' || isNaN(state.sound.volume)) state.sound.volume = 1;
@@ -4635,6 +4637,16 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">Run only during a set</div>
+        <div class="drawer-setting-sub">Stay silent unless a set is in progress (weight entered, reps pending). Off = free-run while toggled on.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${metroCfg().setActiveOnly ? 'active' : ''}" data-pref-metro="setactive-on">On</button>
+        <button class="drawer-pill ${!metroCfg().setActiveOnly ? 'active' : ''}" data-pref-metro="setactive-off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">🧘 Mantra mode</div>
         <div class="drawer-setting-sub">Chant the exercise's setup cues on each beat instead of beeping — a hypnotic, looping form reminder</div>
       </div>
@@ -4645,6 +4657,62 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-data-row">
       <button class="drawer-btn" id="drawer-metro-test">▶ Test beat</button>
+    </div>
+
+    <div class="drawer-section-title">Rest timer cues</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">A separate audible rest timer (independent of the recommended-rest band). Counts up or down during rest between sets of the same exercise, with configurable interval beeps + an end cue.</div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">Enable rest cues</div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${restCueCfg().enabled ? 'active' : ''}" data-rc="enabled" data-rc-val="on">On</button>
+        <button class="drawer-pill ${!restCueCfg().enabled ? 'active' : ''}" data-rc="enabled" data-rc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">Direction</div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${restCueCfg().mode === 'down' ? 'active' : ''}" data-rc="mode" data-rc-val="down">Countdown</button>
+        <button class="drawer-pill ${restCueCfg().mode === 'up' ? 'active' : ''}" data-rc="mode" data-rc-val="up">Count up</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div><div class="drawer-setting-label">Target (sec)</div><div class="drawer-setting-sub">Countdown length / count-up finish point</div></div>
+      <input type="number" id="drawer-rc-target" value="${restCueCfg().target}" min="5" max="900" step="5"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div><div class="drawer-setting-label">Beep every (sec)</div><div class="drawer-setting-sub">Interval cue · 0 = off</div></div>
+      <input type="number" id="drawer-rc-interval" value="${restCueCfg().interval}" min="0" max="300" step="5"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div><div class="drawer-setting-label">Final countdown (sec)</div><div class="drawer-setting-sub">Tick each of the last N sec (countdown only) · 0 = off</div></div>
+      <input type="number" id="drawer-rc-countdown" value="${restCueCfg().countdown}" min="0" max="10" step="1"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">End cue</div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${restCueCfg().endCue ? 'active' : ''}" data-rc="endCue" data-rc-val="on">On</button>
+        <button class="drawer-pill ${!restCueCfg().endCue ? 'active' : ''}" data-rc="endCue" data-rc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">Cue sound</div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${restCueCfg().audio ? 'active' : ''}" data-rc="audio" data-rc-val="on">On</button>
+        <button class="drawer-pill ${!restCueCfg().audio ? 'active' : ''}" data-rc="audio" data-rc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">Cue vibration</div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${restCueCfg().haptic ? 'active' : ''}" data-rc="haptic" data-rc-val="on">On</button>
+        <button class="drawer-pill ${!restCueCfg().haptic ? 'active' : ''}" data-rc="haptic" data-rc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-data-row">
+      <button class="drawer-btn" id="drawer-rc-test">▶ Test end cue</button>
     </div>
 
     <div class="drawer-section-title">Live Dashboard</div>
@@ -4995,7 +5063,8 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefGlossView) { state.glossaryAsPage = btn.dataset.prefGlossView === 'page'; saveState(); toast('Glossary: ' + (state.glossaryAsPage ? 'full page' : 'slide-in')); }
       else if (btn.dataset.prefReadonly) { state.readonly = btn.dataset.prefReadonly === 'on'; saveState(); render(); toast('Read-only mode: ' + (state.readonly ? 'on' : 'off')); }
       else if (btn.dataset.prefTts) { state.ttsTips = btn.dataset.prefTts === 'on'; saveState(); if (state.ttsTips) toast('Tips will be read aloud'); else { try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} toast('Tip narration off'); } }
-      else if (btn.dataset.prefMetro) { const m = { ...metroCfg() }; const k = btn.dataset.prefMetro; if (k === 'audio-on') m.audio = true; else if (k === 'audio-off') m.audio = false; else if (k === 'haptic-on') m.haptic = true; else if (k === 'haptic-off') m.haptic = false; else if (k === 'mantra-on') m.mantra = true; else if (k === 'mantra-off') m.mantra = false; state.metronome = m; saveState(); restartMetronomeIfRunning(); }
+      else if (btn.dataset.prefMetro) { const m = { ...metroCfg() }; const k = btn.dataset.prefMetro; if (k === 'audio-on') m.audio = true; else if (k === 'audio-off') m.audio = false; else if (k === 'haptic-on') m.haptic = true; else if (k === 'haptic-off') m.haptic = false; else if (k === 'mantra-on') m.mantra = true; else if (k === 'mantra-off') m.mantra = false; else if (k === 'setactive-on') m.setActiveOnly = true; else if (k === 'setactive-off') m.setActiveOnly = false; state.metronome = m; saveState(); restartMetronomeIfRunning(); }
+      else if (btn.dataset.rc) { const rc = { ...restCueCfg() }; const k = btn.dataset.rc, v = btn.dataset.rcVal; if (k === 'mode') rc.mode = v; else rc[k] = (v === 'on'); state.restCues = rc; saveState(); _lastRestCueSec = -1; if (typeof refreshRestBar === 'function') refreshRestBar(); }
       else if (btn.dataset.prefBwWarn) { state.warnStaleBodyweight = btn.dataset.prefBwWarn === 'on'; saveState(); }
       else if (btn.dataset.prefBioWarn) { state.warnOtherBiometrics = btn.dataset.prefBioWarn === 'on'; saveState(); }
       else if (btn.dataset.dash) { state.dashboard[btn.dataset.dash] = btn.dataset.dashVal === 'on'; saveState(); }
@@ -5086,6 +5155,15 @@ function renderSettingsDrawer() {
   const mAccent = body.querySelector('#drawer-metro-accent');
   if (mAccent) mAccent.addEventListener('change', () => { const v = parseInt(mAccent.value); if (!isNaN(v) && v >= 0 && v <= 16) setMetro({ accentEvery: v }); });
   body.querySelector('#drawer-metro-test')?.addEventListener('click', () => { const c = metroCfg(); metroBeep(c.freq || 880, c.vol); if (c.haptic) safeVibrate([30]); });
+  // Rest cue timer settings (feat 104)
+  const setRC = (patch) => { state.restCues = { ...restCueCfg(), ...patch }; saveState(); _lastRestCueSec = -1; };
+  const rcTarget = body.querySelector('#drawer-rc-target');
+  if (rcTarget) rcTarget.addEventListener('change', () => { const v = parseInt(rcTarget.value); if (!isNaN(v)) setRC({ target: Math.max(5, Math.min(900, v)) }); });
+  const rcInt = body.querySelector('#drawer-rc-interval');
+  if (rcInt) rcInt.addEventListener('change', () => { const v = parseInt(rcInt.value); if (!isNaN(v)) setRC({ interval: Math.max(0, Math.min(300, v)) }); });
+  const rcCd = body.querySelector('#drawer-rc-countdown');
+  if (rcCd) rcCd.addEventListener('change', () => { const v = parseInt(rcCd.value); if (!isNaN(v)) setRC({ countdown: Math.max(0, Math.min(10, v)) }); });
+  body.querySelector('#drawer-rc-test')?.addEventListener('click', () => restCueFire('end'));
 
   // Data buttons
   body.querySelector('#drawer-export-btn').addEventListener('click', exportData);
@@ -11510,7 +11588,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 48 · 2026-06-05 22:40';
+const APP_BUILD = 'build 49 · 2026-06-05 22:46';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -11648,9 +11726,11 @@ function restBeep(freq, dur) {
 /* ---- Workout metronome (feat 69) — customizable audio + haptic; on/off is per-workout (runtime only). ---- */
 let _metroId = null, _metroBeat = 0, _metroMantraIdx = 0, _metroSpeaking = false;
 function metroCfg() {
-  const d = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, mantra:false, setActiveOnly:false };
+  const d = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, mantra:false, setActiveOnly:true };
   return { ...d, ...(state.metronome || {}) };
 }
+// feat 104 — a "set" is active when there's an open set (weight entered, reps still pending).
+function metroSetActive() { try { return computeRestState().mode === 'open'; } catch (_) { return false; } }
 function metronomeRunning() { return _metroId != null; }
 function metroBeep(freq, vol) {
   try {
@@ -11737,6 +11817,7 @@ function metroSpeakNextTip() {
 }
 function metroTick() {
   const c = metroCfg();
+  if (c.setActiveOnly && !metroSetActive()) return;  // feat 104 — stay silent unless a set is in progress
   if (c.mantra) { metroSpeakNextTip(); if (c.haptic) safeVibrate([18]); _metroBeat++; return; } // feat 103
   const accent = (c.accentEvery > 1) && (_metroBeat % c.accentEvery === 0);
   if (c.audio !== false) metroBeep(accent ? (c.accentFreq || 1320) : (c.freq || 880), c.vol);
@@ -11993,6 +12074,12 @@ function refreshRestBar() {
         sub = exName;
         _lastRestZone = null;
       }
+      // feat 104 — show the configured countdown remaining alongside the rest label
+      const rc = restCueCfg();
+      if (rc.enabled && rc.mode === 'down' && !st.interExercise) {
+        const remain = Math.max(0, (rc.target || 90) - Math.floor(restSec));
+        main += ' · ⏳ ' + formatDuration(remain);
+      }
     }
   } else {
     // Idle — compact strip with time since the last exercise ended; hide entirely if no history yet.
@@ -12018,12 +12105,58 @@ function refreshRestBar() {
   document.body.classList.remove(bodyClass === 'rest-bar-on' ? 'rest-bar-idle' : 'rest-bar-on');
 }
 
+/* ============================================================
+   feat 104 — REST CUE TIMER: a separate, richly-configurable audible rest timer (count up or
+   countdown) with interval beeps, a last-N-second countdown, and a distinct end cue. Independent of
+   the recommended-rest zone beeps; opt-in (default off). Fires at most once per integer second.
+   ============================================================ */
+let _lastRestCueSec = -1;
+function restCueCfg() {
+  const d = { enabled:false, mode:'down', target:90, interval:30, countdown:3, endCue:true, audio:true, haptic:true, freq:784 };
+  return { ...d, ...(state.restCues || {}) };
+}
+function restCueFire(kind) { // kind: 'tick' | 'interval' | 'end'
+  const c = restCueCfg();
+  if (c.audio) {
+    const f = c.freq || 784;
+    if (kind === 'end') { restBeep(f * 1.5, 0.2); setTimeout(() => restBeep(f * 1.5, 0.2), 170); setTimeout(() => restBeep(f * 1.5, 0.26), 340); }
+    else if (kind === 'tick') restBeep(f, 0.07);
+    else restBeep(f, 0.13);
+  }
+  if (c.haptic) {
+    if (kind === 'end') safeVibrate([120, 60, 120, 60, 180]);
+    else if (kind === 'tick') safeVibrate([18]);
+    else safeVibrate([50]);
+  }
+}
+function restCueTick() {
+  const c = restCueCfg();
+  if (!c.enabled) { _lastRestCueSec = -1; return; }
+  let st; try { st = computeRestState(); } catch (_) { return; }
+  if (!st || st.mode !== 'resting' || st.interExercise) { _lastRestCueSec = -1; return; } // only during same-exercise rest
+  const sec = Math.floor((st.restMs || 0) / 1000);
+  if (sec === _lastRestCueSec) return;             // one evaluation per integer second
+  _lastRestCueSec = sec;
+  if (sec <= 0) return;
+  if (c.mode === 'down') {
+    const target = Math.max(1, c.target || 90);
+    const remaining = target - sec;
+    if (remaining === 0) { if (c.endCue) restCueFire('end'); return; }
+    if (remaining < 0) return;                      // past target — go quiet (the bar keeps counting)
+    if (c.countdown > 0 && remaining <= c.countdown) { restCueFire('tick'); return; }
+    if (c.interval > 0 && remaining % c.interval === 0) restCueFire('interval');
+  } else { // count up
+    if (c.endCue && c.target > 0 && sec === c.target) { restCueFire('end'); return; }
+    if (c.interval > 0 && sec % c.interval === 0) restCueFire('interval');
+  }
+}
 let _restTickId = null;
 function restTick() {
   try {
-    if (!getActiveSession()) { refreshRestBar(); return; }
+    if (!getActiveSession()) { refreshRestBar(); _lastRestCueSec = -1; return; }
     reapAbandonedSet();
     refreshRestBar();
+    restCueTick();                                  // feat 104 — configurable audible rest cues
   } catch(e) { if (typeof logError === 'function') logError('restTick failed', e && e.message); }
 }
 function ensureRestTick() {
