@@ -1645,9 +1645,17 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .picker-family-header { padding: 8px 11px; background: #181020; color: #b48aff; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
   .picker-var { padding: 9px 12px 9px 18px; border-top: 1px solid #1a1a1a; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
   .picker-var:active, .picker-var.selected { background: #2a1f3a; }
-  .picker-var-name { font-size: 13px; color: #fff; }
+  .picker-var-main { flex: 1; min-width: 0; }
+  .picker-var-name { font-size: 13px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .picker-var-meta { font-size: 10px; color: #888; margin-top: 1px; }
+  .picker-var-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .picker-var-arrow { color: #555; font-size: 14px; }
+  /* feat 121 — "touched" familiarity/recency badge on picker rows */
+  .touch-badge { font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 999px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .touch-badge.new { color: var(--text3); background: var(--bg4); }
+  .touch-badge.recent { color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); }
+  .touch-badge.stale { color: var(--text2); background: var(--bg4); }
+  .touch-badge.old { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
   .picker-empty { padding: 20px; text-align: center; color: #666; font-size: 12.5px; }
 
   .selected-exercise { background: linear-gradient(135deg, #1a1426 0%, #0f0c1a 100%); border-left: 3px solid #b48aff; padding: 10px 12px; border-radius: 7px; margin-bottom: 10px; }
@@ -10759,10 +10767,36 @@ function renderPicker() {
   `;
 }
 
+// feat 121 — per-variation "touched" familiarity for the picker: how many distinct days you've trained
+// it (is it new vs familiar) + how recently. Built once per render (one pass over sessions).
+function buildTouchMap() {
+  const map = new Map(); // varUuid -> { days:Set<string>, lastMs:number }
+  (state.sessions || []).forEach(s => {
+    const dstr = new Date(s.date).toDateString(), ms = new Date(s.date).getTime();
+    const seen = new Set();
+    (s.exercises || []).forEach(ex => {
+      if (!ex.varUuid || seen.has(ex.varUuid)) return;
+      if (!((ex.sets && ex.sets.length) || ex.cardio)) return; // actually logged
+      seen.add(ex.varUuid);
+      let e = map.get(ex.varUuid); if (!e) { e = { days: new Set(), lastMs: 0 }; map.set(ex.varUuid, e); }
+      e.days.add(dstr); if (ms > e.lastMs) e.lastMs = ms;
+    });
+  });
+  return map;
+}
+function touchBadgeHtml(t) {
+  if (!t || !t.days || !t.days.size) return `<span class="touch-badge new" title="Never trained — new to you">new</span>`;
+  const n = t.days.size;
+  const since = Math.floor((Date.now() - t.lastMs) / 86400000);
+  const sinceTxt = since <= 0 ? 'today' : since === 1 ? 'yesterday' : since < 7 ? since + 'd ago' : since < 35 ? Math.round(since / 7) + 'w ago' : since < 365 ? Math.round(since / 30) + 'mo ago' : Math.round(since / 365) + 'y ago';
+  const recency = since <= 14 ? 'recent' : since <= 60 ? 'stale' : 'old';
+  return `<span class="touch-badge ${recency}" title="Trained on ${n} day${n === 1 ? '' : 's'} · last ${sinceTxt}">${n}×</span>`;
+}
 // feat 68 — results are a separate fragment so typing re-renders only the list, leaving the search
 // input and its ✕ button untouched (fixes the jiggly/inconsistent clear button + focus juggling).
 function renderPickerResults() {
   const results = filterVariations();
+  const touch = buildTouchMap(); // feat 121
   return `<div style="font-size:10.5px;color:#666;margin:4px 0 6px 2px;">${results.reduce((s, r) => s + r.variations.length, 0)} variation${results.length === 1 ? '' : 's'}</div>
     <div class="picker-results">
       ${results.length === 0
@@ -10772,10 +10806,10 @@ function renderPickerResults() {
             <div class="picker-family-header">${escapeHtml(r.family.title)}</div>
             ${r.variations.map(v => `
               <div class="picker-var" data-varuuid="${v.uuid}">
-                <div>
+                <div class="picker-var-main">
                   <div class="picker-var-name">${escapeHtml(v.title)}${v._custom ? '<span class="manual-tag">manual</span>' : ''}${v.subvariation ? `<span class="sub-tag">${escapeHtml(v.subvariation.label)}</span>` : ''}</div>
                 </div>
-                <div class="picker-var-arrow">›</div>
+                <div class="picker-var-right">${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
               </div>
             `).join('')}
             <div class="picker-add-var" data-add-var-fam="${r.family.id}">+ Add custom variation</div>
@@ -12268,7 +12302,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 64 · 2026-06-06 06:33';
+const APP_BUILD = 'build 65 · 2026-06-06 06:38';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

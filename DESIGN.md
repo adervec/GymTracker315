@@ -521,6 +521,11 @@ They share variation **UUIDs**.
   "implicit"), a **key-deltas** line (`sessionDeltaSummaryHtml`: 🏆 PR count, the biggest non-PR e1RM gainer, and #
   regressions vs each exercise's prior best), and — when the gap to the previous logged workout exceeds **48h** — a
   "🛌 rested N days" banner (`sessionGapTagHtml`). Covered by `test/logcards.spec.mjs`.
+- **Picker "touched" familiarity badge (feat 121):** every exercise-picker row shows a discrete familiarity/recency
+  chip — **new** if never trained, else **N×** (distinct calendar days you've logged it) colored by recency
+  (recent ≤ 14 d / stale ≤ 60 d / old). `buildTouchMap()` does one pass over sessions per picker render
+  (varUuid → distinct-day set + last timestamp); `touchBadgeHtml()` renders the chip (full "trained on N days · last
+  X ago" in the tooltip). Covered by `test/touched.spec.mjs`.
 
 ---
 
