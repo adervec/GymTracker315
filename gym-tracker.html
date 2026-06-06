@@ -1655,6 +1655,16 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .picker-step-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .picker-step-chip.clear { color: var(--text3); }
   .picker-step-chip .psc-sets { font-size: 10px; opacity: 0.75; font-variant-numeric: tabular-nums; }
+  /* feat 116 — current-step indicator on the Log-Sets form */
+  .logstep { margin: 0 0 10px; padding: 8px 11px; border-radius: 9px; background: var(--accent-bg); border: 1px solid var(--accent-border); }
+  .logstep.done { background: color-mix(in srgb, var(--good) 12%, transparent); border-color: color-mix(in srgb, var(--good) 40%, transparent); }
+  .logstep.off { background: var(--bg3); border-color: var(--border2); font-size: 11px; color: var(--text3); }
+  .logstep-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .logstep-name { font-size: 12px; font-weight: 700; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .logstep-sets { font-size: 11px; color: var(--text2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .logstep-bar { height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .logstep-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
+  .logstep.done .logstep-fill { background: var(--good); }
   .picker-back-current:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .ex-note-input { margin-top: 6px; font-size: 13px; resize: vertical; }
 
@@ -6670,6 +6680,32 @@ function findPlanExecutions(planId, excludeId) {
   else execs.forEach(s => { if (_execSets(s) > _execSets(best)) best = s; });
   return { recent, best, count: execs.length };
 }
+// feat 116 — which plan step the current exercise belongs to (prefer the earliest INCOMPLETE match).
+function planStepForVar(session, plan, varUuid) {
+  if (!plan || !varUuid) return -1;
+  let firstMatch = -1;
+  for (let i = 0; i < plan.steps.length; i++) {
+    if ((plan.steps[i].options || []).some(o => optionMatchesVar(o, varUuid))) {
+      if (firstMatch < 0) firstMatch = i;
+      if (!stepStatus(session, plan.steps[i]).done) return i;
+    }
+  }
+  return firstMatch;
+}
+// feat 116 — a banner for the Log-Sets form: which step this exercise is, its progress + effort.
+function planStepIndicatorHtml() {
+  const plan = getActivePlan(); if (!plan || modalState.isEditing) return '';
+  const session = getActiveSession(); if (!session) return '';
+  const idx = planStepForVar(session, plan, pending.varUuid);
+  if (idx < 0) return `<div class="logstep off">📋 ${escapeHtml(plan.name)} · not part of any plan step</div>`;
+  const st = plan.steps[idx], ss = stepStatus(session, st), ef = stepEffort(session, st);
+  const pct = st.sets > 0 ? Math.min(100, (ss.logged / st.sets) * 100) : 0;
+  const effortTxt = ef.applicable ? ` · 💪 ${ef.hit ? 'on target' : `${ef.top || 0}/${ef.sug}${state.unit}`}` : '';
+  return `<div class="logstep ${ss.done ? 'done' : 'current'}">
+    <div class="logstep-top"><span class="logstep-name">📋 Step ${idx + 1}/${plan.steps.length}: ${escapeHtml((st.options || []).map(optionLabel).join(' / '))}</span><span class="logstep-sets">${ss.logged}/${st.sets} sets${ss.done ? ' ✓' : ''}${effortTxt}</span></div>
+    <div class="logstep-bar"><div class="logstep-fill" style="width:${pct}%"></div></div>
+  </div>`;
+}
 /* ---- feat 82 — baseline-adaptive plans: relative load → suggested weight, picker pre-load, ETA, intensity ---- */
 function loadFactor(load) { return load === 'heavy' ? 0.95 : load === 'light' ? 0.7 : 0.85; }
 function weightInc() { return state.unit === 'kg' ? 2.5 : 5; }
@@ -11130,6 +11166,7 @@ function renderSetsForm() {
   }
 
   return `
+    ${planStepIndicatorHtml()}
     <div class="selected-exercise">
       <div class="selected-ex-label">${modalState.isEditing ? 'Editing' : 'Logging'}</div>
       <div class="selected-ex-name">${escapeHtml(info.variation.title)}${M.mode!=='standard'?`<span class="ex-mode-tag">${M.mode==='bodyweight'?'BW+':M.mode==='distance'?'dist':'time'}</span>`:''}</div>
@@ -11991,7 +12028,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 57 · 2026-06-05 23:57';
+const APP_BUILD = 'build 58 · 2026-06-05 23:59';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

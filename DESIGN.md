@@ -483,6 +483,10 @@ They share variation **UUIDs**.
   pills (a set no normal filter could produce). A "✕ all exercises" chip clears it. From the **dashboard**, tapping a
   `.plan-step` calls `openStepPicker(idx)` to open the same filtered picker (and seeds the suggested weight via
   `_planLoadCtx`). The filter clears on pick / modal close. Covered by `test/planpicker.spec.mjs`.
+- **Log-Sets current-step indicator (feat 116):** the strength Log-Sets form now leads with a banner
+  (`planStepIndicatorHtml`) naming the plan step the current exercise belongs to (`planStepForVar` — earliest
+  incomplete matching step), its **sets logged/target with a progress bar**, and whether the **effort is on target**
+  (`stepEffort`). Off-plan exercises get a muted "not part of any plan step" note. Covered by `test/logstep.spec.mjs`.
 
 ---
 
