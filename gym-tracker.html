@@ -1851,6 +1851,21 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .gloss-chart-toggle.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
 .gloss-chart-link { font-size: 11px; color: var(--accent); cursor: pointer; margin-top: 4px; display: inline-block; }
 .gloss-chart-link:hover { text-decoration: underline; }
+/* feat 118 — custom hi-res anatomy chart: toolbar + detailed image view with tap hotspots */
+.anat-toolbar { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-bottom: 8px; }
+.anat-viewseg { display: inline-flex; border: 1px solid var(--border2); border-radius: 7px; overflow: hidden; }
+.anat-vbtn { background: var(--bg4); border: none; color: var(--text2); padding: 4px 9px; font-size: 11px; cursor: pointer; font-family: inherit; }
+.anat-vbtn.active { background: var(--accent); color: #fff; }
+.anat-vbtn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.anat-upload { background: var(--bg4); border: 1px solid var(--border2); color: var(--text2); padding: 4px 9px; border-radius: 7px; font-size: 11px; cursor: pointer; font-family: inherit; }
+.anat-upload.danger { color: var(--danger); }
+.anat-detailed { position: relative; width: 100%; line-height: 0; }
+.anat-img { width: 100%; height: auto; display: block; border-radius: 6px; }
+.anat-hotspot { position: absolute; transform: translate(-50%, -50%); background: transparent; border: none; padding: 0; cursor: pointer; }
+.anat-hotspot.dot { width: 16px; height: 16px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 45%, transparent); border: 2px solid var(--accent); box-shadow: 0 0 0 2px rgba(0,0,0,0.35); }
+.anat-hotspot.box { transform: none; border: 1.5px solid var(--accent); border-radius: 4px; background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.anat-hotspot.dot:hover, .anat-hotspot.box:hover { background: color-mix(in srgb, var(--accent) 60%, transparent); }
+.anat-hotspot.active { outline: 2px solid var(--good); }
 @media (max-width: 560px) {
   .gloss-panel.chart-open .gloss-main { flex-direction: column; }
   .gloss-panel.chart-open .gloss-chart { width: auto; max-height: 46%; border-right: none; border-bottom: 1px solid var(--border2); display: flex; gap: 8px; }
@@ -2766,7 +2781,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2951,6 +2966,9 @@ function normalizeState() {
   state.metronome = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, mantra:false, setActiveOnly:true, ...(state.metronome && typeof state.metronome === 'object' ? state.metronome : {}) };
   // feat 104 — separate, richly-configurable audible rest timer (count up / countdown + interval cues)
   state.restCues = { enabled:false, mode:'down', target:90, interval:30, countdown:3, endCue:true, audio:true, haptic:true, freq:784, ...(state.restCues && typeof state.restCues === 'object' ? state.restCues : {}) };
+  // feat 118 — custom hi-res anatomy chart (image stored in IndexedDB; this holds the view pref + OCR label map)
+  state.anatomyChart = { view:'detailed', map:[], ...(state.anatomyChart && typeof state.anatomyChart === 'object' ? state.anatomyChart : {}) };
+  if (!Array.isArray(state.anatomyChart.map)) state.anatomyChart.map = [];
   // feat 74 — master audio/haptics gate (controls every beep, buzz and TTS); volume 0..1
   state.sound = { audio:true, haptics:true, volume:1, ...(state.sound && typeof state.sound === 'object' ? state.sound : {}) };
   if (typeof state.sound.volume !== 'number' || isNaN(state.sound.volume)) state.sound.volume = 1;
@@ -12115,7 +12133,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 60 · 2026-06-06 00:09';
+const APP_BUILD = 'build 61 · 2026-06-06 05:53';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -12747,6 +12765,7 @@ refreshSoundIcon(); // feat 74 — reflect saved audio/haptics state in the top-
 initTopbarShortcuts(); // feat 99 — long-press shortcuts on the top-bar icons
 // feat 105 — probe audio output now and whenever devices change, for the headphone-only gate
 try { probeAudioOutput(); if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', probeAudioOutput); } catch (_) {}
+try { loadAnatomyImage(); } catch (_) {} // feat 118 — warm-load the custom anatomy chart from IndexedDB
 
 // Auto-load on startup — runs after initial render so UI is visible first
 // Uses setTimeout so handle permission prompt doesn't block page paint
@@ -19619,22 +19638,96 @@ function anatomyOutline(cx) {
     <path d="M ${cx-12} 30 Q ${cx} 24 ${cx+12} 30 L ${cx+10} 95 L ${cx+13} 182 L ${cx+5} 184 L ${cx+2} 100 L ${cx-2} 100 L ${cx-5} 184 L ${cx-13} 182 L ${cx-10} 95 Z" fill="none" stroke="var(--border2)"/>
     <path d="M ${cx-12} 33 L ${cx-21} 96 M ${cx+12} 33 L ${cx+21} 96" fill="none" stroke="var(--border2)"/>`;
 }
+/* ============================================================
+   feat 118 — CUSTOM HI-RES ANATOMY CHART. Upload a detailed labelled chart (stored in IndexedDB) to
+   unlock a "Detailed Chart View" (default) alongside the built-in wireframe "Simple Chart View". Tap
+   targets come from an OCR label→region map produced offline by tools/anatomy-ocr.py and imported here.
+   ============================================================ */
+let _anatomyImg = null;        // dataURL of the uploaded hi-res chart (loaded from IndexedDB)
+let _anatomyImgTried = false;
+function anatomyCfg() { return state.anatomyChart || (state.anatomyChart = { view:'detailed', map:[] }); }
+function anatomyHasImage() { return !!_anatomyImg; }
+function anatomyView() { return (anatomyHasImage() && anatomyCfg().view !== 'simple') ? 'detailed' : 'simple'; }
+async function loadAnatomyImage() {
+  _anatomyImgTried = true;
+  try { const v = await bioIdbGet('anatomyChartImage'); if (v) { _anatomyImg = v; if (glossChartOpen) renderAnatomyChart(); } } catch (_) {}
+}
+function anatomyUploadImage(file) {
+  if (!file) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    _anatomyImg = String(rd.result || '');
+    bioIdbSet('anatomyChartImage', _anatomyImg);
+    anatomyCfg().view = 'detailed'; saveState();
+    renderAnatomyChart();
+    toast('🖼️ Detailed chart unlocked' + (anatomyCfg().map.length ? '' : ' — import a label map next'));
+  };
+  rd.readAsDataURL(file);
+}
+function anatomyImportMap(text) {
+  try {
+    const data = JSON.parse(text);
+    const terms = Array.isArray(data) ? data : (data.terms || []);
+    const clean = terms.filter(t => t && t.term && typeof t.x === 'number' && typeof t.y === 'number')
+      .map(t => ({ term: String(t.term), x: Math.max(0, Math.min(1, t.x)), y: Math.max(0, Math.min(1, t.y)),
+        w: (typeof t.w === 'number') ? Math.max(0, Math.min(1, t.w)) : undefined, h: (typeof t.h === 'number') ? Math.max(0, Math.min(1, t.h)) : undefined }));
+    if (!clean.length) { toast('No usable label regions in that map'); return; }
+    anatomyCfg().map = clean; saveState(); renderAnatomyChart();
+    toast(`Mapped ${clean.length} label${clean.length === 1 ? '' : 's'}`);
+  } catch (e) { toast('Could not read that map JSON'); }
+}
+function anatomyRemoveImage() {
+  _anatomyImg = null; bioIdbDel('anatomyChartImage');
+  anatomyCfg().view = 'simple'; anatomyCfg().map = []; saveState();
+  renderAnatomyChart(); toast('Custom chart removed');
+}
+function anatomyToolbarHtml() {
+  const has = anatomyHasImage(), view = anatomyView();
+  return `<div class="anat-toolbar">
+    <div class="anat-viewseg">
+      <button class="anat-vbtn ${view === 'simple' ? 'active' : ''}" data-anat-view="simple">Simple</button>
+      <button class="anat-vbtn ${view === 'detailed' ? 'active' : ''}" data-anat-view="detailed" ${has ? '' : 'disabled title="Upload a chart to unlock"'}>Detailed</button>
+    </div>
+    <label class="anat-upload">${has ? 'Replace' : '🖼️ Upload chart'}<input type="file" accept="image/*" id="anat-img-input" hidden></label>
+    <label class="anat-upload">Import map<input type="file" accept=".json,.txt" id="anat-map-input" hidden></label>
+    ${has ? `<button class="anat-upload danger" id="anat-remove-btn">Remove</button>` : ''}
+  </div>`;
+}
 function renderAnatomyChart(activeTerm) {
   const chart = document.getElementById('ref-gloss-chart');
   if (!chart) return;
-  const region = r => r.e.map(([cx,cy,rx,ry]) =>
-    `<ellipse class="amus ${activeTerm===r.term?'active':''}" data-term="${escapeAttr(r.term)}" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"><title>${escapeHtml(r.term)}</title></ellipse>`).join('');
-  chart.innerHTML = `<div class="gloss-chart-hint">Medical chart — tap a muscle to open its glossary entry.</div>
-    <svg class="anat-svg" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
-      ${anatomyOutline(50)}${anatomyOutline(150)}
-      ${ANATOMY_REGIONS.map(region).join('')}
-      <text class="anat-fig-label" x="50" y="190">Front</text>
-      <text class="anat-fig-label" x="150" y="190">Back</text>
-    </svg>`;
-  chart.querySelectorAll('.amus').forEach(el => el.addEventListener('click', () => {
-    chart.querySelectorAll('.amus').forEach(x => x.classList.toggle('active', x.dataset.term === el.dataset.term));
-    openGlossaryTo(el.dataset.term);
-  }));
+  if (!_anatomyImgTried) loadAnatomyImage(); // lazily load the stored image; re-renders when ready
+  const toolbar = anatomyToolbarHtml();
+  if (anatomyView() === 'detailed' && _anatomyImg) {
+    const map = anatomyCfg().map || [];
+    const hotspots = map.map(m => {
+      const box = (m.w != null && m.h != null);
+      const style = box ? `left:${(m.x * 100).toFixed(2)}%;top:${(m.y * 100).toFixed(2)}%;width:${(m.w * 100).toFixed(2)}%;height:${(m.h * 100).toFixed(2)}%;` : `left:${(m.x * 100).toFixed(2)}%;top:${(m.y * 100).toFixed(2)}%;`;
+      return `<button class="anat-hotspot ${box ? 'box' : 'dot'} ${activeTerm === m.term ? 'active' : ''}" data-term="${escapeAttr(m.term)}" style="${style}" title="${escapeHtml(m.term)}"></button>`;
+    }).join('');
+    chart.innerHTML = toolbar + `<div class="gloss-chart-hint">Detailed chart — tap a labelled muscle to open its glossary entry.${map.length ? '' : ' (import a label map to add tap targets)'}</div>
+      <div class="anat-detailed"><img class="anat-img" src="${_anatomyImg}" alt="Anatomy chart">${hotspots}</div>`;
+    chart.querySelectorAll('.anat-hotspot').forEach(el => el.addEventListener('click', () => openGlossaryTo(el.dataset.term)));
+  } else {
+    const region = r => r.e.map(([cx, cy, rx, ry]) =>
+      `<ellipse class="amus ${activeTerm === r.term ? 'active' : ''}" data-term="${escapeAttr(r.term)}" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"><title>${escapeHtml(r.term)}</title></ellipse>`).join('');
+    chart.innerHTML = toolbar + `<div class="gloss-chart-hint">Medical chart — tap a muscle to open its glossary entry.</div>
+      <svg class="anat-svg" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
+        ${anatomyOutline(50)}${anatomyOutline(150)}
+        ${ANATOMY_REGIONS.map(region).join('')}
+        <text class="anat-fig-label" x="50" y="190">Front</text>
+        <text class="anat-fig-label" x="150" y="190">Back</text>
+      </svg>`;
+    chart.querySelectorAll('.amus').forEach(el => el.addEventListener('click', () => {
+      chart.querySelectorAll('.amus').forEach(x => x.classList.toggle('active', x.dataset.term === el.dataset.term));
+      openGlossaryTo(el.dataset.term);
+    }));
+  }
+  // Toolbar bindings (shown in both views)
+  chart.querySelectorAll('[data-anat-view]').forEach(b => b.addEventListener('click', () => { if (b.hasAttribute('disabled')) return; anatomyCfg().view = b.dataset.anatView; saveState(); renderAnatomyChart(activeTerm); }));
+  const imgIn = chart.querySelector('#anat-img-input'); if (imgIn) imgIn.addEventListener('change', e => { anatomyUploadImage(e.target.files[0]); e.target.value = ''; });
+  const mapIn = chart.querySelector('#anat-map-input'); if (mapIn) mapIn.addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const rd = new FileReader(); rd.onload = () => anatomyImportMap(String(rd.result || '')); rd.readAsText(f); });
+  chart.querySelector('#anat-remove-btn')?.addEventListener('click', anatomyRemoveImage);
 }
 function toggleGlossChart() {
   glossChartOpen = !glossChartOpen;

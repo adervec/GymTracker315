@@ -501,6 +501,15 @@ They share variation **UUIDs**.
   (`getSeriesForKey`), its **muscle** trend (body-part `bp`-grouped), and its **muscle-group** trend (mega-category
   grouped) — each via the existing `computeTrend`/`renderTrendCard`. A "← All trends" button clears the focus.
   Covered by `test/trendfocus.spec.mjs`.
+- **Custom hi-res anatomy chart + OCR mapping (feat 118):** the glossary anatomy chart gains a **Simple** (built-in
+  wireframe) vs **Detailed** view toggle. Uploading a hi-res labelled chart stores it in IndexedDB
+  (`bioIdb*` 'anatomyChartImage'), unlocks + defaults to **Detailed**, and renders the image with clickable **tap
+  hotspots** (each → `openGlossaryTo`). The hotspot map (`state.anatomyChart.map`, normalized 0..1 coords keyed to
+  glossary terms) is produced offline by a new **desktop helper `tools/anatomy-ocr.py`** (Tesseract + OpenCV) that
+  OCRs English labels, follows each leader line to its muscle, and emits a JSON map you import in-app — keeping the
+  app single-file/offline (no bundled OCR engine). `renderAnatomyChart` was extended with the view toggle +
+  upload/import/remove; `anatomyImportMap` validates + clamps the map. Covered by `test/anatomy.spec.mjs` (app) and
+  `check.mjs` py_compile (tool). *(Approach chosen by the user: desktop helper over a multi-MB in-app WASM OCR.)*
 
 ---
 

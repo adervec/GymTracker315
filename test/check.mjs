@@ -100,7 +100,7 @@ section('Python helper scripts');
 const pybin = ['python3', 'python', 'py'].find((bin) => {
   try { return spawnSync(bin, ['--version'], { stdio: 'ignore' }).status === 0; } catch { return false; }
 });
-const tools = ['tools/strava-sync.py', 'tools/garmin-sync.py', 'tools/youtube-media.py'];
+const tools = ['tools/strava-sync.py', 'tools/garmin-sync.py', 'tools/youtube-media.py', 'tools/anatomy-ocr.py'];
 if (!pybin) {
   console.log('  ! no python interpreter on PATH -- skipping py_compile (JS checks still gate)');
 } else {
