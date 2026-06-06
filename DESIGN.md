@@ -369,6 +369,13 @@ They share variation **UUIDs**.
   indicator**: a charging fill toward `shortMs` (the accidental-tap "arming") then toward `longMs`, with an
   `lp-armed` accent-tint once the tap is valid (an instant tap with no long action shows nothing). Covered by
   `test/press.spec.mjs`.
+- **History outlier review (feat 98):** `findOutlierSets()` scans weighted (standard-mode) history and flags a
+  set as a likely **data-entry slip** when its weight exceeds the configured limit (`maxWeightLb`), its reps are
+  absurd (> 100), or its e1RM is more than 3× this exercise's own median (needs ≥ 4 samples as a baseline — robust
+  to the outlier itself). The History list prepends a **⚠️ review card** with per-set **Keep** (sets `set._ok`, a
+  vetted flag that travels in export/sync so a confirmed-real PR is never re-flagged) and **Delete** (removes the
+  set, prunes an emptied exercise, tombstones an emptied session). Read-only mode blocks edits. Covered by
+  `test/history.spec.mjs`.
 
 ---
 

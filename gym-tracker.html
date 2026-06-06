@@ -1451,6 +1451,19 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .ex-summary-1rm { font-size: 15px; font-weight: 700; color: #b48aff; font-variant-numeric: tabular-nums; }
   .ex-summary-recent { font-size: 10.5px; color: #888; font-variant-numeric: tabular-nums; }
 
+  /* feat 98 — History outlier review: surfaces likely data-entry slips for keep/delete */
+  .outlier-review { background: #1c1606; border: 1px solid #4a3a12; border-radius: 10px; padding: 12px 13px; margin-bottom: 14px; }
+  .outlier-head { font-size: 13px; font-weight: 700; color: #ffd479; display: flex; align-items: center; gap: 7px; }
+  .outlier-sub { font-size: 11px; color: #b39a66; margin-top: 4px; line-height: 1.45; }
+  .outlier-list { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+  .outlier-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #141008; border: 1px solid #322710; border-radius: 8px; padding: 9px 11px; }
+  .outlier-info { flex: 1; min-width: 0; }
+  .outlier-name { font-size: 12.5px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .outlier-detail { font-size: 10.5px; color: #b39a66; margin-top: 2px; line-height: 1.4; }
+  .outlier-detail b { color: #ffd479; font-variant-numeric: tabular-nums; }
+  .outlier-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .outlier-actions button { padding: 6px 11px; font-size: 11.5px; }
+
   .exercise-history { margin-top: 14px; }
   .eh-date { color: #888; }
   .eh-top-set { color: #fff; font-variant-numeric: tabular-nums; }
@@ -7379,6 +7392,75 @@ function toggleSuperset(sessionDate, idx) {
 let historyView = 'list';
 let historyKey = null;
 
+// feat 98 — extreme-outlier detection for History review. A set is flagged when it looks like a
+// data-entry slip: weight over the configured limit, an absurd rep count, or an e1RM far above this
+// exercise's own typical level (needs a small baseline). Only weighted (standard-mode) sets are
+// considered; time/distance/bodyweight have different semantics. Sets the user has vetted (set._ok)
+// are skipped so a confirmed-real PR is not re-flagged forever. Returns live refs for in-place edits.
+function findOutlierSets() {
+  const maxW = state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb;
+  const groups = new Map(); // tracking key -> [{ session, ex, set, e1RM, ... }]
+  state.sessions.forEach(session => {
+    (session.exercises || []).forEach(ex => {
+      if (ex.cardio) return;
+      if (exMode(ex.varUuid).mode !== 'standard') return;
+      (ex.sets || []).forEach(set => {
+        if (!set || typeof set.w !== 'number' || typeof set.r !== 'number') return;
+        const key = trackingKey(ex.varUuid, ex.subUuid);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push({ session, ex, set, e1RM: estimated1RM(set.w, set.r), key, varUuid: ex.varUuid, subUuid: ex.subUuid || null, date: session.date });
+      });
+    });
+  });
+  const outliers = [];
+  groups.forEach(recs => {
+    const e1s = recs.map(r => r.e1RM).filter(v => v > 0).sort((a, b) => a - b);
+    const median = e1s.length ? e1s[Math.floor(e1s.length / 2)] : 0; // robust baseline (resists the outlier itself)
+    recs.forEach(rec => {
+      if (rec.set._ok) return; // already vetted as real
+      const reasons = [];
+      if (rec.set.w > maxW) reasons.push(`weight <b>${rec.set.w}</b> over your <b>${maxW}</b> ${state.unit} limit`);
+      if (rec.set.r > 100) reasons.push(`<b>${rec.set.r}</b> reps`);
+      if (e1s.length >= 4 && median > 0 && rec.e1RM > median * 3) reasons.push(`e1RM <b>${rec.e1RM}</b> vs your usual ~<b>${median}</b>`);
+      if (reasons.length) outliers.push({ ...rec, reasons });
+    });
+  });
+  outliers.sort((a, b) => new Date(b.date) - new Date(a.date));
+  return outliers;
+}
+let _historyOutliers = []; // live refs cached for the History review keep/delete bindings
+
+// Mark a flagged set as real so it is no longer surfaced (set._ok travels with the set in export/sync).
+function keepOutlierSet(rec) {
+  if (!rec || roBlocked('edit history')) return;
+  rec.set._ok = true;
+  touchSession(rec.session);
+  saveState();
+  toast('Kept');
+  render();
+}
+// Remove a flagged set; prune the exercise if it empties, and tombstone the session if it empties.
+function deleteOutlierSet(rec) {
+  if (!rec || roBlocked('edit history')) return;
+  const { session, ex, set } = rec;
+  const si = ex.sets.indexOf(set);
+  if (si >= 0) ex.sets.splice(si, 1);
+  if (ex.sets.length === 0) {
+    const ei = session.exercises.indexOf(ex);
+    if (ei >= 0) session.exercises.splice(ei, 1);
+  }
+  if (session.exercises.length === 0) {
+    tombstoneSession(session); // whole session gone -> propagate the deletion on sync
+    const idx = state.sessions.indexOf(session);
+    if (idx >= 0) state.sessions.splice(idx, 1);
+  } else {
+    touchSession(session);
+  }
+  saveState();
+  toast('Outlier set deleted');
+  render();
+}
+
 function renderHistory(main) {
   if (historyView === 'detail' && historyKey) { renderExerciseDetail(main, historyKey); return; }
 
@@ -7440,7 +7522,39 @@ function renderHistory(main) {
       <button class="danger full" id="trk-delete-all-history-btn">🗑️ Delete All History…</button>
     </div>`;
   }
+  // feat 98 — prepend the extreme-outlier review (above the exercise list; shown only when any are found)
+  _historyOutliers = findOutlierSets();
+  if (_historyOutliers.length) {
+    const rows = _historyOutliers.map((rec, i) => {
+      const info = VAR_INDEX.get(rec.varUuid);
+      const subOpt = rec.subUuid && info && info.variation.subscription
+        ? info.variation.subscription.options.find(o => o.uuid === rec.subUuid) : null;
+      const nm = (info ? info.variation.title : 'Unknown') + (subOpt ? ' · ' + subOpt.label : '');
+      return `<div class="outlier-row">
+        <div class="outlier-info">
+          <div class="outlier-name">${escapeHtml(nm)}</div>
+          <div class="outlier-detail"><b>${rec.set.w}</b>${state.unit}×<b>${rec.set.r}</b> · ${fmtDate(rec.date)} · ${rec.reasons.join('; ')}</div>
+        </div>
+        <div class="outlier-actions">
+          <button class="ghost sm outlier-keep" data-i="${i}">Keep</button>
+          <button class="danger sm outlier-del" data-i="${i}">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+    const n = _historyOutliers.length;
+    html = `<div class="outlier-review">
+      <div class="outlier-head">⚠️ ${n} possible outlier set${n === 1 ? '' : 's'}</div>
+      <div class="outlier-sub">These look like data-entry slips (a mistyped weight or rep count) and can skew your charts and progression. Keep the ones that are real, or delete the typos.</div>
+      <div class="outlier-list">${rows}</div>
+    </div>` + html;
+  }
   main.innerHTML = html;
+  main.querySelectorAll('.outlier-keep').forEach(b => b.addEventListener('click', () => {
+    const rec = _historyOutliers[+b.dataset.i]; if (rec) keepOutlierSet(rec);
+  }));
+  main.querySelectorAll('.outlier-del').forEach(b => b.addEventListener('click', () => {
+    const rec = _historyOutliers[+b.dataset.i]; if (rec) deleteOutlierSet(rec);
+  }));
   main.querySelectorAll('.ex-summary').forEach(el => {
     el.addEventListener('click', () => {
       historyKey = { varUuid: el.dataset.varuuid, subUuid: el.dataset.subuuid || null };
@@ -11099,7 +11213,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 42 · 2026-06-05 19:28';
+const APP_BUILD = 'build 43 · 2026-06-05 22:13';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
