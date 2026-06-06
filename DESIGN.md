@@ -449,6 +449,11 @@ They share variation **UUIDs**.
   picker now renders a **← Back to {current}** button (`#trk-picker-back-current`, shown when there's a current
   exercise and you're not editing/superset-picking) that sets `showPicker = false` to return to the in-progress
   exercise unchanged — recovering a mis-tap. Covered by `test/changeexercise.spec.mjs`.
+- **Long-press End Workout skips the confirm (feat 108):** the **End Workout** button now uses `attachTrackerPress`
+  (feat 96/97) instead of `setupConfirmButton`: a **tap** runs `endWorkout(false)` (the themed confirm dialog), a
+  **long-press** runs `endWorkout(true)` (ends immediately, skipping the popup) — with the two-phase charging
+  progress indicator, and independent of the global hold-to-confirm setting. A hold shorter than the threshold still
+  falls back to the confirm dialog (accidental-press safety). Covered by `test/endworkout.spec.mjs`.
 
 ---
 

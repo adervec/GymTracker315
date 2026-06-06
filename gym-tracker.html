@@ -6807,8 +6807,11 @@ function renderLog(main) {
   const startBtn = main.querySelector('#wc-start-btn');
   if (startBtn) startBtn.addEventListener('click', startWorkout);
   main.querySelector('#wc-plans-btn')?.addEventListener('click', openPlansOverlay);
+  // feat 108 — End Workout: a tap asks for confirmation; a long-press skips the confirm popup and
+  // ends immediately (reusing the tracker-press two-phase progress indicator). Works regardless of
+  // the global hold-to-confirm setting.
   const endBtn = main.querySelector('#wc-end-btn');
-  if (endBtn) setupConfirmButton(endBtn, 'Hold to end workout', (held) => endWorkout(held));
+  if (endBtn) attachTrackerPress(endBtn, () => endWorkout(false), () => endWorkout(true), 'Hold to end');
   // Metronome controls (feat 69)
   main.querySelector('#metro-toggle-btn')?.addEventListener('click', toggleMetronome);
   main.querySelector('#metro-bpm-down')?.addEventListener('click', () => changeMetroBpm(-5));
@@ -11629,7 +11632,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 52 · 2026-06-05 22:58';
+const APP_BUILD = 'build 53 · 2026-06-05 23:01';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
