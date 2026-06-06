@@ -32,7 +32,7 @@ They share variation **UUIDs**.
 
 > **Adding/removing a variation touches BOTH datasets.** Put the variation in the readable
 > `exercises` block (full cue/setup/movement/mistakes/programming/position docs) **and** in the
-> compact `FAMILIES` JSON (`{id, uuid, title, cue, tip, warning, best, subscription}`) under the
+> compact `FAMILIES` JSON (`{id, uuid, title, cue, tip, warning, best, subvariation}`) under the
 > matching family — using the **same UUID** in both. Editing only `exercises` documents the move
 > but leaves it unloggable (it won't appear in the tracker picker); editing only `FAMILIES` makes it
 > loggable but undocumented. (E.g. the Freemotion functional-trainer variations — feat 59.)
@@ -270,7 +270,7 @@ They share variation **UUIDs**.
   variation body with a relevant tool shows a `🛠 Loading tool` `<select>` (Auto · {detected} / 7 kinds / None) wired to
   `setSetupOverride` — which also lets you re-enable a tool after setting it to None.
 - **Mix sub-variations in one log (feat 88):** a default-OFF setting (`workoutControls.mixSubvariations`, Settings →
-  Workout Session) lets you pick a **sub-option per set** for exercises that have a subscription (grip/bar/angle). When
+  Workout Session) lets you pick a **sub-option per set** for exercises that have a subvariation (grip/bar/angle). When
   on (and not editing), each set row in the Log modal gets a `.set-sub-select` (`data-set-sub` → `set.subUuid`); on save
   `saveSets` tags each valid set with its sub and **groups them into one exercise entry per sub** (so each grip tracks
   separately under its own `varUuid|subUuid`), stripping the temp field. Off (default) = the original single-sub
@@ -393,6 +393,13 @@ They share variation **UUIDs**.
   numpad's frequent re-render) and the shared key logic was extracted to `numpadHandleKey(k)`. The ×10 fires
   `numpadHandleKey(k)` then `numpadHandleKey('0')`, shows a `×10` hold hint + the `lp-holding` fill. Covered by
   `test/numpad.spec.mjs`.
+- **Rename "subscription" → "subvariation" (feat 101):** the variation sub-option concept was historically named
+  `subscription` (a confusing word implying payment). Renamed the data property (`variation.subvariation`), every
+  accessor, the `subvariations` lookup table, the `.var-subvariation` CSS class, the Trends `subvariation` dimension +
+  its tab label, and comments — 819 lowercase + 2 capitalized occurrences, a same-length swap (both words are 12
+  chars) so byte size is unchanged. **Safe** because persisted user data keys by `subUuid`, never the word
+  `subscription`; the rename is confined to the static `FAMILIES`/`exercises` datasets and code. (Aligns with the
+  already-"subvariation" `workoutControls.mixSubvariations` control.)
 
 ---
 
