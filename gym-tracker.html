@@ -439,6 +439,25 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 }
 #settings-drawer-body { padding: 14px 16px 24px 16px; }
 
+/* feat 109 — Data Management as a full-screen page (relocated out of Settings) */
+#data-page {
+  position: fixed; inset: 0; z-index: 10050;
+  background: var(--bg); display: none; flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+#data-page.open { display: flex; }
+#data-page-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 10px 16px;
+  border-bottom: 1px solid var(--border2); background: var(--bg2); flex-shrink: 0;
+}
+#data-page-title { font-size: 16px; font-weight: 700; color: var(--text); }
+#data-page-close {
+  background: var(--bg3); border: 1px solid var(--border2); color: var(--text2);
+  padding: 6px 13px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+#data-page-body { flex: 1; overflow-y: auto; padding: 14px 16px 28px 16px; }
+
 /* Theme swatches */
 .theme-grid {
   display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px;
@@ -1870,6 +1889,16 @@ input[type=text], input[type=number], input[type=file], select, textarea {
   <div id="settings-drawer-body">
     <!-- populated by renderSettingsDrawer() -->
   </div>
+</div>
+
+<!-- ====== DATA MANAGEMENT PAGE (feat 109) — the data sections are rendered in the settings drawer
+     then relocated here, so their existing bindings move with the DOM nodes. ====== -->
+<div id="data-page" role="dialog" aria-label="Data management">
+  <div id="data-page-header">
+    <div id="data-page-title">📦 Data Management</div>
+    <button id="data-page-close" onclick="closeDataPage()">Done</button>
+  </div>
+  <div id="data-page-body"><!-- data sections relocated here by renderSettingsDrawer() --></div>
 </div>
 
 <!-- ====== WORKOUT PLANS OVERLAY (feat 70) ====== -->
@@ -4809,6 +4838,10 @@ function renderSettingsDrawer() {
       }).join('')}
     ` : '<div class="drawer-setting-sub" style="margin-top:6px;">No custom variations yet — add them from the exercise picker (+ Add custom variation).</div>'}
 
+    <div class="drawer-section-title" data-sec-id="data-mgmt">Data management</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Backups, import/export, auto-save/load, biometrics, Strava, bulk media &amp; reset — on their own page.</div>
+    <div class="drawer-data-row"><button class="drawer-btn" id="open-data-page-btn">📦 Open Data Management →</button></div>
+    <div id="drawer-data-wrap">
     <div class="drawer-section-title">Data</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">${sessionCount} sessions · ${setsCount} sets · ${(dataSize/1024).toFixed(1)} KB</div>
     <div class="drawer-data-row">
@@ -5042,6 +5075,7 @@ function renderSettingsDrawer() {
     <div class="drawer-data-row" style="margin-top:6px;">
       <button class="drawer-btn danger" id="drawer-reset-btn">🗑 Reset All Data</button>
     </div>
+    </div><!-- /#drawer-data-wrap (relocated to the Data Management page) -->
 
     <div class="drawer-section-title">About</div>
     <div style="font-size:12px;color:var(--text2);line-height:1.6;">
@@ -5196,13 +5230,13 @@ function renderSettingsDrawer() {
 
   // Data buttons
   body.querySelector('#drawer-export-btn').addEventListener('click', exportData);
-  body.querySelector('#drawer-export-workout-btn')?.addEventListener('click', () => { closeSettingsDrawer(); openExportDialog({ preset:'week' }); });
+  body.querySelector('#drawer-export-workout-btn')?.addEventListener('click', () => { closeDataPage(); closeSettingsDrawer(); openExportDialog({ preset:'week' }); });
   body.querySelector('#drawer-export-ref-csv-btn').addEventListener('click', exportReferenceCsv);
   body.querySelector('#drawer-import-btn').addEventListener('click', () => body.querySelector('#drawer-import-file').click());
   body.querySelector('#drawer-import-file').addEventListener('change', importData);
   setupConfirmButton(body.querySelector('#drawer-reset-btn'), 'Hold to erase all data', (held) => {
     if (roBlocked('reset data')) return;
-    const doReset = () => { state.sessions = []; clearPending(); saveState(); render(); closeSettingsDrawer(); logWarn('All session data reset by user'); toast('All data cleared'); };
+    const doReset = () => { state.sessions = []; clearPending(); saveState(); render(); closeDataPage(); closeSettingsDrawer(); logWarn('All session data reset by user'); toast('All data cleared'); };
     if (held) doReset();
     else confirmDialog('Delete ALL data? This cannot be undone.', { title: 'Reset all data', danger: true, okLabel: 'Delete everything' }).then(ok => { if (ok) doReset(); });
   });
@@ -5299,7 +5333,25 @@ function renderSettingsDrawer() {
     });
   });
 
+  // feat 109 — relocate the data sections into the standalone Data Management page. Their bindings were
+  // already attached above and ride along with the DOM nodes, so no binding code needs to move.
+  body.querySelector('#open-data-page-btn')?.addEventListener('click', openDataPage);
+  const _dataWrap = body.querySelector('#drawer-data-wrap');
+  const _dpb = document.getElementById('data-page-body');
+  if (_dataWrap && _dpb) { _dpb.innerHTML = ''; _dpb.appendChild(_dataWrap); }
   applySettingsFilter(_settingsSearch); // re-apply active search + collapse state after a full re-render
+}
+
+// feat 109 — open/close the full-screen Data Management page (the data sections were relocated here).
+function openDataPage() {
+  if (!document.querySelector('#data-page-body #drawer-data-wrap')) renderSettingsDrawer(); // build + relocate once
+  closeSettingsDrawer();
+  document.getElementById('data-page')?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeDataPage() {
+  document.getElementById('data-page')?.classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 function hasPendingData() {
@@ -11632,7 +11684,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 53 · 2026-06-05 23:01';
+const APP_BUILD = 'build 54 · 2026-06-05 23:16';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -454,6 +454,13 @@ They share variation **UUIDs**.
   **long-press** runs `endWorkout(true)` (ends immediately, skipping the popup) — with the two-phase charging
   progress indicator, and independent of the global hold-to-confirm setting. A hold shorter than the threshold still
   falls back to the confirm dialog (accidental-press safety). Covered by `test/endworkout.spec.mjs`.
+- **Data management as its own page (feat 109):** all data rows (Export/Import JSON, Export Workout/CSV, Activity
+  Log, Auto-Save, Auto-Load, Biometrics, Strava, bulk Exercise media, Reset) moved out of the Settings drawer into a
+  full-screen **Data Management page** (`#data-page`). Implementation avoids relocating ~340 lines of HTML + bindings:
+  the sections still render inside the drawer wrapped in `#drawer-data-wrap`, and `renderSettingsDrawer` then **moves
+  that wrapper node** (with its already-attached event listeners riding along) into `#data-page-body` — leaving only
+  an "📦 Open Data Management →" entry button in Settings. `openDataPage()`/`closeDataPage()` toggle it; re-renders
+  (from data actions) rebuild + re-relocate, so the page stays live. Covered by `test/datapage.spec.mjs`.
 
 ---
 
