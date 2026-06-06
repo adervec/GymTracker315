@@ -443,6 +443,12 @@ They share variation **UUIDs**.
   so each workout silently re-attaches your last heart-rate monitor (no chooser) — or not, if you turn it off. The
   reconnect uses `navigator.bluetooth.getDevices()` (no user gesture needed for a remembered device). Covered by
   `test/hrconnect.spec.mjs`.
+- **Change-exercise / add-note buttons + picker escape hatch (feat 107):** the log modal's **Change exercise** and
+  **Add note / edit** controls became real `<button>`s (proper tap targets + button styling) instead of tiny
+  underlined text spans. And because tapping Change exercise opens the picker without clearing `pending.varUuid`, the
+  picker now renders a **← Back to {current}** button (`#trk-picker-back-current`, shown when there's a current
+  exercise and you're not editing/superset-picking) that sets `showPicker = false` to return to the in-progress
+  exercise unchanged — recovering a mis-tap. Covered by `test/changeexercise.spec.mjs`.
 
 ---
 

@@ -1580,12 +1580,17 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .selected-ex-label { font-size: 9.5px; color: #b48aff; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; margin-bottom: 2px; }
   .selected-ex-name { font-size: 14px; font-weight: 700; color: #fff; }
   .selected-ex-family { font-size: 11px; color: #888; margin-top: 2px; }
-  .selected-ex-change { font-size: 11px; color: #b48aff; cursor: pointer; margin-top: 6px; display: inline-block; text-decoration: underline; }
+  .selected-ex-change { font-family: inherit; font-size: 12px; font-weight: 600; color: #b48aff; cursor: pointer; margin-top: 8px; display: inline-block; padding: 7px 12px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .selected-ex-change:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .ex-note-row { margin-top: 2px; }
   .ex-note { font-size: 11px; color: #cdbff0; margin-top: 6px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
   .ex-note-text { color: #cdbff0; }
-  .ex-note-add { font-size: 11px; color: #b48aff; cursor: pointer; margin-top: 6px; display: inline-block; text-decoration: underline; }
-  .ex-note .ex-note-add { margin-top: 0; margin-left: 4px; font-size: 10px; }
+  .ex-note-add { font-family: inherit; font-size: 12px; font-weight: 600; color: #b48aff; cursor: pointer; margin-top: 8px; display: inline-block; padding: 7px 12px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .ex-note-add:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  .ex-note .ex-note-add { margin-top: 0; margin-left: 6px; font-size: 11px; padding: 3px 9px; }
+  /* feat 107 — picker escape hatch back to the current exercise */
+  .picker-back-current { display: block; width: 100%; padding: 9px 12px; margin-bottom: 8px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; color: var(--accent); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
+  .picker-back-current:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .ex-note-input { margin-top: 6px; font-size: 13px; resize: vertical; }
 
   /* Subvariation in modal */
@@ -10114,7 +10119,12 @@ function filterVariations() {
 
 function renderPicker() {
   const subFilters = SUB_FILTERS[modalState.pickerMega] || [{id:'all',label:'All'}];
+  // feat 107 — escape hatch: if you misclicked "Change exercise", get back to the current one.
+  const backCurrent = (pending.varUuid && !modalState.isEditing && !modalState.supersetMode)
+    ? `<button type="button" class="picker-back-current" id="trk-picker-back-current">← Back to ${escapeHtml(displayName(pending.varUuid, pending.subUuid))}</button>`
+    : '';
   return `
+    ${backCurrent}
     <div class="picker">
       ${modalState.supersetMode
         ? `<div class="ss2-banner">⇄ Superset — pick exercise <b>${modalState.supersetPick === 'b' ? 'B' : 'A'}</b> <span class="ss2-cancel" id="trk-ss2-cancel">cancel</span></div>`
@@ -10175,6 +10185,11 @@ function bindPicker() {
   }
   document.getElementById('trk-picker-clear-search')?.addEventListener('click', () => {
     modalState.pickerSearch = '';
+    renderModal();
+  });
+  // feat 107 — abort a mis-tapped "Change exercise": return to the current exercise unchanged
+  document.getElementById('trk-picker-back-current')?.addEventListener('click', () => {
+    modalState.showPicker = false;
     renderModal();
   });
   document.querySelectorAll('.pill[data-mega]').forEach(p => {
@@ -10747,9 +10762,9 @@ function renderSetsForm() {
         ${exNote ? '<button class="danger" id="trk-ex-note-clear">Clear</button>' : ''}
       </div>`;
   } else if (exNote) {
-    exNoteHtml = `<div class="ex-note">📝 <span class="ex-note-text">${escapeHtml(exNote.text)}</span> <span class="ex-note-add" id="trk-ex-note-edit">edit</span></div>`;
+    exNoteHtml = `<div class="ex-note">📝 <span class="ex-note-text">${escapeHtml(exNote.text)}</span> <button type="button" class="ex-note-add" id="trk-ex-note-edit">edit</button></div>`;
   } else {
-    exNoteHtml = `<span class="ex-note-add" id="trk-ex-note-edit">＋ Add note</span>`;
+    exNoteHtml = `<button type="button" class="ex-note-add" id="trk-ex-note-edit">＋ Add note</button>`;
   }
 
   return `
@@ -10764,7 +10779,7 @@ function renderSetsForm() {
       }</div>` : ''}
       <div class="ex-note-row">${exNoteHtml}</div>
       <div class="ex-media-row"><button class="ex-media-btn" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}" data-media-label="🎬 Reference videos">🎬 Reference videos${(() => { const n = _mediaCombinedCount(pending.varUuid, info.family && info.family.id); return n ? ` (${n})` : ''; })()}</button></div>
-      ${!modalState.isEditing ? `<span class="selected-ex-change" id="trk-change-exercise">← Change exercise</span>` : ''}
+      ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
     </div>
 
     ${sub ? `<div class="sub-select-wrap">
@@ -11236,7 +11251,7 @@ function renderCardioForm() {
       <div class="selected-ex-name">${escapeHtml(info.variation.title)}<span class="ex-mode-tag">cardio</span></div>
       <div class="selected-ex-family">${escapeHtml(info.family.title)}</div>
       <div class="ex-mode-hint">Cardio is logged as <b>elapsed time</b> + optional metrics. It is kept out of volume, scoring and trends — but stays in your history.</div>
-      ${!modalState.isEditing ? `<span class="selected-ex-change" id="trk-change-exercise">← Change exercise</span>` : ''}
+      ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
     </div>
     <div class="cardio-form">
       <div class="cardio-row">
@@ -11614,7 +11629,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 51 · 2026-06-05 22:54';
+const APP_BUILD = 'build 52 · 2026-06-05 22:58';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
