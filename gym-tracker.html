@@ -10818,33 +10818,67 @@ function finalizeCalc(np) {
   if (inp) inp.value = np.buf;
   commitSetField(np.i, np.field, np.buf);
 }
+// Apply one numpad key to the buffer and reflect it into the display + the live set field.
+function numpadHandleKey(k) {
+  const sheet = document.getElementById('trk-numpad');
+  const np = modalState.numpad;
+  if (!np) return;
+  if (k === 'calctoggle') { state.calcMode = !state.calcMode; saveState(); renderNumpad(); return; }   // feat 65 — persistent
+  const calc = state.calcMode === true;
+  if (k === 'done') { if (calc) finalizeCalc(np); closeNumpad(); return; }
+  if (k === 'next') { if (calc) finalizeCalc(np); numpadNext(); return; }
+  const M = exMode(pending.varUuid), isW = np.field === 'w';
+  const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
+  const sign = isW && M.mode === 'bodyweight';
+  np.buf = numpadApplyKey(np.buf, k, { decimal: decimal, sign: sign, maxLen: 7, calc: calc });
+  const disp = sheet ? sheet.querySelector('.np-display') : null;
+  const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + np.i + '"][data-field="' + np.field + '"]');
+  if (calc) {
+    if (disp) disp.textContent = formatCalcDisplay(np.buf);
+    const r = evalExpr(np.buf);                 // commit the running result; leave field untouched mid-expression
+    if (r != null) { if (inp) inp.value = String(r); commitSetField(np.i, np.field, String(r)); }
+    else if (np.buf === '') { if (inp) inp.value = ''; commitSetField(np.i, np.field, ''); }
+  } else {
+    if (disp) disp.textContent = np.buf === '' ? '0' : np.buf;
+    if (inp) inp.value = np.buf;
+    commitSetField(np.i, np.field, np.buf);
+  }
+}
+// feat 100 — a digit key taps to its digit, but HELD (from an empty field) enters digit x10 (hold 7 -> 70).
+// With digits already present, or in calculator mode, a hold is just a normal short press of the digit.
+function numpadDigitX10Eligible() {
+  const np = modalState.numpad;
+  return !!(np && np.buf === '' && state.calcMode !== true);
+}
+function attachNumpadDigit(btn, k) {
+  const HOLD = 400;
+  let timer = null, raf = null, start = 0, longFired = false;
+  const clearViz = () => { cancelAnimationFrame(raf); btn.classList.remove('lp-holding'); btn.style.removeProperty('--lp'); btn.removeAttribute('data-lp-label'); };
+  const begin = (e) => {
+    if (e && e.cancelable) e.preventDefault();
+    start = Date.now(); longFired = false;
+    if (!numpadDigitX10Eligible()) return;       // only arm the x10 hold from an empty field
+    btn.classList.add('lp-holding');
+    btn.setAttribute('data-lp-label', '×10');
+    const tick = () => { const pct = Math.min(100, ((Date.now() - start) / HOLD) * 100); btn.style.setProperty('--lp', pct.toFixed(0) + '%'); if (pct < 100) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    timer = setTimeout(() => { longFired = true; clearViz(); try { safeVibrate(15); } catch (_) {} numpadHandleKey(k); numpadHandleKey('0'); }, HOLD);
+  };
+  const end = () => { clearTimeout(timer); clearViz(); if (longFired) { longFired = false; return; } numpadHandleKey(k); };
+  const cancel = () => { clearTimeout(timer); clearViz(); longFired = false; };
+  btn.addEventListener('pointerdown', begin);
+  btn.addEventListener('pointerup', end);
+  btn.addEventListener('pointerleave', cancel);
+  btn.addEventListener('pointercancel', cancel);
+}
 function bindNumpadKeys() {
   const sheet = document.getElementById('trk-numpad');
   if (!sheet) return;
-  const disp = sheet.querySelector('.np-display');
-  sheet.querySelectorAll('[data-np]').forEach(btn => btn.addEventListener('click', () => {
-    const k = btn.dataset.np, np = modalState.numpad;
-    if (!np) return;
-    if (k === 'calctoggle') { state.calcMode = !state.calcMode; saveState(); renderNumpad(); return; }   // feat 65 — persistent
-    const calc = state.calcMode === true;
-    if (k === 'done') { if (calc) finalizeCalc(np); closeNumpad(); return; }
-    if (k === 'next') { if (calc) finalizeCalc(np); numpadNext(); return; }
-    const M = exMode(pending.varUuid), isW = np.field === 'w';
-    const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
-    const sign = isW && M.mode === 'bodyweight';
-    np.buf = numpadApplyKey(np.buf, k, { decimal: decimal, sign: sign, maxLen: 7, calc: calc });
-    const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + np.i + '"][data-field="' + np.field + '"]');
-    if (calc) {
-      if (disp) disp.textContent = formatCalcDisplay(np.buf);
-      const r = evalExpr(np.buf);                 // commit the running result; leave field untouched mid-expression
-      if (r != null) { if (inp) inp.value = String(r); commitSetField(np.i, np.field, String(r)); }
-      else if (np.buf === '') { if (inp) inp.value = ''; commitSetField(np.i, np.field, ''); }
-    } else {
-      if (disp) disp.textContent = np.buf === '' ? '0' : np.buf;
-      if (inp) inp.value = np.buf;
-      commitSetField(np.i, np.field, np.buf);
-    }
-  }));
+  sheet.querySelectorAll('[data-np]').forEach(btn => {
+    const k = btn.dataset.np;
+    if (/^[0-9]$/.test(k)) attachNumpadDigit(btn, k);          // feat 100 — tap digit / hold = digit x10
+    else btn.addEventListener('click', () => numpadHandleKey(k));
+  });
 }
 
 function bindSetsForm() {
@@ -11349,7 +11383,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 44 · 2026-06-05 22:21';
+const APP_BUILD = 'build 45 · 2026-06-05 22:24';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

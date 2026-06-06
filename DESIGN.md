@@ -386,6 +386,13 @@ They share variation **UUIDs**.
   scrolls, and flashes it); **🧭** scroll Coaching to the most relevant card (`coachingCardForExercise` →
   endurance/bouldering/grip); **❓** unchanged (tap == hold). `currentOrLastExercise()` (active log → newest history)
   is the shared context. Covered by `test/topbar.spec.mjs`.
+- **Numpad digit long-press ×10 (feat 100):** an on-screen-keypad digit **tapped** appends as before, but **held**
+  (≥ 400 ms) from an *empty* field enters that digit ×10 (hold `7` → `70`) — a fast path for round numbers. With
+  digits already present, or in calculator mode, a hold is just a normal short press. `bindNumpadKeys` now routes
+  digit keys through `attachNumpadDigit` (self-contained pointer tap/hold, no document listener — safe under the
+  numpad's frequent re-render) and the shared key logic was extracted to `numpadHandleKey(k)`. The ×10 fires
+  `numpadHandleKey(k)` then `numpadHandleKey('0')`, shows a `×10` hold hint + the `lp-holding` fill. Covered by
+  `test/numpad.spec.mjs`.
 
 ---
 
