@@ -469,6 +469,14 @@ They share variation **UUIDs**.
   search picker), **✕ delete**; per row an **add-link** input. **↻ Re-test all** (`mediaWizardRetestAll`) re-parses
   every link to refresh `embedUrl`/platform. Reuses the existing `parseMediaUrl`/`add`/`removeExerciseMedia` API.
   Covered by `test/mediawizard.spec.mjs`.
+- **Plan-progress dashboard (feat 111):** `renderPlanGuide` now shows, per step, **sets hit** (`logged/target ✓`) and
+  an **effort badge** (`stepEffort` — did the heaviest logged set reach the step's `load`-derived target weight,
+  within 3%; n/a when there's no baseline) plus a live roll-up line (`planExecutionSummary`: sets, steps, effort
+  hits) and **ETC ~Nmin · ETA clock**. A **comparison line** (`findPlanExecutions`) shows the **most-recent** and
+  **all-time-best** prior runs of the same plan (best by stored `finalScore.points`, else set count; either may be
+  absent or the same run). Because step→exercise matching is by exercise (`stepLoggedSets`/`optionMatchesVar`),
+  progress is **retroactive across a mid-workout plan change** — sets logged under the old plan count toward the new
+  plan's matching steps automatically. Covered by `test/plandash.spec.mjs`.
 
 ---
 
