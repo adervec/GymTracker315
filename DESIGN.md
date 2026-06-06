@@ -438,6 +438,11 @@ They share variation **UUIDs**.
   (`unlockHeadphoneDetection` — a one-off `getUserMedia` to reveal device labels, then stops the track). Covered by
   `test/headphones.spec.mjs`. *(Caveat: on Android Chrome without the optional permission, labels are hidden →
   detection is unknown → fail-open, so the gate is effectively inert until the user enables detection.)*
+- **Auto-connect HR on workout start (feat 106):** `workoutControls.hrAutoConnect` (**default on**, toggle in
+  Settings → Workout, only shown when `hrSupported()`) gates the existing `startWorkout()` → `hrTryReconnect()` call,
+  so each workout silently re-attaches your last heart-rate monitor (no chooser) — or not, if you turn it off. The
+  reconnect uses `navigator.bluetooth.getDevices()` (no user gesture needed for a remembered device). Covered by
+  `test/hrconnect.spec.mjs`.
 
 ---
 

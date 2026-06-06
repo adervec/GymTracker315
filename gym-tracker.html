@@ -2823,7 +2823,7 @@ function normalizeState() {
     dashboard: { stats:true, timeline:true, liveScore:true, pace:true, physique:true },
     longPressConfirm: { enabled:false, ms:1500 },
     workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
-      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false },
+      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true },
     bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
     stravaAutoLoad: { enabled:false, mode:'folder' }, // feat 89
     historyFilter: { range:'all', bp:'', family:'', varKey:'', q:'' }, // feat 102 — device-local view filter
@@ -4504,6 +4504,16 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${(state.workoutControls||{}).restTimer === false ? 'active' : ''}" data-wc="restTimer" data-wc-val="off">Off</button>
       </div>
     </div>
+    ${hrSupported() ? `<div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">💓 Auto-connect HR on start</div>
+        <div class="drawer-setting-sub">When a workout starts, silently reconnect your last heart-rate monitor (no chooser)</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect !== false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="on">On</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect === false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="off">Off</button>
+      </div>
+    </div>` : ''}
     <div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">On-screen numpad</div>
@@ -5130,7 +5140,7 @@ function renderSettingsDrawer() {
   });
 
   // Workout controls
-  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false, mixSubvariations:false }; };
+  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true }; };
   const aeInput = body.querySelector('#drawer-auto-end');
   if (aeInput) aeInput.addEventListener('change', () => {
     const v = parseInt(aeInput.value);
@@ -7132,7 +7142,8 @@ function reapAbandonedSet() {
 function startWorkout() {
   if (roBlocked('start a workout')) return;
   stopMetronome(); // feat 69 — metronome defaults OFF at the start of every workout
-  hrTryReconnect(); // feat 72 — try to bring the last HR monitor back for the new workout
+  // feat 72/106 — try to bring the last HR monitor back for the new workout (default on, toggleable)
+  if ((state.workoutControls || {}).hrAutoConnect !== false) hrTryReconnect();
   const existing = getActiveSession();
   if (existing) { toast('Workout already in progress'); return; }
   const session = newSession({ startedManually: true });
@@ -11603,7 +11614,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 50 · 2026-06-05 22:52';
+const APP_BUILD = 'build 51 · 2026-06-05 22:54';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
