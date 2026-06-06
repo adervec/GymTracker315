@@ -526,6 +526,11 @@ They share variation **UUIDs**.
   (recent ≤ 14 d / stale ≤ 60 d / old). `buildTouchMap()` does one pass over sessions per picker render
   (varUuid → distinct-day set + last timestamp); `touchBadgeHtml()` renders the chip (full "trained on N days · last
   X ago" in the tooltip). Covered by `test/touched.spec.mjs`.
+- **Notes: gym + injury suggestions (feat 122):** the session-notes modal's **Location** field gets a `<datalist>`
+  of your saved gyms (`state.gyms`) for quick autocomplete, and the **Injuries / Pain** field autocompletes from a
+  curated `COMMON_INJURIES` list as you type. The injuries field is **multi-value** (comma-separated):
+  `renderInjurySuggest()` matches the token after the last comma (excluding already-listed entries) and clicking a
+  chip appends it + `, ` so you can list several. Covered by `test/notes.spec.mjs`.
 
 ---
 
