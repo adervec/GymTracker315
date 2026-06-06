@@ -7645,7 +7645,19 @@ function finalizeEndWorkout(active, skipConfirm) {
   let msg = `End workout?\n\nDuration: ${stats.elapsedDisplay}\nExercises: ${stats.exerciseCount}\nSets: ${stats.totalSets}`;
   if (score) msg += `\nScore: ${score.grade} (${score.points}/100)`;
   msg += `\n\nOnce ended you can still edit exercises but the timer stops.`;
-  confirmDialog(msg, { title: 'End workout', okLabel: 'End workout' }).then(ok => { if (ok) finish(); }); // feat 86
+  // feat 123 — offer to jot session notes (location, injuries, how it felt) before ending.
+  choiceDialog({
+    title: 'End workout',
+    message: msg,
+    choices: [
+      { label: '🏁 End workout', value: 'end', style: 'primary' },
+      { label: '📝 Add notes, then end', value: 'notes' },
+      { label: 'Cancel', value: 'cancel' },
+    ],
+  }).then(c => {
+    if (c === 'end') finish();
+    else if (c === 'notes') openNotesModal(active.date, finish); // save notes -> then end
+  });
 }
 
 // Compute a workout score (0-100) based on progressive overload progress.
@@ -10565,10 +10577,12 @@ function clearPendingModal() {
    ============================================================ */
 let notesEditingSession = null;
 
-function openNotesModal(sessionDate) {
+let _notesOnSaved = null; // feat 123 — optional callback to run after Save (e.g. end the workout)
+function openNotesModal(sessionDate, onSaved) {
   notesEditingSession = sessionDate;
+  _notesOnSaved = onSaved || null;
   const session = state.sessions.find(s => s.date === sessionDate);
-  if (!session) return;
+  if (!session) { _notesOnSaved = null; return; }
   const notes = session.notes || {};
   document.getElementById('trk-notes-body').innerHTML = `
     <label>Location</label>
@@ -10592,7 +10606,9 @@ function openNotesModal(sessionDate) {
   document.getElementById('trk-notes-backdrop').classList.add('open');
   document.body.style.overflow = 'hidden';
 
-  document.getElementById('trk-notes-save').addEventListener('click', saveNotes);
+  const _saveBtn = document.getElementById('trk-notes-save');
+  if (_notesOnSaved) _saveBtn.textContent = 'Save & End Workout'; // feat 123
+  _saveBtn.addEventListener('click', saveNotes);
   document.getElementById('trk-notes-clear')?.addEventListener('click', clearNotes);
   document.getElementById('trk-notes-injuries')?.addEventListener('input', renderInjurySuggest); // feat 122
 }
@@ -10629,6 +10645,7 @@ function renderInjurySuggest() {
 
 function closeNotesModal() {
   notesEditingSession = null;
+  _notesOnSaved = null; // feat 123 — backing out without saving cancels any chained action (e.g. end workout)
   document.getElementById('trk-notes-modal').classList.remove('open');
   document.getElementById('trk-notes-backdrop').classList.remove('open');
   document.body.style.overflow = '';
@@ -10654,9 +10671,11 @@ function saveNotes() {
   }
   touchSession(session); // feat 95
   saveState();
+  const cb = _notesOnSaved; // feat 123 — capture before closeNotesModal clears it
   closeNotesModal();
   render();
   toast('Notes saved');
+  if (cb) cb();
 }
 
 function clearNotes() {
@@ -12340,7 +12359,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 66 · 2026-06-06 06:41';
+const APP_BUILD = 'build 67 · 2026-06-06 10:01';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

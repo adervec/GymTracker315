@@ -531,6 +531,11 @@ They share variation **UUIDs**.
   curated `COMMON_INJURIES` list as you type. The injuries field is **multi-value** (comma-separated):
   `renderInjurySuggest()` matches the token after the last comma (excluding already-listed entries) and clicking a
   chip appends it + `, ` so you can list several. Covered by `test/notes.spec.mjs`.
+- **End-workout confirm → add notes (feat 123):** `finalizeEndWorkout`'s confirm is now a 3-way `choiceDialog` —
+  **🏁 End workout / 📝 Add notes, then end / Cancel**. Choosing notes opens the session-notes modal via a new
+  `openNotesModal(date, onSaved)` callback; **Save** (relabeled "Save & End Workout") runs the chained `finish()` to
+  end the workout, while closing the modal without saving cancels the end (`closeNotesModal` clears `_notesOnSaved`).
+  Long-press End / plan-complete "End" still skip straight through (`skipConfirm`). Covered by `test/endnotes.spec.mjs`.
 
 ---
 
