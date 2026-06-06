@@ -73,6 +73,7 @@ imports. Their output and any tokens are git-ignored.
 - `tools/strava-sync.py` — pull strength activities (official Strava API + your own OAuth app); optional description push-back.
 - `tools/youtube-media.py` — match a creator's Shorts to your exercises (official YouTube Data API + your own free key).
 - `tools/garmin-sync.py` — pull bodyweight / sleep biometrics. **Unofficial:** Garmin has no public per-user read API, so this uses the community [`garminconnect`](https://github.com/cyberjunky/python-garminconnect) library (your Garmin login → Garmin Connect's private endpoints). That may conflict with Garmin's Terms of Service and can break or be blocked at any time — personal use, at your own risk.
+- `tools/anatomy-ocr.py` — OCR a hi-res labelled anatomy chart into a glossary label map (Tesseract + OpenCV), so the app's Detailed Chart View can place tap targets without bundling an OCR engine. One-time, offline; `pip install pytesseract opencv-python pillow numpy` + the Tesseract binary.
 
 ## Layout
 
