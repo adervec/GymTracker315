@@ -427,6 +427,17 @@ They share variation **UUIDs**.
   **count-up** interval beeps + an end cue at `target`; or **countdown** interval beeps, a per-second tick over the
   final `countdown` seconds, and a distinct triple end cue at zero. Countdown mode also shows `⏳ remaining` on the
   rest bar. Both configured in Settings → Metronome / Rest timer cues. Covered by `test/restcues.spec.mjs`.
+- **Headphone-only audio (feat 105):** `state.audioHeadphonesOnly` (**default on**) suppresses *audio* output (every
+  beep/cue/TTS — never haptics) unless it's routed to headphones, so the app never blares through a phone speaker in
+  a public gym. Browser output detection is **best-effort**: `probeAudioOutput()` reads `audiooutput` device labels
+  (`enumerateDevices`, refreshed on `devicechange`) and matches a headphone/bluetooth regex. `headphoneGatePasses()`
+  blocks **only** when the setting is on AND we *positively* detected speaker-only (`_headphonesConnected === false`);
+  when labels are hidden (no permission) or the API is absent it **fails open** (`null` → allowed) so audio is never
+  silently broken. The gate is added to the four audio emitters (`metroBeep` / `restBeep` / `uiClickSound` /
+  `metroSpeakNextTip`) + `speakRandomTip`. Settings shows live status + an optional **enable-detection** link
+  (`unlockHeadphoneDetection` — a one-off `getUserMedia` to reveal device labels, then stops the track). Covered by
+  `test/headphones.spec.mjs`. *(Caveat: on Android Chrome without the optional permission, labels are hidden →
+  detection is unknown → fail-open, so the gate is effectively inert until the user enables detection.)*
 
 ---
 

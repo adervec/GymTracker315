@@ -2663,7 +2663,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -2844,6 +2844,7 @@ function normalizeState() {
   if (!(state.biometricStaleDays > 0)) state.biometricStaleDays = 14;
   if (typeof state.calcMode !== 'boolean') state.calcMode = false;
   if (typeof state.ttsTips !== 'boolean') state.ttsTips = true;
+  if (typeof state.audioHeadphonesOnly !== 'boolean') state.audioHeadphonesOnly = true; // feat 105 — default on
   state.metronome = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, mantra:false, setActiveOnly:true, ...(state.metronome && typeof state.metronome === 'object' ? state.metronome : {}) };
   // feat 104 — separate, richly-configurable audible rest timer (count up / countdown + interval cues)
   state.restCues = { enabled:false, mode:'down', target:90, interval:30, countdown:3, endCue:true, audio:true, haptic:true, freq:784, ...(state.restCues && typeof state.restCues === 'object' ? state.restCues : {}) };
@@ -4368,6 +4369,16 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">🎧 Headphone-only audio</div>
+        <div class="drawer-setting-sub">Only play sound when it's routed to headphones — never the phone speaker (haptics still work). <b>${headphoneStatus().icon} ${escapeHtml(headphoneStatus().text)}</b>${(audioHeadphonesOnly() && _headphonesConnected == null) ? ` · <a href="#" id="drawer-hp-unlock" style="color:var(--accent);">enable detection</a>` : ''}</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${audioHeadphonesOnly() ? 'active' : ''}" data-pref-hp="on">On</button>
+        <button class="drawer-pill ${!audioHeadphonesOnly() ? 'active' : ''}" data-pref-hp="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">Save confirmation</div>
         <div class="drawer-setting-sub">Always confirm before saving sets</div>
       </div>
@@ -5063,6 +5074,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefGlossView) { state.glossaryAsPage = btn.dataset.prefGlossView === 'page'; saveState(); toast('Glossary: ' + (state.glossaryAsPage ? 'full page' : 'slide-in')); }
       else if (btn.dataset.prefReadonly) { state.readonly = btn.dataset.prefReadonly === 'on'; saveState(); render(); toast('Read-only mode: ' + (state.readonly ? 'on' : 'off')); }
       else if (btn.dataset.prefTts) { state.ttsTips = btn.dataset.prefTts === 'on'; saveState(); if (state.ttsTips) toast('Tips will be read aloud'); else { try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} toast('Tip narration off'); } }
+      else if (btn.dataset.prefHp) { state.audioHeadphonesOnly = btn.dataset.prefHp === 'on'; saveState(); if (state.audioHeadphonesOnly) probeAudioOutput(); refreshSoundIcon(); toast('Headphone-only audio: ' + (state.audioHeadphonesOnly ? 'on' : 'off')); }
       else if (btn.dataset.prefMetro) { const m = { ...metroCfg() }; const k = btn.dataset.prefMetro; if (k === 'audio-on') m.audio = true; else if (k === 'audio-off') m.audio = false; else if (k === 'haptic-on') m.haptic = true; else if (k === 'haptic-off') m.haptic = false; else if (k === 'mantra-on') m.mantra = true; else if (k === 'mantra-off') m.mantra = false; else if (k === 'setactive-on') m.setActiveOnly = true; else if (k === 'setactive-off') m.setActiveOnly = false; state.metronome = m; saveState(); restartMetronomeIfRunning(); }
       else if (btn.dataset.rc) { const rc = { ...restCueCfg() }; const k = btn.dataset.rc, v = btn.dataset.rcVal; if (k === 'mode') rc.mode = v; else rc[k] = (v === 'on'); state.restCues = rc; saveState(); _lastRestCueSec = -1; if (typeof refreshRestBar === 'function') refreshRestBar(); }
       else if (btn.dataset.prefBwWarn) { state.warnStaleBodyweight = btn.dataset.prefBwWarn === 'on'; saveState(); }
@@ -5164,6 +5176,8 @@ function renderSettingsDrawer() {
   const rcCd = body.querySelector('#drawer-rc-countdown');
   if (rcCd) rcCd.addEventListener('change', () => { const v = parseInt(rcCd.value); if (!isNaN(v)) setRC({ countdown: Math.max(0, Math.min(10, v)) }); });
   body.querySelector('#drawer-rc-test')?.addEventListener('click', () => restCueFire('end'));
+  // feat 105 — optional one-off permission to unlock audio-device labels for headphone detection
+  body.querySelector('#drawer-hp-unlock')?.addEventListener('click', (e) => { e.preventDefault(); unlockHeadphoneDetection(); });
 
   // Data buttons
   body.querySelector('#drawer-export-btn').addEventListener('click', exportData);
@@ -5856,6 +5870,7 @@ function collectExerciseTips(varUuid) {
 function speakRandomTip(varUuid) {
   if (state.ttsTips === false) return;
   if (typeof sndAudioOn === 'function' && !sndAudioOn()) return;   // feat 74 — master audio gate
+  if (typeof headphoneGatePasses === 'function' && !headphoneGatePasses()) return; // feat 105 — headphone-only gate
   if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
   const tips = collectExerciseTips(varUuid);
   if (!tips.length) return;
@@ -11588,7 +11603,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 49 · 2026-06-05 22:46';
+const APP_BUILD = 'build 50 · 2026-06-05 22:52';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -11607,6 +11622,47 @@ function sndAudioOn() { return sndState().audio !== false; }
 function sndHapticOn() { return sndState().haptics !== false; }
 function sndVol() { const v = sndState().volume; return (v == null || isNaN(v)) ? 1 : Math.max(0, Math.min(1, v)); }
 function safeVibrate(p) { try { if (!sndHapticOn()) return; if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(p); } catch(_){} }
+
+/* ============================================================
+   feat 105 — HEADPHONE-ONLY AUDIO (default on). Suppress audio output unless it's routed to
+   headphones, so the app never blasts cues through a phone speaker in a public gym. Browser output
+   detection is best-effort: it reads audiooutput device labels (available on desktop / once the user
+   grants audio-device access). When it can't tell (labels hidden, API absent) it FAILS OPEN so audio
+   is never silently broken. Haptics are never gated by this. State: state.audioHeadphonesOnly (bool).
+   ============================================================ */
+let _headphonesConnected = null; // null = unknown (fail open) · true = headphones · false = speaker only
+function audioHeadphonesOnly() { return state.audioHeadphonesOnly !== false; } // default on
+// Allow audio unless the setting is on AND we POSITIVELY detected no headphones (speaker only).
+function headphoneGatePasses() { return !audioHeadphonesOnly() || _headphonesConnected !== false; }
+function headphoneStatus() { // for the settings UI
+  if (!audioHeadphonesOnly()) return { icon:'🔊', text:'Off — audio plays anywhere' };
+  if (_headphonesConnected === true) return { icon:'🎧', text:'Headphones detected — audio on' };
+  if (_headphonesConnected === false) return { icon:'🔇', text:'Speaker only — audio muted' };
+  return { icon:'❔', text:'Output unknown — audio allowed (grant audio access to detect)' };
+}
+const _HEADPHONE_RE = /head(phone|set)|bluetooth|a2dp|airpod|buds|earphone|earbud|wired|hands?-?free/i;
+async function probeAudioOutput() {
+  try {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) { _headphonesConnected = null; return; }
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const outs = devs.filter(d => d.kind === 'audiooutput');
+    const labeled = outs.filter(d => d.label);
+    if (!labeled.length) { _headphonesConnected = null; return; }   // no labels -> unknown (fail open)
+    _headphonesConnected = labeled.some(d => _HEADPHONE_RE.test(d.label) && !/speaker/i.test(d.label));
+    if (typeof refreshSoundIcon === 'function') refreshSoundIcon();
+  } catch (_) { _headphonesConnected = null; }
+}
+// Optional, user-initiated: unlock device labels via a one-off mic permission, then re-probe + stop.
+async function unlockHeadphoneDetection() {
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Audio-device access not supported here'); return; }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop());                       // we only needed the permission, not the mic
+    await probeAudioOutput();
+    if (typeof renderSettingsDrawer === 'function') renderSettingsDrawer();
+    toast(_headphonesConnected === false ? '🔇 Speaker only' : _headphonesConnected ? '🎧 Headphones detected' : 'Still undetectable here');
+  } catch (_) { toast('Audio-device access denied'); }
+}
 
 /* ---- feat 74 — top-bar sound/haptics icon + quick menu ---- */
 function soundIconGlyph() {
@@ -11713,7 +11769,7 @@ let _restAudioCtx = null;
 function restBeep(freq, dur) {
   try {
     if (typeof window === 'undefined') return;
-    if (!sndAudioOn()) return;                       // feat 74 — master audio gate
+    if (!sndAudioOn() || !headphoneGatePasses()) return;                       // feat 74 — master audio gate
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     _restAudioCtx = _restAudioCtx || new AC();
     const o = _restAudioCtx.createOscillator(), g = _restAudioCtx.createGain();
@@ -11735,7 +11791,7 @@ function metronomeRunning() { return _metroId != null; }
 function metroBeep(freq, vol) {
   try {
     if (typeof window === 'undefined') return;
-    if (!sndAudioOn()) return;                       // feat 74 — master audio gate
+    if (!sndAudioOn() || !headphoneGatePasses()) return;                       // feat 74 — master audio gate
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     _restAudioCtx = _restAudioCtx || new AC();
     if (_restAudioCtx.state === 'suspended') _restAudioCtx.resume();
@@ -11750,7 +11806,7 @@ function metroBeep(freq, vol) {
 // feat 92 — UI tap feedback: a crisp, soft click + short haptic on every interactive control.
 function uiClickSound() {
   try {
-    if (!sndAudioOn()) return;                       // master audio gate
+    if (!sndAudioOn() || !headphoneGatePasses()) return;                       // master audio gate
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     _restAudioCtx = _restAudioCtx || new AC();
     if (_restAudioCtx.state === 'suspended') _restAudioCtx.resume();
@@ -11801,7 +11857,7 @@ function metroNextMantraTip(ex) {
 }
 function metroSpeakNextTip() {
   try {
-    if (!sndAudioOn()) return;
+    if (!sndAudioOn() || !headphoneGatePasses()) return;
     if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
     if (_metroSpeaking) return;
     const tip = metroNextMantraTip(metroMantraExercise());
@@ -12177,6 +12233,8 @@ render();
 ensureRestTick(); // feat 51 — start the global rest-timer tick
 refreshSoundIcon(); // feat 74 — reflect saved audio/haptics state in the top-bar icon
 initTopbarShortcuts(); // feat 99 — long-press shortcuts on the top-bar icons
+// feat 105 — probe audio output now and whenever devices change, for the headphone-only gate
+try { probeAudioOutput(); if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', probeAudioOutput); } catch (_) {}
 
 // Auto-load on startup — runs after initial render so UI is visible first
 // Uses setTimeout so handle permission prompt doesn't block page paint
