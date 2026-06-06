@@ -763,6 +763,9 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-progress-line b { color: var(--text); }
   .plan-compare { font-size: 10.5px; color: var(--text3); margin: 2px 0 4px; line-height: 1.45; }
   .plan-card.complete { border-left-color: var(--good); }
+  /* feat 113 — plan-complete banner */
+  .plan-complete-banner { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding: 8px 11px; border-radius: 9px; background: color-mix(in srgb, var(--good) 16%, transparent); border: 1px solid color-mix(in srgb, var(--good) 45%, transparent); font-size: 12.5px; font-weight: 700; color: var(--good); }
+  .plan-complete-banner .pcb-actions { display: flex; gap: 6px; }
   .plan-step-opts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
   .plan-opt { font-size: 12px; font-weight: 600; background: var(--bg2); border: 1px solid var(--border2); color: var(--text); padding: 4px 9px; border-radius: 7px; cursor: pointer; font-family: inherit; }
   .plan-opt:active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -6706,6 +6709,25 @@ function planStepIndicatorHtml() {
     <div class="logstep-bar"><div class="logstep-fill" style="width:${pct}%"></div></div>
   </div>`;
 }
+// feat 113 — celebratory summary when the plan is finished; offer to end the workout or keep going.
+function showPlanCompleteDialog() {
+  const session = getActiveSession(), plan = getActivePlan();
+  if (!session || !plan) return;
+  const sum = planExecutionSummary(session, plan);
+  const stats = computeSessionStats(session);
+  const exec = findPlanExecutions(plan.id, session.id);
+  let cmp = '';
+  if (exec.best) cmp = `\n\nBest before: ${_execSets(exec.best)} sets${exec.best.finalScore && exec.best.finalScore.grade ? ' · ' + exec.best.finalScore.grade : ''} (${fmtDate(exec.best.date)})`;
+  const msg = `📋 ${plan.name}\n\n✅ ${sum.stepsDone}/${sum.stepsTotal} steps · ${sum.setsDone} sets logged${sum.effortApplicable ? `\n💪 Effort on target: ${sum.effortHits}/${sum.effortApplicable}` : ''}\n⏱ ${stats.elapsedDisplay}${cmp}`;
+  choiceDialog({
+    title: '🎉 Plan complete!',
+    message: msg,
+    choices: [
+      { label: '🏁 End workout', value: 'end', style: 'primary' },
+      { label: 'Keep training', value: 'continue' },
+    ],
+  }).then(c => { if (c === 'end') endWorkout(true); });
+}
 /* ---- feat 82 — baseline-adaptive plans: relative load → suggested weight, picker pre-load, ETA, intensity ---- */
 function loadFactor(load) { return load === 'heavy' ? 0.95 : load === 'light' ? 0.7 : 0.85; }
 function weightInc() { return state.unit === 'kg' ? 2.5 : 5; }
@@ -6922,6 +6944,7 @@ function renderPlanGuide(session) {
     ${compareHtml}
     ${plan.desc ? `<div class="plan-card-desc">${escapeHtml(plan.desc)}</div>` : ''}
     <div class="plan-steps">${steps}</div>
+    ${sum.complete ? `<div class="plan-complete-banner">🎉 Plan complete!<span class="pcb-actions"><button class="plan-act primary" id="plan-complete-end">🏁 End</button><button class="plan-act" id="plan-complete-summary">Summary</button></span></div>` : ''}
     <div class="plan-card-actions"><button class="plan-act" id="plan-change-btn">Change plan</button><button class="plan-act danger" id="plan-abandon-btn">Abandon</button></div>
   </div>`;
 }
@@ -7122,6 +7145,9 @@ function renderLog(main) {
   main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt], st.load); }));
   // feat 112 — tapping a step (not its specific option buttons) opens the picker filtered to that step's full exercise list
   main.querySelectorAll('.plan-step[data-plan-step-idx]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('.plan-opt')) return; openStepPicker(+el.dataset.planStepIdx); }));
+  // feat 113 — plan-complete banner actions
+  main.querySelector('#plan-complete-end')?.addEventListener('click', () => endWorkout(false));
+  main.querySelector('#plan-complete-summary')?.addEventListener('click', showPlanCompleteDialog);
   // Superset link buttons (feat 39)
   main.querySelectorAll('.ss-link-btn').forEach(btn => {
     btn.addEventListener('click', e => {
@@ -7524,7 +7550,7 @@ function endWorkout(skipConfirm) {
         { label: 'Continue workout', value: 'continue' },
       ],
     }).then(choice => {
-      if (choice === 'save') { saveSets().then(ok => { if (ok) finalizeEndWorkout(active, true); }); return; } // feat 86 — save async; end only if it saved
+      if (choice === 'save') { saveSets(true).then(ok => { if (ok) finalizeEndWorkout(active, true); }); return; } // feat 86/114 — save (no picker reroute) async; end only if it saved
       if (choice === 'discard') { clearPending(); render(); finalizeEndWorkout(active, true); return; }
       // 'continue' or dismissed → stay in the workout
     });
@@ -11628,7 +11654,7 @@ function bindSetsForm() {
   // feat 58 — Copy: build the next set's weight from the bottommost set / nearest above / history.
   document.getElementById('trk-copy-last').onclick = copyWeightToNextSet;
 
-  document.getElementById('trk-save-btn').onclick = saveSets;
+  document.getElementById('trk-save-btn').onclick = () => saveSets(); // feat 114 — no event arg (it would read as endingWorkout)
   document.getElementById('trk-delete-ex-btn')?.addEventListener('click', deleteExercise);
 }
 
@@ -11874,8 +11900,9 @@ function addSetRow(mode) {
   if (typeof refreshRestBar === 'function') refreshRestBar();
 }
 
-function saveSets() {
+function saveSets(endingWorkout) {
   // feat 86 — returns a Promise<boolean> (themed confirm replaces native confirm()).
+  // feat 114 — endingWorkout=true skips the post-save picker routing (the caller is ending the workout).
   if (roBlocked('log sets')) return Promise.resolve(false);
   if (!pending.varUuid) { toast('Pick an exercise'); return Promise.resolve(false); }
   const nowIso = new Date().toISOString();
@@ -11893,6 +11920,10 @@ function saveSets() {
   }
   const clean = s => ({ w: s.w, r: s.r, wTs: s.wTs, ts: s.ts }); // drop the temp _sub before storing
   const commit = () => {
+    const editing = modalState.isEditing;
+    // feat 114 — capture whether the active plan was already complete BEFORE this save
+    const planBefore = !editing ? getActivePlan() : null;
+    const wasComplete = planBefore ? !!planExecutionSummary(getActiveSession(), planBefore).complete : false;
     if (modalState.isEditing) {
       const session = state.sessions.find(s => s.date === modalState.editingSessionDate);
       if (session) {
@@ -11924,8 +11955,21 @@ function saveSets() {
       toast(`Saved ${validSets.length} set${validSets.length === 1 ? '' : 's'}`);
     }
     clearPending();
-    closeLogModal();
-    render();
+    // feat 114 — post-save routing. Editing a past set, or saving as part of ending the workout, keeps the
+    // old behavior (close + back to the dashboard). Otherwise show the exercise PICKER instead of the
+    // dashboard — blank/unfiltered with no plan, or pre-filtered to the earliest incomplete step with a plan.
+    if (editing || endingWorkout) { closeLogModal(); if (!endingWorkout) render(); return true; }
+    const plan = getActivePlan(), session = getActiveSession();
+    const nowComplete = plan ? !!planExecutionSummary(session, plan).complete : false;
+    if (plan && nowComplete && !wasComplete) { // EXCEPTION: the plan was just finished -> dashboard + complete popup
+      closeLogModal(); render(); showPlanCompleteDialog(); return true;
+    }
+    render(); // refresh the dashboard behind the still-open modal
+    modalState.showPicker = true; modalState.isEditing = false; modalState.exNoteEditing = false;
+    const idx = (plan && session) ? currentPlanStepIndex(session, plan) : null;
+    modalState.planStepFilter = (plan && idx != null && idx < plan.steps.length) ? idx : null;
+    if (modalState.planStepFilter != null) _planLoadCtx = plan.steps[modalState.planStepFilter].load || 'moderate';
+    renderModal();
     return true;
   };
   // Confirmation popup: show if any infeasible weight OR alwaysConfirm is on
@@ -12028,7 +12072,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 58 · 2026-06-05 23:59';
+const APP_BUILD = 'build 59 · 2026-06-06 00:05';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

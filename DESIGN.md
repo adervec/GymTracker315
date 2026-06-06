@@ -487,6 +487,14 @@ They share variation **UUIDs**.
   (`planStepIndicatorHtml`) naming the plan step the current exercise belongs to (`planStepForVar` — earliest
   incomplete matching step), its **sets logged/target with a progress bar**, and whether the **effort is on target**
   (`stepEffort`). Off-plan exercises get a muted "not part of any plan step" note. Covered by `test/logstep.spec.mjs`.
+- **Plan-complete popup + post-save picker routing (feat 113 + 114):** when the plan finishes, the card shows a
+  **🎉 complete banner** (End / Summary) and `showPlanCompleteDialog()` pops a summary (steps, sets, effort, time, vs
+  best) offering **End workout / Keep training**. And `saveSets` no longer drops you on the dashboard after a save —
+  it routes to the **exercise picker** instead: blank/unfiltered with no plan, or **pre-filtered to the earliest
+  incomplete step** (`currentPlanStepIndex` → `planStepFilter`, seeding `_planLoadCtx`) with a plan. **Exception:** a
+  save that *just completed* the plan (`planExecutionSummary().complete` flips false→true) closes to the dashboard and
+  fires the complete dialog. A new `endingWorkout` arg keeps the end-workout "save & end" path on its old close-to-
+  dashboard behavior (the Save button calls `saveSets()` with no event arg). Covered by `test/postsave.spec.mjs`.
 
 ---
 
