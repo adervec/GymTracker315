@@ -376,6 +376,16 @@ They share variation **UUIDs**.
   vetted flag that travels in export/sync so a confirmed-real PR is never re-flagged) and **Delete** (removes the
   set, prunes an emptied exercise, tombstones an emptied session). Read-only mode blocks edits. Covered by
   `test/history.spec.mjs`.
+- **Top-bar long-press shortcuts (feat 99):** each top-bar icon gains a press-and-hold shortcut layered over its
+  normal tap. `attachTopbarLongPress(btn, onLong, label, holdMs=550)` reuses the `.lp-holding` progress fill, fires
+  a confirm haptic, and **swallows the trailing click** via a *document* capture-phase listener (so it beats the
+  button's earlier-registered inline `onclick`). Shortcuts: **🔊** mute audio + haptics (`topbarMuteAll`); **📖**
+  glossary search of the current muscle target (`BP_GLOSS_TERM[bp]` → `openGlossaryTo`); **📚** open the current/last
+  variation in Reference (`openReferenceFor`); **⚙️** jump to the most recently changed setting (a drawer-body
+  change/click listener records `state.lastSettingAnchor {id,sec}`; `openSettingsToLastChanged` expands the section,
+  scrolls, and flashes it); **🧭** scroll Coaching to the most relevant card (`coachingCardForExercise` →
+  endurance/bouldering/grip); **❓** unchanged (tap == hold). `currentOrLastExercise()` (active log → newest history)
+  is the shared context. Covered by `test/topbar.spec.mjs`.
 
 ---
 

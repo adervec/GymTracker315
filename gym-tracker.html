@@ -1362,6 +1362,9 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .lp-holding::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--lp, 0%); background: rgba(255,255,255,0.18); pointer-events: none; transition: none; }
   .lp-holding[data-lp-label]::before { content: attr(data-lp-label); position: absolute; left: 0; right: 0; bottom: 100%; margin-bottom: 4px; font-size: 10px; color: var(--warn); white-space: nowrap; text-align: center; }
   .lp-holding.lp-armed::after { background: color-mix(in srgb, var(--accent) 30%, transparent); } /* feat 97 — tap is now valid (charging toward long-press) */
+  /* feat 99 — brief highlight when a top-bar long-press jumps to a coaching card / settings row */
+  @keyframes gt-flash { 0% { box-shadow: 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; background: transparent; } }
+  .coach-flash, .setting-flash { animation: gt-flash 1.5s ease-out; border-radius: 9px; }
 
   .ended-banner { background: #1a1a1a; border: 1px solid #2a2a2a; border-left: 3px solid #777; border-radius: 7px; padding: 7px 11px; font-size: 11px; color: #888; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
   .ended-banner-reason { color: #aaa; font-weight: 700; }
@@ -3048,6 +3051,102 @@ function attachTrackerPress(btn, onShort, onLong, label) {
   return clear;
 }
 
+/* ============================================================
+   feat 99 — TOP-BAR LONG-PRESS SHORTCUTS
+   Global (non-Tracker) icons get a press-and-hold shortcut on top of their normal tap:
+     🔊 volume   -> mute audio + haptics       📖 glossary -> search the current muscle target
+     📚 reference -> open current/last variation ⚙️ settings -> jump to the last-changed setting
+     🧭 coaching  -> scroll to the most relevant section   ❓ help -> (same as a tap)
+   ============================================================ */
+// Generic long-press for a top-bar button: keeps the existing onclick for a tap; a hold >= holdMs
+// fires onLong (a separate shortcut) and swallows the trailing click so the two never double-fire.
+function attachTopbarLongPress(btn, onLong, label, holdMs) {
+  if (!btn || !onLong) return () => {};
+  const ms = holdMs || 550;
+  let timer = null, raf = null, start = 0, fired = false;
+  const clear = () => { clearTimeout(timer); cancelAnimationFrame(raf); btn.classList.remove('lp-holding', 'lp-armed'); btn.style.removeProperty('--lp'); btn.removeAttribute('data-lp-label'); };
+  const begin = () => {
+    start = Date.now(); fired = false;
+    btn.classList.add('lp-holding', 'lp-armed');
+    if (label) btn.setAttribute('data-lp-label', label);
+    const tick = () => { const pct = Math.min(100, ((Date.now() - start) / ms) * 100); btn.style.setProperty('--lp', pct.toFixed(0) + '%'); if (pct < 100) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    timer = setTimeout(() => { fired = true; clear(); try { safeVibrate(20); } catch (_) {} onLong(); }, ms);
+  };
+  btn.addEventListener('pointerdown', begin);
+  btn.addEventListener('pointerup', clear);
+  btn.addEventListener('pointerleave', clear);
+  btn.addEventListener('pointercancel', clear);
+  // Cancel the click that follows a completed hold. Must be on document in the CAPTURE phase so it
+  // runs before the button's own (earlier-registered) inline onclick, which target-phase order would
+  // otherwise let fire first.
+  document.addEventListener('click', (e) => {
+    if (fired && (e.target === btn || (btn.contains && btn.contains(e.target)))) { e.preventDefault(); e.stopImmediatePropagation(); fired = false; }
+  }, true);
+  return clear;
+}
+
+// The exercise these shortcuts act on: the one being logged now, else the most recent in history.
+function currentOrLastExercise() {
+  if (typeof pending !== 'undefined' && pending && pending.varUuid) return { varUuid: pending.varUuid, subUuid: pending.subUuid || null, cardio: !!pending.cardio };
+  const sessions = (state.sessions || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  for (const s of sessions) {
+    const exs = s.exercises || [];
+    for (let i = exs.length - 1; i >= 0; i--) { if (exs[i] && exs[i].varUuid) return { varUuid: exs[i].varUuid, subUuid: exs[i].subUuid || null, cardio: !!exs[i].cardio }; }
+  }
+  return null;
+}
+// Body-part -> a glossary search term that matches an anatomy entry (ANATOMY_REGIONS terms).
+const BP_GLOSS_TERM = { chest:'Pec', back:'Lats', shoulders:'Delts', biceps:'Biceps', triceps:'Triceps', forearms:'Forearms', quads:'Quads', hamstrings:'Hamstrings', glutes:'Glutes', calves:'Calves', core:'Core', neck:'Neck', jaw:'Jaw' };
+// Body-part / family -> the most relevant Coaching card id (only endurance/bouldering/grip have cards).
+function coachingCardForExercise(ex) {
+  if (!ex) return null;
+  const info = VAR_INDEX.get(ex.varUuid);
+  const title = info ? (info.variation.title || '').toLowerCase() : '';
+  const famId = info ? info.family.id : '';
+  const bp = info ? info.bp : '';
+  if (/\b(boulder|climb)/.test(title) || famId === 'climbing') return 'coach-bouldering';
+  if (bp === 'forearms' || FOREARM_FAMILIES.has(famId) || /\bgrip\b/.test(title)) return 'coach-grip';
+  if (ex.cardio) return 'coach-endurance';
+  return null;
+}
+function topbarMuteAll() {
+  const s = sndState(); s.audio = false; s.haptics = false;
+  persistSound();
+  if (typeof toast === 'function') toast('🔇 Muted — sound & haptics off');
+}
+function topbarGlossaryMuscle() {
+  const ex = currentOrLastExercise();
+  const info = ex && VAR_INDEX.get(ex.varUuid);
+  const term = info ? (BP_GLOSS_TERM[info.bp] || BP_LABELS[info.bp]) : null;
+  if (term) { openGlossaryTo(term); if (typeof toast === 'function') toast('📖 ' + term); }
+  else openGloss();
+}
+function topbarReferenceCurrent() {
+  const ex = currentOrLastExercise();
+  if (ex && ex.varUuid && typeof openReferenceFor === 'function') openReferenceFor(ex.varUuid);
+  else if (typeof goPanel === 'function') goPanel('panel-reference');
+}
+function topbarCoachingRelevant() {
+  if (typeof goPanel === 'function') goPanel('panel-coaching');
+  const cardId = coachingCardForExercise(currentOrLastExercise());
+  setTimeout(() => {
+    const el = cardId && document.getElementById(cardId);
+    const target = el || document.getElementById('coaching-content');
+    if (target && target.scrollIntoView) target.scrollIntoView({ behavior: 'smooth', block: el ? 'start' : 'start' });
+    if (el) { el.classList.add('coach-flash'); setTimeout(() => el.classList.remove('coach-flash'), 1500); }
+  }, 70);
+}
+// Wire the long-press shortcuts onto the top-bar icons (idempotent; called once at boot).
+function initTopbarShortcuts() {
+  attachTopbarLongPress(document.getElementById('app-sound-btn'), topbarMuteAll, 'Mute all');
+  attachTopbarLongPress(document.getElementById('app-gloss-btn'), topbarGlossaryMuscle, 'Muscle');
+  attachTopbarLongPress(document.querySelector('.nav-tab[data-panel="panel-reference"]'), topbarReferenceCurrent, 'Recent');
+  attachTopbarLongPress(document.getElementById('app-settings-btn'), openSettingsToLastChanged, 'Last change');
+  attachTopbarLongPress(document.querySelector('.nav-tab[data-panel="panel-coaching"]'), topbarCoachingRelevant, 'Relevant');
+  // ❓ Help: long-press is intentionally the same as a tap — no separate shortcut attached.
+}
+
 // Resolve true when the user confirms. When hold-to-confirm is ON and a button is
 // supplied, the first tap arms a press-and-hold; otherwise a standard confirm() runs.
 function guardedConfirm(message, btnEl) {
@@ -4004,7 +4103,44 @@ function wireSettingsSearchOnce() {
   inp.addEventListener('input', () => { _settingsSearch = inp.value; applySettingsFilter(_settingsSearch); });
   const clr = document.getElementById('settings-search-clear');
   if (clr) clr.addEventListener('click', () => { inp.value = ''; _settingsSearch = ''; applySettingsFilter(''); inp.focus(); });
+  // feat 99 — remember the last-touched setting so the ⚙️ long-press can jump back to it. We record
+  // the nearest [id] (and its enclosing section) on any change/click inside the drawer body.
+  const body = document.getElementById('settings-drawer-body');
+  if (body) {
+    const note = (e) => {
+      const t = e.target;
+      if (!t || !(t.matches && t.matches('input,select,textarea,button,.snd-chip,[role="switch"]') || t.closest('.drawer-setting-row'))) return;
+      if (t.closest && (t.closest('.drawer-section-header') || t.closest('#settings-search-row'))) return; // not a setting
+      const idEl = (t.id ? t : (t.closest && t.closest('[id]'))) || null;
+      const sec = t.closest && t.closest('.drawer-section');
+      if (!idEl && !sec) return;
+      _lastSettingAnchor = { id: idEl ? idEl.id : null, sec: sec ? sec.dataset.sec : null };
+      state.lastSettingAnchor = _lastSettingAnchor; // device-local (not in SETTINGS_KEYS); persisted on next save
+    };
+    body.addEventListener('change', note, true);
+    body.addEventListener('click', note, true);
+  }
   _settingsSearchWired = true;
+}
+let _lastSettingAnchor = null;
+// feat 99 — open Settings and reveal the most recently changed control (expanding its section).
+function openSettingsToLastChanged() {
+  openSettingsDrawer();
+  const a = _lastSettingAnchor || state.lastSettingAnchor;
+  if (!a) { if (typeof toast === 'function') toast('No recent setting change'); return; }
+  setTimeout(() => {
+    let el = a.id ? document.getElementById(a.id) : null;
+    const sec = (el && el.closest('.drawer-section')) || (a.sec && document.querySelector('.drawer-section[data-sec="' + a.sec + '"]'));
+    if (sec && sec.classList.contains('collapsed')) {
+      sec.classList.remove('collapsed');
+      if (!state.settingsCollapse) state.settingsCollapse = {};
+      state.settingsCollapse[sec.dataset.sec] = false;
+    }
+    const target = el || sec;
+    if (target && target.scrollIntoView) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const row = (el && el.closest('.drawer-setting-row')) || target;
+    if (row) { row.classList.add('setting-flash'); setTimeout(() => row.classList.remove('setting-flash'), 1600); }
+  }, 80);
 }
 
 // Gym management section (feat 36/37/38)
@@ -11213,7 +11349,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 43 · 2026-06-05 22:13';
+const APP_BUILD = 'build 44 · 2026-06-05 22:21';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -11713,6 +11849,7 @@ setInterval(() => {
 render();
 ensureRestTick(); // feat 51 — start the global rest-timer tick
 refreshSoundIcon(); // feat 74 — reflect saved audio/haptics state in the top-bar icon
+initTopbarShortcuts(); // feat 99 — long-press shortcuts on the top-bar icons
 
 // Auto-load on startup — runs after initial render so UI is visible first
 // Uses setTimeout so handle permission prompt doesn't block page paint
