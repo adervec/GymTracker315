@@ -411,6 +411,13 @@ They share variation **UUIDs**.
   link (`#trk-all-time`) that drops the window. The outlier-review card (feat 98) was extracted to
   `buildOutlierReviewHtml()` and stays **filter-independent** (data hygiene is always surfaced). Covered by
   `test/historyfilter.spec.mjs`.
+- **Metronome mantra mode (feat 103):** a `metronome.mantra` toggle (Settings → Metronome) makes the metronome
+  **chant the current exercise's setup cues** on each beat instead of beeping — a looping, hypnotic form reminder.
+  `metroNextMantraTip(ex)` cycles `collectExerciseTips(ex)` (cue / tip / family setup·movement·mistakes) by a module
+  index; `metroSpeakNextTip` speaks it via `speechSynthesis`, guarded by `_metroSpeaking` (waits for the previous
+  utterance's `onend` so a fast tempo doesn't clip words — the cues self-pace to speech length) and the master audio
+  gate. The target exercise is the pending log exercise, else `currentOrLastExercise()`. `stopMetronome` cancels any
+  in-progress chant. Covered by `test/metronome.spec.mjs`.
 
 ---
 

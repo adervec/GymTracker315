@@ -4633,6 +4633,16 @@ function renderSettingsDrawer() {
       <input type="number" id="drawer-metro-accent" value="${metroCfg().accentEvery || 0}" min="0" max="16" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">🧘 Mantra mode</div>
+        <div class="drawer-setting-sub">Chant the exercise's setup cues on each beat instead of beeping — a hypnotic, looping form reminder</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${metroCfg().mantra ? 'active' : ''}" data-pref-metro="mantra-on">On</button>
+        <button class="drawer-pill ${!metroCfg().mantra ? 'active' : ''}" data-pref-metro="mantra-off">Off</button>
+      </div>
+    </div>
     <div class="drawer-data-row">
       <button class="drawer-btn" id="drawer-metro-test">▶ Test beat</button>
     </div>
@@ -4985,7 +4995,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefGlossView) { state.glossaryAsPage = btn.dataset.prefGlossView === 'page'; saveState(); toast('Glossary: ' + (state.glossaryAsPage ? 'full page' : 'slide-in')); }
       else if (btn.dataset.prefReadonly) { state.readonly = btn.dataset.prefReadonly === 'on'; saveState(); render(); toast('Read-only mode: ' + (state.readonly ? 'on' : 'off')); }
       else if (btn.dataset.prefTts) { state.ttsTips = btn.dataset.prefTts === 'on'; saveState(); if (state.ttsTips) toast('Tips will be read aloud'); else { try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} toast('Tip narration off'); } }
-      else if (btn.dataset.prefMetro) { const m = { ...metroCfg() }; const k = btn.dataset.prefMetro; if (k === 'audio-on') m.audio = true; else if (k === 'audio-off') m.audio = false; else if (k === 'haptic-on') m.haptic = true; else if (k === 'haptic-off') m.haptic = false; state.metronome = m; saveState(); }
+      else if (btn.dataset.prefMetro) { const m = { ...metroCfg() }; const k = btn.dataset.prefMetro; if (k === 'audio-on') m.audio = true; else if (k === 'audio-off') m.audio = false; else if (k === 'haptic-on') m.haptic = true; else if (k === 'haptic-off') m.haptic = false; else if (k === 'mantra-on') m.mantra = true; else if (k === 'mantra-off') m.mantra = false; state.metronome = m; saveState(); restartMetronomeIfRunning(); }
       else if (btn.dataset.prefBwWarn) { state.warnStaleBodyweight = btn.dataset.prefBwWarn === 'on'; saveState(); }
       else if (btn.dataset.prefBioWarn) { state.warnOtherBiometrics = btn.dataset.prefBioWarn === 'on'; saveState(); }
       else if (btn.dataset.dash) { state.dashboard[btn.dataset.dash] = btn.dataset.dashVal === 'on'; saveState(); }
@@ -11500,7 +11510,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 47 · 2026-06-05 22:34';
+const APP_BUILD = 'build 48 · 2026-06-05 22:40';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -11636,9 +11646,9 @@ function restBeep(freq, dur) {
 }
 
 /* ---- Workout metronome (feat 69) — customizable audio + haptic; on/off is per-workout (runtime only). ---- */
-let _metroId = null, _metroBeat = 0;
+let _metroId = null, _metroBeat = 0, _metroMantraIdx = 0, _metroSpeaking = false;
 function metroCfg() {
-  const d = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3 };
+  const d = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, mantra:false, setActiveOnly:false };
   return { ...d, ...(state.metronome || {}) };
 }
 function metronomeRunning() { return _metroId != null; }
@@ -11695,8 +11705,39 @@ function uiTapFeedback(e) {
     if (uf.audio !== false) uiClickSound();                      // uiClickSound checks the master audio gate
   } catch (_) {}
 }
+// feat 103 — "mantra mode": chant the next body-setup cue for the current exercise on each beat,
+// cycling through them on a loop. Waits for the previous utterance to finish so a fast tempo doesn't
+// clip the words (cues self-pace to speech length). Respects the master audio gate.
+function metroMantraExercise() {
+  return (typeof pending !== 'undefined' && pending && pending.varUuid) ? pending.varUuid : ((currentOrLastExercise() || {}).varUuid || null);
+}
+// Pure: return the next cue in the loop for an exercise (advancing the chant index), or null if none.
+function metroNextMantraTip(ex) {
+  const tips = ex ? collectExerciseTips(ex) : [];
+  if (!tips.length) return null;
+  const tip = tips[_metroMantraIdx % tips.length];
+  _metroMantraIdx++;
+  return tip;
+}
+function metroSpeakNextTip() {
+  try {
+    if (!sndAudioOn()) return;
+    if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
+    if (_metroSpeaking) return;
+    const tip = metroNextMantraTip(metroMantraExercise());
+    if (!tip) return;
+    const u = new SpeechSynthesisUtterance(String(tip).slice(0, 180));
+    u.rate = 0.92; u.pitch = 1; u.lang = 'en-US'; u.volume = sndVol();
+    _metroSpeaking = true;
+    u.onend = () => { _metroSpeaking = false; };
+    u.onerror = () => { _metroSpeaking = false; };
+    window.speechSynthesis.cancel();                 // never stack utterances
+    window.speechSynthesis.speak(u);
+  } catch (e) { _metroSpeaking = false; }
+}
 function metroTick() {
   const c = metroCfg();
+  if (c.mantra) { metroSpeakNextTip(); if (c.haptic) safeVibrate([18]); _metroBeat++; return; } // feat 103
   const accent = (c.accentEvery > 1) && (_metroBeat % c.accentEvery === 0);
   if (c.audio !== false) metroBeep(accent ? (c.accentFreq || 1320) : (c.freq || 880), c.vol);
   if (c.haptic) safeVibrate(accent ? [45] : [22]);
@@ -11712,6 +11753,8 @@ function startMetronome() {
 }
 function stopMetronome() {
   if (_metroId != null) { clearInterval(_metroId); _metroId = null; }
+  _metroSpeaking = false;                            // feat 103 — silence any in-progress chant
+  try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
   refreshMetronomeUI();
 }
 function toggleMetronome() { metronomeRunning() ? stopMetronome() : startMetronome(); }
