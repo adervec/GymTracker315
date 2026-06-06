@@ -495,6 +495,12 @@ They share variation **UUIDs**.
   save that *just completed* the plan (`planExecutionSummary().complete` flips false→true) closes to the dashboard and
   fires the complete dialog. A new `endingWorkout` arg keeps the end-workout "save & end" path on its old close-to-
   dashboard behavior (the Save button calls `saveSets()` with no event arg). Covered by `test/postsave.spec.mjs`.
+- **"All relevant trends" deep-link (feat 117):** a 📈 button on the **Reference** variation row and the **Log-Sets**
+  form calls `openTrendsFor(varUuid, subUuid)` → sets `trendFocus`, switches to the Trends tab, and renders a focused
+  view (`renderFocusedTrends`) with three cards from `buildFocusedTrends`: the exercise's **own subvariation** trend
+  (`getSeriesForKey`), its **muscle** trend (body-part `bp`-grouped), and its **muscle-group** trend (mega-category
+  grouped) — each via the existing `computeTrend`/`renderTrendCard`. A "← All trends" button clears the focus.
+  Covered by `test/trendfocus.spec.mjs`.
 
 ---
 

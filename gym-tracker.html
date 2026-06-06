@@ -8691,6 +8691,47 @@ function renderWeightsEditor() {
 
 /* --------- TRENDS TAB --------- */
 let trendView = 'overall'; // overall | movement | muscle | category | subvariation
+let trendFocus = null;     // feat 117 — {varUuid, subUuid}: focused "all relevant trends for this exercise" view
+
+// feat 117 — deep-link into the Trends tab focused on one exercise (from Reference or the Log-Sets form).
+function openTrendsFor(varUuid, subUuid) {
+  if (!varUuid) return;
+  trendFocus = { varUuid, subUuid: subUuid || null };
+  if (typeof closeLogModal === 'function') closeLogModal();
+  if (typeof closeGloss === 'function') closeGloss();
+  if (typeof goPanel === 'function') goPanel('panel-tracker');
+  currentTab = 'trends';
+  render();
+}
+// The exercise's own trend + its muscle (body-part) trend + its category (mega) trend.
+function buildFocusedTrends(varUuid, subUuid) {
+  const info = VAR_INDEX.get(varUuid);
+  if (!info) return [];
+  const items = [];
+  const own = getSeriesForKey(varUuid, subUuid);
+  items.push({ label: displayName(varUuid, subUuid), sublabel: 'This exercise / subvariation', series: own, trend: computeTrend(own) });
+  const bp = info.bp;
+  const muscleSeries = ((buildGroupedSeries(i => i.bp).find(g => g.id === bp)) || {}).series || [];
+  items.push({ label: (BP_LABELS[bp] || bp) + ' — muscle', sublabel: 'All exercises training this muscle', series: muscleSeries, trend: computeTrend(muscleSeries) });
+  const mega = info.family.mega;
+  const megaSeries = ((buildGroupedSeries(i => i.family.mega).find(g => g.id === mega)) || {}).series || [];
+  items.push({ label: (MEGA_LABELS[mega] || mega) + ' — muscle group', sublabel: 'All exercises in this category', series: megaSeries, trend: computeTrend(megaSeries) });
+  return items;
+}
+function renderFocusedTrends(main) {
+  const { varUuid, subUuid } = trendFocus;
+  const info = VAR_INDEX.get(varUuid);
+  const items = buildFocusedTrends(varUuid, subUuid);
+  let html = `<button class="ghost sm" id="trend-focus-back" style="margin-bottom:10px;">← All trends</button>
+    <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:2px;">📈 ${escapeHtml(displayName(varUuid, subUuid))}</div>
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">${info ? escapeHtml(info.family.title) + ' · ' + (BP_LABELS[info.bp] || info.bp) : ''} — all relevant trends</div>`;
+  items.forEach(it => {
+    if (it.series.length >= 2 && it.trend) html += renderTrendCard(it);
+    else html += `<div class="trend-card"><div class="trend-card-head"><div style="min-width:0;flex:1;"><div class="trend-card-title">${escapeHtml(it.label)}</div><div class="trend-card-sub">${escapeHtml(it.sublabel)} · need ≥ 2 sessions</div></div></div></div>`;
+  });
+  main.innerHTML = html;
+  document.getElementById('trend-focus-back')?.addEventListener('click', () => { trendFocus = null; render(); });
+}
 
 // Linear regression — returns { slope, intercept } where x is days, y is e1RM
 function linearRegression(points) {
@@ -9056,6 +9097,7 @@ function renderSessionTrends() {
 }
 
 function renderTrends(main) {
+  if (trendFocus && trendFocus.varUuid) { renderFocusedTrends(main); return; } // feat 117 — focused exercise view
   if (state.sessions.length === 0) {
     main.innerHTML = `<div class="empty"><div class="empty-large">📈</div>Log some sessions to see trends</div>`;
     return;
@@ -11203,7 +11245,7 @@ function renderSetsForm() {
         `Hold — log <b>weight × seconds</b> instead of reps.`
       }</div>` : ''}
       <div class="ex-note-row">${exNoteHtml}</div>
-      <div class="ex-media-row"><button class="ex-media-btn" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}" data-media-label="🎬 Reference videos">🎬 Reference videos${(() => { const n = _mediaCombinedCount(pending.varUuid, info.family && info.family.id); return n ? ` (${n})` : ''; })()}</button></div>
+      <div class="ex-media-row"><button class="ex-media-btn" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}" data-media-label="🎬 Reference videos">🎬 Reference videos${(() => { const n = _mediaCombinedCount(pending.varUuid, info.family && info.family.id); return n ? ` (${n})` : ''; })()}</button><button class="ex-media-btn" id="trk-ex-trends-btn" type="button">📈 Trends</button></div>
       ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
     </div>
 
@@ -11587,6 +11629,7 @@ function bindSetsForm() {
 
   // feat 75 — reference videos for this exercise (carousel / manager); includes whole-movement clips
   document.getElementById('trk-ex-media-btn')?.addEventListener('click', () => { const fi = VAR_INDEX.get(pending.varUuid); openExerciseMedia(pending.varUuid, null, fi && fi.family ? fi.family.id : null); });
+  document.getElementById('trk-ex-trends-btn')?.addEventListener('click', () => openTrendsFor(pending.varUuid, pending.subUuid)); // feat 117
 
   // feat 54 — per-exercise custom note: add / edit / view / clear from the header
   document.getElementById('trk-ex-note-edit')?.addEventListener('click', () => {
@@ -12072,7 +12115,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 59 · 2026-06-06 00:05';
+const APP_BUILD = 'build 60 · 2026-06-06 00:09';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -18853,7 +18896,7 @@ function renderRef() {
                       ${v.best ? `<div class="var-best">${v.best}</div>` : ''}
                       ${sub ? `<div class="var-sub-indicator" title="${sub.options.length} option${sub.options.length===1?'':'s'} available">⚙ ${sub.options.length}</div>` : ''}
                       ${v.uuid ? `<button class="ref-hide-btn" onclick="event.stopPropagation();refToggleVarHidden('${v.uuid}', this)">${isVarHidden(v.uuid) ? '🙈 Hidden' : '👁 Hide'}</button>` : ''}
-                      ${v.uuid ? `<button class="ref-media-btn" data-media-uuid="${v.uuid}" data-media-mov="${ex.id}" data-media-label="🎬" onclick="event.stopPropagation();openExerciseMedia('${v.uuid}', null, '${ex.id}')">🎬${_mediaCombinedCount(v.uuid, ex.id) ? ` (${_mediaCombinedCount(v.uuid, ex.id)})` : ''}</button>` : ''}
+                      ${v.uuid ? `<button class="ref-media-btn" data-media-uuid="${v.uuid}" data-media-mov="${ex.id}" data-media-label="🎬" onclick="event.stopPropagation();openExerciseMedia('${v.uuid}', null, '${ex.id}')">🎬${_mediaCombinedCount(v.uuid, ex.id) ? ` (${_mediaCombinedCount(v.uuid, ex.id)})` : ''}</button><button class="ref-media-btn" title="All relevant trends" onclick="event.stopPropagation();openTrendsFor('${v.uuid}')">📈</button>` : ''}
                     </div>
                   </div>
                   <div class="variation-body">
