@@ -477,6 +477,12 @@ They share variation **UUIDs**.
   absent or the same run). Because step→exercise matching is by exercise (`stepLoggedSets`/`optionMatchesVar`),
   progress is **retroactive across a mid-workout plan change** — sets logged under the old plan count toward the new
   plan's matching steps automatically. Covered by `test/plandash.spec.mjs`.
+- **Plan-aware picker (feat 112 + 115):** when a plan is active, the exercise picker shows its **incomplete steps as
+  chips** (`renderPicker`); tapping one sets `modalState.planStepFilter` so `filterVariations()` returns **exactly
+  that step's exercises** — the union of its options (`stepQualifyingVarSet`) — **overriding** the mega/sub/equip
+  pills (a set no normal filter could produce). A "✕ all exercises" chip clears it. From the **dashboard**, tapping a
+  `.plan-step` calls `openStepPicker(idx)` to open the same filtered picker (and seeds the suggested weight via
+  `_planLoadCtx`). The filter clears on pick / modal close. Covered by `test/planpicker.spec.mjs`.
 
 ---
 

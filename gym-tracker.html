@@ -745,7 +745,8 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-media-attached .pme-info { flex: 1; font-size: 12px; font-weight: 700; color: var(--accent); }
   .plan-watch { font-size: 11px; font-weight: 800; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 3px 10px; border-radius: 999px; cursor: pointer; font-family: inherit; margin-left: auto; }
   .plan-steps { display: flex; flex-direction: column; gap: 5px; }
-  .plan-step { padding: 6px 8px; border-radius: 7px; background: var(--bg3); border: 1px solid transparent; }
+  .plan-step { padding: 6px 8px; border-radius: 7px; background: var(--bg3); border: 1px solid transparent; cursor: pointer; }
+  .plan-step:hover { border-color: var(--border2); }
   .plan-step.current { border-color: var(--accent-border); background: var(--accent-bg); }
   .plan-step.done { opacity: 0.6; }
   .plan-step-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
@@ -1647,6 +1648,13 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .ex-note .ex-note-add { margin-top: 0; margin-left: 6px; font-size: 11px; padding: 3px 9px; }
   /* feat 107 — picker escape hatch back to the current exercise */
   .picker-back-current { display: block; width: 100%; padding: 9px 12px; margin-bottom: 8px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; color: var(--accent); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
+  /* feat 112/115 — plan-step chips at the top of the picker */
+  .picker-steps { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; padding: 8px 10px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 8px; }
+  .picker-steps-label { flex-basis: 100%; font-size: 11px; font-weight: 700; color: var(--accent); }
+  .picker-step-chip { font-size: 11.5px; font-weight: 600; background: var(--bg2); border: 1px solid var(--border2); color: var(--text); padding: 5px 9px; border-radius: 999px; cursor: pointer; font-family: inherit; }
+  .picker-step-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .picker-step-chip.clear { color: var(--text3); }
+  .picker-step-chip .psc-sets { font-size: 10px; opacity: 0.75; font-variant-numeric: tabular-nums; }
   .picker-back-current:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .ex-note-input { margin-top: 6px; font-size: 13px; resize: vertical; }
 
@@ -7075,7 +7083,9 @@ function renderLog(main) {
   main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
   main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
   main.querySelector('#plan-abandon-btn')?.addEventListener('click', () => { const s = getActiveSession(); if (s) { s.planId = undefined; saveState(); toast('Plan abandoned'); render(); } });
-  main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', () => { const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt], st.load); }));
+  main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt], st.load); }));
+  // feat 112 — tapping a step (not its specific option buttons) opens the picker filtered to that step's full exercise list
+  main.querySelectorAll('.plan-step[data-plan-step-idx]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('.plan-opt')) return; openStepPicker(+el.dataset.planStepIdx); }));
   // Superset link buttons (feat 39)
   main.querySelectorAll('.ss-link-btn').forEach(btn => {
     btn.addEventListener('click', e => {
@@ -10168,7 +10178,8 @@ let modalState = {
   pickerEquip: 'all',
   tipsExpanded: false, // session-level — inherits from state.tipsExpanded on modal open
   tipsMode: 'concise', // session-level — inherits from state.tipsMode on modal open
-  exNoteEditing: false // feat 54 — per-exercise note editor open in the header
+  exNoteEditing: false, // feat 54 — per-exercise note editor open in the header
+  planStepFilter: null // feat 112/115 — when set (step index), the picker shows ONLY that step's exercises
 };
 // feat 55 — jump straight into logging a suggested "remaining" exercise.
 function startExerciseFromSuggestion(varUuid) {
@@ -10184,6 +10195,17 @@ function startExerciseFromSuggestion(varUuid) {
   if (_planLoadCtx) { const sug = suggestedWeightForVar(varUuid, _planLoadCtx); if (sug != null) { pending.sets = [{ w: sug, r: '' }]; seedSetupForWeight(varUuid, sug); } _planLoadCtx = null; }
   savePending();
   openLogModal();
+}
+// feat 112 — open the picker filtered to a plan step's exact exercise list (from the dashboard).
+function openStepPicker(idx) {
+  if (roBlocked('pick an exercise')) return;
+  const plan = getActivePlan();
+  if (!plan || !plan.steps[idx]) return;
+  modalState.planStepFilter = idx;
+  _planLoadCtx = plan.steps[idx].load || 'moderate'; // seed the suggested weight when one is picked
+  openLogModal();
+  modalState.showPicker = true; // force the picker even if a pending exercise lingers
+  renderModal();
 }
 
 function openLogModal() {
@@ -10241,6 +10263,7 @@ function editExisting(sessionDate, varUuid, subUuid) {
 
 function closeLogModal() {
   modalState.open = false;
+  modalState.planStepFilter = null; // feat 112/115
   if (typeof closeNumpad === 'function') closeNumpad(); // feat 57 — don't leave the numpad sheet open
   document.getElementById('trk-modal').classList.remove('open');
   document.getElementById('trk-modal-backdrop').classList.remove('open');
@@ -10395,16 +10418,35 @@ function renderModal() {
 }
 
 /* ----- Picker ----- */
+// feat 112/115 — the exact set of variation UUIDs that satisfy a plan step (its options' union).
+function stepQualifyingVarSet(step) {
+  const set = new Set();
+  (step && step.options || []).forEach(o => {
+    if (o.type === 'variation' && o.uuid) set.add(o.uuid);
+    else if (o.type === 'movement') { const f = FAMILIES.find(x => x.id === o.familyId); if (f) (f.variations || []).forEach(v => { if (v.uuid) set.add(v.uuid); }); }
+  });
+  return set;
+}
+function activePlanStepFilterSet() {
+  if (modalState.planStepFilter == null) return null;
+  const plan = getActivePlan(); const st = plan && plan.steps[modalState.planStepFilter];
+  if (!st) { modalState.planStepFilter = null; return null; }
+  return stepQualifyingVarSet(st);
+}
 function filterVariations() {
   const q = modalState.pickerSearch.trim().toLowerCase();
+  const stepSet = activePlanStepFilterSet(); // feat 112/115 — overrides the mega/sub/equip pills
   const results = [];
   FAMILIES.forEach(f => {
-    const matchesMega = modalState.pickerMega === 'all' || f.mega === modalState.pickerMega;
-    const matchesSub = modalState.pickerSub === 'all' || f.sub === modalState.pickerSub;
-    const matchesEquip = modalState.pickerEquip === 'all' || (f.equip || []).includes(modalState.pickerEquip);
-    if (!matchesMega || !matchesSub || !matchesEquip) return;
+    if (!stepSet) {
+      const matchesMega = modalState.pickerMega === 'all' || f.mega === modalState.pickerMega;
+      const matchesSub = modalState.pickerSub === 'all' || f.sub === modalState.pickerSub;
+      const matchesEquip = modalState.pickerEquip === 'all' || (f.equip || []).includes(modalState.pickerEquip);
+      if (!matchesMega || !matchesSub || !matchesEquip) return;
+    }
     const matchingVars = f.variations.filter(v => {
       if (!varVisibleInPicker(f, v)) return false; // feat 23 + 36 (hide flags + active gym)
+      if (stepSet && !stepSet.has(v.uuid)) return false; // restrict to exactly the step's exercises
       if (!q) return true;
       return v.title.toLowerCase().includes(q) || f.title.toLowerCase().includes(q);
     });
@@ -10419,8 +10461,25 @@ function renderPicker() {
   const backCurrent = (pending.varUuid && !modalState.isEditing && !modalState.supersetMode)
     ? `<button type="button" class="picker-back-current" id="trk-picker-back-current">← Back to ${escapeHtml(displayName(pending.varUuid, pending.subUuid))}</button>`
     : '';
+  // feat 115 — when a plan is active, surface its INCOMPLETE steps as chips; picking one filters the
+  // list to exactly that step's exercises (overriding the pills). feat 112 reaches this via the dashboard.
+  let planSteps = '';
+  const plan = (!modalState.isEditing && !modalState.supersetMode) ? getActivePlan() : null;
+  if (plan) {
+    const sess = getActiveSession();
+    const chips = plan.steps.map((st, i) => {
+      const ss = stepStatus(sess, st);
+      if (ss.done) return '';
+      const label = (st.options || []).map(optionLabel).join(' / ') || 'step';
+      return `<button class="picker-step-chip ${modalState.planStepFilter === i ? 'active' : ''}" data-picker-step="${i}">Step ${i + 1}: ${escapeHtml(label)} <span class="psc-sets">${ss.logged}/${st.sets}</span></button>`;
+    }).filter(Boolean).join('');
+    if (chips || modalState.planStepFilter != null) {
+      planSteps = `<div class="picker-steps"><span class="picker-steps-label">📋 ${escapeHtml(plan.name)} — pick a step or browse all:</span>${chips}${modalState.planStepFilter != null ? `<button class="picker-step-chip clear" data-picker-step="clear">✕ all exercises</button>` : ''}</div>`;
+    }
+  }
   return `
     ${backCurrent}
+    ${planSteps}
     <div class="picker">
       ${modalState.supersetMode
         ? `<div class="ss2-banner">⇄ Superset — pick exercise <b>${modalState.supersetPick === 'b' ? 'B' : 'A'}</b> <span class="ss2-cancel" id="trk-ss2-cancel">cancel</span></div>`
@@ -10488,6 +10547,12 @@ function bindPicker() {
     modalState.showPicker = false;
     renderModal();
   });
+  // feat 112/115 — plan step chips: filter the picker to a step's exercises (or clear back to all)
+  document.querySelectorAll('[data-picker-step]').forEach(b => b.addEventListener('click', () => {
+    modalState.planStepFilter = b.dataset.pickerStep === 'clear' ? null : +b.dataset.pickerStep;
+    if (modalState.planStepFilter != null) { const plan = getActivePlan(); const st = plan && plan.steps[modalState.planStepFilter]; _planLoadCtx = st ? (st.load || 'moderate') : null; }
+    renderModal();
+  }));
   document.querySelectorAll('.pill[data-mega]').forEach(p => {
     p.addEventListener('click', () => {
       modalState.pickerMega = p.dataset.mega;
@@ -10554,6 +10619,7 @@ function bindPickerResults() {
       savePending();
       speakRandomTip(pending.varUuid); // feat 66 — annunciate a random tip for the picked exercise
       modalState.showPicker = false;
+      modalState.planStepFilter = null; // feat 112/115 — leaving the picker clears the step filter
       modalState.exNoteEditing = false; // feat 54
       renderModal();
       updateFAB();
@@ -11925,7 +11991,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 56 · 2026-06-05 23:52';
+const APP_BUILD = 'build 57 · 2026-06-05 23:57';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
