@@ -515,6 +515,12 @@ They share variation **UUIDs**.
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
   `renderVolumeSplit` draws the per-split bars (sets + %) plus a quick **push:pull** and **upper:lower** balance
   read. Covered by `test/volumesplit.spec.mjs`.
+- **Richer Log workout cards (feat 120):** each `renderSession` card now shows a **grade chip** (`sessionGrade` —
+  stored `finalScore` or live `computeWorkoutScore`), the **plan** it followed (explicit badge when `planId`, else an
+  **inferred split** via `sessionSplitLabel` — push/pull/legs/upper/full-body/mixed from the mega mix, marked
+  "implicit"), a **key-deltas** line (`sessionDeltaSummaryHtml`: 🏆 PR count, the biggest non-PR e1RM gainer, and #
+  regressions vs each exercise's prior best), and — when the gap to the previous logged workout exceeds **48h** — a
+  "🛌 rested N days" banner (`sessionGapTagHtml`). Covered by `test/logcards.spec.mjs`.
 
 ---
 

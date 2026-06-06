@@ -1168,6 +1168,19 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .session-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
   .session-date { font-size: 13px; font-weight: 700; color: #fff; }
   .session-time { font-size: 10.5px; color: #666; text-transform: uppercase; letter-spacing: 0.4px; }
+  .session-head-right { display: flex; align-items: center; gap: 8px; }
+  /* feat 120 — grade chip, implicit-split badge, key deltas, long-rest gap */
+  .session-grade { font-size: 12px; font-weight: 800; padding: 1px 8px; border-radius: 999px; line-height: 1.5; background: var(--bg4); color: var(--text2); }
+  .session-grade.g-A { background: color-mix(in srgb, var(--good) 22%, transparent); color: var(--good); }
+  .session-grade.g-B { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
+  .session-grade.g-C { background: var(--bg4); color: var(--text2); }
+  .session-grade.g-D, .session-grade.g-F { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .plan-hist-badge.implicit { color: var(--text2); background: var(--bg3); border-color: var(--border2); }
+  .session-deltas { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 10.5px; font-weight: 700; margin-top: 5px; }
+  .session-deltas .sd-pr { color: var(--good); }
+  .session-deltas .sd-up { color: var(--accent); }
+  .session-deltas .sd-down { color: var(--warn); }
+  .session-gap { font-size: 10.5px; font-weight: 600; color: var(--text3); margin: 0 0 6px; padding: 3px 8px; background: var(--bg3); border: 1px dashed var(--border2); border-radius: 8px; display: inline-block; }
   .session-ex { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 5px 0; font-size: 12.5px; align-items: center; cursor: pointer; }
   .session-ex:active { background: #1a1426; }
   .session-ex-name { color: #ccc; }
@@ -7929,15 +7942,80 @@ function cardioSummary(c) {
   if (c.effort) parts.push('effort ' + c.effort + '/5');
   return parts.join(' · ');
 }
+/* ---- feat 120 — richer Log workout cards: grade, implicit/explicit split, key deltas, long-rest gap ---- */
+function sessionGrade(session) {
+  if (session.finalScore && session.finalScore.grade) return session.finalScore;
+  return computeWorkoutScore(session);
+}
+// Infer a training split for a plan-less workout from its mega (push/pull/lower/…) mix.
+function sessionSplitLabel(session) {
+  const mega = {}; let strengthSets = 0, cardioSets = 0;
+  (session.exercises || []).forEach(ex => {
+    if (ex.cardio) { cardioSets++; return; }
+    const n = (ex.sets || []).length; if (!n) return;
+    strengthSets += n;
+    const info = VAR_INDEX.get(ex.varUuid); const m = info ? (info.family.mega || 'other') : 'other';
+    mega[m] = (mega[m] || 0) + n;
+  });
+  if (strengthSets === 0) return cardioSets ? 'Cardio' : null;
+  const NAME = { push:'Push', pull:'Pull', lower:'Legs', core:'Core', full:'Full-body' };
+  const push = mega.push || 0, pull = mega.pull || 0, lower = mega.lower || 0, full = mega.full || 0;
+  const top = Object.entries(mega).sort((a, b) => b[1] - a[1])[0];
+  if (full / strengthSets >= 0.5) return 'Full-body';
+  if (top[1] / strengthSets >= 0.6) return NAME[top[0]] || (top[0][0].toUpperCase() + top[0].slice(1));
+  if ((push + pull) / strengthSets >= 0.7 && lower / strengthSets < 0.2) return 'Upper';
+  if (lower / strengthSets >= 0.6) return 'Legs';
+  return 'Mixed';
+}
+// Headline progress vs each exercise's prior best: PR count, the biggest non-PR gainer, and # regressions.
+function sessionDeltaSummaryHtml(session) {
+  const sd = new Date(session.date).getTime();
+  const prs = []; let topUp = null, downs = 0;
+  (session.exercises || []).forEach(ex => {
+    if (ex.cardio) return;
+    let top = 0; (ex.sets || []).forEach(s => { if (s.w && s.r) { const o = estimated1RM(s.w, s.r); if (o > top) top = o; } });
+    if (!top) return;
+    const hist = getHistoryByKey(ex.varUuid, ex.subUuid).filter(h => new Date(h.date).getTime() < sd);
+    if (!hist.length) return; // first time — no delta
+    const prevTop = hist[0].topSet.oneRM;
+    const allBest = hist.reduce((m, h) => Math.max(m, h.topSet.oneRM), 0);
+    const delta = top - prevTop;
+    if (top > allBest) prs.push(displayName(ex.varUuid, ex.subUuid));
+    else if (delta > 0) { if (!topUp || delta > topUp.delta) topUp = { name: displayName(ex.varUuid, ex.subUuid), delta }; }
+    else if (delta < 0) downs++;
+  });
+  const parts = [];
+  if (prs.length) parts.push(`<span class="sd-pr">🏆 ${prs.length} PR${prs.length > 1 ? 's' : ''}</span>`);
+  if (topUp) parts.push(`<span class="sd-up">▲ ${escapeHtml(topUp.name)} +${topUp.delta}</span>`);
+  if (downs) parts.push(`<span class="sd-down">▼ ${downs}</span>`);
+  return parts.length ? `<div class="session-deltas">${parts.join(' · ')}</div>` : '';
+}
+function formatRestGap(ms) { const d = Math.round(ms / 86400000); return d >= 2 ? d + ' days' : Math.round(ms / 3600000) + 'h'; }
+// A "rested N days" banner when the gap to the previous logged workout exceeds 48h.
+function sessionGapTagHtml(session) {
+  const t = new Date(session.date).getTime();
+  let prev = null;
+  (state.sessions || []).forEach(s => { if (s === session || !(s.exercises || []).length) return; const st = new Date(s.date).getTime(); if (st < t && (!prev || st > new Date(prev.date).getTime())) prev = s; });
+  if (!prev) return '';
+  const gap = t - new Date(prev.date).getTime();
+  if (gap <= 48 * 3600 * 1000) return '';
+  return `<div class="session-gap" title="Time since your previous logged workout">🛌 ${formatRestGap(gap)} since your last workout</div>`;
+}
+
 function renderSession(session, isToday) {
-  // feat 71 — show plan usage (full / partial) in history when a plan was attached.
+  // feat 71/120 — show the plan (explicit when attached, else an inferred split) + a grade + key deltas.
   const _plan = session.planId ? getPlan(session.planId) : null;
   let planBadge = '';
   if (_plan) {
     const total = _plan.steps.length;
     const doneSteps = (_plan.steps || []).reduce((n, st) => n + (stepStatus(session, st).done ? 1 : 0), 0);
     planBadge = `<div class="plan-hist-badge">📋 ${escapeHtml(_plan.name)} · ${doneSteps}/${total} step${total===1?'':'s'}${(total > 0 && doneSteps >= total) ? ' ✓ full' : ' · partial'}</div>`;
+  } else {
+    const sl = sessionSplitLabel(session);
+    if (sl) planBadge = `<div class="plan-hist-badge implicit">≈ ${escapeHtml(sl)} day · implicit</div>`;
   }
+  const _sc = sessionGrade(session);
+  const gradeChip = (_sc && _sc.grade) ? `<span class="session-grade g-${_sc.grade[0]}" title="Workout grade ${_sc.points}/100">${_sc.grade}</span>` : '';
   const exHtml = session.exercises.map((ex, exIdx) => {
     const info = VAR_INDEX.get(ex.varUuid);
     // Cardio entry (feat 6) — time/metrics, no set pills, no volume
@@ -7984,14 +8062,17 @@ function renderSession(session, isToday) {
     </div>`;
   }).join('');
   return `<div class="session-item">
+    ${sessionGapTagHtml(session)}
     <div class="session-head">
       <div class="session-date">${fmtDate(session.date)}${isToday ? ' • Tap an exercise to edit' : ''}</div>
       <div class="session-head-right">
+        ${gradeChip}
         <div class="session-time">${fmtTime(session.date)}</div>
         <button class="session-share-btn" data-share-session="${session.date}" title="Export / share this workout" aria-label="Export workout">⤴</button>
       </div>
     </div>
     ${planBadge}
+    ${sessionDeltaSummaryHtml(session)}
     ${renderNotesCard(session)}
     ${exHtml || '<div style="color:#666;font-size:12px;">No exercises yet</div>'}
     ${renderHrChart(session)}
@@ -12187,7 +12268,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 63 · 2026-06-06 06:28';
+const APP_BUILD = 'build 64 · 2026-06-06 06:33';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
