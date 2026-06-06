@@ -461,6 +461,14 @@ They share variation **UUIDs**.
   that wrapper node** (with its already-attached event listeners riding along) into `#data-page-body` — leaving only
   an "📦 Open Data Management →" entry button in Settings. `openDataPage()`/`closeDataPage()` toggle it; re-renders
   (from data actions) rebuild + re-relocate, so the page stays live. Covered by `test/datapage.spec.mjs`.
+- **Desktop bulk media wizard (feat 110):** a desktop-only full-screen tool (`#media-wizard`, gated by
+  `isDesktopWizard()` = File-System-Access support or a wide fine-pointer viewport; entry button in the Data page's
+  Exercise-media section) to manage reference links across **every** exercise at once. `renderMediaWizard()` lists
+  variations (search, "with media only" toggle, capped at 150) each with their links; per link: an embeddable/link-only
+  badge, **↗ open** (new tab — the "test"), **→ move** (`reassignMedia` to another variation via an inline 2-char
+  search picker), **✕ delete**; per row an **add-link** input. **↻ Re-test all** (`mediaWizardRetestAll`) re-parses
+  every link to refresh `embedUrl`/platform. Reuses the existing `parseMediaUrl`/`add`/`removeExerciseMedia` API.
+  Covered by `test/mediawizard.spec.mjs`.
 
 ---
 
