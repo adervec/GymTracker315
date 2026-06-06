@@ -510,6 +510,11 @@ They share variation **UUIDs**.
   app single-file/offline (no bundled OCR engine). `renderAnatomyChart` was extended with the view toggle +
   upload/import/remove; `anatomyImportMap` validates + clamps the map. Covered by `test/anatomy.spec.mjs` (app) and
   `check.mjs` py_compile (tool). *(Approach chosen by the user: desktop helper over a multi-MB in-app WASM OCR.)*
+- **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
+  aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
+  core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
+  `renderVolumeSplit` draws the per-split bars (sets + %) plus a quick **push:pull** and **upper:lower** balance
+  read. Covered by `test/volumesplit.spec.mjs`.
 
 ---
 

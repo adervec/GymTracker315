@@ -5865,6 +5865,26 @@ function getWeeklyVolume(weekOffset = 0) {
   return bpSets;
 }
 
+// Sets per training split (mega category: push / pull / lower / core / full / …) for a given week.
+function getWeeklySplitVolume(weekOffset = 0) {
+  const thisWeekStart = startOfWeek(new Date());
+  const targetWeekStart = thisWeekStart - (weekOffset * 7 * 86400000);
+  const targetWeekEnd = targetWeekStart + (7 * 86400000);
+  const megaSets = {};
+  state.sessions.forEach(s => {
+    const sd = new Date(s.date).getTime();
+    if (sd < targetWeekStart || sd >= targetWeekEnd) return;
+    s.exercises.forEach(ex => {
+      if (ex.cardio || !ex.sets || !ex.sets.length) return; // strength sets only
+      const info = VAR_INDEX.get(ex.varUuid);
+      if (!info) return;
+      const mega = (info.family && info.family.mega) || 'other';
+      megaSets[mega] = (megaSets[mega] || 0) + ex.sets.length;
+    });
+  });
+  return megaSets;
+}
+
 /* ============================================================
    FAB STATE
    ============================================================ */
@@ -8542,6 +8562,7 @@ function renderVolume(main) {
     <div class="sub-tab ${volWeekOffset >= 2 ? 'active' : ''}" data-offset="2">Older</div>
   </div>
   <div class="sub-tabs" style="margin-top:6px;">
+    <div class="sub-tab ${volLevel==='split'?'active':''}" data-vollevel="split">Split</div>
     <div class="sub-tab ${volLevel==='group'?'active':''}" data-vollevel="group">Group</div>
     <div class="sub-tab ${volLevel==='muscle'?'active':''}" data-vollevel="muscle">Muscle</div>
     <div class="sub-tab ${volLevel==='head'?'active':''}" data-vollevel="head">Heads</div>
@@ -8549,7 +8570,9 @@ function renderVolume(main) {
 
   if (!categoryHidden('cardio')) html += renderCardioGoals(volWeekOffset); // feat 7
 
-  if (volLevel === 'group') {
+  if (volLevel === 'split') {
+    html += renderVolumeSplit(weekDate);
+  } else if (volLevel === 'group') {
     html += renderVolumeGroup(weekDate);
   } else {
     html += renderVolumeMuscle(volLevel, weekDate);
@@ -8578,6 +8601,37 @@ function renderVolume(main) {
     state.muscleWeightPreset = 'custom';
     saveState(); render();
   }));
+}
+
+// Sets-per-split (push/pull/lower/…) view, with a quick push:pull / upper:lower balance read.
+function renderVolumeSplit(weekDate) {
+  const vol = getWeeklySplitVolume(volWeekOffset);
+  const cap = m => MEGA_LABELS[m] || (m.charAt(0).toUpperCase() + m.slice(1));
+  let html = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
+    Sets per split · Week of ${weekDate.toLocaleDateString(undefined, {month:'short',day:'numeric'})}
+  </div>`;
+  const total = Object.values(vol).reduce((a, b) => a + b, 0);
+  if (!total) return html + `<div class="empty"><div class="empty-large">📊</div>No sets logged this week</div>`;
+  const ORDER = ['push', 'pull', 'lower', 'core', 'full'];
+  const megas = ORDER.filter(m => vol[m]).concat(Object.keys(vol).filter(m => !ORDER.includes(m)).sort());
+  const max = Math.max.apply(null, megas.map(m => vol[m] || 0).concat([10]));
+  html += '<div class="vol-grid">';
+  megas.forEach(m => {
+    const sets = vol[m] || 0;
+    const pct = Math.round((sets / total) * 100);
+    html += `<div class="vol-row">
+      <div class="vol-label">${escapeHtml(cap(m))}</div>
+      <div class="vol-bar-track"><div class="vol-bar-fill" style="width:${(sets / max) * 100}%"></div></div>
+      <div class="vol-num">${sets} <span style="font-size:9px;color:var(--text3);">${pct}%</span></div>
+    </div>`;
+  });
+  html += '</div>';
+  const push = vol.push || 0, pull = vol.pull || 0, lower = vol.lower || 0, upper = push + pull;
+  const tips = [];
+  if (push && pull) { const r = push / pull; tips.push(`Push : Pull ≈ <b>${r.toFixed(2)} : 1</b>${(r > 1.35 || r < 0.74) ? ' — aim closer to 1:1' : ' — balanced'}`); }
+  if (upper && lower) { const r = upper / lower; tips.push(`Upper : Lower ≈ <b>${r.toFixed(2)} : 1</b>`); }
+  if (tips.length) html += `<div class="suggestion" style="margin-top:14px;"><div class="suggestion-label">Split balance</div><div class="suggestion-text">${tips.join(' · ')}</div></div>`;
+  return html;
 }
 
 function renderVolumeGroup(weekDate) {
@@ -12133,7 +12187,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 62 · 2026-06-06 05:53';
+const APP_BUILD = 'build 63 · 2026-06-06 06:28';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
