@@ -1467,6 +1467,16 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .outlier-actions { display: flex; gap: 6px; flex-shrink: 0; }
   .outlier-actions button { padding: 6px 11px; font-size: 11.5px; }
 
+  /* feat 102 — History filter bar (time window + body part / movement / variation + search) */
+  .hist-filter { margin-bottom: 12px; display: flex; flex-direction: column; gap: 7px; }
+  .hist-filter-row { display: flex; gap: 7px; flex-wrap: wrap; }
+  .hist-sel { flex: 1 1 auto; min-width: 0; background: #141414; color: var(--text); border: 1px solid #2a2a2a; border-radius: 8px; padding: 8px 9px; font-size: 12px; font-family: inherit; -webkit-appearance: none; appearance: none; }
+  .hist-q { flex: 1 1 140px; min-width: 0; background: #141414; color: var(--text); border: 1px solid #2a2a2a; border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit; }
+  .hist-summary { font-size: 11px; color: #888; margin: 2px 0 10px; font-variant-numeric: tabular-nums; }
+  .hist-detail-range { font-size: 11.5px; color: #999; margin: -4px 0 12px; }
+  .hist-detail-range b { color: var(--text); }
+  .link-btn { background: none; border: none; color: var(--accent); font: inherit; font-size: 11.5px; cursor: pointer; padding: 0; text-decoration: underline; }
+
   .exercise-history { margin-top: 14px; }
   .eh-date { color: #888; }
   .eh-top-set { color: #fff; font-variant-numeric: tabular-nums; }
@@ -2816,6 +2826,7 @@ function normalizeState() {
       restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false },
     bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
     stravaAutoLoad: { enabled:false, mode:'folder' }, // feat 89
+    historyFilter: { range:'all', bp:'', family:'', varKey:'', q:'' }, // feat 102 — device-local view filter
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   if (!Array.isArray(state.bodyComp)) state.bodyComp = [];
@@ -7597,45 +7608,155 @@ function deleteOutlierSet(rec) {
   render();
 }
 
-function renderHistory(main) {
-  if (historyView === 'detail' && historyKey) { renderExerciseDetail(main, historyKey); return; }
-
-  // Aggregate per tracking key
+/* ============================================================
+   feat 102 — HISTORY FILTERS: time-bound the records + filter by body part / movement / variation +
+   free-text search, with an all-time quick link from a variation's detail.
+   ============================================================ */
+const HISTORY_RANGES = [
+  { v:'all',   label:'All time',   days:0 },
+  { v:'year',  label:'Past year',  days:365 },
+  { v:'6mo',   label:'Past 6 mo',  days:182 },
+  { v:'3mo',   label:'Past 3 mo',  days:91 },
+  { v:'month', label:'Past month', days:30 },
+  { v:'week',  label:'Past week',  days:7 },
+];
+function historyFilter() { return state.historyFilter || (state.historyFilter = { range:'all', bp:'', family:'', varKey:'', q:'' }); }
+function historyRangeLabel(v) { const r = HISTORY_RANGES.find(x => x.v === v); return r ? r.label : 'All time'; }
+function historyCutoff(range) { const r = HISTORY_RANGES.find(x => x.v === (range || historyFilter().range)); return (!r || !r.days) ? 0 : Date.now() - r.days * 86400000; }
+function historyFilterActive() { const f = historyFilter(); return f.range !== 'all' || !!f.bp || !!f.family || !!f.varKey || !!(f.q && f.q.trim()); }
+// Does a strength exercise pass the active body-part / movement / variation / text filter?
+function exPassesHistoryFilter(ex, f) {
+  const info = VAR_INDEX.get(ex.varUuid);
+  if (f.bp && (!info || info.bp !== f.bp)) return false;
+  if (f.family && (!info || info.family.id !== f.family)) return false;
+  if (f.varKey && trackingKey(ex.varUuid, ex.subUuid) !== f.varKey) return false;
+  if (f.q && f.q.trim()) {
+    const hay = ((info ? info.variation.title + ' ' + info.family.title : '') + ' ' + displayName(ex.varUuid, ex.subUuid)).toLowerCase();
+    if (!hay.includes(f.q.trim().toLowerCase())) return false;
+  }
+  return true;
+}
+// Aggregate per tracking-key stats over the sessions/sets that pass the time window + filters.
+function historyAggregate() {
+  const f = historyFilter();
+  const cutoff = historyCutoff();
   const stats = {};
+  let sessionCount = 0, setCount = 0;
   state.sessions.forEach(s => {
+    const sd = new Date(s.date).getTime();
+    if (cutoff && sd < cutoff) return;
+    let counted = false;
     s.exercises.forEach(ex => {
-      if (ex.cardio || !ex.sets || ex.sets.length === 0) return; // cardio excluded from progression history (feat 6)
+      if (ex.cardio || !ex.sets || ex.sets.length === 0) return;
+      if (!exPassesHistoryFilter(ex, f)) return;
       const key = trackingKey(ex.varUuid, ex.subUuid);
       if (!stats[key]) stats[key] = { varUuid: ex.varUuid, subUuid: ex.subUuid, count: 0, lastDate: 0, best1RM: 0, lastSet: null };
       stats[key].count += ex.sets.length;
-      const sd = new Date(s.date).getTime();
+      setCount += ex.sets.length; counted = true;
       if (sd > stats[key].lastDate) {
         stats[key].lastDate = sd;
-        const topSet = ex.sets.reduce((top, set) => {
-          const oneRM = estimated1RM(set.w, set.r);
-          return (!top || oneRM > top.oneRM) ? { ...set, oneRM } : top;
-        }, null);
-        stats[key].lastSet = topSet;
+        stats[key].lastSet = ex.sets.reduce((top, set) => { const o = estimated1RM(set.w, set.r); return (!top || o > top.oneRM) ? { ...set, oneRM: o } : top; }, null);
       }
-      ex.sets.forEach(set => {
-        const oneRM = estimated1RM(set.w, set.r);
-        if (oneRM > stats[key].best1RM) stats[key].best1RM = oneRM;
-      });
+      ex.sets.forEach(set => { const o = estimated1RM(set.w, set.r); if (o > stats[key].best1RM) stats[key].best1RM = o; });
+    });
+    if (counted) sessionCount++;
+  });
+  return { stats, sessionCount, setCount };
+}
+// The body-part / movement / variation option lists present in history within the current window,
+// honoring parent selections so the dropdowns cascade (bp -> movement -> variation).
+function historyFilterOptions() {
+  const f = historyFilter();
+  const cutoff = historyCutoff();
+  const bps = new Map(), fams = new Map(), vars = new Map();
+  state.sessions.forEach(s => {
+    const sd = new Date(s.date).getTime();
+    if (cutoff && sd < cutoff) return;
+    s.exercises.forEach(ex => {
+      if (ex.cardio || !ex.sets || ex.sets.length === 0) return;
+      const info = VAR_INDEX.get(ex.varUuid);
+      if (!info) return;
+      bps.set(info.bp, BP_LABELS[info.bp] || info.bp);
+      if (!f.bp || info.bp === f.bp) fams.set(info.family.id, info.family.title);
+      if ((!f.bp || info.bp === f.bp) && (!f.family || info.family.id === f.family)) vars.set(trackingKey(ex.varUuid, ex.subUuid), displayName(ex.varUuid, ex.subUuid));
     });
   });
+  return { bps, fams, vars };
+}
+function historyFilterBarHtml() {
+  const f = historyFilter();
+  const { bps, fams, vars } = historyFilterOptions();
+  const opt = (val, cur, label) => `<option value="${escapeAttr(val)}" ${val === cur ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+  const mapOpts = (m, cur) => [...m.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([v, l]) => opt(v, cur, l)).join('');
+  return `<div class="hist-filter">
+    <div class="hist-filter-row">
+      <select id="hist-range" class="hist-sel" aria-label="Time range">${HISTORY_RANGES.map(r => opt(r.v, f.range, r.label)).join('')}</select>
+      <select id="hist-bp" class="hist-sel" aria-label="Muscle group"><option value="">All muscles</option>${mapOpts(bps, f.bp)}</select>
+      <select id="hist-family" class="hist-sel" aria-label="Movement"><option value="">All movements</option>${mapOpts(fams, f.family)}</select>
+      <select id="hist-var" class="hist-sel" aria-label="Variation"><option value="">All variations</option>${mapOpts(vars, f.varKey)}</select>
+    </div>
+    <div class="hist-filter-row">
+      <input id="hist-q" class="hist-q" type="text" inputmode="search" placeholder="🔍 Search exercises…" value="${escapeAttr(f.q || '')}">
+      ${historyFilterActive() ? `<button id="hist-clear" class="ghost sm">Clear</button>` : ''}
+    </div>
+  </div>`;
+}
+let _histQT = null;
+function bindHistoryFilterBar(main) {
+  const f = historyFilter();
+  const full = () => { saveState(); renderHistory(main); };
+  const rng = main.querySelector('#hist-range'); if (rng) rng.addEventListener('change', () => { f.range = rng.value; full(); });
+  const bp = main.querySelector('#hist-bp'); if (bp) bp.addEventListener('change', () => { f.bp = bp.value; f.family = ''; f.varKey = ''; full(); });
+  const fam = main.querySelector('#hist-family'); if (fam) fam.addEventListener('change', () => { f.family = fam.value; f.varKey = ''; full(); });
+  const vr = main.querySelector('#hist-var'); if (vr) vr.addEventListener('change', () => { f.varKey = vr.value; full(); });
+  const clr = main.querySelector('#hist-clear'); if (clr) clr.addEventListener('click', () => { state.historyFilter = { range:'all', bp:'', family:'', varKey:'', q:'' }; full(); });
+  // Text search updates only the list (keeps the input focused) and is debounced.
+  const q = main.querySelector('#hist-q');
+  if (q) q.addEventListener('input', () => { f.q = q.value; clearTimeout(_histQT); _histQT = setTimeout(() => { saveState(); fillHistoryList(main); }, 200); });
+}
+// Build the outlier-review HTML (feat 98) and cache the live refs; returns '' when none.
+function buildOutlierReviewHtml() {
+  _historyOutliers = findOutlierSets();
+  if (!_historyOutliers.length) return '';
+  const rows = _historyOutliers.map((rec, i) => {
+    const info = VAR_INDEX.get(rec.varUuid);
+    const subOpt = rec.subUuid && info && info.variation.subvariation
+      ? info.variation.subvariation.options.find(o => o.uuid === rec.subUuid) : null;
+    const nm = (info ? info.variation.title : 'Unknown') + (subOpt ? ' · ' + subOpt.label : '');
+    return `<div class="outlier-row">
+      <div class="outlier-info">
+        <div class="outlier-name">${escapeHtml(nm)}</div>
+        <div class="outlier-detail"><b>${rec.set.w}</b>${state.unit}×<b>${rec.set.r}</b> · ${fmtDate(rec.date)} · ${rec.reasons.join('; ')}</div>
+      </div>
+      <div class="outlier-actions">
+        <button class="ghost sm outlier-keep" data-i="${i}">Keep</button>
+        <button class="danger sm outlier-del" data-i="${i}">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+  const n = _historyOutliers.length;
+  return `<div class="outlier-review">
+    <div class="outlier-head">⚠️ ${n} possible outlier set${n === 1 ? '' : 's'}</div>
+    <div class="outlier-sub">These look like data-entry slips (a mistyped weight or rep count) and can skew your charts and progression. Keep the ones that are real, or delete the typos.</div>
+    <div class="outlier-list">${rows}</div>
+  </div>`;
+}
+// Fill ONLY the #hist-list container from the current filter (used by the live text search + full render).
+function fillHistoryList(main) {
+  const listEl = main.querySelector('#hist-list');
+  if (!listEl) return;
+  const { stats, sessionCount, setCount } = historyAggregate();
   const sorted = Object.entries(stats).sort((a, b) => b[1].lastDate - a[1].lastDate);
-
-  let html = '';
+  const f = historyFilter();
+  let html = `<div class="hist-summary">${sorted.length} exercise${sorted.length === 1 ? '' : 's'} · ${setCount} set${setCount === 1 ? '' : 's'} · ${sessionCount} session${sessionCount === 1 ? '' : 's'}${f.range !== 'all' ? ' · ' + historyRangeLabel(f.range) : ''}</div>`;
   if (sorted.length === 0) {
-    html = `<div class="empty"><div class="empty-large">📊</div>No exercises logged yet</div>`;
+    html += `<div class="empty"><div class="empty-large">🔍</div>${historyFilterActive() ? 'No exercises match these filters' : 'No exercises logged yet'}</div>`;
   } else {
     sorted.forEach(([key, s]) => {
-      const name = displayName(s.varUuid, s.subUuid);
       const family = familyTitle(s.varUuid);
       const info = VAR_INDEX.get(s.varUuid);
       const subOpt = s.subUuid && info && info.variation.subvariation
-        ? info.variation.subvariation.options.find(o => o.uuid === s.subUuid)
-        : null;
+        ? info.variation.subvariation.options.find(o => o.uuid === s.subUuid) : null;
       html += `<div class="ex-summary" data-key="${escapeAttr(key)}" data-varuuid="${s.varUuid}" ${s.subUuid ? `data-subuuid="${s.subUuid}"` : ''}>
         <div class="ex-summary-left">
           <div class="ex-summary-name">${escapeHtml(info ? info.variation.title : 'Unknown')}${subOpt ? `<span class="sub-tag">${escapeHtml(subOpt.label)}</span>` : ''}</div>
@@ -7647,62 +7768,44 @@ function renderHistory(main) {
         </div>
       </div>`;
     });
-    // Delete all button at the bottom
-    const totalSessions = state.sessions.length;
-    const totalSets = state.sessions.reduce((c, ss) => c + ss.exercises.reduce((c2, e) => c2 + e.sets.length, 0), 0);
-    html += `<div style="margin-top:24px;padding-top:14px;border-top:1px solid #1f1f1f;">
-      <div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;font-weight:600;">Danger Zone</div>
-      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.5;">
-        Delete all history (${totalSessions} session${totalSessions===1?'':'s'} · ${totalSets} sets). You'll be offered a final export first.
-      </div>
-      <button class="danger full" id="trk-delete-all-history-btn">🗑️ Delete All History…</button>
-    </div>`;
   }
-  // feat 98 — prepend the extreme-outlier review (above the exercise list; shown only when any are found)
-  _historyOutliers = findOutlierSets();
-  if (_historyOutliers.length) {
-    const rows = _historyOutliers.map((rec, i) => {
-      const info = VAR_INDEX.get(rec.varUuid);
-      const subOpt = rec.subUuid && info && info.variation.subvariation
-        ? info.variation.subvariation.options.find(o => o.uuid === rec.subUuid) : null;
-      const nm = (info ? info.variation.title : 'Unknown') + (subOpt ? ' · ' + subOpt.label : '');
-      return `<div class="outlier-row">
-        <div class="outlier-info">
-          <div class="outlier-name">${escapeHtml(nm)}</div>
-          <div class="outlier-detail"><b>${rec.set.w}</b>${state.unit}×<b>${rec.set.r}</b> · ${fmtDate(rec.date)} · ${rec.reasons.join('; ')}</div>
-        </div>
-        <div class="outlier-actions">
-          <button class="ghost sm outlier-keep" data-i="${i}">Keep</button>
-          <button class="danger sm outlier-del" data-i="${i}">Delete</button>
-        </div>
-      </div>`;
-    }).join('');
-    const n = _historyOutliers.length;
-    html = `<div class="outlier-review">
-      <div class="outlier-head">⚠️ ${n} possible outlier set${n === 1 ? '' : 's'}</div>
-      <div class="outlier-sub">These look like data-entry slips (a mistyped weight or rep count) and can skew your charts and progression. Keep the ones that are real, or delete the typos.</div>
-      <div class="outlier-list">${rows}</div>
-    </div>` + html;
-  }
-  main.innerHTML = html;
-  main.querySelectorAll('.outlier-keep').forEach(b => b.addEventListener('click', () => {
-    const rec = _historyOutliers[+b.dataset.i]; if (rec) keepOutlierSet(rec);
-  }));
-  main.querySelectorAll('.outlier-del').forEach(b => b.addEventListener('click', () => {
-    const rec = _historyOutliers[+b.dataset.i]; if (rec) deleteOutlierSet(rec);
-  }));
-  main.querySelectorAll('.ex-summary').forEach(el => {
+  listEl.innerHTML = html;
+  listEl.querySelectorAll('.ex-summary').forEach(el => {
     el.addEventListener('click', () => {
       historyKey = { varUuid: el.dataset.varuuid, subUuid: el.dataset.subuuid || null };
       historyView = 'detail';
       render();
     });
   });
-  // Delete all handler
-  const delAllBtn = document.getElementById('trk-delete-all-history-btn');
-  if (delAllBtn) {
-    delAllBtn.addEventListener('click', deleteAllHistory);
+}
+
+function renderHistory(main) {
+  if (historyView === 'detail' && historyKey) { renderExerciseDetail(main, historyKey); return; }
+
+  // Is there any strength history at all? (a globally-empty history shows the empty state, not filters)
+  const hasAnyStrength = state.sessions.some(s => s.exercises.some(e => !e.cardio && e.sets && e.sets.length));
+  const outlierHtml = buildOutlierReviewHtml(); // feat 98 — global (filter-independent) data-hygiene card
+  if (!hasAnyStrength) {
+    main.innerHTML = outlierHtml + `<div class="empty"><div class="empty-large">📊</div>No exercises logged yet</div>`;
+  } else {
+    const totalSessions = state.sessions.length;
+    const totalSets = state.sessions.reduce((c, ss) => c + ss.exercises.reduce((c2, e) => c2 + e.sets.length, 0), 0);
+    const dangerHtml = `<div style="margin-top:24px;padding-top:14px;border-top:1px solid #1f1f1f;">
+      <div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;font-weight:600;">Danger Zone</div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.5;">
+        Delete all history (${totalSessions} session${totalSessions === 1 ? '' : 's'} · ${totalSets} sets). You'll be offered a final export first.
+      </div>
+      <button class="danger full" id="trk-delete-all-history-btn">🗑️ Delete All History…</button>
+    </div>`;
+    main.innerHTML = outlierHtml + historyFilterBarHtml() + `<div id="hist-list"></div>` + dangerHtml;
+    bindHistoryFilterBar(main);
+    fillHistoryList(main);
+    const delAllBtn = document.getElementById('trk-delete-all-history-btn');
+    if (delAllBtn) delAllBtn.addEventListener('click', deleteAllHistory);
   }
+  // Outlier keep/delete bindings (present whenever the card is shown)
+  main.querySelectorAll('.outlier-keep').forEach(b => b.addEventListener('click', () => { const rec = _historyOutliers[+b.dataset.i]; if (rec) keepOutlierSet(rec); }));
+  main.querySelectorAll('.outlier-del').forEach(b => b.addEventListener('click', () => { const rec = _historyOutliers[+b.dataset.i]; if (rec) deleteOutlierSet(rec); }));
 }
 
 // Delete all history with optional final export
@@ -7740,7 +7843,11 @@ function finalConfirmDeleteAll() {
 }
 
 function renderExerciseDetail(main, key) {
-  const history = getHistoryByKey(key.varUuid, key.subUuid);
+  // feat 102 — respect the active time window; offer a one-tap jump to the full all-time history.
+  const f = historyFilter();
+  const cutoff = historyCutoff();
+  const allHistory = getHistoryByKey(key.varUuid, key.subUuid);
+  const history = cutoff ? allHistory.filter(h => new Date(h.date).getTime() >= cutoff) : allHistory;
   const suggestion = getProgressionSuggestion(key.varUuid, key.subUuid);
   const best1RM = history.reduce((max, h) => Math.max(max, h.topSet.oneRM), 0);
   const totalSets = history.reduce((s, h) => s + h.sets.length, 0);
@@ -7750,10 +7857,14 @@ function renderExerciseDetail(main, key) {
     : null;
   const fullName = info ? info.variation.title : 'Unknown';
   const family = info ? info.family.title : '';
+  const rangeChip = (f.range !== 'all')
+    ? `<div class="hist-detail-range">Showing <b>${historyRangeLabel(f.range)}</b> · <button class="link-btn" id="trk-all-time">🕘 View all-time (${allHistory.length})</button></div>`
+    : '';
 
   let html = `<button class="ghost sm" id="trk-back-to-list" style="margin-bottom:10px;">← All Exercises</button>
   <div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:2px;">${escapeHtml(fullName)}${subOpt ? `<span class="sub-tag">${escapeHtml(subOpt.label)}</span>` : ''}</div>
   <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">${escapeHtml(family)}${info ? ` · ${BP_LABELS[info.bp] || info.bp}` : ''}</div>
+  ${rangeChip}
   <div class="stats-grid">
     <div class="stat-tile"><div class="stat-label">Best e1RM</div><div class="stat-value">${best1RM}</div><div class="stat-sub">${state.unit}</div></div>
     <div class="stat-tile"><div class="stat-label">Total Sets</div><div class="stat-value">${totalSets}</div><div class="stat-sub">${history.length} sessions</div></div>
@@ -7789,6 +7900,12 @@ function renderExerciseDetail(main, key) {
   document.getElementById('trk-back-to-list').addEventListener('click', () => {
     historyView = 'list';
     historyKey = null;
+    render();
+  });
+  // feat 102 — drop the time window to see this exercise's entire history
+  document.getElementById('trk-all-time')?.addEventListener('click', () => {
+    historyFilter().range = 'all';
+    saveState();
     render();
   });
   // Wire edit & delete
@@ -11383,7 +11500,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 46 · 2026-06-05 22:27';
+const APP_BUILD = 'build 47 · 2026-06-05 22:34';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

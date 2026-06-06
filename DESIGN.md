@@ -400,6 +400,17 @@ They share variation **UUIDs**.
   chars) so byte size is unchanged. **Safe** because persisted user data keys by `subUuid`, never the word
   `subscription`; the rename is confined to the static `FAMILIES`/`exercises` datasets and code. (Aligns with the
   already-"subvariation" `workoutControls.mixSubvariations` control.)
+- **History filtering + time bounds + all-time link (feat 102):** the History list gains a filter bar —
+  a **time window** (`HISTORY_RANGES`: all / year / 6mo / 3mo / month / week) plus cascading **body part → movement
+  → variation** dropdowns and a debounced **text search**. State lives in `state.historyFilter
+  {range,bp,family,varKey,q}` (device-local, not in `SETTINGS_KEYS`). `historyAggregate()` rebuilds the per-key
+  stats over only the sessions/sets passing the window + filters (`exPassesHistoryFilter`); `historyFilterOptions()`
+  builds the dropdown options present in-window, honoring parent selections so they cascade. The list is split into
+  its own `#hist-list` so the text search re-renders **list-only** (keeps input focus); dropdown changes do a full
+  re-render. A variation's **detail** now respects the window and, when one is active, shows a **🕘 View all-time**
+  link (`#trk-all-time`) that drops the window. The outlier-review card (feat 98) was extracted to
+  `buildOutlierReviewHtml()` and stays **filter-independent** (data hygiene is always surfaced). Covered by
+  `test/historyfilter.spec.mjs`.
 
 ---
 
