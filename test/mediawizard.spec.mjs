@@ -72,3 +72,21 @@ test('isDesktopWizard returns a boolean', async ({ page }) => {
   const t = await page.evaluate(() => typeof isDesktopWizard());
   expect(t).toBe('boolean');
 });
+
+test('the media-modal close button (✕) is a centered 30×30 box (feat 131)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let u = null; for (const [k] of VAR_INDEX) { u = k; break; }
+    openExerciseMedia(u); // renders the modal head, which always carries .media-close
+    const btn = document.querySelector('#media-modal .media-close');
+    if (!btn) return null;
+    const cs = getComputedStyle(btn);
+    return { display: cs.display, alignItems: cs.alignItems, justifyContent: cs.justifyContent, lineHeight: cs.lineHeight, w: btn.offsetWidth, h: btn.offsetHeight, txt: btn.textContent.trim() };
+  });
+  expect(r).not.toBeNull();
+  expect(r.display).toMatch(/flex$/);          // (inline-)flex box so the glyph centers
+  expect(r.alignItems).toBe('center');         // vertical centering — the bug was the ✕ sitting low/off
+  expect(r.justifyContent).toBe('center');     // horizontal centering
+  expect(r.w).toBe(30);
+  expect(r.h).toBe(30);
+  expect(r.txt).toBe('✕');
+});

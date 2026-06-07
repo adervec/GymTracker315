@@ -84,3 +84,30 @@ test('renderPlanGuide shows the progress line, ETA/ETC and a prior-run compariso
   expect(html).toContain('Last:');
   expect(html).toMatch(/ETC|ETA/);
 });
+
+test('renderPlanGuide is collapsible — header toggle hides the body per state.dashboard.planCollapsed (feat 127)', async ({ page }) => {
+  await seedPlan(page);
+  const r = await page.evaluate(() => {
+    state.sessions = [{ id: 'today', date: new Date().toISOString(), planId: 'P', exercises: [] }];
+    state.dashboard = { ...state.dashboard, planCollapsed: false };
+    const expanded = renderPlanGuide(state.sessions[0]);
+    state.dashboard = { ...state.dashboard, planCollapsed: true };
+    const collapsed = renderPlanGuide(state.sessions[0]);
+    return {
+      hasToggle: expanded.includes('id="plan-collapse-toggle"'),
+      expandedBodyShown: expanded.includes('<div class="plan-card-body">'),
+      expandedChevron: expanded.includes('▾'),
+      collapsedBodyHidden: collapsed.includes('<div class="plan-card-body" hidden>'),
+      collapsedChevron: collapsed.includes('▸'),
+      collapsedClass: /class="plan-card[^"]*collapsed"/.test(collapsed),
+      progressVisibleWhenCollapsed: collapsed.includes('plan-progress-line'), // glanceable summary stays
+    };
+  });
+  expect(r.hasToggle).toBe(true);
+  expect(r.expandedBodyShown).toBe(true);
+  expect(r.expandedChevron).toBe(true);
+  expect(r.collapsedBodyHidden).toBe(true);
+  expect(r.collapsedChevron).toBe(true);
+  expect(r.collapsedClass).toBe(true);
+  expect(r.progressVisibleWhenCollapsed).toBe(true);
+});

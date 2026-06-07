@@ -510,6 +510,35 @@ They share variation **UUIDs**.
   app single-file/offline (no bundled OCR engine). `renderAnatomyChart` was extended with the view toggle +
   upload/import/remove; `anatomyImportMap` validates + clamps the map. Covered by `test/anatomy.spec.mjs` (app) and
   `check.mjs` py_compile (tool). *(Approach chosen by the user: desktop helper over a multi-MB in-app WASM OCR.)*
+- **Collapsible plan card (feat 127):** the active-workout plan card (`renderPlanGuide`) folds down to just its
+  name + progress line. Tapping `.plan-card-head` (keyboard-operable, `role=button`) toggles
+  `state.dashboard.planCollapsed` (persisted; a chevron flips ▾/▸) and re-renders; the bulky `.plan-card-body`
+  (meta, comparison, steps, complete-banner, actions) gets the `hidden` attribute while the glanceable progress
+  line stays visible. Covered by `test/plandash.spec.mjs`.
+- **More mobility content (feat 128):** 24 new bodyweight movements drawn from yoga, pilates, tai chi and martial
+  arts — 7 **dynamic** (Sun Salutation flow, Tai Chi Cloud Hands, Cossack flow, Pilates roll-up, shoulder
+  pass-throughs, Frankenstein walks, Spiderman lunge) added to `mobility-warmup`; 8 **static** stretches (down dog,
+  cobra/up-dog, seated fold, lizard, frog, seated twist, cow-face arms, standing side-bend) added to
+  `static-stretch`; and a brand-new **Isometric Holds** family (`iso-poses`) with 9 held poses (chair, warrior II,
+  boat, tree, horse stance/Mabu, Zhan Zhuang standing post, goddess, bridge, locust). Like every exercise these are
+  hand-maintained in **both** representations — the detailed `exercises` array (drives the Reference panel's
+  setup/movement/mistakes/programming) and the lean minified `FAMILIES` array (drives the picker / logging /
+  `VAR_INDEX`) — plus a tier-map entry for the new family. Covered by `test/coaching.spec.mjs` (present + indexed in
+  both, well-formed).
+- **Per-category export + data summary (feat 129 / 130):** the Data Management page gains a **"By category"** block
+  driven by one registry, `dataCats()` — Workouts, Body composition, Sleep, Strava, Plans, Exercise media, Custom
+  variations, Settings. Each row shows the **count + date range** (`dataCatRange`) and offers export as **app-readable
+  JSON** (a state slice — `{sessions,…}` for workouts, or a settings-type slice stamped with a fresh `savedAt` so
+  `applyImport` merge re-adopts it) or a **human-readable CSV** (`csvWorkouts` one-row-per-set incl. cardio +
+  e1RM, `csvBodyComp`, `csvSleep`, `csvStrava`, `csvPlans`; map-shaped categories are JSON-only). `exportCategoryJson`
+  / `exportCategoryCsv` download a `gymtracker-<key>_<ts>.(json|csv)`; the table is built by `dataCategoryTableHtml`
+  and rides along into the relocated Data page. Covered by `test/dataexport.spec.mjs` (counts/ranges, slice shapes,
+  CSV rows, JSON re-import round-trip, rendered buttons).
+- **Centered modal close button (feat 131):** `.media-head .media-close` (the ✕ on the media carousel and the Strava
+  reconciliation modal) was a fixed 30×30 box with no flex centering, so the glyph sat low/off-center. Added
+  `display:inline-flex; align-items:center; justify-content:center; line-height:1; padding:0`. An audit of the other
+  ✕/× controls found this was the only fixed-square one missing centering (the picker clear button was already
+  flex-centered; the rest are padding-sized). Covered by `test/mediawizard.spec.mjs` (computed-style centering).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
@@ -536,6 +565,43 @@ They share variation **UUIDs**.
   `openNotesModal(date, onSaved)` callback; **Save** (relabeled "Save & End Workout") runs the chained `finish()` to
   end the workout, while closing the modal without saving cancels the end (`closeNotesModal` clears `_notesOnSaved`).
   Long-press End / plan-complete "End" still skip straight through (`skipConfirm`). Covered by `test/endnotes.spec.mjs`.
+- **Cloud sync — Google Drive (feat 124, plan Phase 3):** automatic cross-device sync that works on the **phone**
+  (unlike the desktop-only File-System Auto-Save/Load). A provider-agnostic engine sits behind the feat-95
+  last-write-wins merge: a `SyncProvider` only reads/writes **one** canonical state JSON and `applyImport(remote,
+  'merge')` reconciles edits/deletes (session `id` + `updatedAt` + tombstones). `saveState()` → `cloudPushTrigger()`
+  (1.2 s debounce); boot does a silent `cloudPullNow`. Every push is **read-merge-write** (re-pull + merge before
+  upload) so no device clobbers another. The first backend, **Google Drive**, uses the GIS browser token model
+  (scope `drive.appdata` — a private per-app folder, light consent), stores one `gymtracker-state.json`, loads the
+  Google Identity SDK **dynamically** on connect (keeps the app single-file + the no-external-`<script src>` lint),
+  holds the access token **in memory only** (never persisted) and caches the Drive fileId in IndexedDB (`bioIdb*`
+  `cloudGoogleFileId`). `state.cloudSync` is **device-local — intentionally NOT in `SETTINGS_KEYS`** so connection
+  state never travels cross-device (each device authorizes with its own browser-scoped consent). The public OAuth
+  client id lives in `SYNC_CLIENTS.google` (empty until the user does the one-time free Google Cloud setup — see
+  README → Cloud Sync; until then the Settings card shows the setup steps instead of a Connect button). The engine
+  is provider-pluggable: a custom-endpoint / Dropbox / OneDrive backend can be added by registering another entry in
+  `CLOUD_PROVIDERS` with no engine changes. Covered by `test/sync.spec.mjs` (stubbed GIS + routed Drive REST:
+  connect → find-or-create → push; pull → LWW merge; device-local-by-default).
+- **Cloud sync — more backends (feat 125):** three more entries in `CLOUD_PROVIDERS`, no engine change. **Custom
+  endpoint** (`kind:'endpoint'`) — the universal/Apple-friendly option: `GET`/`PUT` one JSON to a user-supplied
+  URL with an optional bearer token (`state.cloudSync.perProvider.custom`, local only); ships a ~30-line Cloudflare
+  Worker template [`tools/sync-worker.js`](tools/sync-worker.js). **Dropbox** + **OneDrive** (`kind:'oauth'`) share
+  a hand-rolled **OAuth 2.0 PKCE redirect** flow (no SDK, no client secret): `cloudOAuthBegin` stashes a PKCE
+  verifier + redirects to consent; on return the app boots with `?code=…`, `cloudOAuthHandleRedirect` exchanges it
+  (`cloudOAuthExchange`) and finishes via the shared `cloudFinishConnect`. Access tokens stay in memory
+  (`_cloudOAuthTokens`); **refresh tokens** persist in IndexedDB (`bioIdb*` `cloud_<provider>_rt`) so a reload
+  re-syncs silently (`cloudOAuthToken` → `cloudOAuthForceRefresh` on expiry/401). Dropbox uses the content API
+  (App-folder, `/gymtracker-state.json`); OneDrive uses Graph `special/approot` (personal accounts only —
+  `Files.ReadWrite.AppFolder`). `cloudConnect` returns early when a provider's `connect()` reports `'redirecting'`.
+  The Settings card became a provider picker (`cloudSyncCardHtml`) listing every backend + custom URL/token inputs +
+  a Setup-help disclosure. iCloud stays out of scope (needs a paid Apple Developer account + CloudKit). Covered by
+  `test/sync.spec.mjs` (PKCE digest; custom connect/push/pull with bearer auth; simulated Dropbox+OneDrive
+  redirect-return → token exchange → push; registry + multi-provider picker render).
+- **Two-hour seed plans (feat 126):** four high-volume `SEED_PLANS` for longer sessions — **Full Body Blast**,
+  **Leg Marathon**, **Chest & Back**, and **Shoulders & Arms** (all "(2h)") — each tuned to ~45 sets across
+  10–11 steps so `estimatePlanMinutes` (`round((2.5·sets + steps)/15)·15`) reports **~120 min**. They use only
+  existing movement families (`_mvOpt` ids), so they inherit gym-feasibility, picker matching and progress
+  tracking for free, and auto-append for existing users via the `seededPlanIds` merge in `normalizeState`.
+  Covered by `test/app.spec.mjs` (present + 120-min estimate + every step references a real family).
 
 ---
 
