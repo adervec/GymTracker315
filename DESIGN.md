@@ -577,6 +577,15 @@ They share variation **UUIDs**.
   with the add-on *Toppers* unchanged. Pin profiles persist `{inc, first, max}` (old `{inc}`-only profiles still
   load via fallbacks). Covered by `test/gymstable.spec.mjs` (defaults, `pinStep`, active-gym resolution incl.
   wrong-unit ignore, pin default state, slider render, gym-editor render + `parseSizeList`/`ensureGymStable`).
+- **"Needs a spotter" flag (feat 136):** a discrete amber **🦺 spot** badge on the exercises where a free-weight
+  barbell can pin/trap you at failure. `spotterMatch(v, fam)` is a precision-biased heuristic (reads only `.title`/
+  `.id`, so it works on either the `exercises` or `FAMILIES` representation): it flags the bench/chest-press and
+  squat families plus `back squat`/`skullcrusher` by name, then subtracts everything guarded or self-rescuable
+  (smith, machine, fixed, cable, dumbbell, kettlebell, band, floor press, hack, goblet, belt/landmine, front/split/
+  overhead/bodyweight squats, …). It lands on ~26 of 816 variations — all genuine barbell bench presses + loaded
+  back/front squats + skullcrusher. The badge (`spotterBadge`) renders in the **exercise picker** rows and the
+  **Reference** variation rows; `needsSpotter(uuid)` is the VAR_INDEX wrapper. Covered by `test/spotter.spec.mjs`
+  (flag/no-flag sets, precision-count sanity, badge render, picker render).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
