@@ -724,7 +724,10 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-bar-none { font-size: 12px; color: var(--text3); }
   .plan-pick-btn { font-size: 12px; font-weight: 700; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 6px 11px; border-radius: 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
   .plan-card { margin: 0 0 10px; padding: 10px 12px; background: var(--bg2); border: 1px solid var(--border2); border-left: 3px solid var(--accent); border-radius: 10px; }
-  .plan-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .plan-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; cursor: pointer; user-select: none; }
+  .plan-card-head:hover .plan-card-name { color: var(--accent); }
+  .plan-collapse-chevron { display: inline-block; font-size: 11px; color: var(--text3); }
+  .plan-card.collapsed .plan-card-head { margin-bottom: 4px; }
   .plan-card-name { font-size: 14px; font-weight: 700; color: var(--text); }
   .plan-card-desc { font-size: 11.5px; color: var(--text2); line-height: 1.5; margin: -2px 0 8px; }
   .plan-step-desc { font-size: 11px; color: var(--text3); line-height: 1.45; margin-top: 4px; }
@@ -2965,7 +2968,7 @@ let pending = {
 function normalizeState() {
   const d = {
     profile: { name:'', dob:'', heightCm:null, gender:'' },
-    dashboard: { stats:true, timeline:true, liveScore:true, pace:true, physique:true },
+    dashboard: { stats:true, timeline:true, liveScore:true, pace:true, physique:true, planCollapsed:false },
     longPressConfirm: { enabled:false, ms:1500 },
     workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
       restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true },
@@ -7495,16 +7498,24 @@ function renderPlanGuide(session) {
     ? `ETC ~${eta.remainingMin} min · ETA ${eta.etaTime.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}`
     : 'plan complete 🎉';
   const progLine = `<div class="plan-progress-line"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · <b>${sum.stepsDone}/${sum.stepsTotal}</b> steps${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}</div>`;
-  return `<div class="plan-card${sum.complete ? ' complete' : ''}">
-    <div class="plan-card-head"><span class="plan-card-name">📋 ${escapeHtml(plan.name)}</span><span class="plan-card-eta">${headEta}</span></div>
-    <div class="plan-card-meta"><span class="plan-intensity" title="Intensity ${planIntensity(plan)}/5">${intensityDots(plan)}</span><span class="plan-est">~${estimatePlanMinutes(plan)} min · ${planTotalSets(plan)} sets</span>${plan.media ? `<button class="plan-watch" id="plan-watch-btn">🎬 Watch</button>` : ''}</div>
+  // feat 127 — collapsible: tap the header to fold the plan card down to just its name + progress line.
+  const collapsed = !!(state.dashboard && state.dashboard.planCollapsed);
+  return `<div class="plan-card${sum.complete ? ' complete' : ''}${collapsed ? ' collapsed' : ''}">
+    <div class="plan-card-head" id="plan-collapse-toggle" role="button" tabindex="0" title="${collapsed ? 'Expand plan' : 'Collapse plan'}"><span class="plan-card-name"><span class="plan-collapse-chevron">${collapsed ? '▸' : '▾'}</span> 📋 ${escapeHtml(plan.name)}</span><span class="plan-card-eta">${headEta}</span></div>
     ${progLine}
+    <div class="plan-card-body"${collapsed ? ' hidden' : ''}>
+    <div class="plan-card-meta"><span class="plan-intensity" title="Intensity ${planIntensity(plan)}/5">${intensityDots(plan)}</span><span class="plan-est">~${estimatePlanMinutes(plan)} min · ${planTotalSets(plan)} sets</span>${plan.media ? `<button class="plan-watch" id="plan-watch-btn">🎬 Watch</button>` : ''}</div>
     ${compareHtml}
     ${plan.desc ? `<div class="plan-card-desc">${escapeHtml(plan.desc)}</div>` : ''}
     <div class="plan-steps">${steps}</div>
     ${sum.complete ? `<div class="plan-complete-banner">🎉 Plan complete!<span class="pcb-actions"><button class="plan-act primary" id="plan-complete-end">🏁 End</button><button class="plan-act" id="plan-complete-summary">Summary</button></span></div>` : ''}
     <div class="plan-card-actions"><button class="plan-act" id="plan-change-btn">Change plan</button><button class="plan-act danger" id="plan-abandon-btn">Abandon</button></div>
+    </div>
   </div>`;
+}
+function togglePlanCollapsed() {
+  state.dashboard = { ...state.dashboard, planCollapsed: !(state.dashboard && state.dashboard.planCollapsed) };
+  saveState(); render();
 }
 
 function renderLog(main) {
@@ -7696,6 +7707,8 @@ function renderLog(main) {
     el.addEventListener('click', () => startExerciseFromSuggestion(el.dataset.remvar));
   });
   // Workout plan (feat 70)
+  main.querySelector('#plan-collapse-toggle')?.addEventListener('click', togglePlanCollapsed); // feat 127
+  main.querySelector('#plan-collapse-toggle')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePlanCollapsed(); } });
   main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
   main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
   main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
@@ -12853,7 +12866,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 75 · 2026-06-07 13:03';
+const APP_BUILD = 'build 76 · 2026-06-07 13:08';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
