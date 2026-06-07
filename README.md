@@ -33,6 +33,45 @@ guides, copies `gym-tracker.html` → `index.html`, adds the manifest / service 
 the SW cache version from the build number, then publishes to Pages. One-time setup: in the repo,
 **Settings → Pages → Source: GitHub Actions**. Regenerate icons with `node tools/make-icons.mjs`.
 
+## Cloud Sync (cross-device)
+
+Keep your log in sync between **phone and desktop** automatically — the in-gym path the desktop-only
+File-System Auto-Save/Load can't cover. Every change is **merged**, not overwritten: sessions reconcile by stable
+`id` + last-modified, with delete tracking (last-write-wins union), so no device clobbers another. **Export JSON**
+stays as your manual backup. Enable it in **Settings → Data Management → ☁ Cloud Sync**.
+
+The sync engine is **provider-pluggable** (one active backend at a time); the first backend is **Google Drive**,
+which keeps a single private file in your Drive's hidden *app-data folder* (scope `drive.appdata` only — the app
+can't see the rest of your Drive). The OAuth token lives in memory only and is never written to disk; nothing is
+sent anywhere except your own Google Drive.
+
+### One-time Google setup (free, ~5 min)
+
+Google Drive needs a public OAuth **client ID** that only you can create (it ties the app to *your* Google Cloud
+project). It's safe to commit — it's an identifier, not a secret.
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/) → create a project (any name).
+2. **APIs & Services → Library →** enable the **Google Drive API**.
+3. **APIs & Services → OAuth consent screen →** User type **External** → fill the app name + your email →
+   **Publishing status: Testing** → under **Test users**, add your own Google account. (Testing mode is fine for
+   personal use; the only catch is a periodic re-consent.)
+4. **APIs & Services → Credentials → Create credentials → OAuth client ID → Web application.** Under
+   **Authorized JavaScript origins** add both:
+   - `https://adervec.github.io` (the deployed PWA)
+   - `http://localhost:4321` (the local `npm run serve` origin)
+5. Copy the **Client ID** (looks like `…-xxxx.apps.googleusercontent.com`) and paste it into
+   [`gym-tracker.html`](gym-tracker.html) at the `SYNC_CLIENTS` constant:
+   ```js
+   const SYNC_CLIENTS = { google: 'PASTE-YOUR-CLIENT-ID.apps.googleusercontent.com' };
+   ```
+6. Reload the app → **Settings → Data Management → ☁ Cloud Sync → Connect Google Drive**, grant the consent
+   popup once, and you're synced. Repeat the **Connect** step once per device/browser (each authorizes with its
+   own consent — connection state is deliberately *not* synced).
+
+Until the client ID is set, the Cloud Sync card shows these setup steps instead of a Connect button. Adding more
+backends later (custom endpoint, Dropbox, OneDrive) is just another entry in `CLOUD_PROVIDERS` — the merge engine
+is unchanged.
+
 ## Develop & test
 
 The app ships as plain HTML, but the repo carries a two-layer test suite so a regression can't

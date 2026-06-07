@@ -536,6 +536,22 @@ They share variation **UUIDs**.
   `openNotesModal(date, onSaved)` callback; **Save** (relabeled "Save & End Workout") runs the chained `finish()` to
   end the workout, while closing the modal without saving cancels the end (`closeNotesModal` clears `_notesOnSaved`).
   Long-press End / plan-complete "End" still skip straight through (`skipConfirm`). Covered by `test/endnotes.spec.mjs`.
+- **Cloud sync — Google Drive (feat 124, plan Phase 3):** automatic cross-device sync that works on the **phone**
+  (unlike the desktop-only File-System Auto-Save/Load). A provider-agnostic engine sits behind the feat-95
+  last-write-wins merge: a `SyncProvider` only reads/writes **one** canonical state JSON and `applyImport(remote,
+  'merge')` reconciles edits/deletes (session `id` + `updatedAt` + tombstones). `saveState()` → `cloudPushTrigger()`
+  (1.2 s debounce); boot does a silent `cloudPullNow`. Every push is **read-merge-write** (re-pull + merge before
+  upload) so no device clobbers another. The first backend, **Google Drive**, uses the GIS browser token model
+  (scope `drive.appdata` — a private per-app folder, light consent), stores one `gymtracker-state.json`, loads the
+  Google Identity SDK **dynamically** on connect (keeps the app single-file + the no-external-`<script src>` lint),
+  holds the access token **in memory only** (never persisted) and caches the Drive fileId in IndexedDB (`bioIdb*`
+  `cloudGoogleFileId`). `state.cloudSync` is **device-local — intentionally NOT in `SETTINGS_KEYS`** so connection
+  state never travels cross-device (each device authorizes with its own browser-scoped consent). The public OAuth
+  client id lives in `SYNC_CLIENTS.google` (empty until the user does the one-time free Google Cloud setup — see
+  README → Cloud Sync; until then the Settings card shows the setup steps instead of a Connect button). The engine
+  is provider-pluggable: a custom-endpoint / Dropbox / OneDrive backend can be added by registering another entry in
+  `CLOUD_PROVIDERS` with no engine changes. Covered by `test/sync.spec.mjs` (stubbed GIS + routed Drive REST:
+  connect → find-or-create → push; pull → LWW merge; device-local-by-default).
 
 ---
 
