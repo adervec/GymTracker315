@@ -1,0 +1,51 @@
+name: Deploy (GitHub Pages)
+
+on:
+  # Manual-only until the repo goes public + Pages is enabled
+  # (Settings -> Pages -> Source: GitHub Actions). To publish on every push, add:
+  #   push:
+  #     branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Static checks (fast gate before publishing)
+        run: node test/check.mjs
+      - name: Embed guides + assemble the site
+        run: |
+          node tools/embed-guides.mjs
+          mkdir -p _site
+          cp gym-tracker.html _site/index.html
+          cp manifest.webmanifest sw.js icon-192.png icon-512.png icon-512-maskable.png apple-touch-icon.png _site/
+          BUILD=$(grep -oE 'build [0-9]+' gym-tracker.html | head -1 | grep -oE '[0-9]+')
+          sed -i "s/__BUILD__/${BUILD:-0}/" _site/sw.js
+          echo "Assembled _site for build ${BUILD:-0}"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

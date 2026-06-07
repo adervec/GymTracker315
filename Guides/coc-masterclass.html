@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CoC Masterclass</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0a0a0a; color: #e8e8e8; line-height: 1.5; }
+
+  /* HEADER */
+  header { position: sticky; top: 0; background: #0a0a0a; border-bottom: 1px solid #222; padding: 12px 14px; z-index: 100; }
+  .title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .logo { width: 28px; height: 28px; flex-shrink: 0; background: linear-gradient(135deg, #c9a227, #8a6a14); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 900; color: #0a0a0a; font-size: 14px; font-family: "Georgia", serif; }
+  h1 { font-size: 17px; margin: 0; color: #fff; font-weight: 700; letter-spacing: 0.3px; }
+  .sub { font-size: 10.5px; color: #777; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 1px; }
+
+  /* TAB NAV */
+  .tabs { display: flex; gap: 5px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .tab { padding: 8px 13px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 18px; color: #aaa; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; text-transform: uppercase; letter-spacing: 0.4px; flex-shrink: 0; }
+  .tab.active { background: #c9a227; color: #0a0a0a; border-color: #c9a227; }
+
+  main { padding: 14px; padding-bottom: 80px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* CARDS GENERIC */
+  .card { background: #141414; border: 1px solid #222; border-radius: 11px; margin-bottom: 10px; overflow: hidden; }
+  .card-h { padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; gap: 10px; }
+  .card-h:active { background: #1a1a1a; }
+  .card-body { display: none; padding: 0 14px 14px 14px; border-top: 1px solid #222; }
+  .card.open .card-body { display: block; }
+  .card.open .chev { transform: rotate(90deg); }
+  .chev { color: #555; font-size: 12px; transition: transform 0.2s; flex-shrink: 0; }
+  .card-title { font-size: 15px; font-weight: 600; color: #fff; }
+  .card-tag { font-size: 10.5px; color: #888; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
+
+  /* SECTIONS */
+  .section { margin-top: 13px; }
+  .section-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.8px; color: #c9a227; margin-bottom: 6px; font-weight: 700; }
+  .section-title.warn { color: #e2944a; }
+  .section-title.tip { color: #5fd068; }
+  .section-title.danger { color: #e25555; }
+  .section-title.cue { color: #80b8ff; }
+  .section-content { font-size: 13.5px; color: #d0d0d0; }
+  .section-content ul { margin: 0; padding-left: 17px; }
+  .section-content li { margin-bottom: 4px; }
+  .section-content strong { color: #fff; }
+
+  /* CUE BLOCK */
+  .cue-box { background: #1a1a1a; border-left: 3px solid #c9a227; padding: 10px 12px; border-radius: 5px; margin-top: 10px; font-size: 13px; font-style: italic; color: #d8c896; }
+
+  /* INTRO / OVERVIEW */
+  .hero { background: linear-gradient(160deg, #1a1410 0%, #0d0d0d 100%); border: 1px solid #2a2218; border-radius: 14px; padding: 18px 16px; margin-bottom: 14px; }
+  .hero h2 { font-size: 20px; margin: 0 0 4px 0; color: #fff; font-weight: 700; letter-spacing: -0.2px; }
+  .hero .lede { font-size: 13.5px; color: #b8b8b8; margin-bottom: 12px; }
+  .hero .principle { background: #0a0a0a; border-left: 3px solid #c9a227; padding: 9px 12px; border-radius: 4px; font-size: 12.5px; color: #d4b876; font-style: italic; }
+
+  /* COC LEVEL TABLE */
+  .level-table { background: #141414; border: 1px solid #222; border-radius: 11px; overflow: hidden; margin-bottom: 12px; }
+  .level-row { display: grid; grid-template-columns: 50px 1fr 80px; gap: 8px; padding: 11px 12px; border-bottom: 1px solid #1f1f1f; align-items: center; }
+  .level-row:last-child { border-bottom: none; }
+  .level-row.header { background: #1a1a1a; font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: #777; font-weight: 700; padding: 8px 12px; }
+  .lvl-name { font-size: 14px; font-weight: 700; color: #fff; }
+  .lvl-name .sub-name { font-size: 10.5px; font-weight: 500; color: #888; display: block; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 1px; }
+  .lvl-desc { font-size: 11.5px; color: #aaa; line-height: 1.4; }
+  .lvl-force { font-size: 13px; font-weight: 700; color: #c9a227; text-align: right; }
+  .lvl-force .lbs { font-size: 9.5px; color: #777; display: block; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 1px; }
+
+  /* PHASE BOXES (program) */
+  .phase { background: #141414; border: 1px solid #222; border-radius: 11px; margin-bottom: 10px; padding: 14px; }
+  .phase-num { font-size: 10.5px; color: #c9a227; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+  .phase h3 { font-size: 16px; margin: 2px 0 8px 0; color: #fff; font-weight: 700; }
+  .phase-meta { display: flex; gap: 14px; font-size: 11px; color: #888; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .phase-meta strong { color: #c9a227; font-weight: 700; }
+
+  /* WORKOUT BLOCKS */
+  .wk-block { background: #1a1a1a; border-radius: 7px; padding: 10px 12px; margin-bottom: 6px; }
+  .wk-day { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: #80b8ff; font-weight: 700; margin-bottom: 5px; }
+  .wk-sets { font-size: 12.5px; color: #d0d0d0; }
+  .wk-sets b { color: #fff; }
+  .wk-note { font-size: 11.5px; color: #888; margin-top: 4px; font-style: italic; }
+
+  /* TWO COL */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+
+  /* TECHNIQUE STEPS */
+  .step { display: flex; gap: 11px; padding: 10px 0; border-bottom: 1px solid #1f1f1f; }
+  .step:last-child { border-bottom: none; }
+  .step-num { width: 26px; height: 26px; flex-shrink: 0; background: #c9a227; color: #0a0a0a; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; }
+  .step-content { flex: 1; }
+  .step-title { font-size: 13.5px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+  .step-desc { font-size: 12.5px; color: #b8b8b8; }
+
+  /* SET TYPE PILLS */
+  .set-types { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .set-pill { padding: 4px 10px; background: #1f1812; border: 1px solid #3a2e18; color: #d4b876; border-radius: 14px; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  /* TEST PROTOCOL */
+  .test-card { background: linear-gradient(160deg, #18120a 0%, #0d0d0d 100%); border: 1px solid #2a2218; border-radius: 11px; padding: 14px; margin-bottom: 10px; }
+  .test-card h4 { font-size: 14px; margin: 0 0 6px 0; color: #fff; }
+  .test-card p { font-size: 12.5px; color: #b8b8b8; margin: 0; }
+
+  /* PROGRESS TABS */
+  .mini-tabs { display: flex; gap: 5px; margin-bottom: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .mini-tab { padding: 6px 11px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 14px; color: #888; font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+  .mini-tab.active { background: #2a2218; color: #d4b876; border-color: #3a2e18; }
+
+  /* FAQ */
+  .faq-q { font-size: 13.5px; color: #fff; font-weight: 600; margin-bottom: 4px; }
+  .faq-a { font-size: 12.5px; color: #c0c0c0; }
+
+  /* CHECKLIST */
+  .check-list { padding: 0; margin: 8px 0 0 0; list-style: none; }
+  .check-list li { padding: 8px 0; border-bottom: 1px solid #1f1f1f; font-size: 13px; color: #d0d0d0; display: flex; gap: 9px; }
+  .check-list li:before { content: "▸"; color: #c9a227; flex-shrink: 0; font-weight: 700; }
+  .check-list li:last-child { border-bottom: none; }
+
+  /* WARNING BOX */
+  .warning-box { background: #1a0f0a; border: 1px solid #3a1f10; border-left: 3px solid #e25555; border-radius: 7px; padding: 10px 12px; margin-top: 10px; font-size: 12.5px; color: #f0c8b0; }
+  .warning-box b { color: #ff9080; }
+
+  /* GLOSSARY */
+  .gloss-item { padding: 10px 0; border-bottom: 1px solid #1f1f1f; }
+  .gloss-item:last-child { border-bottom: none; }
+  .gloss-term { font-size: 13.5px; color: #c9a227; font-weight: 700; margin-bottom: 3px; }
+  .gloss-def { font-size: 12.5px; color: #c0c0c0; }
+
+  /* SETTINGS / NOTE */
+  .note-banner { background: #14110a; border: 1px solid #2a2218; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #aaa; margin-bottom: 12px; display: flex; gap: 9px; align-items: flex-start; }
+  .note-banner .ic { color: #c9a227; font-weight: 700; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-row">
+    <div class="logo">⛓</div>
+    <div>
+      <h1>The CoC Masterclass</h1>
+      <div class="sub">Captains of Crush · Closing Protocol</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-page="overview">Overview</div>
+    <div class="tab" data-page="ladder">The Ladder</div>
+    <div class="tab" data-page="technique">Technique</div>
+    <div class="tab" data-page="program">Program</div>
+    <div class="tab" data-page="accessories">Accessories</div>
+    <div class="tab" data-page="testing">Testing</div>
+    <div class="tab" data-page="troubleshoot">Fixes</div>
+    <div class="tab" data-page="faq">FAQ</div>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ OVERVIEW ============ -->
+<div class="page active" data-page="overview">
+
+  <div class="note-banner">
+    <span class="ic">ⓘ</span>
+    <div>Garmin MCP isn't connected — this masterclass uses standard CoC progression principles. Once connected, sessions can be gated on HRV / training load.</div>
+  </div>
+
+  <div class="hero">
+    <h2>Closing iron is a skill.</h2>
+    <p class="lede">Crush grip is more nervous system than muscle. Closing a heavier gripper is about teaching your hand to recruit harder, faster, and from a more disadvantageous start position — not just growing forearms.</p>
+    <div class="principle">"You don't get stronger by closing grippers. You close grippers because you got stronger." — train the system, test with the gripper.</div>
+  </div>
+
+  <div class="card open">
+    <div class="card-h">
+      <div>
+        <div class="card-title">The Five Pillars</div>
+        <div class="card-tag">What this masterclass is built on</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-title">1 · Set position is everything</div>
+        <div class="section-content">A wider start position = a harder rep. Most failed closes happen because the gripper isn't sunk deep into the palm before the squeeze starts. Set technique often adds a full CoC level for free.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">2 · Strength is specific to ROM</div>
+        <div class="section-content">Closing the last quarter inch is a different skill than starting the squeeze. You must train both — but the <strong>close</strong> is where almost everyone fails. Negatives + overcrush work end-range.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">3 · Wave the intensity</div>
+        <div class="section-content">Crush is highly neural. You can't grind it daily without frying the hands. Heavy days, light days, deload weeks. <strong>Wave it like a deadlift program, not like curls.</strong></div>
+      </div>
+      <div class="section">
+        <div class="section-title">4 · Train the supporting cast</div>
+        <div class="section-content">Pinch grip, thick-bar work, finger extensors, and wrists are not optional. They prevent injury and unlock the crush. Skip them and you'll plateau by Trainer or No. 1.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">5 · Test rarely. Train often.</div>
+        <div class="section-content">A true MMS (Mean Metallic Set) attempt is a 1RM. Don't test every session. Test every 4–6 weeks. Between tests, train at 70–90% of your gripper.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">What "closing" actually means</div>
+        <div class="card-tag">The rules</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-title cue">The Standard</div>
+        <div class="section-content">
+          <ul>
+            <li><strong>Handles touch</strong> — no daylight between them.</li>
+            <li><strong>From a parallel set</strong> — handles parallel to your forearm before you squeeze. No "credit card" assists, no table presses, no two-hand sets.</li>
+            <li><strong>Held for 1 second</strong> at minimum for a clean close.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title warn">Common "Cheats"</div>
+        <div class="section-content">
+          <ul>
+            <li><b>Credit card set:</b> Use a card to push the handle in deeper before gripping. Builds confidence and end-range strength but isn't a certified close.</li>
+            <li><b>Deep set:</b> Use your off-hand to crush the handles closer before transferring. Same — training tool, not a real close.</li>
+            <li><b>MMS:</b> Mean Metallic Set — handles set parallel without any assist. <strong>This is the certifiable close.</strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="cue-box">Train with credit-card and deep sets to push end-range strength. Test with MMS.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Realistic timelines</div>
+        <div class="card-tag">From beginner to No. 3</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-content">Your starting point matters more than anything. These are typical timelines for a healthy adult male who can already do basic forearm work. Women, lighter lifters, and anyone with smaller hands generally progress more slowly through the heavier grippers — hand size is a real variable.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">Trainer → No. 1</div>
+        <div class="section-content">2–4 months of focused work. Most untrained adults will struggle with the Trainer cold and close it within weeks.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">No. 1 → No. 1.5</div>
+        <div class="section-content">3–6 months. This is where set technique becomes critical.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">No. 1.5 → No. 2</div>
+        <div class="section-content">6–12 months. The first "serious" gripper. Most people who buy a CoC set stall here.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">No. 2 → No. 2.5</div>
+        <div class="section-content">1–2 years. End-range strength becomes the bottleneck.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">No. 2.5 → No. 3</div>
+        <div class="section-content">2–5+ years for most. ~3% of certified closers ever get here. Genuine elite-grip territory.</div>
+      </div>
+      <div class="section">
+        <div class="section-title danger">No. 3 → No. 3.5 / No. 4</div>
+        <div class="section-content">Career-level pursuits. Many will never close them, and that's fine.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LADDER ============ -->
+<div class="page" data-page="ladder">
+  <div class="hero">
+    <h2>The Ladder</h2>
+    <p class="lede">Every CoC gripper, the approximate force to close, and what it represents on the path.</p>
+  </div>
+
+  <div class="level-table">
+    <div class="level-row header">
+      <div>Rating</div>
+      <div>Gripper</div>
+      <div style="text-align: right;">Force</div>
+    </div>
+    <div class="level-row">
+      <div class="lvl-name">Guide<span class="sub-name">CoC Guide</span></div>
+      <div class="lvl-desc">Untrained-friendly starter. Closes feel almost passive once your hand wakes up.</div>
+      <div class="lvl-force">60<span class="lbs">lbs</span></div>
+    </div>
+    <div class="level-row">
+      <div class="lvl-name">Sport<span class="sub-name">CoC Sport</span></div>
+      <div class="lvl-desc">Easy for most lifters. Good for high-rep warmups and reset days.</div>
+      <div class="lvl-force">80<span class="lbs">lbs</span></div>
+    </div>
+    <div class="level-row">
+      <div class="lvl-name">Trainer<span class="sub-name">CoC Trainer</span></div>
+      <div class="lvl-desc">The classic starter. Beginner certification. Most lifters close cold within weeks.</div>
+      <div class="lvl-force">100<span class="lbs">lbs</span></div>
+    </div>
+    <div class="level-row">
+      <div class="lvl-name">No. 0.5<span class="sub-name">Point Five</span></div>
+      <div class="lvl-desc">Bridge between Trainer and No. 1. Useful for high-rep work in the gap.</div>
+      <div class="lvl-force">120<span class="lbs">lbs</span></div>
+    </div>
+    <div class="level-row">
+      <div class="lvl-name">No. 1<span class="sub-name">CoC No. 1</span></div>
+      <div class="lvl-desc">First real challenge. Closing this from a cold parallel set is a respectable benchmark.</div>
+      <div class="lvl-force">140<span class="lbs">lbs</span></div>
+    </div>
+    <div class="level-row">
+      <div class="lvl-name">No. 1.5<span class="sub-name">CoC No. 1.5</span></div>
+      <div class="lvl-desc">Where technique begins to matter as much as raw strength.</div>
+      <div class="lvl-force">167<span class="lbs">lbs</span></div>
+    </div>
+    <div class="level-row">
+      <div class="lvl-name">No. 2<span class="sub-name">CoC No. 2</span></div>
+      <div class="lvl-desc">The first "trophy" close. Genuinely strong hands.</div>
+      <div class="lvl-force">195<span class="lbs">lbs</span></div>
+    </div>
+    <div class="level-row">
+      <div class="lvl-name">No. 2.5<span class="sub-name">CoC No. 2.5</span></div>
+      <div class="lvl-desc">The big psychological gap. Most people who quit grippers quit here.</div>
+      <div class="lvl-force">237<span class="lbs">lbs</span></div>
+    </div>
+    <div class="level-row">
+      <div class="lvl-name">No. 3<span class="sub-name">CoC No. 3</span></div>
+      <div class="lvl-desc">Elite. Roughly ~3% of dedicated grip athletes certify. This is the long-term goal of most lifters.</div>
+      <div class="lvl-force">280<span class="lbs">lbs</span></div>
+    </div>
+    <div class="level-row">
+      <div class="lvl-name">No. 3.5<span class="sub-name">CoC No. 3.5</span></div>
+      <div class="lvl-desc">Truly rare. Career project.</div>
+      <div class="lvl-force">322<span class="lbs">lbs</span></div>
+    </div>
+    <div class="level-row">
+      <div class="lvl-name">No. 4<span class="sub-name">CoC No. 4</span></div>
+      <div class="lvl-desc">Single digits closed worldwide. Most don't believe this is real until they see it.</div>
+      <div class="lvl-force">365<span class="lbs">lbs</span></div>
+    </div>
+  </div>
+
+  <div class="warning-box">
+    <b>Note on force ratings:</b> CoC ratings are <i>approximate</i> and grippers vary unit-to-unit by ±5–10%. A "soft" No. 2 may be closer to a No. 1.5; a "hard" No. 2 can feel like a 2.25. Two grippers of the same rating from different production runs can feel very different. Don't get attached to the number — get attached to the squeeze.
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Buying strategy</div>
+        <div class="card-tag">Which to own</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-title tip">If you're starting fresh</div>
+        <div class="section-content">Buy <strong>Trainer, No. 1, and No. 2</strong>. These three cover years of progress. Add No. 0.5 if you find the Trainer-to-No.1 gap brutal (it usually is).</div>
+      </div>
+      <div class="section">
+        <div class="section-title tip">If you're past No. 2</div>
+        <div class="section-content">Buy <strong>No. 1.5, No. 2, and No. 2.5</strong>. The 1.5 becomes your high-rep/volume tool, the 2 your "working" gripper, and 2.5 your stretch goal. Skipping a level wider is the #1 mistake here.</div>
+      </div>
+      <div class="section">
+        <div class="section-title warn">Don't buy the No. 3 yet</div>
+        <div class="section-content">Until you can do <strong>5+ clean MMS reps with the No. 2 and credit-card a No. 2.5</strong>, the No. 3 is just gym décor. Save the money for a hand expander and pinch blocks.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TECHNIQUE ============ -->
+<div class="page" data-page="technique">
+  <div class="hero">
+    <h2>The Set</h2>
+    <p class="lede">Your set position determines how strong you are. Every gripper closer has a set, and they've drilled it like a deadlift setup.</p>
+  </div>
+
+  <div class="card open">
+    <div class="card-h">
+      <div>
+        <div class="card-title">The MMS Set, step by step</div>
+        <div class="card-tag">The certifiable parallel set</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-title">Plant the bottom handle in the palm</div>
+          <div class="step-desc">Bottom handle sits deep across the base of your thumb — the soft fleshy heel of the palm — angled diagonally. <b>Not</b> across the calluses at the base of your fingers. Wrong placement loses you a full level of strength.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-title">Wrap the pinky low</div>
+          <div class="step-desc">Pinky finger wraps as close to the bottom of the top handle as possible. Pinky leverage matters more than index leverage on hard grippers.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-title">Stagger the fingers</div>
+          <div class="step-desc">Index slightly higher, then middle, ring, pinky in a slight diagonal — naturally formed by the angle of your palm. Fingers should not be parallel to each other across the handle.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <div class="step-title">Lock the wrist neutral</div>
+          <div class="step-desc">Wrist straight or very slightly extended. A flexed wrist (curled toward you) cuts your grip strength dramatically. Think "long, straight forearm."</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <div class="step-title">Set to parallel</div>
+          <div class="step-desc">Before the real squeeze starts, the handles should be parallel to your forearm. You can use your off hand to position — but it can't help close. Once set, off-hand drops.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-content">
+          <div class="step-title">Squeeze — fingers first, then thumb</div>
+          <div class="step-desc">Drive the four fingers into the palm. The thumb adds force at the end. <b>Don't</b> lead with the thumb — it's the weakest link and biases the wrist.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-content">
+          <div class="step-title">Crush, don't twitch</div>
+          <div class="step-desc">A full, accelerating crush from start to close. If you stop at the sticking point, you lose. Mental cue: "drive it through the close, hold the touch."</div>
+        </div>
+      </div>
+      <div class="cue-box">Heel of palm → pinky low → wrist neutral → set parallel → fingers first → accelerate through.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Hand position cheats (training only)</div>
+        <div class="card-tag">For overload work</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-title">Credit-card set</div>
+        <div class="section-content">Insert a credit card between handles. Close partially with the card in place. Remove and finish. Excellent for end-range overload — you handle a gripper one level above MMS-ready.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">Deep set (table-assisted)</div>
+        <div class="section-content">Use the off hand or a table edge to push handles closer before squeezing. Lets you train the final close on a much heavier gripper than you can MMS.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">Negatives (eccentrics)</div>
+        <div class="section-content">Close with two hands or external help, then slowly resist as it opens — 5–10 seconds. The single best tool for breaking through to the next gripper.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">Overcrushes</div>
+        <div class="section-content">Close a gripper, then keep squeezing for 3–10 seconds. Trains end-range tension and confidence with the closed position.</div>
+      </div>
+      <div class="warning-box">
+        <b>Rule:</b> Cheat sets train. MMS sets test. Don't confuse them. Logging a credit-card close as a "close" is how you stay stuck.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Common technique faults</div>
+        <div class="card-tag">Diagnose & fix</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-title danger">Bottom handle too high in the palm</div>
+        <div class="section-content">Handle sits across calluses → tiny lever arm, hand opens at the bottom. Push it deeper into the meaty heel.</div>
+      </div>
+      <div class="section">
+        <div class="section-title danger">Wrist flexion (curling toward forearm)</div>
+        <div class="section-content">As fatigue hits, the wrist breaks. Grip drops 20%+ instantly. Cue: "long forearm, straight wrist." Train wrist extension/curl as accessory.</div>
+      </div>
+      <div class="section">
+        <div class="section-title danger">Thumb-leading squeeze</div>
+        <div class="section-content">The thumb is the weakest digit. If it fires first, the fingers wait. Fingers drive the crush; thumb anchors at the end.</div>
+      </div>
+      <div class="section">
+        <div class="section-title danger">Hesitating at the sticking point</div>
+        <div class="section-content">Most closes fail in the last 5mm. If you pause to "see if you can," you've lost. Accelerate <i>through</i> the close, mentally aim past it.</div>
+      </div>
+      <div class="section">
+        <div class="section-title danger">Death-gripping warm-ups</div>
+        <div class="section-content">Mashing the Trainer 50 times burns the CNS before your working gripper. Warmups stay sub-maximal.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PROGRAM ============ -->
+<div class="page" data-page="program">
+  <div class="hero">
+    <h2>The Program</h2>
+    <p class="lede">A 12-week wave block built around a target gripper. Pick the gripper one level above your current MMS close — that's your "next."</p>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">How to pick your target</div>
+        <div class="card-tag">Set up the block</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <ul class="check-list">
+        <li><b>Current MMS:</b> The heaviest gripper you can MMS-close for at least 1 clean rep.</li>
+        <li><b>Working gripper:</b> One level below current MMS. Used for higher-rep sets.</li>
+        <li><b>Target gripper:</b> One level above current MMS. Used for cheat sets, negatives, holds.</li>
+        <li><b>Volume gripper:</b> Two levels below current MMS. Used for warmups and conditioning sets.</li>
+      </ul>
+      <div class="cue-box">Example: You can MMS a No. 1. Working = 0.5 or No. 1. Target = No. 1.5. Volume = Trainer.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-num">Phase 1 · Weeks 1–4</div>
+    <h3>Volume & Technique</h3>
+    <div class="phase-meta">
+      <div><strong>3×/week</strong></div>
+      <div>Submaximal</div>
+      <div>RPE 6–7</div>
+    </div>
+
+    <div class="wk-block">
+      <div class="wk-day">Day A — Volume (Mon)</div>
+      <div class="wk-sets">
+        Volume gripper: <b>3 × 8–12 MMS reps</b><br>
+        Working gripper: <b>5 × 3–5 MMS reps</b><br>
+        Wrist curls + reverse: <b>3 × 12–15</b>
+      </div>
+      <div class="wk-note">All sets stop 2 reps short of failure. Build the set as the skill.</div>
+    </div>
+
+    <div class="wk-block">
+      <div class="wk-day">Day B — Pinch & Support (Wed)</div>
+      <div class="wk-sets">
+        Plate pinch: <b>4 × 20–30s</b><br>
+        Farmer's carry: <b>3 × 40m heavy</b><br>
+        Dead hang: <b>3 × 30–45s</b><br>
+        Finger extensors (rubber band): <b>3 × 20</b>
+      </div>
+      <div class="wk-note">No gripper. Pure supporting work. This is non-negotiable.</div>
+    </div>
+
+    <div class="wk-block">
+      <div class="wk-day">Day C — Density (Fri)</div>
+      <div class="wk-sets">
+        Working gripper: <b>EMOM 8 min</b> — 3 MMS reps/min<br>
+        Volume gripper: <b>2 × max reps</b><br>
+        Wrist roller: <b>2 × up/down</b>
+      </div>
+      <div class="wk-note">Aerobic-style density. Hands get bombproof.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-num">Phase 2 · Weeks 5–8</div>
+    <h3>Intensity & Overload</h3>
+    <div class="phase-meta">
+      <div><strong>2–3×/week</strong></div>
+      <div>Heavy</div>
+      <div>RPE 8–9</div>
+    </div>
+
+    <div class="wk-block">
+      <div class="wk-day">Day A — Heavy MMS (Mon)</div>
+      <div class="wk-sets">
+        Volume gripper: <b>2 × 8 warmup</b><br>
+        Working gripper: <b>5 × 1–3 MMS reps</b><br>
+        Target gripper: <b>3 credit-card closes</b><br>
+        Overcrush (working): <b>3 × 5–10s holds</b>
+      </div>
+      <div class="wk-note">Heavy session. Real rest (3–5 min) between top sets.</div>
+    </div>
+
+    <div class="wk-block">
+      <div class="wk-day">Day B — Support (Wed)</div>
+      <div class="wk-sets">
+        Pinch grip 2-plate: <b>5 × 15–25s</b><br>
+        Thick-bar (Fat Gripz) hold: <b>3 × 30s</b><br>
+        Wrist work: <b>3 × 12</b> each direction<br>
+        Extensors: <b>3 × 20</b>
+      </div>
+      <div class="wk-note">Don't skip. This is what makes the heavy days survivable.</div>
+    </div>
+
+    <div class="wk-block">
+      <div class="wk-day">Day C — Negatives (Fri)</div>
+      <div class="wk-sets">
+        Volume gripper: warm up<br>
+        Target gripper: <b>4 × 1 negative</b> (5–8s eccentric)<br>
+        Working gripper: <b>3 × max MMS reps</b><br>
+        Forearm flexor curl: <b>3 × 15</b>
+      </div>
+      <div class="wk-note">Negatives are the secret weapon. Quality > volume.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-num">Phase 3 · Weeks 9–11</div>
+    <h3>Peaking</h3>
+    <div class="phase-meta">
+      <div><strong>2×/week</strong></div>
+      <div>Maximal</div>
+      <div>RPE 9–10</div>
+    </div>
+
+    <div class="wk-block">
+      <div class="wk-day">Day A — Heavy Singles (Tue)</div>
+      <div class="wk-sets">
+        Volume gripper: 1 × 5 warmup<br>
+        Working gripper: 1 × 1 warmup<br>
+        Target gripper: <b>5 × 1 MMS attempt</b><br>
+        (Rest 4–6 min between attempts)
+      </div>
+      <div class="wk-note">Treat each rep like a max attempt. Walk away, breathe, reset.</div>
+    </div>
+
+    <div class="wk-block">
+      <div class="wk-day">Day B — Touch & Negatives (Fri)</div>
+      <div class="wk-sets">
+        Target gripper: <b>3 × 1 negative</b> (8s)<br>
+        Working gripper: <b>3 × 3 MMS</b><br>
+        Light wrist/extensor work
+      </div>
+      <div class="wk-note">Stay sharp, don't grind. Save it for test day.</div>
+    </div>
+
+    <div class="warning-box">
+      <b>Peaking rule:</b> If a rep grinds for 3+ seconds without closing, rack it. You're done. Forcing failed attempts trashes the hands.
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-num">Phase 4 · Week 12</div>
+    <h3>Test Week</h3>
+    <div class="phase-meta">
+      <div><strong>1 session</strong></div>
+      <div>Max effort</div>
+      <div>Then deload</div>
+    </div>
+    <div class="wk-block">
+      <div class="wk-day">Test Day</div>
+      <div class="wk-sets">
+        Warm up volume + working grippers, 1–2 sets each, sub-maximal.<br>
+        Then: <b>up to 5 MMS attempts on the target gripper.</b><br>
+        Stop after first clean close OR after 5 honest failures.
+      </div>
+      <div class="wk-note">Followed by 7–10 days of full grip deload before starting the next block.</div>
+    </div>
+
+    <div class="set-types">
+      <div class="set-pill">5–7 days deload</div>
+      <div class="set-pill">No grippers</div>
+      <div class="set-pill">Light pinch okay</div>
+      <div class="set-pill">Sleep + eat</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ACCESSORIES ============ -->
+<div class="page" data-page="accessories">
+  <div class="hero">
+    <h2>The Supporting Cast</h2>
+    <p class="lede">Crush grip alone breaks down. These are the assistance pieces that keep the system balanced and accelerate the gripper PRs.</p>
+  </div>
+
+  <div class="card open">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Pinch Grip</div>
+        <div class="card-tag">Thumb-driven · plate pinch</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-content">Pinch trains the thumb opponent — the muscle that anchors the crush at the end of the close. Weak thumbs = handles never quite touch.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">How to do it</div>
+        <div class="section-content">Two plates, smooth sides out, pinched between thumb and four fingers. Hold for time. Add weight by stacking thinner plates.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">Programming</div>
+        <div class="section-content">3–5 × 20–45s per hand, 2× week. Progress by adding 2.5 lb or 5 seconds at a time.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Thick Bar / Fat Gripz</div>
+        <div class="card-tag">Open hand · forearm hypertrophy</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-content">Thick-handled holds, carries, and deadlifts force the hand into an open, less mechanically advantageous position. Builds the forearm — particularly the deep flexors — better than any crush work.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">Best lifts</div>
+        <div class="section-content">
+          <ul>
+            <li><b>Thick bar deadlift hold:</b> 5 × 10–20s at 60–80% deadlift.</li>
+            <li><b>Fat Gripz pullups:</b> sets of 3–5, painful.</li>
+            <li><b>Fat-handle DB row:</b> 3 × 8–10. Free forearm work.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Wrist Curl / Extension</div>
+        <div class="card-tag">Wrist stability</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-content">A flexed wrist destroys grip. Strong wrist flexors keep it locked under load; strong extensors prevent elbow issues. Do <b>both</b> — most lifters only train flexion.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">Programming</div>
+        <div class="section-content">Flexion: 3 × 12–20, palms up<br>Extension: 3 × 15–20, palms down. Lighter — extensors are weak.</div>
+      </div>
+      <div class="section">
+        <div class="section-title tip">Bonus: wrist roller</div>
+        <div class="section-content">A wrist roller (rope + weight on a wooden handle) trains rotation under load — closer to what a heavy gripper close actually demands.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Finger Extensors</div>
+        <div class="card-tag">Antagonist · injury proofing</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-content">Closing grippers trains the hand to <b>flex</b>. Without antagonist work, you develop the grip-athlete claw and eventually elbow pain. Extensors restore balance and are absurdly cheap to train.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">How</div>
+        <div class="section-content">Rubber bands around fingers (or a dedicated hand expander). Open the hand against resistance.<br>3 × 20–25 reps, every gripper session.</div>
+      </div>
+      <div class="warning-box">
+        <b>Skip this and you'll regret it.</b> Lifters with 5+ years of grip work and no extensor balance get medial epicondylitis ("golfer's elbow"). Cheap insurance.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Farmer's Carry & Dead Hangs</div>
+        <div class="card-tag">Endurance grip</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-content">Crush is maximal-effort. Carries and hangs build the <i>tendon resilience</i> and endurance that lets you handle frequent gripper sessions without flare-ups.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">Carry</div>
+        <div class="section-content">Heaviest DBs you can hold. 3 × 30–60s or 30–50m. 1–2× week. Strap-free.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">Hang</div>
+        <div class="section-content">Dead hang from pullup bar, full ROM. 3 × 30–60s. Excellent shoulder decompression bonus.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TESTING ============ -->
+<div class="page" data-page="testing">
+  <div class="hero">
+    <h2>Test Day Protocol</h2>
+    <p class="lede">One real attempt at a new gripper, run right. The difference between an honest test and a sloppy one is often the gripper itself.</p>
+  </div>
+
+  <div class="test-card">
+    <h4>The night before</h4>
+    <p>Eat. Sleep 8 hours. No new training stimulus in the past 48 hours. No alcohol. Mild caffeine the morning of is fine.</p>
+  </div>
+
+  <div class="test-card">
+    <h4>Warm-up, 15 minutes total</h4>
+    <p>Shake the hands out. Forearm massage / band stretch. Volume gripper × 8 easy. Volume gripper × 5 medium. Working gripper × 3. Working gripper × 1 (smooth, fast). Rest 3 min. Then attempt.</p>
+  </div>
+
+  <div class="test-card">
+    <h4>The attempt</h4>
+    <p>Set the gripper deliberately. Take your time on the set — the rep is fast. Squeeze through the close like you're trying to crush past it, not just touch. Hold for 2 seconds (more than the 1 required). Eyes on the handles.</p>
+  </div>
+
+  <div class="test-card">
+    <h4>Failed attempt? Rules:</h4>
+    <p>Rest <b>at least 4 minutes</b>. Do NOT keep banging at it. You get a maximum of 5 attempts per session. After the 5th failure, you're done — try again in 4–6 weeks after another block, not next week.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Verifying your close</div>
+        <div class="card-tag">For honest tracking</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <ul class="check-list">
+        <li><b>Film it.</b> Phone propped, front-on. You'll catch sneaky off-hand sets and shallow palm placement that you don't feel.</li>
+        <li><b>No table contact.</b> Hands free in space during the squeeze. Pressing the bottom handle on a table is a deep set.</li>
+        <li><b>Parallel set is visible.</b> Pause and verify handles are parallel to your forearm BEFORE the squeeze begins.</li>
+        <li><b>Held for a full second.</b> Touch-and-pop counts as a brush, not a close. Held = closed.</li>
+        <li><b>Same gripper both attempts.</b> Don't switch between a "soft" and a "hard" production gripper mid-block. Pick one and stay with it.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Want to certify?</div>
+        <div class="card-tag">IronMind requirements</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-content">IronMind (the maker of CoC) offers official certification at No. 1.5, 2, 2.5, 3, 3.5, and 4. Requirements change over time, but typically:</div>
+      </div>
+      <ul class="check-list">
+        <li>Witnessed by a credentialed referee, or filmed to spec.</li>
+        <li>Single attempt with each hand (for some levels), MMS only.</li>
+        <li>Gripper provided/calibrated by IronMind for the attempt.</li>
+        <li>Hold the close clearly for the required duration.</li>
+      </ul>
+      <div class="cue-box">Check IronMind's current rules directly before any certification attempt — they evolve.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TROUBLESHOOT ============ -->
+<div class="page" data-page="troubleshoot">
+  <div class="hero">
+    <h2>Plateaus & Fixes</h2>
+    <p class="lede">If progress stops, the answer is almost always one of these five problems.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">"I can almost close it but stop in the last 5mm"</div>
+        <div class="card-tag">End-range weakness</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-title tip">The fix</div>
+        <div class="section-content">
+          <ul>
+            <li>Credit-card sets, 4 × 3 with target gripper.</li>
+            <li>Overcrushes: close working gripper, hold 5–10s × 4 sets.</li>
+            <li>Negatives with target gripper: 4 × 1 (8s eccentric).</li>
+          </ul>
+        </div>
+      </div>
+      <div class="cue-box">2–3 weeks of dedicated end-range work usually unlocks the close.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">"I can't even start the squeeze"</div>
+        <div class="card-tag">Set / starting strength</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-title tip">The fix</div>
+        <div class="section-content">
+          <ul>
+            <li>You set too shallow. Replant with the heel of the palm.</li>
+            <li>You skipped a gripper level — back off to one that's actually trainable.</li>
+            <li>Drop to working gripper, train 5 × 5 MMS for 3–4 weeks.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">"I'm getting elbow pain"</div>
+        <div class="card-tag">Medial epicondylitis</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-title danger">The fix</div>
+        <div class="section-content">
+          <ul>
+            <li><b>Stop crush work for 1–2 weeks.</b> No exceptions.</li>
+            <li>Heavy finger extensor work (3 × 20–25 daily with bands).</li>
+            <li>Reverse wrist curls 3 × 15–20.</li>
+            <li>Reduce gripper frequency to 2× week max for the next block.</li>
+            <li>Check your set — wrist flexion under load is a primary cause.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="warning-box">
+        Persistent pain &gt; 2 weeks of deload &rarr; see a sports physio. Tendinopathy compounds.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">"My grip is fine but my hand cramps"</div>
+        <div class="card-tag">Coordination / recruitment</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-title tip">The fix</div>
+        <div class="section-content">
+          <ul>
+            <li>Cramping is usually a sign of overactive thumb / underactive pinky.</li>
+            <li>Drill pinky-low sets on a lighter gripper, 5 × 8 with deliberate placement.</li>
+            <li>Add finger extensor work (antagonist relaxation).</li>
+            <li>Magnesium and hydration. Boring but real.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">"I've stalled for months"</div>
+        <div class="card-tag">Systemic plateau</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-title tip">The fix</div>
+        <div class="section-content">
+          <ul>
+            <li><b>Deload 10–14 days.</b> No gripper work. Just pinch and extensors.</li>
+            <li>Switch to a different gripper unit (production variance is real).</li>
+            <li>Re-shoot your set on video and audit it ruthlessly.</li>
+            <li>Add one new accessory: wrist roller, or thick-bar holds.</li>
+            <li>Increase calories and sleep. Grip strength is metabolically expensive.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ FAQ ============ -->
+<div class="page" data-page="faq">
+  <div class="hero">
+    <h2>FAQ &amp; Glossary</h2>
+    <p class="lede">Loose ends — questions, myths, and the vocabulary of the grip world.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">"How often should I train grippers?"</div>
+        <div class="card-tag">Frequency</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="faq-a">Phase 1: 3×/week. Phase 2: 2–3×/week. Phase 3: 2×/week. Peaking: 1–2×/week. <b>Daily gripper work is almost always wrong</b> — even when it feels fine in the moment, the tendons need recovery.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">"Should I train both hands?"</div>
+        <div class="card-tag">Bilateral</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="faq-a">Yes. Off-hand will lag by 1–2 levels but train it identically. Asymmetric grip eventually shows up in elbow/shoulder issues. Cert attempts often require both hands.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">"Will deadlifts help my grippers?"</div>
+        <div class="card-tag">Crossover</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="faq-a">Modestly. Deadlift grip is a static <b>support</b> grip — very different from the dynamic crush a gripper demands. Strap-free deadlifts build forearms and resilience, but a 600 lb deadlifter often can't close a No. 2. Train the gripper to close grippers.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">"Are the grippers really inconsistent?"</div>
+        <div class="card-tag">Production variance</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="faq-a">Yes. ±5–10% is the norm even from IronMind, and across other brands variance is wider. If you fail one gripper consistently, try a different unit of the same rating — sometimes you've just got an unusually "hard" specimen. Calibrated grippers exist for certification.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">"Do I need chalk?"</div>
+        <div class="card-tag">Friction</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="faq-a">For test attempts and heavy work: yes. Sweaty hands slip the handle deeper into the palm at the wrong angle. A small amount on the heel of the palm is enough. Train sometimes without chalk to keep skin tough.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">"Grip work or full-body work first?"</div>
+        <div class="card-tag">Sequencing</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="faq-a">Grippers first if you care about the close. Heavy pulling fatigues the forearms and you'll under-perform on grippers right after. If you train grippers on a separate day from your main pulls, even better.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Glossary</div>
+        <div class="card-tag">Speak the language</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="gloss-item">
+        <div class="gloss-term">MMS — Mean Metallic Set</div>
+        <div class="gloss-def">Handles set parallel to the forearm with no assist. The certifiable close.</div>
+      </div>
+      <div class="gloss-item">
+        <div class="gloss-term">CCS — Credit Card Set</div>
+        <div class="gloss-def">Credit card placed between handles before squeezing. Training tool, not a real close.</div>
+      </div>
+      <div class="gloss-item">
+        <div class="gloss-term">TNS — The No Set</div>
+        <div class="gloss-def">Pick up the gripper and close it from however it lands. Strictest possible standard.</div>
+      </div>
+      <div class="gloss-item">
+        <div class="gloss-term">Negative</div>
+        <div class="gloss-def">Closing with assistance, then slowly resisting the open. Heavy eccentric.</div>
+      </div>
+      <div class="gloss-item">
+        <div class="gloss-term">Overcrush</div>
+        <div class="gloss-def">Holding a closed gripper shut under tension for 3–10 seconds. End-range training.</div>
+      </div>
+      <div class="gloss-item">
+        <div class="gloss-term">Cert / Certification</div>
+        <div class="gloss-def">Official IronMind-recognized close of a No. 1.5 or higher gripper.</div>
+      </div>
+      <div class="gloss-item">
+        <div class="gloss-term">Crush grip</div>
+        <div class="gloss-def">The closing-the-hand-against-resistance pattern. What CoC grippers train.</div>
+      </div>
+      <div class="gloss-item">
+        <div class="gloss-term">Pinch grip</div>
+        <div class="gloss-def">Thumb-opposed grip across a flat object (plates). Separate skill from crush.</div>
+      </div>
+      <div class="gloss-item">
+        <div class="gloss-term">Support grip</div>
+        <div class="gloss-def">Static hold like a deadlift or farmer's carry. Endurance-biased.</div>
+      </div>
+      <div class="gloss-item">
+        <div class="gloss-term">Open hand grip</div>
+        <div class="gloss-def">Thick-bar or wide-object grip with fingers not fully closed. Thick-handled holds train this.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div>
+        <div class="card-title">Connecting Garmin later</div>
+        <div class="card-tag">Recovery-gated training</div>
+      </div>
+      <div class="chev">▶</div>
+    </div>
+    <div class="card-body">
+      <div class="section">
+        <div class="section-content">When Garmin is connected, the following data points become useful for tuning this program:</div>
+      </div>
+      <ul class="check-list">
+        <li><b>HRV / Body Battery low</b> &rarr; substitute a heavy day for a volume day or skip.</li>
+        <li><b>Training load spiking</b> &rarr; cut grip frequency to 2× that week.</li>
+        <li><b>Poor sleep score</b> &rarr; don't attempt a new MMS PR. Move test day.</li>
+        <li><b>Resting HR elevated</b> &rarr; CNS is taxed; prioritize technique drills over heavy negatives.</li>
+      </ul>
+      <div class="cue-box">Crush grip is highly neural. Recovery data predicts max-effort performance better than soreness does.</div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+  // tab switching
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      const target = t.dataset.page;
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.querySelector('.page[data-page="' + target + '"]').classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+  });
+
+  // expandable cards
+  document.querySelectorAll('.card-h').forEach(h => {
+    h.addEventListener('click', () => {
+      h.parentElement.classList.toggle('open');
+    });
+  });
+</script>
+
+</body>
+</html>
