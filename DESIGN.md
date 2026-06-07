@@ -616,6 +616,11 @@ They share variation **UUIDs**.
   only when **every** labeled output positively reads as the built-in speaker/earpiece; **unknown (`null`, fail open)**
   for anything else — so an unrecognized non-speaker output (a brand-name BT headset) keeps audio playing instead of
   silently muting. Faithful to the feature's stated fail-open design. Covered by `test/headphones.spec.mjs`.
+- **OSK ×10 digit hold is weight-only (feat 141):** the on-screen-keyboard digit long-press (hold `7` from an empty
+  field → `70`, feat 100) now arms **only on the weight field**. `numpadDigitX10Eligible()` gained a `np.field === 'w'`
+  guard, so the reps numpad treats a hold as a plain tap and never shows the `×10` affordance. Reps are typically small
+  literal counts (1–20) where the shortcut mostly produced fat-finger 5→50 mistakes; weights are the multiples-of-10
+  case it was built for. Covered by `test/numpad.spec.mjs` (weight x10 retained, reps hold inert + no label).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

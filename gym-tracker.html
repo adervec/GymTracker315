@@ -12656,9 +12656,11 @@ function numpadHandleKey(k) {
 }
 // feat 100 — a digit key taps to its digit, but HELD (from an empty field) enters digit x10 (hold 7 -> 70).
 // With digits already present, or in calculator mode, a hold is just a normal short press of the digit.
+// feat 141 — gated to the WEIGHT field only: reps are usually small (1–20) where a ×10 shortcut hurts more
+// than it helps (and risks a 50→500 fat-finger), whereas weights are the multiples-of-10 case it's for.
 function numpadDigitX10Eligible() {
   const np = modalState.numpad;
-  return !!(np && np.buf === '' && state.calcMode !== true);
+  return !!(np && np.field === 'w' && np.buf === '' && state.calcMode !== true);
 }
 function attachNumpadDigit(btn, k) {
   const HOLD = 400;
@@ -13218,7 +13220,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 87 · 2026-06-07 19:36';
+const APP_BUILD = 'build 88 · 2026-06-07 19:38';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
