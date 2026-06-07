@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-strava-sync.py - pull your Strava strength activities into a JSON that GymTracker can import,
-and (optionally) push GymTracker workout descriptions back onto those activities.
+strava-sync.py - pull your Strava strength activities into a JSON that GymTracker315 can import,
+and (optionally) push GymTracker315 workout descriptions back onto those activities.
 
 WHY A SCRIPT?  A browser app can't talk to Strava directly: the OAuth token exchange needs
 your Client Secret and Strava's API isn't CORS-enabled for browsers. This runs locally with
@@ -18,16 +18,16 @@ ONE-TIME SETUP
 USAGE
   py strava-sync.py --auth                       # one-time: authorize (read + write, opens browser)
   py strava-sync.py [--days 30] [--out strava-activities.json]
-  py strava-sync.py --push strava-push.json      # write GymTracker descriptions back to Strava
+  py strava-sync.py --push strava-push.json      # write GymTracker315 descriptions back to Strava
 
-Then in GymTracker:  Settings -> Data -> Strava -> "Import activities" -> pick the JSON,
+Then in GymTracker315:  Settings -> Data -> Strava -> "Import activities" -> pick the JSON,
 then "Reconcile" to link workouts, enrich HR/calories/duration, and copy descriptions.
 For hands-off use, instead point Strava "Auto-load folder" at the folder this writes to (keep
 the filename containing "strava"/"activities"); the app re-imports the newest file on every open
 and on "Sync Now". Re-run this script on a schedule to keep it current.
 
 NOTE: Strava rotates refresh tokens and rate-limits (~100 req / 15 min). The activity list is
-"summary" data; that's all GymTracker needs to match by start time. Adjust if Strava changes.
+"summary" data; that's all GymTracker315 needs to match by start time. Adjust if Strava changes.
 """
 import os
 import sys
@@ -92,7 +92,7 @@ def authorize(write=False):
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
-            self.wfile.write(b"<h2>GymTracker: Strava authorized. You can close this tab.</h2>")
+            self.wfile.write(b"<h2>GymTracker315: Strava authorized. You can close this tab.</h2>")
 
         def log_message(self, *a):
             pass
@@ -160,7 +160,7 @@ def pull(days, out):
         json.dump(data, f, indent=2)
     print("Wrote %d strength activit%s (of %d total) -> %s"
           % (len(strength), "y" if len(strength) == 1 else "ies", len(acts), os.path.abspath(out)))
-    print("Import it in GymTracker: Settings -> Data -> Strava -> Import activities.")
+    print("Import it in GymTracker315: Settings -> Data -> Strava -> Import activities.")
 
 
 def push(path):

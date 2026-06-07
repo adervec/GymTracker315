@@ -1,4 +1,4 @@
-# GymTracker
+# GymTracker315
 
 [![CI](https://github.com/adervec/GymTracker/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/adervec/GymTracker/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -94,7 +94,7 @@ playwright.config.mjs     Playwright config (desktop + Pixel projects)
 
 ## Disclaimer
 
-GymTracker is a personal training log built by a software developer — **not** a doctor, coach,
+GymTracker315 is a personal training log built by a software developer — **not** a doctor, coach,
 physiotherapist, or lawyer. Its plans, cues, coaching notes, and bundled guides are **educational
 only** and may not be right for you. Consult a qualified professional before starting or changing a
 program, especially with any injury or health condition. Exercise carries a real risk of injury —
@@ -115,7 +115,7 @@ auto-save/sync. The helper scripts run locally with your own credentials.
 ## Trademarks
 
 Product and brand names referenced (e.g. Captains of Crush, Hoist / Roc-It, Life Fitness, Fat Gripz,
-Concept2, StairMaster, VersaClimber, Strava, Garmin) belong to their respective owners. GymTracker is
+Concept2, StairMaster, VersaClimber, Strava, Garmin) belong to their respective owners. GymTracker315 is
 independent — not affiliated with, endorsed by, or sponsored by any of them — and uses these names
 only descriptively. Captains of Crush gripper ratings are IronMind's and vary unit-to-unit.
 

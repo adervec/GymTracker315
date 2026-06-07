@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// GymTracker targets Android Chrome / Chromium, so we test in Chromium only.
+// GymTracker315 targets Android Chrome / Chromium, so we test in Chromium only.
 // A tiny local static server (test/serve.mjs) hosts the single HTML file over
 // http://127.0.0.1 so the app loads in a secure context.
 const PORT = 4321;
@@ -17,7 +17,7 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'on-first-retry',
   },
-  // GymTracker is built for Android Chrome, so we test both a desktop Chromium
+  // GymTracker315 is built for Android Chrome, so we test both a desktop Chromium
   // viewport and an emulated Pixel (mobile UA, touch, small viewport) — the boot
   // + render assertions are the ones that benefit from the mobile profile.
   projects: [

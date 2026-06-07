@@ -1,4 +1,4 @@
-/* GymTracker service worker (feat 93) — offline-first app shell.
+/* GymTracker315 service worker (feat 93) — offline-first app shell.
    BUILD is stamped from APP_BUILD by the deploy workflow; the changed file content is what
    signals the browser that a new version is available (which bumps the cache + purges the old). */
 const BUILD = '__BUILD__';

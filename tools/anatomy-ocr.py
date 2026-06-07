@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-anatomy-ocr.py — map an uploaded hi-res anatomy chart to GymTracker glossary terms (feat 118).
+anatomy-ocr.py — map an uploaded hi-res anatomy chart to GymTracker315 glossary terms (feat 118).
 
-GymTracker is a single offline HTML file with NO external scripts, so a robust OCR engine can't live
+GymTracker315 is a single offline HTML file with NO external scripts, so a robust OCR engine can't live
 in the app. Instead you run this one-time desktop helper on your labelled chart; it OCRs the English
 labels, follows each label's leader line to its muscle, and writes a small JSON "label map". Import that
 map (+ the image) in the app's glossary anatomy chart to unlock the Detailed Chart View with tap targets.
@@ -31,7 +31,7 @@ import json
 import os
 import sys
 
-# Canonical GymTracker anatomy glossary terms -> OCR alias keywords (mirrors ANATOMY_REGIONS in the app).
+# Canonical GymTracker315 anatomy glossary terms -> OCR alias keywords (mirrors ANATOMY_REGIONS in the app).
 TERM_ALIASES = {
     "Pec / Pectorals":    ["pectoralis", "pectoral", "pec", "chest"],
     "Delts":              ["deltoid", "delt", "shoulder"],
@@ -177,7 +177,7 @@ def target_for_label(bx, segs, max_attach):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="OCR an anatomy chart into a GymTracker label map (feat 118).")
+    ap = argparse.ArgumentParser(description="OCR an anatomy chart into a GymTracker315 label map (feat 118).")
     ap.add_argument("image", help="path to the labelled anatomy chart (png/jpg)")
     ap.add_argument("-o", "--output", default="anatomy-map.json", help="output JSON path")
     ap.add_argument("--terms", help="optional term/alias override file")

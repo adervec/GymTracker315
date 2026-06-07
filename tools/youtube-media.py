@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-youtube-media.py - match a creator's YouTube Shorts to your GymTracker exercises and emit a media
+youtube-media.py - match a creator's YouTube Shorts to your GymTracker315 exercises and emit a media
 map you can bulk-import (Settings -> Data -> Exercise media -> "Import media map").
 
 WHY A SCRIPT?  A browser can't enumerate a channel's Shorts or call the YouTube Data API with a
@@ -11,7 +11,7 @@ is found.
 SETUP (once)
   1. Free YouTube Data API v3 key: https://console.cloud.google.com/ -> APIs & Services ->
      enable "YouTube Data API v3" -> Credentials -> create an API key.
-  2. In GymTracker: Settings -> Data -> Exercise media -> "Export exercise list"
+  2. In GymTracker315: Settings -> Data -> Exercise media -> "Export exercise list"
      (saves gymtracker-exercises.json). Put it next to this script.
   3. No pip install needed - Python standard library only.
 
@@ -21,7 +21,7 @@ RUN
   Defaults: exercises = gymtracker-exercises.json, out = gymtracker-media-map.json
   Channels: @fitonomycoaching and @pathradecha (edit CHANNELS below to add/change creators).
 
-Then in GymTracker: Settings -> Data -> Exercise media -> "Import media map" -> pick the JSON.
+Then in GymTracker315: Settings -> Data -> Exercise media -> "Import media map" -> pick the JSON.
 
 NOTE: matching is heuristic (exercise-name token coverage of the video title); Shorts <= ~60s are
 kept. Review afterwards -- each exercise's media carousel lets you remove any mismatch. The API has
@@ -172,7 +172,7 @@ def main():
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({"media": media}, f, indent=2)
     print("Wrote %d matched clips -> %s" % (len(media), os.path.abspath(out_path)))
-    print("Import in GymTracker: Settings -> Data -> Exercise media -> Import media map.")
+    print("Import in GymTracker315: Settings -> Data -> Exercise media -> Import media map.")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 garmin-sync.py - pull recent biometrics from your Garmin Connect account and write a
-small JSON that GymTracker can import (Body tab -> "Import biometrics").
+small JSON that GymTracker315 can import (Body tab -> "Import biometrics").
 
 WHY A SCRIPT?  A browser app cannot read Garmin directly: there is no public per-user
 read API, Garmin's internal Connect endpoints are not CORS-enabled and sit behind an SSO
@@ -154,7 +154,7 @@ def main():
         json.dump(data, f, indent=2)
     print("Wrote %d body-composition + %d sleep record(s) -> %s"
           % (len(body_comp), len(sleep), os.path.abspath(out)))
-    print("Now in GymTracker: Body tab -> Import biometrics -> pick this file.")
+    print("Now in GymTracker315: Body tab -> Import biometrics -> pick this file.")
 
 
 if __name__ == "__main__":
