@@ -3980,7 +3980,10 @@ function stravaLoadDisable() {
 // as a test user) -> Credentials -> Create OAuth client ID -> Web application -> Authorized
 // JavaScript origins: https://adervec.github.io AND http://localhost:4321 -> paste the Client
 // ID here. Only the drive.appdata scope is requested (a private per-app folder, light consent).
-const SYNC_CLIENTS = { google: '' };
+// feat 124/125 — public OAuth client ids per provider (safe to commit; identifiers, not secrets).
+// Empty -> that backend shows its one-time setup steps instead of a Connect button. The custom
+// endpoint needs no entry here (its URL + token are user-supplied at runtime).
+const SYNC_CLIENTS = { google: '', dropbox: '', onedrive: '' };
 
 const GOOGLE_GIS_SRC = 'https://accounts.google.com/gsi/client';
 const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
@@ -4058,6 +4061,111 @@ async function cloudGoogleFindOrCreateFile() {
   return _cloudGoogleFileId;
 }
 
+/* ---- feat 125: shared OAuth 2.0 PKCE redirect flow (Dropbox, OneDrive) ----
+   Browser apps can't keep a client secret, so we use Authorization Code + PKCE with NO secret. The
+   provider redirects back to the app URL with ?code=…; we exchange it for an access token (+ a refresh
+   token when the provider supports offline access). The access token stays in memory; the refresh token
+   is cached in IndexedDB so a reload can silently re-acquire without another round-trip to the provider.
+   No SDK is loaded — plain fetch + Web Crypto keeps the app single-file. */
+const CLOUD_OAUTH_PENDING_KEY = 'gt_cloud_oauth_pending';
+const CLOUD_OAUTH = {
+  dropbox: {
+    authorize: 'https://www.dropbox.com/oauth2/authorize',
+    token: 'https://api.dropboxapi.com/oauth2/token',
+    scope: 'files.content.write files.content.read',
+    extraAuth: { token_access_type: 'offline' }, // ask for a refresh token
+  },
+  onedrive: {
+    // 'consumers' = personal Microsoft accounts (Files.ReadWrite.AppFolder is personal-only).
+    authorize: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize',
+    token: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token',
+    scope: 'Files.ReadWrite.AppFolder offline_access',
+  },
+};
+const _cloudOAuthTokens = {}; // providerId -> { value, exp } — IN MEMORY ONLY
+
+function cloudB64Url(buf) {
+  let s = ''; const a = new Uint8Array(buf);
+  for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function cloudRandVerifier() { const a = new Uint8Array(48); window.crypto.getRandomValues(a); return cloudB64Url(a.buffer); }
+async function cloudPkceChallenge(verifier) { return cloudB64Url(await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))); }
+function cloudRedirectUri() { return window.location.origin + window.location.pathname; }
+
+async function cloudOAuthBegin(providerId) {
+  const cfg = CLOUD_OAUTH[providerId];
+  const verifier = cloudRandVerifier();
+  const challenge = await cloudPkceChallenge(verifier);
+  const redirectUri = cloudRedirectUri();
+  try { localStorage.setItem(CLOUD_OAUTH_PENDING_KEY, JSON.stringify({ provider: providerId, verifier, redirectUri })); } catch (_) {}
+  const params = new URLSearchParams({ client_id: SYNC_CLIENTS[providerId], response_type: 'code', redirect_uri: redirectUri, code_challenge: challenge, code_challenge_method: 'S256' });
+  if (cfg.scope) params.set('scope', cfg.scope);
+  if (cfg.extraAuth) for (const k in cfg.extraAuth) params.set(k, cfg.extraAuth[k]);
+  window.location.assign(cfg.authorize + '?' + params.toString());
+}
+function cloudOAuthStoreToken(providerId, tok) { _cloudOAuthTokens[providerId] = { value: tok.access_token, exp: Date.now() + ((tok.expires_in || 3600) * 1000) }; }
+async function cloudOAuthExchange(providerId, code, verifier, redirectUri) {
+  const cfg = CLOUD_OAUTH[providerId];
+  const body = new URLSearchParams({ client_id: SYNC_CLIENTS[providerId], grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: redirectUri });
+  const r = await fetch(cfg.token, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+  if (!r.ok) throw new Error(providerId + ' token ' + r.status);
+  return await r.json(); // { access_token, refresh_token?, expires_in }
+}
+async function cloudOAuthForceRefresh(providerId) {
+  const cfg = CLOUD_OAUTH[providerId];
+  let rt = null; try { rt = await bioIdbGet('cloud_' + providerId + '_rt'); } catch (_) {}
+  if (!rt) throw new Error(providerId + ' not authorized — reconnect');
+  const body = new URLSearchParams({ client_id: SYNC_CLIENTS[providerId], grant_type: 'refresh_token', refresh_token: rt });
+  if (cfg.scope) body.set('scope', cfg.scope);
+  const r = await fetch(cfg.token, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+  if (!r.ok) throw new Error(providerId + ' refresh ' + r.status);
+  const j = await r.json();
+  cloudOAuthStoreToken(providerId, j);
+  if (j.refresh_token) { try { await bioIdbSet('cloud_' + providerId + '_rt', j.refresh_token); } catch (_) {} } // rotation (OneDrive)
+  return j.access_token;
+}
+async function cloudOAuthToken(providerId) {
+  const t = _cloudOAuthTokens[providerId];
+  if (t && t.exp > Date.now() + 60000) return t.value;
+  return await cloudOAuthForceRefresh(providerId); // throws if no refresh token -> user must reconnect
+}
+// Completes a connection after a redirect-return (?code=…). Returns true if it handled a redirect.
+async function cloudOAuthHandleRedirect() {
+  let pending = null; try { pending = JSON.parse(localStorage.getItem(CLOUD_OAUTH_PENDING_KEY) || 'null'); } catch (_) {}
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code'), err = params.get('error');
+  if (!pending || (!code && !err)) return false;
+  try { localStorage.removeItem(CLOUD_OAUTH_PENDING_KEY); } catch (_) {}
+  try { history.replaceState(null, '', cloudRedirectUri()); } catch (_) {} // scrub ?code from the address bar
+  if (err) { cloudSetMeta({ lastError: 'authorization ' + err }); cloudStatus('⚠ Cloud connect cancelled'); return true; }
+  try {
+    const tok = await cloudOAuthExchange(pending.provider, code, pending.verifier, pending.redirectUri);
+    cloudOAuthStoreToken(pending.provider, tok);
+    if (tok.refresh_token) { try { await bioIdbSet('cloud_' + pending.provider + '_rt', tok.refresh_token); } catch (_) {} }
+    await cloudFinishConnect(pending.provider);
+  } catch (e) {
+    cloudSetMeta({ lastError: (e && e.message) || 'token exchange failed' });
+    cloudStatus('⚠ Cloud connect failed');
+    try { renderSettingsDrawer(); } catch (_) {}
+    logWarn('Cloud OAuth exchange failed', e && e.message);
+  }
+  return true;
+}
+
+/* ---- feat 125: Custom endpoint backend — your own server (Cloudflare Worker template in tools/sync-worker.js).
+   No third-party login, works on every device (incl. Apple), best privacy. The app GETs the JSON and PUTs it
+   back with an optional bearer token. The URL + token live in state.cloudSync.perProvider.custom (local only). */
+function cloudCustomCfg() { const cs = state.cloudSync || {}; return (cs.perProvider && cs.perProvider.custom) || null; }
+function cloudCustomHeaders() { const c = cloudCustomCfg(); return c && c.token ? { Authorization: 'Bearer ' + c.token } : {}; }
+function cloudCustomSave() {
+  const url = (document.getElementById('cloud-custom-url')?.value || '').trim();
+  const token = (document.getElementById('cloud-custom-token')?.value || '').trim();
+  const cs = state.cloudSync || {};
+  state.cloudSync = { ...cs, perProvider: { ...(cs.perProvider || {}), custom: { url, token } } };
+  cloudPersist();
+}
+
 const CLOUD_PROVIDERS = {
   google: {
     id: 'google', label: 'Google Drive', kind: 'oauth',
@@ -4087,6 +4195,85 @@ const CLOUD_PROVIDERS = {
       if (!r.ok) return {}; const j = await r.json(); return { remoteModified: j.modifiedTime };
     },
   },
+
+  // Dropbox (OAuth PKCE; App-folder; one /gymtracker-state.json). Fully cross-platform.
+  dropbox: {
+    id: 'dropbox', label: 'Dropbox', kind: 'oauth',
+    isConfigured() { return !!SYNC_CLIENTS.dropbox; },
+    async connect() { await cloudOAuthBegin('dropbox'); return 'redirecting'; },
+    disconnect() { delete _cloudOAuthTokens.dropbox; },
+    async pull() {
+      const arg = JSON.stringify({ path: '/gymtracker-state.json' });
+      const go = async () => fetch('https://content.dropboxapi.com/2/files/download', { method: 'POST', headers: { Authorization: 'Bearer ' + (await cloudOAuthToken('dropbox')), 'Dropbox-API-Arg': arg } });
+      let r = await go();
+      if (r.status === 401) { await cloudOAuthForceRefresh('dropbox'); r = await go(); }
+      if (r.status === 409) return null; // path not found (file not created yet)
+      if (!r.ok) throw new Error('Dropbox pull ' + r.status);
+      const txt = await r.text(); if (!txt) return null;
+      try { return JSON.parse(txt); } catch (_) { return null; }
+    },
+    async push(body) {
+      const arg = JSON.stringify({ path: '/gymtracker-state.json', mode: 'overwrite', mute: true });
+      const go = async () => fetch('https://content.dropboxapi.com/2/files/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + (await cloudOAuthToken('dropbox')), 'Dropbox-API-Arg': arg, 'Content-Type': 'application/octet-stream' }, body });
+      let r = await go();
+      if (r.status === 401) { await cloudOAuthForceRefresh('dropbox'); r = await go(); }
+      if (!r.ok) throw new Error('Dropbox push ' + r.status);
+    },
+    async meta() { return {}; },
+  },
+
+  // OneDrive (MS Graph; personal accounts only — Files.ReadWrite.AppFolder; special/approot).
+  onedrive: {
+    id: 'onedrive', label: 'OneDrive', kind: 'oauth',
+    isConfigured() { return !!SYNC_CLIENTS.onedrive; },
+    async connect() { await cloudOAuthBegin('onedrive'); return 'redirecting'; },
+    disconnect() { delete _cloudOAuthTokens.onedrive; },
+    async pull() {
+      const ep = 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/gymtracker-state.json:/content';
+      const go = async () => fetch(ep, { headers: { Authorization: 'Bearer ' + (await cloudOAuthToken('onedrive')) } });
+      let r = await go();
+      if (r.status === 401) { await cloudOAuthForceRefresh('onedrive'); r = await go(); }
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error('OneDrive pull ' + r.status);
+      const txt = await r.text(); if (!txt) return null;
+      try { return JSON.parse(txt); } catch (_) { return null; }
+    },
+    async push(body) {
+      const ep = 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/gymtracker-state.json:/content';
+      const go = async () => fetch(ep, { method: 'PUT', headers: { Authorization: 'Bearer ' + (await cloudOAuthToken('onedrive')), 'Content-Type': 'application/json' }, body });
+      let r = await go();
+      if (r.status === 401) { await cloudOAuthForceRefresh('onedrive'); r = await go(); }
+      if (!r.ok) throw new Error('OneDrive push ' + r.status);
+    },
+    async meta() { return {}; },
+  },
+
+  // Custom endpoint — your own server (no third-party login; works on any device incl. Apple).
+  custom: {
+    id: 'custom', label: 'Custom endpoint', kind: 'endpoint',
+    isConfigured() { const c = cloudCustomCfg(); return !!(c && c.url); },
+    async connect() {
+      const c = cloudCustomCfg();
+      if (!c || !c.url) throw new Error('Set the endpoint URL first');
+      const r = await fetch(c.url, { headers: cloudCustomHeaders() }); // reachability probe
+      if (!r.ok && r.status !== 404) throw new Error('Endpoint GET ' + r.status);
+    },
+    disconnect() {},
+    async pull() {
+      const c = cloudCustomCfg(); if (!c || !c.url) return null;
+      const r = await fetch(c.url, { headers: cloudCustomHeaders() });
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error('Endpoint pull ' + r.status);
+      const txt = await r.text(); if (!txt) return null;
+      try { return JSON.parse(txt); } catch (_) { return null; }
+    },
+    async push(body) {
+      const c = cloudCustomCfg(); if (!c || !c.url) throw new Error('No endpoint URL');
+      const r = await fetch(c.url, { method: 'PUT', headers: { ...cloudCustomHeaders(), 'Content-Type': 'application/json' }, body });
+      if (!r.ok) throw new Error('Endpoint push ' + r.status);
+    },
+    async meta() { return {}; },
+  },
 };
 
 // ---- provider-agnostic engine ----
@@ -4096,19 +4283,25 @@ async function cloudConnect(providerId) {
   if (!p.isConfigured()) { toast(p.label + ' needs one-time setup — see Cloud Sync'); return; }
   cloudStatus('☁ Connecting…');
   try {
-    await p.connect();
-    cloudSetMeta({ provider: providerId, enabled: true, lastError: null });
-    await cloudPullNow(true);   // fold any existing remote state into local
-    await cloudPushNow();       // seed/refresh the remote file with the merged result
-    cloudSetMeta({ lastSync: new Date().toISOString(), lastError: null });
-    renderSettingsDrawer();
-    toast('☁ ' + p.label + ' connected');
+    const r = await p.connect();
+    if (r === 'redirecting') return; // OAuth-redirect provider (Dropbox/OneDrive): page navigates away; finish on return
+    await cloudFinishConnect(providerId);
   } catch (e) {
     cloudSetMeta({ lastError: (e && e.message) || 'connect failed' });
     cloudStatus('⚠ Cloud connect failed');
     renderSettingsDrawer();
     logWarn('Cloud connect failed', e && e.message);
   }
+}
+// Shared connection tail — used by the in-page connect (Google/custom) AND the OAuth redirect-return.
+async function cloudFinishConnect(providerId) {
+  const p = CLOUD_PROVIDERS[providerId];
+  cloudSetMeta({ provider: providerId, enabled: true, lastError: null });
+  await cloudPullNow(true);   // fold any existing remote state into local
+  await cloudPushNow();       // seed/refresh the remote file with the merged result
+  cloudSetMeta({ lastSync: new Date().toISOString(), lastError: null });
+  try { renderSettingsDrawer(); } catch (_) {}
+  toast('☁ ' + p.label + ' connected');
 }
 function cloudDisconnect() {
   const p = cloudProviderActive();
@@ -4165,6 +4358,63 @@ async function cloudSyncNow() {
   cloudStatus('☁ Syncing…');
   try { await cloudPullNow(true); await cloudPushNow(); renderSettingsDrawer(); }
   catch (_) { cloudStatus('⚠ Cloud sync failed'); renderSettingsDrawer(); }
+}
+
+// Settings "Cloud Sync" card markup (feat 124/125). Provider-pluggable: lists every CLOUD_PROVIDERS
+// entry. Relocated to the Data Management page along with #drawer-data-wrap; buttons are wired in
+// renderSettingsDrawer before that relocation, so the listeners ride along with the moved nodes.
+function cloudSyncCardHtml() {
+  const cs = state.cloudSync || {};
+  const connected = cs.enabled && cs.provider && CLOUD_PROVIDERS[cs.provider];
+  if (connected) {
+    const pLabel = CLOUD_PROVIDERS[cs.provider].label;
+    return `
+      <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">☁ ${escapeHtml(pLabel)} connected</div>
+        <div style="color:var(--text2);">${cs.lastSync ? 'Last synced ' + escapeHtml(cloudShortTime(cs.lastSync)) : 'Not synced yet'}${cs.lastError ? ' · <span style="color:var(--warn);">' + escapeHtml(String(cs.lastError)) + '</span>' : ''}</div>
+      </div>
+      <div class="drawer-data-row" style="flex-wrap:wrap;">
+        <button class="drawer-btn" id="cloud-sync-now-btn">⟳ Sync Now</button>
+        <button class="drawer-btn danger" id="cloud-disconnect-btn">✕ Disconnect</button>
+      </div>`;
+  }
+  const custom = cloudCustomCfg() || {};
+  const inputCss = 'width:100%;box-sizing:border-box;margin-top:6px;padding:7px 9px;font-size:12px;border-radius:6px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);font-family:inherit;';
+  const oauthBtn = (id, label, emoji) => {
+    const ok = !!SYNC_CLIENTS[id];
+    return `<button class="drawer-btn" id="cloud-connect-${id}-btn"${ok ? '' : ' disabled title="Needs a one-time client id — see Setup help"'}>${emoji} ${label}</button>`;
+  };
+  return `
+    <div class="drawer-data-row" style="flex-wrap:wrap;">
+      ${oauthBtn('google', 'Google Drive', '☁')}
+      ${oauthBtn('dropbox', 'Dropbox', '📦')}
+      ${oauthBtn('onedrive', 'OneDrive', '🪟')}
+    </div>
+    <div style="margin-top:10px;padding:10px 11px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;">
+      <div style="font-size:12px;font-weight:700;color:var(--text);">🔒 Custom endpoint</div>
+      <div style="font-size:10.5px;color:var(--text3);margin-top:2px;line-height:1.5;">Your own server — no third-party login, works on <b>any</b> device (incl. Apple). Host the ~30-line worker in <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/sync-worker.js</code> and paste its URL.</div>
+      <input type="url" id="cloud-custom-url" placeholder="https://your-worker.example.com/gymtracker" value="${escapeHtml(custom.url || '')}" style="${inputCss}">
+      <input type="password" id="cloud-custom-token" placeholder="Bearer token (optional)" value="${escapeHtml(custom.token || '')}" autocomplete="off" style="${inputCss}">
+      <div class="drawer-data-row" style="margin-top:7px;">
+        <button class="drawer-btn" id="cloud-custom-save-btn">💾 Save</button>
+        <button class="drawer-btn" id="cloud-connect-custom-btn">🔌 Connect</button>
+      </div>
+    </div>
+    <details style="margin-top:10px;font-size:11px;color:var(--text3);line-height:1.55;">
+      <summary style="cursor:pointer;color:var(--text2);font-weight:600;padding:3px 0;">Setup help — OAuth client ids (one-time, free)</summary>
+      <div style="margin-top:6px;">
+        Each OAuth provider needs a free app registration to get a public <b>client id</b>, pasted into
+        <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">SYNC_CLIENTS</code> in the app source.
+        Register the app's URL (e.g. <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">https://adervec.github.io/GymTracker315/</code>)
+        as the redirect URI / JS origin. Per-provider walkthroughs: <b>README → Cloud Sync</b>.
+        <ul style="margin:6px 0 0;padding-left:18px;">
+          <li><b>Google Drive</b> — Google Cloud Console → OAuth Web client → <code style="background:var(--bg4);padding:1px 3px;border-radius:3px;">SYNC_CLIENTS.google</code></li>
+          <li><b>Dropbox</b> — dropbox.com/developers → App folder app (PKCE) → <code style="background:var(--bg4);padding:1px 3px;border-radius:3px;">SYNC_CLIENTS.dropbox</code></li>
+          <li><b>OneDrive</b> — Azure portal → App registration (SPA, personal accounts) → <code style="background:var(--bg4);padding:1px 3px;border-radius:3px;">SYNC_CLIENTS.onedrive</code></li>
+        </ul>
+        <div style="margin-top:5px;color:var(--text3);">The <b>custom endpoint</b> needs none of this. iCloud isn't supported (needs a paid Apple Developer account).</div>
+      </div>
+    </details>`;
 }
 
 /* ============================================================
@@ -5395,35 +5645,7 @@ function renderSettingsDrawer() {
       session, with delete tracking), so no device clobbers another — and it works on the phone, unlike the
       desktop-only Auto-Save/Load above. <b>Export JSON</b> stays as a manual backup.
     </div>
-    ${(() => {
-      const cs = state.cloudSync || {};
-      const connected = cs.enabled && cs.provider && CLOUD_PROVIDERS[cs.provider];
-      if (connected) {
-        const pLabel = CLOUD_PROVIDERS[cs.provider].label;
-        return `
-        <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
-          <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">☁ ${escapeHtml(pLabel)} connected</div>
-          <div style="color:var(--text2);">${cs.lastSync ? 'Last synced ' + escapeHtml(cloudShortTime(cs.lastSync)) : 'Not synced yet'}${cs.lastError ? ' · <span style="color:var(--warn);">' + escapeHtml(String(cs.lastError)) + '</span>' : ''}</div>
-        </div>
-        <div class="drawer-data-row" style="flex-wrap:wrap;">
-          <button class="drawer-btn" id="cloud-sync-now-btn">⟳ Sync Now</button>
-          <button class="drawer-btn danger" id="cloud-disconnect-btn">✕ Disconnect</button>
-        </div>`;
-      }
-      const gCfg = !!(SYNC_CLIENTS && SYNC_CLIENTS.google);
-      return `
-        <div class="drawer-data-row" style="flex-wrap:wrap;">
-          <button class="drawer-btn" id="cloud-connect-google-btn" ${gCfg ? '' : 'disabled title="Needs one-time setup (below)"'}>☁ Connect Google Drive</button>
-        </div>
-        ${gCfg ? '' : `<div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.55;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px 11px;">
-          <b style="color:var(--warn);">One-time Google setup</b> (free, ~5 min) — create a Google Cloud project →
-          OAuth consent screen (<i>External</i>, status <i>Testing</i>, add yourself as a test user) →
-          Credentials → OAuth client ID → <b>Web application</b> → Authorized JavaScript origins:
-          <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">https://adervec.github.io</code> and
-          <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">http://localhost:4321</code> → paste the Client ID into
-          <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">SYNC_CLIENTS.google</code> in the app source. Full walkthrough: README → Cloud Sync.
-        </div>`}`;
-    })()}
+    ${cloudSyncCardHtml()}
 
     <div class="drawer-section-title" style="margin-top:18px;">Exercise media (bulk)</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
@@ -5683,8 +5905,13 @@ function renderSettingsDrawer() {
   body.querySelector('#strava-sync-now-btn')?.addEventListener('click', () => { stravaLoadNow(false, true).catch(() => {}); });
   body.querySelector('#strava-al-disable-btn')?.addEventListener('click', stravaLoadDisable);
 
-  // feat 124 — cloud sync (must run inside this user gesture so the OAuth popup is allowed)
+  // feat 124/125 — cloud sync. Wired here (before #drawer-data-wrap is relocated) so listeners ride along.
+  // Connect must run inside this user gesture so the OAuth popup/redirect is allowed.
   body.querySelector('#cloud-connect-google-btn')?.addEventListener('click', () => { cloudConnect('google'); });
+  body.querySelector('#cloud-connect-dropbox-btn')?.addEventListener('click', () => { cloudConnect('dropbox'); });
+  body.querySelector('#cloud-connect-onedrive-btn')?.addEventListener('click', () => { cloudConnect('onedrive'); });
+  body.querySelector('#cloud-connect-custom-btn')?.addEventListener('click', () => { cloudCustomSave(); cloudConnect('custom'); });
+  body.querySelector('#cloud-custom-save-btn')?.addEventListener('click', () => { cloudCustomSave(); toast('Endpoint saved'); });
   body.querySelector('#cloud-sync-now-btn')?.addEventListener('click', () => { cloudSyncNow(); });
   body.querySelector('#cloud-disconnect-btn')?.addEventListener('click', cloudDisconnect);
 
@@ -12617,7 +12844,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 73 · 2026-06-07 12:40';
+const APP_BUILD = 'build 74 · 2026-06-07 12:55';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -13277,11 +13504,12 @@ setTimeout(() => {
   if (state.stravaAutoLoad && state.stravaAutoLoad.enabled) {
     stravaLoadNow(true, false).catch(() => {});
   }
-  // feat 124 — cloud sync: silent pull on boot if a provider is connected (no gesture -> silent token;
-  // if the provider session is gone it fails quietly and the user re-connects from Settings → Cloud Sync)
-  if (cloudActive()) {
-    cloudPullNow(true).catch(() => {});
-  }
+  // feat 124/125 — cloud sync: first finish any pending OAuth redirect (Dropbox/OneDrive land back here
+  // with ?code=…); otherwise silent-pull if a provider is already connected. OAuth providers can refresh
+  // silently from the IndexedDB refresh token; Google falls back to a silent GIS token when its session lives.
+  cloudOAuthHandleRedirect()
+    .then((handled) => { if (!handled && cloudActive()) return cloudPullNow(true); })
+    .catch(() => {});
 }, 300);
 </script>
 </div>
