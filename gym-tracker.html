@@ -12361,7 +12361,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 71 · 2026-06-07 12:01';
+const APP_BUILD = 'build 72 · 2026-06-07 12:03';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -12991,6 +12991,16 @@ render();
 ensureRestTick(); // feat 51 — start the global rest-timer tick
 refreshSoundIcon(); // feat 74 — reflect saved audio/haptics state in the top-bar icon
 initTopbarShortcuts(); // feat 99 — long-press shortcuts on the top-bar icons
+// Restore the last-visited panel across refreshes / PWA restarts.
+(function restorePanel() {
+  try {
+    const saved = localStorage.getItem('gt_panel');
+    if (saved && saved !== 'panel-tracker') {
+      const btn = document.querySelector(`.nav-tab[data-panel="${saved}"]`);
+      if (btn && document.getElementById(saved)) switchPanel(saved, btn);
+    }
+  } catch (_) {}
+})();
 // feat 105 — probe audio output now and whenever devices change, for the headphone-only gate
 try { probeAudioOutput(); if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', probeAudioOutput); } catch (_) {}
 try { loadAnatomyImage(); } catch (_) {} // feat 118 — warm-load the custom anatomy chart from IndexedDB
@@ -20215,6 +20225,7 @@ function switchPanel(panelId, btn) {
   document.getElementById(panelId).classList.add('active');
   btn.classList.add('active');
   window.scrollTo(0, 0);
+  try { localStorage.setItem('gt_panel', panelId); } catch (_) {}
 }
 
 /* ====== BUILD STAMP ====== build number + full timestamp live in APP_BUILD (feat 53),
