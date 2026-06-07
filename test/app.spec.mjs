@@ -104,6 +104,29 @@ test('plan estimates are sane', async ({ page }) => {
   expect(r.dotsDefault).toBe('●●●○○'); // default intensity 3
 });
 
+test('2-hour seed plans exist, estimate ~120 min, and reference real movements (feat 126)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const ids = ['seed-fullbody-2h', 'seed-legs-2h', 'seed-chestback-2h', 'seed-shouldersarms-2h'];
+    const seeds = cloneSeedPlans();
+    const famIds = new Set(FAMILIES.map((f) => f.id)); // FAMILIES already merged EXTRA_FAMILIES at init
+    const mins = {};
+    let allMovesValid = true;
+    ids.forEach((id) => {
+      const p = seeds.find((s) => s.id === id);
+      mins[id] = p ? estimatePlanMinutes(p) : null;
+      if (!p) { allMovesValid = false; return; }
+      p.steps.forEach((st) => (st.options || []).forEach((o) => { if (o.type === 'movement' && !famIds.has(o.familyId)) allMovesValid = false; }));
+    });
+    return { mins, allMovesValid, allPresent: ids.every((id) => seeds.some((s) => s.id === id)) };
+  });
+  expect(r.allPresent).toBe(true);
+  expect(r.allMovesValid).toBe(true); // every step references a real movement family (no typos)
+  expect(r.mins['seed-fullbody-2h']).toBe(120);
+  expect(r.mins['seed-legs-2h']).toBe(120);
+  expect(r.mins['seed-chestback-2h']).toBe(120);
+  expect(r.mins['seed-shouldersarms-2h']).toBe(120);
+});
+
 test('autoLoadSupported returns a boolean', async ({ page }) => {
   const t = await page.evaluate(() => typeof autoLoadSupported());
   expect(t).toBe('boolean');

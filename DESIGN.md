@@ -567,6 +567,12 @@ They share variation **UUIDs**.
   a Setup-help disclosure. iCloud stays out of scope (needs a paid Apple Developer account + CloudKit). Covered by
   `test/sync.spec.mjs` (PKCE digest; custom connect/push/pull with bearer auth; simulated Dropbox+OneDrive
   redirect-return → token exchange → push; registry + multi-provider picker render).
+- **Two-hour seed plans (feat 126):** four high-volume `SEED_PLANS` for longer sessions — **Full Body Blast**,
+  **Leg Marathon**, **Chest & Back**, and **Shoulders & Arms** (all "(2h)") — each tuned to ~45 sets across
+  10–11 steps so `estimatePlanMinutes` (`round((2.5·sets + steps)/15)·15`) reports **~120 min**. They use only
+  existing movement families (`_mvOpt` ids), so they inherit gym-feasibility, picker matching and progress
+  tracking for free, and auto-append for existing users via the `seededPlanIds` merge in `normalizeState`.
+  Covered by `test/app.spec.mjs` (present + 120-min estimate + every step references a real family).
 
 ---
 
