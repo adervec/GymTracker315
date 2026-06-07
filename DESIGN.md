@@ -534,6 +534,11 @@ They share variation **UUIDs**.
   / `exportCategoryCsv` download a `gymtracker-<key>_<ts>.(json|csv)`; the table is built by `dataCategoryTableHtml`
   and rides along into the relocated Data page. Covered by `test/dataexport.spec.mjs` (counts/ranges, slice shapes,
   CSV rows, JSON re-import round-trip, rendered buttons).
+- **Centered modal close button (feat 131):** `.media-head .media-close` (the ✕ on the media carousel and the Strava
+  reconciliation modal) was a fixed 30×30 box with no flex centering, so the glyph sat low/off-center. Added
+  `display:inline-flex; align-items:center; justify-content:center; line-height:1; padding:0`. An audit of the other
+  ✕/× controls found this was the only fixed-square one missing centering (the picker clear button was already
+  flex-centered; the rest are padding-sized). Covered by `test/mediawizard.spec.mjs` (computed-style centering).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
