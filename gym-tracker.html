@@ -1394,6 +1394,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plate-note { font-size: 10px; color: var(--text3); margin-top: 8px; line-height: 1.5; }
   /* Equipment "X Setup" controls (feat 78) — shared by inline panel + OSK numpad */
   .setup-lbl { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; margin: 8px 0 5px; }
+  .setup-slider { width: 100%; margin: 2px 0 6px; accent-color: var(--accent); }
   .setup-pills { display: flex; flex-wrap: wrap; gap: 6px; }
   .setup-pills.wrap { max-height: 116px; overflow-y: auto; }
   .setup-pill { position: relative; padding: 7px 11px; border-radius: 8px; font-size: 13px; font-weight: 600; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text2); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
@@ -4882,8 +4883,46 @@ function renderGymEditor(g) {
     <div style="font-size:10.5px;color:var(--text3);margin-top:8px;line-height:1.5;">
       Grab coordinates from Google Maps (or paste any "lat, lng"). To force-show a globally-hidden exercise only at this gym, set it active, then use 📍 in the Reference (or it shows automatically when its equipment is available).
     </div>
+    ${renderGymStableEditor(g)}
     <div class="drawer-data-row" style="margin-top:8px;"><button class="drawer-btn" data-gym-done="${g.id}">Done</button></div>
   </div>`;
+}
+// feat 135 — per-gym equipment "stable": the dumbbell/kettlebell/ball sizes + pin stack this gym stocks.
+function parseSizeList(str) { return String(str || '').split(/[,\s]+/).map(x => parseFloat(x)).filter(n => !isNaN(n) && n > 0).sort((a, b) => a - b); }
+function gymStableOrDefault(g) {
+  const s = (g && g.stable && g.stable.unit === state.unit) ? g.stable : null, d = defaultPinStable();
+  return {
+    custom: !!s,
+    db: (s && Array.isArray(s.db) && s.db.length) ? s.db : defaultDbSizes(),
+    kb: (s && Array.isArray(s.kb) && s.kb.length) ? s.kb : defaultKbSizes(),
+    ball: (s && Array.isArray(s.ball) && s.ball.length) ? s.ball : defaultBallSizes(),
+    pin: (s && s.pin && s.pin.inc) ? { first: s.pin.first != null ? s.pin.first : d.first, inc: s.pin.inc, max: s.pin.max != null ? s.pin.max : d.max } : d,
+  };
+}
+// Materialise a writable stable on the gym (in the current unit). Other-unit stables are replaced.
+function ensureGymStable(g) {
+  if (!g.stable || g.stable.unit !== state.unit) { const d = gymStableOrDefault(g); g.stable = { unit: state.unit, db: d.db.slice(), kb: d.kb.slice(), ball: d.ball.slice(), pin: { ...d.pin } }; }
+  if (!g.stable.pin) g.stable.pin = { ...defaultPinStable() };
+  return g.stable;
+}
+function renderGymStableEditor(g) {
+  const u = state.unit, S = gymStableOrDefault(g);
+  const sMin = u === 'kg' ? 2.5 : 5, sMax = u === 'kg' ? 12.5 : 25, sStep = u === 'kg' ? 2.5 : 5;
+  const inCss = 'flex:1;min-width:0;padding:5px 7px;font-size:11px;border-radius:6px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);';
+  const numCss = 'width:74px;padding:4px 6px;font-size:12px;border-radius:6px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);';
+  const listRow = (key, label, vals) => `<div class="vw-row" style="align-items:center;margin-top:6px;"><div class="vw-label">${label}</div><input type="text" data-gym-stable="${g.id}" data-stable-key="${key}" value="${escapeAttr(vals.join(', '))}" placeholder="comma-separated ${u}" style="${inCss}"></div>`;
+  return `<details class="gym-stable"${S.custom ? ' open' : ''} style="margin-top:10px;border-top:1px solid var(--border2);padding-top:8px;">
+    <summary style="cursor:pointer;font-size:10.5px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">🏋 Equipment stable <span style="text-transform:none;color:${S.custom ? 'var(--good)' : 'var(--text3)'};">· ${S.custom ? 'custom' : 'defaults'}</span></summary>
+    <div style="font-size:10.5px;color:var(--text3);margin:6px 0;line-height:1.5;">Sizes selectable in the setup tool when <b>this gym is active</b> (${u}). Tailor the lists to this gym's racks.</div>
+    ${listRow('db', 'Dumbbells', S.db)}
+    ${listRow('kb', 'Kettlebells', S.kb)}
+    ${listRow('ball', 'Med balls', S.ball)}
+    <div style="font-size:10.5px;color:var(--text3);margin:9px 0 2px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">Pin stack</div>
+    <div class="vw-row" style="align-items:center;margin-top:4px;"><div class="vw-label">First step</div><input type="number" data-gym-pinfirst="${g.id}" value="${S.pin.first}" min="0" step="${sStep}" style="${numCss}"></div>
+    <div class="vw-row" style="align-items:center;margin-top:6px;"><div class="vw-label">Main increment <b data-gym-pinincval="${g.id}">${S.pin.inc}</b> ${u}</div><input type="range" data-gym-pininc="${g.id}" min="${sMin}" max="${sMax}" step="${sStep}" value="${S.pin.inc}" style="flex:1;min-width:90px;"></div>
+    <div class="vw-row" style="align-items:center;margin-top:6px;"><div class="vw-label">Max</div><input type="number" data-gym-pinmax="${g.id}" value="${S.pin.max}" min="0" step="5" style="${numCss}"></div>
+    <div class="drawer-data-row" style="margin-top:8px;"><button class="drawer-btn" data-gym-stable-reset="${g.id}">↺ Reset to defaults</button></div>
+  </details>`;
 }
 // Extract [lat, lng] from a pasted Google Maps URL or plain "lat,lng" (feat 44).
 function parseMapsLatLng(text) {
@@ -4934,6 +4973,20 @@ function bindGymsSection(body, refresh) {
     if (ll) { g.lat = ll[0]; g.lng = ll[1]; saveState(); logInfo('Gym coords from Maps', ll.join(',')); toast('📍 Coordinates set'); refresh(); }
     else if (inp.value.trim()) toast("Couldn't read coordinates from that");
   }));
+  // feat 135 — per-gym equipment stable editor
+  body.querySelectorAll('[data-gym-stable]').forEach(inp => inp.addEventListener('change', () => {
+    const g = state.gyms.find(x => x.id === inp.dataset.gymStable); if (!g) return;
+    const st = ensureGymStable(g), key = inp.dataset.stableKey, list = parseSizeList(inp.value);
+    st[key] = list.length ? list : (key === 'db' ? defaultDbSizes() : key === 'kb' ? defaultKbSizes() : defaultBallSizes());
+    saveState(); refresh();
+  }));
+  body.querySelectorAll('[data-gym-pinfirst]').forEach(inp => inp.addEventListener('change', () => { const g = state.gyms.find(x => x.id === inp.dataset.gymPinfirst); if (!g) return; const st = ensureGymStable(g); const v = parseFloat(inp.value); if (!isNaN(v) && v >= 0) st.pin.first = v; saveState(); refresh(); }));
+  body.querySelectorAll('[data-gym-pininc]').forEach(r => {
+    r.addEventListener('input', () => { const lab = body.querySelector(`[data-gym-pinincval="${r.dataset.gymPininc}"]`); if (lab) lab.textContent = r.value; });
+    r.addEventListener('change', () => { const g = state.gyms.find(x => x.id === r.dataset.gymPininc); if (!g) return; const st = ensureGymStable(g); st.pin.inc = parseFloat(r.value); saveState(); refresh(); });
+  });
+  body.querySelectorAll('[data-gym-pinmax]').forEach(inp => inp.addEventListener('change', () => { const g = state.gyms.find(x => x.id === inp.dataset.gymPinmax); if (!g) return; const st = ensureGymStable(g); const v = parseFloat(inp.value); if (!isNaN(v) && v > 0) st.pin.max = v; saveState(); refresh(); }));
+  body.querySelectorAll('[data-gym-stable-reset]').forEach(b => b.addEventListener('click', () => { const g = state.gyms.find(x => x.id === b.dataset.gymStableReset); if (!g) return; delete g.stable; saveState(); refresh(); toast('Stable reset to defaults'); }));
 }
 
 // Gym management as its own tracker tab (feat 46)
@@ -11791,13 +11844,25 @@ function defaultSetupState(kind) {
   if (kind === 'medicineball') return { weight: '' };
   if (kind === 'plate') return { plates: {} };
   if (kind === 'landmine') return { plates: {}, addBar: false };
-  if (kind === 'pin') return { stack: '', toppers: {}, inc: (state.unit === 'kg' ? 5 : 10), profileId: null };
+  if (kind === 'pin') { const ps = pinStableFor(); return { stack: '', toppers: {}, inc: ps.inc, first: ps.first, max: ps.max, profileId: null }; }
   return {};
 }
 function setupState(kind) { if (!modalState.setup) modalState.setup = {}; if (!modalState.setup[kind]) modalState.setup[kind] = defaultSetupState(kind); return modalState.setup[kind]; }
-function dumbbellWeights() { return state.unit === 'kg' ? [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44, 50] : [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 110, 120]; }
-function kettlebellWeights() { return state.unit === 'kg' ? [8, 10, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48] : [18, 26, 35, 44, 53, 62, 70, 80, 88, 97, 106]; }
-function medballWeights() { return state.unit === 'kg' ? [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20] : [4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 40, 50]; }
+// feat 135 — typical commercial-gym default "stables" (per unit). Used when no active gym, or the
+// active gym hasn't customised its stable. Each gym can override these (renderGymStableEditor).
+function defaultDbSizes() { return state.unit === 'kg' ? [2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20, 22.5, 25, 27.5, 30, 32.5, 35, 37.5, 40, 45, 50, 55, 60] : [5, 7.5, 10, 12.5, 15, 17.5, 20, 22.5, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120]; }
+function defaultKbSizes() { return state.unit === 'kg' ? [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48] : [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100]; }
+function defaultBallSizes() { return state.unit === 'kg' ? [2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20] : [4, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50]; }
+// Default pin stack: first step then a constant main increment up to a max (lb: +5 then +10 → 295).
+function defaultPinStable() { return state.unit === 'kg' ? { first: 2.5, inc: 5, max: 135 } : { first: 5, inc: 10, max: 295 }; }
+// The active gym's stable — only when it was saved in the CURRENT unit (avoids cross-unit number bugs).
+function activeStable() { const g = getActiveGym(); const s = g && g.stable; return (s && s.unit === state.unit) ? s : null; }
+function dumbbellWeights() { const s = activeStable(); return (s && Array.isArray(s.db) && s.db.length) ? s.db : defaultDbSizes(); }
+function kettlebellWeights() { const s = activeStable(); return (s && Array.isArray(s.kb) && s.kb.length) ? s.kb : defaultKbSizes(); }
+function medballWeights() { const s = activeStable(); return (s && Array.isArray(s.ball) && s.ball.length) ? s.ball : defaultBallSizes(); }
+function pinStableFor() { const d = defaultPinStable(); const s = activeStable(), p = s && s.pin; if (!p || !(p.inc > 0)) return d; return { first: p.first != null ? p.first : d.first, inc: p.inc, max: p.max != null ? p.max : d.max }; }
+// One pin stepper press: 0 → first → first+inc → … (capped at max); down reverses, first → 0. Pure (testable).
+function pinStep(stack, dir, ps) { const cur = parseFloat(stack) || 0, first = ps.first, inc = ps.inc, max = ps.max; const next = dir > 0 ? (cur < first ? first : Math.min(max, cur + inc)) : (cur <= first ? 0 : cur - inc); return Math.round(next * 100) / 100; }
 function topperWeights() { return state.unit === 'kg' ? [1.25, 2.5, 5] : [2.5, 5, 10]; }
 function setupTotal(kind) {
   if (!kind) return 0;
@@ -11870,11 +11935,14 @@ function renderSetupBody(kind, ns) {
       <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">· ${bd}</span></div>`;
   }
   if (kind === 'pin') {
-    const inc = st.inc || (u === 'kg' ? 5 : 10), incs = u === 'kg' ? [2.5, 5, 10] : [5, 10, 15];
+    const ps = pinStableFor();
+    const inc = st.inc || ps.inc, first = (st.first != null ? st.first : ps.first), max = st.max || ps.max;
+    const sMin = u === 'kg' ? 2.5 : 5, sMax = u === 'kg' ? 12.5 : 25, sStep = u === 'kg' ? 2.5 : 5;
     const profs = state.pinProfiles || [];
     const profRow = `<div class="setup-lbl">Machine profile (saved stacks)</div><div class="setup-pills">${profs.map(p => `<button class="setup-pill ${st.profileId === p.id ? 'active' : ''}" data-${ns}-pinprof="${p.id}">${escapeHtml(p.name)} <span class="setup-bd">·${p.inc}</span><span class="setup-x" data-${ns}-pinprofdel="${p.id}" title="Delete">✕</span></button>`).join('')}<button class="setup-pill" data-${ns}-pinprofsave="1">＋ Save</button></div>`;
-    return `${profRow}<div class="setup-lbl">Stack (pin) — step by ${inc} ${u}</div>${_stepperRow(ns, st.stack === '' ? '—' : st.stack)}
-      <div class="setup-lbl">Increment</div><div class="setup-pills">${incs.map(n => `<button class="setup-pill ${inc === n ? 'active' : ''}" data-${ns}-pininc="${n}">${n}</button>`).join('')}</div>
+    return `${profRow}<div class="setup-lbl">Stack (pin) — first +${first}, then +${inc} ${u} <span class="setup-bd">(max ${max})</span></div>${_stepperRow(ns, st.stack === '' ? '—' : st.stack)}
+      <div class="setup-lbl">Main increment — <b data-${ns}-incval>${inc}</b> ${u}</div>
+      <input type="range" class="setup-slider" min="${sMin}" max="${sMax}" step="${sStep}" value="${inc}" data-${ns}-pininc aria-label="Main pin increment">
       <div class="setup-lbl">Toppers — add-on plates on the stack (tap to add · ×N remove)</div><div class="setup-pills">${topperWeights().map(w => `<button class="setup-pill big" data-${ns}-topper="${w}">+${w}${st.toppers[w] ? `<span class="setup-ct" data-${ns}-toppersub="${w}">×${st.toppers[w]}</span>` : ''}</button>`).join('')}</div>
       <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">· stack ${st.stack || 0}${plateSum(st.toppers) ? ` + ${plateSum(st.toppers)} toppers` : ''}</span></div>`;
   }
@@ -11900,18 +11968,21 @@ function bindSetup(ns, rerender) {
   at(`[data-${ns}-set]`).forEach(b => b.addEventListener('click', () => { setupState(kind).weight = parseFloat(b.getAttribute(`data-${ns}-set`)); rerender(); }));
   at(`[data-${ns}-step]`).forEach(b => b.addEventListener('click', () => {
     const st = setupState(kind), dir = parseInt(b.getAttribute(`data-${ns}-step`), 10);
-    if (kind === 'pin') { const pi = st.inc || (state.unit === 'kg' ? 5 : 10); st.stack = Math.max(0, Math.round(((parseFloat(st.stack) || 0) + pi * dir) * 100) / 100); }
+    if (kind === 'pin') { const ps = pinStableFor(); st.stack = pinStep(st.stack, dir, { first: st.first != null ? st.first : ps.first, inc: st.inc || ps.inc, max: st.max || ps.max }); }
     else { st.weight = Math.max(0, Math.round(((parseFloat(st.weight) || 0) + stepInc * dir) * 100) / 100); }
     rerender();
   }));
   at(`[data-${ns}-mode]`).forEach(b => b.addEventListener('click', () => { const st = setupState(kind); if (kind === 'dumbbell') st.perHand = !st.perHand; else if (kind === 'kettlebell') st.double = !st.double; rerender(); }));
   at(`[data-${ns}-lmbar]`).forEach(b => b.addEventListener('click', () => { const st = setupState('landmine'); st.addBar = !st.addBar; rerender(); }));
-  at(`[data-${ns}-pininc]`).forEach(b => b.addEventListener('click', () => { setupState('pin').inc = parseFloat(b.getAttribute(`data-${ns}-pininc`)); rerender(); }));
+  at(`[data-${ns}-pininc]`).forEach(r => { // feat 135 — main increment is now a slider
+    r.addEventListener('input', () => { setupState('pin').inc = parseFloat(r.value); const lab = document.querySelector(`[data-${ns}-incval]`); if (lab) lab.textContent = r.value; });
+    r.addEventListener('change', () => { setupState('pin').inc = parseFloat(r.value); rerender(); });
+  });
   at(`[data-${ns}-topper]`).forEach(b => b.addEventListener('click', () => { const k = b.getAttribute(`data-${ns}-topper`), st = setupState('pin'); st.toppers[k] = (st.toppers[k] || 0) + 1; rerender(); }));
   at(`[data-${ns}-toppersub]`).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const k = b.getAttribute(`data-${ns}-toppersub`), st = setupState('pin'); st.toppers[k] = Math.max(0, (st.toppers[k] || 0) - 1); if (!st.toppers[k]) delete st.toppers[k]; rerender(); }));
-  at(`[data-${ns}-pinprof]`).forEach(b => b.addEventListener('click', () => { const p = (state.pinProfiles || []).find(x => x.id === b.getAttribute(`data-${ns}-pinprof`)); if (p) { const st = setupState('pin'); st.inc = p.inc; st.profileId = p.id; } rerender(); }));
+  at(`[data-${ns}-pinprof]`).forEach(b => b.addEventListener('click', () => { const p = (state.pinProfiles || []).find(x => x.id === b.getAttribute(`data-${ns}-pinprof`)); if (p) { const st = setupState('pin'), ps = pinStableFor(); st.inc = p.inc; st.first = (p.first != null ? p.first : ps.first); st.max = p.max || ps.max; st.profileId = p.id; } rerender(); }));
   at(`[data-${ns}-pinprofdel]`).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const id = b.getAttribute(`data-${ns}-pinprofdel`); state.pinProfiles = (state.pinProfiles || []).filter(x => x.id !== id); const st = setupState('pin'); if (st.profileId === id) st.profileId = null; saveState(); rerender(); }));
-  at(`[data-${ns}-pinprofsave]`).forEach(b => b.addEventListener('click', () => { const st = setupState('pin'); promptDialog({ title: 'Name this machine', placeholder: 'e.g. Lat Pulldown', maxLength: 24, okLabel: 'Save' }).then(nm => { if (!nm || !nm.trim()) return; const id = 'pp' + Date.now(); state.pinProfiles = state.pinProfiles || []; state.pinProfiles.push({ id, name: nm.trim().slice(0, 24), inc: st.inc || (state.unit === 'kg' ? 5 : 10) }); st.profileId = id; saveState(); rerender(); }); }));
+  at(`[data-${ns}-pinprofsave]`).forEach(b => b.addEventListener('click', () => { const st = setupState('pin'); promptDialog({ title: 'Name this machine', placeholder: 'e.g. Lat Pulldown', maxLength: 24, okLabel: 'Save' }).then(nm => { if (!nm || !nm.trim()) return; const id = 'pp' + Date.now(); state.pinProfiles = state.pinProfiles || []; const ps = pinStableFor(); state.pinProfiles.push({ id, name: nm.trim().slice(0, 24), inc: st.inc || ps.inc, first: st.first != null ? st.first : ps.first, max: st.max || ps.max }); st.profileId = id; saveState(); rerender(); }); }));
   at(`[data-${ns}-toolsel]`).forEach(sel => sel.addEventListener('change', () => { setSetupOverride(pending.varUuid, sel.value); rerender(); }));
 }
 function applySetupWeight(total) {
@@ -13082,7 +13153,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 82 · 2026-06-07 14:39';
+const APP_BUILD = 'build 83 · 2026-06-07 14:47';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

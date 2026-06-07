@@ -566,6 +566,17 @@ They share variation **UUIDs**.
   default cross-device path. The functions are untouched. Separately, the **Settings (⚙) long-press** is repointed
   from `openSettingsToLastChanged` to **`openDataPage`** — hold the gear to jump straight to Data Management.
   Covered by `test/dataexport.spec.mjs`.
+- **Per-gym equipment stables + pin slider (feat 135):** each gym can now stock its own dumbbell / kettlebell /
+  med-ball sizes and pin stack, edited in a collapsible **Equipment stable** block in the gym editor
+  (`renderGymStableEditor` / `ensureGymStable`, stored on `gym.stable = { unit, db[], kb[], ball[], pin{first,inc,max} }`
+  — tagged with the unit so cross-unit numbers are never misread). The setup tool's size lists resolve from the
+  **active** gym (`activeStable()`), falling back to typical commercial defaults (`defaultDbSizes` 5,7.5,…,120 lb,
+  `defaultKbSizes`, `defaultBallSizes`, `defaultPinStable`). The **pin stack** is reshaped to a first-step + main
+  increment + max model: the default is *+5 then +10 up to 295 lb* (`pinStep()` — pure, testable — walks
+  0→first→+inc≤max and back), and the **main increment is now a range slider** (`data-…-pininc`) instead of pills,
+  with the add-on *Toppers* unchanged. Pin profiles persist `{inc, first, max}` (old `{inc}`-only profiles still
+  load via fallbacks). Covered by `test/gymstable.spec.mjs` (defaults, `pinStep`, active-gym resolution incl.
+  wrong-unit ignore, pin default state, slider render, gym-editor render + `parseSizeList`/`ensureGymStable`).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
