@@ -607,6 +607,15 @@ They share variation **UUIDs**.
   else the earliest incomplete (`currentPlanStepIndex`), and hides outside a planned workout / when complete. Tapping
   it opens the full plan (feat 138). The old in-form `planStepIndicatorHtml` is removed from the form (function kept).
   Covered by `test/stepbar.spec.mjs`; visually verified via a `page.pdf`/screenshot pass.
+- **Headphone-only mute no longer mutes Bluetooth headsets (feat 140):** the speaker/headphone detector
+  (`probeAudioOutput`) classified an output as headphones only when its label matched a keyword regex, so a Bluetooth
+  headset shown by **brand name** ("Sony WH-1000XM4", "Bose QC35", "Galaxy Buds") matched nothing and — combined with
+  the old `.some()` reducer — collapsed to `false` (speaker only) → audio wrongly muted. The classifier is now a pure,
+  three-way `classifyAudioOutputs(labels)`: **headphones (`true`)** if any output positively reads as a headphone
+  (`_HEADPHONE_RE`, now also `\bbt\b`/`hands-free`/`hfp`, and never a `_SPEAKER_RE` match); **speaker-only (`false`)**
+  only when **every** labeled output positively reads as the built-in speaker/earpiece; **unknown (`null`, fail open)**
+  for anything else — so an unrecognized non-speaker output (a brand-name BT headset) keeps audio playing instead of
+  silently muting. Faithful to the feature's stated fail-open design. Covered by `test/headphones.spec.mjs`.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

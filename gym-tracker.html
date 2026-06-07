@@ -13218,7 +13218,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 86 · 2026-06-07 19:26';
+const APP_BUILD = 'build 87 · 2026-06-07 19:36';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -13255,15 +13255,24 @@ function headphoneStatus() { // for the settings UI
   if (_headphonesConnected === false) return { icon:'🔇', text:'Speaker only — audio muted' };
   return { icon:'❔', text:'Output unknown — audio allowed (grant audio access to detect)' };
 }
-const _HEADPHONE_RE = /head(phone|set)|bluetooth|a2dp|airpod|buds|earphone|earbud|wired|hands?-?free/i;
+const _HEADPHONE_RE = /head(phone|set)|bluetooth|\bbt\b|a2dp|airpod|buds|earphone|earbud|wired|hands?-?free|\bhfp\b/i;
+const _SPEAKER_RE = /speaker|loudspeaker|built.?in|internal|receiver|earpiece/i; // feat 140 — the device's OWN speaker
+// feat 140 — pure, three-way + fail-open classifier (unit-testable; no navigator). Given the labels of the
+// audiooutput devices, returns true (headphones present), false (every output is the built-in speaker/earpiece),
+// or null (UNKNOWN → fail open, audio allowed). A Bluetooth headset with a brand-name label (e.g. "Sony
+// WH-1000XM4", "Bose QC35", "Galaxy Buds") must NOT be mistaken for the phone speaker and wrongly muted — so we
+// mute ONLY when EVERY labeled output positively reads as the built-in speaker; anything we can't place stays null.
+function classifyAudioOutputs(labels) {
+  const labeled = (labels || []).filter(Boolean);
+  if (!labeled.length) return null;                                       // no labels -> unknown (fail open)
+  if (labeled.some(l => _HEADPHONE_RE.test(l) && !_SPEAKER_RE.test(l))) return true; // any output is headphones
+  return labeled.every(l => _SPEAKER_RE.test(l)) ? false : null;          // all speakers -> muted; else unknown
+}
 async function probeAudioOutput() {
   try {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) { _headphonesConnected = null; return; }
     const devs = await navigator.mediaDevices.enumerateDevices();
-    const outs = devs.filter(d => d.kind === 'audiooutput');
-    const labeled = outs.filter(d => d.label);
-    if (!labeled.length) { _headphonesConnected = null; return; }   // no labels -> unknown (fail open)
-    _headphonesConnected = labeled.some(d => _HEADPHONE_RE.test(d.label) && !/speaker/i.test(d.label));
+    _headphonesConnected = classifyAudioOutputs(devs.filter(d => d.kind === 'audiooutput').map(d => d.label));
     if (typeof refreshSoundIcon === 'function') refreshSoundIcon();
   } catch (_) { _headphonesConnected = null; }
 }
