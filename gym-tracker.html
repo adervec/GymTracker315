@@ -5436,6 +5436,7 @@ function renderSettingsDrawer() {
       <button class="drawer-btn" id="drawer-export-workout-btn">📤 Export Workout / Range…</button>
       <button class="drawer-btn" id="drawer-export-ref-csv-btn">📋 Export Reference CSV</button>
     </div>
+    ${dataCategoryTableHtml()}
 
     <div class="drawer-section-title">Activity &amp; Error Log</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">
@@ -5825,6 +5826,9 @@ function renderSettingsDrawer() {
   body.querySelector('#drawer-export-btn').addEventListener('click', exportData);
   body.querySelector('#drawer-export-workout-btn')?.addEventListener('click', () => { closeDataPage(); closeSettingsDrawer(); openExportDialog({ preset:'week' }); });
   body.querySelector('#drawer-export-ref-csv-btn').addEventListener('click', exportReferenceCsv);
+  // feat 129 — per-category export (wired before #drawer-data-wrap relocates; listeners ride along)
+  body.querySelectorAll('[data-cat-json]').forEach(b => b.addEventListener('click', () => exportCategoryJson(b.dataset.catJson)));
+  body.querySelectorAll('[data-cat-csv]').forEach(b => b.addEventListener('click', () => exportCategoryCsv(b.dataset.catCsv)));
   body.querySelector('#drawer-import-btn').addEventListener('click', () => body.querySelector('#drawer-import-file').click());
   body.querySelector('#drawer-import-file').addEventListener('change', importData);
   setupConfirmButton(body.querySelector('#drawer-reset-btn'), 'Hold to erase all data', (held) => {
@@ -10285,6 +10289,126 @@ function exportData() {
   toast('Exported as overload-tracker_' + ts + '.json');
 }
 
+/* ============================================================
+   PER-CATEGORY DATA EXPORT + SUMMARY (feat 129 / 130)
+   Each data category can be exported on its own as app-readable JSON (a state slice
+   that re-imports via Import JSON) or a human-readable CSV spreadsheet, and the data
+   page shows a per-type summary (count + date range).
+   ============================================================ */
+function _dataTsStamp() { const n = new Date(), p = x => String(x).padStart(2, '0'); return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}_${p(n.getHours())}${p(n.getMinutes())}${p(n.getSeconds())}`; }
+function _csvQ(v) { if (v === null || v === undefined) return ''; const s = String(v).replace(/"/g, '""'); return /[",\n\r]/.test(s) ? `"${s}"` : s; }
+function csvBlob(rows) { return new Blob([rows.map(r => r.map(_csvQ).join(',')).join('\r\n') + '\r\n'], { type: 'text/csv' }); }
+function _dDay(iso) { try { return new Date(iso).toISOString().slice(0, 10); } catch (_) { return ''; } }
+function _dTime(iso) { try { return new Date(iso).toTimeString().slice(0, 5); } catch (_) { return ''; } }
+function _setsIn(arr) { return arr.reduce((n, s) => n + (s.exercises || []).reduce((c, e) => c + (e.sets || []).length, 0), 0); }
+// settings = SETTINGS_KEYS minus the slices that have their own category, plus a fresh savedAt so a merge-import adopts them
+function _settingsSlice() {
+  const o = { savedAt: new Date().toISOString() };
+  const own = new Set(['bodyComp', 'plans', 'stravaActivities', 'exerciseMedia', 'customVariations']);
+  SETTINGS_KEYS.forEach(k => { if (!own.has(k) && k in state) o[k] = state[k]; });
+  return o;
+}
+function _withSaved(o) { return { ...o, savedAt: new Date().toISOString() }; } // settings-type slices need savedAt to merge-import
+
+// CSV builders (return an array of rows; first row = header)
+function csvWorkouts() {
+  const rows = [['date', 'time', 'exercise', 'variation', 'type', 'weight', 'unit', 'reps', 'e1RM', 'cardio_min', 'distance', 'dist_unit', 'calories', 'effort', 'notes', 'session_hr_avg']];
+  (state.sessions || []).slice().sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(s => {
+    const day = _dDay(s.date), hr = (s.hr && s.hr.avg != null) ? s.hr.avg : '';
+    (s.exercises || []).forEach(ex => {
+      const vi = VAR_INDEX.get(ex.varUuid), exName = vi ? vi.family.title : (ex.varUuid || ''), varName = vi ? vi.variation.title : '';
+      if (ex.cardio) { const c = ex.cardio; rows.push([day, _dTime(s.date), exName, varName, 'cardio', '', '', '', '', c.elapsedMin || '', c.distance || '', c.distanceUnit || '', c.calories || '', c.effort || '', c.notes || '', hr]); }
+      (ex.sets || []).forEach(set => {
+        const w = parseFloat(set.w) || 0, r = parseInt(set.r) || 0, e1 = (w && r) ? Math.round(estimated1RM(w, r)) : '';
+        rows.push([day, set.ts ? _dTime(set.ts) : _dTime(s.date), exName, varName, 'strength', set.w || '', state.unit, set.r || '', e1, '', '', '', '', '', '', hr]);
+      });
+    });
+  });
+  return rows;
+}
+function csvBodyComp() {
+  const rows = [['date', 'weight', 'unit', 'bodyFatPct', 'muscleMass', 'boneMass', 'bodyWaterPct', 'bmi', 'note']];
+  (state.bodyComp || []).slice().sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(b =>
+    rows.push([_dDay(b.date), b.weight ?? '', state.bodyCompUnit || state.unit || 'lb', b.bodyFatPct ?? '', b.muscleMass ?? '', b.boneMass ?? '', b.bodyWaterPct ?? '', b.bmi ?? '', b.note || '']));
+  return rows;
+}
+function csvSleep() {
+  const rows = [['date', 'sleep']];
+  (state.sessions || []).filter(s => s.sleep).slice().sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(s => rows.push([_dDay(s.date), s.sleep]));
+  return rows;
+}
+function csvStrava() {
+  const rows = [['date', 'name', 'sportType', 'elapsed_min', 'avgHr', 'maxHr', 'calories', 'description']];
+  (state.stravaActivities || []).slice().sort((a, b) => new Date(a.startDate) - new Date(b.startDate)).forEach(a =>
+    rows.push([_dDay(a.startDate), a.name || '', a.sportType || '', a.elapsedSec ? Math.round(a.elapsedSec / 60) : '', a.avgHr ?? '', a.maxHr ?? '', a.calories ?? '', a.description || '']));
+  return rows;
+}
+function csvPlans() {
+  const rows = [['plan', 'intensity', 'est_min', 'steps', 'total_sets', 'step_no', 'step_sets', 'step_load', 'step_options']];
+  (state.plans || []).forEach(p => {
+    const steps = p.steps || [];
+    if (!steps.length) { rows.push([p.name, planIntensity(p), estimatePlanMinutes(p), 0, 0, '', '', '', '']); return; }
+    steps.forEach((st, i) => rows.push([p.name, planIntensity(p), estimatePlanMinutes(p), steps.length, planTotalSets(p), i + 1, st.sets || '', st.load || '', (st.options || []).map(optionLabel).join(' / ')]));
+  });
+  return rows;
+}
+
+// The category registry — live data, count, date range, and JSON/CSV builders.
+function dataCats() {
+  const sess = state.sessions || [], sleepSess = sess.filter(s => s.sleep);
+  const bc = state.bodyComp || [], strava = state.stravaActivities || [], plans = state.plans || [];
+  const media = state.exerciseMedia || {}, customs = state.customVariations || [];
+  return [
+    { key: 'workouts',   icon: '🏋️', label: 'Workouts',             n: sess.length,                  sub: _setsIn(sess) + ' sets', dates: sess.map(s => s.date),      json: () => ({ sessions: sess, deletedSessions: state.deletedSessions || [] }), csv: csvWorkouts },
+    { key: 'bodycomp',   icon: '⚖️', label: 'Body composition',      n: bc.length,                    sub: '',                      dates: bc.map(b => b.date),        json: () => _withSaved({ bodyComp: bc }),    csv: csvBodyComp },
+    { key: 'sleep',      icon: '😴', label: 'Sleep notes',           n: sleepSess.length,             sub: '',                      dates: sleepSess.map(s => s.date), json: () => ({ sleep: sleepSess.map(s => ({ date: s.date, sleep: s.sleep })) }), csv: csvSleep },
+    { key: 'strava',     icon: '🚴', label: 'Strava activities',     n: strava.length,                sub: '',                      dates: strava.map(a => a.startDate), json: () => _withSaved({ stravaActivities: strava }), csv: csvStrava },
+    { key: 'plans',      icon: '📋', label: 'Plans',                 n: plans.length,                 sub: '',                      dates: [],                         json: () => _withSaved({ plans }),           csv: csvPlans },
+    { key: 'media',      icon: '🎬', label: 'Exercise media',        n: Object.keys(media).length,    sub: 'links',                 dates: [],                         json: () => _withSaved({ exerciseMedia: media }), csv: null },
+    { key: 'customvars', icon: '🧩', label: 'Custom variations',     n: customs.length,               sub: '',                      dates: [],                         json: () => _withSaved({ customVariations: customs }), csv: null },
+    { key: 'settings',   icon: '⚙️', label: 'Settings & preferences', n: null,                        sub: '',                      dates: [],                         json: _settingsSlice,                        csv: null },
+  ];
+}
+function dataCatRange(dates) {
+  const ds = (dates || []).filter(Boolean).map(d => new Date(d)).filter(d => !isNaN(d.getTime())).sort((a, b) => a - b);
+  if (!ds.length) return '';
+  const f = _dDay(ds[0]), t = _dDay(ds[ds.length - 1]);
+  return f === t ? f : `${f} → ${t}`;
+}
+function exportCategoryJson(key) {
+  const c = dataCats().find(x => x.key === key); if (!c) return;
+  downloadBlob(new Blob([JSON.stringify(c.json(), null, 2)], { type: 'application/json' }), `gymtracker-${key}_${_dataTsStamp()}.json`);
+  toast(`Exported ${c.label} (JSON)`);
+}
+function exportCategoryCsv(key) {
+  const c = dataCats().find(x => x.key === key); if (!c || !c.csv) return;
+  downloadBlob(csvBlob(c.csv()), `gymtracker-${key}_${_dataTsStamp()}.csv`);
+  toast(`Exported ${c.label} (CSV)`);
+}
+// Markup for the per-category summary + export table (feat 129/130).
+function dataCategoryTableHtml() {
+  const cell = 'font-size:11px;color:var(--text3);';
+  return `
+    <div class="drawer-section-title" style="margin-top:14px;">By category — summary &amp; export</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">How much of each data type you have, and its date range. Export any one as app-readable <b>JSON</b> (re-imports via Import JSON) or a <b>CSV</b> spreadsheet.</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+    ${dataCats().map(c => {
+      const range = dataCatRange(c.dates);
+      const empty = c.n === 0;
+      return `<div style="display:flex;align-items:center;gap:8px;justify-content:space-between;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:7px 10px;">
+        <div style="min-width:0;flex:1;">
+          <div style="font-size:12.5px;color:var(--text);font-weight:600;">${c.icon} ${c.label}</div>
+          <div style="${cell}">${c.n == null ? 'preferences' : (c.n + (c.sub ? ' · ' + c.sub : ''))}${range ? ' · ' + range : ''}</div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0;">
+          <button class="drawer-btn" style="padding:4px 9px;font-size:11px;" data-cat-json="${c.key}"${empty ? ' disabled' : ''}>JSON</button>
+          ${c.csv ? `<button class="drawer-btn" style="padding:4px 9px;font-size:11px;" data-cat-csv="${c.key}"${empty ? ' disabled' : ''}>CSV</button>` : ''}
+        </div>
+      </div>`;
+    }).join('')}
+    </div>`;
+}
+
 function exportReferenceCsv() {
   // CSV quoting helper — wraps a value in double-quotes, escaping any internal quotes
   const q = v => {
@@ -12866,7 +12990,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 77 · 2026-06-07 13:28';
+const APP_BUILD = 'build 78 · 2026-06-07 13:37';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
