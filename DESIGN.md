@@ -621,6 +621,15 @@ They share variation **UUIDs**.
   guard, so the reps numpad treats a hold as a plain tap and never shows the `×10` affordance. Reps are typically small
   literal counts (1–20) where the shortcut mostly produced fat-finger 5→50 mistakes; weights are the multiples-of-10
   case it was built for. Covered by `test/numpad.spec.mjs` (weight x10 retained, reps hold inert + no label).
+- **Long-press Copy → copy previous reps (feat 142):** the footer **Copy** button gains a second gesture. A **tap**
+  still copies the weight to the next set (`copyWeightToNextSet`, feat 58); a **hold** runs a new
+  `copyRepsToOpenSet()` that fills the **open set**'s still-empty reps (`isSetOpen` = weight in, reps not) with the
+  **previous rep count** — the nearest earlier pending set that has reps, else the last logged set in history for the
+  exercise — so an identical-reps scheme (e.g. 3×8) logs in one gesture. It reuses `commitSetField(i,'r',…)` (parse,
+  `ts` stamp, persist, live-update) and is a no-op with a toast when there's no open set or no prior reps
+  ("applicable"). Wired via `attachTopbarLongPress` **once at init** (the footer button is static) so the long-press
+  and its click-swallower don't stack across modal re-renders; the button `title` now documents tap-vs-hold. Covered
+  by `test/copyreps.spec.mjs` (prior-pending source, history fallback, no-op guards, end-to-end tap-vs-hold).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
