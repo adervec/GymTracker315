@@ -598,6 +598,15 @@ They share variation **UUIDs**.
   (`#plan-progress-open`, keyboard-operable, with a `›` affordance) that opens the active plan in the full plans
   overlay via a new `openPlanFull(id)` (sets `_plansEditId` → `renderPlanEditor`, showing every step). Distinct from
   the card header, which still toggles collapse (feat 127). Covered by `test/plandash.spec.mjs`.
+- **Notched current-step HUD bar (feat 139):** the current-step progress bar moved out of the log form into a global
+  `#plan-step-bar` strip docked **directly below the rest-timer bar** (a fixed HUD; its `top` and the `.panel`
+  padding stack under the rest bar via `rest-bar-on`/`-idle` × `plan-step-bar-on` body classes; z-index 9997 so it,
+  like the rest bar, floats over the log modal). The bar is **notched** — one segment per target set: saved sets
+  solid (`.filled`), unsaved pending sets dimmed (`.pending`, feat 137), green when the step is done.
+  `refreshPlanStepBar()` runs on every `refreshRestBar()` path; it picks the step you're logging (`pending.varUuid`)
+  else the earliest incomplete (`currentPlanStepIndex`), and hides outside a planned workout / when complete. Tapping
+  it opens the full plan (feat 138). The old in-form `planStepIndicatorHtml` is removed from the form (function kept).
+  Covered by `test/stepbar.spec.mjs`; visually verified via a `page.pdf`/screenshot pass.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

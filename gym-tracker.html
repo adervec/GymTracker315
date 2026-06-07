@@ -645,6 +645,20 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   @keyframes rest-flash { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
   body.rest-bar-on .panel { padding-top: 78px; }
   body.rest-bar-idle .panel { padding-top: 66px; }
+  /* feat 139 — notched current-step bar, a HUD strip directly below the rest timer bar */
+  #plan-step-bar { position: fixed; top: 48px; left: 0; right: 0; z-index: 9997; height: 24px; display: none; align-items: center; gap: 9px; padding: 0 12px; background: var(--bg2); border-bottom: 1px solid var(--border2); font-size: 10.5px; font-weight: 700; color: var(--text2); cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+  body.rest-bar-on #plan-step-bar { top: 78px; }
+  body.rest-bar-idle #plan-step-bar { top: 66px; }
+  body.plan-step-bar-on .panel { padding-top: 72px; }
+  body.plan-step-bar-on.rest-bar-on .panel { padding-top: 102px; }
+  body.plan-step-bar-on.rest-bar-idle .panel { padding-top: 90px; }
+  #plan-step-bar .stepbar-label { flex-shrink: 0; }
+  #plan-step-bar .stepbar-notches { display: flex; flex: 1; gap: 3px; min-width: 0; height: 9px; }
+  #plan-step-bar .stepbar-notch { flex: 1; background: var(--bg4, #2a2a2a); border-radius: 2px; min-width: 5px; transition: background 0.25s; }
+  #plan-step-bar .stepbar-notch.filled { background: var(--accent); }
+  #plan-step-bar .stepbar-notch.pending { background: var(--accent); opacity: 0.5; }
+  #plan-step-bar.done { color: var(--good); }
+  #plan-step-bar.done .stepbar-notch.filled { background: var(--good); }
   /* feat 57 — on-screen numpad bottom sheet */
   #trk-numpad-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 10059; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
   #trk-numpad-backdrop.open { opacity: 1; pointer-events: auto; }
@@ -1994,6 +2008,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 
 <!-- feat 51 — global rest/set timer bar (visible across tabs while a workout is active) -->
 <div id="rest-bar" class="rest-bar" style="display:none;" role="status" aria-live="polite" title="Tap to open the workout log"></div>
+<div id="plan-step-bar" style="display:none;" role="button" tabindex="0" aria-label="Current plan step progress" title="Open the full plan"></div>
 <!-- feat 57 — optional in-app numpad for set entry (avoids the native mobile keyboard) -->
 <div id="trk-numpad-backdrop"></div>
 <div id="trk-numpad" class="numpad-sheet" role="dialog" aria-label="On-screen numpad"></div>
@@ -12317,7 +12332,6 @@ function renderSetsForm() {
   }
 
   return `
-    ${planStepIndicatorHtml()}
     <div class="selected-exercise">
       <div class="selected-ex-label">${modalState.isEditing ? 'Editing' : 'Logging'}</div>
       <div class="selected-ex-name">${escapeHtml(info.variation.title)}${M.mode!=='standard'?`<span class="ex-mode-tag">${M.mode==='bodyweight'?'BW+':M.mode==='distance'?'dist':'time'}</span>`:''}</div>
@@ -13184,6 +13198,9 @@ document.getElementById('rest-bar')?.addEventListener('click', () => {
   document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === 'log'));
   render();
 });
+// feat 139 — tap the notched step bar to open the full plan
+document.getElementById('plan-step-bar')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanFull(p.id); });
+document.getElementById('plan-step-bar')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
 // feat 57 — tap outside the numpad to dismiss it
 document.getElementById('trk-numpad-backdrop')?.addEventListener('click', closeNumpad);
 document.addEventListener('keydown', e => {
@@ -13201,7 +13218,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 85 · 2026-06-07 15:25';
+const APP_BUILD = 'build 86 · 2026-06-07 19:26';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -13691,6 +13708,7 @@ function refreshRestBar() {
     bar.style.display = 'none';
     document.body.classList.remove('rest-bar-on', 'rest-bar-idle');
     _lastRestZone = null;
+    refreshPlanStepBar(); // feat 139 — the step bar is independent of the rest timer
     return;
   }
   const st = computeRestState();
@@ -13742,6 +13760,7 @@ function refreshRestBar() {
       bar.style.display = 'none';
       document.body.classList.remove('rest-bar-on', 'rest-bar-idle');
       _lastRestZone = null;
+      refreshPlanStepBar(); // feat 139
       return;
     }
     cls += ' idle';
@@ -13757,6 +13776,30 @@ function refreshRestBar() {
   bar.style.display = 'flex';
   document.body.classList.add(bodyClass);
   document.body.classList.remove(bodyClass === 'rest-bar-on' ? 'rest-bar-idle' : 'rest-bar-on');
+  refreshPlanStepBar(); // feat 139 — keep the step bar stacked under the (just-positioned) rest bar
+}
+// feat 139 — the notched current-step HUD bar, a strip directly below the rest timer bar. Shows the
+// step you're on (the exercise being logged, else the earliest incomplete) with one notch per target
+// set — saved sets solid, unsaved (pending, feat 137) sets dimmed. Hidden outside a planned workout.
+function refreshPlanStepBar() {
+  const bar = document.getElementById('plan-step-bar'); if (!bar) return;
+  const session = getActiveSession(), plan = getActivePlan();
+  let idx = -1;
+  if (session && plan) {
+    if (typeof modalState !== 'undefined' && modalState.open && pending.varUuid) idx = planStepForVar(session, plan, pending.varUuid);
+    if (idx < 0) idx = currentPlanStepIndex(session, plan);
+  }
+  if (!session || !plan || idx < 0 || idx >= plan.steps.length) { bar.style.display = 'none'; document.body.classList.remove('plan-step-bar-on'); return; }
+  const st = plan.steps[idx], total = stepStatus(session, st).logged, target = st.sets || 0;
+  _planIgnorePending = true; const saved = stepStatus(session, st).logged; _planIgnorePending = false; // saved-only, to split solid vs dimmed notches
+  const pend = Math.max(0, total - saved), done = target > 0 ? total >= target : total > 0;
+  const notchCount = target > 0 ? target : Math.max(total, 1);
+  let notches = '';
+  for (let i = 0; i < notchCount; i++) notches += `<div class="stepbar-notch ${i < saved ? 'filled' : (i < saved + pend ? 'pending' : '')}"></div>`;
+  bar.className = done ? 'done' : 'current';
+  bar.innerHTML = `<span class="stepbar-label">📋 Step ${idx + 1}/${plan.steps.length} · ${total}/${target}${done ? ' ✓' : ''}</span><div class="stepbar-notches">${notches}</div>`;
+  bar.style.display = 'flex';
+  document.body.classList.add('plan-step-bar-on');
 }
 
 /* ============================================================
