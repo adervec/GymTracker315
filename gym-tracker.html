@@ -1049,6 +1049,21 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   header { background: #0a0a0a; padding: 10px 14px 8px 14px; border-bottom: 1px solid #1f1f1f; position: sticky; top: 0; z-index: 50; }
   .head-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
   h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+  /* feat 133 — save/share the current Volume/Trends/History view as a PDF (native print → Save as PDF) */
+  #trk-export-pdf { align-self: center; flex-shrink: 0; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2, #ccc); font-family: inherit; font-size: 11.5px; font-weight: 700; padding: 5px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+  #trk-export-pdf:hover { color: var(--text, #fff); }
+  #print-root { display: none; }
+  @media print {
+    body.printing > *:not(#print-root) { display: none !important; }
+    #print-root { display: block !important; background: var(--bg); color: var(--text); padding: 2mm; }
+    #print-root, #print-root * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    #print-root .print-head { margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    #print-root .print-title { font-size: 17px; font-weight: 800; color: var(--text); }
+    #print-root .print-sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
+    #print-root svg, #print-root img { max-width: 100% !important; }
+    #print-root .sub-tabs, #print-root button, #print-root input, #print-root select { display: none !important; }
+    @page { margin: 10mm; }
+  }
   .ts { font-size: 10px; color: #555; }
   .tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
   .tab { flex-shrink: 0; padding: 7px 13px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; color: #888; font-size: 12px; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
@@ -2041,6 +2056,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <header>
   <div class="head-row">
     <h1>📈 Overload Tracker</h1>
+    <button id="trk-export-pdf" type="button" title="Save or share this view as a PDF" aria-label="Export this view as PDF" style="display:none;">📄 PDF</button>
   </div>
   <div class="tabs">
     <div class="tab active" data-tab="log">Log</div>
@@ -7111,8 +7127,51 @@ function render() {
   else if (currentTab === 'trends') renderTrends(main);
   else if (currentTab === 'body') renderBody(main);
   else if (currentTab === 'gyms') renderGymsTab(main);
+  const _exp = document.getElementById('trk-export-pdf'); // feat 133 — only the data-review views are exportable
+  if (_exp) _exp.style.display = (currentTab === 'history' || currentTab === 'volume' || currentTab === 'trends') ? '' : 'none';
   updateFAB();
   if (typeof refreshRestBar === 'function') refreshRestBar(); // feat 51
+}
+
+/* ---- feat 133 — PDF export of the current History / Volume / Trends view ----
+   Clones the rendered view into a body-level #print-root with a titled header, then calls the native
+   print dialog (Save as PDF / Share). No library — keeps the app single-file + offline. Charts are
+   inline SVG, so they clone faithfully; print-color-adjust:exact preserves the theme + chart colours. */
+function currentViewLabel() {
+  if (currentTab === 'history') {
+    const f = state.historyFilter || {};
+    const range = (f.range && typeof historyRangeLabel === 'function') ? historyRangeLabel(f.range) : 'All time';
+    return { title: 'History', sub: range + (f.q ? ` · “${f.q}”` : '') };
+  }
+  if (currentTab === 'volume') {
+    const lvl = { split: 'Split', group: 'Group', muscle: 'Muscle', head: 'Heads' }[volLevel] || (volLevel || 'Volume');
+    const wk = volWeekOffset === 0 ? 'This week' : (volWeekOffset === 1 ? 'Last week' : 'Older');
+    return { title: 'Volume', sub: `${lvl} · ${wk}` };
+  }
+  if (currentTab === 'trends') {
+    if (trendFocus && trendFocus.varUuid) { const vi = VAR_INDEX.get(trendFocus.varUuid); return { title: 'Trends', sub: vi ? vi.variation.title : 'Focused exercise' }; }
+    return { title: 'Trends', sub: 'Overview' };
+  }
+  return { title: 'GymTracker', sub: '' };
+}
+function exportCurrentViewPdf() {
+  const main = document.getElementById('trk-main'); if (!main) return;
+  let pr = document.getElementById('print-root');
+  if (!pr) { pr = document.createElement('div'); pr.id = 'print-root'; document.body.appendChild(pr); }
+  const { title, sub } = currentViewLabel();
+  let when = ''; try { when = new Date().toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (_) {}
+  pr.innerHTML = `<div class="print-head">
+      <div class="print-title">📈 GymTracker — ${escapeHtml(title)}</div>
+      <div class="print-sub">${sub ? escapeHtml(sub) + ' · ' : ''}${escapeHtml(when)}</div>
+    </div>
+    <div class="print-body"></div>`;
+  pr.querySelector('.print-body').innerHTML = main.innerHTML; // inline-SVG charts clone faithfully
+  document.body.classList.add('printing');
+  const cleanup = () => { document.body.classList.remove('printing'); if (pr) pr.innerHTML = ''; };
+  window.addEventListener('afterprint', cleanup, { once: true });
+  setTimeout(() => { if (document.body.classList.contains('printing')) cleanup(); }, 60000); // mobile fallback if afterprint never fires
+  logInfo('PDF export', title + (sub ? ' — ' + sub : ''));
+  try { window.print(); } catch (_) { cleanup(); toast('Printing not available in this browser'); }
 }
 
 /* --------- LOG TAB --------- */
@@ -12988,6 +13047,7 @@ document.querySelectorAll('.tab[data-tab]').forEach(t => {
 });
 
 document.getElementById('trk-fab').addEventListener('click', openLogModal);
+document.getElementById('trk-export-pdf')?.addEventListener('click', exportCurrentViewPdf); // feat 133
 document.getElementById('trk-modal-close').addEventListener('click', closeLogModal);
 document.getElementById('trk-modal-clear').addEventListener('click', clearPendingModal);
 document.getElementById('trk-footer-close').addEventListener('click', closeLogModal);
@@ -13019,7 +13079,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 80 · 2026-06-07 14:01';
+const APP_BUILD = 'build 81 · 2026-06-07 14:14';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

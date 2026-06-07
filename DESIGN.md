@@ -550,6 +550,16 @@ They share variation **UUIDs**.
   Data isolation was never at risk: each user authenticates as themselves and their data lives in their own Drive
   `appDataFolder`; the owner can't see others' data. Covered by `test/sync.spec.mjs` (allowlist logic + enabled/
   disabled button render); existing connect tests stay green since the test origin (`127.0.0.1`) is allowlisted.
+- **PDF export of a data-review view (feat 133):** a **📄 PDF** button in the tracker header (shown only on the
+  History / Volume / Trends tabs via `render()`) exports the current view. `exportCurrentViewPdf()` clones
+  `#trk-main`'s HTML into a body-level `#print-root` with a titled header (`currentViewLabel()` → view + sub-context:
+  e.g. *Volume · Group · Last week*, the History range, or the focused-Trends exercise) and calls the native
+  `window.print()` — no library, so the app stays single-file/offline. The charts are inline **SVG** so they clone
+  faithfully; an `@media print` block hides all chrome (`body.printing > *:not(#print-root)`), drops interactive
+  controls (`.sub-tabs`/buttons/inputs), and sets `print-color-adjust: exact` so the dark theme + chart colours
+  render. "Save or share" is the browser's print sheet (Save as PDF on desktop; Save/Share on Android). `afterprint`
+  (+ a timeout fallback for mobile) clears `#print-root` and the `printing` class. Covered by `test/pdfexport.spec.mjs`
+  (button visibility per tab, label/sub-context, clone-into-#print-root with header).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
