@@ -158,3 +158,28 @@ test('reverse crosslink: the Reference banner opens the Coaching tab', async ({ 
   await page.click('#panel-reference .coach-banner');
   await expect(page.locator('#panel-coaching')).toHaveClass(/active/);
 });
+
+test('mobility content: new dynamic/static moves + the Isometric Holds family are present & indexed (feat 128)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const fam = (id) => FAMILIES.find((f) => f.id === id);
+    const iso = fam('iso-poses'), dyn = fam('mobility-warmup'), stat = fam('static-stretch');
+    const ids = (f) => (f ? f.variations.map((v) => v.id) : []);
+    const allNew = [iso, dyn, stat].filter(Boolean).flatMap((f) => f.variations);
+    return {
+      isoExists: !!iso, isoMega: iso && iso.mega, isoSub: iso && iso.sub, isoCount: iso ? iso.variations.length : 0,
+      hasChair: ids(iso).includes('chair-pose'), hasHorse: ids(iso).includes('horse-stance'), hasZhan: ids(iso).includes('zhan-zhuang'),
+      dynSunSal: ids(dyn).includes('sun-salutation'), dynTaiChi: ids(dyn).includes('taichi-cloud-hands'),
+      statDog: ids(stat).includes('downward-dog'), statLizard: ids(stat).includes('lizard-pose'),
+      indexed: allNew.every((v) => VAR_INDEX.has(v.uuid)),
+      wellFormed: allNew.every((v) => v.id && v.uuid && v.title && (v.cue || (v.movement && v.movement.length))),
+    };
+  });
+  expect(r.isoExists).toBe(true);
+  expect(r.isoMega).toBe('mobility');
+  expect(r.isoCount).toBeGreaterThanOrEqual(9);
+  expect(r.hasChair && r.hasHorse && r.hasZhan).toBe(true);   // yoga + tai chi + martial holds
+  expect(r.dynSunSal && r.dynTaiChi).toBe(true);              // dynamic flow additions
+  expect(r.statDog && r.statLizard).toBe(true);               // static yoga additions
+  expect(r.indexed).toBe(true);                                // every new move is searchable / loggable
+  expect(r.wellFormed).toBe(true);                             // required fields present
+});

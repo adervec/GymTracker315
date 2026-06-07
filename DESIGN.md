@@ -515,6 +515,16 @@ They share variation **UUIDs**.
   `state.dashboard.planCollapsed` (persisted; a chevron flips ▾/▸) and re-renders; the bulky `.plan-card-body`
   (meta, comparison, steps, complete-banner, actions) gets the `hidden` attribute while the glanceable progress
   line stays visible. Covered by `test/plandash.spec.mjs`.
+- **More mobility content (feat 128):** 24 new bodyweight movements drawn from yoga, pilates, tai chi and martial
+  arts — 7 **dynamic** (Sun Salutation flow, Tai Chi Cloud Hands, Cossack flow, Pilates roll-up, shoulder
+  pass-throughs, Frankenstein walks, Spiderman lunge) added to `mobility-warmup`; 8 **static** stretches (down dog,
+  cobra/up-dog, seated fold, lizard, frog, seated twist, cow-face arms, standing side-bend) added to
+  `static-stretch`; and a brand-new **Isometric Holds** family (`iso-poses`) with 9 held poses (chair, warrior II,
+  boat, tree, horse stance/Mabu, Zhan Zhuang standing post, goddess, bridge, locust). Like every exercise these are
+  hand-maintained in **both** representations — the detailed `exercises` array (drives the Reference panel's
+  setup/movement/mistakes/programming) and the lean minified `FAMILIES` array (drives the picker / logging /
+  `VAR_INDEX`) — plus a tier-map entry for the new family. Covered by `test/coaching.spec.mjs` (present + indexed in
+  both, well-formed).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
