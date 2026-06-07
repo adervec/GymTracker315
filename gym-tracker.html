@@ -1419,6 +1419,12 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .setup-pill.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
   .setup-barcustom { width: 62px; padding: 6px 8px; border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); text-align: center; }
   .setup-ct { display: inline-block; margin-left: 4px; font-size: 11px; color: var(--accent); background: var(--accent-bg); border-radius: 5px; padding: 0 5px; }
+  /* feat 143 — the plate/topper count is a SEPARATE ×N button (its own tap target) joined to the add pill as a
+     segmented control, instead of a tiny nested badge that was finicky to hit (and easy to fat-finger into an add). */
+  .setup-pill-grp { display: inline-flex; align-items: stretch; vertical-align: top; }
+  .setup-pill-grp.has .setup-pill { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right-color: transparent; }
+  .setup-ct-btn { display: inline-flex; align-items: center; padding: 0 10px; font-size: 12.5px; font-weight: 800; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 0 8px 8px 0; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .setup-ct-btn:active { background: var(--danger); border-color: var(--danger); color: #fff; }
   .setup-total { margin-top: 10px; font-size: 13px; color: var(--text2); }
   .setup-total b { color: var(--text); font-size: 15px; }
   .setup-bd { font-size: 10.5px; color: var(--text3); }
@@ -11938,7 +11944,8 @@ function setupTotal(kind) {
   return 0;
 }
 
-function _plateGrid(ns, st) { return `<div class="setup-pills">${plateConfig().plates.map(pl => `<button class="setup-pill big" data-${ns}-padd="${pl}">${pl}${st.plates[pl] ? `<span class="setup-ct" data-${ns}-psub="${pl}">×${st.plates[pl]}</span>` : ''}</button>`).join('')}</div>`; }
+// feat 143 — add pill + a SEPARATE ×N remove button (own tap target), joined as a segmented control.
+function _plateGrid(ns, st) { return `<div class="setup-pills">${plateConfig().plates.map(pl => { const n = st.plates[pl] || 0; return `<span class="setup-pill-grp${n ? ' has' : ''}"><button class="setup-pill big" data-${ns}-padd="${pl}">${pl}</button>${n ? `<button class="setup-ct-btn" data-${ns}-psub="${pl}" aria-label="Remove one ${pl} ${state.unit}">×${n}</button>` : ''}</span>`; }).join('')}</div>`; }
 function _pillRow(items, cur, ns) { return `<div class="setup-pills wrap">${items.map(w => `<button class="setup-pill ${('' + cur) === ('' + w) ? 'active' : ''}" data-${ns}-set="${w}">${w}</button>`).join('')}</div>`; }
 function _stepperRow(ns, valTxt, modeBtn) { return `<div class="setup-row"><button class="setup-step" data-${ns}-step="-1" aria-label="less">−</button><div class="setup-val">${valTxt} <span>${state.unit}</span></div><button class="setup-step" data-${ns}-step="1" aria-label="more">+</button>${modeBtn || ''}</div>`; }
 // feat 81 — live loaded-barbell illustration: draws the plates actually on the bar (height ∝ weight,
@@ -11970,7 +11977,7 @@ function renderSetupBody(kind, ns) {
     return `<div class="setup-lbl">${smith ? 'Smith carriage — effective weight' : 'Bar'}</div>
       <div class="setup-pills">${barPills}<input class="setup-barcustom" type="number" inputmode="decimal" min="0" step="0.5" data-${ns}-barcustom value="${bars.indexOf(st.bar) < 0 ? st.bar : ''}" placeholder="custom" aria-label="Custom bar weight"></div>
       ${smith ? `<div class="setup-bd" style="margin-top:5px;line-height:1.45;">Smith bars are counterbalanced — set your machine's effective bar weight (often 15–30${u}, sometimes near 0).</div>` : ''}
-      <div class="setup-lbl">Plates — per side (tap to add · ×N remove)</div>${_plateGrid(ns, st)}
+      <div class="setup-lbl">Plates — per side (tap to add · tap ×N to remove)</div>${_plateGrid(ns, st)}
       ${renderBarbellSvg(st)}
       <div class="setup-total">Total <b>${total} ${u}</b> <span class="setup-bd">· bar ${st.bar} + ${perSide}/side · ${bd}</span></div>`;
   }
@@ -11991,7 +11998,7 @@ function renderSetupBody(kind, ns) {
   }
   if (kind === 'plate' || kind === 'landmine') {
     const bd = plateConfig().plates.filter(pl => st.plates[pl]).map(pl => `${st.plates[pl]}×${pl}`).join(' + ') || 'none';
-    return `<div class="setup-lbl">${kind === 'landmine' ? 'Plates on the loaded end' : 'Plates loaded'} (tap to add · ×N remove)</div>${_plateGrid(ns, st)}
+    return `<div class="setup-lbl">${kind === 'landmine' ? 'Plates on the loaded end' : 'Plates loaded'} (tap to add · tap ×N to remove)</div>${_plateGrid(ns, st)}
       ${kind === 'landmine' ? `<div class="setup-row" style="margin-top:8px;"><button class="setup-mode ${st.addBar ? 'on' : ''}" data-${ns}-lmbar="1">${st.addBar ? '✓ ' : ''}+ bar (~${u === 'kg' ? 10 : 25} ${u})</button></div>` : ''}
       <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">· ${bd}</span></div>`;
   }
@@ -12004,7 +12011,7 @@ function renderSetupBody(kind, ns) {
     return `${profRow}<div class="setup-lbl">Stack (pin) — first +${first}, then +${inc} ${u} <span class="setup-bd">(max ${max})</span></div>${_stepperRow(ns, st.stack === '' ? '—' : st.stack)}
       <div class="setup-lbl">Main increment — <b data-${ns}-incval>${inc}</b> ${u}</div>
       <input type="range" class="setup-slider" min="${sMin}" max="${sMax}" step="${sStep}" value="${inc}" data-${ns}-pininc aria-label="Main pin increment">
-      <div class="setup-lbl">Toppers — add-on plates on the stack (tap to add · ×N remove)</div><div class="setup-pills">${topperWeights().map(w => `<button class="setup-pill big" data-${ns}-topper="${w}">+${w}${st.toppers[w] ? `<span class="setup-ct" data-${ns}-toppersub="${w}">×${st.toppers[w]}</span>` : ''}</button>`).join('')}</div>
+      <div class="setup-lbl">Toppers — add-on plates on the stack (tap to add · tap ×N to remove)</div><div class="setup-pills">${topperWeights().map(w => { const n = st.toppers[w] || 0; return `<span class="setup-pill-grp${n ? ' has' : ''}"><button class="setup-pill big" data-${ns}-topper="${w}">+${w}</button>${n ? `<button class="setup-ct-btn" data-${ns}-toppersub="${w}" aria-label="Remove one +${w} topper">×${n}</button>` : ''}</span>`; }).join('')}</div>
       <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">· stack ${st.stack || 0}${plateSum(st.toppers) ? ` + ${plateSum(st.toppers)} toppers` : ''}</span></div>`;
   }
   return '';
@@ -13247,7 +13254,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 89 · 2026-06-07 19:45';
+const APP_BUILD = 'build 90 · 2026-06-07 19:51';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

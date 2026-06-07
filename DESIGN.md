@@ -630,6 +630,14 @@ They share variation **UUIDs**.
   ("applicable"). Wired via `attachTopbarLongPress` **once at init** (the footer button is static) so the long-press
   and its click-swallower don't stack across modal re-renders; the button `title` now documents tap-vs-hold. Covered
   by `test/copyreps.spec.mjs` (prior-pending source, history fallback, no-op guards, end-to-end tap-vs-hold).
+- **Setup-picker ×N remove is its own button (feat 143):** in the equipment setup tools (Barbell / Plate / Landmine
+  plate grids + the Pin **toppers**), the per-plate count was a tiny `<span class="setup-ct">×N</span>` **nested inside**
+  the add pill — a finicky, fat-finger-prone remove target that often added instead. Each weight is now a
+  `.setup-pill-grp` **segmented control**: the add pill (`data-…-padd` / `-topper`) plus, only when a plate is on, a
+  **separate** `.setup-ct-btn` remove button (`data-…-psub` / `-toppersub`, accent, turns danger-red on press) joined
+  to its right. Two distinct, full-height tap targets — tap the pill to add, tap **×N** to remove one — with no
+  handler changes (same data-attributes). Covered by `test/setuppills.spec.mjs` (×N is a sibling BUTTON not nested,
+  add/remove counts, ×N hidden at zero); visually verified via a barbell-setup screenshot.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
