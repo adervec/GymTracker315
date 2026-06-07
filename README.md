@@ -1,6 +1,6 @@
 # GymTracker315
 
-[![CI](https://github.com/adervec/GymTracker/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/adervec/GymTracker/actions/workflows/ci.yml)
+[![CI](https://github.com/adervec/GymTracker315/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/adervec/GymTracker315/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A single-file workout tracker — log lifts and cardio, follow adaptive plans, picker-driven
@@ -24,7 +24,7 @@ npm run serve     # serves the repo at http://127.0.0.1:4321/gym-tracker.html
 
 ## Install (PWA)
 
-Deployed to GitHub Pages: **https://adervec.github.io/GymTracker/** — open it in mobile or desktop
+Deployed to GitHub Pages: **https://adervec.github.io/GymTracker315/** — open it in mobile or desktop
 Chrome and use *Install app* / *Add to Home Screen*. It's offline-first: a service worker caches the
 app shell, so it launches and works without a connection.
 
