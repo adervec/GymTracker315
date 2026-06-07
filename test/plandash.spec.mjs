@@ -111,3 +111,48 @@ test('renderPlanGuide is collapsible — header toggle hides the body per state.
   expect(r.collapsedClass).toBe(true);
   expect(r.progressVisibleWhenCollapsed).toBe(true);
 });
+
+test('plan progress counts UNSAVED pending sets for the live session, and reverts on discard (feat 137)', async ({ page }) => {
+  const { a } = await seedPlan(page);
+  const r = await page.evaluate((a) => {
+    const sess = { id: 'cur', date: new Date().toISOString(), planId: 'P', exercises: [{ varUuid: a, sets: [{ w: 100, r: 5 }] }] };
+    state.sessions = [sess];
+    const step = getPlan('P').steps[0]; // targets var a, 2 sets
+    const savedOnly = stepStatus(sess, step).logged;
+    // "enter" sets in the modal (not editing): 2 valid + 1 blank row
+    modalState.isEditing = false; pending.varUuid = a; pending.subUuid = null;
+    pending.sets = [{ w: 105, r: 5 }, { w: 110, r: 4 }, { w: '', r: '' }];
+    const withPending = stepStatus(sess, step).logged, done = stepStatus(sess, step).done;
+    modalState.isEditing = true; const whileEditing = stepStatus(sess, step).logged; modalState.isEditing = false;
+    const other = { id: 'old', date: '2026-01-01T00:00:00.000Z', planId: 'P', exercises: [{ varUuid: a, sets: [{ w: 1, r: 1 }] }] };
+    state.sessions = [sess, other];
+    const otherLogged = stepStatus(other, step).logged;
+    clearPending();
+    const afterDiscard = stepStatus(sess, step).logged;
+    return { savedOnly, withPending, done, whileEditing, otherLogged, afterDiscard };
+  }, a);
+  expect(r.savedOnly).toBe(1);
+  expect(r.withPending).toBe(3);    // 1 saved + 2 valid pending (blank row ignored)
+  expect(r.done).toBe(true);        // 3 ≥ target 2
+  expect(r.whileEditing).toBe(1);   // editing a saved exercise must not double-count
+  expect(r.otherLogged).toBe(1);    // a prior session ignores the live pending
+  expect(r.afterDiscard).toBe(1);   // discarding the log reverts the progress
+});
+
+test('clicking the plan progress line opens the full plan view (feat 138)', async ({ page }) => {
+  await seedPlan(page);
+  const r = await page.evaluate(() => {
+    state.sessions = [{ id: 'today', date: new Date().toISOString(), planId: 'P', exercises: [] }];
+    const html = renderPlanGuide(state.sessions[0]);
+    openPlanFull('P'); // what the progress-line click handler calls
+    const body = document.getElementById('plans-body').innerHTML;
+    return {
+      hasClickable: html.includes('id="plan-progress-open"'),
+      panelOpen: document.getElementById('plans-panel').classList.contains('open'),
+      showsFullPlan: /plan-name-input/.test(body) && body.includes('Step 1'), // the editor with all steps
+    };
+  });
+  expect(r.hasClickable).toBe(true);
+  expect(r.panelOpen).toBe(true);
+  expect(r.showsFullPlan).toBe(true);
+});

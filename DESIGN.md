@@ -586,6 +586,18 @@ They share variation **UUIDs**.
   back/front squats + skullcrusher. The badge (`spotterBadge`) renders in the **exercise picker** rows and the
   **Reference** variation rows; `needsSpotter(uuid)` is the VAR_INDEX wrapper. Covered by `test/spotter.spec.mjs`
   (flag/no-flag sets, precision-count sanity, badge render, picker render).
+- **Live plan progress for unsaved sets (feat 137):** the plan-progress dashboard was counting only *saved* sets,
+  so the sets you were mid-entering didn't show — misleading. `stepLoggedSets` / `stepTopWeight` now fold in the
+  **unsaved `pending` sets** (`pendingStepSets`) — but only for the **live** session (`session === getActiveSession()`),
+  never while **editing** a saved exercise (those rows already exist → double-count), and only rows with a weight.
+  Discarding the log (Clear / pick another exercise / end-and-discard) empties `pending` → the progress reverts.
+  Closing the modal (✕/footer/backdrop/Esc) now re-`render()`s the dashboard so it reflects (or drops) the pending
+  sets. A `_planIgnorePending` guard keeps `saveSets`' "was the plan already complete *before* this save?" snapshot
+  on saved-only counts (else the plan-complete popup wouldn't fire). Covered by `test/plandash.spec.mjs`.
+- **Tap plan progress → full plan (feat 138):** the progress line on the workout dashboard is now a button
+  (`#plan-progress-open`, keyboard-operable, with a `›` affordance) that opens the active plan in the full plans
+  overlay via a new `openPlanFull(id)` (sets `_plansEditId` → `renderPlanEditor`, showing every step). Distinct from
+  the card header, which still toggles collapse (feat 127). Covered by `test/plandash.spec.mjs`.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

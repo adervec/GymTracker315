@@ -764,6 +764,9 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-effort.miss { color: var(--text3); background: var(--bg3); }
   .plan-progress-line { font-size: 11.5px; color: var(--text2); margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
   .plan-progress-line b { color: var(--text); }
+  .plan-progress-line.plan-progress-open { cursor: pointer; display: inline-flex; align-items: center; }
+  .plan-progress-line.plan-progress-open:hover b { color: var(--accent); }
+  .plan-progress-chev { color: var(--text3); margin-left: 5px; font-weight: 700; }
   .plan-compare { font-size: 10.5px; color: var(--text3); margin: 2px 0 4px; line-height: 1.45; }
   .plan-card.complete { border-left-color: var(--good); }
   /* feat 113 — plan-complete banner */
@@ -7320,9 +7323,20 @@ function optionMatchesVar(o, varUuid) {
   if (o.type === 'movement') { const i = VAR_INDEX.get(varUuid); return !!(i && i.family.id === o.familyId); }
   return false;
 }
+// feat 137 — count the in-progress (UNSAVED) sets being entered for the current exercise, so plan
+// progress reflects them live. Only the LIVE session counts pending, never while EDITING a saved
+// exercise (those rows are already in session.exercises → double-count), and a row counts once it has
+// a weight. Discarding the log (Clear / pick another exercise / end-and-discard) empties pending → reverts.
+let _planIgnorePending = false; // feat 137 — suppress the live-pending fold for save-time saved-only snapshots
+function pendingStepSets(step) {
+  if (_planIgnorePending || !pending || !pending.varUuid || (typeof modalState !== 'undefined' && modalState.isEditing)) return 0;
+  if (!(step.options || []).some(o => optionMatchesVar(o, pending.varUuid))) return 0;
+  return (pending.sets || []).filter(s => s && s.w !== '' && s.w != null && !isNaN(parseFloat(s.w))).length;
+}
 function stepLoggedSets(session, step) {
   let n = 0;
   (session.exercises || []).forEach(ex => { if ((step.options || []).some(o => optionMatchesVar(o, ex.varUuid))) n += (ex.sets || []).length; });
+  if (session === getActiveSession()) n += pendingStepSets(step); // feat 137 — live unsaved sets count toward the active session only
   return n;
 }
 function stepStatus(session, step) {
@@ -7357,6 +7371,10 @@ function computePlanETA(session, plan) {
 function stepTopWeight(session, step) {
   let top = 0;
   (session.exercises || []).forEach(ex => { if ((step.options || []).some(o => optionMatchesVar(o, ex.varUuid))) (ex.sets || []).forEach(s => { const w = parseFloat(s.w) || 0; if (w > top) top = w; }); });
+  // feat 137 — include the unsaved sets' weights for the live effort badge (same gating as the count)
+  if (!_planIgnorePending && session === getActiveSession() && pending && pending.varUuid && !(typeof modalState !== 'undefined' && modalState.isEditing) && (step.options || []).some(o => optionMatchesVar(o, pending.varUuid))) {
+    (pending.sets || []).forEach(s => { const w = parseFloat(s && s.w) || 0; if (w > top) top = w; });
+  }
   return top;
 }
 // Did the working weight reach the step's prescribed load? applicable=false when there's no weight baseline
@@ -7501,6 +7519,13 @@ function startExerciseFromPlanOption(o, load) {
 let _plansEditId = null, _plansAddOptStep = null, _plansOptSearch = '';
 function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; renderPlansOverlay(); document.getElementById('plans-backdrop').classList.add('open'); document.getElementById('plans-panel').classList.add('open'); document.body.style.overflow = 'hidden'; }
 function openPlanPicker() { openPlansOverlay(); }
+function openPlanFull(id) { // feat 138 — open the full plan view (overlay) focused on one plan's steps
+  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = '';
+  renderPlansOverlay();
+  document.getElementById('plans-backdrop')?.classList.add('open');
+  document.getElementById('plans-panel')?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
 function closePlansOverlay() { document.getElementById('plans-backdrop').classList.remove('open'); document.getElementById('plans-panel').classList.remove('open'); document.body.style.overflow = ''; }
 function planUseForWorkout(id) {
   if (roBlocked('start a workout')) return;
@@ -7646,7 +7671,7 @@ function renderPlanGuide(session) {
   const headEta = eta.remainingMin > 0
     ? `ETC ~${eta.remainingMin} min · ETA ${eta.etaTime.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}`
     : 'plan complete 🎉';
-  const progLine = `<div class="plan-progress-line"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · <b>${sum.stepsDone}/${sum.stepsTotal}</b> steps${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}</div>`;
+  const progLine = `<div class="plan-progress-line plan-progress-open" id="plan-progress-open" role="button" tabindex="0" title="Open the full plan"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · <b>${sum.stepsDone}/${sum.stepsTotal}</b> steps${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}<span class="plan-progress-chev">›</span></div>`;
   // feat 127 — collapsible: tap the header to fold the plan card down to just its name + progress line.
   const collapsed = !!(state.dashboard && state.dashboard.planCollapsed);
   return `<div class="plan-card${sum.complete ? ' complete' : ''}${collapsed ? ' collapsed' : ''}">
@@ -7858,6 +7883,8 @@ function renderLog(main) {
   // Workout plan (feat 70)
   main.querySelector('#plan-collapse-toggle')?.addEventListener('click', togglePlanCollapsed); // feat 127
   main.querySelector('#plan-collapse-toggle')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePlanCollapsed(); } });
+  main.querySelector('#plan-progress-open')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanFull(p.id); }); // feat 138 — tap the progress line → full plan
+  main.querySelector('#plan-progress-open')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
   main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
   main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
   main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
@@ -13022,7 +13049,9 @@ function saveSets(endingWorkout) {
     const editing = modalState.isEditing;
     // feat 114 — capture whether the active plan was already complete BEFORE this save
     const planBefore = !editing ? getActivePlan() : null;
+    _planIgnorePending = true; // feat 137 — the "before this save" snapshot must count only SAVED sets, not the pending ones being committed
     const wasComplete = planBefore ? !!planExecutionSummary(getActiveSession(), planBefore).complete : false;
+    _planIgnorePending = false;
     if (modalState.isEditing) {
       const session = state.sessions.find(s => s.date === modalState.editingSessionDate);
       if (session) {
@@ -13141,10 +13170,10 @@ document.querySelectorAll('.tab[data-tab]').forEach(t => {
 
 document.getElementById('trk-fab').addEventListener('click', openLogModal);
 document.getElementById('trk-export-pdf')?.addEventListener('click', exportCurrentViewPdf); // feat 133
-document.getElementById('trk-modal-close').addEventListener('click', closeLogModal);
+document.getElementById('trk-modal-close').addEventListener('click', () => { closeLogModal(); render(); }); // feat 137 — refresh the dashboard so the plan card reflects (or drops) unsaved sets
 document.getElementById('trk-modal-clear').addEventListener('click', clearPendingModal);
-document.getElementById('trk-footer-close').addEventListener('click', closeLogModal);
-document.getElementById('trk-modal-backdrop').addEventListener('click', closeLogModal);
+document.getElementById('trk-footer-close').addEventListener('click', () => { closeLogModal(); render(); });
+document.getElementById('trk-modal-backdrop').addEventListener('click', () => { closeLogModal(); render(); });
 document.getElementById('trk-notes-close').addEventListener('click', closeNotesModal);
 document.getElementById('trk-notes-backdrop').addEventListener('click', closeNotesModal);
 // feat 51 — tapping the global rest bar jumps to the Log tab
@@ -13163,7 +13192,7 @@ document.addEventListener('keydown', e => {
     if (gr && gr.classList.contains('open')) { if (typeof closeGuide === 'function') closeGuide(); return; }
     if (document.getElementById('help-panel').classList.contains('open')) closeHelp();
     else if (document.getElementById('trk-notes-modal').classList.contains('open')) closeNotesModal();
-    else if (document.getElementById('trk-modal').classList.contains('open')) closeLogModal();
+    else if (document.getElementById('trk-modal').classList.contains('open')) { closeLogModal(); render(); } // feat 137
   }
 });
 
@@ -13172,7 +13201,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 84 · 2026-06-07 14:58';
+const APP_BUILD = 'build 85 · 2026-06-07 15:25';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
