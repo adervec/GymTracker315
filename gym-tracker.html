@@ -3988,6 +3988,23 @@ function stravaLoadDisable() {
 // endpoint needs no entry here (its URL + token are user-supplied at runtime).
 const SYNC_CLIENTS = { google: '', dropbox: '', onedrive: '' };
 
+// feat 132 — defense-in-depth origin allowlist. The committed OAuth client ids only work from the
+// JavaScript origins you register with each provider; the provider enforces that server-side. This
+// gate ALSO refuses the built-in OAuth backends app-side when the page is served from an unexpected
+// origin (e.g. a fork of this public repo deployed elsewhere) — failing fast with a clear message
+// instead of leaking the consent screen / consuming this project's quota. Keep this in sync with the
+// providers' "Authorized JavaScript origins" (see README → Cloud Sync). The custom endpoint is exempt
+// (it uses a user-supplied URL + token, no shared client id, so it works on any origin).
+const OAUTH_ORIGINS = ['https://adervec.github.io'];
+function cloudOriginAllowed(origin) {
+  try {
+    const o = origin || location.origin;
+    const h = new URL(o).hostname;
+    if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1') return true; // local dev, any port
+    return OAUTH_ORIGINS.indexOf(o) !== -1;
+  } catch (_) { return false; }
+}
+
 const GOOGLE_GIS_SRC = 'https://accounts.google.com/gsi/client';
 const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const GOOGLE_STATE_FILENAME = 'gymtracker-state.json';
@@ -4139,6 +4156,11 @@ async function cloudOAuthHandleRedirect() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code'), err = params.get('error');
   if (!pending || (!code && !err)) return false;
+  if (!cloudOriginAllowed()) { // feat 132 — never complete a token exchange on an unauthorized origin (e.g. a fork)
+    try { localStorage.removeItem(CLOUD_OAUTH_PENDING_KEY); } catch (_) {}
+    try { history.replaceState(null, '', cloudRedirectUri()); } catch (_) {}
+    return false;
+  }
   try { localStorage.removeItem(CLOUD_OAUTH_PENDING_KEY); } catch (_) {}
   try { history.replaceState(null, '', cloudRedirectUri()); } catch (_) {} // scrub ?code from the address bar
   if (err) { cloudSetMeta({ lastError: 'authorization ' + err }); cloudStatus('⚠ Cloud connect cancelled'); return true; }
@@ -4284,6 +4306,10 @@ async function cloudConnect(providerId) {
   const p = CLOUD_PROVIDERS[providerId];
   if (!p) { toast('Unknown sync provider'); return; }
   if (!p.isConfigured()) { toast(p.label + ' needs one-time setup — see Cloud Sync'); return; }
+  if (p.kind === 'oauth' && !cloudOriginAllowed()) { // feat 132 — only the authorized deployment may use the built-in client ids
+    toast('Built-in cloud sync (Google/Dropbox/OneDrive) is only enabled on the authorized deployment. Use the custom endpoint here, or self-host with your own client IDs.');
+    return;
+  }
   cloudStatus('☁ Connecting…');
   try {
     const r = await p.connect();
@@ -4383,9 +4409,11 @@ function cloudSyncCardHtml() {
   }
   const custom = cloudCustomCfg() || {};
   const inputCss = 'width:100%;box-sizing:border-box;margin-top:6px;padding:7px 9px;font-size:12px;border-radius:6px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);font-family:inherit;';
+  const originOk = cloudOriginAllowed(); // feat 132 — gate the built-in OAuth client ids to authorized origins
   const oauthBtn = (id, label, emoji) => {
-    const ok = !!SYNC_CLIENTS[id];
-    return `<button class="drawer-btn" id="cloud-connect-${id}-btn"${ok ? '' : ' disabled title="Needs a one-time client id — see Setup help"'}>${emoji} ${label}</button>`;
+    const ok = !!SYNC_CLIENTS[id] && originOk;
+    const title = !SYNC_CLIENTS[id] ? 'Needs a one-time client id — see Setup help' : (!originOk ? 'Disabled on this origin — not an authorized deployment' : '');
+    return `<button class="drawer-btn" id="cloud-connect-${id}-btn"${ok ? '' : ' disabled' + (title ? ` title="${title}"` : '')}>${emoji} ${label}</button>`;
   };
   return `
     <div class="drawer-data-row" style="flex-wrap:wrap;">
@@ -4393,6 +4421,7 @@ function cloudSyncCardHtml() {
       ${oauthBtn('dropbox', 'Dropbox', '📦')}
       ${oauthBtn('onedrive', 'OneDrive', '🪟')}
     </div>
+    ${originOk ? '' : `<div style="font-size:11px;color:var(--warn);margin-top:6px;line-height:1.5;">Built-in OAuth sync is disabled on this origin — only the authorized deployment can use the shared client IDs. The <b>custom endpoint</b> below works anywhere.</div>`}
     <div style="margin-top:10px;padding:10px 11px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;">
       <div style="font-size:12px;font-weight:700;color:var(--text);">🔒 Custom endpoint</div>
       <div style="font-size:10.5px;color:var(--text3);margin-top:2px;line-height:1.5;">Your own server — no third-party login, works on <b>any</b> device (incl. Apple). Host the ~30-line worker in <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/sync-worker.js</code> and paste its URL.</div>
@@ -12990,7 +13019,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 79 · 2026-06-07 13:44';
+const APP_BUILD = 'build 80 · 2026-06-07 14:01';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

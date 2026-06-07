@@ -63,6 +63,13 @@ const SYNC_CLIENTS = { google: '…', dropbox: '…', onedrive: '…' }; // past
 For every OAuth provider, register the **app's URL** as the redirect URI / JS origin — both the deployed PWA
 `https://adervec.github.io/GymTracker315/` and the local `http://localhost:4321/gym-tracker.html` if you dev locally.
 
+The committed client IDs are also gated app-side to an **`OAUTH_ORIGINS`** allowlist in
+[`gym-tracker.html`](gym-tracker.html) (defaults to `https://adervec.github.io` plus localhost). This is
+defense-in-depth so a *fork* of this public repo can't reuse the IDs from another domain — the providers already
+enforce it server-side, but the app refuses OAuth on an unlisted origin and shows the setup note instead. **If you
+self-host**, add your origin to `OAUTH_ORIGINS` *and* register it with each provider. (The custom endpoint isn't
+gated — it has no shared client ID.)
+
 ### Google Drive — one-time setup (free, ~5 min)
 
 Google Drive needs a public OAuth **client ID** that only you can create (it ties the app to *your* Google Cloud

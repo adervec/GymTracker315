@@ -539,6 +539,17 @@ They share variation **UUIDs**.
   `display:inline-flex; align-items:center; justify-content:center; line-height:1; padding:0`. An audit of the other
   ✕/× controls found this was the only fixed-square one missing centering (the picker clear button was already
   flex-centered; the rest are padding-sized). Covered by `test/mediawizard.spec.mjs` (computed-style centering).
+- **Defensive OAuth origin allowlist (feat 132):** the committed public OAuth client ids (`SYNC_CLIENTS`) are
+  gated app-side to an `OAUTH_ORIGINS` allowlist (`https://adervec.github.io` + localhost via a hostname check).
+  `cloudOriginAllowed(origin)` (pure, parses `new URL(origin).hostname`, arg-overridable for tests) backs three
+  gates: `cloudConnect` refuses `kind:'oauth'` providers on an unlisted origin (custom endpoint exempt);
+  `cloudSyncCardHtml` disables the OAuth buttons + shows a note when the origin isn't allowed; and
+  `cloudOAuthHandleRedirect` won't complete a token exchange off-origin. Defense-in-depth only — the providers
+  already enforce their *Authorized JavaScript origins* server-side — but it makes a **fork of this public repo**
+  fail fast (clear message, no leaked consent screen / quota use) instead of relying solely on Google's rejection.
+  Data isolation was never at risk: each user authenticates as themselves and their data lives in their own Drive
+  `appDataFolder`; the owner can't see others' data. Covered by `test/sync.spec.mjs` (allowlist logic + enabled/
+  disabled button render); existing connect tests stay green since the test origin (`127.0.0.1`) is allowlisted.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

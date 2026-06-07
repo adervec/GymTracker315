@@ -336,3 +336,65 @@ for (const provider of ['dropbox', 'onedrive']) {
     expect(sent.sessions.some((s) => s.id === 'LOCAL1')).toBe(true);
   });
 }
+
+/* ---- feat 132 — defensive OAuth origin allowlist ---- */
+
+test('cloud: cloudOriginAllowed() gates the built-in OAuth client ids to authorized origins (feat 132)', async ({ page }) => {
+  await page.waitForFunction(() => typeof window.cloudOriginAllowed === 'function', null, { timeout: 15000 });
+  const r = await page.evaluate(() => ({
+    prod: cloudOriginAllowed('https://adervec.github.io'),
+    localhost: cloudOriginAllowed('http://localhost:4321'),
+    loopback: cloudOriginAllowed('http://127.0.0.1:9999'),
+    evil: cloudOriginAllowed('https://evil.example'),
+    lookalike: cloudOriginAllowed('https://adervec.github.io.evil.com'),
+    here: cloudOriginAllowed(), // the Playwright server origin (127.0.0.1) -> allowed
+  }));
+  expect(r.prod).toBe(true);          // the registered production origin
+  expect(r.localhost).toBe(true);     // local dev (hostname check, any port)
+  expect(r.loopback).toBe(true);
+  expect(r.evil).toBe(false);         // a fork on another domain
+  expect(r.lookalike).toBe(false);    // not an exact origin match
+  expect(r.here).toBe(true);          // so existing connect tests still proceed
+});
+
+test('cloud: OAuth buttons are enabled on an authorized origin when configured (feat 132)', async ({ page }) => {
+  await page.waitForFunction(() => typeof window.cloudSyncCardHtml === 'function', null, { timeout: 15000 });
+  const r = await page.evaluate(() => {
+    SYNC_CLIENTS.google = 'x.apps.googleusercontent.com';
+    state.cloudSync = { provider: null, enabled: false, lastSync: null, lastError: null, perProvider: {} };
+    renderSettingsDrawer();
+    const dp = document.getElementById('data-page-body');
+    return {
+      originOk: cloudOriginAllowed(),
+      googleDisabled: !!dp.querySelector('#cloud-connect-google-btn[disabled]'),
+      hasNote: /disabled on this origin/i.test(dp.innerHTML),
+    };
+  });
+  expect(r.originOk).toBe(true);
+  expect(r.googleDisabled).toBe(false); // configured + authorized origin -> enabled
+  expect(r.hasNote).toBe(false);
+});
+
+test('cloud: OAuth buttons are disabled (with a note) on a non-authorized origin; custom stays (feat 132)', async ({ page }) => {
+  await page.waitForFunction(() => typeof window.cloudSyncCardHtml === 'function', null, { timeout: 15000 });
+  const r = await page.evaluate(() => {
+    SYNC_CLIENTS.google = 'x.apps.googleusercontent.com'; // configured...
+    const real = window.cloudOriginAllowed;
+    window.cloudOriginAllowed = () => false;              // ...but pretend this origin isn't authorized
+    state.cloudSync = { provider: null, enabled: false, lastSync: null, lastError: null, perProvider: {} };
+    renderSettingsDrawer();
+    const dp = document.getElementById('data-page-body');
+    const out = {
+      googleDisabled: !!dp.querySelector('#cloud-connect-google-btn[disabled]'),
+      dropboxDisabled: !!dp.querySelector('#cloud-connect-dropbox-btn[disabled]'),
+      hasNote: /disabled on this origin/i.test(dp.innerHTML),
+      customConnectPresent: !!dp.querySelector('#cloud-connect-custom-btn'),
+    };
+    window.cloudOriginAllowed = real; // restore
+    return out;
+  });
+  expect(r.googleDisabled).toBe(true);
+  expect(r.dropboxDisabled).toBe(true);
+  expect(r.hasNote).toBe(true);
+  expect(r.customConnectPresent).toBe(true); // the custom endpoint is exempt and still usable
+});
