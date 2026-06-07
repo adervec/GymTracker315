@@ -560,6 +560,12 @@ They share variation **UUIDs**.
   render. "Save or share" is the browser's print sheet (Save as PDF on desktop; Save/Share on Android). `afterprint`
   (+ a timeout fallback for mobile) clears `#print-root` and the `printing` class. Covered by `test/pdfexport.spec.mjs`
   (button visibility per tab, label/sub-context, clone-into-#print-root with header).
+- **Promote Cloud Sync, archive File-System auto-save (feat 134):** the legacy desktop-only Auto-Save + Auto-Load
+  sections on the Data Management page are wrapped in a collapsed `<details class="drawer-archived">` ("Legacy file
+  auto-save / load — use ☁ Cloud Sync instead"; auto-opens if either is currently enabled) so Cloud Sync is the
+  default cross-device path. The functions are untouched. Separately, the **Settings (⚙) long-press** is repointed
+  from `openSettingsToLastChanged` to **`openDataPage`** — hold the gear to jump straight to Data Management.
+  Covered by `test/dataexport.spec.mjs`.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
