@@ -782,6 +782,13 @@ They share variation **UUIDs**.
   heads the PDF print-root, and the share-image card draws "GymTracker315" at the top of the header band (and keeps
   its footer credit). Covered by `test/branding.spec.mjs` (header wordmark, hide toggle, PDF brand-while-hidden,
   persisted setting); visually verified.
+- **Time-bounded "Copy for Claude" digest (feat 171):** the most efficient way to hand a progress summary to Claude —
+  a **compact markdown digest** (`buildClaudeDigest`) built over the export dialog's existing time window
+  (week/month/last30/all/custom). It **aggregates per exercise** (not every raw set, so it fits one message): an
+  explicit analysis ask, an overview (sessions, span, /week, sets, avg grade), per-exercise **e1RM progression**
+  (first→latest top set + % change + best, capped at 30 with an overflow note), and body/cardio notes. Surfaced as a
+  **🤖 Copy summary for Claude** button in the export dialog. Covered by `test/claudeexport.spec.mjs` (digest shape +
+  progression + body, exercise cap, button present).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

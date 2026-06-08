@@ -613,6 +613,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   }
   .export-btn.primary { background: var(--accent2); border-color: var(--accent2); color: #fff; }
   .export-btn:disabled { opacity: 0.5; cursor: default; }
+  .export-btn.export-claude { flex: none; width: 100%; margin-top: 8px; background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); } /* feat 171 */
   .export-preview-wrap { margin-top: 4px; border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--bg3); display: flex; align-items: center; justify-content: center; min-height: 120px; }
   .export-preview-wrap img { max-width: 100%; height: auto; border-radius: 6px; display: block; }
   .export-building { font-size: 12px; color: var(--text3); }
@@ -10714,6 +10715,68 @@ function buildWorkoutText(sessions, opts) {
   return out.join('\n') + '\n';
 }
 
+// feat 171 — the most efficient way to hand a time-bounded progress summary to Claude for deep analysis:
+// a COMPACT markdown digest (aggregated per exercise, not every raw set) that fits in one message and is
+// shaped for analysis — an explicit ask, an overview, per-exercise e1RM progression, body + cardio notes.
+function buildClaudeDigest(sessions, opts) {
+  const unit = state.unit;
+  const sorted = sessions.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+  const L = [];
+  L.push(`# Training progress — ${exportScopeLabel(opts, sessions)}`);
+  L.push('');
+  L.push(`Please analyze my strength-training progress below and give specific, actionable feedback: what's progressing, what's stalling or regressing, any muscle-group imbalances, and concrete next steps. Weights are in ${unit}; "e1RM" is the estimated 1-rep max.`);
+  L.push('');
+  const totalSets = sessions.reduce((c, s) => c + (s.exercises || []).reduce((a, e) => a + (e.sets || []).length, 0), 0);
+  const ds = sorted.map(s => new Date(s.date).getTime());
+  const spanDays = ds.length > 1 ? Math.max(1, Math.round((ds[ds.length - 1] - ds[0]) / 86400000)) : 1;
+  const perWk = (sessions.length / Math.max(1, spanDays / 7)).toFixed(1);
+  const grades = sessions.map(s => sessionGrade(s)).filter(g => g && g.points != null);
+  const avgPts = grades.length ? Math.round(grades.reduce((a, g) => a + g.points, 0) / grades.length) : null;
+  L.push('## Overview');
+  L.push(`- ${sessions.length} sessions over ~${spanDays} days (~${perWk}/week), ${totalSets} working sets`);
+  if (avgPts != null) L.push(`- Average session grade: ${gradeFor(avgPts)} (${avgPts}/100)`);
+  L.push('');
+  const agg = {};
+  sorted.forEach(s => (s.exercises || []).forEach(ex => {
+    if (ex.cardio || !(ex.sets || []).length) return;
+    const key = trackingKey(ex.varUuid, ex.subUuid);
+    let top = null; ex.sets.forEach(st => { const o = estimated1RM(parseFloat(st.w) || 0, parseInt(st.r) || 0) || 0; if (!top || o > top.o) top = { o, w: st.w, r: st.r }; });
+    if (!top || !top.o) return;
+    const info = VAR_INDEX.get(ex.varUuid);
+    if (!agg[key]) agg[key] = { name: displayName(ex.varUuid, ex.subUuid), bp: info ? (BP_LABELS[info.bp] || info.bp) : '?', first: top, last: top, best: top.o, sessions: 0, sets: 0 };
+    agg[key].last = top; agg[key].best = Math.max(agg[key].best, top.o); agg[key].sessions++; agg[key].sets += ex.sets.length;
+  }));
+  const rows = Object.values(agg).sort((a, b) => b.sets - a.sets);
+  const CAP = 30;
+  L.push(`## Exercise progression (best set per session; e1RM ${unit})`);
+  rows.slice(0, CAP).forEach(a => {
+    const pct = a.first.o > 0 ? Math.round((a.last.o - a.first.o) / a.first.o * 100) : 0;
+    L.push(`- ${a.name} [${a.bp}]: ${a.first.w}×${a.first.r} → ${a.last.w}×${a.last.r} | e1RM ${Math.round(a.first.o)}→${Math.round(a.last.o)} (${pct >= 0 ? '+' : ''}${pct}%), best ${Math.round(a.best)} | ${a.sessions} sess, ${a.sets} sets`);
+  });
+  if (rows.length > CAP) L.push(`- …and ${rows.length - CAP} more exercises (omitted for brevity)`);
+  L.push('');
+  if (ds.length) {
+    const lo = ds[0], hi = ds[ds.length - 1];
+    const bc = (state.bodyComp || []).filter(b => { const t = new Date(b.date).getTime(); return t >= lo - 3 * 86400000 && t <= hi + 86400000 && b.weight != null; }).sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (bc.length) {
+      const f = bc[0], l = bc[bc.length - 1];
+      L.push('## Body');
+      L.push(`- Bodyweight: ${f.weight}→${l.weight} ${state.bodyCompUnit || unit}${bc.length > 1 ? ` (${(l.weight - f.weight) >= 0 ? '+' : ''}${Math.round((l.weight - f.weight) * 10) / 10})` : ''}`);
+      L.push('');
+    }
+  }
+  const cardio = [];
+  sorted.forEach(s => (s.exercises || []).forEach(ex => { if (ex.cardio) cardio.push(ex.cardio); }));
+  if (cardio.length) {
+    const mins = cardio.reduce((a, c) => a + (c.elapsedMin || 0), 0);
+    L.push('## Cardio');
+    L.push(`- ${cardio.length} sessions, ~${mins} min total`);
+    L.push('');
+  }
+  L.push('— exported from GymTracker315');
+  return L.join('\n') + '\n';
+}
+
 // Filename stem for downloads (no user-entered text).
 function exportBaseName(opts, sessions) {
   const ymd = d => { const x = new Date(d); const p = n => String(n).padStart(2,'0'); return `${x.getFullYear()}-${p(x.getMonth()+1)}-${p(x.getDate())}`; };
@@ -10957,6 +11020,7 @@ async function renderExportPhaseB(modal, opts, sessions) {
       <button class="export-btn" id="export-copy">⧉ Copy</button>
       ${('share' in navigator) ? '<button class="export-btn" id="export-share">↗ Share</button>' : ''}
     </div>
+    <button class="export-btn export-claude" id="export-claude" title="Copy a compact, analysis-ready summary to paste into a Claude conversation">🤖 Copy summary for Claude</button>
     <div class="export-actions">
       <button class="export-btn" id="export-back">‹ Back</button>
       <button class="export-btn" id="export-close-btn">Close</button>
@@ -10965,6 +11029,7 @@ async function renderExportPhaseB(modal, opts, sessions) {
   modal.querySelector('#export-close-btn').addEventListener('click', closeExportDialog);
   modal.querySelector('#export-dl-txt').addEventListener('click', () => { downloadText(text, baseName + '.txt'); toast('Text exported'); });
   modal.querySelector('#export-copy').addEventListener('click', () => copyText(text));
+  modal.querySelector('#export-claude')?.addEventListener('click', () => { copyText(buildClaudeDigest(sessions, opts)); toast('🤖 Summary copied — paste it into Claude'); }); // feat 171
 
   let blob = null;
   try { blob = await renderWorkoutCard(sessions, opts); } catch(e) { blob = null; }
@@ -13882,7 +13947,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 109 · 2026-06-07 21:53';
+const APP_BUILD = 'build 110 · 2026-06-07 21:58';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
