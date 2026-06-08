@@ -863,6 +863,30 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .pexec-used-sets { font-size: 12px; color: var(--text2); margin-top: 2px; font-variant-numeric: tabular-nums; }
   .pexec-used-meta { font-size: 10.5px; color: var(--text3); margin-top: 1px; }
   .pexec-none { font-size: 12px; color: var(--text3); font-style: italic; }
+  /* feat 163 — execution analytics */
+  .pexec-time { font-size: 11px; color: var(--text3); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+  .pexec-time b { color: var(--text2); }
+  .pexec-tdelta { font-weight: 700; }
+  .pexec-tdelta.over { color: #e2746b; } .pexec-tdelta.under { color: var(--good); }
+  .pexec-stats { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 10px 11px; margin-bottom: 12px; }
+  .pexec-stat-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .pexec-eta-main { font-size: 12.5px; color: var(--text2); }
+  .pexec-eta-main b { color: var(--text); font-size: 15px; }
+  .pexec-eta-delta { font-weight: 700; font-size: 11px; }
+  .pexec-eta-delta.over { color: #e2746b; } .pexec-eta-delta.under { color: var(--good); }
+  .pexec-eta-orig { color: var(--text3); font-size: 10.5px; }
+  .pexec-eta-spark { flex-shrink: 0; opacity: 0.9; }
+  .pexec-stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 12px; margin-top: 9px; }
+  .pexec-stat { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: 12px; border-bottom: 1px dotted var(--border2); padding-bottom: 3px; }
+  .pexec-stat b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .pexec-stat-lbl { font-size: 10.5px; color: var(--text3); }
+  .pexec-seq { margin-top: 10px; }
+  .pexec-seq-row { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+  .pexec-seq-chip { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--bg4); color: var(--text2); white-space: nowrap; }
+  .pexec-seq-chip.off { background: color-mix(in srgb, #d9a400 16%, transparent); color: #d9a400; font-weight: 600; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+  .pexec-seq-arr { color: var(--text3); font-size: 9px; }
+  .pexec-offplan { font-size: 11.5px; color: var(--text2); margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border2); line-height: 1.5; }
+  .pexec-offplan-names { color: var(--text3); }
   .plan-hist-badge.plan-hist-clickable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .phb-chev { font-weight: 800; opacity: 0.7; }
   .plan-card.complete { border-left-color: var(--good); }
@@ -8018,6 +8042,83 @@ function findPlanExecutions(planId, excludeId, rev) {
   else execs.forEach(s => { if (_execSets(s) > _execSets(best)) best = s; });
   return { recent, best, count: execs.length };
 }
+
+/* ---- feat 163 — deep plan-execution analytics ----
+   From a session's set timestamps (wTs = set start, ts = set done) + the plan it ran, compute: the ACTUAL step
+   sequence performed, rest spent WITHIN exercises vs BETWEEN exercises, active (under-tension) time, %active for
+   completed steps, per-step estimated-vs-actual time, an ETC drift series (how the projected finish moved as the
+   workout progressed) + its delta from the plan's original estimate, and an off-plan summary (sets/time on
+   exercises that matched no step). Pure — no DOM, no state writes — so it also seeds the historized snapshot
+   (feat 164). DEFAULT_PER_SET_SEC is the a-priori pace for the per-step ESTIMATE (actuals are measured). */
+const DEFAULT_PER_SET_SEC = 140; // ~35s under tension + ~105s rest — the same baseline computePlanETA falls back to
+function _execStepOfVar(plan, varUuid) {
+  const steps = (plan && plan.steps) || [];
+  for (let i = 0; i < steps.length; i++) if ((steps[i].options || []).some(o => optionMatchesVar(o, varUuid))) return i;
+  return -1;
+}
+function computePlanExecutionDetail(session, plan) {
+  if (!session || !plan) return null;
+  const steps = plan.steps || [];
+  const startMs = new Date(session.date).getTime();
+  // Per-exercise timing (active under-tension time + within-exercise rest), tagged with the step it satisfies.
+  const exes = (session.exercises || []).map((ex, exOrder) => {
+    const sets = (ex.sets || []).filter(s => s && (s.w !== '' && s.w != null || s.r !== '' && s.r != null));
+    const stamped = sets.map(s => ({ start: setStartMs(s), done: setDoneMs(s) })).sort((a, b) => (a.done || a.start || 0) - (b.done || b.start || 0));
+    let firstStart = null, lastDone = null, activeMs = 0, withinMs = 0;
+    for (let i = 0; i < stamped.length; i++) {
+      const st = stamped[i].start, dn = stamped[i].done;
+      if (st != null && dn != null && dn > st) activeMs += (dn - st);
+      if (st != null && (firstStart == null || st < firstStart)) firstStart = st;
+      if (dn != null && (lastDone == null || dn > lastDone)) lastDone = dn;
+      if (i > 0) { const pd = stamped[i - 1].done, cs = stamped[i].start; if (pd != null && cs != null) { const g = cs - pd; if (g >= 1000 && g <= 600000) withinMs += g; } }
+    }
+    const stepIdx = _execStepOfVar(plan, ex.varUuid);
+    return { ex, exOrder, varUuid: ex.varUuid, subUuid: ex.subUuid, stepIdx, isOffPlan: stepIdx < 0, cardio: !!ex.cardio,
+      setCount: sets.length, firstStart, lastDone, activeMs, withinMs };
+  }).filter(e => e.setCount > 0 || e.cardio);
+  // Performance order (by first set start, fallback to logged order) → between-exercise rest + actual sequence.
+  const ordered = exes.slice().sort((a, b) => { const av = a.firstStart == null ? Infinity : a.firstStart, bv = b.firstStart == null ? Infinity : b.firstStart; return av !== bv ? av - bv : a.exOrder - b.exOrder; });
+  let betweenMs = 0;
+  for (let i = 1; i < ordered.length; i++) { const pd = ordered[i - 1].lastDone, cs = ordered[i].firstStart; if (pd != null && cs != null) { const g = cs - pd; if (g >= 1000 && g <= 1800000) betweenMs += g; } }
+  const seq = ordered.map(e => ({ stepIdx: e.stepIdx, name: displayName(e.varUuid, e.subUuid), sets: e.setCount, off: e.isOffPlan }));
+  // Per-step rollup (est = a-priori; actual = measured active+within).
+  const stepStats = steps.map((st, i) => {
+    const mine = exes.filter(e => e.stepIdx === i);
+    const ss = stepStatus(session, st, plan);
+    const activeMs = mine.reduce((n, e) => n + e.activeMs, 0), withinMs = mine.reduce((n, e) => n + e.withinMs, 0);
+    const tracked = activeMs + withinMs;
+    return { i, label: (st.options || []).map(optionLabel).join(' / ') || 'step', setsLogged: ss.logged, setsReq: st.sets || 0,
+      done: ss.done, satisfied: ss.satisfied, started: ss.started, skipped: ss.logged === 0,
+      estMin: Math.round(((st.sets || 0) * DEFAULT_PER_SET_SEC) / 60), actualMin: tracked > 0 ? Math.max(1, Math.round(tracked / 60000)) : null,
+      activeSec: Math.round(activeMs / 1000), withinSec: Math.round(withinMs / 1000),
+      pctActive: tracked > 0 ? Math.round(activeMs / tracked * 100) : null,
+      used: mine.map(e => ({ name: displayName(e.varUuid, e.subUuid), sets: e.setCount })) };
+  });
+  const offPlanEx = exes.filter(e => e.isOffPlan);
+  const totActiveMs = exes.reduce((n, e) => n + e.activeMs, 0), totWithinMs = exes.reduce((n, e) => n + e.withinMs, 0);
+  const completed = new Set(stepStats.filter(s => s.satisfied).map(s => s.i));
+  const compEx = exes.filter(e => completed.has(e.stepIdx));
+  const compActive = compEx.reduce((n, e) => n + e.activeMs, 0), compTracked = compEx.reduce((n, e) => n + e.activeMs + e.withinMs, 0);
+  // ETC drift series: at each completed set (time-ordered), project the finish from the pace so far.
+  const dones = []; exes.forEach(e => (e.ex.sets || []).forEach(s => { const d = setDoneMs(s); if (d != null) dones.push(d); }));
+  dones.sort((a, b) => a - b);
+  const totalPlanSets = planTotalSets(plan) || dones.length || 1;
+  const etcSeries = dones.map((d, k) => { const n = k + 1, elapsedMin = Math.max(0, (d - startMs) / 60000), pace = elapsedMin / n, remaining = Math.max(0, totalPlanSets - n); return Math.round(elapsedMin + remaining * pace); });
+  const originalMin = estimatePlanMinutes(plan);
+  const stats = computeSessionStats(session);
+  let etcMin;
+  if (session.endedAt) etcMin = stats.elapsedMin;                                   // finished → the actual total
+  else etcMin = stats.elapsedMin + computePlanETA(session, plan).remainingMin;      // live → elapsed + projected remainder
+  return {
+    hasTiming: totActiveMs > 0 || totWithinMs > 0 || betweenMs > 0,
+    seq, stepStats,
+    totals: { activeSec: Math.round(totActiveMs / 1000), withinRestSec: Math.round(totWithinMs / 1000), betweenRestSec: Math.round(betweenMs / 1000),
+      pctActiveCompleted: compTracked > 0 ? Math.round(compActive / compTracked * 100) : null, exerciseCount: exes.length },
+    offPlan: { count: offPlanEx.length, sets: offPlanEx.reduce((n, e) => n + e.setCount, 0), activeSec: Math.round(offPlanEx.reduce((n, e) => n + e.activeMs, 0) / 1000), names: offPlanEx.map(e => displayName(e.varUuid, e.subUuid)) },
+    eta: { originalMin, etcMin, deltaMin: etcMin - originalMin, series: etcSeries, finished: !!session.endedAt },
+  };
+}
+function _fmtDur(sec) { sec = Math.max(0, Math.round(sec || 0)); const m = Math.floor(sec / 60), s = sec % 60; return m > 0 ? (s ? `${m}m ${s}s` : `${m}m`) : `${s}s`; }
 // feat 116 — which plan step the current exercise belongs to (prefer the earliest INCOMPLETE match).
 function planStepForVar(session, plan, varUuid) {
   if (!plan || !varUuid) return -1;
@@ -8312,7 +8413,9 @@ function renderPlanExecutionView(body, plan, session) {
   const curIdx = currentPlanStepIndex(session, plan);
   const isActive = session === getActiveSession();
   const u = state.unit;
+  const detail = computePlanExecutionDetail(session, plan); // feat 163
   const stepsHtml = (plan.steps || []).map((st, i) => {
+    const ds = detail && detail.stepStats[i]; // feat 163 — per-step timing
     const ss = stepStatus(session, st, plan), ef = stepEffort(session, st);
     const used = (session.exercises || []).filter(ex => (st.options || []).some(o => optionMatchesVar(o, ex.varUuid)) && (ex.sets || []).length);
     let statusCls, statusTxt;
@@ -8336,12 +8439,16 @@ function renderPlanExecutionView(body, plan, session) {
     const planned = (st.options || []).map(optionLabel).join(' / ') || '(no exercises)';
     const load = st.load || 'moderate';
     const effortBadge = ef.applicable ? `<span class="pexec-effort ${ef.hit ? 'hit' : 'miss'}">💪 ${ef.hit ? 'target met' : `${ef.top || 0}/${ef.sug}${u}`}</span>` : '';
+    // feat 163 — per-step time line: estimated vs actual, %active under tension
+    const timeHtml = ds ? `<div class="pexec-time">⏱ est ${ds.estMin}m${ds.actualMin != null ? ` · actual <b>${ds.actualMin}m</b>` : ''}${ds.pctActive != null ? ` · ${ds.pctActive}% active` : ''}${(ds.actualMin != null && ds.estMin) ? ` <span class="pexec-tdelta ${ds.actualMin > ds.estMin ? 'over' : 'under'}">${ds.actualMin > ds.estMin ? '+' : ''}${ds.actualMin - ds.estMin}m</span>` : ''}</div>` : '';
     return `<div class="pexec-step ${statusCls}">
       <div class="pexec-step-head"><span class="pexec-step-num">Step ${i + 1}</span><span class="pexec-status ${statusCls}">${statusTxt}</span></div>
       <div class="pexec-planned">📋 ${escapeHtml(planned)} <span class="pexec-load ${load}">${load}</span> · <b>${ss.logged}/${st.sets}</b> sets ${effortBadge}</div>
+      ${timeHtml}
       <div class="pexec-satisfied"><div class="pexec-sat-lbl">Satisfied by</div>${usedHtml}</div>
     </div>`;
   }).join('');
+  const statsHtml = (detail && detail.hasTiming) ? _planExecStatsHtml(detail, plan) : ''; // feat 163
   const when = isActive ? 'This session (live)' : fmtDate(session.date);
   body.innerHTML = `<button class="drawer-btn" id="plan-exec-back">← All plans</button>
     <div class="pexec-head">
@@ -8349,8 +8456,33 @@ function renderPlanExecutionView(body, plan, session) {
       <div class="pexec-when">${escapeHtml(when)}${session.planRev ? ` · <span class="pexec-rev">rev ${session.planRev}</span>` : ''}${sum.complete ? ' · <b class="pexec-complete">complete 🎉</b>' : ''}</div>
     </div>
     <div class="pexec-rollup"><b>${sum.stepsDone}/${sum.stepsTotal}</b> steps${sum.stepsFull < sum.stepsDone ? ` <span class="pexec-fullhint">(${sum.stepsFull} full)</span>` : ''} · <b>${sum.setsDone}/${sum.setsTarget}</b> sets${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}</div>
+    ${statsHtml}
     <div class="pexec-steps">${stepsHtml}</div>`;
   body.querySelector('#plan-exec-back')?.addEventListener('click', () => { _plansExecId = null; _plansExecSessionDate = null; renderPlansOverlay(); });
+}
+// feat 163 — the analytics panel: ETC drift (vs original) + sparkline, time breakdown, actual sequence, off-plan.
+function _planExecStatsHtml(detail, plan) {
+  const t = detail.totals, e = detail.eta;
+  const deltaTxt = e.deltaMin === 0 ? 'on estimate' : `${e.deltaMin > 0 ? '+' : ''}${e.deltaMin}m vs est`;
+  const spark = (e.series && e.series.length >= 2) ? sparklineSvg(e.series, { w: 132, h: 26 }) : '';
+  const seqHtml = detail.seq.length ? detail.seq.map(s => s.off
+    ? `<span class="pexec-seq-chip off" title="Off-plan">${escapeHtml(s.name)}</span>`
+    : `<span class="pexec-seq-chip">S${s.stepIdx + 1}</span>`).join('<span class="pexec-seq-arr">→</span>') : '<span class="pexec-none">— no exercises logged</span>';
+  const off = detail.offPlan;
+  return `<div class="pexec-stats">
+    <div class="pexec-stat-row pexec-eta">
+      <div class="pexec-eta-main"><span class="pexec-stat-lbl">⏳ ${e.finished ? 'Total' : 'ETC'}</span> <b>${e.etcMin}m</b> <span class="pexec-eta-delta ${e.deltaMin > 0 ? 'over' : (e.deltaMin < 0 ? 'under' : '')}">${deltaTxt}</span> <span class="pexec-eta-orig">(est ${e.originalMin}m)</span></div>
+      ${spark ? `<div class="pexec-eta-spark" title="How the projected finish drifted as the workout progressed">${spark}</div>` : ''}
+    </div>
+    <div class="pexec-stat-grid">
+      <div class="pexec-stat"><span class="pexec-stat-lbl">Active</span><b>${_fmtDur(t.activeSec)}</b></div>
+      <div class="pexec-stat"><span class="pexec-stat-lbl">Rest within</span><b>${_fmtDur(t.withinRestSec)}</b></div>
+      <div class="pexec-stat"><span class="pexec-stat-lbl">Rest between</span><b>${_fmtDur(t.betweenRestSec)}</b></div>
+      <div class="pexec-stat"><span class="pexec-stat-lbl">% active (done steps)</span><b>${t.pctActiveCompleted != null ? t.pctActiveCompleted + '%' : '—'}</b></div>
+    </div>
+    <div class="pexec-seq"><div class="pexec-stat-lbl">Actual sequence</div><div class="pexec-seq-row">${seqHtml}</div></div>
+    ${off.count ? `<div class="pexec-offplan">🔀 <b>Off-plan:</b> ${off.count} exercise${off.count === 1 ? '' : 's'} · ${off.sets} set${off.sets === 1 ? '' : 's'}${off.activeSec ? ` · ${_fmtDur(off.activeSec)} active` : ''} <span class="pexec-offplan-names">${escapeHtml(off.names.slice(0, 4).join(', '))}${off.names.length > 4 ? '…' : ''}</span></div>` : ''}
+  </div>`;
 }
 function renderPlanEditor(body, plan) {
   if (_plansAddOptStep != null) { renderOptionPicker(body, plan); return; }
@@ -14505,7 +14637,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 118 · 2026-06-08 07:14';
+const APP_BUILD = 'build 119 · 2026-06-08 07:22';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -868,6 +868,18 @@ They share variation **UUIDs**.
   ran, not a later, arbitrarily-different one (the view shows a `rev N` badge). Covered by
   `test/planrevisions.spec.mjs` (baseline, seed authorship, dirty→commit→clean, revert, restore, planAtRevision,
   same-revision comparison, planRev stamping, the editor bar).
+- **Deep plan-execution analytics (feat 163):** the detailed execution view (feat 145) gains a full analytics
+  layer from a session's set timestamps (`wTs` = set start, `ts` = set done). `computePlanExecutionDetail(session,
+  plan)` (pure — also seeds the feat-164 snapshot) computes: the **actual step sequence** performed (off-plan
+  exercises flagged inline), rest spent **within** exercises vs **between** exercises (clamped gap sums), **active**
+  (under-tension) time, **% active for completed steps**, per-step **estimated vs actual** time (est uses an
+  a-priori `DEFAULT_PER_SET_SEC`; actual is measured active+within), an **ETC drift series** (the projected finish
+  recomputed at each completed set, drawn with `sparklineSvg`) plus its **delta from the plan's original estimate**
+  (`estimatePlanMinutes`), and an **off-plan summary** (count / sets / active time / names of exercises that matched
+  no step). The view renders an analytics panel (ETC + spark, a 4-up time grid, the sequence chips, the off-plan
+  line) and a per-step `⏱ est · actual · %active` line; the panel is suppressed when a session has no timing data.
+  Covered by `test/planexecdetail.spec.mjs` (exact active/within/between math, %active, est-vs-actual, sequence
+  ordering, off-plan totals, ETC delta + series length, render integration, and graceful no-timing degradation).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
