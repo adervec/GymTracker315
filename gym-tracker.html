@@ -652,6 +652,15 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   body.plan-step-bar-on .panel { padding-top: 72px; }
   body.plan-step-bar-on.rest-bar-on .panel { padding-top: 102px; }
   body.plan-step-bar-on.rest-bar-idle .panel { padding-top: 90px; }
+  /* feat 148 — the Log-Sets sheet (#trk-modal) is a full-screen fixed overlay, so unlike .panel it sat at top:0
+     and the fixed top bar + rest/plan-step HUD bars floated OVER its top content (clipping the exercise + sets).
+     Push the sheet down to start below whichever bars are showing. Mirrors the .panel offsets above. */
+  #trk-modal { top: 48px; }
+  body.rest-bar-on #trk-modal { top: 78px; }
+  body.rest-bar-idle #trk-modal { top: 66px; }
+  body.plan-step-bar-on #trk-modal { top: 72px; }
+  body.plan-step-bar-on.rest-bar-on #trk-modal { top: 102px; }
+  body.plan-step-bar-on.rest-bar-idle #trk-modal { top: 90px; }
   #plan-step-bar .stepbar-label { flex-shrink: 0; }
   #plan-step-bar .stepbar-notches { display: flex; flex: 1; gap: 3px; min-width: 0; height: 9px; }
   #plan-step-bar .stepbar-notch { flex: 1; background: var(--bg4, #2a2a2a); border-radius: 2px; min-width: 5px; transition: background 0.25s; }
@@ -13531,7 +13540,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 94 · 2026-06-07 20:33';
+const APP_BUILD = 'build 95 · 2026-06-07 20:43';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

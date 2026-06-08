@@ -684,6 +684,13 @@ They share variation **UUIDs**.
   **Clear filters** action, and each row carries a category tag. `PLAN_CAT_ORDER` ranks the chips + headers. Covered
   by `test/planlist.spec.mjs` (category derivation, chips + grouped headers, search, category filter, length filter +
   clear); visually verified on the real seed plans.
+- **Rest/plan-step bar no longer overlaps the log sheet (feat 148):** the Log-Sets sheet (`#trk-modal`) is a
+  full-screen fixed overlay at `top:0`, so the fixed top bar (z9999) + the rest-timer bar (z9998) + the plan-step HUD
+  bar (z9997) floated **over** its top content — clipping the exercise title and the first sets. The sheet now gets
+  body-class-driven `top` offsets mirroring the `.panel` rules (`top:48px` base for the top bar → `78`/`102`/`90`/…
+  as the rest/idle + plan-step bars show), so it always starts just below whichever bars are visible. Bonus: the
+  modal's own "Log Sets" header (previously hidden behind the top bar) is now visible. Covered by
+  `test/restbaroverlap.spec.mjs`; visually verified.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
