@@ -5341,6 +5341,16 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${(state.workoutControls||{}).restTimer === false ? 'active' : ''}" data-wc="restTimer" data-wc-val="off">Off</button>
       </div>
     </div>
+    ${wakeLockSupported() ? `<div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Keep screen awake during workout</div>
+        <div class="drawer-setting-sub">Holds a screen wake-lock while training so the display stays on and metronome / rest cues keep playing. Note: a web app can't play audio or vibrate while the screen is <b>locked</b> or the app is closed — that's an OS limit, so keeping the screen on is the fix.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).keepAwake !== false ? 'active' : ''}" data-wc="keepAwake" data-wc-val="on">On</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).keepAwake === false ? 'active' : ''}" data-wc="keepAwake" data-wc-val="off">Off</button>
+      </div>
+    </div>` : ''}
     ${hrSupported() ? `<div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">💓 Auto-connect HR on start</div>
@@ -5947,7 +5957,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefBioWarn) { state.warnOtherBiometrics = btn.dataset.prefBioWarn === 'on'; saveState(); }
       else if (btn.dataset.dash) { state.dashboard[btn.dataset.dash] = btn.dataset.dashVal === 'on'; saveState(); }
       else if (btn.dataset.catVis) { state.hiddenCategories[btn.dataset.catVis] = btn.dataset.catVal === 'hide'; saveState(); render(); }
-      else if (btn.dataset.wc) { ensureWC(); state.workoutControls[btn.dataset.wc] = btn.dataset.wcVal === 'on'; saveState(); if (typeof refreshRestBar === 'function') refreshRestBar(); if (typeof modalState !== 'undefined' && modalState.open) renderModal(); }
+      else if (btn.dataset.wc) { ensureWC(); state.workoutControls[btn.dataset.wc] = btn.dataset.wcVal === 'on'; saveState(); if (typeof refreshRestBar === 'function') refreshRestBar(); if (typeof refreshWakeLock === 'function') refreshWakeLock(); if (typeof modalState !== 'undefined' && modalState.open) renderModal(); }
       renderSettingsDrawer();
     });
   });
@@ -8620,7 +8630,27 @@ function startWorkout() {
   logInfo('Workout started');
   // feat 38 — ping location to auto-select the nearest saved gym, if any have coords
   if ((state.gyms || []).some(g => g.lat != null)) pingLocationSelectGym(true);
+  refreshWakeLock(); // feat 160 — keep the screen awake so cues keep firing
 }
+
+// feat 160 — Screen Wake Lock during an active workout. A web app CANNOT play audio or fire haptics while
+// the screen is LOCKED or the tab/PWA is closed (an OS restriction, not something we can bypass). The honest
+// mitigation is to hold a screen wake lock while you train so the display stays on and the metronome / rest
+// cues keep firing. Wake locks drop when the tab is hidden, so we re-acquire on visibilitychange.
+let _wakeLock = null;
+function wakeLockSupported() { return typeof navigator !== 'undefined' && 'wakeLock' in navigator; }
+function wakeLockEnabled() { return (state.workoutControls || {}).keepAwake !== false; } // default ON
+async function acquireWakeLock() {
+  if (!wakeLockSupported() || !wakeLockEnabled() || !getActiveSession()) return;
+  if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return;
+  if (_wakeLock) return;
+  try {
+    _wakeLock = await navigator.wakeLock.request('screen');
+    if (_wakeLock && _wakeLock.addEventListener) _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+  } catch (_) { _wakeLock = null; }
+}
+async function releaseWakeLock() { const w = _wakeLock; _wakeLock = null; try { if (w && w.release) await w.release(); } catch (_) {} }
+function refreshWakeLock() { if (getActiveSession() && wakeLockEnabled()) acquireWakeLock(); else releaseWakeLock(); }
 
 // Manually end the active workout with confirmation (feat 13).
 // skipConfirm=true when triggered via hold-to-confirm (feat 32) — the hold IS the confirm.
@@ -8665,6 +8695,7 @@ function discardActiveWorkout() {
       saveState();
       toast('🗑 Workout discarded');
       if (typeof refreshRestBar === 'function') refreshRestBar();
+      releaseWakeLock(); // feat 160
       render();
     });
 }
@@ -8680,6 +8711,7 @@ function finalizeEndWorkout(active, skipConfirm) {
     active.endReason = 'manual';
     modalState.setup = {}; modalState.setupOpen = false; // feat 85 — clear persisted equipment setup at workout end
     stopMetronome(); // feat 69 — stop the beat when the workout ends
+    releaseWakeLock(); // feat 160 — let the screen sleep again once the workout is over
     hrFinalize(active); // feat 72 — roll the recorded HR samples into the session's avg/max
     if (score) active.finalScore = score; // store final score for posterity
     saveState();
@@ -13682,6 +13714,9 @@ document.getElementById('rest-bar')?.addEventListener('click', () => {
 // feat 139/156 — tap the notched step bar to open the detailed Plan Execution View (feat 145)
 document.getElementById('plan-step-bar')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); });
 document.getElementById('plan-step-bar')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanExecution(p.id); } });
+// feat 160 — wake locks drop when the tab is hidden; re-acquire when it returns to the foreground (and on boot)
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshWakeLock(); });
+try { refreshWakeLock(); } catch (_) {}
 // feat 57 — tap outside the numpad to dismiss it
 document.getElementById('trk-numpad-backdrop')?.addEventListener('click', closeNumpad);
 document.addEventListener('keydown', e => {
@@ -13699,7 +13734,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 103 · 2026-06-07 21:21';
+const APP_BUILD = 'build 104 · 2026-06-07 21:26';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

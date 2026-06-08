@@ -743,6 +743,14 @@ They share variation **UUIDs**.
   filter on the **Log** tab (`_logMinGrade`) that narrows the session list to a chosen grade or better, with an
   empty-state + "show all". A gold **`.g-S`** chip style marks the top tier. Covered by `test/grades.spec.mjs` (scale,
   ranking + legacy, Log ≥-filter, S chip).
+- **Wake lock during a workout (feat 160):** the honest answer to "PWA can't play audio/haptics unless open+unlocked"
+  — a web app genuinely can't fire them when the screen is **locked** or the app is closed (OS restriction). So we
+  hold a **Screen Wake Lock** while a workout is active (`acquireWakeLock`/`releaseWakeLock`/`refreshWakeLock`,
+  gated by `wakeLockSupported()` + the default-on `workoutControls.keepAwake` + an active session), keeping the
+  display on so the metronome / rest cues keep playing. Acquired on `startWorkout`, released on end/discard,
+  re-acquired on `visibilitychange` (locks drop when hidden) + at boot. A **Keep screen awake during workout**
+  settings toggle states the limitation plainly. Covered by `test/wakelock.spec.mjs` (acquire/release, setting + no-
+  session gates, settings UI).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
