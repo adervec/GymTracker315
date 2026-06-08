@@ -852,6 +852,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Rest-bar prev → next exercise heads-up (feat 177):** during between-sets rest the global rest bar now shows
+  the exercise you just finished **and what's next**. `restBarNextExercise(prevUuid)` resolves the next by priority:
+  (1) an exercise already **selected in the log but not started** (a queued pick), else (2) the **next incomplete
+  step of the active explicit plan** (skipping the step the prev exercise belongs to), else (3) an **implicit
+  pseudo-step** — `implicitNextSuggestion` names the least-trained main split this session (push/pull/lower/core),
+  preferring a different split than the one just done, e.g. `Pull (suggested)` — else (4) nothing. The bar's sub-line
+  becomes `prev → next` (plan steps tagged `(plan)`); when there's no next it keeps the existing rest-target range
+  (the colour zone + countdown still encode target adherence). Inter-exercise rest now reads `prev → selected`
+  instead of a bare "between exercises". Covered by `test/restbarnext.spec.mjs` (each tier of the chain, the
+  null case, and the rendered `prev → next` bar).
 - **Advisory suggested rest between steps (feat 176):** the detailed execution view now interleaves a small
   `💤 suggested rest ~m–m` divider between step cards, scaled by the heavier of the two adjacent steps' loads
   (`suggestedStepRestRange`: heavy 2½–4 min, moderate 1½–2½ min, light ¾–1½ min). It is **purely a guide** — the

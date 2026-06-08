@@ -14711,7 +14711,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 122 · 2026-06-08 07:45';
+const APP_BUILD = 'build 123 · 2026-06-08 07:50';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -15203,6 +15203,44 @@ function restZoneFill(restSec, rec) {
   if (restSec <= rec.maxSec) { const span = Math.max(1, rec.maxSec - rec.minSec); return { zone: 'optimal', fillPct: Math.max(0, Math.min(100, (restSec - rec.minSec) / span * 100)) }; }
   return { zone: 'over', fillPct: 100 };
 }
+/* feat 177 — what comes NEXT for the rest-bar heads-up. Priority: (1) an exercise already selected in the log
+   but not started (a queued pick), (2) the next incomplete step of the active explicit plan, (3) an implicit
+   "pseudo-step" — the least-trained main split this session — (4) nothing. The prev exercise is the rest state's
+   own varUuid (the last completed set). */
+function implicitNextSuggestion(session, prevUuid) {
+  if (!session || !(session.exercises || []).some(e => (e.sets || []).length)) return null; // nothing logged yet → no basis
+  const MAIN = ['push', 'pull', 'lower', 'core'];
+  const counts = {}; MAIN.forEach(m => counts[m] = 0);
+  (session.exercises || []).forEach(ex => { const m = megaOf(ex.varUuid); if (counts[m] != null) counts[m] += (ex.sets || []).length; });
+  const prevMega = megaOf(prevUuid);
+  const ranked = MAIN.slice().sort((a, b) => counts[a] - counts[b]); // least-trained first
+  const pick = ranked.find(m => m !== prevMega) || ranked[0];        // prefer a different split than the one just done
+  return (MEGA_LABELS[pick] || pick) + ' (suggested)';
+}
+function restBarNextExercise(prevUuid, prevSub) {
+  const session = getActiveSession(); if (!session) return null;
+  const editing = (typeof modalState !== 'undefined') && modalState.isEditing;
+  // 1) a queued pick: an exercise selected in the log that isn't the one we just finished
+  if (!editing && typeof pending !== 'undefined' && pending && pending.varUuid &&
+      trackingKey(pending.varUuid, pending.subUuid) !== trackingKey(prevUuid, prevSub)) {
+    return { label: displayName(pending.varUuid, pending.subUuid), kind: 'selected' };
+  }
+  // 2) the next incomplete step of the active explicit plan (skip the step the prev exercise belongs to)
+  const plan = getActivePlan();
+  if (plan && plan.steps) {
+    const curIdx = planStepForVar(session, plan, prevUuid);
+    for (let i = 0; i < plan.steps.length; i++) {
+      if (i === curIdx) continue;
+      if (stepStatus(session, plan.steps[i], plan).done) continue;
+      const label = (plan.steps[i].options || []).map(optionLabel).join(' / ');
+      return { label: label || ('step ' + (i + 1)), kind: 'plan' };
+    }
+    return null; // a plan is active but nothing different remains
+  }
+  // 3) implicit pseudo-step (no explicit plan)
+  const sug = implicitNextSuggestion(session, prevUuid);
+  return sug ? { label: sug, kind: 'implicit' } : null;
+}
 // DOM-only update of the global bar (opaque track + progress fill) — never calls render().
 function refreshRestBar() {
   const bar = document.getElementById('rest-bar');
@@ -15229,17 +15267,21 @@ function refreshRestBar() {
       _lastRestZone = null;
     } else {
       const restSec = st.restMs / 1000;
+      // feat 177 — show what's next: the queued pick, else the next plan step, else an implicit suggestion.
+      const nx = restBarNextExercise(st.varUuid, st.subUuid);
+      const nextTxt = nx ? ' → ' + nx.label + (nx.kind === 'plan' ? ' (plan)' : '') : '';
       if (st.interExercise) {
         cls += ' inter-ex';
         main = 'Rest ' + formatDuration(restSec);
-        sub = 'between exercises';
+        sub = (exName || 'between exercises') + nextTxt; // prev (last done) → next (selected exercise)
         _lastRestZone = null;
       } else if (st.rec) {
         const zf = restZoneFill(restSec, st.rec);
         cls += ' ' + zf.zone + (zf.zone === 'over' ? ' flash' : '');
         fillPct = zf.fillPct;
         main = 'Rest ' + formatDuration(restSec);
-        sub = 'target ' + formatDuration(st.rec.minSec) + '–' + formatDuration(st.rec.maxSec) + (exName ? ' · ' + exName : '');
+        // keep the target range when there's no "next" to show; otherwise lead with prev → next (the colour zone + countdown still encode the target)
+        sub = nx ? (exName + nextTxt) : ('target ' + formatDuration(st.rec.minSec) + '–' + formatDuration(st.rec.maxSec) + (exName ? ' · ' + exName : ''));
         if (zf.zone !== _lastRestZone) {
           if (zf.zone === 'optimal') { if (wc.feedbackVibrate) safeVibrate([60]); if (wc.feedbackBeep) restBeep(880, 0.12); }
           else if (zf.zone === 'over') { if (wc.feedbackVibrate) safeVibrate([120,60,120]); if (wc.feedbackBeep) restBeep(440, 0.18); }
@@ -15247,7 +15289,7 @@ function refreshRestBar() {
         }
       } else {
         main = 'Rest ' + formatDuration(restSec);
-        sub = exName;
+        sub = (exName || '') + nextTxt;
         _lastRestZone = null;
       }
       // feat 104 — show the configured countdown remaining alongside the rest label
