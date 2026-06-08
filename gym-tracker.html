@@ -722,6 +722,14 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 4px; -webkit-overflow-scrolling: touch; }
   .plan-chip { flex-shrink: 0; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
   .plan-chip.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  /* feat 178 — favorites: a ★ toggle on rows + a filter chip/pill */
+  .plan-chip.fav-chip { color: #e8b339; }
+  .plan-chip.fav-chip.active { background: rgba(232,179,57,0.16); border-color: #e8b339; color: #e8b339; }
+  .fav-star { background: none; border: none; padding: 2px 4px; font-size: 16px; line-height: 1; cursor: pointer; color: #6a6a6a; -webkit-tap-highlight-color: transparent; flex-shrink: 0; }
+  .fav-star.on { color: #e8b339; }
+  .fav-star:active { transform: scale(0.85); }
+  .pill.fav-pill { color: #e8b339; font-size: 12px; padding: 5px 9px; }
+  .pill.fav-pill.active { background: #e8b339; border-color: #e8b339; color: #0a0a0a; }
   .plan-chip-n { font-size: 10px; opacity: 0.7; font-weight: 700; }
   .plan-filter-note { font-size: 10.5px; color: var(--text3); margin: 2px 2px 8px; }
   .plan-cat-head { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text3); margin: 14px 0 2px; display: flex; align-items: baseline; gap: 7px; }
@@ -3166,7 +3174,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -3336,6 +3344,8 @@ function normalizeState() {
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   if (!Array.isArray(state.bodyComp)) state.bodyComp = [];
   if (!Array.isArray(state.trendExclude)) state.trendExclude = []; // feat 165 — muscle groups excluded from the overall trend
+  if (!state.favoritePlans || typeof state.favoritePlans !== 'object') state.favoritePlans = {}; // feat 178 — { planId: true }
+  if (!state.favoriteVars || typeof state.favoriteVars !== 'object') state.favoriteVars = {};   // feat 178 — { varUuid: true }
   if (!Array.isArray(state.customVariations)) state.customVariations = [];
   if (!Array.isArray(state.gyms)) state.gyms = [];
   if (!state.hiddenVars || typeof state.hiddenVars !== 'object') state.hiddenVars = {};
@@ -7853,6 +7863,14 @@ function getPlan(id) { return (state.plans || []).find(p => p.id === id) || null
 function getActivePlan() { const s = getActiveSession(); return (s && s.planId) ? getPlan(s.planId) : null; }
 function planTotalSets(p) { return (p.steps || []).reduce((n, s) => n + (s.sets || 0), 0); }
 
+// feat 178 — favorites for plans + exercise variations (synced personal prefs; harmless, so not read-only-gated).
+function isFavPlan(id) { return !!(id && state.favoritePlans && state.favoritePlans[id]); }
+function isFavVar(uuid) { return !!(uuid && state.favoriteVars && state.favoriteVars[uuid]); }
+function toggleFavPlan(id) { if (!id) return; state.favoritePlans = state.favoritePlans || {}; if (state.favoritePlans[id]) delete state.favoritePlans[id]; else state.favoritePlans[id] = true; saveState(); }
+function toggleFavVar(uuid) { if (!uuid) return; state.favoriteVars = state.favoriteVars || {}; if (state.favoriteVars[uuid]) delete state.favoriteVars[uuid]; else state.favoriteVars[uuid] = true; saveState(); }
+function favPlanCount() { return Object.keys(state.favoritePlans || {}).filter(id => getPlan(id)).length; }
+function favStarHtml(on, attr) { return `<button class="fav-star ${on ? 'on' : ''}" ${attr} aria-pressed="${on ? 'true' : 'false'}" title="${on ? 'Unfavorite' : 'Favorite'}">${on ? '★' : '☆'}</button>`; }
+
 /* ---- feat 162 — plan authorship + revisions / audit trail ----
    Every plan carries an `author` and a numbered, append-only revision history (`plan.rev` + `plan.revisions`).
    The creator edits a WORKING DRAFT (still auto-saved so nothing is lost). **Commit** snapshots the draft as
@@ -8300,7 +8318,8 @@ let _plansEditId = null, _plansAddOptStep = null, _plansOptSearch = '';
 let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Execution View mode (which plan + which session)
 let _plansRevView = false; // feat 162 — when editing a plan, show its revision history instead of the form
 let _plansSearch = '', _plansCatFilter = 'all', _plansLenFilter = 'all'; // feat 147 — plan picker search + filters
-function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; renderPlansOverlay(); document.getElementById('plans-backdrop').classList.add('open'); document.getElementById('plans-panel').classList.add('open'); document.body.style.overflow = 'hidden'; }
+let _plansFavOnly = false; // feat 178 — show only favorited plans
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; renderPlansOverlay(); document.getElementById('plans-backdrop').classList.add('open'); document.getElementById('plans-panel').classList.add('open'); document.body.style.overflow = 'hidden'; }
 function openPlanPicker() { openPlansOverlay(); }
 function openPlanFull(id) { // feat 138 — open the full plan view (overlay) focused on one plan's steps
   _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false;
@@ -8345,6 +8364,7 @@ function renderPlansOverlay() {
 const _planRowHtml = (p) => `<div class="plan-row">
     <div class="plan-row-main"><div class="plan-row-name">${escapeHtml(p.name)}</div>${p.desc?`<div class="plan-row-desc">${escapeHtml(p.desc)}</div>`:''}<div class="plan-row-sub"><span class="plan-cat-tag">${escapeHtml(planCategory(p))}</span> · <span class="plan-intensity" title="Intensity ${planIntensity(p)}/5">${intensityDots(p)}</span> · ~${estimatePlanMinutes(p)} min · ${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets</div></div>
     <div class="plan-row-actions">
+      ${favStarHtml(isFavPlan(p.id), `data-fav-plan="${escapeAttr(p.id)}"`)}
       ${p.media ? `<button class="drawer-btn" data-plan-media="${p.id}" title="Watch attached video">🎬</button>` : ''}
       <button class="drawer-btn" data-plan-use="${p.id}">Use</button>
       <button class="drawer-btn" data-plan-edit="${p.id}">Edit</button>
@@ -8357,6 +8377,7 @@ function renderPlansList(body) {
   // present categories (for the chip row), ranked
   const present = [...new Set(plans.map(planCategory))].sort((a, b) => planCatRank(a) - planCatRank(b));
   const matches = (p) => {
+    if (_plansFavOnly && !isFavPlan(p.id)) return false; // feat 178
     if (q && !(p.name.toLowerCase().includes(q) || (p.desc || '').toLowerCase().includes(q))) return false;
     if (_plansCatFilter !== 'all' && planCategory(p) !== _plansCatFilter) return false;
     if (_plansLenFilter !== 'all' && planLengthBucket(p) !== _plansLenFilter) return false;
@@ -8366,10 +8387,12 @@ function renderPlansList(body) {
   // group the filtered plans by category
   const groups = {};
   filtered.forEach(p => { const c = planCategory(p); (groups[c] = groups[c] || []).push(p); });
+  Object.keys(groups).forEach(c => groups[c].sort((a, b) => (isFavPlan(b.id) ? 1 : 0) - (isFavPlan(a.id) ? 1 : 0))); // feat 178 — favorites float to the top of each group
   const groupCats = Object.keys(groups).sort((a, b) => planCatRank(a) - planCatRank(b));
   const LEN = [['all','Any length'],['quick','Quick'],['standard','Standard'],['long','Long']];
   const catChip = (val, label, n) => `<button class="plan-chip ${_plansCatFilter===val?'active':''}" data-plan-cat="${escapeAttr(val)}">${escapeHtml(label)}${n!=null?` <span class="plan-chip-n">${n}</span>`:''}</button>`;
   const lenChip = (val, label) => `<button class="plan-chip ${_plansLenFilter===val?'active':''}" data-plan-len="${val}">${label}</button>`;
+  const favN = favPlanCount(); // feat 178
   const listHtml = plans.length === 0
     ? '<div class="plan-list-intro">No plans yet — tap “＋ New plan”.</div>'
     : (filtered.length === 0
@@ -8377,9 +8400,9 @@ function renderPlansList(body) {
       : groupCats.map(c => `<div class="plan-cat-head">${escapeHtml(c)} <span class="plan-cat-count">${groups[c].length}</span></div>${groups[c].map(_planRowHtml).join('')}`).join(''));
   body.innerHTML = `<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
     <input type="search" id="plans-search" class="plans-search" placeholder="🔍 Search plans by name or theme…" value="${escapeAttr(_plansSearch)}" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <div class="plan-chips">${catChip('all','All',plans.length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
+    <div class="plan-chips">${favN ? `<button class="plan-chip fav-chip ${_plansFavOnly?'active':''}" data-plan-fav="1" title="Show favorites only">★ Favorites <span class="plan-chip-n">${favN}</span></button>` : ''}${catChip('all','All',plans.length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
     <div class="plan-chips">${LEN.map(([v,l]) => lenChip(v,l)).join('')}</div>
-    ${(_plansCatFilter!=='all'||_plansLenFilter!=='all'||q) ? `<div class="plan-filter-note">${filtered.length} of ${plans.length} plans</div>` : ''}
+    ${(_plansCatFilter!=='all'||_plansLenFilter!=='all'||q||_plansFavOnly) ? `<div class="plan-filter-note">${filtered.length} of ${plans.length} plans</div>` : ''}
     ${listHtml}
     <div class="plan-new-row"><button class="drawer-btn" id="plan-new-btn">＋ New plan</button>${_freestyleSessions().length ? `<button class="drawer-btn" id="plan-new-from-workout">＋ From a past workout</button>` : ''}</div>`;
   bindPlansList(body);
@@ -8389,7 +8412,9 @@ function bindPlansList(body) {
   if (search) search.addEventListener('input', () => { _plansSearch = search.value; const pos = search.selectionStart; renderPlansOverlay(); const s2 = document.getElementById('plans-search'); if (s2) { s2.focus(); try { s2.setSelectionRange(pos, pos); } catch (_) {} } });
   body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { _plansCatFilter = b.dataset.planCat; renderPlansOverlay(); }));
   body.querySelectorAll('[data-plan-len]').forEach(b => b.addEventListener('click', () => { _plansLenFilter = b.dataset.planLen; renderPlansOverlay(); }));
-  body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; renderPlansOverlay(); });
+  body.querySelector('[data-plan-fav]')?.addEventListener('click', () => { _plansFavOnly = !_plansFavOnly; renderPlansOverlay(); }); // feat 178
+  body.querySelectorAll('[data-fav-plan]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); toggleFavPlan(b.dataset.favPlan); renderPlansOverlay(); })); // feat 178
+  body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; renderPlansOverlay(); });
   body.querySelectorAll('[data-plan-media]').forEach(b => b.addEventListener('click', () => openPlanMedia(b.dataset.planMedia)));
   body.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
   body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; renderPlansOverlay(); }));
@@ -12978,18 +13003,22 @@ function filterVariations() {
       const matchesEquip = modalState.pickerEquip === 'all' || (f.equip || []).includes(modalState.pickerEquip);
       if (!matchesMega || !matchesSub || !matchesEquip) return;
     }
+    const favOnly = !!modalState.pickerFavOnly; // feat 178
     const matchingVars = f.variations.filter(v => {
       if (!varVisibleInPicker(f, v)) return false; // feat 23 + 36 (hide flags + active gym) + 167 (suppressed duplicate)
+      if (favOnly && !isFavVar(v.uuid)) return false; // feat 178 — favorites-only filter
       if (stepSet && !stepSet.has(v.uuid)) return false; // restrict to exactly the step's exercises
       if (!q) return true;
       return v.title.toLowerCase().includes(q) || f.title.toLowerCase().includes(q);
     });
+    matchingVars.sort((a, b) => (isFavVar(b.uuid) ? 1 : 0) - (isFavVar(a.uuid) ? 1 : 0)); // feat 178 — favorites float to the top of the family
     // feat 167 — variations whose SECONDARY parent is this family, appended at the bottom with a link to their home movement.
     const secondaryVars = [];
     secondaryVarsForFamily(f.id).forEach(({ uuid, primaryId, primaryTitle }) => {
       const i = VAR_INDEX.get(uuid); if (!i) return;
       const v = i.variation;
       if (!varVisibleInPicker(i.family, v)) return; // honor hide flags via its PRIMARY family
+      if (favOnly && !isFavVar(uuid)) return; // feat 178
       if (stepSet && !stepSet.has(uuid)) return;
       if (q && !(v.title.toLowerCase().includes(q) || f.title.toLowerCase().includes(q) || (primaryTitle || '').toLowerCase().includes(q))) return;
       secondaryVars.push({ v, primaryId, primaryTitle });
@@ -13034,6 +13063,7 @@ function renderPicker() {
       </div>
       <div class="pill-row">
         ${MEGA_ORDER.map(m => `<div class="pill ${modalState.pickerMega === m ? 'active' : ''}" data-mega="${m}">${MEGA_LABELS[m]}</div>`).join('')}
+        <div class="pill fav-pill ${modalState.pickerFavOnly ? 'active' : ''}" id="trk-picker-fav" title="Show favorites only">★</div>
       </div>
       ${subFilters.length > 1 ? `<div class="pill-row">
         ${subFilters.map(s => `<div class="pill ${modalState.pickerSub === s.id ? 'active' : ''}" data-sub="${s.id}">${s.label}</div>`).join('')}
@@ -13106,7 +13136,7 @@ function renderPickerResults() {
                 <div class="picker-var-main">
                   <div class="picker-var-name">${escapeHtml(v.title)}${v._custom ? '<span class="manual-tag">manual</span>' : ''}${v.subvariation ? `<span class="sub-tag">${escapeHtml(v.subvariation.label)}</span>` : ''}</div>
                 </div>
-                <div class="picker-var-right">${spotterBadge(v, r.family)}${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
+                <div class="picker-var-right">${v.uuid ? favStarHtml(isFavVar(v.uuid), `data-fav-var="${v.uuid}"`) : ''}${spotterBadge(v, r.family)}${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
               </div>
             `).join('')}
             ${(r.secondaryVars || []).map(s => `
@@ -13115,7 +13145,7 @@ function renderPickerResults() {
                   <div class="picker-var-name">${escapeHtml(s.v.title)}</div>
                   <div class="picker-var-secfrom">↳ primarily a <span class="sec-jump" data-sec-jump="${escapeAttr(s.primaryTitle)}">${escapeHtml(s.primaryTitle)}</span> exercise</div>
                 </div>
-                <div class="picker-var-right">${spotterBadge(s.v, VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family : r.family)}${touchBadgeHtml(touch.get(s.v.uuid))}<div class="picker-var-arrow">›</div></div>
+                <div class="picker-var-right">${favStarHtml(isFavVar(s.v.uuid), `data-fav-var="${s.v.uuid}"`)}${spotterBadge(s.v, VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family : r.family)}${touchBadgeHtml(touch.get(s.v.uuid))}<div class="picker-var-arrow">›</div></div>
               </div>
             `).join('')}
             <div class="picker-add-var" data-add-var-fam="${r.family.id}">+ Add custom variation</div>
@@ -13169,6 +13199,7 @@ function bindPicker() {
       renderModal();
     });
   });
+  document.getElementById('trk-picker-fav')?.addEventListener('click', () => { modalState.pickerFavOnly = !modalState.pickerFavOnly; renderModal(); }); // feat 178
   // Obscure superset (feat 43): enter / cancel / pick the two exercises
   document.getElementById('trk-ss2-start')?.addEventListener('click', () => {
     modalState.supersetMode = true; modalState.supersetPick = 'a';
@@ -13231,6 +13262,14 @@ function bindPickerResults() {
       modalState.pickerSearch = el.dataset.secJump || '';
       const input = document.getElementById('trk-picker-input'); if (input) input.value = modalState.pickerSearch;
       const clr = document.getElementById('trk-picker-clear-search'); if (clr) clr.classList.toggle('show', !!modalState.pickerSearch);
+      const wrap = document.getElementById('trk-picker-results-wrap'); if (wrap) { wrap.innerHTML = renderPickerResults(); bindPickerResults(); }
+    });
+  });
+  // feat 178 — the ★ on a picker row toggles favorite without selecting the exercise
+  document.querySelectorAll('[data-fav-var]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFavVar(el.dataset.favVar);
       const wrap = document.getElementById('trk-picker-results-wrap'); if (wrap) { wrap.innerHTML = renderPickerResults(); bindPickerResults(); }
     });
   });
@@ -14711,7 +14750,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 123 · 2026-06-08 07:50';
+const APP_BUILD = 'build 124 · 2026-06-08 09:24';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

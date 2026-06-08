@@ -852,6 +852,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Favorite plans & variations (feat 178):** a ★ toggle on every plan row and every exercise-picker row, backed by
+  two synced settings maps (`state.favoritePlans` / `state.favoriteVars`, both in `SETTINGS_KEYS`, defaulted in
+  `normalizeState`). Helpers `isFavPlan`/`toggleFavPlan` + `isFavVar`/`toggleFavVar` (+ a shared `favStarHtml`
+  button) drive it; the star `stopPropagation`s so tapping it favorites without selecting the row. **Surfacing:**
+  the exercise picker gains a **★ pill** (`modalState.pickerFavOnly`) that filters to favorites only, and within
+  each family favorites **float to the top**; the plan picker gains a **★ Favorites chip** (`_plansFavOnly`, shown
+  with a count when any exist) and favorites sort to the top of each category group. Favorites live in serialized
+  state, so they persist locally and ride along cloud sync. Covered by `test/favorites.spec.mjs` (toggle idempotence
+  + settings-key membership, normalize backfill, the picker star/float/filter, the plan star/chip/filter, and
+  serialized-state persistence).
 - **Rest-bar prev → next exercise heads-up (feat 177):** during between-sets rest the global rest bar now shows
   the exercise you just finished **and what's next**. `restBarNextExercise(prevUuid)` resolves the next by priority:
   (1) an exercise already **selected in the log but not started** (a queued pick), else (2) the **next incomplete
