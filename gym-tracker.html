@@ -728,6 +728,8 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-cat-tag { color: var(--accent); font-weight: 700; }
   .plan-list-empty { font-size: 12.5px; color: var(--text3); padding: 18px 0; text-align: center; }
   .plan-clear-filters { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 7px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; margin-left: 4px; }
+  .plan-new-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; } /* feat 155 */
+  .plan-new-row .drawer-btn { flex: 1; min-width: 130px; }
   .plan-edit-step { background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; padding: 9px 10px; margin-bottom: 8px; }
   .plan-edit-step-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
   .plan-edit-step-num { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
@@ -7831,7 +7833,7 @@ function renderPlansList(body) {
     <div class="plan-chips">${LEN.map(([v,l]) => lenChip(v,l)).join('')}</div>
     ${(_plansCatFilter!=='all'||_plansLenFilter!=='all'||q) ? `<div class="plan-filter-note">${filtered.length} of ${plans.length} plans</div>` : ''}
     ${listHtml}
-    <button class="drawer-btn" id="plan-new-btn" style="margin-top:12px;">＋ New plan</button>`;
+    <div class="plan-new-row"><button class="drawer-btn" id="plan-new-btn">＋ New plan</button>${_freestyleSessions().length ? `<button class="drawer-btn" id="plan-new-from-workout">＋ From a past workout</button>` : ''}</div>`;
   bindPlansList(body);
 }
 function bindPlansList(body) {
@@ -7845,6 +7847,38 @@ function bindPlansList(body) {
   body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; renderPlansOverlay(); }));
   body.querySelectorAll('[data-plan-del]').forEach(b => b.addEventListener('click', () => { guardedConfirm('Delete this plan?', b).then(ok => { if (ok) { state.plans = (state.plans || []).filter(p => p.id !== b.dataset.planDel); saveState(); renderPlansOverlay(); } }); }));
   body.querySelector('#plan-new-btn')?.addEventListener('click', () => { const p = { id: newUuid(), name: 'New Plan', steps: [{ id:newUuid(), sets:3, options:[] }] }; state.plans = state.plans || []; state.plans.push(p); saveState(); _plansEditId = p.id; renderPlansOverlay(); });
+  body.querySelector('#plan-new-from-workout')?.addEventListener('click', openPlanFromWorkout); // feat 155
+}
+// feat 155 — past "freestyle" (plan-less) sessions with strength exercises, newest first.
+function _freestyleSessions() {
+  return (state.sessions || []).filter(s => !s.planId && (s.exercises || []).some(e => !e.cardio && (e.sets || []).length)).sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+// feat 155 — seed a NEW plan from a past session: one step per logged strength exercise (sets = sets logged).
+function newPlanFromSession(session) {
+  if (!session) return null;
+  const steps = (session.exercises || []).filter(ex => !ex.cardio && (ex.sets || []).length).map(ex => ({
+    id: newUuid(), sets: (ex.sets || []).length, load: 'moderate', desc: '', options: [{ type: 'variation', uuid: ex.varUuid }],
+  }));
+  if (!steps.length) return null;
+  const split = (typeof sessionSplitLabel === 'function' && sessionSplitLabel(session)) || 'Workout';
+  const plan = { id: newUuid(), name: `${split} · ${fmtDate(session.date)}`, desc: `Built from your ${fmtDate(session.date)} freestyle workout.`, intensity: 3, steps, createdFromSession: session.id || session.date };
+  state.plans = state.plans || []; state.plans.push(plan); saveState();
+  return plan;
+}
+function openPlanFromWorkout() {
+  const fs = _freestyleSessions().slice(0, 10);
+  if (!fs.length) { toast('No freestyle (plan-less) workouts to build from yet'); return; }
+  choiceDialog({
+    title: 'Build a plan from a workout',
+    message: "Pick a past freestyle session — its exercises become the plan's steps (tweak after).",
+    choices: fs.map(s => ({ label: `${fmtDate(s.date)} · ${(s.exercises || []).filter(e => !e.cardio && (e.sets || []).length).length} exercises · ${sessionSplitLabel(s) || 'workout'}`, value: s.id || s.date })).concat([{ label: 'Cancel', value: null }]),
+  }).then(v => {
+    if (!v) return;
+    const s = (state.sessions || []).find(x => (x.id || x.date) === v);
+    const plan = newPlanFromSession(s);
+    if (plan) { _plansEditId = plan.id; renderPlansOverlay(); toast('Plan seeded from your workout'); }
+    else toast('That workout had no strength exercises to use');
+  });
 }
 // feat 145 — detailed Plan Execution View: per step, its status + WHICH variations were actually logged
 // to satisfy it (sets, top weight, est 1RM, effort) — richer than the dashboard plan card. Works on the
@@ -13818,7 +13852,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 107 · 2026-06-07 21:42';
+const APP_BUILD = 'build 108 · 2026-06-07 21:45';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

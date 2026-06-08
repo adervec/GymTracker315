@@ -769,6 +769,12 @@ They share variation **UUIDs**.
   when any are excluded — a **loud reminder banner** ("⚠️ excluding Chest — restore once recovered") with a one-tap
   **Restore all**, plus a "filtered" tag + warn-bordered card so it's never forgotten. Covered by
   `test/trendexclude.spec.mjs` (exclusion drops exercises, toggle on/off, banner+chips render, persisted setting).
+- **New plan from a past freestyle workout (feat 155):** the plans list gains a **＋ From a past workout** button
+  (shown when `_freestyleSessions()` — plan-less sessions with strength sets — exist). It pops a `choiceDialog` of the
+  10 most recent freestyle sessions; picking one runs `newPlanFromSession()` which builds a plan with **one step per
+  logged strength exercise** (sets = sets logged, the variation as the step option, named "&lt;split&gt; · &lt;date&gt;",
+  `createdFromSession` recorded) and opens it in the editor to tweak. Covered by `test/planfromworkout.spec.mjs`
+  (step-per-exercise + cardio skip, freestyle filtering, button shown/hidden).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
