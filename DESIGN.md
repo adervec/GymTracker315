@@ -852,6 +852,22 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Plan authorship + revisions / audit trail (feat 162):** plans were silently auto-saved with no history. Now
+  every plan carries an **`author`** (user plans → "You", seeds → "GymTracker315") and a numbered, append-only
+  **revision history** (`plan.rev` + `plan.revisions[]`, each `{rev, at, author, note, content}` where `content`
+  is a deep snapshot of name/desc/intensity/minPct/steps). The creator gains a **revision bar** — `rev N`, author
+  (tap to edit), a dirty/clean badge, and **Commit / Revert / History** buttons. The editor still auto-saves the
+  working **draft** (nothing is lost); **Commit** (`commitPlanRevision`) snapshots the draft as the next revision,
+  **Revert** (`revertPlanToCommitted`) discards uncommitted edits, and **History** lists every revision (newest
+  first) with **Restore-to-draft** (`restorePlanRevision`). Dirtiness is an id-independent content compare
+  (`planContentSnapshot` → JSON) so reordering ids never shows a false change; `ensurePlanRevisioned()` backfills a
+  baseline in `normalizeState` (idempotent) and the history is capped at 30. **Crucially, an execution is only ever
+  compared to runs of the same revision**: `planUseForWorkout` stamps `session.planRev = plan.rev`,
+  `findPlanExecutions(planId, excludeId, rev)` filters to that revision (no rev → legacy all-runs behaviour), and the
+  detailed execution view judges a past run against `planAtRevision(plan, session.planRev)` — the exact content it
+  ran, not a later, arbitrarily-different one (the view shows a `rev N` badge). Covered by
+  `test/planrevisions.spec.mjs` (baseline, seed authorship, dirty→commit→clean, revert, restore, planAtRevision,
+  same-revision comparison, planRev stamping, the editor bar).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

@@ -744,6 +744,29 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-edit-sets { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); }
   /* feat 85 — editable plan intensity + per-step load */
   .plan-edit-intensity { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  /* feat 162 — plan revision bar + history */
+  .plan-rev-bar { background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; padding: 7px 9px; margin: 8px 0 4px; }
+  .prb-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; }
+  .prb-rev { font-weight: 800; color: var(--text); background: var(--bg4); border-radius: 5px; padding: 1px 7px; }
+  .prb-author { background: none; border: none; color: var(--accent2); font: inherit; font-size: 11.5px; cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 2px; }
+  .prb-dirty { color: #e0a23a; font-weight: 700; }
+  .prb-clean { color: var(--text3); }
+  .prb-actions { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+  .prb-btn { flex: 1; min-width: 84px; padding: 6px 8px; font-size: 12px; border-radius: 7px; font-family: inherit; cursor: pointer; background: var(--bg4); border: 1px solid var(--border2); color: var(--text); }
+  .prb-btn.commit:not([disabled]) { background: var(--accent2); border-color: var(--accent2); color: #fff; font-weight: 700; }
+  .prb-btn[disabled] { opacity: 0.42; cursor: default; }
+  .pexec-rev { background: var(--bg4); border-radius: 5px; padding: 0 6px; font-weight: 700; color: var(--text2); }
+  .plan-hist-head { font-size: 14px; font-weight: 800; margin: 10px 0 4px; }
+  .plan-hist-note { font-size: 11px; color: var(--text3); line-height: 1.5; margin-bottom: 10px; }
+  .plan-rev-row { background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; padding: 8px 10px; margin-bottom: 7px; }
+  .plan-rev-row.current { border-color: var(--accent2); }
+  .prr-top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .prr-rev { font-weight: 800; }
+  .prr-cur { font-size: 9.5px; background: var(--accent2); color: #fff; border-radius: 4px; padding: 1px 5px; font-weight: 700; }
+  .prr-meta { font-size: 10.5px; color: var(--text3); margin-left: auto; }
+  .prr-note { font-size: 12px; color: var(--text2); margin-top: 3px; }
+  .prr-sub { font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+  .plan-rev-row .prb-btn { flex: none; margin-top: 7px; }
   .pei-lbl { font-size: 12px; color: var(--text3); font-weight: 700; }
   .pei-hint { font-size: 10px; color: var(--text3); margin-left: 2px; }
   .pei-pill { width: 30px; height: 28px; border-radius: 7px; border: 1px solid var(--border2); background: var(--input-bg); color: var(--text2); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
@@ -3329,6 +3352,7 @@ function normalizeState() {
     if (!state.seededPlanIds.includes(sp.id)) state.seededPlanIds.push(sp.id);
   });
   (state.plans || []).forEach(p => { if (!(p.intensity >= 1 && p.intensity <= 5)) p.intensity = p.intensity || 3; (p.steps || []).forEach(st => { if (st && !st.load) st.load = 'moderate'; }); }); // feat 82 defaults
+  (state.plans || []).forEach(ensurePlanRevisioned); // feat 162 — backfill authorship + an initial revision baseline (idempotent)
   if (!state.bodyCompUnit) state.bodyCompUnit = state.unit || 'lb';
   if (!state.hiddenCategories || typeof state.hiddenCategories !== 'object') state.hiddenCategories = {};
   if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
@@ -7780,6 +7804,81 @@ function cloneSeedPlans() { return SEED_PLANS.map(cloneSeedPlan); }
 function getPlan(id) { return (state.plans || []).find(p => p.id === id) || null; }
 function getActivePlan() { const s = getActiveSession(); return (s && s.planId) ? getPlan(s.planId) : null; }
 function planTotalSets(p) { return (p.steps || []).reduce((n, s) => n + (s.sets || 0), 0); }
+
+/* ---- feat 162 — plan authorship + revisions / audit trail ----
+   Every plan carries an `author` and a numbered, append-only revision history (`plan.rev` + `plan.revisions`).
+   The creator edits a WORKING DRAFT (still auto-saved so nothing is lost). **Commit** snapshots the draft as
+   the next numbered revision; **Revert** rolls the draft back to the last committed revision; **History** lists
+   revisions (with Restore). A workout records the plan revision it ran (`session.planRev`), and a plan
+   execution is only ever COMPARED to other executions of the SAME revision — a different revision could be
+   arbitrarily different, so cross-revision comparison would be meaningless. */
+function isSeedPlanId(id) { return /^seed-/.test(String(id || '')); }
+function defaultPlanAuthor(plan) { return isSeedPlanId(plan && plan.id) ? 'GymTracker315' : 'You'; }
+function _deepClone(x) { return JSON.parse(JSON.stringify(x || null)); }
+// Canonical, id-INDEPENDENT view of a plan's editable content — drives dirty-detection + revision equality.
+function planContentSnapshot(plan) {
+  return {
+    name: plan.name || '', desc: plan.desc || '', intensity: planIntensity(plan),
+    minPct: (plan.minPct != null && !isNaN(+plan.minPct)) ? +plan.minPct : null,
+    steps: (plan.steps || []).map(st => ({
+      sets: st.sets || 0, load: st.load || 'moderate', desc: st.desc || '',
+      minPct: (st.minPct != null && !isNaN(+st.minPct)) ? +st.minPct : null,
+      options: (st.options || []).map(o => o.type === 'variation' ? { type: 'variation', uuid: o.uuid } : { type: 'movement', familyId: o.familyId }),
+    })),
+  };
+}
+// Stored revision content keeps step ids (faithful restore); equality ignores ids via planContentSnapshot.
+function _planRevContent(plan) {
+  return { name: plan.name || '', desc: plan.desc || '', intensity: plan.intensity || 3,
+    minPct: (plan.minPct != null) ? plan.minPct : null, steps: _deepClone(plan.steps || []) };
+}
+function planCommittedContent(plan) { const r = plan && plan.revisions; return (r && r.length) ? r[r.length - 1].content : null; }
+function planIsDirty(plan) {
+  const c = planCommittedContent(plan); if (!c) return false;
+  return JSON.stringify(planContentSnapshot(plan)) !== JSON.stringify(planContentSnapshot(c));
+}
+function ensurePlanRevisioned(plan) {
+  if (!plan) return plan;
+  if (!plan.author) plan.author = defaultPlanAuthor(plan);
+  if (!(plan.rev >= 1) || !Array.isArray(plan.revisions) || !plan.revisions.length) {
+    plan.rev = 1;
+    plan.revisions = [{ rev: 1, at: plan.createdAt || new Date().toISOString(), author: plan.author, note: 'Initial revision', content: _planRevContent(plan) }];
+  }
+  return plan;
+}
+const _PLAN_REV_CAP = 30; // keep the audit trail bounded (newest 30 revisions)
+function commitPlanRevision(plan, note) {
+  if (!plan) return null;
+  ensurePlanRevisioned(plan);
+  if (!planIsDirty(plan)) return plan.rev;                 // nothing changed since the last commit
+  plan.rev = (plan.rev || 1) + 1;
+  plan.revisions.push({ rev: plan.rev, at: new Date().toISOString(), author: plan.author || defaultPlanAuthor(plan), note: (note || '').trim() || `Revision ${plan.rev}`, content: _planRevContent(plan) });
+  if (plan.revisions.length > _PLAN_REV_CAP) plan.revisions.splice(0, plan.revisions.length - _PLAN_REV_CAP);
+  saveState();
+  return plan.rev;
+}
+function _applyContentToPlan(plan, content) {
+  if (!content) return;
+  plan.name = content.name || plan.name || 'Plan';
+  plan.desc = content.desc || '';
+  plan.intensity = content.intensity || 3;
+  if (content.minPct != null) plan.minPct = content.minPct; else delete plan.minPct;
+  plan.steps = _deepClone(content.steps || []);
+}
+function revertPlanToCommitted(plan) { _applyContentToPlan(plan, planCommittedContent(plan)); saveState(); }
+function restorePlanRevision(plan, rev) {
+  const r = (plan.revisions || []).find(x => x.rev === rev); if (!r) return false;
+  _applyContentToPlan(plan, r.content); saveState(); return true; // draft now equals that revision — Commit to record it as new
+}
+// Resolve the plan CONTENT a given execution actually ran (so a past run is judged against its own revision,
+// not a later, arbitrarily-different one). rev null/unknown → the live plan (legacy / pre-revision sessions).
+function planAtRevision(plan, rev) {
+  if (!plan || rev == null) return plan;
+  const r = (plan.revisions || []).find(x => x.rev === rev);
+  if (!r) return plan;
+  return { id: plan.id, name: r.content.name, desc: r.content.desc, intensity: r.content.intensity,
+    minPct: r.content.minPct, steps: r.content.steps, media: plan.media, author: plan.author, rev: plan.rev, revisions: plan.revisions, _atRev: rev };
+}
 function optionLabel(o) {
   if (!o) return '?';
   if (o.type === 'variation') { const i = VAR_INDEX.get(o.uuid); return i ? i.variation.title : 'Variation'; }
@@ -7908,8 +8007,9 @@ function planExecutionSummary(session, plan) {
 function _execSets(s) { return (s.exercises || []).reduce((c, e) => c + (e.sets || []).length, 0); }
 function _execScore(s) { return (s.finalScore && typeof s.finalScore.points === 'number') ? s.finalScore.points : -1; }
 // Prior completed executions of a plan: the most recent, and the all-time best (by score, else by sets).
-function findPlanExecutions(planId, excludeId) {
-  const execs = (state.sessions || []).filter(s => s.planId === planId && s.endedAt && s.id !== excludeId);
+function findPlanExecutions(planId, excludeId, rev) {
+  let execs = (state.sessions || []).filter(s => s.planId === planId && s.endedAt && s.id !== excludeId);
+  if (rev != null) execs = execs.filter(s => (s.planRev || null) === rev); // feat 162 — only compare to the SAME committed revision
   if (!execs.length) return { recent: null, best: null, count: 0 };
   const byDate = execs.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
   const recent = byDate[0];
@@ -7950,7 +8050,7 @@ function showPlanCompleteDialog() {
   if (!session || !plan) return;
   const sum = planExecutionSummary(session, plan);
   const stats = computeSessionStats(session);
-  const exec = findPlanExecutions(plan.id, session.id);
+  const exec = findPlanExecutions(plan.id, session.id, session.planRev); // feat 162 — same-revision only
   let cmp = '';
   if (exec.best) cmp = `\n\nBest before: ${_execSets(exec.best)} sets${exec.best.finalScore && exec.best.finalScore.grade ? ' · ' + exec.best.finalScore.grade : ''} (${fmtDate(exec.best.date)})`;
   const msg = `📋 ${plan.name}\n\n✅ ${sum.stepsDone}/${sum.stepsTotal} steps · ${sum.setsDone} sets logged${sum.effortApplicable ? `\n💪 Effort on target: ${sum.effortHits}/${sum.effortApplicable}` : ''}\n⏱ ${stats.elapsedDisplay}${cmp}`;
@@ -8073,11 +8173,12 @@ function startExerciseFromPlanOption(o, load) {
 /* ---- Plans overlay (list + builder) ---- */
 let _plansEditId = null, _plansAddOptStep = null, _plansOptSearch = '';
 let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Execution View mode (which plan + which session)
+let _plansRevView = false; // feat 162 — when editing a plan, show its revision history instead of the form
 let _plansSearch = '', _plansCatFilter = 'all', _plansLenFilter = 'all'; // feat 147 — plan picker search + filters
-function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; renderPlansOverlay(); document.getElementById('plans-backdrop').classList.add('open'); document.getElementById('plans-panel').classList.add('open'); document.body.style.overflow = 'hidden'; }
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; renderPlansOverlay(); document.getElementById('plans-backdrop').classList.add('open'); document.getElementById('plans-panel').classList.add('open'); document.body.style.overflow = 'hidden'; }
 function openPlanPicker() { openPlansOverlay(); }
 function openPlanFull(id) { // feat 138 — open the full plan view (overlay) focused on one plan's steps
-  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null;
+  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false;
   renderPlansOverlay();
   document.getElementById('plans-backdrop')?.classList.add('open');
   document.getElementById('plans-panel')?.classList.add('open');
@@ -8085,19 +8186,20 @@ function openPlanFull(id) { // feat 138 — open the full plan view (overlay) fo
 }
 // feat 145 — open the detailed Plan Execution View for a plan + a session (defaults to the active session).
 function openPlanExecution(planId, sessionDate) {
-  _plansExecId = planId || null; _plansExecSessionDate = sessionDate || null; _plansEditId = null; _plansAddOptStep = null;
+  _plansExecId = planId || null; _plansExecSessionDate = sessionDate || null; _plansEditId = null; _plansAddOptStep = null; _plansRevView = false;
   renderPlansOverlay();
   document.getElementById('plans-backdrop')?.classList.add('open');
   document.getElementById('plans-panel')?.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
-function closePlansOverlay() { document.getElementById('plans-backdrop').classList.remove('open'); document.getElementById('plans-panel').classList.remove('open'); document.body.style.overflow = ''; _plansExecId = null; _plansExecSessionDate = null; }
+function closePlansOverlay() { document.getElementById('plans-backdrop').classList.remove('open'); document.getElementById('plans-panel').classList.remove('open'); document.body.style.overflow = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; }
 function planUseForWorkout(id) {
   if (roBlocked('start a workout')) return;
   let s = getActiveSession();
   if (!s) { startWorkout(); s = getActiveSession(); }   // start a workout if not already in one
   if (!s) return;
-  s.planId = id; saveState(); closePlansOverlay(); render(); toast('Using plan for this workout');
+  s.planId = id; const _pl = getPlan(id); s.planRev = _pl ? (ensurePlanRevisioned(_pl), _pl.rev || 1) : 1; // feat 162 — record which revision this execution ran
+  saveState(); closePlansOverlay(); render(); toast('Using plan for this workout');
 }
 function renderPlansOverlay() {
   const body = document.getElementById('plans-body');
@@ -8105,10 +8207,11 @@ function renderPlansOverlay() {
   if (_plansExecId) { // feat 145 — Plan Execution View (what was actually done, per step)
     const execPlan = getPlan(_plansExecId);
     const sess = _plansExecSessionDate ? (state.sessions || []).find(s => s.date === _plansExecSessionDate) : getActiveSession();
-    if (execPlan && sess) { renderPlanExecutionView(body, execPlan, sess); return; }
+    if (execPlan && sess) { renderPlanExecutionView(body, planAtRevision(execPlan, sess.planRev), sess); return; } // feat 162 — judge against the revision it ran
     _plansExecId = null; // plan/session gone → fall through to the list
   }
   const plan = _plansEditId ? getPlan(_plansEditId) : null;
+  if (plan && _plansRevView) { renderPlanHistory(body, plan); return; } // feat 162 — revision history sub-view
   if (plan) { renderPlanEditor(body, plan); return; }
   renderPlansList(body); // feat 147 — categorized, searchable, filterable picker
 }
@@ -8243,7 +8346,7 @@ function renderPlanExecutionView(body, plan, session) {
   body.innerHTML = `<button class="drawer-btn" id="plan-exec-back">← All plans</button>
     <div class="pexec-head">
       <div class="pexec-title">📊 ${escapeHtml(plan.name)}</div>
-      <div class="pexec-when">${escapeHtml(when)}${sum.complete ? ' · <b class="pexec-complete">complete 🎉</b>' : ''}</div>
+      <div class="pexec-when">${escapeHtml(when)}${session.planRev ? ` · <span class="pexec-rev">rev ${session.planRev}</span>` : ''}${sum.complete ? ' · <b class="pexec-complete">complete 🎉</b>' : ''}</div>
     </div>
     <div class="pexec-rollup"><b>${sum.stepsDone}/${sum.stepsTotal}</b> steps${sum.stepsFull < sum.stepsDone ? ` <span class="pexec-fullhint">(${sum.stepsFull} full)</span>` : ''} · <b>${sum.setsDone}/${sum.setsTarget}</b> sets${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}</div>
     <div class="pexec-steps">${stepsHtml}</div>`;
@@ -8251,7 +8354,17 @@ function renderPlanExecutionView(body, plan, session) {
 }
 function renderPlanEditor(body, plan) {
   if (_plansAddOptStep != null) { renderOptionPicker(body, plan); return; }
+  ensurePlanRevisioned(plan); // feat 162 — guarantee author + a revision baseline before drawing the bar
+  const dirty = planIsDirty(plan);
+  const revBar = `<div class="plan-rev-bar">
+      <div class="prb-line"><span class="prb-rev">rev ${plan.rev || 1}</span><button class="prb-author" id="plan-author-btn" title="Edit author">✍ ${escapeHtml(plan.author || 'You')}</button>${dirty ? '<span class="prb-dirty">● uncommitted changes</span>' : '<span class="prb-clean">✓ committed</span>'}</div>
+      <div class="prb-actions">
+        <button class="prb-btn commit" id="plan-commit-btn" ${dirty ? '' : 'disabled'}>✔ Commit</button>
+        <button class="prb-btn" id="plan-revert-btn" ${dirty ? '' : 'disabled'}>↩ Revert</button>
+        <button class="prb-btn" id="plan-history-btn">🕘 History (${(plan.revisions || []).length})</button>
+      </div></div>`;
   body.innerHTML = `<button class="drawer-btn" id="plan-back-btn">← All plans</button>
+    ${revBar}
     <input type="text" id="plan-name-input" value="${escapeAttr(plan.name)}" placeholder="Plan name" style="width:100%;margin:10px 0 6px;padding:9px 11px;font-size:15px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     <textarea id="plan-desc-input" placeholder="Plan description — theme & benefits (optional)" rows="2" style="width:100%;margin:0 0 10px;padding:8px 11px;font-size:12.5px;line-height:1.5;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);resize:vertical;">${escapeHtml(plan.desc||'')}</textarea>
     <div class="plan-media-edit">${plan.media
@@ -8281,7 +8394,18 @@ function renderPlanEditor(body, plan) {
 }
 function bindPlanEditor(body, plan) {
   const save = () => saveState();
-  body.querySelector('#plan-back-btn')?.addEventListener('click', () => { _plansEditId = null; renderPlansOverlay(); });
+  body.querySelector('#plan-back-btn')?.addEventListener('click', () => { _plansEditId = null; _plansRevView = false; renderPlansOverlay(); });
+  // feat 162 — revision controls: Commit snapshots the draft, Revert discards uncommitted edits, History lists revisions.
+  body.querySelector('#plan-commit-btn')?.addEventListener('click', () => { const r = commitPlanRevision(plan); renderPlansOverlay(); toast(`✔ Committed rev ${r}`); });
+  body.querySelector('#plan-revert-btn')?.addEventListener('click', () => {
+    confirmDialog('Discard uncommitted changes and revert to the last committed revision?', { title: 'Revert plan', okLabel: 'Revert', danger: true })
+      .then(ok => { if (ok) { revertPlanToCommitted(plan); renderPlansOverlay(); toast('↩ Reverted to last commit'); } });
+  });
+  body.querySelector('#plan-history-btn')?.addEventListener('click', () => { _plansRevView = true; renderPlansOverlay(); });
+  body.querySelector('#plan-author-btn')?.addEventListener('click', () => {
+    promptDialog({ title: 'Plan author', message: 'Who authored this plan?', value: plan.author || 'You', placeholder: 'Author', maxLength: 40 })
+      .then(v => { if (v != null) { plan.author = (v.trim() || 'You'); save(); renderPlansOverlay(); } });
+  });
   const nameInp = body.querySelector('#plan-name-input');
   if (nameInp) nameInp.addEventListener('change', () => { plan.name = nameInp.value.trim() || 'Plan'; save(); });
   const descInp = body.querySelector('#plan-desc-input');
@@ -8307,6 +8431,33 @@ function bindPlanEditor(body, plan) {
   body.querySelectorAll('[data-opt-del]').forEach(b => b.addEventListener('click', () => { const [si, oi] = b.dataset.optDel.split(':').map(Number); plan.steps[si].options.splice(oi, 1); save(); renderPlansOverlay(); }));
   body.querySelectorAll('[data-add-opt]').forEach(b => b.addEventListener('click', () => { _plansAddOptStep = +b.dataset.addOpt; _plansOptSearch = ''; renderPlansOverlay(); }));
   body.querySelector('#plan-add-step-btn')?.addEventListener('click', () => { plan.steps.push({ id:newUuid(), sets:3, options:[] }); save(); renderPlansOverlay(); });
+}
+// feat 162 — the audit trail: every committed revision, newest first, with Restore-to-draft.
+function renderPlanHistory(body, plan) {
+  ensurePlanRevisioned(plan);
+  const dirty = planIsDirty(plan);
+  const revs = (plan.revisions || []).slice().reverse();
+  const rowHtml = (r) => {
+    const isCurrent = r.rev === plan.rev;
+    const steps = (r.content && r.content.steps) ? r.content.steps.length : 0;
+    const sets = (r.content && r.content.steps) ? r.content.steps.reduce((n, s) => n + (s.sets || 0), 0) : 0;
+    return `<div class="plan-rev-row ${isCurrent ? 'current' : ''}">
+      <div class="prr-top"><span class="prr-rev">rev ${r.rev}</span>${isCurrent ? '<span class="prr-cur">current</span>' : ''}<span class="prr-meta">✍ ${escapeHtml(r.author || 'You')} · ${escapeHtml(fmtDate(r.at))}</span></div>
+      <div class="prr-note">${escapeHtml(r.note || '')}</div>
+      <div class="prr-sub">${steps} step${steps === 1 ? '' : 's'} · ${sets} sets</div>
+      ${!isCurrent ? `<button class="prb-btn" data-rev-restore="${r.rev}">↩ Restore to draft</button>` : ''}
+    </div>`;
+  };
+  body.innerHTML = `<button class="drawer-btn" id="plan-hist-back">← Back to editor</button>
+    <div class="plan-hist-head">🕘 Revision history · <b>${escapeHtml(plan.name)}</b></div>
+    <div class="plan-hist-note">Each <b>Commit</b> snapshots the plan as a numbered revision. A workout records the revision it ran, and is only ever compared to other runs of that <b>same</b> revision.${dirty ? ' <b class="prb-dirty">You have uncommitted draft changes.</b>' : ''}</div>
+    <div class="plan-hist-list">${revs.map(rowHtml).join('')}</div>`;
+  body.querySelector('#plan-hist-back')?.addEventListener('click', () => { _plansRevView = false; renderPlansOverlay(); });
+  body.querySelectorAll('[data-rev-restore]').forEach(b => b.addEventListener('click', () => {
+    const rev = +b.dataset.revRestore;
+    confirmDialog(`Restore revision ${rev} into the working draft? Your current draft is replaced (Commit afterwards to record it as a new revision).`, { title: 'Restore revision', okLabel: 'Restore' })
+      .then(ok => { if (ok && restorePlanRevision(plan, rev)) { _plansRevView = false; renderPlansOverlay(); toast(`↩ Restored rev ${rev} to the draft`); } });
+  }));
 }
 function renderOptionPicker(body, plan) {
   const q = (_plansOptSearch || '').trim().toLowerCase();
@@ -8359,7 +8510,7 @@ function renderPlanGuide(session) {
     </div>`;
   }).join('');
   // feat 111 — comparison to prior runs of this plan (either may be absent / the same workout)
-  const exec = findPlanExecutions(plan.id, session.id);
+  const exec = findPlanExecutions(plan.id, session.id, session.planRev); // feat 162 — same-revision only
   const summ = (s) => `${_execSets(s)} sets${s.finalScore && s.finalScore.grade ? ' · ' + s.finalScore.grade : ''} · ${fmtDate(s.date)}`;
   let compareHtml = '';
   if (exec.recent || exec.best) {
@@ -14354,7 +14505,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 117 · 2026-06-07 23:01';
+const APP_BUILD = 'build 118 · 2026-06-08 07:14';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
