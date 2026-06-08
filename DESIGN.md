@@ -638,6 +638,21 @@ They share variation **UUIDs**.
   to its right. Two distinct, full-height tap targets — tap the pill to add, tap **×N** to remove one — with no
   handler changes (same data-attributes). Covered by `test/setuppills.spec.mjs` (×N is a sibling BUTTON not nested,
   add/remove counts, ×N hidden at zero); visually verified via a barbell-setup screenshot.
+- **Per-step minimum completion % (feat 144):** a step now counts as "done" once it reaches a **minimum % of its
+  target sets**, not necessarily all of them. The threshold resolves **per-step (`step.minPct`) → per-plan
+  (`plan.minPct`) → global default (`state.planDefaults.minPct`, default 1%)** via `resolveStepMinPct`; `stepMinSets`
+  = `ceil(target × %)` with a floor of 1 (so the 1% default = "even 1 set counts the step as done"). `stepStatus`
+  now returns **`done`** (full target met — *pending-inclusive*, drives the current-step pointer + the step HUD bar,
+  unchanged) **and `satisfied`** (the min-% threshold met by **SAVED sets only**). The split is deliberate: the min-%
+  is *checked after a save, never on the live pending set*, and the pointer keeps using the full target — so
+  **following the plan exactly never ends a step prematurely** (you keep working a step until its full sets even
+  though 1 saved set already "satisfied" it). `planExecutionSummary` exposes `stepsDone` (satisfied count) +
+  `stepsFull` (full-target count); **`complete` (the 🎉 banner / plan-complete popup) fires on min-% satisfied**. The
+  dashboard shows "N/Y steps (M full)", a per-step "· min ✓" marker, and keeps the satisfied-but-incomplete current
+  step highlighted; the history badge reads "✓ full" / "✓ done" / "partial". Editable via a **Workout Session →
+  Plan step min completion** default and per-plan / per-step inputs in the plan editor (blank inherits). Covered by
+  `test/minpct.spec.mjs` (resolution, saved-only-after-save vs pending, no premature pointer advance, complete at
+  min%, 100% override, editor persistence, persisted default); visually verified (editor + dashboard).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

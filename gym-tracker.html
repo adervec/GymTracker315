@@ -781,6 +781,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-progress-line.plan-progress-open { cursor: pointer; display: inline-flex; align-items: center; }
   .plan-progress-line.plan-progress-open:hover b { color: var(--accent); }
   .plan-progress-chev { color: var(--text3); margin-left: 5px; font-weight: 700; }
+  .plan-progress-full { color: var(--text3); font-size: 10.5px; } /* feat 144 — "(N full)" steps-to-target hint */
   .plan-compare { font-size: 10.5px; color: var(--text3); margin: 2px 0 4px; line-height: 1.45; }
   .plan-card.complete { border-left-color: var(--good); }
   /* feat 113 — plan-complete banner */
@@ -2853,7 +2854,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -3016,6 +3017,7 @@ function normalizeState() {
       restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true },
     bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
     stravaAutoLoad: { enabled:false, mode:'folder' }, // feat 89
+    planDefaults: { minPct:1 }, // feat 144 — default min % of a step's sets that counts the step as "done" (overridable per plan / per step)
     historyFilter: { range:'all', bp:'', family:'', varKey:'', q:'' }, // feat 102 — device-local view filter
     cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{} }, // feat 124 — DEVICE-LOCAL (not synced)
   };
@@ -3036,6 +3038,8 @@ function normalizeState() {
   if (typeof state.calcMode !== 'boolean') state.calcMode = false;
   if (typeof state.ttsTips !== 'boolean') state.ttsTips = true;
   if (typeof state.audioHeadphonesOnly !== 'boolean') state.audioHeadphonesOnly = true; // feat 105 — default on
+  // feat 144 — default minimum completion % (0..100). 1% means "even 1 set counts the step as done".
+  { const m = Number(state.planDefaults.minPct); state.planDefaults.minPct = isNaN(m) ? 1 : Math.min(100, Math.max(0, m)); }
   state.metronome = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, mantra:false, setActiveOnly:true, ...(state.metronome && typeof state.metronome === 'object' ? state.metronome : {}) };
   // feat 104 — separate, richly-configurable audible rest timer (count up / countdown + interval cues)
   state.restCues = { enabled:false, mode:'down', target:90, interval:30, countdown:3, endCue:true, audio:true, haptic:true, freq:784, ...(state.restCues && typeof state.restCues === 'object' ? state.restCues : {}) };
@@ -5218,6 +5222,15 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">📋 Plan step min completion</div>
+        <div class="drawer-setting-sub">Default min % of a step's sets to count it "done" (1% = even 1 set counts). Override per plan / step when building.</div>
+      </div>
+      <input type="number" id="drawer-plan-minpct" value="${planMinPctDefault()}" min="0" max="100" step="1"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
+               background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">Live score after</div>
         <div class="drawer-setting-sub">Minutes before showing rough live score (chunky)</div>
       </div>
@@ -5904,6 +5917,12 @@ function renderSettingsDrawer() {
   if (aeInput) aeInput.addEventListener('change', () => {
     const v = parseInt(aeInput.value);
     if (!isNaN(v) && v >= 5 && v <= 300) { ensureWC(); state.workoutControls.autoEndMinutes = v; saveState(); toast('Auto-end: ' + v + ' min'); }
+  });
+  const pmInput = body.querySelector('#drawer-plan-minpct'); // feat 144 — global default min completion %
+  if (pmInput) pmInput.addEventListener('change', () => {
+    const v = parseFloat(pmInput.value);
+    if (!isNaN(v) && v >= 0 && v <= 100) { state.planDefaults = state.planDefaults || {}; state.planDefaults.minPct = v; saveState(); toast('Plan step min completion: ' + v + '%'); render(); }
+    else pmInput.value = planMinPctDefault();
   });
   const lsInput = body.querySelector('#drawer-live-score-after');
   if (lsInput) lsInput.addEventListener('change', () => {
@@ -7354,18 +7373,48 @@ function pendingStepSets(step) {
   if (!(step.options || []).some(o => optionMatchesVar(o, pending.varUuid))) return 0;
   return (pending.sets || []).filter(s => s && s.w !== '' && s.w != null && !isNaN(parseFloat(s.w))).length;
 }
-function stepLoggedSets(session, step) {
+// SAVED-only set count for a step (no live pending fold) — used by the feat 144 min-% "satisfied" check,
+// which is deliberately evaluated AFTER a save, never on the sets being entered.
+function stepSavedSets(session, step) {
   let n = 0;
   (session.exercises || []).forEach(ex => { if ((step.options || []).some(o => optionMatchesVar(o, ex.varUuid))) n += (ex.sets || []).length; });
+  return n;
+}
+function stepLoggedSets(session, step) {
+  let n = stepSavedSets(session, step);
   if (session === getActiveSession()) n += pendingStepSets(step); // feat 137 — live unsaved sets count toward the active session only
   return n;
 }
-function stepStatus(session, step) {
+// feat 144 — minimum completion %: per-step override → per-plan override → global default (state.planDefaults.minPct, 1%).
+function planMinPctDefault() { const v = state.planDefaults && Number(state.planDefaults.minPct); return (isNaN(v) || v == null) ? 1 : Math.min(100, Math.max(0, v)); }
+function resolveStepMinPct(plan, step) {
+  let v;
+  if (step && step.minPct != null && !isNaN(Number(step.minPct))) v = Number(step.minPct);
+  else if (plan && plan.minPct != null && !isNaN(Number(plan.minPct))) v = Number(plan.minPct);
+  else v = planMinPctDefault();
+  return Math.min(100, Math.max(0, v));
+}
+// Min sets a step needs to count as "done": ceil(target × min% / 100), but at least 1 once there's any
+// target (so the 1% default = "1 set counts"); 0 only when the % is 0 or the step has no set target.
+function stepMinSets(plan, step) {
+  const target = (step && step.sets) || 0;
+  if (target <= 0) return 0;
+  const pct = resolveStepMinPct(plan, step);
+  if (pct <= 0) return 0;
+  return Math.max(1, Math.ceil(target * pct / 100));
+}
+function stepStatus(session, step, plan) {
   const logged = stepLoggedSets(session, step), target = step.sets || 0;
-  return { logged, target, done: target > 0 ? logged >= target : logged > 0, started: logged > 0 };
+  const saved = stepSavedSets(session, step), minSets = stepMinSets(plan, step);
+  // `done` = the FULL target met (live, pending-inclusive) — drives the current-step pointer + the step HUD bar,
+  // so following the plan exactly never skips ahead. `satisfied` = the feat 144 min-% threshold met by SAVED
+  // sets only (checked after a save, not mid-entry) — drives plan-completion + the execution view.
+  const done = target > 0 ? logged >= target : logged > 0;
+  const satisfied = target > 0 ? saved >= minSets : saved > 0;
+  return { logged, target, saved, minSets, done, satisfied, started: logged > 0 };
 }
 function currentPlanStepIndex(session, plan) {
-  for (let i = 0; i < plan.steps.length; i++) if (!stepStatus(session, plan.steps[i]).done) return i;
+  for (let i = 0; i < plan.steps.length; i++) if (!stepStatus(session, plan.steps[i], plan).done) return i;
   return plan.steps.length;
 }
 // Gym feasibility: a step is "impossible" only if an active gym is set and NO option can be performed there.
@@ -7411,13 +7460,16 @@ function stepEffort(session, step) {
 // by exercise, so sets logged under a previous plan still count toward whatever plan is now active).
 function planExecutionSummary(session, plan) {
   if (!session || !plan) return null;
-  let stepsDone = 0, setsDone = 0, setsTarget = 0, effortHits = 0, effortApplicable = 0;
+  // feat 144 — `stepsDone` now counts steps that met their min-% threshold (ss.satisfied); `stepsFull`
+  // counts steps taken all the way to target. `complete` (the 🎉 banner / popup) fires on min-% satisfied.
+  let stepsDone = 0, stepsFull = 0, setsDone = 0, setsTarget = 0, effortHits = 0, effortApplicable = 0;
   (plan.steps || []).forEach(st => {
-    const ss = stepStatus(session, st); if (ss.done) stepsDone++;
+    const ss = stepStatus(session, st, plan); if (ss.satisfied) stepsDone++; if (ss.done) stepsFull++;
     setsDone += ss.logged; setsTarget += (st.sets || 0);
     const ef = stepEffort(session, st); if (ef.applicable) { effortApplicable++; if (ef.hit) effortHits++; }
   });
-  return { stepsDone, stepsTotal: (plan.steps || []).length, setsDone, setsTarget, effortHits, effortApplicable, complete: stepsDone >= (plan.steps || []).length && (plan.steps || []).length > 0 };
+  const total = (plan.steps || []).length;
+  return { stepsDone, stepsFull, stepsTotal: total, setsDone, setsTarget, effortHits, effortApplicable, complete: stepsDone >= total && total > 0 };
 }
 function _execSets(s) { return (s.exercises || []).reduce((c, e) => c + (e.sets || []).length, 0); }
 function _execScore(s) { return (s.finalScore && typeof s.finalScore.points === 'number') ? s.finalScore.points : -1; }
@@ -7439,7 +7491,7 @@ function planStepForVar(session, plan, varUuid) {
   for (let i = 0; i < plan.steps.length; i++) {
     if ((plan.steps[i].options || []).some(o => optionMatchesVar(o, varUuid))) {
       if (firstMatch < 0) firstMatch = i;
-      if (!stepStatus(session, plan.steps[i]).done) return i;
+      if (!stepStatus(session, plan.steps[i], plan).done) return i;
     }
   }
   return firstMatch;
@@ -7591,6 +7643,7 @@ function renderPlanEditor(body, plan) {
       : `<div class="plan-media-add"><input type="url" id="plan-media-input" inputmode="url" placeholder="🎬 Attach a video — YouTube / Shorts / TikTok / Reel" autocomplete="off" autocapitalize="off" spellcheck="false" style="flex:1;min-width:0;padding:8px 10px;font-size:12.5px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);"><button class="drawer-btn" id="plan-media-add-btn">Attach</button></div>`
     }</div>
     <div class="plan-edit-intensity"><span class="pei-lbl">Intensity</span>${[1,2,3,4,5].map(n => `<button class="pei-pill ${planIntensity(plan) === n ? 'active' : ''}" data-plan-intensity="${n}">${n}</button>`).join('')}<span class="pei-hint">1 easy · 5 brutal</span></div>
+    <div class="plan-edit-intensity"><span class="pei-lbl">Min completion</span><input type="number" id="plan-minpct-input" value="${plan.minPct != null ? plan.minPct : ''}" min="0" max="100" placeholder="${planMinPctDefault()}" style="width:58px;padding:5px 7px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">%<span class="pei-hint">min % of a step's sets to count it done · blank = app default (${planMinPctDefault()}%)</span></div>
     ${plan.steps.map((st, i) => `<div class="plan-edit-step">
       <div class="plan-edit-step-head"><span class="plan-edit-step-num">Step ${i+1}</span>
         <div class="plan-edit-step-btns">
@@ -7603,6 +7656,7 @@ function renderPlanEditor(body, plan) {
         <button class="plan-edit-add-opt" data-add-opt="${i}">+ exercise</button>
       </div>
       <div class="plan-edit-sets"><span>Suggested sets</span><input type="number" data-step-sets="${i}" value="${st.sets}" min="1" max="20" style="width:56px;padding:5px 7px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);"></div>
+      <div class="plan-edit-sets" title="Override the min completion % for this step (blank inherits the plan / app default)"><span>Min done</span><input type="number" data-step-minpct="${i}" value="${st.minPct != null ? st.minPct : ''}" min="0" max="100" placeholder="${(plan.minPct != null && !isNaN(+plan.minPct)) ? +plan.minPct : planMinPctDefault()}" style="width:56px;padding:5px 7px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">%<span class="pei-hint">≥ ${stepMinSets(plan, st)}/${st.sets || 0} sets</span></div>
       <div class="plan-edit-load"><span>Load vs baseline</span>${['light','moderate','heavy'].map(l => `<button class="pel-pill ${l} ${(st.load||'moderate')===l ? 'active' : ''}" data-step-load="${i}:${l}">${l}</button>`).join('')}</div>
       <input type="text" data-step-desc="${i}" value="${escapeAttr(st.desc||'')}" placeholder="Step note (optional)" style="width:100%;margin-top:6px;padding:5px 8px;font-size:12px;border-radius:6px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);">
     </div>`).join('')}
@@ -7629,7 +7683,11 @@ function bindPlanEditor(body, plan) {
   body.querySelectorAll('[data-step-up]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.stepUp; if (i > 0) { [plan.steps[i-1], plan.steps[i]] = [plan.steps[i], plan.steps[i-1]]; save(); renderPlansOverlay(); } }));
   body.querySelectorAll('[data-step-down]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.stepDown; if (i < plan.steps.length-1) { [plan.steps[i+1], plan.steps[i]] = [plan.steps[i], plan.steps[i+1]]; save(); renderPlansOverlay(); } }));
   body.querySelectorAll('[data-step-del]').forEach(b => b.addEventListener('click', () => { plan.steps.splice(+b.dataset.stepDel, 1); save(); renderPlansOverlay(); }));
-  body.querySelectorAll('[data-step-sets]').forEach(inp => inp.addEventListener('change', () => { const v = parseInt(inp.value); if (!isNaN(v) && v >= 1 && v <= 20) { plan.steps[+inp.dataset.stepSets].sets = v; save(); } }));
+  body.querySelectorAll('[data-step-sets]').forEach(inp => inp.addEventListener('change', () => { const v = parseInt(inp.value); if (!isNaN(v) && v >= 1 && v <= 20) { plan.steps[+inp.dataset.stepSets].sets = v; save(); renderPlansOverlay(); } }));
+  // feat 144 — per-plan + per-step minimum completion % overrides (blank clears the override → inherit)
+  const minpctInp = body.querySelector('#plan-minpct-input');
+  if (minpctInp) minpctInp.addEventListener('change', () => { const t = minpctInp.value.trim(); if (t === '') delete plan.minPct; else { const v = Math.min(100, Math.max(0, parseFloat(t))); if (!isNaN(v)) plan.minPct = v; } save(); renderPlansOverlay(); });
+  body.querySelectorAll('[data-step-minpct]').forEach(inp => inp.addEventListener('change', () => { const st = plan.steps[+inp.dataset.stepMinpct]; if (!st) return; const t = inp.value.trim(); if (t === '') delete st.minPct; else { const v = Math.min(100, Math.max(0, parseFloat(t))); if (!isNaN(v)) st.minPct = v; } save(); renderPlansOverlay(); }));
   body.querySelectorAll('[data-opt-del]').forEach(b => b.addEventListener('click', () => { const [si, oi] = b.dataset.optDel.split(':').map(Number); plan.steps[si].options.splice(oi, 1); save(); renderPlansOverlay(); }));
   body.querySelectorAll('[data-add-opt]').forEach(b => b.addEventListener('click', () => { _plansAddOptStep = +b.dataset.addOpt; _plansOptSearch = ''; renderPlansOverlay(); }));
   body.querySelector('#plan-add-step-btn')?.addEventListener('click', () => { plan.steps.push({ id:newUuid(), sets:3, options:[] }); save(); renderPlansOverlay(); });
@@ -7661,8 +7719,11 @@ function renderPlanGuide(session) {
   const curIdx = currentPlanStepIndex(session, plan);
   const sum = planExecutionSummary(session, plan);
   const steps = plan.steps.map((st, i) => {
-    const s = stepStatus(session, st), impossible = stepImpossibleInGym(st);
-    const cls = s.done ? 'done' : (i === curIdx ? 'current' : '');
+    const s = stepStatus(session, st, plan), impossible = stepImpossibleInGym(st);
+    // feat 144 — the CURRENT step (full-target pointer) keeps the 'current' look even once its min-% is met,
+    // so following the plan exactly isn't visually "ended" early; a satisfied non-current step shows 'done'.
+    const isCurrent = (i === curIdx && !s.done);
+    const cls = isCurrent ? 'current' : ((s.done || s.satisfied) ? 'done' : '');
     const opts = (st.options || []).map((o, oi) => `<button class="plan-opt" data-plan-step="${i}" data-plan-opt="${oi}">${escapeHtml(optionLabel(o))}</button>`).join('<span class="plan-opt-or">or</span>');
     const load = st.load || 'moderate';
     const sug = (st.options && st.options[0]) ? suggestedWeightForOption(st.options[0], load) : null;
@@ -7671,9 +7732,10 @@ function renderPlanGuide(session) {
     const effortBadge = ef.applicable
       ? `<span class="plan-effort ${ef.hit ? 'hit' : 'miss'}" title="${ef.hit ? `Effort met — top ${ef.top}${state.unit} reached target ${ef.sug}${state.unit}` : `Below the target load ${ef.sug}${state.unit} (top so far ${ef.top || 0}${state.unit})`}">💪 ${ef.hit ? '✓' : `${ef.top || 0}/${ef.sug}`}</span>`
       : '';
-    const setsBadge = `<span class="plan-step-sets ${s.done ? 'hit' : ''}">${s.logged}/${st.sets} sets${s.done ? ' ✓' : ''}</span>`;
+    // feat 144 — full target → "✓"; min-% met but short of target → "· min ✓" (still counts as done).
+    const setsBadge = `<span class="plan-step-sets ${s.satisfied ? 'hit' : ''}">${s.logged}/${st.sets} sets${s.done ? ' ✓' : (s.satisfied ? ` · min ✓` : '')}</span>`;
     return `<div class="plan-step ${cls}" data-plan-step-idx="${i}">
-      <div class="plan-step-top"><span class="plan-step-num">${s.done ? '✓' : (i+1)}</span>${setsBadge}${loadBadge}${effortBadge}${impossible ? `<span class="plan-step-warn" title="No option is available in the current gym">⚠ gym</span>` : ''}</div>
+      <div class="plan-step-top"><span class="plan-step-num">${cls === 'done' ? '✓' : (i+1)}</span>${setsBadge}${loadBadge}${effortBadge}${impossible ? `<span class="plan-step-warn" title="No option is available in the current gym">⚠ gym</span>` : ''}</div>
       <div class="plan-step-opts">${opts || '<span style="color:var(--text3);font-size:11px;">(no exercises)</span>'}</div>
       ${st.desc ? `<div class="plan-step-desc">${escapeHtml(st.desc)}</div>` : ''}
     </div>`;
@@ -7692,7 +7754,9 @@ function renderPlanGuide(session) {
   const headEta = eta.remainingMin > 0
     ? `ETC ~${eta.remainingMin} min · ETA ${eta.etaTime.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}`
     : 'plan complete 🎉';
-  const progLine = `<div class="plan-progress-line plan-progress-open" id="plan-progress-open" role="button" tabindex="0" title="Open the full plan"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · <b>${sum.stepsDone}/${sum.stepsTotal}</b> steps${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}<span class="plan-progress-chev">›</span></div>`;
+  // feat 144 — steps "done" = min-% satisfied; show "(N full)" when fewer were taken all the way to target.
+  const fullHint = (sum.stepsFull < sum.stepsDone) ? ` <span class="plan-progress-full">(${sum.stepsFull} full)</span>` : '';
+  const progLine = `<div class="plan-progress-line plan-progress-open" id="plan-progress-open" role="button" tabindex="0" title="Open the full plan"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · <b>${sum.stepsDone}/${sum.stepsTotal}</b> steps${fullHint}${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}<span class="plan-progress-chev">›</span></div>`;
   // feat 127 — collapsible: tap the header to fold the plan card down to just its name + progress line.
   const collapsed = !!(state.dashboard && state.dashboard.planCollapsed);
   return `<div class="plan-card${sum.complete ? ' complete' : ''}${collapsed ? ' collapsed' : ''}">
@@ -8737,8 +8801,11 @@ function renderSession(session, isToday) {
   let planBadge = '';
   if (_plan) {
     const total = _plan.steps.length;
-    const doneSteps = (_plan.steps || []).reduce((n, st) => n + (stepStatus(session, st).done ? 1 : 0), 0);
-    planBadge = `<div class="plan-hist-badge">📋 ${escapeHtml(_plan.name)} · ${doneSteps}/${total} step${total===1?'':'s'}${(total > 0 && doneSteps >= total) ? ' ✓ full' : ' · partial'}</div>`;
+    // feat 144 — a step counts as done at its min-% threshold; "✓ full" only when every step hit its full target.
+    const doneSteps = (_plan.steps || []).reduce((n, st) => n + (stepStatus(session, st, _plan).satisfied ? 1 : 0), 0);
+    const fullSteps = (_plan.steps || []).reduce((n, st) => n + (stepStatus(session, st, _plan).done ? 1 : 0), 0);
+    const tag = (total > 0 && fullSteps >= total) ? ' ✓ full' : (total > 0 && doneSteps >= total) ? ' ✓ done' : ' · partial';
+    planBadge = `<div class="plan-hist-badge">📋 ${escapeHtml(_plan.name)} · ${doneSteps}/${total} step${total===1?'':'s'}${tag}</div>`;
   } else {
     const sl = sessionSplitLabel(session);
     if (sl) planBadge = `<div class="plan-hist-badge implicit">≈ ${escapeHtml(sl)} day · implicit</div>`;
@@ -13254,7 +13321,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 90 · 2026-06-07 19:51';
+const APP_BUILD = 'build 91 · 2026-06-07 20:07';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
