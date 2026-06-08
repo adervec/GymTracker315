@@ -737,6 +737,12 @@ They share variation **UUIDs**.
   / moderate 8 / light 12; weight scaled from your recent baseline, or `null` → suggest reps only when there's no
   history). The badge reads "load · suggest ≈ {w}×{r}" with a "just a guide, not a target" tooltip. Covered by
   `test/stepsuggest.spec.mjs` (rep targets, tuned weight, movement→most-recent-not-max, no-history reps-only, render).
+- **Grades: S top, D floor, ≥ filter (feat 158):** the grade scale now tops out at **S** (replacing A+) and floors at
+  **D** (no F, for positivity) via a single `GRADE_SCALE` source of truth — `gradeFor`, `computeWorkoutScore`, and the
+  live-score estimate all use it. New `GRADE_ORDER`/`gradeRank` (legacy `A+`→A, `F`→D-floor) power a **Grade ≥** chip
+  filter on the **Log** tab (`_logMinGrade`) that narrows the session list to a chosen grade or better, with an
+  empty-state + "show all". A gold **`.g-S`** chip style marks the top tier. Covered by `test/grades.spec.mjs` (scale,
+  ranking + legacy, Log ≥-filter, S chip).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

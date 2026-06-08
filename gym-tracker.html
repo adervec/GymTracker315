@@ -1280,6 +1280,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .session-head-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   /* feat 120 — grade chip, implicit-split badge, key deltas, long-rest gap */
   .session-grade { font-size: 12px; font-weight: 800; padding: 1px 8px; border-radius: 999px; line-height: 1.5; background: var(--bg4); color: var(--text2); }
+  .session-grade.g-S { background: color-mix(in srgb, #ffd24a 26%, transparent); color: #ffd24a; box-shadow: 0 0 0 1px color-mix(in srgb, #ffd24a 45%, transparent) inset; } /* feat 158 — top tier */
   .session-grade.g-A { background: color-mix(in srgb, var(--good) 22%, transparent); color: var(--good); }
   .session-grade.g-B { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
   .session-grade.g-C { background: var(--bg4); color: var(--text2); }
@@ -6335,11 +6336,11 @@ async function shareExport(text, blob, baseName) {
   }
 }
 // Shared 0–100 → letter-grade ladder (used by scoring + exports).
-function gradeFor(points) {
-  return points >= 90 ? 'A+' : points >= 80 ? 'A'
-       : points >= 70 ? 'B'  : points >= 60 ? 'C'
-       : points >= 50 ? 'D'  : 'F';
-}
+// feat 158 — grade scale tops out at S (highest) and floors at D (no F, for positivity). Single source of truth.
+const GRADE_SCALE = [ { g: 'S', min: 90 }, { g: 'A', min: 80 }, { g: 'B', min: 70 }, { g: 'C', min: 60 }, { g: 'D', min: 0 } ];
+const GRADE_ORDER = ['D', 'C', 'B', 'A', 'S']; // ascending — for ">= grade" filtering
+function gradeRank(g) { const i = GRADE_ORDER.indexOf(String(g || '').replace('+', '').charAt(0).toUpperCase()); return i < 0 ? 0 : i; } // legacy/unknown (e.g. old 'F') floor to D
+function gradeFor(points) { for (const t of GRADE_SCALE) if (points >= t.min) return t.g; return 'D'; }
 // Pick a readable foreground (#fff or near-black) for a given hex background.
 function _hexToRgb(hex) {
   let h = String(hex).trim().replace('#','');
@@ -8026,10 +8027,12 @@ function bindSessionCards(main) {
 }
 // feat 146 — the "Log" tab: a paginated, newest-first list of EVERY session (today + recent + all-time),
 // so the history isn't dumped all at once. The Dashboard tab stays today-only.
-let _sessionsLogPage = 0;
+let _sessionsLogPage = 0, _logMinGrade = ''; // feat 158 — min-grade (">=") filter for the Log tab
 const SESSIONS_PER_PAGE = 10;
 function renderSessionsLog(main) {
-  const all = (state.sessions || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date)); // newest first
+  const allSorted = (state.sessions || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date)); // newest first
+  // feat 158 — filter to sessions graded >= the chosen grade (S highest … D floor)
+  const all = _logMinGrade ? allSorted.filter(s => { const sc = sessionGrade(s); return sc && sc.grade && gradeRank(sc.grade) >= gradeRank(_logMinGrade); }) : allSorted;
   const total = all.length;
   const totalSets = all.reduce((sum, s) => sum + (s.exercises || []).reduce((c, e) => c + (e.sets || []).length, 0), 0);
   const pages = Math.max(1, Math.ceil(total / SESSIONS_PER_PAGE));
@@ -8038,10 +8041,11 @@ function renderSessionsLog(main) {
   const start = _sessionsLogPage * SESSIONS_PER_PAGE;
   const pageSessions = all.slice(start, start + SESSIONS_PER_PAGE);
   const todayStr = new Date().toDateString();
-  let html = '';
+  const gradeChip = (g) => `<button class="plan-chip ${_logMinGrade === g ? 'active' : ''}" data-log-grade="${g}">${g === '' ? 'Any grade' : 'Grade ≥ ' + g}</button>`;
+  let html = `<div class="plan-chips slog-grades">${['', 'S', 'A', 'B', 'C', 'D'].map(gradeChip).join('')}</div>`;
   if (total > 0) {
     html += `<div class="stats-grid">
-      <div class="stat-tile"><div class="stat-label">Sessions</div><div class="stat-value">${total}</div></div>
+      <div class="stat-tile"><div class="stat-label">${_logMinGrade ? 'Matching' : 'Sessions'}</div><div class="stat-value">${total}</div></div>
       <div class="stat-tile"><div class="stat-label">Total Sets</div><div class="stat-value">${totalSets}</div></div>
     </div>
     <div class="slog-range">${escapeHtml(fmtDate(all[total - 1].date))} → ${escapeHtml(fmtDate(all[0].date))}</div>`;
@@ -8053,11 +8057,16 @@ function renderSessionsLog(main) {
         <button class="drawer-btn" id="slog-next" ${_sessionsLogPage >= pages - 1 ? 'disabled' : ''}>Older →</button>
       </div>`;
     }
+  } else if (_logMinGrade) {
+    html += `<div class="card"><div class="card-title">No sessions graded ${_logMinGrade} or higher</div><div style="color:#888;font-size:13px;">Try a lower grade, or <button class="plan-clear-filters" id="log-grade-clear">show all</button>.</div></div>`;
   } else {
     html += `<div class="card"><div class="card-title">No sessions yet</div><div style="color:#888;font-size:13px;">Log a set on the <b>Dashboard</b> to start building your history.</div></div>`;
   }
   main.innerHTML = html;
   bindSessionCards(main);
+  // feat 158 — grade (">=") filter chips
+  main.querySelectorAll('[data-log-grade]').forEach(b => b.addEventListener('click', () => { _logMinGrade = b.dataset.logGrade; _sessionsLogPage = 0; render(); }));
+  main.querySelector('#log-grade-clear')?.addEventListener('click', () => { _logMinGrade = ''; _sessionsLogPage = 0; render(); });
   const go = (d) => { _sessionsLogPage += d; render(); const m = document.getElementById('trk-main'); if (m) m.scrollTop = 0; window.scrollTo(0, 0); };
   main.querySelector('#slog-prev')?.addEventListener('click', () => { if (_sessionsLogPage > 0) go(-1); });
   main.querySelector('#slog-next')?.addEventListener('click', () => { if (_sessionsLogPage < pages - 1) go(1); });
@@ -8118,7 +8127,7 @@ function renderLog(main) {
         if (live) {
           // "Chunky" — round to nearest 5 to avoid wild jumping
           const chunky = Math.round(live.points / 5) * 5;
-          const chunkyGrade = chunky >= 90 ? 'A+' : chunky >= 80 ? 'A' : chunky >= 70 ? 'B' : chunky >= 60 ? 'C' : chunky >= 50 ? 'D' : 'F';
+          const chunkyGrade = gradeFor(chunky); // feat 158 — S…D scale
           html += `<div class="workout-score-card estimate">
             <div class="workout-score-grade">${chunkyGrade}</div>
             <div class="workout-score-body">
@@ -8749,9 +8758,7 @@ function computeWorkoutScore(session) {
 
   if (!totalWeight) return null;
   const points = Math.round(totalPoints / totalWeight);
-  const grade = points >= 90 ? 'A+' : points >= 80 ? 'A'
-              : points >= 70 ? 'B'  : points >= 60 ? 'C'
-              : points >= 50 ? 'D'  : 'F';
+  const grade = gradeFor(points); // feat 158 — S…D scale
   return { points, grade, breakdown };
 }
 
@@ -13692,7 +13699,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 102 · 2026-06-07 21:14';
+const APP_BUILD = 'build 103 · 2026-06-07 21:21';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
