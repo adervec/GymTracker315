@@ -107,3 +107,17 @@ test('data page renders the category summary + export buttons (feat 129/130)', a
   expect(r.settingsJson).toBe(true);
   expect(r.showsRange).toBe(true);                    // the summary shows date ranges
 });
+
+test('auto-save / auto-load is archived behind a collapsed disclosure, and openDataPage exists (feat 134)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    renderSettingsDrawer();
+    const html = document.getElementById('data-page-body').innerHTML;
+    return {
+      openDataPageFn: typeof openDataPage === 'function',     // the Settings long-press target
+      supported: typeof autoSaveSupported === 'function' ? autoSaveSupported() : false,
+      archivedWrapsAutoSave: /drawer-archived[\s\S]*?Auto-Save[\s\S]*?Auto-Load[\s\S]*?<\/details>/.test(html),
+    };
+  });
+  expect(r.openDataPageFn).toBe(true);
+  if (r.supported) expect(r.archivedWrapsAutoSave).toBe(true); // legacy File-System sync tucked away to promote Cloud Sync
+});

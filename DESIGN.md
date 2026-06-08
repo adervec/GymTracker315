@@ -539,6 +539,392 @@ They share variation **UUIDs**.
   `display:inline-flex; align-items:center; justify-content:center; line-height:1; padding:0`. An audit of the other
   ✕/× controls found this was the only fixed-square one missing centering (the picker clear button was already
   flex-centered; the rest are padding-sized). Covered by `test/mediawizard.spec.mjs` (computed-style centering).
+- **Defensive OAuth origin allowlist (feat 132):** the committed public OAuth client ids (`SYNC_CLIENTS`) are
+  gated app-side to an `OAUTH_ORIGINS` allowlist (`https://adervec.github.io` + localhost via a hostname check).
+  `cloudOriginAllowed(origin)` (pure, parses `new URL(origin).hostname`, arg-overridable for tests) backs three
+  gates: `cloudConnect` refuses `kind:'oauth'` providers on an unlisted origin (custom endpoint exempt);
+  `cloudSyncCardHtml` disables the OAuth buttons + shows a note when the origin isn't allowed; and
+  `cloudOAuthHandleRedirect` won't complete a token exchange off-origin. Defense-in-depth only — the providers
+  already enforce their *Authorized JavaScript origins* server-side — but it makes a **fork of this public repo**
+  fail fast (clear message, no leaked consent screen / quota use) instead of relying solely on Google's rejection.
+  Data isolation was never at risk: each user authenticates as themselves and their data lives in their own Drive
+  `appDataFolder`; the owner can't see others' data. Covered by `test/sync.spec.mjs` (allowlist logic + enabled/
+  disabled button render); existing connect tests stay green since the test origin (`127.0.0.1`) is allowlisted.
+- **PDF export of a data-review view (feat 133):** a **📄 PDF** button in the tracker header (shown only on the
+  History / Volume / Trends tabs via `render()`) exports the current view. `exportCurrentViewPdf()` clones
+  `#trk-main`'s HTML into a body-level `#print-root` with a titled header (`currentViewLabel()` → view + sub-context:
+  e.g. *Volume · Group · Last week*, the History range, or the focused-Trends exercise) and calls the native
+  `window.print()` — no library, so the app stays single-file/offline. The charts are inline **SVG** so they clone
+  faithfully; an `@media print` block hides all chrome (`body.printing > *:not(#print-root)`), drops interactive
+  controls (`.sub-tabs`/buttons/inputs), and sets `print-color-adjust: exact` so the dark theme + chart colours
+  render. "Save or share" is the browser's print sheet (Save as PDF on desktop; Save/Share on Android). `afterprint`
+  (+ a timeout fallback for mobile) clears `#print-root` and the `printing` class. Covered by `test/pdfexport.spec.mjs`
+  (button visibility per tab, label/sub-context, clone-into-#print-root with header).
+- **Promote Cloud Sync, archive File-System auto-save (feat 134):** the legacy desktop-only Auto-Save + Auto-Load
+  sections on the Data Management page are wrapped in a collapsed `<details class="drawer-archived">` ("Legacy file
+  auto-save / load — use ☁ Cloud Sync instead"; auto-opens if either is currently enabled) so Cloud Sync is the
+  default cross-device path. The functions are untouched. Separately, the **Settings (⚙) long-press** is repointed
+  from `openSettingsToLastChanged` to **`openDataPage`** — hold the gear to jump straight to Data Management.
+  Covered by `test/dataexport.spec.mjs`.
+- **Per-gym equipment stables + pin slider (feat 135):** each gym can now stock its own dumbbell / kettlebell /
+  med-ball sizes and pin stack, edited in a collapsible **Equipment stable** block in the gym editor
+  (`renderGymStableEditor` / `ensureGymStable`, stored on `gym.stable = { unit, db[], kb[], ball[], pin{first,inc,max} }`
+  — tagged with the unit so cross-unit numbers are never misread). The setup tool's size lists resolve from the
+  **active** gym (`activeStable()`), falling back to typical commercial defaults (`defaultDbSizes` 5,7.5,…,120 lb,
+  `defaultKbSizes`, `defaultBallSizes`, `defaultPinStable`). The **pin stack** is reshaped to a first-step + main
+  increment + max model: the default is *+5 then +10 up to 295 lb* (`pinStep()` — pure, testable — walks
+  0→first→+inc≤max and back), and the **main increment is now a range slider** (`data-…-pininc`) instead of pills,
+  with the add-on *Toppers* unchanged. Pin profiles persist `{inc, first, max}` (old `{inc}`-only profiles still
+  load via fallbacks). Covered by `test/gymstable.spec.mjs` (defaults, `pinStep`, active-gym resolution incl.
+  wrong-unit ignore, pin default state, slider render, gym-editor render + `parseSizeList`/`ensureGymStable`).
+- **"Needs a spotter" flag (feat 136):** a discrete amber **🦺 spot** badge on the exercises where a free-weight
+  barbell can pin/trap you at failure. `spotterMatch(v, fam)` is a precision-biased heuristic (reads only `.title`/
+  `.id`, so it works on either the `exercises` or `FAMILIES` representation): it flags the bench/chest-press and
+  squat families plus `back squat`/`skullcrusher` by name, then subtracts everything guarded or self-rescuable
+  (smith, machine, fixed, cable, dumbbell, kettlebell, band, floor press, hack, goblet, belt/landmine, front/split/
+  overhead/bodyweight squats, …). It lands on ~26 of 816 variations — all genuine barbell bench presses + loaded
+  back/front squats + skullcrusher. The badge (`spotterBadge`) renders in the **exercise picker** rows and the
+  **Reference** variation rows; `needsSpotter(uuid)` is the VAR_INDEX wrapper. Covered by `test/spotter.spec.mjs`
+  (flag/no-flag sets, precision-count sanity, badge render, picker render).
+- **Live plan progress for unsaved sets (feat 137):** the plan-progress dashboard was counting only *saved* sets,
+  so the sets you were mid-entering didn't show — misleading. `stepLoggedSets` / `stepTopWeight` now fold in the
+  **unsaved `pending` sets** (`pendingStepSets`) — but only for the **live** session (`session === getActiveSession()`),
+  never while **editing** a saved exercise (those rows already exist → double-count), and only rows with a weight.
+  Discarding the log (Clear / pick another exercise / end-and-discard) empties `pending` → the progress reverts.
+  Closing the modal (✕/footer/backdrop/Esc) now re-`render()`s the dashboard so it reflects (or drops) the pending
+  sets. A `_planIgnorePending` guard keeps `saveSets`' "was the plan already complete *before* this save?" snapshot
+  on saved-only counts (else the plan-complete popup wouldn't fire). Covered by `test/plandash.spec.mjs`.
+- **Tap plan progress → full plan (feat 138):** the progress line on the workout dashboard is now a button
+  (`#plan-progress-open`, keyboard-operable, with a `›` affordance) that opens the active plan in the full plans
+  overlay via a new `openPlanFull(id)` (sets `_plansEditId` → `renderPlanEditor`, showing every step). Distinct from
+  the card header, which still toggles collapse (feat 127). Covered by `test/plandash.spec.mjs`.
+- **Notched current-step HUD bar (feat 139):** the current-step progress bar moved out of the log form into a global
+  `#plan-step-bar` strip docked **directly below the rest-timer bar** (a fixed HUD; its `top` and the `.panel`
+  padding stack under the rest bar via `rest-bar-on`/`-idle` × `plan-step-bar-on` body classes; z-index 9997 so it,
+  like the rest bar, floats over the log modal). The bar is **notched** — one segment per target set: saved sets
+  solid (`.filled`), unsaved pending sets dimmed (`.pending`, feat 137), green when the step is done.
+  `refreshPlanStepBar()` runs on every `refreshRestBar()` path; it picks the step you're logging (`pending.varUuid`)
+  else the earliest incomplete (`currentPlanStepIndex`), and hides outside a planned workout / when complete. Tapping
+  it opens the full plan (feat 138). The old in-form `planStepIndicatorHtml` is removed from the form (function kept).
+  Covered by `test/stepbar.spec.mjs`; visually verified via a `page.pdf`/screenshot pass.
+- **Headphone-only mute no longer mutes Bluetooth headsets (feat 140):** the speaker/headphone detector
+  (`probeAudioOutput`) classified an output as headphones only when its label matched a keyword regex, so a Bluetooth
+  headset shown by **brand name** ("Sony WH-1000XM4", "Bose QC35", "Galaxy Buds") matched nothing and — combined with
+  the old `.some()` reducer — collapsed to `false` (speaker only) → audio wrongly muted. The classifier is now a pure,
+  three-way `classifyAudioOutputs(labels)`: **headphones (`true`)** if any output positively reads as a headphone
+  (`_HEADPHONE_RE`, now also `\bbt\b`/`hands-free`/`hfp`, and never a `_SPEAKER_RE` match); **speaker-only (`false`)**
+  only when **every** labeled output positively reads as the built-in speaker/earpiece; **unknown (`null`, fail open)**
+  for anything else — so an unrecognized non-speaker output (a brand-name BT headset) keeps audio playing instead of
+  silently muting. Faithful to the feature's stated fail-open design. Covered by `test/headphones.spec.mjs`.
+- **OSK ×10 digit hold is weight-only (feat 141):** the on-screen-keyboard digit long-press (hold `7` from an empty
+  field → `70`, feat 100) now arms **only on the weight field**. `numpadDigitX10Eligible()` gained a `np.field === 'w'`
+  guard, so the reps numpad treats a hold as a plain tap and never shows the `×10` affordance. Reps are typically small
+  literal counts (1–20) where the shortcut mostly produced fat-finger 5→50 mistakes; weights are the multiples-of-10
+  case it was built for. Covered by `test/numpad.spec.mjs` (weight x10 retained, reps hold inert + no label).
+- **Long-press Copy → copy previous reps (feat 142):** the footer **Copy** button gains a second gesture. A **tap**
+  still copies the weight to the next set (`copyWeightToNextSet`, feat 58); a **hold** runs a new
+  `copyRepsToOpenSet()` that fills the **open set**'s still-empty reps (`isSetOpen` = weight in, reps not) with the
+  **previous rep count** — the nearest earlier pending set that has reps, else the last logged set in history for the
+  exercise — so an identical-reps scheme (e.g. 3×8) logs in one gesture. It reuses `commitSetField(i,'r',…)` (parse,
+  `ts` stamp, persist, live-update) and is a no-op with a toast when there's no open set or no prior reps
+  ("applicable"). Wired via `attachTopbarLongPress` **once at init** (the footer button is static) so the long-press
+  and its click-swallower don't stack across modal re-renders; the button `title` now documents tap-vs-hold. Covered
+  by `test/copyreps.spec.mjs` (prior-pending source, history fallback, no-op guards, end-to-end tap-vs-hold).
+- **Setup-picker ×N remove is its own button (feat 143):** in the equipment setup tools (Barbell / Plate / Landmine
+  plate grids + the Pin **toppers**), the per-plate count was a tiny `<span class="setup-ct">×N</span>` **nested inside**
+  the add pill — a finicky, fat-finger-prone remove target that often added instead. Each weight is now a
+  `.setup-pill-grp` **segmented control**: the add pill (`data-…-padd` / `-topper`) plus, only when a plate is on, a
+  **separate** `.setup-ct-btn` remove button (`data-…-psub` / `-toppersub`, accent, turns danger-red on press) joined
+  to its right. Two distinct, full-height tap targets — tap the pill to add, tap **×N** to remove one — with no
+  handler changes (same data-attributes). Covered by `test/setuppills.spec.mjs` (×N is a sibling BUTTON not nested,
+  add/remove counts, ×N hidden at zero); visually verified via a barbell-setup screenshot.
+- **Per-step minimum completion % (feat 144):** a step now counts as "done" once it reaches a **minimum % of its
+  target sets**, not necessarily all of them. The threshold resolves **per-step (`step.minPct`) → per-plan
+  (`plan.minPct`) → global default (`state.planDefaults.minPct`, default 1%)** via `resolveStepMinPct`; `stepMinSets`
+  = `ceil(target × %)` with a floor of 1 (so the 1% default = "even 1 set counts the step as done"). `stepStatus`
+  now returns **`done`** (full target met — *pending-inclusive*, drives the current-step pointer + the step HUD bar,
+  unchanged) **and `satisfied`** (the min-% threshold met by **SAVED sets only**). The split is deliberate: the min-%
+  is *checked after a save, never on the live pending set*, and the pointer keeps using the full target — so
+  **following the plan exactly never ends a step prematurely** (you keep working a step until its full sets even
+  though 1 saved set already "satisfied" it). `planExecutionSummary` exposes `stepsDone` (satisfied count) +
+  `stepsFull` (full-target count); **`complete` (the 🎉 banner / plan-complete popup) fires on min-% satisfied**. The
+  dashboard shows "N/Y steps (M full)", a per-step "· min ✓" marker, and keeps the satisfied-but-incomplete current
+  step highlighted; the history badge reads "✓ full" / "✓ done" / "partial". Editable via a **Workout Session →
+  Plan step min completion** default and per-plan / per-step inputs in the plan editor (blank inherits). Covered by
+  `test/minpct.spec.mjs` (resolution, saved-only-after-save vs pending, no premature pointer advance, complete at
+  min%, 100% override, editor persistence, persisted default); visually verified (editor + dashboard).
+- **Plan Execution View (feat 145):** a detailed drill-down (richer than the dashboard plan card) that shows, per
+  step, **which variation(s) were actually logged to "satisfy" it** — the key ask. `renderPlanExecutionView(body,
+  plan, session)` renders into the plans overlay (new `_plansExecId` / `_plansExecSessionDate` mode in
+  `renderPlansOverlay`): a header + roll-up (`stepsDone/total (M full)`, sets, effort, complete 🎉), then each step
+  with a status chip (**✓ full / ✓ min (≥k/n) / ▶ in progress / … partial / ○ not done**, following feat 144's
+  satisfied-vs-done split) and a **"Satisfied by"** block listing every matching logged exercise — variation name (+
+  spotter badge), the sets (`135×5 · 135×5 · 140×4`), top weight and est 1RM, plus the planned options, load and
+  effort. Opened from a new **📊 Execution** button on the dashboard plan card (active session) and from **any
+  session's plan badge** (now clickable, wired once via a delegated `[data-plan-exec-sess]` handler so it works in
+  history too). Status classes are namespaced (`pe-full`/`pe-min`/…) to avoid the global `.full{}` collision. Covered
+  by `test/planexec.spec.mjs` (variations + sets + statuses, roll-up + back, history-badge entry); visually verified.
+- **Dashboard (today) vs Log (paginated history) split (feat 146):** the default tab — internally still `log` (keeps
+  the FAB + workout controls) — is **renamed "Dashboard"** and is now **today-only** (its old "Recent Sessions" +
+  "All-Time" blocks were removed; an unobtrusive `#dash-see-log` link points to the Log). A **new "Log" tab**
+  (`data-tab="sessions"` → `renderSessionsLog`) lists **every** session newest-first with an all-time summary
+  (sessions, total sets, date range) and **pagination** (`SESSIONS_PER_PAGE = 10`, `_sessionsLogPage`, ← Newer /
+  Older →) so a long history isn't dumped at once. The per-session card interactions (edit / superset / HR / share /
+  notes) were extracted into a shared `bindSessionCards(main)` used by both tabs, and tab switching is centralised in
+  a `switchToTab(name)` helper (resets the page + history/volume sub-state). "History" stays a separate filtered/
+  searchable view. Covered by `test/sessionslog.spec.mjs` (tab labels, today-only Dashboard, pagination math + nav,
+  single-page no-pager, see-Log link); visually verified.
+- **Categorized, searchable, filterable plan picker (feat 147):** the plans overlay list (`renderPlansList`) gains a
+  **search box** (name/theme), **category** filter chips and **length** filter chips, with plans **grouped under
+  category headers**. Categories are *derived* (`planCategory` → Push / Pull / Legs / Upper / Full Body / Core /
+  Mixed / Mobility / …) from each plan's step **muscle-mega mix** (`planMegaDist`, mirroring `sessionSplitLabel`), so
+  no hand-maintained field is needed and user plans categorize automatically; length buckets (quick ≤40 / standard /
+  long ≥90 min) come from `estimatePlanMinutes`. Filters live in `_plansSearch` / `_plansCatFilter` /
+  `_plansLenFilter` (reset on overlay open), the search keeps focus + caret across re-render, an empty result shows a
+  **Clear filters** action, and each row carries a category tag. `PLAN_CAT_ORDER` ranks the chips + headers. Covered
+  by `test/planlist.spec.mjs` (category derivation, chips + grouped headers, search, category filter, length filter +
+  clear); visually verified on the real seed plans.
+- **Rest/plan-step bar no longer overlaps the log sheet (feat 148):** the Log-Sets sheet (`#trk-modal`) is a
+  full-screen fixed overlay at `top:0`, so the fixed top bar (z9999) + the rest-timer bar (z9998) + the plan-step HUD
+  bar (z9997) floated **over** its top content — clipping the exercise title and the first sets. The sheet now gets
+  body-class-driven `top` offsets mirroring the `.panel` rules (`top:48px` base for the top bar → `78`/`102`/`90`/…
+  as the rest/idle + plan-step bars show), so it always starts just below whichever bars are visible. Bonus: the
+  modal's own "Log Sets" header (previously hidden behind the top bar) is now visible. Covered by
+  `test/restbaroverlap.spec.mjs`; visually verified.
+- **Set/reps field flashes on value change (feat 149):** when a set input's value changes for any reason, the field
+  briefly flashes. `commitSetField` (the single chokepoint for typing, OSK writes, and copy-reps) now calls a new
+  `flashSetField(i,f)` when the value actually changed (skipped when unchanged); `copyRepsToOpenSet` re-flashes after
+  its `renderModal`. The flash is an animated **box-shadow ring** (`@keyframes field-flash`), not a border-color —
+  `.set-input` has `border-color … !important` which would beat an animated border, whereas the ring is free. The
+  animation restarts each call (reflow trick) so rapid edits hold a steady glow then fade. Covered by
+  `test/fieldflash.spec.mjs` (changed flashes, unchanged doesn't, input-event path, copy-reps path).
+- **OSK on by default + strongly recommended (feat 150):** the on-screen numpad was effectively **off** by default —
+  the initial `DEFAULTS.workoutControls.onScreenNumpad` was `false` and won the `normalizeState` merge over the (true)
+  default. Set it `true` in `DEFAULTS` + the `ensureWC` fallback so fresh installs default-on; explicit user "off" is
+  still respected (no force-migration). The settings toggle now carries a **★ Recommended** badge, a **"Strongly
+  recommended — keep this on"** hint (noting the OSK powers ×10-hold, the calculator, plate setup + equipment tools),
+  and an "On ★" pill. Covered by `test/oskdefault.spec.mjs` (fresh-install default, recommendation UI, explicit-off
+  respected).
+- **Confirm change-exercise with 2+ unsaved sets (feat 151):** the Log-Sets "🔄 Change exercise" button now counts
+  the entered (weight-filled) sets; with **≥2** it pops a themed `confirmDialog` ("…N sets … aren't saved yet.
+  Picking a different exercise will discard them.") before switching to the picker — picking a different exercise
+  discards the in-progress sets, so this guards real work. <2 sets (or a blank trailing row) proceeds straight
+  through, and editing a saved exercise is exempt. Covered by `test/changeexconfirm.spec.mjs` (confirm→proceed,
+  cancel→stay, single-set bypass, blank-row not counted).
+- **Step bar opens the execution view (feat 156):** the notched current-step HUD bar (`#plan-step-bar`) now opens the
+  detailed **Plan Execution View** (feat 145, `openPlanExecution`) instead of the plan editor (`openPlanFull`); title
+  updated. Covered by `test/planexec.spec.mjs`.
+- **Discard active workout (feat 154):** a new **🗑 Discard** button in the active-workout controls (next to End
+  Workout) runs `discardActiveWorkout()` — a themed `confirmDialog` (showing the set count, "as if the session never
+  happened, can't be undone") then `clearPending()` + `stopMetronome()` + **`tombstoneSession()`** (feat 95, so sync
+  won't resurrect it) + removes the session from `state.sessions`. Distinct from End Workout, which keeps and grades
+  the session. Covered by `test/discardworkout.spec.mjs` (confirm removes+tombstones, cancel keeps, button renders).
+- **Data-op progress popup + missing-UUID resilience (feat 152/153):** every commanded data operation now runs inside
+  `runDataOp(title, fn)` — a popup that shows progress (spinner), then a **✓ success** (auto-dismisses after 1.3s when
+  clean) or a **✕ failure with a human-readable explanation** (`humanizeDataError` maps JSON-parse / quota / network /
+  permission / not-a-backup errors). `fn(ctx)` runs **synchronously** so a `downloadBlob` stays inside the click
+  gesture, but may return a Promise for async work; `ctx.warn(msg)` collects non-fatal warnings. Wired through
+  `exportData`, `exportCategoryJson/Csv`, and the import parse + apply. **feat 153:** `missingVarReport` /
+  `missingVarWarning` detect sessions/plans referencing a variation UUID this build doesn't know (e.g. a custom
+  exercise changed by an update); the op **warns but never fails** and the rows are **kept with their original IDs**
+  (export) / **merged anyway** (import) so nothing is silently dropped. Covered by `test/dataop.spec.mjs` (error
+  mapping, failure popup, missing-UUID report + warning, export warns-not-fails, clean success, resilient import);
+  visually verified.
+- **Step suggestion = loose weight×reps, tuned to the variation (feat 161):** the plan-step load badge suggested only
+  a weight, and for a *movement* option it used the family-wide **max** baseline — over-suggesting from your single
+  heaviest variation. `baselineWeightForOption` now tunes a movement to the **most-recently-trained** variation in the
+  family, and a new `suggestedSetForOption(o, load)` returns a **weight×reps** suggestion (`repTargetForLoad`: heavy 5
+  / moderate 8 / light 12; weight scaled from your recent baseline, or `null` → suggest reps only when there's no
+  history). The badge reads "load · suggest ≈ {w}×{r}" with a "just a guide, not a target" tooltip. Covered by
+  `test/stepsuggest.spec.mjs` (rep targets, tuned weight, movement→most-recent-not-max, no-history reps-only, render).
+- **Grades: S top, D floor, ≥ filter (feat 158):** the grade scale now tops out at **S** (replacing A+) and floors at
+  **D** (no F, for positivity) via a single `GRADE_SCALE` source of truth — `gradeFor`, `computeWorkoutScore`, and the
+  live-score estimate all use it. New `GRADE_ORDER`/`gradeRank` (legacy `A+`→A, `F`→D-floor) power a **Grade ≥** chip
+  filter on the **Log** tab (`_logMinGrade`) that narrows the session list to a chosen grade or better, with an
+  empty-state + "show all". A gold **`.g-S`** chip style marks the top tier. Covered by `test/grades.spec.mjs` (scale,
+  ranking + legacy, Log ≥-filter, S chip).
+- **Wake lock during a workout (feat 160):** the honest answer to "PWA can't play audio/haptics unless open+unlocked"
+  — a web app genuinely can't fire them when the screen is **locked** or the app is closed (OS restriction). So we
+  hold a **Screen Wake Lock** while a workout is active (`acquireWakeLock`/`releaseWakeLock`/`refreshWakeLock`,
+  gated by `wakeLockSupported()` + the default-on `workoutControls.keepAwake` + an active session), keeping the
+  display on so the metronome / rest cues keep playing. Acquired on `startWorkout`, released on end/discard,
+  re-acquired on `visibilitychange` (locks drop when hidden) + at boot. A **Keep screen awake during workout**
+  settings toggle states the limitation plainly. Covered by `test/wakelock.spec.mjs` (acquire/release, setting + no-
+  session gates, settings UI).
+- **Live score: real value + autoscaled sparkline (feat 157):** the live estimate was rounded to the nearest 5
+  (`Math.round(pts/5)*5`), so it "stuck" to round numbers. It now shows the **real integer** score (no faked
+  volatility — just stop hiding the real moves), tracks it across the session (`trackLiveScore`, de-duped + reset per
+  session, ephemeral) and draws an **autoscaled sparkline** (`sparklineSvg`, y mapped to the series min/max so small
+  real changes are visible) plus a "▲/▼ N this session" delta. `sparklineSvg` is a reusable helper for other live
+  trends. Covered by `test/livescore.spec.mjs` (sample tracking, autoscale + flat/short series, no-rounding code path).
+- **HR connection robustness across app open/close (feat 159):** the Web-Bluetooth HR link dropped when the app was
+  backgrounded/closed and nothing re-attached on return. The foreground-return path (`visibilitychange`→visible +
+  `window 'focus'`) now silently re-attaches the remembered device via `hrTryReconnect()` (the existing
+  `getDevices()` reconnect), and a boot-time reconnect attempt covers a full reopen mid-workout. The
+  `gattserverdisconnected` retry (`hrScheduleReconnect`) now fires **immediately** instead of waiting the first 6s and
+  persists longer (30 tries). Covered by `test/hrreconnect.spec.mjs` (silent re-attach, no-op guards, wiring present).
+- **Exclude muscle groups from the overall trend (feat 165):** the Overall Progress Index can now omit chosen muscle
+  groups (e.g. an injured area unfairly dragging the average). `computeOverallProgress` filters tracking keys whose
+  `bp` is in the persisted `state.trendExclude`; the Overall trend view shows tap-to-exclude muscle-group chips and —
+  when any are excluded — a **loud reminder banner** ("⚠️ excluding Chest — restore once recovered") with a one-tap
+  **Restore all**, plus a "filtered" tag + warn-bordered card so it's never forgotten. Covered by
+  `test/trendexclude.spec.mjs` (exclusion drops exercises, toggle on/off, banner+chips render, persisted setting).
+- **New plan from a past freestyle workout (feat 155):** the plans list gains a **＋ From a past workout** button
+  (shown when `_freestyleSessions()` — plan-less sessions with strength sets — exist). It pops a `choiceDialog` of the
+  10 most recent freestyle sessions; picking one runs `newPlanFromSession()` which builds a plan with **one step per
+  logged strength exercise** (sets = sets logged, the variation as the step option, named "&lt;split&gt; · &lt;date&gt;",
+  `createdFromSession` recorded) and opens it in the editor to tweak. Covered by `test/planfromworkout.spec.mjs`
+  (step-per-exercise + cardio skip, freestyle filtering, button shown/hidden).
+- **GymTracker315 branding (feat 170):** the tracker header is now a generic **GymTracker315** wordmark (stylized
+  text placeholder — "Gym" + accent "Tracker" + a "315" badge; not trademarked/copyrighted) instead of "📈 Overload
+  Tracker". A **Preferences → Show GymTracker315 branding** toggle (`state.hideBranding`) hides it via a `brand-hidden`
+  body class (`applyBranding()` on every render). **Exports always carry the brand regardless:** `brandLogoHtml(true)`
+  heads the PDF print-root, and the share-image card draws "GymTracker315" at the top of the header band (and keeps
+  its footer credit). Covered by `test/branding.spec.mjs` (header wordmark, hide toggle, PDF brand-while-hidden,
+  persisted setting); visually verified.
+- **Time-bounded "Copy for Claude" digest (feat 171):** the most efficient way to hand a progress summary to Claude —
+  a **compact markdown digest** (`buildClaudeDigest`) built over the export dialog's existing time window
+  (week/month/last30/all/custom). It **aggregates per exercise** (not every raw set, so it fits one message): an
+  explicit analysis ask, an overview (sessions, span, /week, sets, avg grade), per-exercise **e1RM progression**
+  (first→latest top set + % change + best, capped at 30 with an overflow note), and body/cardio notes. Surfaced as a
+  **🤖 Copy summary for Claude** button in the export dialog. Covered by `test/claudeexport.spec.mjs` (digest shape +
+  progression + body, exercise cap, button present).
+- **Illicit-drug / illegal-activity sweep (feat 172):** swept the app's text for anything that could read as
+  encouraging illicit drug use or illegal activity. The glossary's PED/steroid "slang" entries are **kept for
+  awareness but neutralized** — removed the glamorizing drug-stacking meme ("Tren hard, eat clen, anavar give up"),
+  added explicit **health + "illegal without a prescription"** caveats and a **not-recommended / natural, drug-free
+  training** framing to Sauce/Juice, PEDs, TRT, Roid Rage, Tren, Roid, Natty; reframed caffeine's "Legal PED" label to
+  "Everyday boost". Alcohol mentions were all already cautionary (sleep/recovery) or benign sport tradition — left as
+  is. Covered by `test/contentsweep.spec.mjs`.
+- **More seed plans (feat 168):** added a 4th tranche of 10 plans across varied flavours — **5×5 Strength A/B**
+  (classic linear progression), **Calisthenics Foundations** (bodyweight), **Posterior Strength** (hinge-led), **Arm
+  Day**, **Core & Midsection**, **Lunch Break 20** (quick), **Chest Specialization**, **Shoulder Sculpt**, **Back &
+  Biceps** — all using already-valid movement family ids, so they categorize/search/filter via the feat 147 picker.
+  Copy kept clean per the feat 173 sweep. Covered by `test/moreplans.spec.mjs` (new plans present, **every** seed
+  plan's options resolve to real movements/variations, categories spread).
+- **Achievement paths (feat 169):** a new **🏅 Milestones** sub-view in the Trends tab with ladders of classic,
+  challenging-but-realistic goals: plate-count **Bench / Squat / Deadlift** (135→405/495/585), the **Captains of
+  Crush** grip ladder (self-tracked), and **Running / Rowing distance** (5K→marathon, 2K→half). `ACHIEVEMENT_PATHS`
+  + `computeAchievement` read progress from your **own logged best** — *not strict on variation or powerlifting aids*
+  (any bench counts toward "X plates"; strength compared in lb, cardio in km). Each card shows reached tier, next
+  target ("85 lb to 3 plates"), a tier ladder, and a **per-path safety note**; the view opens with a prominent
+  **disclaimer discouraging dangerous behaviour** (heavy unspotted bench, overly long runs). Covered by
+  `test/achievements.spec.mjs` (tier from best lift, cardio distance, disclaimer + notes + all paths, tab view);
+  visually verified.
+- **Reconcile duplicate movements (feat 166):** "Neck Training" and "Resistance Band Work" each existed as **two**
+  families across the base + extra datasets (and in both the picker and the Reference). A load-time `dedupeFamilies()`
+  now collapses same-title families into one canonical (`_dedupeMovementList` over **both** `FAMILIES` — re-pointing
+  `VAR_INDEX` so logged sets still resolve — and the Reference `exercises`). Canonical preference: a feat-90 EXTRA id
+  wins, then more variations, then first-seen — so `neck-training` (the expected canonical) beats the legacy `neck`,
+  and the richer `resistance-bands` (15 vars) beats `band-work` (7); distinct variations are unioned. Dropped family
+  ids are kept resolvable via `_FAMILY_ALIAS` + `resolveFamilyId` (used in `optionMatchesVar`) so a plan's movement
+  option still matches. Covered by `test/dedupfamilies.spec.mjs` (no dup titles, variations resolve, alias matching).
+- **Variation cross-listing — primary + secondary parents (feat 167):** beyond duplicate *families* (feat 166), the
+  datasets carried ~25 cases of the **same exercise filed under two different movements** (the canonical example:
+  **Plate Pinch** under both *Grip Training* and *Forearm Work*; also Landmine Press, Meadows Row, Muscle-Up, Wall
+  Ball, Anderson Squat, Dragon Flag, …). A variation now has exactly **one primary parent** (the family it lives in)
+  and may be **cross-listed** under additional **secondary parent** movements, where it renders at the **bottom** of
+  that family's picker list with a *"↳ primarily a &lt;movement&gt;"* link that jumps to its home movement. A plan
+  **movement-step is satisfied by a variation whether the movement is its primary OR a secondary parent** —
+  `optionMatchesVar` and `stepQualifyingVarSet` both honour `secondaryParentsOf()` / `secondaryVarsForFamily()`.
+  Authored as `VAR_DUP_RECONCILE` `{keep, drop}` uuid pairs: `keep` is the canonical/primary; `drop` is the duplicate
+  copy, which `reconcileVariationParents()` (run at load after `dedupeFamilies()`) **suppresses** from its own
+  family's list (`_VAR_SUPPRESS` → `varVisibleInPicker`) and whose family becomes a **secondary parent of the
+  canonical**. Net: the exercise shows **once per family** (never a stale twin), yet both movement steps still match
+  it. No logged data is destroyed — suppressed copies stay in `VAR_INDEX` (old sessions resolve + render) and still
+  natively satisfy their own family's steps. Primary picks are editorial (the more natural "home"); the relationship
+  is plain data, trivially re-pointed, with a `SECONDARY_PARENTS_EXTRA` hook for purely-additive cross-listings.
+  Covered by `test/secondaryparents.spec.mjs` (primary+secondary matching, qualifying-set union, suppression + the
+  cross-link row, no remaining visible cross-family dups, data preserved); `test/planpicker.spec.mjs` updated for the
+  union semantics.
+- **Claude-fillable media reference sheet (feat 174):** the bulk-media tools previously only spoke JSON — `Export
+  exercise list` emitted machine JSON for the python matcher, and `Import media map` consumed a *different* JSON
+  shape. New **round-trip** path so a human (or **Claude chat / cowork**) can populate reference clips: **`📝 Media
+  sheet`** (`buildMediaSheet(scope)`) exports a plain-markdown list of every exercise — grouped by movement, each line
+  carrying a stable `{id: <uuid>}` tag and a `media:` slot pre-filled with any existing links — with fill-in
+  instructions at the top; scope is **all** or **only those missing links**. You hand it to Claude ("find good form
+  clips for each"), Claude fills the `media:` lines, and you re-import the **same text** — `parseMediaSheet()` reads
+  each exercise block by its `{id}` tag (falling back to the **title** if the tag was dropped) and grabs every
+  `http(s)` URL on the `media:` line *or* bare continuation lines, tolerant of light reformatting. Import is unified
+  via **`importMediaData()`**, which sniffs the first char (`{`/`[` → JSON map, else → sheet), so the one **Import
+  file** button (now also `.md`) and a new **`📋 Paste sheet to import`** (reads the clipboard) both accept either
+  format. The JSON importer was refactored to share `applyMediaEntries()` (attach + dedup + match-by-uuid/id/title)
+  with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
+  immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
+  parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Favorite plans & variations (feat 178):** a ★ toggle on every plan row and every exercise-picker row, backed by
+  two synced settings maps (`state.favoritePlans` / `state.favoriteVars`, both in `SETTINGS_KEYS`, defaulted in
+  `normalizeState`). Helpers `isFavPlan`/`toggleFavPlan` + `isFavVar`/`toggleFavVar` (+ a shared `favStarHtml`
+  button) drive it; the star `stopPropagation`s so tapping it favorites without selecting the row. **Surfacing:**
+  the exercise picker gains a **★ pill** (`modalState.pickerFavOnly`) that filters to favorites only, and within
+  each family favorites **float to the top**; the plan picker gains a **★ Favorites chip** (`_plansFavOnly`, shown
+  with a count when any exist) and favorites sort to the top of each category group. Favorites live in serialized
+  state, so they persist locally and ride along cloud sync. Covered by `test/favorites.spec.mjs` (toggle idempotence
+  + settings-key membership, normalize backfill, the picker star/float/filter, the plan star/chip/filter, and
+  serialized-state persistence).
+- **Rest-bar prev → next exercise heads-up (feat 177):** during between-sets rest the global rest bar now shows
+  the exercise you just finished **and what's next**. `restBarNextExercise(prevUuid)` resolves the next by priority:
+  (1) an exercise already **selected in the log but not started** (a queued pick), else (2) the **next incomplete
+  step of the active explicit plan** (skipping the step the prev exercise belongs to), else (3) an **implicit
+  pseudo-step** — `implicitNextSuggestion` names the least-trained main split this session (push/pull/lower/core),
+  preferring a different split than the one just done, e.g. `Pull (suggested)` — else (4) nothing. The bar's sub-line
+  becomes `prev → next` (plan steps tagged `(plan)`); when there's no next it keeps the existing rest-target range
+  (the colour zone + countdown still encode target adherence). Inter-exercise rest now reads `prev → selected`
+  instead of a bare "between exercises". Covered by `test/restbarnext.spec.mjs` (each tier of the chain, the
+  null case, and the rendered `prev → next` bar).
+- **Advisory suggested rest between steps (feat 176):** the detailed execution view now interleaves a small
+  `💤 suggested rest ~m–m` divider between step cards, scaled by the heavier of the two adjacent steps' loads
+  (`suggestedStepRestRange`: heavy 2½–4 min, moderate 1½–2½ min, light ¾–1½ min). It is **purely a guide** — the
+  plan tracks no order (steps can be done in any sequence, with off-plan work in between), so unlike the feat-163
+  between-exercise rest total, **nothing is ever measured against it**. A single-step plan shows no divider.
+  Covered by `test/steprest.spec.mjs` (load scaling, N-1 dividers for N steps, none for a single step).
+- **Plan length distribution — 90-min + 3-hour marks (feat 175):** the seed-plan library bunched at 30–60 min with
+  a few 2-hour marathons and **nothing at the 90-minute or 3-hour marks**. Added a tranche-5: four **~90 min** plans
+  (Full Body Builder, Upper Body Power, Leg Day, Push/Pull — 7 steps × ~5 sets) and three **~3 hour** marathons
+  (Full Body Marathon, Leg Annihilation, Upper Body Epic — 10 steps × 6–8 sets), tuned so `estimatePlanMinutes`
+  lands exactly on 90 / 180. The 3-hour plans carry honest descriptions (advanced, high-volume, run sparingly,
+  manage fatigue). New ids append for existing users via the `seededPlanIds` merge. Distribution is now
+  30/45/60/**90**/120/**180** min. Covered by `test/plans90180.spec.mjs` (clusters at 90 + 180, every option
+  resolves, 3-hour plans fall in the picker's `long` bucket); `test/moreplans.spec.mjs` validates the new options too.
+- **Plan authorship + revisions / audit trail (feat 162):** plans were silently auto-saved with no history. Now
+  every plan carries an **`author`** (user plans → "You", seeds → "GymTracker315") and a numbered, append-only
+  **revision history** (`plan.rev` + `plan.revisions[]`, each `{rev, at, author, note, content}` where `content`
+  is a deep snapshot of name/desc/intensity/minPct/steps). The creator gains a **revision bar** — `rev N`, author
+  (tap to edit), a dirty/clean badge, and **Commit / Revert / History** buttons. The editor still auto-saves the
+  working **draft** (nothing is lost); **Commit** (`commitPlanRevision`) snapshots the draft as the next revision,
+  **Revert** (`revertPlanToCommitted`) discards uncommitted edits, and **History** lists every revision (newest
+  first) with **Restore-to-draft** (`restorePlanRevision`). Dirtiness is an id-independent content compare
+  (`planContentSnapshot` → JSON) so reordering ids never shows a false change; `ensurePlanRevisioned()` backfills a
+  baseline in `normalizeState` (idempotent) and the history is capped at 30. **Crucially, an execution is only ever
+  compared to runs of the same revision**: `planUseForWorkout` stamps `session.planRev = plan.rev`,
+  `findPlanExecutions(planId, excludeId, rev)` filters to that revision (no rev → legacy all-runs behaviour), and the
+  detailed execution view judges a past run against `planAtRevision(plan, session.planRev)` — the exact content it
+  ran, not a later, arbitrarily-different one (the view shows a `rev N` badge). Covered by
+  `test/planrevisions.spec.mjs` (baseline, seed authorship, dirty→commit→clean, revert, restore, planAtRevision,
+  same-revision comparison, planRev stamping, the editor bar).
+- **Deep plan-execution analytics (feat 163):** the detailed execution view (feat 145) gains a full analytics
+  layer from a session's set timestamps (`wTs` = set start, `ts` = set done). `computePlanExecutionDetail(session,
+  plan)` (pure — also seeds the feat-164 snapshot) computes: the **actual step sequence** performed (off-plan
+  exercises flagged inline), rest spent **within** exercises vs **between** exercises (clamped gap sums), **active**
+  (under-tension) time, **% active for completed steps**, per-step **estimated vs actual** time (est uses an
+  a-priori `DEFAULT_PER_SET_SEC`; actual is measured active+within), an **ETC drift series** (the projected finish
+  recomputed at each completed set, drawn with `sparklineSvg`) plus its **delta from the plan's original estimate**
+  (`estimatePlanMinutes`), and an **off-plan summary** (count / sets / active time / names of exercises that matched
+  no step). The view renders an analytics panel (ETC + spark, a 4-up time grid, the sequence chips, the off-plan
+  line) and a per-step `⏱ est · actual · %active` line; the panel is suppressed when a session has no timing data.
+  Covered by `test/planexecdetail.spec.mjs` (exact active/within/between math, %active, est-vs-actual, sequence
+  ordering, off-plan totals, ETC delta + series length, render integration, and graceful no-timing degradation).
+- **Historized plan execution + end-of-workout recap (feat 164):** the detailed analytics (feat 163) are now
+  **snapshotted onto the session** at workout end so a run stays reviewable later even if the plan changes or is
+  deleted. `finalizeEndWorkout` calls `finalizePlanExecution(session)`, which judges the run at the revision it ran
+  (`planAtRevision(plan, session.planRev)`) and stores `session.planExec = {at, planName, planRev, summary, detail,
+  incomplete, skipped}` — where **incomplete** = steps started but left under their min% (`{label, logged, req}`)
+  and **skipped** = steps never touched (`planIncompleteSkipped`). The execution view shows a finished-run recap
+  banner (⚠ incomplete / ⏭ skipped, or "✓ Every step completed") for any ended session, and the Log session badge
+  prefers the stored snapshot (and the run revision) for its `done/total` count and surfaces a `· N skipped` tag.
+  The snapshot travels inside the session (so it syncs + exports for free). Covered by
+  `test/planexechist.spec.mjs` (snapshot shape + incomplete/skipped classification, end-to-end finalize, the recap
+  banner, the all-complete case, the Log badge, and no-recap-while-live).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

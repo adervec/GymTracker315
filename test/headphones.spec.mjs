@@ -55,6 +55,56 @@ test('probeAudioOutput classifies output device labels', async ({ page }) => {
   expect(r.unknown).toBe(null);
 });
 
+test('feat 140 — a Bluetooth headset is never mistaken for the built-in speaker (fail open)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const cls = (labels) => classifyAudioOutputs(labels);
+    return {
+      // the reported bug: a BT headset shown only by brand, alongside the built-in speaker. We can't
+      // positively confirm headphones from the brand alone, but we must NOT mute -> unknown (fail open).
+      brandBtPlusSpeaker: cls(['Sony WH-1000XM4', 'Speaker (Built-in)']),
+      brandBtOnly: cls(['Bose QC35 II']),
+      // positive headphone signals -> headphones detected even with a speaker also present
+      buds: cls(['Galaxy Buds Pro (Bluetooth)', 'Speaker']),
+      airpods: cls(['AirPods Pro', 'Speaker']),
+      wired: cls(['Wired Headphones', 'Speaker']),
+      btKeyword: cls(['LE-Bose QC (Bluetooth)']),
+      handsFree: cls(['Pixel Buds (hands-free)']),
+      // confirmed built-in only -> muted
+      speakerOnly: cls(['Speaker']),
+      earpiece: cls(['Earpiece', 'Speakerphone']),
+      // nothing to go on -> unknown
+      none: cls([]),
+      blank: cls(['', '']),
+    };
+  });
+  expect(r.brandBtPlusSpeaker).toBe(null); // fail open: audio is NOT muted (the bug)
+  expect(r.brandBtOnly).toBe(null);
+  expect(r.buds).toBe(true);
+  expect(r.airpods).toBe(true);
+  expect(r.wired).toBe(true);
+  expect(r.btKeyword).toBe(true);
+  expect(r.handsFree).toBe(true);
+  expect(r.speakerOnly).toBe(false);
+  expect(r.earpiece).toBe(false);
+  expect(r.none).toBe(null);
+  expect(r.blank).toBe(null);
+});
+
+test('feat 140 — the headphone gate lets audio through for a brand-name Bluetooth headset', async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    state.audioHeadphonesOnly = true;
+    navigator.mediaDevices.enumerateDevices = async () => [
+      { kind: 'audiooutput', label: 'Speaker (Built-in)', deviceId: 'default' },
+      { kind: 'audiooutput', label: 'Sony WH-1000XM4', deviceId: 'bt' },
+      { kind: 'audioinput', label: 'Microphone', deviceId: 'mic' }, // inputs are ignored
+    ];
+    await probeAudioOutput();
+    return { connected: _headphonesConnected, gate: headphoneGatePasses() };
+  });
+  expect(r.connected).toBe(null);   // ambiguous output -> unknown
+  expect(r.gate).toBe(true);        // fail open -> audio is NOT muted (fixes the report)
+});
+
 test('headphoneStatus summarizes each state for the settings UI', async ({ page }) => {
   const r = await page.evaluate(() => {
     state.audioHeadphonesOnly = false; const off = headphoneStatus().text;

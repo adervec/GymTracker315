@@ -19,12 +19,14 @@ test('stepQualifyingVarSet unions variation + whole-movement options', async ({ 
     const fam = VAR_INDEX.get(a).family;
     const sv = stepQualifyingVarSet({ options: [{ type: 'variation', uuid: a }] });
     const sm = stepQualifyingVarSet({ options: [{ type: 'movement', familyId: fam.id }] });
-    return { varHasA: sv.has(a), varSize: sv.size, movHasA: sm.has(a), movSize: sm.size, famCount: fam.variations.filter((v) => v.uuid).length };
+    // feat 167 — a whole-movement step qualifies its native variations PLUS any cross-listed (secondary) ones
+    const secCount = secondaryVarsForFamily(fam.id).length;
+    return { varHasA: sv.has(a), varSize: sv.size, movHasA: sm.has(a), movSize: sm.size, famCount: fam.variations.filter((v) => v.uuid).length, secCount };
   });
   expect(r.varHasA).toBe(true);
   expect(r.varSize).toBe(1);
   expect(r.movHasA).toBe(true);
-  expect(r.movSize).toBe(r.famCount); // every variation in the movement qualifies
+  expect(r.movSize).toBe(r.famCount + r.secCount); // every native variation + every cross-listed (secondary) variation qualifies
 });
 
 test('a plan-step filter overrides the mega pill and shows only that step exercises', async ({ page }) => {
