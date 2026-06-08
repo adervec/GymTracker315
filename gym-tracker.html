@@ -1238,6 +1238,10 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .set-row:last-child { border-bottom: none; }
   .set-num { font-size: 11px; color: #666; text-align: center; font-weight: 700; }
   .set-input { padding: 9px 10px; font-size: 15px; text-align: center; }
+  /* feat 149 — brief border flash when a set/reps value changes (box-shadow ring; .set-input border-color is
+     !important elsewhere, which would beat an animated border-color, so we animate the ring instead). */
+  .set-input.field-flash { animation: field-flash 0.5s ease-out; }
+  @keyframes field-flash { 0% { box-shadow: 0 0 0 2.5px var(--accent); } 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); } }
   .set-remove { background: transparent; color: #555; border: none; font-size: 18px; padding: 4px; cursor: pointer; }
   .set-remove:active { color: #ff9090; }
   .set-header { display: grid; grid-template-columns: 30px 1fr 1fr 30px; gap: 8px; font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.4px; padding-bottom: 4px; }
@@ -12780,9 +12784,19 @@ function updateRowLive(idx) {
 }
 
 // feat 51/57 — apply a weight/reps value to a set; the native input AND the on-screen numpad both use this path.
+// feat 149 — briefly flash a set input's border whenever its value changes (any source: typing, OSK,
+// copy, setup-apply). Restarts the animation each call so rapid edits keep a steady glow, then fade.
+function flashSetField(i, f) {
+  const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + i + '"][data-field="' + f + '"]');
+  if (!inp) return;
+  inp.classList.remove('field-flash');
+  void inp.offsetWidth; // force reflow so the animation replays
+  inp.classList.add('field-flash');
+}
 function commitSetField(i, f, val) {
   const s = pending.sets[i];
   if (!s) return;
+  const prev = s[f];
   const n = parseFloat(val);
   s[f] = (val === '' || val == null || isNaN(n)) ? '' : n;
   const wFilled = s.w !== '' && s.w != null;
@@ -12799,6 +12813,7 @@ function commitSetField(i, f, val) {
   updateRowLive(i);
   if (f === 'w') renderNeighborHints();
   if (typeof refreshRestBar === 'function') refreshRestBar();
+  if (s[f] !== prev) flashSetField(i, f); // feat 149 — visual confirmation the field changed
 }
 
 /* feat 57 — optional in-app numpad (avoids the native mobile keyboard reflowing the form) */
@@ -13313,6 +13328,7 @@ function copyRepsToOpenSet() {
   if (src == null) { toast('No previous reps to copy'); return; }
   commitSetField(openIdx, 'r', src);   // reuse the canonical reps path (parse, stamp ts, persist, live-update)
   renderModal();
+  flashSetField(openIdx, 'r');         // feat 149 — renderModal rebuilt the inputs, so re-flash the filled reps
   updateFAB();
   updateSaveBtn();
   try { safeVibrate(15); } catch (_) {}
@@ -13540,7 +13556,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 95 · 2026-06-07 20:43';
+const APP_BUILD = 'build 96 · 2026-06-07 20:49';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

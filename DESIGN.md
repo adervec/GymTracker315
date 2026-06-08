@@ -691,6 +691,13 @@ They share variation **UUIDs**.
   as the rest/idle + plan-step bars show), so it always starts just below whichever bars are visible. Bonus: the
   modal's own "Log Sets" header (previously hidden behind the top bar) is now visible. Covered by
   `test/restbaroverlap.spec.mjs`; visually verified.
+- **Set/reps field flashes on value change (feat 149):** when a set input's value changes for any reason, the field
+  briefly flashes. `commitSetField` (the single chokepoint for typing, OSK writes, and copy-reps) now calls a new
+  `flashSetField(i,f)` when the value actually changed (skipped when unchanged); `copyRepsToOpenSet` re-flashes after
+  its `renderModal`. The flash is an animated **box-shadow ring** (`@keyframes field-flash`), not a border-color —
+  `.set-input` has `border-color … !important` which would beat an animated border, whereas the ring is free. The
+  animation restarts each call (reflow trick) so rapid edits hold a steady glow then fade. Covered by
+  `test/fieldflash.spec.mjs` (changed flashes, unchanged doesn't, input-event path, copy-reps path).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
