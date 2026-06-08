@@ -1608,6 +1608,28 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .trend-excl-row { display: flex; flex-wrap: wrap; gap: 5px; }
   .trend-excl-chip { padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
   .trend-excl-chip.off { background: color-mix(in srgb, var(--warn) 16%, transparent); border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); text-decoration: line-through; }
+  /* feat 169 — achievement paths */
+  .ach-disclaimer { background: color-mix(in srgb, var(--warn) 13%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); color: var(--text2); border-radius: 10px; padding: 11px 13px; margin-bottom: 12px; font-size: 12px; line-height: 1.55; }
+  .ach-disclaimer b { color: var(--warn); }
+  .ach-card { background: #141414; border: 1px solid #222; border-radius: 11px; padding: 12px 13px; margin-bottom: 10px; }
+  .ach-card.ach-manual { border-style: dashed; }
+  .ach-head { display: flex; align-items: center; gap: 11px; margin-bottom: 10px; }
+  .ach-icon { font-size: 22px; flex-shrink: 0; }
+  .ach-head-main { flex: 1; min-width: 0; }
+  .ach-name { font-size: 13.5px; font-weight: 800; color: var(--text); }
+  .ach-cur { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .ach-badge { flex-shrink: 0; font-size: 10px; font-weight: 800; color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); border-radius: 999px; padding: 3px 9px; text-align: center; }
+  .ach-badge.none { color: var(--text3); background: var(--bg3); }
+  .ach-tiers { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+  .ach-tier { flex: 1 0 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; opacity: 0.55; }
+  .ach-tier.done { opacity: 1; }
+  .ach-tier.next { opacity: 1; }
+  .ach-tier-dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; background: var(--bg3); border: 1px solid var(--border2); color: var(--text3); }
+  .ach-tier.done .ach-tier-dot { background: var(--good); border-color: var(--good); color: #07210e; }
+  .ach-tier.next .ach-tier-dot { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
+  .ach-tier-label { font-size: 9.5px; color: var(--text3); line-height: 1.25; max-width: 78px; }
+  .ach-tier.done .ach-tier-label, .ach-tier.next .ach-tier-label { color: var(--text2); }
+  .ach-note { font-size: 10.5px; color: var(--text3); line-height: 1.5; margin-top: 9px; border-top: 1px solid var(--border2); padding-top: 8px; }
   .trend-card-sub { font-size: 10px; color: #888; margin-top: 1px; }
   .trend-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 8px; }
   .trend-card-value { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -10501,6 +10523,83 @@ function renderSessionTrends() {
   return html;
 }
 
+/* ============================================================
+   feat 169 — ACHIEVEMENT PATHS: ladders of classic, challenging-but-realistic milestones (plate-count
+   pressing/pulling, CoC grip ladder, cardio distances). Progress is read from your own logged best — not
+   strict on variation or powerlifting aids (any bench counts toward "X plates"). Every path carries a
+   safety note; the view opens with a prominent disclaimer discouraging dangerous behaviour.
+   ============================================================ */
+const ACHIEVEMENT_PATHS = [
+  { id:'bench-plates', name:'Bench Press — plates on the bar', icon:'🏋️', type:'strength', kw:/bench|chest press/i,
+    tiers:[ {label:'1 plate · 135 lb', lb:135}, {label:'2 plates · 225 lb', lb:225}, {label:'3 plates · 315 lb', lb:315}, {label:'4 plates · 405 lb', lb:405} ],
+    note:'Any bench/chest-press variation counts. ALWAYS bench with a spotter or safety arms — a missed heavy bench can pin you against the bar. Never test a max alone.' },
+  { id:'squat-plates', name:'Squat — plates on the bar', icon:'🦵', type:'strength', kw:/squat/i,
+    tiers:[ {label:'1 plate · 135 lb', lb:135}, {label:'2 plates · 225 lb', lb:225}, {label:'3 plates · 315 lb', lb:315}, {label:'4 plates · 405 lb', lb:405}, {label:'5 plates · 495 lb', lb:495} ],
+    note:'Any squat variation counts. Squat in a rack with the safety pins set just below depth, and know how to bail backward off the bar.' },
+  { id:'deadlift-plates', name:'Deadlift — plates on the bar', icon:'🏋️', type:'strength', kw:/deadlift/i,
+    tiers:[ {label:'2 plates · 225 lb', lb:225}, {label:'3 plates · 315 lb', lb:315}, {label:'4 plates · 405 lb', lb:405}, {label:'5 plates · 495 lb', lb:495}, {label:'6 plates · 585 lb', lb:585} ],
+    note:'Any deadlift variation counts. Brace hard and keep the bar close. Round-back grinders are how backs get hurt — leave a rep in the tank rather than chasing an ugly single.' },
+  { id:'coc-grippers', name:'Captains of Crush grip ladder', icon:'✊', type:'manual',
+    tiers:[ {label:'CoC Trainer (~100 lb)'}, {label:'CoC No. 1 (~140 lb)'}, {label:'CoC No. 2 (~195 lb)'}, {label:'CoC No. 3 (~280 lb)'} ],
+    note:'A classic crushing-grip ladder. Closes are self-assessed — the app can\'t measure them, so treat this as an aspirational checklist. Warm the wrists, build slowly: grip tendons adapt slowly and respond badly to ego.' },
+  { id:'run-distance', name:'Running — longest single run', icon:'🏃', type:'cardio', kwSport:/run|jog/i,
+    tiers:[ {label:'First 5K', km:5}, {label:'10K', km:10}, {label:'Half marathon · 21.1K', km:21.1}, {label:'Marathon · 42.2K', km:42.2} ],
+    note:'Build distance gradually (roughly +10%/week) and bank easy recovery days. There is no medal for running hurt — jumping to an overly long run before you\'re ready is the fast track to a stress injury.' },
+  { id:'row-distance', name:'Rowing — longest single row', icon:'🚣', type:'cardio', kwSport:/row/i,
+    tiers:[ {label:'2K', km:2}, {label:'5K', km:5}, {label:'10K', km:10}, {label:'Half-marathon row · 21.1K', km:21.1} ],
+    note:'Pace it from the start. Long rows fatigue the lower back — keep the stroke crisp and stop if your form breaks down.' },
+];
+function _achKwBestLb(kw) {
+  let best = 0;
+  (state.sessions || []).forEach(s => (s.exercises || []).forEach(ex => {
+    if (ex.cardio) return;
+    const info = VAR_INDEX.get(ex.varUuid); const name = info ? (info.variation.title + ' ' + info.family.title) : '';
+    if (!kw.test(name)) return;
+    (ex.sets || []).forEach(st => { const w = parseFloat(st.w) || 0; if (w > best) best = w; });
+  }));
+  return state.unit === 'kg' ? best * 2.205 : best; // plate milestones are imperial
+}
+function _achKwBestKm(kwSport) {
+  let best = 0;
+  (state.sessions || []).forEach(s => (s.exercises || []).forEach(ex => {
+    if (!ex.cardio || !ex.cardio.distance) return;
+    const info = VAR_INDEX.get(ex.varUuid); const name = info ? (info.variation.title + ' ' + info.family.title) : '';
+    if (kwSport && !kwSport.test(name)) return;
+    const c = ex.cardio, u = c.distanceUnit;
+    const km = u === 'mi' ? c.distance * 1.60934 : (u === 'm' ? c.distance / 1000 : c.distance);
+    if (km > best) best = km;
+  }));
+  return best;
+}
+function computeAchievement(p) {
+  if (p.type === 'manual') return { reachedIdx: -1, nextIdx: 0, curTxt: 'Self-tracked', toGo: '' };
+  let cur = 0, curTxt = 'No data yet';
+  if (p.type === 'strength') { cur = Math.round(_achKwBestLb(p.kw)); curTxt = cur > 0 ? `Your best: ${cur} lb` : 'No matching lifts logged yet'; }
+  else { cur = _achKwBestKm(p.kwSport); curTxt = cur > 0 ? `Your best: ${cur.toFixed(1)} km` : 'No matching cardio logged yet'; }
+  let reachedIdx = -1;
+  p.tiers.forEach((t, i) => { const v = p.type === 'strength' ? t.lb : t.km; if (cur >= v - 1e-6) reachedIdx = i; });
+  const nextIdx = reachedIdx + 1 < p.tiers.length ? reachedIdx + 1 : -1;
+  let toGo = '';
+  if (nextIdx >= 0 && cur > 0) { const t = p.tiers[nextIdx]; const v = p.type === 'strength' ? t.lb : t.km; const gap = v - cur; toGo = p.type === 'strength' ? `${Math.round(gap)} lb to ${t.label.split('·')[0].trim()}` : `${gap.toFixed(1)} km to ${t.label.split('·')[0].trim()}`; }
+  return { reachedIdx, nextIdx, curTxt, toGo };
+}
+function renderAchievements() {
+  let html = `<div class="ach-disclaimer">⚠️ <b>Train safely — these are long-game goals.</b> Milestones below are challenging and meant to be earned over months and years, never rushed. Always use a spotter or safety bars for heavy bench and squat, build running/rowing distance gradually, and stop if anything sharp or wrong shows up. A PR is never worth an injury.</div>`;
+  ACHIEVEMENT_PATHS.forEach(p => {
+    const prog = computeAchievement(p);
+    const tiersHtml = p.tiers.map((t, i) => {
+      const done = prog.reachedIdx >= i, next = prog.nextIdx === i;
+      return `<div class="ach-tier ${done ? 'done' : ''}${next ? ' next' : ''}"><span class="ach-tier-dot">${done ? '✓' : (i + 1)}</span><span class="ach-tier-label">${escapeHtml(t.label)}</span></div>`;
+    }).join('');
+    const badge = prog.reachedIdx >= 0 ? `<span class="ach-badge">${escapeHtml(p.tiers[prog.reachedIdx].label)}</span>` : `<span class="ach-badge none">not yet</span>`;
+    html += `<div class="ach-card${p.type === 'manual' ? ' ach-manual' : ''}">
+      <div class="ach-head"><span class="ach-icon">${p.icon}</span><div class="ach-head-main"><div class="ach-name">${escapeHtml(p.name)}</div><div class="ach-cur">${escapeHtml(prog.curTxt)}${prog.toGo ? ` · ${escapeHtml(prog.toGo)}` : ''}</div></div>${badge}</div>
+      <div class="ach-tiers">${tiersHtml}</div>
+      <div class="ach-note">⚠ ${escapeHtml(p.note)}</div>
+    </div>`;
+  });
+  return html;
+}
 function renderTrends(main) {
   if (trendFocus && trendFocus.varUuid) { renderFocusedTrends(main); return; } // feat 117 — focused exercise view
   if (state.sessions.length === 0) {
@@ -10515,11 +10614,14 @@ function renderTrends(main) {
     <div class="trend-tab ${trendView === 'category' ? 'active' : ''}" data-trend="category">Category</div>
     <div class="trend-tab ${trendView === 'subvariation' ? 'active' : ''}" data-trend="subvariation">Subvariation</div>
     <div class="trend-tab ${trendView === 'sessions' ? 'active' : ''}" data-trend="sessions">Sessions</div>
+    <div class="trend-tab ${trendView === 'milestones' ? 'active' : ''}" data-trend="milestones">🏅 Milestones</div>
   </div>`;
 
   if (trendView === 'sessions') {
     // feat 52 — informational session habits (size / length / time-of-day / day-of-week / frequency)
     html += renderSessionTrends();
+  } else if (trendView === 'milestones') {
+    html += renderAchievements(); // feat 169
   } else if (trendView === 'overall') {
     const overall = computeOverallProgress();
     const overallTrend = overall && overall.composite.length >= 2
@@ -13968,7 +14070,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 113 · 2026-06-07 22:07';
+const APP_BUILD = 'build 114 · 2026-06-07 22:13';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

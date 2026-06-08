@@ -802,6 +802,15 @@ They share variation **UUIDs**.
   Biceps** — all using already-valid movement family ids, so they categorize/search/filter via the feat 147 picker.
   Copy kept clean per the feat 173 sweep. Covered by `test/moreplans.spec.mjs` (new plans present, **every** seed
   plan's options resolve to real movements/variations, categories spread).
+- **Achievement paths (feat 169):** a new **🏅 Milestones** sub-view in the Trends tab with ladders of classic,
+  challenging-but-realistic goals: plate-count **Bench / Squat / Deadlift** (135→405/495/585), the **Captains of
+  Crush** grip ladder (self-tracked), and **Running / Rowing distance** (5K→marathon, 2K→half). `ACHIEVEMENT_PATHS`
+  + `computeAchievement` read progress from your **own logged best** — *not strict on variation or powerlifting aids*
+  (any bench counts toward "X plates"; strength compared in lb, cardio in km). Each card shows reached tier, next
+  target ("85 lb to 3 plates"), a tier ladder, and a **per-path safety note**; the view opens with a prominent
+  **disclaimer discouraging dangerous behaviour** (heavy unspotted bench, overly long runs). Covered by
+  `test/achievements.spec.mjs` (tier from best lift, cardio distance, disclaimer + notes + all paths, tab view);
+  visually verified.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
