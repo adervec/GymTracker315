@@ -885,6 +885,18 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .choice-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   .choice-btn.danger { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
   .choice-btn:active { transform: scale(0.98); }
+  /* feat 152/153 — data-op progress / result popup */
+  .dataop-sheet { text-align: center; max-width: 340px; }
+  .dataop-spin { width: 34px; height: 34px; margin: 6px auto 12px; border: 3px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: dataop-spin 0.8s linear infinite; }
+  @keyframes dataop-spin { to { transform: rotate(360deg); } }
+  .dataop-icon { font-size: 30px; line-height: 1; margin: 4px auto 8px; width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .dataop-icon.ok { color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); }
+  .dataop-icon.err { color: var(--danger); background: var(--danger-bg); }
+  .dataop-title { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+  .dataop-msg { font-size: 13px; font-weight: 700; color: var(--text); }
+  .dataop-detail { font-size: 12px; color: var(--text2); line-height: 1.5; margin-top: 6px; }
+  .dataop-warn { font-size: 11.5px; color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); border-radius: 8px; padding: 8px 10px; margin-top: 10px; line-height: 1.5; text-align: left; }
+  .dataop-sheet .choice-btn { width: 100%; margin-top: 12px; }
   /* Read-only mode (feat 62) */
   #ro-banner { display: none; position: fixed; top: 50px; left: 50%; transform: translateX(-50%); z-index: 9996; background: var(--warn); color: #1a1a1a; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 0 0 8px 8px; letter-spacing: 0.5px; pointer-events: none; box-shadow: 0 2px 8px var(--shadow); }
   body.readonly #ro-banner { display: block; }
@@ -10780,13 +10792,76 @@ async function renderExportPhaseB(modal, opts, sessions) {
 
 /* --------- SETTINGS TAB --------- */
 
+/* ============================================================
+   feat 152/153 — DATA-OP PROGRESS POPUP + MISSING-UUID RESILIENCE
+   Every commanded data operation (import / export) runs inside runDataOp(), which shows a popup with
+   progress, a human-readable error if it fails, and a warning (but NOT a failure) when some exercises
+   reference a variation UUID this build doesn't know — e.g. a custom exercise overwritten by an update.
+   Such rows are kept with their original IDs (export) / merged anyway (import) so nothing is silently lost.
+   ============================================================ */
+function humanizeDataError(err) {
+  const msg = (err && (err.message || String(err))) || 'Unknown error';
+  if (/JSON|Unexpected (token|end)|parse/i.test(msg)) return "The file isn't valid JSON — it may be corrupted, only partly downloaded, or not a GymTracker export.";
+  if (/quota|exceeded|storage|QuotaExceeded/i.test(msg)) return 'Your device storage is full. Free up space (or export then clear old data) and try again.';
+  if (/network|fetch|Failed to fetch|timeout|offline/i.test(msg)) return 'A network problem interrupted the operation. Check your connection and try again.';
+  if (/permission|denied|NotAllowed/i.test(msg)) return 'Permission was denied for this operation by the browser or OS.';
+  if (/no sessions|invalid file|not an array/i.test(msg)) return "This doesn't look like a GymTracker backup — no workout sessions were found in the file.";
+  return 'Something went wrong: ' + msg;
+}
+function _varKnown(uuid) { return !!(uuid && VAR_INDEX.get(uuid)); }
+// feat 153 — sessions/plans referencing a variation UUID this build doesn't know. { count, sets, sample[] }.
+function missingVarReport(sessions, plans) {
+  const ids = new Map();
+  (sessions || []).forEach(s => (s.exercises || []).forEach(ex => {
+    if (ex && ex.varUuid && !_varKnown(ex.varUuid)) ids.set(ex.varUuid, (ids.get(ex.varUuid) || 0) + ((ex.sets || []).length || 0));
+  }));
+  (plans || []).forEach(p => (p.steps || []).forEach(st => (st.options || []).forEach(o => {
+    if (o && o.type === 'variation' && o.uuid && !_varKnown(o.uuid)) ids.set(o.uuid, ids.get(o.uuid) || 0);
+  })));
+  let sets = 0; ids.forEach(v => sets += v);
+  return { count: ids.size, sets, sample: [...ids.keys()].slice(0, 4) };
+}
+// feat 153 — a ready-made warning line (or '' when all UUIDs resolve). where: 'export' | 'import'.
+function missingVarWarning(sessions, plans, where) {
+  const m = missingVarReport(sessions, plans);
+  if (!m.count) return '';
+  const kept = where === 'import' ? 'merged anyway, keeping their original IDs' : 'kept with their original IDs so no data is lost';
+  return `${m.count} exercise type${m.count === 1 ? '' : 's'}${m.sets ? ` (${m.sets} set${m.sets === 1 ? '' : 's'})` : ''} reference exercises this app version doesn't recognise — likely custom exercises changed by an update. They were ${kept}.`;
+}
+let _dataOpEl = null, _dataOpTimer = null;
+function _closeDataOp() { if (_dataOpTimer) { clearTimeout(_dataOpTimer); _dataOpTimer = null; } if (_dataOpEl) { const el = _dataOpEl; _dataOpEl = null; el.classList.remove('open'); setTimeout(() => el.remove(), 200); } }
+function _renderDataOp(st) {
+  if (!_dataOpEl) { _dataOpEl = document.createElement('div'); _dataOpEl.className = 'choice-backdrop dataop'; document.body.appendChild(_dataOpEl); requestAnimationFrame(() => _dataOpEl && _dataOpEl.classList.add('open')); }
+  const warn = (st.warnings && st.warnings.length) ? `<div class="dataop-warn">⚠ ${st.warnings.map(w => escapeHtml(w)).join('<br>')}</div>` : '';
+  let body;
+  if (st.phase === 'running') body = `<div class="dataop-spin"></div><div class="dataop-msg">${escapeHtml(st.title)}…</div>`;
+  else if (st.phase === 'error') body = `<div class="dataop-icon err">✕</div><div class="dataop-title">${escapeHtml(st.title)} failed</div><div class="dataop-detail">${escapeHtml(st.error || '')}</div>${warn}<button class="choice-btn danger" id="dataop-close">Close</button>`;
+  else body = `<div class="dataop-icon ok">✓</div><div class="dataop-msg">${escapeHtml(st.message || (st.title + ' complete'))}</div>${warn}${(st.warnings && st.warnings.length) ? `<button class="choice-btn" id="dataop-close">Got it</button>` : ''}`;
+  _dataOpEl.innerHTML = `<div class="choice-sheet dataop-sheet">${body}</div>`;
+  _dataOpEl.querySelector('#dataop-close')?.addEventListener('click', _closeDataOp);
+}
+// Run a data op inside the popup. fn(ctx) runs SYNCHRONOUSLY (so a download stays inside the click
+// gesture) but may return a Promise for async work. ctx.warn(msg) collects non-fatal warnings.
+function runDataOp(title, fn) {
+  const warnings = []; const ctx = { warn: (m) => { if (m) warnings.push(m); } };
+  _renderDataOp({ phase: 'running', title });
+  const ok = (res) => { res = res || {}; _renderDataOp({ phase: 'done', title, message: res.message, warnings }); if (!warnings.length) _dataOpTimer = setTimeout(_closeDataOp, 1300); return res; };
+  const fail = (err) => { _renderDataOp({ phase: 'error', title, error: humanizeDataError(err), warnings }); throw err; };
+  try {
+    const res = fn(ctx);
+    if (res && typeof res.then === 'function') return res.then(ok, fail);
+    return Promise.resolve(ok(res));
+  } catch (err) { try { fail(err); } catch (_) {} return Promise.reject(err); }
+}
 function exportData() {
-  // Build filename-safe timestamp: YYYY-MM-DD_HHMMSS
-  const now = new Date();
   const pad = n => String(n).padStart(2, '0');
-  const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  downloadBlob(new Blob([JSON.stringify(state, null, 2)], { type:'application/json' }), `overload-tracker_${ts}.json`);
-  toast('Exported as overload-tracker_' + ts + '.json');
+  return runDataOp('Export all data', (ctx) => {
+    ctx.warn(missingVarWarning(state.sessions, state.plans, 'export'));
+    const now = new Date();
+    const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    downloadBlob(new Blob([JSON.stringify(state, null, 2)], { type:'application/json' }), `overload-tracker_${ts}.json`);
+    return { message: 'Exported overload-tracker_' + ts + '.json' };
+  });
 }
 
 /* ============================================================
@@ -10877,13 +10952,21 @@ function dataCatRange(dates) {
 }
 function exportCategoryJson(key) {
   const c = dataCats().find(x => x.key === key); if (!c) return;
-  downloadBlob(new Blob([JSON.stringify(c.json(), null, 2)], { type: 'application/json' }), `gymtracker-${key}_${_dataTsStamp()}.json`);
-  toast(`Exported ${c.label} (JSON)`);
+  return runDataOp('Export ' + c.label, (ctx) => {
+    if (key === 'workouts') ctx.warn(missingVarWarning(state.sessions, null, 'export'));
+    if (key === 'plans') ctx.warn(missingVarWarning(null, state.plans, 'export'));
+    downloadBlob(new Blob([JSON.stringify(c.json(), null, 2)], { type: 'application/json' }), `gymtracker-${key}_${_dataTsStamp()}.json`);
+    return { message: `Exported ${c.label} (JSON)` };
+  });
 }
 function exportCategoryCsv(key) {
   const c = dataCats().find(x => x.key === key); if (!c || !c.csv) return;
-  downloadBlob(csvBlob(c.csv()), `gymtracker-${key}_${_dataTsStamp()}.csv`);
-  toast(`Exported ${c.label} (CSV)`);
+  return runDataOp('Export ' + c.label, (ctx) => {
+    if (key === 'workouts') ctx.warn(missingVarWarning(state.sessions, null, 'export'));
+    if (key === 'plans') ctx.warn(missingVarWarning(null, state.plans, 'export'));
+    downloadBlob(csvBlob(c.csv()), `gymtracker-${key}_${_dataTsStamp()}.csv`);
+    return { message: `Exported ${c.label} (CSV)` };
+  });
 }
 // Markup for the per-category summary + export table (feat 129/130).
 function dataCategoryTableHtml() {
@@ -11047,12 +11130,13 @@ function importData(e) {
   reader.onload = ev => {
     try {
       const data = JSON.parse(ev.target.result);
-      if (!data.sessions || !Array.isArray(data.sessions)) {
-        toast('Invalid file — no sessions array found'); return;
-      }
-      showImportDialog(data);
-    } catch(err) { toast('Import failed — file could not be parsed'); }
+      if (!data.sessions || !Array.isArray(data.sessions)) throw new Error('no sessions array — invalid file');
+      showImportDialog(data); // success → the merge/overwrite chooser IS the feedback; the apply step shows its own popup
+    } catch (err) {
+      _renderDataOp({ phase: 'error', title: 'Read import file', error: humanizeDataError(err), warnings: [] }); // feat 152
+    }
   };
+  reader.onerror = () => _renderDataOp({ phase: 'error', title: 'Read import file', error: 'The file could not be read from your device.', warnings: [] });
   reader.readAsText(file);
 }
 
@@ -11136,15 +11220,18 @@ function showImportDialog(data) {
   document.getElementById('import-cancel-btn').addEventListener('click', () => dialog.remove());
 
   document.getElementById('import-confirm-btn').addEventListener('click', () => {
-    applyImport(data, selectedMode);
-    saveState();
-    if (selectedMode === 'overwrite') {
-      applyTheme(state.theme || 'dark');
-    }
-    render();
-    dialog.remove();
-    const verb = selectedMode === 'merge' ? 'Merged' : 'Imported';
-    toast(`${verb} ${data.sessions.length} session${data.sessions.length !== 1 ? 's' : ''}${selectedMode === 'overwrite' ? ' + settings' : ''}`);
+    const mode = selectedMode;
+    // feat 152/153 — apply inside the progress popup; warn (not fail) on unknown-UUID rows, which merge anyway.
+    runDataOp(mode === 'merge' ? 'Merge import' : 'Overwrite import', (ctx) => {
+      ctx.warn(missingVarWarning(data.sessions, data.plans, 'import'));
+      applyImport(data, mode);
+      saveState();
+      if (mode === 'overwrite') applyTheme(state.theme || 'dark');
+      render();
+      dialog.remove();
+      const verb = mode === 'merge' ? 'Merged' : 'Imported';
+      return { message: `${verb} ${data.sessions.length} session${data.sessions.length !== 1 ? 's' : ''}${mode === 'overwrite' ? ' + settings' : ''}` };
+    });
   });
 }
 
@@ -13587,7 +13674,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 100 · 2026-06-07 21:02';
+const APP_BUILD = 'build 101 · 2026-06-07 21:10';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

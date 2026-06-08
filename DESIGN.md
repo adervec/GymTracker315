@@ -719,6 +719,17 @@ They share variation **UUIDs**.
   happened, can't be undone") then `clearPending()` + `stopMetronome()` + **`tombstoneSession()`** (feat 95, so sync
   won't resurrect it) + removes the session from `state.sessions`. Distinct from End Workout, which keeps and grades
   the session. Covered by `test/discardworkout.spec.mjs` (confirm removes+tombstones, cancel keeps, button renders).
+- **Data-op progress popup + missing-UUID resilience (feat 152/153):** every commanded data operation now runs inside
+  `runDataOp(title, fn)` — a popup that shows progress (spinner), then a **✓ success** (auto-dismisses after 1.3s when
+  clean) or a **✕ failure with a human-readable explanation** (`humanizeDataError` maps JSON-parse / quota / network /
+  permission / not-a-backup errors). `fn(ctx)` runs **synchronously** so a `downloadBlob` stays inside the click
+  gesture, but may return a Promise for async work; `ctx.warn(msg)` collects non-fatal warnings. Wired through
+  `exportData`, `exportCategoryJson/Csv`, and the import parse + apply. **feat 153:** `missingVarReport` /
+  `missingVarWarning` detect sessions/plans referencing a variation UUID this build doesn't know (e.g. a custom
+  exercise changed by an update); the op **warns but never fails** and the rows are **kept with their original IDs**
+  (export) / **merged anyway** (import) so nothing is silently dropped. Covered by `test/dataop.spec.mjs` (error
+  mapping, failure popup, missing-UUID report + warning, export warns-not-fails, clean success, resilient import);
+  visually verified.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
