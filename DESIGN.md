@@ -730,6 +730,13 @@ They share variation **UUIDs**.
   (export) / **merged anyway** (import) so nothing is silently dropped. Covered by `test/dataop.spec.mjs` (error
   mapping, failure popup, missing-UUID report + warning, export warns-not-fails, clean success, resilient import);
   visually verified.
+- **Step suggestion = loose weight×reps, tuned to the variation (feat 161):** the plan-step load badge suggested only
+  a weight, and for a *movement* option it used the family-wide **max** baseline — over-suggesting from your single
+  heaviest variation. `baselineWeightForOption` now tunes a movement to the **most-recently-trained** variation in the
+  family, and a new `suggestedSetForOption(o, load)` returns a **weight×reps** suggestion (`repTargetForLoad`: heavy 5
+  / moderate 8 / light 12; weight scaled from your recent baseline, or `null` → suggest reps only when there's no
+  history). The badge reads "load · suggest ≈ {w}×{r}" with a "just a guide, not a target" tooltip. Covered by
+  `test/stepsuggest.spec.mjs` (rep targets, tuned weight, movement→most-recent-not-max, no-history reps-only, render).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

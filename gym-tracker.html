@@ -7628,12 +7628,28 @@ function baselineWeightVar(varUuid) {
 function baselineWeightForOption(o) {
   if (!o) return null;
   if (o.type === 'variation') return baselineWeightVar(o.uuid);
-  if (o.type === 'movement') { const f = FAMILIES.find(x => x.id === o.familyId); if (!f) return null; let best = null; (f.variations || []).forEach(v => { if (v.uuid) { const b = baselineWeightVar(v.uuid); if (b != null && (best == null || b > best)) best = b; } }); return best; }
+  if (o.type === 'movement') {
+    const f = FAMILIES.find(x => x.id === o.familyId); if (!f) return null;
+    // feat 161 — tune to what you ACTUALLY do for this movement: the baseline of the most-recently-trained
+    // variation in the family, not the family-wide MAX (which over-suggested from your single heaviest variation).
+    let best = null, bestT = -1;
+    (f.variations || []).forEach(v => { if (!v.uuid) return;
+      (state.sessions || []).forEach(s => { const t = new Date(s.date).getTime();
+        (s.exercises || []).forEach(ex => { if (ex.varUuid === v.uuid && !ex.cardio && ex.sets && ex.sets.length && t > bestT) {
+          let top = 0; ex.sets.forEach(st => { const w = parseFloat(st.w) || 0; if (w > top) top = w; });
+          if (top > 0) { bestT = t; best = top; } } }); }); });
+    return best;
+  }
   return null;
 }
 function suggestedWeightFromBase(base, load) { if (base == null) return null; const inc = weightInc(); return Math.max(inc, Math.round(base * loadFactor(load) / inc) * inc); }
 function suggestedWeightForOption(o, load) { return suggestedWeightFromBase(baselineWeightForOption(o), load); }
 function suggestedWeightForVar(varUuid, load) { return suggestedWeightFromBase(baselineWeightVar(varUuid), load); }
+// feat 161 — a representative rep target per load tag (a suggestion, not a prescription).
+function repTargetForLoad(load) { return load === 'heavy' ? 5 : load === 'light' ? 12 : 8; }
+// feat 161 — a LOOSE suggested working set for a plan step: weight tuned to your own recent history (when
+// available) × a rep target for the load. `w` is null when there's no history to base it on (suggest reps only).
+function suggestedSetForOption(o, load) { return { w: suggestedWeightForOption(o, load), r: repTargetForLoad(load) }; }
 // Static per-plan estimate, rounded to 15 min (~2.5 min/working set incl rest + ~1 min/exercise transition).
 function estimatePlanMinutes(plan) { const sets = planTotalSets(plan), steps = (plan.steps || []).length; return Math.max(15, Math.round((sets * 2.5 + steps) / 15) * 15); }
 function planIntensity(plan) { const n = plan && plan.intensity; return (n >= 1 && n <= 5) ? n : 3; }
@@ -7944,8 +7960,10 @@ function renderPlanGuide(session) {
     const cls = isCurrent ? 'current' : ((s.done || s.satisfied) ? 'done' : '');
     const opts = (st.options || []).map((o, oi) => `<button class="plan-opt" data-plan-step="${i}" data-plan-opt="${oi}">${escapeHtml(optionLabel(o))}</button>`).join('<span class="plan-opt-or">or</span>');
     const load = st.load || 'moderate';
-    const sug = (st.options && st.options[0]) ? suggestedWeightForOption(st.options[0], load) : null;
-    const loadBadge = `<span class="plan-load ${load}" title="${sug != null ? `≈${loadFactor(load) * 100 | 0}% of your recent baseline` : 'relative load'}">${load}${sug != null ? ` · ≈${sug}${state.unit}` : ''}</span>`;
+    // feat 161 — a LOOSE weight×reps suggestion (tuned to your recent sets for this exercise), not a target.
+    const ss = (st.options && st.options[0]) ? suggestedSetForOption(st.options[0], load) : { w: null, r: repTargetForLoad(load) };
+    const sugTxt = ss.w != null ? `suggest ≈ ${ss.w}${state.unit}×${ss.r}` : `suggest ~${ss.r} reps`;
+    const loadBadge = `<span class="plan-load ${load}" title="Rough suggestion from your recent sets — just a guide, not a target.">${load} · ${sugTxt}</span>`;
     const ef = stepEffort(session, st); // feat 111 — did the working weight reach the prescribed load?
     const effortBadge = ef.applicable
       ? `<span class="plan-effort ${ef.hit ? 'hit' : 'miss'}" title="${ef.hit ? `Effort met — top ${ef.top}${state.unit} reached target ${ef.sug}${state.unit}` : `Below the target load ${ef.sug}${state.unit} (top so far ${ef.top || 0}${state.unit})`}">💪 ${ef.hit ? '✓' : `${ef.top || 0}/${ef.sug}`}</span>`
@@ -13674,7 +13692,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 101 · 2026-06-07 21:10';
+const APP_BUILD = 'build 102 · 2026-06-07 21:14';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
