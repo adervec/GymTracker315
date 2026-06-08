@@ -796,6 +796,12 @@ They share variation **UUIDs**.
   training** framing to Sauce/Juice, PEDs, TRT, Roid Rage, Tren, Roid, Natty; reframed caffeine's "Legal PED" label to
   "Everyday boost". Alcohol mentions were all already cautionary (sleep/recovery) or benign sport tradition — left as
   is. Covered by `test/contentsweep.spec.mjs`.
+- **More seed plans (feat 168):** added a 4th tranche of 10 plans across varied flavours — **5×5 Strength A/B**
+  (classic linear progression), **Calisthenics Foundations** (bodyweight), **Posterior Strength** (hinge-led), **Arm
+  Day**, **Core & Midsection**, **Lunch Break 20** (quick), **Chest Specialization**, **Shoulder Sculpt**, **Back &
+  Biceps** — all using already-valid movement family ids, so they categorize/search/filter via the feat 147 picker.
+  Copy kept clean per the feat 173 sweep. Covered by `test/moreplans.spec.mjs` (new plans present, **every** seed
+  plan's options resolve to real movements/variations, categories spread).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
