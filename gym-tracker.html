@@ -1584,7 +1584,18 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .trend-tab { flex-shrink: 0; padding: 6px 12px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 7px; color: #888; font-size: 11px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
   .trend-tab.active { background: #2a1f3a; color: #fff; border-color: #5a3a7d; }
   .trend-card { background: #141414; border: 1px solid #222; border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; }
+  .trend-card.trend-excluded { border-color: color-mix(in srgb, var(--warn) 45%, #222); } /* feat 165 */
   .trend-card-title { font-size: 12px; font-weight: 700; color: #fff; }
+  /* feat 165 — overall-trend muscle-group exclusion */
+  .trend-excl-banner { background: color-mix(in srgb, var(--warn) 14%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); border-radius: 9px; padding: 9px 11px; margin-bottom: 9px; font-size: 12px; line-height: 1.5; }
+  .trend-excl-banner b { color: var(--text); }
+  .trend-excl-restore { background: var(--warn); color: #1a1a1a; border: none; border-radius: 6px; padding: 3px 9px; font-size: 11px; font-weight: 800; cursor: pointer; font-family: inherit; margin-left: 4px; }
+  .trend-excl-tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--warn); background: color-mix(in srgb, var(--warn) 18%, transparent); border-radius: 4px; padding: 1px 5px; vertical-align: middle; }
+  .trend-excl-chips { margin: 0 0 10px; }
+  .trend-excl-lbl { display: block; font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+  .trend-excl-row { display: flex; flex-wrap: wrap; gap: 5px; }
+  .trend-excl-chip { padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .trend-excl-chip.off { background: color-mix(in srgb, var(--warn) 16%, transparent); border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); text-decoration: line-through; }
   .trend-card-sub { font-size: 10px; color: #888; margin-top: 1px; }
   .trend-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 8px; }
   .trend-card-value { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -2943,7 +2954,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -3112,6 +3123,7 @@ function normalizeState() {
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   if (!Array.isArray(state.bodyComp)) state.bodyComp = [];
+  if (!Array.isArray(state.trendExclude)) state.trendExclude = []; // feat 165 — muscle groups excluded from the overall trend
   if (!Array.isArray(state.customVariations)) state.customVariations = [];
   if (!Array.isArray(state.gyms)) state.gyms = [];
   if (!state.hiddenVars || typeof state.hiddenVars !== 'object') state.hiddenVars = {};
@@ -10209,7 +10221,9 @@ function buildTrendList(dimension) {
 // Composite progress chart: normalize each tracking key's series to 100 at first session,
 // then average across keys at each session date (interpolated to weekly bins).
 function computeOverallProgress() {
-  const keys = getAllTrackingKeys();
+  // feat 165 — drop exercises whose muscle group is excluded (e.g. an injured area unfairly dragging the average)
+  const excl = new Set(state.trendExclude || []);
+  const keys = getAllTrackingKeys().filter(k => { const i = VAR_INDEX.get(k.varUuid); return !(i && excl.has(i.bp)); });
   // For each key, build normalized series: [{ date, normalized }] where first = 100
   const allSeries = keys.map(k => {
     const series = getSeriesForKey(k.varUuid, k.subUuid);
@@ -10245,6 +10259,20 @@ function computeOverallProgress() {
   return { composite, exerciseCount: allSeries.length };
 }
 
+// feat 165 — the muscle groups (body parts) present across all tracked exercises, for the trend-exclusion chips.
+function _trendBps() {
+  const m = new Map();
+  getAllTrackingKeys().forEach(k => { const i = VAR_INDEX.get(k.varUuid); if (i && i.bp) m.set(i.bp, BP_LABELS[i.bp] || i.bp); });
+  return m;
+}
+function toggleTrendExclude(bp) {
+  if (!bp) return;
+  const arr = state.trendExclude = (state.trendExclude || []).slice();
+  const i = arr.indexOf(bp);
+  if (i >= 0) arr.splice(i, 1); else arr.push(bp);
+  saveState();
+  render();
+}
 // Render the overall composite chart as SVG
 function renderOverallChart(progress) {
   if (!progress || progress.composite.length < 2) {
@@ -10413,11 +10441,17 @@ function renderTrends(main) {
     const overallTrend = overall && overall.composite.length >= 2
       ? computeTrend(overall.composite.map(d => ({ date: d.date, oneRM: d.val })))
       : null;
+    // feat 165 — exclude injured muscle groups from the overall trend, with a loud reminder to restore later
+    const excl = state.trendExclude || [], bps = _trendBps();
+    if (excl.length) {
+      const labels = excl.map(b => bps.get(b) || BP_LABELS[b] || b);
+      html += `<div class="trend-excl-banner">⚠️ Overall trend is <b>excluding ${escapeHtml(labels.join(', '))}</b> — a reminder to restore once recovered. <button class="trend-excl-restore" id="trend-excl-restore">Restore all</button></div>`;
+    }
     // Show composite chart + summary
-    html += `<div class="trend-card">
+    html += `<div class="trend-card${excl.length ? ' trend-excluded' : ''}">
       <div class="trend-card-head">
         <div>
-          <div class="trend-card-title">Overall Progress Index</div>
+          <div class="trend-card-title">Overall Progress Index${excl.length ? ` <span class="trend-excl-tag">filtered</span>` : ''}</div>
           <div class="trend-card-sub">${overall ? `${overall.exerciseCount} exercises · normalized to 100 at start` : 'Insufficient data'}</div>
         </div>
         ${overallTrend ? `<div style="text-align:right;">
@@ -10427,6 +10461,10 @@ function renderTrends(main) {
       </div>
       ${renderOverallChart(overall)}
     </div>`;
+    // feat 165 — toggle which muscle groups count toward the overall trend (tap to exclude/include)
+    if (bps.size) {
+      html += `<div class="trend-excl-chips"><span class="trend-excl-lbl">Count muscle groups (tap to exclude an injured one):</span><div class="trend-excl-row">${[...bps.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([b, l]) => `<button class="trend-excl-chip ${excl.includes(b) ? 'off' : ''}" data-trend-excl="${escapeAttr(b)}">${escapeHtml(l)}${excl.includes(b) ? ' ✕' : ''}</button>`).join('')}</div></div>`;
+    }
     if (overallTrend) {
       html += `<div class="suggestion" style="margin-top:6px;">
         <div class="suggestion-label">How it's computed</div>
@@ -10463,6 +10501,9 @@ function renderTrends(main) {
       render();
     });
   });
+  // feat 165 — overall-trend muscle-group exclusion
+  main.querySelectorAll('[data-trend-excl]').forEach(b => b.addEventListener('click', () => toggleTrendExclude(b.dataset.trendExcl)));
+  main.querySelector('#trend-excl-restore')?.addEventListener('click', () => { state.trendExclude = []; saveState(); render(); });
 }
 
 function renderTrendCard(item) {
@@ -13777,7 +13818,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 106 · 2026-06-07 21:32';
+const APP_BUILD = 'build 107 · 2026-06-07 21:42';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
