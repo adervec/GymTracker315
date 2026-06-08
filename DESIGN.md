@@ -775,6 +775,13 @@ They share variation **UUIDs**.
   logged strength exercise** (sets = sets logged, the variation as the step option, named "&lt;split&gt; · &lt;date&gt;",
   `createdFromSession` recorded) and opens it in the editor to tweak. Covered by `test/planfromworkout.spec.mjs`
   (step-per-exercise + cardio skip, freestyle filtering, button shown/hidden).
+- **GymTracker315 branding (feat 170):** the tracker header is now a generic **GymTracker315** wordmark (stylized
+  text placeholder — "Gym" + accent "Tracker" + a "315" badge; not trademarked/copyrighted) instead of "📈 Overload
+  Tracker". A **Preferences → Show GymTracker315 branding** toggle (`state.hideBranding`) hides it via a `brand-hidden`
+  body class (`applyBranding()` on every render). **Exports always carry the brand regardless:** `brandLogoHtml(true)`
+  heads the PDF print-root, and the share-image card draws "GymTracker315" at the top of the header band (and keeps
+  its footer credit). Covered by `test/branding.spec.mjs` (header wordmark, hide toggle, PDF brand-while-hidden,
+  persisted setting); visually verified.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
