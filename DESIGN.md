@@ -751,6 +751,12 @@ They share variation **UUIDs**.
   re-acquired on `visibilitychange` (locks drop when hidden) + at boot. A **Keep screen awake during workout**
   settings toggle states the limitation plainly. Covered by `test/wakelock.spec.mjs` (acquire/release, setting + no-
   session gates, settings UI).
+- **Live score: real value + autoscaled sparkline (feat 157):** the live estimate was rounded to the nearest 5
+  (`Math.round(pts/5)*5`), so it "stuck" to round numbers. It now shows the **real integer** score (no faked
+  volatility — just stop hiding the real moves), tracks it across the session (`trackLiveScore`, de-duped + reset per
+  session, ephemeral) and draws an **autoscaled sparkline** (`sparklineSvg`, y mapped to the series min/max so small
+  real changes are visible) plus a "▲/▼ N this session" delta. `sparklineSvg` is a reusable helper for other live
+  trends. Covered by `test/livescore.spec.mjs` (sample tracking, autoscale + flat/short series, no-rounding code path).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
