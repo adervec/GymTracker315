@@ -1827,6 +1827,12 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .picker-var-meta { font-size: 10px; color: #888; margin-top: 1px; }
   .picker-var-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .picker-var-arrow { color: #555; font-size: 14px; }
+  /* feat 167 — a variation cross-listed under a SECONDARY parent movement (its primary is elsewhere) */
+  .picker-var.secondary { background: #121212; }
+  .picker-var.secondary .picker-var-name { color: #cfcfcf; }
+  .picker-var-secfrom { font-size: 9.5px; color: #7a7a7a; margin-top: 2px; }
+  .picker-var-secfrom .sec-jump { color: var(--accent2); text-decoration: underline; text-underline-offset: 1px; cursor: pointer; }
+  .picker-var-secfrom .sec-jump:active { opacity: 0.6; }
   /* feat 121 — "touched" familiarity/recency badge on picker rows */
   .touch-badge { font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 999px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .spotter-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 9.5px; font-weight: 700; color: #e8b04b; background: rgba(232,176,75,0.13); border: 1px solid rgba(232,176,75,0.42); padding: 1px 6px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
@@ -2696,6 +2702,79 @@ function dedupeFamilies() {
 }
 function resolveFamilyId(id) { return _FAMILY_ALIAS[id] || id; } // feat 166 — map a deduped-away family id to its canonical id
 
+/* ---- feat 167 — variation cross-listing (primary + secondary parent movements) ----
+   A variation lives in exactly ONE primary family. It can also be CROSS-LISTED under additional
+   "secondary parent" families, where it shows at the BOTTOM of that family's picker list with a
+   "↳ also a <primary>" link back to its home movement. A plan movement-step is satisfied by a
+   variation whether the movement is its primary OR a secondary parent.
+
+   This also RECONCILES the genuine "same exercise filed under two movements" duplicates (e.g.
+   "Plate Pinch" under both Grip Training and Forearm Work, "Landmine Press" under Shoulder Press and
+   Landmine Work): one copy stays canonical (primary), the other is suppressed from its own family's
+   list and replaced by a secondary cross-link to the canonical — so the exercise appears once per
+   family (never a stale twin), yet BOTH movement steps still match it. Authored as {keep, drop} uuid
+   pairs: keep = canonical/primary (stays in its family); drop = the duplicate copy, hidden from its
+   family and whose family becomes a secondary parent of keep. The primary picks are editorial (the
+   more natural "home" movement) — the relationship is plain data, trivially re-pointed.
+
+   No logged data is destroyed: suppressed copies stay in VAR_INDEX (old sessions still resolve + render),
+   and still natively satisfy their own family's steps. Runs once at load, after applyExtraFamilies()/
+   dedupeFamilies(), so FAMILIES + VAR_INDEX are final. */
+const VAR_DUP_RECONCILE = [
+  { keep:'dab40144-3173-4ec2-98d3-2c8d9667749e', drop:'a6cc5412-b88d-4ee8-a6cf-7d2c4c0be2e3' }, // Plate Pinch — Grip Training ◀ Forearm Work
+  { keep:'f08eda5c-bc4d-469a-ae40-4e7ad8144290', drop:'9a5230ec-be5d-4030-87e8-fd90a9481127' }, // Deficit Push-Up — Push-Ups ◀ Flat Bench
+  { keep:'32592786-2fd3-4ec7-baf0-8744caca298a', drop:'54f42acf-91e7-41cd-83d4-663459956d5b' }, // Svend Press — Chest Fly ◀ Pullover
+  { keep:'bc60a52b-b599-4ef3-9558-8c90f9ae49a5', drop:'0d239c47-9ad9-4452-80ab-dc8227594d13' }, // Landmine Press — Shoulder Press ◀ Landmine Work
+  { keep:'a5da5cd4-aafd-478d-b115-4b6250171f06', drop:'ff0bab83-33a1-4889-b7e9-698d16d576e4' }, // Pike Push-Up — Shoulder Press ◀ Push-Ups
+  { keep:'3670e989-a344-4897-b5c3-9c78b09d6870', drop:'cc03e601-0deb-4eec-86f8-423256da11ec' }, // Muscle-Up — Pull-Up ◀ CrossFit
+  { keep:'dba0c666-d77a-45c5-b3a3-815a6bdbde68', drop:'f042149c-4178-4755-b496-464a802bcf26' }, // Dead Hang — Pull-Up ◀ Forearm Work
+  { keep:'bd4e62a1-3453-4a78-842b-44b102ddaa11', drop:'90284827-fada-4bef-b875-318aa9bfc374' }, // Band-Assisted Pull-Up — Pull-Up ◀ Resistance Bands
+  { keep:'958d1351-c852-44a8-ba09-4d81dcaeb754', drop:'c048aa87-0737-4faf-b224-6bd856cc9b3e' }, // Meadows Row — Row ◀ Landmine Work
+  { keep:'6dcaf529-0013-4c69-8577-7252ada115ff', drop:'3ed8fcf1-856c-4445-86b2-ff550a17a841' }, // Anderson Squat — Squat ◀ Pin Lifts
+  { keep:'05cc985d-b659-45a1-9c48-407e1d2e815f', drop:'56cba8e4-6934-46b1-95e2-145346b2b416' }, // Banded Clamshell — Glute Accessories ◀ Corrective
+  { keep:'4fb3a914-ea13-4177-a883-0b5863cdc85d', drop:'b715644f-44f9-46e4-84db-802e58f15da4' }, // Banded Glute Bridge — Glute Accessories ◀ Resistance Bands
+  { keep:'8f15cdc4-5de8-477a-b43f-bd559bde8bbb', drop:'67fc2f50-dec4-4bb9-8a9e-a603253542d4' }, // Horizontal Back Extension — Back Extension ◀ Roman Chair
+  { keep:'386de3e3-2ecf-40b9-b2d8-9ef14310676d', drop:'80963195-4de1-4d75-8afe-a83982614753' }, // Roman Chair L-Sit Hold — Roman Chair ◀ Equipment Hacks
+  { keep:'f58b4e0d-5e53-493b-8d3b-e8d0b0eafafc', drop:'5d59b211-b5e9-4917-8327-1d5815073871' }, // Dragon Flag — Abs ◀ Gymnastics Core
+  { keep:'994eb001-d972-420a-b14d-40ff7f1f399c', drop:'148daa57-39df-4217-bf4f-6ffc95bada31' }, // Hollow Body Hold — Abs ◀ Gymnastics Core
+  { keep:'e92f6940-8463-4345-b72a-23c7d5c9f5d1', drop:'4b910343-5d1e-4c72-8359-d54b3e5fc4a9' }, // Suitcase Carry — Loaded Carries ◀ Core Stability
+  { keep:'7c00f447-95db-4f7b-8dbf-d63e752ab306', drop:'54136a64-b372-48c6-ae31-88bd292754c0' }, // KB Windmill — Kettlebell ◀ Core Stability
+  { keep:'2907d0ac-6a4a-4709-8d40-8dd3803c026d', drop:'b0be4ccf-12a3-48c4-b172-3c26b89f7eda' }, // KB Snatch — Kettlebell ◀ Olympic Lifts
+  { keep:'d3caba5b-9665-4871-bbf2-d429eb20de3d', drop:'b867288a-29e4-440f-82b5-d86f3c656277' }, // Wall Ball Shot — Medicine Ball ◀ CrossFit
+  { keep:'3d5beff7-1c18-44ab-8356-259f42ae833d', drop:'2e61dc28-cd3b-4bec-8d99-9d49a3ee5605' }, // Heavy Farmer's Walk — Strongman ◀ Grip Training
+  { keep:'0df7579a-1dad-4dba-96f2-98e5b8955b6e', drop:'5dba35b4-c3bf-49d9-96be-b4745965c737' }, // Yoke Walk — Strongman ◀ Loaded Carries
+  { keep:'ac2f8482-27d8-402c-96cb-1e7afa95b275', drop:'8adc277e-35fa-47f3-a408-852dbb0ff255' }, // Cat-Cow — Static Stretch ◀ Corrective
+  { keep:'cf3864e4-bce9-44ab-9f1b-22a1e54781f0', drop:'c3ea6a54-9434-431b-aed0-aff8edb0d9fd' }, // Jacob's Ladder — Cardio Extras ◀ (twin family)
+  { keep:'fd98cd9e-23e2-4f05-8d86-2492612a3f2f', drop:'4f411ea2-aeaf-4fe4-9cf6-5f7cb54a1bb9' }, // VersaClimber — Cardio Extras ◀ (twin family)
+];
+// Pure additive cross-listings (no duplicate to suppress): canonical uuid → extra parent family ids.
+const SECONDARY_PARENTS_EXTRA = {};
+const _SECONDARY_PARENTS = new Map(); // canonicalUuid -> [familyId, ...]  (its secondary parent movements)
+const _FAMILY_SECONDARY  = new Map(); // familyId -> [{ uuid, primaryId, primaryTitle }]  (vars cross-listed INTO this family)
+const _VAR_SUPPRESS = new Set();      // uuids hidden from their own family's picker list (a canonical secondary stands in)
+function _addSecondaryParent(uuid, famId) {
+  const i = VAR_INDEX.get(uuid); if (!i || !famId) return;
+  const canonFam = resolveFamilyId(famId);
+  if (canonFam === i.family.id) return;                 // that family is already its primary — nothing to add
+  let arr = _SECONDARY_PARENTS.get(uuid); if (!arr) { arr = []; _SECONDARY_PARENTS.set(uuid, arr); }
+  if (!arr.includes(canonFam)) arr.push(canonFam);
+  let inj = _FAMILY_SECONDARY.get(canonFam); if (!inj) { inj = []; _FAMILY_SECONDARY.set(canonFam, inj); }
+  if (!inj.some(e => e.uuid === uuid)) inj.push({ uuid, primaryId: i.family.id, primaryTitle: i.family.title });
+}
+function reconcileVariationParents() {
+  VAR_DUP_RECONCILE.forEach(({ keep, drop }) => {
+    const ki = VAR_INDEX.get(keep), di = VAR_INDEX.get(drop);
+    if (!ki || !di) return;                              // unknown uuid (data changed) → skip, never throw
+    if (resolveFamilyId(di.family.id) === ki.family.id) return; // same family after dedup — no cross-listing
+    _VAR_SUPPRESS.add(drop);                             // hide the duplicate copy from its own family
+    _addSecondaryParent(keep, di.family.id);             // canonical now cross-lists under the dropped copy's family
+  });
+  Object.keys(SECONDARY_PARENTS_EXTRA).forEach(uuid => (SECONDARY_PARENTS_EXTRA[uuid] || []).forEach(fid => _addSecondaryParent(uuid, fid)));
+}
+function secondaryParentsOf(uuid) { return _SECONDARY_PARENTS.get(uuid) || []; }            // secondary parent family ids for a variation
+function secondaryVarsForFamily(famId) { return _FAMILY_SECONDARY.get(resolveFamilyId(famId)) || []; } // vars cross-listed INTO a family
+function isSuppressedVar(uuid) { return _VAR_SUPPRESS.has(uuid); }
+
 /* ---- Gym management (feat 36 / 37 / 38) ----
    A gym declares which equipment categories it has, plus per-variation
    force-show / force-hide overrides that take precedence over global hiding. */
@@ -2714,6 +2793,7 @@ function gymHidesFamily(fam) {
 // Single source of truth for picker visibility (feat 23 + 36).
 function varVisibleInPicker(fam, v) {
   if (categoryHidden(fam.mega)) return false;      // feat 8 — cardio/mobility/recovery hidden entirely
+  if (isSuppressedVar(v.uuid)) return false;       // feat 167 — reconciled duplicate; its canonical shows as a secondary cross-link instead
   if (gymForcesShow(v.uuid)) return true;          // gym explicitly stocks it
   if (isMovementHidden(fam.id)) return false;
   if (gymHidesFamily(fam)) return false;
@@ -7588,7 +7668,12 @@ function optionLabel(o) {
 function optionMatchesVar(o, varUuid) {
   if (!o) return false;
   if (o.type === 'variation') return o.uuid === varUuid;
-  if (o.type === 'movement') { const i = VAR_INDEX.get(varUuid); return !!(i && i.family.id === resolveFamilyId(o.familyId)); } // feat 166 — honor merged-family aliases
+  if (o.type === 'movement') {
+    const i = VAR_INDEX.get(varUuid); if (!i) return false;
+    const fam = resolveFamilyId(o.familyId);          // feat 166 — honor merged-family aliases
+    if (i.family.id === fam) return true;             // primary parent
+    return secondaryParentsOf(varUuid).includes(fam); // feat 167 — a secondary parent movement satisfies the step too
+  }
   return false;
 }
 // feat 137 — count the in-progress (UNSAVED) sets being entered for the current exercise, so plan
@@ -12390,7 +12475,11 @@ function stepQualifyingVarSet(step) {
   const set = new Set();
   (step && step.options || []).forEach(o => {
     if (o.type === 'variation' && o.uuid) set.add(o.uuid);
-    else if (o.type === 'movement') { const f = FAMILIES.find(x => x.id === o.familyId); if (f) (f.variations || []).forEach(v => { if (v.uuid) set.add(v.uuid); }); }
+    else if (o.type === 'movement') {
+      const fid = resolveFamilyId(o.familyId); // feat 166 — honor merged-family aliases
+      const f = FAMILIES.find(x => x.id === fid); if (f) (f.variations || []).forEach(v => { if (v.uuid) set.add(v.uuid); });
+      secondaryVarsForFamily(fid).forEach(({ uuid }) => set.add(uuid)); // feat 167 — variations cross-listed (secondary) into this family qualify too
+    }
   });
   return set;
 }
@@ -12412,12 +12501,22 @@ function filterVariations() {
       if (!matchesMega || !matchesSub || !matchesEquip) return;
     }
     const matchingVars = f.variations.filter(v => {
-      if (!varVisibleInPicker(f, v)) return false; // feat 23 + 36 (hide flags + active gym)
+      if (!varVisibleInPicker(f, v)) return false; // feat 23 + 36 (hide flags + active gym) + 167 (suppressed duplicate)
       if (stepSet && !stepSet.has(v.uuid)) return false; // restrict to exactly the step's exercises
       if (!q) return true;
       return v.title.toLowerCase().includes(q) || f.title.toLowerCase().includes(q);
     });
-    if (matchingVars.length > 0) results.push({ family: f, variations: matchingVars });
+    // feat 167 — variations whose SECONDARY parent is this family, appended at the bottom with a link to their home movement.
+    const secondaryVars = [];
+    secondaryVarsForFamily(f.id).forEach(({ uuid, primaryId, primaryTitle }) => {
+      const i = VAR_INDEX.get(uuid); if (!i) return;
+      const v = i.variation;
+      if (!varVisibleInPicker(i.family, v)) return; // honor hide flags via its PRIMARY family
+      if (stepSet && !stepSet.has(uuid)) return;
+      if (q && !(v.title.toLowerCase().includes(q) || f.title.toLowerCase().includes(q) || (primaryTitle || '').toLowerCase().includes(q))) return;
+      secondaryVars.push({ v, primaryId, primaryTitle });
+    });
+    if (matchingVars.length > 0 || secondaryVars.length > 0) results.push({ family: f, variations: matchingVars, secondaryVars });
   });
   return results;
 }
@@ -12517,7 +12616,7 @@ function touchBadgeHtml(t) {
 function renderPickerResults() {
   const results = filterVariations();
   const touch = buildTouchMap(); // feat 121
-  return `<div style="font-size:10.5px;color:#666;margin:4px 0 6px 2px;">${results.reduce((s, r) => s + r.variations.length, 0)} variation${results.length === 1 ? '' : 's'}</div>
+  return `<div style="font-size:10.5px;color:#666;margin:4px 0 6px 2px;">${results.reduce((s, r) => s + r.variations.length + (r.secondaryVars ? r.secondaryVars.length : 0), 0)} variation${results.length === 1 ? '' : 's'}</div>
     <div class="picker-results">
       ${results.length === 0
         ? `<div class="picker-empty">No exercises match</div>`
@@ -12530,6 +12629,15 @@ function renderPickerResults() {
                   <div class="picker-var-name">${escapeHtml(v.title)}${v._custom ? '<span class="manual-tag">manual</span>' : ''}${v.subvariation ? `<span class="sub-tag">${escapeHtml(v.subvariation.label)}</span>` : ''}</div>
                 </div>
                 <div class="picker-var-right">${spotterBadge(v, r.family)}${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
+              </div>
+            `).join('')}
+            ${(r.secondaryVars || []).map(s => `
+              <div class="picker-var secondary" data-varuuid="${s.v.uuid}">
+                <div class="picker-var-main">
+                  <div class="picker-var-name">${escapeHtml(s.v.title)}</div>
+                  <div class="picker-var-secfrom">↳ primarily a <span class="sec-jump" data-sec-jump="${escapeAttr(s.primaryTitle)}">${escapeHtml(s.primaryTitle)}</span> exercise</div>
+                </div>
+                <div class="picker-var-right">${spotterBadge(s.v, VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family : r.family)}${touchBadgeHtml(touch.get(s.v.uuid))}<div class="picker-var-arrow">›</div></div>
               </div>
             `).join('')}
             <div class="picker-add-var" data-add-var-fam="${r.family.id}">+ Add custom variation</div>
@@ -12635,6 +12743,17 @@ function bindPickerResults() {
       renderModal();
       updateFAB();
       updateSaveBtn();
+    });
+  });
+  // feat 167 — the "↳ primarily a <movement>" link on a cross-listed (secondary) variation jumps to its home
+  // movement by searching its title. stopPropagation so it doesn't also pick the variation underneath.
+  document.querySelectorAll('.sec-jump').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      modalState.pickerSearch = el.dataset.secJump || '';
+      const input = document.getElementById('trk-picker-input'); if (input) input.value = modalState.pickerSearch;
+      const clr = document.getElementById('trk-picker-clear-search'); if (clr) clr.classList.toggle('show', !!modalState.pickerSearch);
+      const wrap = document.getElementById('trk-picker-results-wrap'); if (wrap) { wrap.innerHTML = renderPickerResults(); bindPickerResults(); }
     });
   });
   // Add custom variation (feat 16)
@@ -14034,6 +14153,7 @@ installErrorHandlers();
 loadState();
 applyExtraFamilies(); // feat 90 — inject the new neck / jaw / climbing families first
 dedupeFamilies(); // feat 166 — reconcile any remaining same-title duplicate movement families
+reconcileVariationParents(); // feat 167 — cross-list duplicate variations (one primary + secondary parent movements)
 applyExtraVariations();
 applyCustomVariations();
 installGlossaryHighlight();
@@ -14113,7 +14233,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 115 · 2026-06-07 22:27';
+const APP_BUILD = 'build 116 · 2026-06-07 22:51';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

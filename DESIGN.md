@@ -819,6 +819,24 @@ They share variation **UUIDs**.
   and the richer `resistance-bands` (15 vars) beats `band-work` (7); distinct variations are unioned. Dropped family
   ids are kept resolvable via `_FAMILY_ALIAS` + `resolveFamilyId` (used in `optionMatchesVar`) so a plan's movement
   option still matches. Covered by `test/dedupfamilies.spec.mjs` (no dup titles, variations resolve, alias matching).
+- **Variation cross-listing — primary + secondary parents (feat 167):** beyond duplicate *families* (feat 166), the
+  datasets carried ~25 cases of the **same exercise filed under two different movements** (the canonical example:
+  **Plate Pinch** under both *Grip Training* and *Forearm Work*; also Landmine Press, Meadows Row, Muscle-Up, Wall
+  Ball, Anderson Squat, Dragon Flag, …). A variation now has exactly **one primary parent** (the family it lives in)
+  and may be **cross-listed** under additional **secondary parent** movements, where it renders at the **bottom** of
+  that family's picker list with a *"↳ primarily a &lt;movement&gt;"* link that jumps to its home movement. A plan
+  **movement-step is satisfied by a variation whether the movement is its primary OR a secondary parent** —
+  `optionMatchesVar` and `stepQualifyingVarSet` both honour `secondaryParentsOf()` / `secondaryVarsForFamily()`.
+  Authored as `VAR_DUP_RECONCILE` `{keep, drop}` uuid pairs: `keep` is the canonical/primary; `drop` is the duplicate
+  copy, which `reconcileVariationParents()` (run at load after `dedupeFamilies()`) **suppresses** from its own
+  family's list (`_VAR_SUPPRESS` → `varVisibleInPicker`) and whose family becomes a **secondary parent of the
+  canonical**. Net: the exercise shows **once per family** (never a stale twin), yet both movement steps still match
+  it. No logged data is destroyed — suppressed copies stay in `VAR_INDEX` (old sessions resolve + render) and still
+  natively satisfy their own family's steps. Primary picks are editorial (the more natural "home"); the relationship
+  is plain data, trivially re-pointed, with a `SECONDARY_PARENTS_EXTRA` hook for purely-additive cross-listings.
+  Covered by `test/secondaryparents.spec.mjs` (primary+secondary matching, qualifying-set union, suppression + the
+  cross-link row, no remaining visible cross-family dups, data preserved); `test/planpicker.spec.mjs` updated for the
+  union semantics.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
