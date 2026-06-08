@@ -783,6 +783,40 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-progress-chev { color: var(--text3); margin-left: 5px; font-weight: 700; }
   .plan-progress-full { color: var(--text3); font-size: 10.5px; } /* feat 144 — "(N full)" steps-to-target hint */
   .plan-compare { font-size: 10.5px; color: var(--text3); margin: 2px 0 4px; line-height: 1.45; }
+  /* feat 145 — Plan Execution View (overlay) */
+  .pexec-head { margin: 10px 0 4px; }
+  .pexec-title { font-size: 17px; font-weight: 800; color: var(--text); }
+  .pexec-when { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .pexec-complete { color: var(--good); }
+  .pexec-rollup { font-size: 12px; color: var(--text2); margin: 6px 0 12px; font-variant-numeric: tabular-nums; padding-bottom: 9px; border-bottom: 1px solid var(--border2); }
+  .pexec-rollup b { color: var(--text); }
+  .pexec-fullhint { color: var(--text3); font-size: 10.5px; }
+  .pexec-step { border: 1px solid var(--border2); border-left: 3px solid var(--border2); border-radius: 10px; padding: 9px 11px; margin-bottom: 9px; background: var(--bg2); }
+  .pexec-step.pe-full, .pexec-step.pe-min { border-left-color: var(--good); }
+  .pexec-step.pe-current { border-left-color: var(--accent); background: var(--accent-bg); }
+  .pexec-step.pe-todo { opacity: 0.72; }
+  .pexec-step-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+  .pexec-step-num { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
+  .pexec-status { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .pexec-status.pe-full, .pexec-status.pe-min { color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); }
+  .pexec-status.pe-current { color: var(--accent); background: var(--accent-bg); }
+  .pexec-status.pe-started { color: var(--warn, #d9a400); background: color-mix(in srgb, #d9a400 16%, transparent); }
+  .pexec-status.pe-todo { color: var(--text3); background: var(--bg3); }
+  .pexec-planned { font-size: 12px; color: var(--text2); line-height: 1.5; margin-bottom: 7px; }
+  .pexec-planned b { color: var(--text); }
+  .pexec-load { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px; padding: 1px 5px; border-radius: 5px; background: var(--bg3); color: var(--text3); }
+  .pexec-load.heavy { color: #e2746b; } .pexec-load.light { color: #6bbf8a; }
+  .pexec-effort { font-size: 10px; font-weight: 700; margin-left: 4px; }
+  .pexec-effort.hit { color: var(--good); } .pexec-effort.miss { color: var(--text3); }
+  .pexec-satisfied { background: var(--bg3); border-radius: 8px; padding: 7px 9px; }
+  .pexec-sat-lbl { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); margin-bottom: 5px; }
+  .pexec-used + .pexec-used { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--border2); }
+  .pexec-used-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .pexec-used-sets { font-size: 12px; color: var(--text2); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .pexec-used-meta { font-size: 10.5px; color: var(--text3); margin-top: 1px; }
+  .pexec-none { font-size: 12px; color: var(--text3); font-style: italic; }
+  .plan-hist-badge.plan-hist-clickable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .phb-chev { font-weight: 800; opacity: 0.7; }
   .plan-card.complete { border-left-color: var(--good); }
   /* feat 113 — plan-complete banner */
   .plan-complete-banner { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding: 8px 11px; border-radius: 9px; background: color-mix(in srgb, var(--good) 16%, transparent); border: 1px solid color-mix(in srgb, var(--good) 45%, transparent); font-size: 12.5px; font-weight: 700; color: var(--good); }
@@ -7590,16 +7624,25 @@ function startExerciseFromPlanOption(o, load) {
 
 /* ---- Plans overlay (list + builder) ---- */
 let _plansEditId = null, _plansAddOptStep = null, _plansOptSearch = '';
-function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; renderPlansOverlay(); document.getElementById('plans-backdrop').classList.add('open'); document.getElementById('plans-panel').classList.add('open'); document.body.style.overflow = 'hidden'; }
+let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Execution View mode (which plan + which session)
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; renderPlansOverlay(); document.getElementById('plans-backdrop').classList.add('open'); document.getElementById('plans-panel').classList.add('open'); document.body.style.overflow = 'hidden'; }
 function openPlanPicker() { openPlansOverlay(); }
 function openPlanFull(id) { // feat 138 — open the full plan view (overlay) focused on one plan's steps
-  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = '';
+  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null;
   renderPlansOverlay();
   document.getElementById('plans-backdrop')?.classList.add('open');
   document.getElementById('plans-panel')?.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
-function closePlansOverlay() { document.getElementById('plans-backdrop').classList.remove('open'); document.getElementById('plans-panel').classList.remove('open'); document.body.style.overflow = ''; }
+// feat 145 — open the detailed Plan Execution View for a plan + a session (defaults to the active session).
+function openPlanExecution(planId, sessionDate) {
+  _plansExecId = planId || null; _plansExecSessionDate = sessionDate || null; _plansEditId = null; _plansAddOptStep = null;
+  renderPlansOverlay();
+  document.getElementById('plans-backdrop')?.classList.add('open');
+  document.getElementById('plans-panel')?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closePlansOverlay() { document.getElementById('plans-backdrop').classList.remove('open'); document.getElementById('plans-panel').classList.remove('open'); document.body.style.overflow = ''; _plansExecId = null; _plansExecSessionDate = null; }
 function planUseForWorkout(id) {
   if (roBlocked('start a workout')) return;
   let s = getActiveSession();
@@ -7610,6 +7653,12 @@ function planUseForWorkout(id) {
 function renderPlansOverlay() {
   const body = document.getElementById('plans-body');
   if (!body) return;
+  if (_plansExecId) { // feat 145 — Plan Execution View (what was actually done, per step)
+    const execPlan = getPlan(_plansExecId);
+    const sess = _plansExecSessionDate ? (state.sessions || []).find(s => s.date === _plansExecSessionDate) : getActiveSession();
+    if (execPlan && sess) { renderPlanExecutionView(body, execPlan, sess); return; }
+    _plansExecId = null; // plan/session gone → fall through to the list
+  }
   const plan = _plansEditId ? getPlan(_plansEditId) : null;
   if (plan) { renderPlanEditor(body, plan); return; }
   body.innerHTML = `<div class="plan-list-intro">Plans are optional and suggestions only — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
@@ -7632,6 +7681,55 @@ function bindPlansList(body) {
   body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; renderPlansOverlay(); }));
   body.querySelectorAll('[data-plan-del]').forEach(b => b.addEventListener('click', () => { guardedConfirm('Delete this plan?', b).then(ok => { if (ok) { state.plans = (state.plans || []).filter(p => p.id !== b.dataset.planDel); saveState(); renderPlansOverlay(); } }); }));
   body.querySelector('#plan-new-btn')?.addEventListener('click', () => { const p = { id: newUuid(), name: 'New Plan', steps: [{ id:newUuid(), sets:3, options:[] }] }; state.plans = state.plans || []; state.plans.push(p); saveState(); _plansEditId = p.id; renderPlansOverlay(); });
+}
+// feat 145 — detailed Plan Execution View: per step, its status + WHICH variations were actually logged
+// to satisfy it (sets, top weight, est 1RM, effort) — richer than the dashboard plan card. Works on the
+// live session or any past session of the plan. "Satisfied" follows feat 144 (min-% on saved sets).
+function _execSetTxt(s) { const w = (s.w === '' || s.w == null) ? 'BW' : s.w; return `${w}×${s.r}`; }
+function renderPlanExecutionView(body, plan, session) {
+  const sum = planExecutionSummary(session, plan);
+  const curIdx = currentPlanStepIndex(session, plan);
+  const isActive = session === getActiveSession();
+  const u = state.unit;
+  const stepsHtml = (plan.steps || []).map((st, i) => {
+    const ss = stepStatus(session, st, plan), ef = stepEffort(session, st);
+    const used = (session.exercises || []).filter(ex => (st.options || []).some(o => optionMatchesVar(o, ex.varUuid)) && (ex.sets || []).length);
+    let statusCls, statusTxt;
+    if (ss.done) { statusCls = 'pe-full'; statusTxt = '✓ done · full'; }
+    else if (ss.satisfied) { statusCls = 'pe-min'; statusTxt = `✓ done · min (≥${ss.minSets}/${st.sets})`; }
+    else if (isActive && i === curIdx) { statusCls = 'pe-current'; statusTxt = '▶ in progress'; }
+    else if (ss.started) { statusCls = 'pe-started'; statusTxt = '… partial'; }
+    else { statusCls = 'pe-todo'; statusTxt = '○ not done'; }
+    const usedHtml = used.length ? used.map(ex => {
+      let top = 0, orm = 0;
+      (ex.sets || []).forEach(s => { const w = parseFloat(s.w) || 0, r = parseFloat(s.r) || 0; if (w > top) top = w; const e = estimated1RM(w, r) || 0; if (e > orm) orm = e; });
+      const setsTxt = (ex.sets || []).map(_execSetTxt).join(' · ');
+      const vinfo = VAR_INDEX.get(ex.varUuid);
+      const spot = (vinfo && typeof needsSpotter === 'function' && needsSpotter(ex.varUuid)) ? ' ' + spotterBadge(vinfo.variation, vinfo.family) : '';
+      return `<div class="pexec-used">
+        <div class="pexec-used-name">✅ ${escapeHtml(displayName(ex.varUuid, ex.subUuid))}${spot}</div>
+        <div class="pexec-used-sets">${ex.sets.length} set${ex.sets.length === 1 ? '' : 's'} · ${escapeHtml(setsTxt)} ${u}</div>
+        ${top > 0 ? `<div class="pexec-used-meta">top ${top}${u}${orm ? ` · ~1RM ${Math.round(orm)}${u}` : ''}</div>` : ''}
+      </div>`;
+    }).join('') : `<div class="pexec-none">${isActive && i === curIdx ? '⏳ logging now…' : (ss.started ? 'logged then cleared' : '— not logged')}</div>`;
+    const planned = (st.options || []).map(optionLabel).join(' / ') || '(no exercises)';
+    const load = st.load || 'moderate';
+    const effortBadge = ef.applicable ? `<span class="pexec-effort ${ef.hit ? 'hit' : 'miss'}">💪 ${ef.hit ? 'target met' : `${ef.top || 0}/${ef.sug}${u}`}</span>` : '';
+    return `<div class="pexec-step ${statusCls}">
+      <div class="pexec-step-head"><span class="pexec-step-num">Step ${i + 1}</span><span class="pexec-status ${statusCls}">${statusTxt}</span></div>
+      <div class="pexec-planned">📋 ${escapeHtml(planned)} <span class="pexec-load ${load}">${load}</span> · <b>${ss.logged}/${st.sets}</b> sets ${effortBadge}</div>
+      <div class="pexec-satisfied"><div class="pexec-sat-lbl">Satisfied by</div>${usedHtml}</div>
+    </div>`;
+  }).join('');
+  const when = isActive ? 'This session (live)' : fmtDate(session.date);
+  body.innerHTML = `<button class="drawer-btn" id="plan-exec-back">← All plans</button>
+    <div class="pexec-head">
+      <div class="pexec-title">📊 ${escapeHtml(plan.name)}</div>
+      <div class="pexec-when">${escapeHtml(when)}${sum.complete ? ' · <b class="pexec-complete">complete 🎉</b>' : ''}</div>
+    </div>
+    <div class="pexec-rollup"><b>${sum.stepsDone}/${sum.stepsTotal}</b> steps${sum.stepsFull < sum.stepsDone ? ` <span class="pexec-fullhint">(${sum.stepsFull} full)</span>` : ''} · <b>${sum.setsDone}/${sum.setsTarget}</b> sets${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}</div>
+    <div class="pexec-steps">${stepsHtml}</div>`;
+  body.querySelector('#plan-exec-back')?.addEventListener('click', () => { _plansExecId = null; _plansExecSessionDate = null; renderPlansOverlay(); });
 }
 function renderPlanEditor(body, plan) {
   if (_plansAddOptStep != null) { renderOptionPicker(body, plan); return; }
@@ -7768,7 +7866,7 @@ function renderPlanGuide(session) {
     ${plan.desc ? `<div class="plan-card-desc">${escapeHtml(plan.desc)}</div>` : ''}
     <div class="plan-steps">${steps}</div>
     ${sum.complete ? `<div class="plan-complete-banner">🎉 Plan complete!<span class="pcb-actions"><button class="plan-act primary" id="plan-complete-end">🏁 End</button><button class="plan-act" id="plan-complete-summary">Summary</button></span></div>` : ''}
-    <div class="plan-card-actions"><button class="plan-act" id="plan-change-btn">Change plan</button><button class="plan-act danger" id="plan-abandon-btn">Abandon</button></div>
+    <div class="plan-card-actions"><button class="plan-act" id="plan-exec-btn">📊 Execution</button><button class="plan-act" id="plan-change-btn">Change plan</button><button class="plan-act danger" id="plan-abandon-btn">Abandon</button></div>
     </div>
   </div>`;
 }
@@ -7972,6 +8070,7 @@ function renderLog(main) {
   main.querySelector('#plan-progress-open')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
   main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
   main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
+  main.querySelector('#plan-exec-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); }); // feat 145 — detailed execution view
   main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
   main.querySelector('#plan-abandon-btn')?.addEventListener('click', () => { const s = getActiveSession(); if (s) { s.planId = undefined; saveState(); toast('Plan abandoned'); render(); } });
   main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt], st.load); }));
@@ -8805,7 +8904,8 @@ function renderSession(session, isToday) {
     const doneSteps = (_plan.steps || []).reduce((n, st) => n + (stepStatus(session, st, _plan).satisfied ? 1 : 0), 0);
     const fullSteps = (_plan.steps || []).reduce((n, st) => n + (stepStatus(session, st, _plan).done ? 1 : 0), 0);
     const tag = (total > 0 && fullSteps >= total) ? ' ✓ full' : (total > 0 && doneSteps >= total) ? ' ✓ done' : ' · partial';
-    planBadge = `<div class="plan-hist-badge">📋 ${escapeHtml(_plan.name)} · ${doneSteps}/${total} step${total===1?'':'s'}${tag}</div>`;
+    // feat 145 — the badge opens the detailed Plan Execution View for this session
+    planBadge = `<div class="plan-hist-badge plan-hist-clickable" data-plan-exec-sess="${escapeAttr(session.date)}" data-plan-exec-id="${escapeAttr(_plan.id)}" role="button" tabindex="0" title="View plan execution detail">📋 ${escapeHtml(_plan.name)} · ${doneSteps}/${total} step${total===1?'':'s'}${tag} <span class="phb-chev">›</span></div>`;
   } else {
     const sl = sessionSplitLabel(session);
     if (sl) planBadge = `<div class="plan-hist-badge implicit">≈ ${escapeHtml(sl)} day · implicit</div>`;
@@ -13290,6 +13390,14 @@ document.getElementById('trk-footer-close').addEventListener('click', () => { cl
 // previous rep count into the open set's empty reps. Wired ONCE here (the footer button is static) so the
 // long-press + its click-swallower don't stack across modal re-renders.
 attachTopbarLongPress(document.getElementById('trk-copy-last'), copyRepsToOpenSet, '📋 Copy reps', 550);
+// feat 145 — open the Plan Execution View from any session's plan badge (dashboard today + history).
+// Delegated once on document so it works across every re-render without stacking listeners.
+document.addEventListener('click', (e) => {
+  const badge = e.target && e.target.closest && e.target.closest('[data-plan-exec-sess]');
+  if (!badge) return;
+  const id = badge.getAttribute('data-plan-exec-id'), d = badge.getAttribute('data-plan-exec-sess');
+  if (id) openPlanExecution(id, d);
+});
 document.getElementById('trk-modal-backdrop').addEventListener('click', () => { closeLogModal(); render(); });
 document.getElementById('trk-notes-close').addEventListener('click', closeNotesModal);
 document.getElementById('trk-notes-backdrop').addEventListener('click', closeNotesModal);
@@ -13321,7 +13429,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 91 · 2026-06-07 20:07';
+const APP_BUILD = 'build 92 · 2026-06-07 20:18';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

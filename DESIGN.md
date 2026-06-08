@@ -653,6 +653,17 @@ They share variation **UUIDs**.
   Plan step min completion** default and per-plan / per-step inputs in the plan editor (blank inherits). Covered by
   `test/minpct.spec.mjs` (resolution, saved-only-after-save vs pending, no premature pointer advance, complete at
   min%, 100% override, editor persistence, persisted default); visually verified (editor + dashboard).
+- **Plan Execution View (feat 145):** a detailed drill-down (richer than the dashboard plan card) that shows, per
+  step, **which variation(s) were actually logged to "satisfy" it** — the key ask. `renderPlanExecutionView(body,
+  plan, session)` renders into the plans overlay (new `_plansExecId` / `_plansExecSessionDate` mode in
+  `renderPlansOverlay`): a header + roll-up (`stepsDone/total (M full)`, sets, effort, complete 🎉), then each step
+  with a status chip (**✓ full / ✓ min (≥k/n) / ▶ in progress / … partial / ○ not done**, following feat 144's
+  satisfied-vs-done split) and a **"Satisfied by"** block listing every matching logged exercise — variation name (+
+  spotter badge), the sets (`135×5 · 135×5 · 140×4`), top weight and est 1RM, plus the planned options, load and
+  effort. Opened from a new **📊 Execution** button on the dashboard plan card (active session) and from **any
+  session's plan badge** (now clickable, wired once via a delegated `[data-plan-exec-sess]` handler so it works in
+  history too). Status classes are namespaced (`pe-full`/`pe-min`/…) to avoid the global `.full{}` collision. Covered
+  by `test/planexec.spec.mjs` (variations + sets + statuses, roll-up + back, history-badge entry); visually verified.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
