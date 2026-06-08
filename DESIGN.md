@@ -705,6 +705,12 @@ They share variation **UUIDs**.
   recommended — keep this on"** hint (noting the OSK powers ×10-hold, the calculator, plate setup + equipment tools),
   and an "On ★" pill. Covered by `test/oskdefault.spec.mjs` (fresh-install default, recommendation UI, explicit-off
   respected).
+- **Confirm change-exercise with 2+ unsaved sets (feat 151):** the Log-Sets "🔄 Change exercise" button now counts
+  the entered (weight-filled) sets; with **≥2** it pops a themed `confirmDialog` ("…N sets … aren't saved yet.
+  Picking a different exercise will discard them.") before switching to the picker — picking a different exercise
+  discards the in-progress sets, so this guards real work. <2 sets (or a blank trailing row) proceeds straight
+  through, and editing a saved exercise is exempt. Covered by `test/changeexconfirm.spec.mjs` (confirm→proceed,
+  cancel→stay, single-set bypass, blank-row not counted).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
