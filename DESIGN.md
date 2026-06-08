@@ -811,6 +811,14 @@ They share variation **UUIDs**.
   **disclaimer discouraging dangerous behaviour** (heavy unspotted bench, overly long runs). Covered by
   `test/achievements.spec.mjs` (tier from best lift, cardio distance, disclaimer + notes + all paths, tab view);
   visually verified.
+- **Reconcile duplicate movements (feat 166):** "Neck Training" and "Resistance Band Work" each existed as **two**
+  families across the base + extra datasets (and in both the picker and the Reference). A load-time `dedupeFamilies()`
+  now collapses same-title families into one canonical (`_dedupeMovementList` over **both** `FAMILIES` — re-pointing
+  `VAR_INDEX` so logged sets still resolve — and the Reference `exercises`). Canonical preference: a feat-90 EXTRA id
+  wins, then more variations, then first-seen — so `neck-training` (the expected canonical) beats the legacy `neck`,
+  and the richer `resistance-bands` (15 vars) beats `band-work` (7); distinct variations are unioned. Dropped family
+  ids are kept resolvable via `_FAMILY_ALIAS` + `resolveFamilyId` (used in `optionMatchesVar`) so a plan's movement
+  option still matches. Covered by `test/dedupfamilies.spec.mjs` (no dup titles, variations resolve, alias matching).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

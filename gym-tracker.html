@@ -2641,10 +2641,13 @@ const EXTRA_FAMILIES = [
     ] },
 ];
 
+const _normFamTitle = s => (s || '').trim().toLowerCase();
 function applyExtraFamilies() {
   if (typeof EXTRA_FAMILIES === 'undefined') return;
   EXTRA_FAMILIES.forEach(ef => {
     if (FAMILIES.some(f => f.id === ef.id)) return; // already injected
+    // feat 166 — same-title duplicates are reconciled afterwards by dedupeFamilies() (which picks the right
+    // canonical), so just inject the extra family here as before.
     const fam = { id: ef.id, title: ef.title, mega: ef.mega, sub: ef.sub,
       equip: ef.equip || [], icon: ef.icon || '', quickCue: ef.quickCue || '', _extraFamily: true,
       variations: ef.variations.map(v => ({ id: v.id, uuid: v.uuid, title: v.title, cue: v.cue || '',
@@ -2653,6 +2656,45 @@ function applyExtraFamilies() {
     fam.variations.forEach(v => VAR_INDEX.set(v.uuid, { family: fam, variation: v, bp: getBP(fam), _extra: true }));
   });
 }
+// feat 166 — final reconciliation pass: collapse same-title duplicate movement families (e.g. "Neck Training",
+// "Resistance Band Work") that exist twice across the base + extra datasets. Runs over BOTH the logging set
+// (FAMILIES — re-points VAR_INDEX so logged sets still resolve) and the Reference set (`exercises` — display).
+// Canonical preference: a feat-90 EXTRA family id wins, then the one with more variations, then first-seen —
+// so neck-training (the extra, expected canonical) beats the legacy `neck`, and the richer band family wins.
+// _FAMILY_ALIAS keeps dropped family ids resolvable so a plan's movement option that referenced one still matches.
+const _FAMILY_ALIAS = {};
+const _EXTRA_FAM_IDS = (typeof EXTRA_FAMILIES !== 'undefined') ? new Set(EXTRA_FAMILIES.map(f => f.id)) : new Set();
+function _famRank(f, idx) { return [_EXTRA_FAM_IDS.has(f.id) ? 0 : 1, -((f.variations || []).length), idx]; }
+function _dedupeMovementList(list, repoint) {
+  const groups = new Map();
+  list.forEach((f, idx) => { const k = _normFamTitle(f.title); (groups.get(k) || groups.set(k, []).get(k)).push({ f, idx }); });
+  let changed = false;
+  groups.forEach(entries => {
+    if (entries.length < 2) return;
+    changed = true;
+    entries.sort((a, b) => { const ra = _famRank(a.f, a.idx), rb = _famRank(b.f, b.idx); for (let i = 0; i < 3; i++) if (ra[i] !== rb[i]) return ra[i] - rb[i]; return 0; });
+    const canon = entries[0].f;
+    entries.slice(1).forEach(({ f }) => {
+      _FAMILY_ALIAS[f.id] = canon.id;
+      (f.variations || []).forEach(v => {
+        if (!v.uuid) return;
+        const dup = (canon.variations || []).some(x => x.uuid === v.uuid || _normFamTitle(x.title) === _normFamTitle(v.title));
+        if (!dup) canon.variations.push(v);
+        if (repoint) VAR_INDEX.set(v.uuid, { family: canon, variation: (canon.variations.find(x => x.uuid === v.uuid) || v), bp: getBP(canon), _extra: !!v._extra });
+      });
+    });
+  });
+  if (!changed) return;
+  const drop = new Set();
+  groups.forEach(entries => { if (entries.length > 1) entries.slice(1).forEach(({ f }) => drop.add(f)); });
+  const kept = list.filter(f => !drop.has(f));
+  list.length = 0; kept.forEach(f => list.push(f));
+}
+function dedupeFamilies() {
+  _dedupeMovementList(FAMILIES, true);                                  // logging picker — re-point VAR_INDEX
+  if (typeof exercises !== 'undefined' && Array.isArray(exercises)) _dedupeMovementList(exercises, false); // Reference panel
+}
+function resolveFamilyId(id) { return _FAMILY_ALIAS[id] || id; } // feat 166 — map a deduped-away family id to its canonical id
 
 /* ---- Gym management (feat 36 / 37 / 38) ----
    A gym declares which equipment categories it has, plus per-variation
@@ -7546,7 +7588,7 @@ function optionLabel(o) {
 function optionMatchesVar(o, varUuid) {
   if (!o) return false;
   if (o.type === 'variation') return o.uuid === varUuid;
-  if (o.type === 'movement') { const i = VAR_INDEX.get(varUuid); return !!(i && i.family.id === o.familyId); }
+  if (o.type === 'movement') { const i = VAR_INDEX.get(varUuid); return !!(i && i.family.id === resolveFamilyId(o.familyId)); } // feat 166 — honor merged-family aliases
   return false;
 }
 // feat 137 — count the in-progress (UNSAVED) sets being entered for the current exercise, so plan
@@ -13991,6 +14033,7 @@ loadLog();
 installErrorHandlers();
 loadState();
 applyExtraFamilies(); // feat 90 — inject the new neck / jaw / climbing families first
+dedupeFamilies(); // feat 166 — reconcile any remaining same-title duplicate movement families
 applyExtraVariations();
 applyCustomVariations();
 installGlossaryHighlight();
@@ -14070,7 +14113,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 114 · 2026-06-07 22:13';
+const APP_BUILD = 'build 115 · 2026-06-07 22:27';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

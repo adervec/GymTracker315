@@ -62,7 +62,7 @@ test('exportCurrentViewPdf clones the view into #print-root with a titled header
     return {
       mainNonEmpty: mainHtml.length > 50,
       printingDuring,
-      hasTitle: /GymTracker — Volume/.test(printedHtml),
+      hasTitle: /gt-brand/.test(printedHtml) && /Volume/.test(printedHtml), // feat 170 — brand wordmark + view title
       hasPrintHead: /class="print-head"/.test(printedHtml),
       cloneMatchesMain: bodyClone === mainHtml,
     };
