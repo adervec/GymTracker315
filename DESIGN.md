@@ -789,6 +789,13 @@ They share variation **UUIDs**.
   (first→latest top set + % change + best, capped at 30 with an overflow note), and body/cardio notes. Surfaced as a
   **🤖 Copy summary for Claude** button in the export dialog. Covered by `test/claudeexport.spec.mjs` (digest shape +
   progression + body, exercise cap, button present).
+- **Illicit-drug / illegal-activity sweep (feat 172):** swept the app's text for anything that could read as
+  encouraging illicit drug use or illegal activity. The glossary's PED/steroid "slang" entries are **kept for
+  awareness but neutralized** — removed the glamorizing drug-stacking meme ("Tren hard, eat clen, anavar give up"),
+  added explicit **health + "illegal without a prescription"** caveats and a **not-recommended / natural, drug-free
+  training** framing to Sauce/Juice, PEDs, TRT, Roid Rage, Tren, Roid, Natty; reframed caffeine's "Legal PED" label to
+  "Everyday boost". Alcohol mentions were all already cautionary (sleep/recovery) or benign sport tradition — left as
+  is. Covered by `test/contentsweep.spec.mjs`.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
