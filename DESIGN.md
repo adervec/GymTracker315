@@ -852,6 +852,14 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Plan length distribution — 90-min + 3-hour marks (feat 175):** the seed-plan library bunched at 30–60 min with
+  a few 2-hour marathons and **nothing at the 90-minute or 3-hour marks**. Added a tranche-5: four **~90 min** plans
+  (Full Body Builder, Upper Body Power, Leg Day, Push/Pull — 7 steps × ~5 sets) and three **~3 hour** marathons
+  (Full Body Marathon, Leg Annihilation, Upper Body Epic — 10 steps × 6–8 sets), tuned so `estimatePlanMinutes`
+  lands exactly on 90 / 180. The 3-hour plans carry honest descriptions (advanced, high-volume, run sparingly,
+  manage fatigue). New ids append for existing users via the `seededPlanIds` merge. Distribution is now
+  30/45/60/**90**/120/**180** min. Covered by `test/plans90180.spec.mjs` (clusters at 90 + 180, every option
+  resolves, 3-hour plans fall in the picker's `long` bucket); `test/moreplans.spec.mjs` validates the new options too.
 - **Plan authorship + revisions / audit trail (feat 162):** plans were silently auto-saved with no history. Now
   every plan carries an **`author`** (user plans → "You", seeds → "GymTracker315") and a numbered, append-only
   **revision history** (`plan.rev` + `plan.revisions[]`, each `{rev, at, author, note, content}` where `content`
