@@ -519,6 +519,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 }
 .drawer-setting-row:last-child { border-bottom: none; }
 .drawer-setting-label { font-size: 13px; color: var(--text); }
+.setting-rec { font-size: 9.5px; font-weight: 800; color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); border-radius: 5px; padding: 1px 6px; margin-left: 6px; text-transform: uppercase; letter-spacing: 0.4px; vertical-align: middle; } /* feat 150 */
 .drawer-setting-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
 .drawer-pill-group { display: flex; gap: 5px; }
 .drawer-pill {
@@ -3003,7 +3004,7 @@ let state = {
     feedbackVibrate: true,     // vibrate on rest-zone transitions (mobile)
     feedbackBeep: false,       // subtle WebAudio blip on rest-zone transitions
     restRecEnabled: true,      // show the recommended-rest band
-    onScreenNumpad: false,     // feat 57 — in-app numpad for set entry instead of the native mobile keyboard
+    onScreenNumpad: true,      // feat 57/150 — in-app numpad for set entry (default ON; strongly recommended)
     prefillFromHistory: false, // feat 58 — copy last session's set into the first set on exercise start
     mixSubvariations: false,   // feat 88 — per-set sub-variation selection in one log (default off)
   },
@@ -5337,12 +5338,12 @@ function renderSettingsDrawer() {
     </div>` : ''}
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">On-screen numpad</div>
-        <div class="drawer-setting-sub">Tap weight/reps to enter via an in-app keypad — avoids the mobile keyboard reflowing the form</div>
+        <div class="drawer-setting-label">On-screen numpad <span class="setting-rec">★ Recommended</span></div>
+        <div class="drawer-setting-sub"><b>Strongly recommended — keep this on.</b> An in-app keypad for weight/reps that avoids the mobile keyboard reflowing the form, and powers ×10 hold, the calculator, plate setup and the equipment tools. Turning it off falls back to the native keyboard and loses those.</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="on">On</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad !== true ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad !== false ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="on">On ★</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad === false ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="off">Off</button>
       </div>
     </div>
     <div class="drawer-setting-row">
@@ -5980,7 +5981,7 @@ function renderSettingsDrawer() {
   });
 
   // Workout controls
-  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:false, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true }; };
+  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true }; };
   const aeInput = body.querySelector('#drawer-auto-end');
   if (aeInput) aeInput.addEventListener('change', () => {
     const v = parseInt(aeInput.value);
@@ -13556,7 +13557,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 96 · 2026-06-07 20:49';
+const APP_BUILD = 'build 97 · 2026-06-07 20:55';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

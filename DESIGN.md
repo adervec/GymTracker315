@@ -698,6 +698,13 @@ They share variation **UUIDs**.
   `.set-input` has `border-color … !important` which would beat an animated border, whereas the ring is free. The
   animation restarts each call (reflow trick) so rapid edits hold a steady glow then fade. Covered by
   `test/fieldflash.spec.mjs` (changed flashes, unchanged doesn't, input-event path, copy-reps path).
+- **OSK on by default + strongly recommended (feat 150):** the on-screen numpad was effectively **off** by default —
+  the initial `DEFAULTS.workoutControls.onScreenNumpad` was `false` and won the `normalizeState` merge over the (true)
+  default. Set it `true` in `DEFAULTS` + the `ensureWC` fallback so fresh installs default-on; explicit user "off" is
+  still respected (no force-migration). The settings toggle now carries a **★ Recommended** badge, a **"Strongly
+  recommended — keep this on"** hint (noting the OSK powers ×10-hold, the calculator, plate setup + equipment tools),
+  and an "On ★" pill. Covered by `test/oskdefault.spec.mjs` (fresh-install default, recommendation UI, explicit-off
+  respected).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
