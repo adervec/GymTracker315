@@ -711,6 +711,9 @@ They share variation **UUIDs**.
   discards the in-progress sets, so this guards real work. <2 sets (or a blank trailing row) proceeds straight
   through, and editing a saved exercise is exempt. Covered by `test/changeexconfirm.spec.mjs` (confirm→proceed,
   cancel→stay, single-set bypass, blank-row not counted).
+- **Step bar opens the execution view (feat 156):** the notched current-step HUD bar (`#plan-step-bar`) now opens the
+  detailed **Plan Execution View** (feat 145, `openPlanExecution`) instead of the plan editor (`openPlanFull`); title
+  updated. Covered by `test/planexec.spec.mjs`.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

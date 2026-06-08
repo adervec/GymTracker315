@@ -83,6 +83,22 @@ test('the rollup shows steps (with full hint) + sets, and the back button return
   expect(r.backToList).toBe(true);
 });
 
+test('the current-step HUD bar opens the execution view (feat 156)', async ({ page }) => {
+  const { a } = await twoStd(page);
+  const r = await page.evaluate((a) => {
+    state.plans = [{ id: 'P', name: 'P', steps: [{ id: 's0', sets: 3, options: [{ type: 'variation', uuid: a }] }] }];
+    state.sessions = [{ id: 'cur', date: new Date().toISOString(), planId: 'P', exercises: [{ varUuid: a, sets: [{ w: 100, r: 5 }] }] }];
+    pending = { varUuid: null, sets: [] }; modalState.open = false;
+    if (typeof refreshPlanStepBar === 'function') refreshPlanStepBar();
+    document.getElementById('plan-step-bar').click(); // wired at init to openPlanExecution
+    const body = document.getElementById('plans-body');
+    return { panelOpen: document.getElementById('plans-panel').classList.contains('open'),
+      isExec: body.innerHTML.includes('Satisfied by') && !!body.querySelector('#plan-exec-back') };
+  }, a);
+  expect(r.panelOpen).toBe(true);
+  expect(r.isExec).toBe(true); // the execution view (not the plan editor)
+});
+
 test('a past session\'s plan badge is clickable and opens its execution view (feat 145)', async ({ page }) => {
   const { a } = await twoStd(page);
   const r = await page.evaluate((a) => {

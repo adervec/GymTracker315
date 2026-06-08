@@ -2083,7 +2083,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 
 <!-- feat 51 — global rest/set timer bar (visible across tabs while a workout is active) -->
 <div id="rest-bar" class="rest-bar" style="display:none;" role="status" aria-live="polite" title="Tap to open the workout log"></div>
-<div id="plan-step-bar" style="display:none;" role="button" tabindex="0" aria-label="Current plan step progress" title="Open the full plan"></div>
+<div id="plan-step-bar" style="display:none;" role="button" tabindex="0" aria-label="Current plan step progress" title="Open the plan execution detail"></div>
 <!-- feat 57 — optional in-app numpad for set entry (avoids the native mobile keyboard) -->
 <div id="trk-numpad-backdrop"></div>
 <div id="trk-numpad" class="numpad-sheet" role="dialog" aria-label="On-screen numpad"></div>
@@ -13542,9 +13542,9 @@ document.getElementById('rest-bar')?.addEventListener('click', () => {
   document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === 'log'));
   render();
 });
-// feat 139 — tap the notched step bar to open the full plan
-document.getElementById('plan-step-bar')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanFull(p.id); });
-document.getElementById('plan-step-bar')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
+// feat 139/156 — tap the notched step bar to open the detailed Plan Execution View (feat 145)
+document.getElementById('plan-step-bar')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); });
+document.getElementById('plan-step-bar')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanExecution(p.id); } });
 // feat 57 — tap outside the numpad to dismiss it
 document.getElementById('trk-numpad-backdrop')?.addEventListener('click', closeNumpad);
 document.addEventListener('keydown', e => {
@@ -13562,7 +13562,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 98 · 2026-06-07 20:58';
+const APP_BUILD = 'build 99 · 2026-06-07 20:59';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
