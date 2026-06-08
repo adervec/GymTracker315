@@ -852,6 +852,12 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Advisory suggested rest between steps (feat 176):** the detailed execution view now interleaves a small
+  `💤 suggested rest ~m–m` divider between step cards, scaled by the heavier of the two adjacent steps' loads
+  (`suggestedStepRestRange`: heavy 2½–4 min, moderate 1½–2½ min, light ¾–1½ min). It is **purely a guide** — the
+  plan tracks no order (steps can be done in any sequence, with off-plan work in between), so unlike the feat-163
+  between-exercise rest total, **nothing is ever measured against it**. A single-step plan shows no divider.
+  Covered by `test/steprest.spec.mjs` (load scaling, N-1 dividers for N steps, none for a single step).
 - **Plan length distribution — 90-min + 3-hour marks (feat 175):** the seed-plan library bunched at 30–60 min with
   a few 2-hour marathons and **nothing at the 90-minute or 3-hour marks**. Added a tranche-5: four **~90 min** plans
   (Full Body Builder, Upper Body Power, Leg Day, Push/Pull — 7 steps × ~5 sets) and three **~3 hour** marathons

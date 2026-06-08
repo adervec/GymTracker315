@@ -863,6 +863,8 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .pexec-used-sets { font-size: 12px; color: var(--text2); margin-top: 2px; font-variant-numeric: tabular-nums; }
   .pexec-used-meta { font-size: 10.5px; color: var(--text3); margin-top: 1px; }
   .pexec-none { font-size: 12px; color: var(--text3); font-style: italic; }
+  /* feat 176 — advisory suggested-rest divider between steps */
+  .pexec-step-rest { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 10px; color: var(--text3); margin: -3px 0 6px; padding: 1px 0; opacity: 0.85; }
   /* feat 163 — execution analytics */
   .pexec-time { font-size: 11px; color: var(--text3); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
   .pexec-time b { color: var(--text2); }
@@ -8469,7 +8471,9 @@ function renderPlanExecutionView(body, plan, session) {
       ${timeHtml}
       <div class="pexec-satisfied"><div class="pexec-sat-lbl">Satisfied by</div>${usedHtml}</div>
     </div>`;
-  }).join('');
+  // feat 176 — interleave an ADVISORY suggested-rest divider between steps. Purely a guide (load-based); the
+  // plan tracks no order, so nothing is ever measured against it.
+  }).map((card, i) => i === 0 ? card : _stepRestDividerHtml((plan.steps[i - 1]), (plan.steps[i])) + card).join('');
   const statsHtml = (detail && detail.hasTiming) ? _planExecStatsHtml(detail, plan) : ''; // feat 163
   const finishHtml = (!isActive && detail) ? _planExecFinishHtml(detail) : ''; // feat 164 — incomplete/skipped recap on a finished run
   const when = isActive ? 'This session (live)' : fmtDate(session.date);
@@ -8483,6 +8487,17 @@ function renderPlanExecutionView(body, plan, session) {
     ${statsHtml}
     <div class="pexec-steps">${stepsHtml}</div>`;
   body.querySelector('#plan-exec-back')?.addEventListener('click', () => { _plansExecId = null; _plansExecSessionDate = null; renderPlansOverlay(); });
+}
+// feat 176 — advisory rest between two steps, by the heavier of their loads. Guidance only — never tracked,
+// because the execution sequence is free (you can do steps in any order, or off-plan work in between).
+function suggestedStepRestRange(a, b) {
+  const rank = l => l === 'heavy' ? 3 : (l === 'light' ? 1 : 2);
+  const lv = Math.max(rank((a && a.load) || 'moderate'), rank((b && b.load) || 'moderate'));
+  return lv === 3 ? { minSec: 150, maxSec: 240 } : lv === 1 ? { minSec: 45, maxSec: 90 } : { minSec: 90, maxSec: 150 };
+}
+function _stepRestDividerHtml(a, b) {
+  const r = suggestedStepRestRange(a, b);
+  return `<div class="pexec-step-rest" title="A guide only — rest as you like; the plan tracks no order">💤 suggested rest ~${_fmtDur(r.minSec)}–${_fmtDur(r.maxSec)}</div>`;
 }
 // feat 164 — the finished-run recap: which steps were left incomplete (started, under min%) or skipped (untouched).
 function _planExecFinishHtml(detail) {
@@ -14696,7 +14711,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 121 · 2026-06-08 07:40';
+const APP_BUILD = 'build 122 · 2026-06-08 07:45';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
