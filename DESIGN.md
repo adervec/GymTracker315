@@ -674,6 +674,16 @@ They share variation **UUIDs**.
   a `switchToTab(name)` helper (resets the page + history/volume sub-state). "History" stays a separate filtered/
   searchable view. Covered by `test/sessionslog.spec.mjs` (tab labels, today-only Dashboard, pagination math + nav,
   single-page no-pager, see-Log link); visually verified.
+- **Categorized, searchable, filterable plan picker (feat 147):** the plans overlay list (`renderPlansList`) gains a
+  **search box** (name/theme), **category** filter chips and **length** filter chips, with plans **grouped under
+  category headers**. Categories are *derived* (`planCategory` → Push / Pull / Legs / Upper / Full Body / Core /
+  Mixed / Mobility / …) from each plan's step **muscle-mega mix** (`planMegaDist`, mirroring `sessionSplitLabel`), so
+  no hand-maintained field is needed and user plans categorize automatically; length buckets (quick ≤40 / standard /
+  long ≥90 min) come from `estimatePlanMinutes`. Filters live in `_plansSearch` / `_plansCatFilter` /
+  `_plansLenFilter` (reset on overlay open), the search keeps focus + caret across re-render, an empty result shows a
+  **Clear filters** action, and each row carries a category tag. `PLAN_CAT_ORDER` ranks the chips + headers. Covered
+  by `test/planlist.spec.mjs` (category derivation, chips + grouped headers, search, category filter, length filter +
+  clear); visually verified on the real seed plans.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

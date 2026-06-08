@@ -706,6 +706,18 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .plan-row-name { font-size: 14px; font-weight: 600; color: var(--text); }
   .plan-row-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
   .plan-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  /* feat 147 — plan picker: search + category/length filter chips + grouped headers */
+  .plans-search { width: 100%; box-sizing: border-box; margin-bottom: 9px; padding: 9px 12px; font-size: 13px; border-radius: 9px; font-family: inherit; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); -webkit-appearance: none; }
+  .plan-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 4px; -webkit-overflow-scrolling: touch; }
+  .plan-chip { flex-shrink: 0; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+  .plan-chip.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  .plan-chip-n { font-size: 10px; opacity: 0.7; font-weight: 700; }
+  .plan-filter-note { font-size: 10.5px; color: var(--text3); margin: 2px 2px 8px; }
+  .plan-cat-head { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text3); margin: 14px 0 2px; display: flex; align-items: baseline; gap: 7px; }
+  .plan-cat-count { font-size: 10px; color: var(--text3); background: var(--bg3); border-radius: 999px; padding: 1px 7px; font-weight: 700; }
+  .plan-cat-tag { color: var(--accent); font-weight: 700; }
+  .plan-list-empty { font-size: 12.5px; color: var(--text3); padding: 18px 0; text-align: center; }
+  .plan-clear-filters { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 7px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; margin-left: 4px; }
   .plan-edit-step { background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; padding: 9px 10px; margin-bottom: 8px; }
   .plan-edit-step-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
   .plan-edit-step-num { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
@@ -7598,6 +7610,38 @@ function suggestedWeightForVar(varUuid, load) { return suggestedWeightFromBase(b
 function estimatePlanMinutes(plan) { const sets = planTotalSets(plan), steps = (plan.steps || []).length; return Math.max(15, Math.round((sets * 2.5 + steps) / 15) * 15); }
 function planIntensity(plan) { const n = plan && plan.intensity; return (n >= 1 && n <= 5) ? n : 3; }
 function intensityDots(plan) { const n = planIntensity(plan); return '●'.repeat(n) + '○'.repeat(5 - n); }
+// feat 147 — derive a plan's category from its steps' muscle-mega mix (mirrors sessionSplitLabel), so the
+// plan picker can group/filter without a hand-maintained category field. Each step's first option maps to a
+// mega (push/pull/lower/core/full), weighted by its target sets.
+function planMegaDist(plan) {
+  const mega = {}; let total = 0;
+  (plan.steps || []).forEach(st => {
+    const o = (st.options || [])[0]; if (!o) return;
+    let m = null;
+    if (o.type === 'variation') { const i = VAR_INDEX.get(o.uuid); m = i && i.family.mega; }
+    else if (o.type === 'movement') { const f = FAMILIES.find(x => x.id === o.familyId); m = f && f.mega; }
+    m = m || 'other';
+    const n = st.sets || 1; mega[m] = (mega[m] || 0) + n; total += n;
+  });
+  return { mega, total };
+}
+function planCategory(plan) {
+  const { mega, total } = planMegaDist(plan);
+  if (!total) return 'Other';
+  const NAME = { push:'Push', pull:'Pull', lower:'Legs', core:'Core', full:'Full Body', mobility:'Mobility', recovery:'Recovery' };
+  const push = mega.push||0, pull = mega.pull||0, lower = mega.lower||0, full = mega.full||0;
+  const top = Object.entries(mega).sort((a,b)=>b[1]-a[1])[0];
+  if (full/total >= 0.4) return 'Full Body';
+  if (push>0 && pull>0 && lower>0 && (push+pull+lower)/total >= 0.8) return 'Full Body'; // balanced compound mix
+  if (top[1]/total >= 0.6) return NAME[top[0]] || (top[0][0].toUpperCase()+top[0].slice(1));
+  if ((push+pull)/total >= 0.7 && lower/total < 0.2) return 'Upper';
+  if (lower/total >= 0.5) return 'Legs';
+  return 'Mixed';
+}
+// Coarse length bucket for the picker's duration filter.
+function planLengthBucket(plan) { const m = estimatePlanMinutes(plan); return m <= 40 ? 'quick' : (m >= 90 ? 'long' : 'standard'); }
+const PLAN_CAT_ORDER = ['Full Body','Upper','Push','Pull','Legs','Core','Mixed','Mobility','Recovery','Other'];
+function planCatRank(c) { const i = PLAN_CAT_ORDER.indexOf(c); return i < 0 ? PLAN_CAT_ORDER.length : i; }
 // "Pickable" suggested weight — pre-load the matching picker to approximate the target.
 function greedyPlates(perSide, denoms) { const plates = {}; let rem = Math.max(0, perSide); denoms.forEach(d => { while (rem >= d - 0.001) { plates[d] = (plates[d] || 0) + 1; rem -= d; } }); return plates; }
 function nearestInList(target, list) { let best = list[0], bd = Math.abs(list[0] - target); list.forEach(w => { const d = Math.abs(w - target); if (d < bd) { bd = d; best = w; } }); return best; }
@@ -7635,7 +7679,8 @@ function startExerciseFromPlanOption(o, load) {
 /* ---- Plans overlay (list + builder) ---- */
 let _plansEditId = null, _plansAddOptStep = null, _plansOptSearch = '';
 let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Execution View mode (which plan + which session)
-function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; renderPlansOverlay(); document.getElementById('plans-backdrop').classList.add('open'); document.getElementById('plans-panel').classList.add('open'); document.body.style.overflow = 'hidden'; }
+let _plansSearch = '', _plansCatFilter = 'all', _plansLenFilter = 'all'; // feat 147 — plan picker search + filters
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; renderPlansOverlay(); document.getElementById('plans-backdrop').classList.add('open'); document.getElementById('plans-panel').classList.add('open'); document.body.style.overflow = 'hidden'; }
 function openPlanPicker() { openPlansOverlay(); }
 function openPlanFull(id) { // feat 138 — open the full plan view (overlay) focused on one plan's steps
   _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null;
@@ -7671,21 +7716,58 @@ function renderPlansOverlay() {
   }
   const plan = _plansEditId ? getPlan(_plansEditId) : null;
   if (plan) { renderPlanEditor(body, plan); return; }
-  body.innerHTML = `<div class="plan-list-intro">Plans are optional and suggestions only — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
-    ${(state.plans || []).map(p => `<div class="plan-row">
-      <div class="plan-row-main"><div class="plan-row-name">${escapeHtml(p.name)}</div>${p.desc?`<div class="plan-row-desc">${escapeHtml(p.desc)}</div>`:''}<div class="plan-row-sub"><span class="plan-intensity" title="Intensity ${planIntensity(p)}/5">${intensityDots(p)}</span> · ~${estimatePlanMinutes(p)} min · ${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets</div></div>
-      <div class="plan-row-actions">
-        ${p.media ? `<button class="drawer-btn" data-plan-media="${p.id}" title="Watch attached video">🎬</button>` : ''}
-        <button class="drawer-btn" data-plan-use="${p.id}">Use</button>
-        <button class="drawer-btn" data-plan-edit="${p.id}">Edit</button>
-        <button class="drawer-btn danger" data-plan-del="${p.id}">Del</button>
-      </div>
-    </div>`).join('')}
-    ${(state.plans || []).length === 0 ? '<div class="plan-list-intro">No plans yet.</div>' : ''}
-    <button class="drawer-btn" id="plan-new-btn" style="margin-top:10px;">+ New plan</button>`;
+  renderPlansList(body); // feat 147 — categorized, searchable, filterable picker
+}
+// feat 147 — the plan picker: a search box + category & length filter chips, then plans grouped under
+// category headers. Categories are derived (planCategory) so no hand-maintained field is needed.
+const _planRowHtml = (p) => `<div class="plan-row">
+    <div class="plan-row-main"><div class="plan-row-name">${escapeHtml(p.name)}</div>${p.desc?`<div class="plan-row-desc">${escapeHtml(p.desc)}</div>`:''}<div class="plan-row-sub"><span class="plan-cat-tag">${escapeHtml(planCategory(p))}</span> · <span class="plan-intensity" title="Intensity ${planIntensity(p)}/5">${intensityDots(p)}</span> · ~${estimatePlanMinutes(p)} min · ${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets</div></div>
+    <div class="plan-row-actions">
+      ${p.media ? `<button class="drawer-btn" data-plan-media="${p.id}" title="Watch attached video">🎬</button>` : ''}
+      <button class="drawer-btn" data-plan-use="${p.id}">Use</button>
+      <button class="drawer-btn" data-plan-edit="${p.id}">Edit</button>
+      <button class="drawer-btn danger" data-plan-del="${p.id}">Del</button>
+    </div>
+  </div>`;
+function renderPlansList(body) {
+  const plans = state.plans || [];
+  const q = (_plansSearch || '').trim().toLowerCase();
+  // present categories (for the chip row), ranked
+  const present = [...new Set(plans.map(planCategory))].sort((a, b) => planCatRank(a) - planCatRank(b));
+  const matches = (p) => {
+    if (q && !(p.name.toLowerCase().includes(q) || (p.desc || '').toLowerCase().includes(q))) return false;
+    if (_plansCatFilter !== 'all' && planCategory(p) !== _plansCatFilter) return false;
+    if (_plansLenFilter !== 'all' && planLengthBucket(p) !== _plansLenFilter) return false;
+    return true;
+  };
+  const filtered = plans.filter(matches);
+  // group the filtered plans by category
+  const groups = {};
+  filtered.forEach(p => { const c = planCategory(p); (groups[c] = groups[c] || []).push(p); });
+  const groupCats = Object.keys(groups).sort((a, b) => planCatRank(a) - planCatRank(b));
+  const LEN = [['all','Any length'],['quick','Quick'],['standard','Standard'],['long','Long']];
+  const catChip = (val, label, n) => `<button class="plan-chip ${_plansCatFilter===val?'active':''}" data-plan-cat="${escapeAttr(val)}">${escapeHtml(label)}${n!=null?` <span class="plan-chip-n">${n}</span>`:''}</button>`;
+  const lenChip = (val, label) => `<button class="plan-chip ${_plansLenFilter===val?'active':''}" data-plan-len="${val}">${label}</button>`;
+  const listHtml = plans.length === 0
+    ? '<div class="plan-list-intro">No plans yet — tap “＋ New plan”.</div>'
+    : (filtered.length === 0
+      ? '<div class="plan-list-empty">No plans match. <button class="plan-clear-filters" id="plan-clear-filters">Clear filters</button></div>'
+      : groupCats.map(c => `<div class="plan-cat-head">${escapeHtml(c)} <span class="plan-cat-count">${groups[c].length}</span></div>${groups[c].map(_planRowHtml).join('')}`).join(''));
+  body.innerHTML = `<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
+    <input type="search" id="plans-search" class="plans-search" placeholder="🔍 Search plans by name or theme…" value="${escapeAttr(_plansSearch)}" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="plan-chips">${catChip('all','All',plans.length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
+    <div class="plan-chips">${LEN.map(([v,l]) => lenChip(v,l)).join('')}</div>
+    ${(_plansCatFilter!=='all'||_plansLenFilter!=='all'||q) ? `<div class="plan-filter-note">${filtered.length} of ${plans.length} plans</div>` : ''}
+    ${listHtml}
+    <button class="drawer-btn" id="plan-new-btn" style="margin-top:12px;">＋ New plan</button>`;
   bindPlansList(body);
 }
 function bindPlansList(body) {
+  const search = body.querySelector('#plans-search');
+  if (search) search.addEventListener('input', () => { _plansSearch = search.value; const pos = search.selectionStart; renderPlansOverlay(); const s2 = document.getElementById('plans-search'); if (s2) { s2.focus(); try { s2.setSelectionRange(pos, pos); } catch (_) {} } });
+  body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { _plansCatFilter = b.dataset.planCat; renderPlansOverlay(); }));
+  body.querySelectorAll('[data-plan-len]').forEach(b => b.addEventListener('click', () => { _plansLenFilter = b.dataset.planLen; renderPlansOverlay(); }));
+  body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; renderPlansOverlay(); });
   body.querySelectorAll('[data-plan-media]').forEach(b => b.addEventListener('click', () => openPlanMedia(b.dataset.planMedia)));
   body.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
   body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; renderPlansOverlay(); }));
@@ -13449,7 +13531,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 93 · 2026-06-07 20:27';
+const APP_BUILD = 'build 94 · 2026-06-07 20:33';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
