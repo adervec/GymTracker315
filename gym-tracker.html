@@ -13750,8 +13750,16 @@ document.getElementById('rest-bar')?.addEventListener('click', () => {
 document.getElementById('plan-step-bar')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); });
 document.getElementById('plan-step-bar')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanExecution(p.id); } });
 // feat 160 — wake locks drop when the tab is hidden; re-acquire when it returns to the foreground (and on boot)
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshWakeLock(); });
+// feat 159 — the Web-Bluetooth HR link is fragile across app background/foreground/reopen; on returning to the
+// foreground, proactively re-attach to the remembered device (silent getDevices reconnect) if it dropped.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  try { refreshWakeLock(); } catch (_) {}
+  try { if (typeof hrTryReconnect === 'function' && !_hrConnected && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {}
+});
+window.addEventListener('focus', () => { try { if (typeof hrTryReconnect === 'function' && !_hrConnected && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {} });
 try { refreshWakeLock(); } catch (_) {}
+try { if (typeof hrTryReconnect === 'function' && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {} // feat 159 — re-attach on boot/reopen
 // feat 57 — tap outside the numpad to dismiss it
 document.getElementById('trk-numpad-backdrop')?.addEventListener('click', closeNumpad);
 document.addEventListener('keydown', e => {
@@ -13769,7 +13777,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 105 · 2026-06-07 21:29';
+const APP_BUILD = 'build 106 · 2026-06-07 21:32';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -14137,11 +14145,13 @@ function hrOnDisconnect() {
 function hrScheduleReconnect() {
   if (_hrReconnectTimer || !_hrDevice) return;
   let tries = 0;
-  _hrReconnectTimer = setInterval(() => {
+  const attempt = () => {
     if (_hrConnected) { clearInterval(_hrReconnectTimer); _hrReconnectTimer = null; return; }
-    if (++tries > 20 || !_hrDevice) { clearInterval(_hrReconnectTimer); _hrReconnectTimer = null; return; }
+    if (++tries > 30 || !_hrDevice) { clearInterval(_hrReconnectTimer); _hrReconnectTimer = null; return; } // feat 159 — persist longer
     hrConnectDevice(_hrDevice).catch(() => {});     // succeeds once the device is back in range
-  }, 6000);
+  };
+  _hrReconnectTimer = setInterval(attempt, 6000);
+  attempt(); // feat 159 — try immediately, don't wait the first 6s
 }
 // User gesture: pick a heart-rate device and remember it.
 async function hrConnect() {

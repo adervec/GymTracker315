@@ -757,6 +757,12 @@ They share variation **UUIDs**.
   session, ephemeral) and draws an **autoscaled sparkline** (`sparklineSvg`, y mapped to the series min/max so small
   real changes are visible) plus a "▲/▼ N this session" delta. `sparklineSvg` is a reusable helper for other live
   trends. Covered by `test/livescore.spec.mjs` (sample tracking, autoscale + flat/short series, no-rounding code path).
+- **HR connection robustness across app open/close (feat 159):** the Web-Bluetooth HR link dropped when the app was
+  backgrounded/closed and nothing re-attached on return. The foreground-return path (`visibilitychange`→visible +
+  `window 'focus'`) now silently re-attaches the remembered device via `hrTryReconnect()` (the existing
+  `getDevices()` reconnect), and a boot-time reconnect attempt covers a full reopen mid-workout. The
+  `gattserverdisconnected` retry (`hrScheduleReconnect`) now fires **immediately** instead of waiting the first 6s and
+  persists longer (30 tries). Covered by `test/hrreconnect.spec.mjs` (silent re-attach, no-op guards, wiring present).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
