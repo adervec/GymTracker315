@@ -714,6 +714,11 @@ They share variation **UUIDs**.
 - **Step bar opens the execution view (feat 156):** the notched current-step HUD bar (`#plan-step-bar`) now opens the
   detailed **Plan Execution View** (feat 145, `openPlanExecution`) instead of the plan editor (`openPlanFull`); title
   updated. Covered by `test/planexec.spec.mjs`.
+- **Discard active workout (feat 154):** a new **🗑 Discard** button in the active-workout controls (next to End
+  Workout) runs `discardActiveWorkout()` — a themed `confirmDialog` (showing the set count, "as if the session never
+  happened, can't be undone") then `clearPending()` + `stopMetronome()` + **`tombstoneSession()`** (feat 95, so sync
+  won't resurrect it) + removes the session from `state.sessions`. Distinct from End Workout, which keeps and grades
+  the session. Covered by `test/discardworkout.spec.mjs` (confirm removes+tombstones, cancel keeps, button renders).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;

@@ -1332,6 +1332,8 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .wc-btn.end:active { transform: scale(0.98); }
   .wc-btn.ended { background: #1a1a1a; border-color: #2a2a2a; color: #777; cursor: default; }
   .wc-btn.plans { flex: 0 0 auto; background: var(--bg3); border-color: var(--border2); color: var(--text2); }
+  .wc-btn.discard { flex: 0 0 auto; background: #1a1414; border-color: #4a2a2a; color: #c98; } /* feat 154 */
+  .wc-btn.discard:active { transform: scale(0.98); background: var(--danger); color: #fff; border-color: var(--danger); }
 
   .workout-score-card { background: linear-gradient(135deg, #1f1426 0%, #14101a 100%); border: 1px solid #3a2a4a; border-left: 3px solid #b48aff; border-radius: 8px; padding: 9px 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
   .workout-score-grade { font-size: 22px; font-weight: 800; color: #b48aff; line-height: 1; min-width: 36px; text-align: center; font-variant-numeric: tabular-nums; }
@@ -8044,6 +8046,7 @@ function renderLog(main) {
   if (active) {
     html += `<div class="workout-controls">
       <button class="wc-btn end" id="wc-end-btn">⏹ End Workout</button>
+      <button class="wc-btn discard" id="wc-discard-btn" title="Discard this workout — remove all of today's sets as if it never happened">🗑 Discard</button>
     </div>
     <div class="metronome-bar">
       <button class="metro-toggle ${metronomeRunning() ? 'on' : ''}" id="metro-toggle-btn">${metronomeRunning() ? '⏸' : '▶'} Metronome</button>
@@ -8223,6 +8226,7 @@ function renderLog(main) {
   // the global hold-to-confirm setting.
   const endBtn = main.querySelector('#wc-end-btn');
   if (endBtn) attachTrackerPress(endBtn, () => endWorkout(false), () => endWorkout(true), 'Hold to end');
+  main.querySelector('#wc-discard-btn')?.addEventListener('click', discardActiveWorkout); // feat 154
   // Metronome controls (feat 69)
   main.querySelector('#metro-toggle-btn')?.addEventListener('click', toggleMetronome);
   main.querySelector('#metro-bpm-down')?.addEventListener('click', () => changeMetroBpm(-5));
@@ -8603,6 +8607,27 @@ function endWorkout(skipConfirm) {
     return;
   }
   finalizeEndWorkout(active, skipConfirm);
+}
+
+// feat 154 — discard the active workout entirely: every set logged today is removed as if the session
+// never happened (tombstoned for sync). Distinct from End Workout, which keeps + grades the session.
+function discardActiveWorkout() {
+  if (roBlocked('discard the workout')) return;
+  const active = getActiveSession();
+  if (!active) { toast('No active workout'); return; }
+  const sets = (active.exercises || []).reduce((c, e) => c + (e.sets || []).length, 0);
+  confirmDialog(`Discard this entire workout? ${sets} logged set${sets === 1 ? '' : 's'} from today will be permanently removed — as if the session never happened. This can't be undone.`,
+    { title: 'Discard workout?', okLabel: '🗑 Discard workout', cancelLabel: 'Keep it', danger: true }).then(ok => {
+      if (!ok) return;
+      clearPending();                                    // drop any in-progress log
+      if (typeof stopMetronome === 'function') stopMetronome();
+      tombstoneSession(active);                          // feat 95 — record the deletion so sync won't resurrect it
+      state.sessions = (state.sessions || []).filter(s => s !== active);
+      saveState();
+      toast('🗑 Workout discarded');
+      if (typeof refreshRestBar === 'function') refreshRestBar();
+      render();
+    });
 }
 
 // Actually end the active workout (after any unsaved-set resolution).
@@ -13562,7 +13587,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 99 · 2026-06-07 20:59';
+const APP_BUILD = 'build 100 · 2026-06-07 21:02';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
