@@ -1661,6 +1661,14 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .stat-label { font-size: 9.5px; color: #777; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; }
   .stat-value { font-size: 22px; font-weight: 700; color: #fff; margin-top: 4px; font-variant-numeric: tabular-nums; }
   .stat-sub { font-size: 10.5px; color: #666; margin-top: 1px; }
+  /* feat 146 — Log tab (paginated sessions) + Dashboard "see Log" link */
+  .dash-see-log { display: block; width: 100%; margin-top: 16px; padding: 10px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .dash-see-log:active { background: var(--accent-bg); color: var(--accent); }
+  .slog-range { font-size: 11px; color: var(--text3); margin: 8px 2px 12px; text-align: center; }
+  .slog-pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 6px; }
+  .slog-pager .drawer-btn { flex: 0 0 auto; }
+  .slog-pager .drawer-btn:disabled { opacity: 0.4; cursor: default; }
+  .slog-page { font-size: 12px; font-weight: 700; color: var(--text2); font-variant-numeric: tabular-nums; }
 
   /* FAB — Log button (changes color when pending sets exist) */
   .fab { position: fixed; bottom: 14px; left: 14px; right: 14px; border: none; padding: 14px; border-radius: 11px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 18px rgba(180,138,255,0.35); letter-spacing: 0.5px; z-index: 50; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s, color 0.2s; }
@@ -2120,7 +2128,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
     <button id="trk-export-pdf" type="button" title="Save or share this view as a PDF" aria-label="Export this view as PDF" style="display:none;">📄 PDF</button>
   </div>
   <div class="tabs">
-    <div class="tab active" data-tab="log">Log</div>
+    <div class="tab active" data-tab="log">Dashboard</div>
+    <div class="tab" data-tab="sessions">Log</div>
     <div class="tab" data-tab="history">History</div>
     <div class="tab" data-tab="volume">Volume</div>
     <div class="tab" data-tab="trends">Trends</div>
@@ -7256,6 +7265,7 @@ function render() {
   const main = document.getElementById('trk-main');
   document.getElementById('trk-fab').style.display = (currentTab === 'log' && !isReadonly()) ? 'flex' : 'none';
   if (currentTab === 'log') renderLog(main);
+  else if (currentTab === 'sessions') renderSessionsLog(main); // feat 146 — paginated session list
   else if (currentTab === 'history') renderHistory(main);
   else if (currentTab === 'volume') renderVolume(main);
   else if (currentTab === 'trends') renderTrends(main);
@@ -7875,12 +7885,60 @@ function togglePlanCollapsed() {
   saveState(); render();
 }
 
+// feat 146 — wire the interactions on any rendered session card (shared by the Dashboard + the Log tab):
+// edit a logged exercise, toggle a superset, edit HR stats, share/export, and add/edit session notes.
+function bindSessionCards(main) {
+  main.querySelectorAll('.session-ex[data-edit]').forEach(el => el.addEventListener('click', () => editExisting(el.dataset.session, el.dataset.varuuid, el.dataset.subuuid || null)));
+  main.querySelectorAll('.ss-link-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); toggleSuperset(btn.dataset.ssSession, parseInt(btn.dataset.ssIdx)); }));
+  main.querySelectorAll('[data-hr-edit]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hrEditSession = el.dataset.hrEdit; render(); }));
+  main.querySelectorAll('[data-hr-cancel]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hrEditSession = null; render(); }));
+  main.querySelectorAll('[data-hr-save]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); saveWorkoutStats(el.dataset.hrSave); }));
+  main.querySelectorAll('[data-share-session]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); openExportDialog({ preset:'session', sessionDate: el.dataset.shareSession }); }));
+  main.querySelectorAll('[data-add-notes], [data-edit-notes]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); openNotesModal(el.dataset.addNotes || el.dataset.editNotes); }));
+}
+// feat 146 — the "Log" tab: a paginated, newest-first list of EVERY session (today + recent + all-time),
+// so the history isn't dumped all at once. The Dashboard tab stays today-only.
+let _sessionsLogPage = 0;
+const SESSIONS_PER_PAGE = 10;
+function renderSessionsLog(main) {
+  const all = (state.sessions || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date)); // newest first
+  const total = all.length;
+  const totalSets = all.reduce((sum, s) => sum + (s.exercises || []).reduce((c, e) => c + (e.sets || []).length, 0), 0);
+  const pages = Math.max(1, Math.ceil(total / SESSIONS_PER_PAGE));
+  if (_sessionsLogPage >= pages) _sessionsLogPage = pages - 1;
+  if (_sessionsLogPage < 0) _sessionsLogPage = 0;
+  const start = _sessionsLogPage * SESSIONS_PER_PAGE;
+  const pageSessions = all.slice(start, start + SESSIONS_PER_PAGE);
+  const todayStr = new Date().toDateString();
+  let html = '';
+  if (total > 0) {
+    html += `<div class="stats-grid">
+      <div class="stat-tile"><div class="stat-label">Sessions</div><div class="stat-value">${total}</div></div>
+      <div class="stat-tile"><div class="stat-label">Total Sets</div><div class="stat-value">${totalSets}</div></div>
+    </div>
+    <div class="slog-range">${escapeHtml(fmtDate(all[total - 1].date))} → ${escapeHtml(fmtDate(all[0].date))}</div>`;
+    pageSessions.forEach(s => { html += renderSession(s, new Date(s.date).toDateString() === todayStr); });
+    if (pages > 1) {
+      html += `<div class="slog-pager">
+        <button class="drawer-btn" id="slog-prev" ${_sessionsLogPage === 0 ? 'disabled' : ''}>← Newer</button>
+        <span class="slog-page">Page ${_sessionsLogPage + 1} / ${pages}</span>
+        <button class="drawer-btn" id="slog-next" ${_sessionsLogPage >= pages - 1 ? 'disabled' : ''}>Older →</button>
+      </div>`;
+    }
+  } else {
+    html += `<div class="card"><div class="card-title">No sessions yet</div><div style="color:#888;font-size:13px;">Log a set on the <b>Dashboard</b> to start building your history.</div></div>`;
+  }
+  main.innerHTML = html;
+  bindSessionCards(main);
+  const go = (d) => { _sessionsLogPage += d; render(); const m = document.getElementById('trk-main'); if (m) m.scrollTop = 0; window.scrollTo(0, 0); };
+  main.querySelector('#slog-prev')?.addEventListener('click', () => { if (_sessionsLogPage > 0) go(-1); });
+  main.querySelector('#slog-next')?.addEventListener('click', () => { if (_sessionsLogPage < pages - 1) go(1); });
+}
 function renderLog(main) {
   // Check whether the today session should be auto-ended due to inactivity
   maybeAutoEndActive();
   reapAbandonedSet(); // feat 51 — catch-up cleanup of a stale open set
 
-  const recent = state.sessions.slice(-5).reverse();
   const todaySessions = state.sessions.filter(s => new Date(s.date).toDateString() === new Date().toDateString());
   const active = getActiveSession();
 
@@ -8032,33 +8090,13 @@ function renderLog(main) {
     </div>`;
   }
 
-  if (recent.length > 0) {
-    const others = recent.filter(s => new Date(s.date).toDateString() !== new Date().toDateString());
-    if (others.length > 0) {
-      html += '<div class="card-title" style="margin-top:18px;">Recent Sessions</div>';
-      others.forEach(s => html += renderSession(s, false));
-    }
-  }
-
-  const totalSessions = state.sessions.length;
-  const totalSets = state.sessions.reduce((sum, s) => sum + s.exercises.reduce((c, e) => c + e.sets.length, 0), 0);
-  if (totalSessions > 0) {
-    html += `<div class="card-title" style="margin-top:18px;">All-Time</div>
-    <div class="stats-grid">
-      <div class="stat-tile"><div class="stat-label">Sessions</div><div class="stat-value">${totalSessions}</div></div>
-      <div class="stat-tile"><div class="stat-label">Total Sets</div><div class="stat-value">${totalSets}</div></div>
-    </div>`;
+  // feat 146 — the Dashboard is TODAY-only; recent + all-time sessions now live on the separate "Log" tab.
+  if (state.sessions.length > (todaySessions.length || 0)) {
+    html += `<button class="dash-see-log" id="dash-see-log">📋 See all sessions in Log →</button>`;
   }
 
   main.innerHTML = html;
-  main.querySelectorAll('.session-ex[data-edit]').forEach(el => {
-    el.addEventListener('click', () => {
-      const sessionDate = el.dataset.session;
-      const varUuid = el.dataset.varuuid;
-      const subUuid = el.dataset.subuuid || null;
-      editExisting(sessionDate, varUuid, subUuid);
-    });
-  });
+  bindSessionCards(main); // edit/superset/HR/share/notes on any rendered session card (feat 146 — shared with the Log tab)
   // feat 55 — tap a "remaining" suggestion to jump straight into logging that exercise
   main.querySelectorAll('.remaining-chip[data-remvar]').forEach(el => {
     el.addEventListener('click', () => startExerciseFromSuggestion(el.dataset.remvar));
@@ -8079,26 +8117,7 @@ function renderLog(main) {
   // feat 113 — plan-complete banner actions
   main.querySelector('#plan-complete-end')?.addEventListener('click', () => endWorkout(false));
   main.querySelector('#plan-complete-summary')?.addEventListener('click', showPlanCompleteDialog);
-  // Superset link buttons (feat 39)
-  main.querySelectorAll('.ss-link-btn').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      toggleSuperset(btn.dataset.ssSession, parseInt(btn.dataset.ssIdx));
-    });
-  });
-  // Workout HR/calorie stats (feat 25)
-  main.querySelectorAll('[data-hr-edit]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hrEditSession = el.dataset.hrEdit; render(); }));
-  main.querySelectorAll('[data-hr-cancel]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hrEditSession = null; render(); }));
-  main.querySelectorAll('[data-hr-save]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); saveWorkoutStats(el.dataset.hrSave); }));
-  // Per-session export/share (feat 50) — stopPropagation so it doesn't trigger card edit
-  main.querySelectorAll('[data-share-session]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); openExportDialog({ preset:'session', sessionDate: el.dataset.shareSession }); }));
-  main.querySelectorAll('[data-add-notes], [data-edit-notes]').forEach(el => {
-    el.addEventListener('click', e => {
-      e.stopPropagation();
-      const date = el.dataset.addNotes || el.dataset.editNotes;
-      openNotesModal(date);
-    });
-  });
+  main.querySelector('#dash-see-log')?.addEventListener('click', () => switchToTab('sessions')); // feat 146 — jump to the Log tab
   // Workout control buttons
   const startBtn = main.querySelector('#wc-start-btn');
   if (startBtn) startBtn.addEventListener('click', startWorkout);
@@ -13369,16 +13388,17 @@ applyI18n(document); // feat 61 — translate tagged static markup (attrs/text) 
 setTimeout(hrTryReconnect, 0); // feat 72 — auto-reconnect last HR device; deferred so it runs after boot completes (this INIT block is above the `let _hrConnected` declaration, so calling synchronously here hit its temporal-dead-zone and silently rejected — auto-reconnect never actually ran)
 logInfo('App loaded', (state.sessions ? state.sessions.length : 0) + ' sessions');
 
+function switchToTab(name) { // feat 146 — shared by the tab bar + in-page "see Log" link
+  document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
+  currentTab = name;
+  historyView = 'list';
+  historyKey = null;
+  volWeekOffset = 0;
+  _sessionsLogPage = 0; // always land on the newest page when (re)entering the Log tab
+  render();
+}
 document.querySelectorAll('.tab[data-tab]').forEach(t => {
-  t.addEventListener('click', () => {
-    document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    currentTab = t.dataset.tab;
-    historyView = 'list';
-    historyKey = null;
-    volWeekOffset = 0;
-    render();
-  });
+  t.addEventListener('click', () => switchToTab(t.dataset.tab));
 });
 
 document.getElementById('trk-fab').addEventListener('click', openLogModal);
@@ -13429,7 +13449,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 92 · 2026-06-07 20:18';
+const APP_BUILD = 'build 93 · 2026-06-07 20:27';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

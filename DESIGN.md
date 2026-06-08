@@ -664,6 +664,16 @@ They share variation **UUIDs**.
   session's plan badge** (now clickable, wired once via a delegated `[data-plan-exec-sess]` handler so it works in
   history too). Status classes are namespaced (`pe-full`/`pe-min`/…) to avoid the global `.full{}` collision. Covered
   by `test/planexec.spec.mjs` (variations + sets + statuses, roll-up + back, history-badge entry); visually verified.
+- **Dashboard (today) vs Log (paginated history) split (feat 146):** the default tab — internally still `log` (keeps
+  the FAB + workout controls) — is **renamed "Dashboard"** and is now **today-only** (its old "Recent Sessions" +
+  "All-Time" blocks were removed; an unobtrusive `#dash-see-log` link points to the Log). A **new "Log" tab**
+  (`data-tab="sessions"` → `renderSessionsLog`) lists **every** session newest-first with an all-time summary
+  (sessions, total sets, date range) and **pagination** (`SESSIONS_PER_PAGE = 10`, `_sessionsLogPage`, ← Newer /
+  Older →) so a long history isn't dumped at once. The per-session card interactions (edit / superset / HR / share /
+  notes) were extracted into a shared `bindSessionCards(main)` used by both tabs, and tab switching is centralised in
+  a `switchToTab(name)` helper (resets the page + history/volume sub-state). "History" stays a separate filtered/
+  searchable view. Covered by `test/sessionslog.spec.mjs` (tab labels, today-only Dashboard, pagination math + nav,
+  single-page no-pager, see-Log link); visually verified.
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
