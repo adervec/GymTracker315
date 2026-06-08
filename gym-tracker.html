@@ -6069,14 +6069,20 @@ function renderSettingsDrawer() {
 
     <div class="drawer-section-title" style="margin-top:18px;">Exercise media (bulk)</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
-      Attach reference videos to many exercises at once. <b>Export</b> the movement/variation list, feed it to a matcher
-      (e.g. <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/youtube-media.py</code>, which pulls a
-      creator's YouTube Shorts and matches by title), then <b>import</b> the resulting media map. Merges into existing media.
+      Attach reference videos to many exercises at once. The easiest way: <b>📝 Media sheet</b> exports a plain,
+      human-readable list with a blank for each exercise — have <b>Claude</b> (chat or cowork) fill in good form clips,
+      then <b>paste it back</b> or import the file. (Power path: <b>Export exercise list</b> as JSON, feed it to a matcher
+      like <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/youtube-media.py</code>, then import the
+      JSON map.) Either way it <b>merges</b> into existing media.
     </div>
     <div class="drawer-data-row" style="flex-wrap:wrap;">
-      <button class="drawer-btn" id="exmedia-export-btn">⬆ Export exercise list</button>
-      <button class="drawer-btn" id="exmedia-import-btn">⬇ Import media map</button>
-      <input type="file" id="exmedia-import-file" accept=".json,.txt" style="display:none;">
+      <button class="drawer-btn" id="exmedia-sheet-btn">📝 Media sheet (Claude-fillable)</button>
+      <button class="drawer-btn" id="exmedia-paste-btn">📋 Paste sheet to import</button>
+    </div>
+    <div class="drawer-data-row" style="flex-wrap:wrap;margin-top:6px;">
+      <button class="drawer-btn" id="exmedia-export-btn">⬆ Export exercise list (JSON)</button>
+      <button class="drawer-btn" id="exmedia-import-btn">⬇ Import file (sheet or map)</button>
+      <input type="file" id="exmedia-import-file" accept=".json,.txt,.md" style="display:none;">
     </div>
     ${isDesktopWizard() ? `<div class="drawer-data-row" style="margin-top:6px;"><button class="drawer-btn" id="open-media-wizard-btn">🖥️ Bulk media wizard…</button></div>
     <div style="font-size:11px;color:var(--text3);margin-top:4px;">Desktop tool to add, reassign, test &amp; delete reference links across every exercise.</div>` : ''}
@@ -6347,11 +6353,13 @@ function renderSettingsDrawer() {
 
   // feat 84 — bulk exercise-media export/import
   body.querySelector('#exmedia-export-btn')?.addEventListener('click', exportExerciseList);
+  body.querySelector('#exmedia-sheet-btn')?.addEventListener('click', exportMediaSheet); // feat 174 — Claude-fillable sheet
+  body.querySelector('#exmedia-paste-btn')?.addEventListener('click', () => importMediaFromClipboard().then(() => renderSettingsDrawer())); // feat 174
   body.querySelector('#exmedia-import-btn')?.addEventListener('click', () => body.querySelector('#exmedia-import-file').click());
   body.querySelector('#open-media-wizard-btn')?.addEventListener('click', openMediaWizard); // feat 110
   body.querySelector('#exmedia-import-file')?.addEventListener('change', e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-    const rd = new FileReader(); rd.onload = () => { importExerciseMediaMap(String(rd.result || '')); renderSettingsDrawer(); }; rd.readAsText(f);
+    const rd = new FileReader(); rd.onload = () => { importMediaData(String(rd.result || '')); renderSettingsDrawer(); }; rd.readAsText(f); // feat 174 — JSON map OR markdown sheet
   });
 
   // Auto-load merge mode rows
@@ -7244,14 +7252,13 @@ function resolveExerciseKey(entry) {
   const fam2 = FAMILIES.find(f => { const t = _normExTitle(f.title); return t && (t.includes(m) || m.includes(t)); }); if (fam2) return fam2.id;
   return null;
 }
-function importExerciseMediaMap(text) {
-  if (roBlocked('import exercise media')) return null;
-  let data; try { data = JSON.parse(String(text || '').trim()); } catch (e) { toast('Invalid JSON file'); return null; }
-  const arr = Array.isArray(data) ? data : (data.media || data.items || []);
-  if (!arr || !arr.length) { toast('No media entries in that file'); return null; }
+// Attach a flat list of media entries ({ uuid?|id?|match?|title?, url, source? }) to the catalogue.
+// Pure-ish: mutates state.exerciseMedia and returns counts; the caller saves/renders/toasts. Shared by
+// the JSON map importer (feat 84) and the human-readable sheet importer (feat 174).
+function applyMediaEntries(arr) {
   state.exerciseMedia = state.exerciseMedia || {};
   let added = 0, dup = 0, unmatched = 0, bad = 0;
-  arr.forEach(e => {
+  (arr || []).forEach(e => {
     if (!e || !e.url) { bad++; return; }
     const key = resolveExerciseKey(e); if (!key) { unmatched++; return; }
     const parsed = parseMediaUrl(e.url); if (!parsed) { bad++; return; }
@@ -7260,11 +7267,34 @@ function importExerciseMediaMap(text) {
     list.push({ ...parsed, addedAt: new Date().toISOString(), source: e.source || undefined });
     added++;
   });
-  saveState();
-  logInfo('Exercise media map imported', `${added} added · ${dup} dup · ${unmatched} unmatched · ${bad} bad`);
-  if (typeof render === 'function') render();
-  toast(`Media: ${added} added${unmatched ? `, ${unmatched} unmatched` : ''}${dup ? `, ${dup} dup` : ''}`);
   return { added, dup, unmatched, bad };
+}
+function _finishMediaImport(res, via) {
+  saveState();
+  logInfo('Exercise media imported', `${res.added} added · ${res.dup} dup · ${res.unmatched} unmatched · ${res.bad} bad · via ${via}`);
+  if (typeof render === 'function') render();
+  toast(`Media: ${res.added} added${res.unmatched ? `, ${res.unmatched} unmatched` : ''}${res.dup ? `, ${res.dup} dup` : ''}`);
+  return res;
+}
+function importExerciseMediaMap(text) {
+  if (roBlocked('import exercise media')) return null;
+  let data; try { data = JSON.parse(String(text || '').trim()); } catch (e) { toast('Invalid JSON file'); return null; }
+  const arr = Array.isArray(data) ? data : (data.media || data.items || []);
+  if (!arr || !arr.length) { toast('No media entries in that file'); return null; }
+  return _finishMediaImport(applyMediaEntries(arr), 'json');
+}
+// feat 174 — accept EITHER the machine JSON media map OR the human-readable Claude-fillable sheet,
+// so the same Import button round-trips both. Sniff the first non-space char: { or [ → JSON, else sheet.
+function importMediaData(text) {
+  const t = String(text || '').trim();
+  if (!t) { toast('Nothing to import'); return null; }
+  return (t[0] === '{' || t[0] === '[') ? importExerciseMediaMap(t) : importMediaSheet(t);
+}
+function importMediaSheet(text) {
+  if (roBlocked('import exercise media')) return null;
+  const arr = parseMediaSheet(text);
+  if (!arr.length) { toast('No media links found in that sheet'); return null; }
+  return _finishMediaImport(applyMediaEntries(arr), 'sheet');
 }
 
 /* ============================================================
@@ -7398,6 +7428,97 @@ function exportExerciseList() {
   VAR_INDEX.forEach((info, uuid) => variations.push({ uuid, title: info.variation.title, movement: info.family.id, movementTitle: info.family.title }));
   downloadBlob(new Blob([JSON.stringify({ movements, variations }, null, 2)], { type: 'application/json' }), 'gymtracker-exercises.json');
   toast(`Exported ${movements.length} movements · ${variations.length} variations`);
+}
+
+/* ---- feat 174 — human-readable, Claude-fillable media sheet (round-trips through importMediaData) ----
+   The JSON exercise list (above) is for the python matcher; this is for a HUMAN (or Claude chat / cowork):
+   a plain-markdown sheet that lists every exercise with a stable `{id:<uuid>}` tag and a `media:` slot
+   pre-filled with any existing links. You paste it into Claude ("find good form clips for each of these"),
+   Claude fills the `media:` lines, and you re-import the SAME text — parseMediaSheet reads the `{id}` tag
+   (or falls back to the title) and every http(s) URL in each exercise block. Tolerant of light reformatting. */
+const _MEDIA_SHEET_HELP = [
+  'How to fill this in: after each exercise’s `media:` marker, paste one or more form-reference video',
+  'links (YouTube, Shorts, TikTok, Instagram Reel) separated by commas or new lines. Leave `media:` blank to',
+  'skip. Keep the `{id:…}` tag on each line unchanged — it maps the line back to the exercise when you',
+  're-import this file (Settings → Data → Exercise media → Import). You may delete whole sections you don’t need.'
+];
+function buildMediaSheet(scope) { // scope: 'all' (default) | 'missing'
+  const missingOnly = scope === 'missing';
+  let total = 0, withLinks = 0;
+  const body = [];
+  FAMILIES.forEach(f => {
+    const rows = (f.variations || [])
+      .filter(v => v.uuid && !isSuppressedVar(v.uuid)) // feat 167 — skip cross-listed duplicate copies
+      .map(v => ({ v, media: getExerciseMedia(v.uuid) }));
+    const shown = missingOnly ? rows.filter(r => !r.media.length) : rows;
+    rows.forEach(r => { total++; if (r.media.length) withLinks++; });
+    if (!shown.length) return;
+    body.push(`## ${MEGA_LABELS[f.mega] || f.mega} · ${f.title}`);
+    shown.forEach(({ v, media }) => {
+      const urls = media.map(m => m.watchUrl || m.url).filter(Boolean);
+      body.push(`- ${v.title}  {id: ${v.uuid}}`);
+      body.push(`  media: ${urls.join(', ')}`);
+    });
+    body.push('');
+  });
+  const stamp = `Generated ${new Date().toISOString().slice(0, 10)} · ${total} exercises · ${withLinks} with links · scope: ${missingOnly ? 'missing links only' : 'all'}`;
+  return ['# GymTracker — Media Reference Sheet', '', ..._MEDIA_SHEET_HELP, '', stamp, ''].concat(body).join('\n').replace(/\n+$/, '\n');
+}
+// Parse a (possibly Claude-edited) media sheet back into media entries. Robust: an exercise block starts at
+// a `- ` line (title + optional `{id:<uuid>}`); every http(s) URL anywhere in that block — the `media:` line
+// or bare continuation lines — is attached to it. A `#`/`##` header with no exercise clears the context.
+function parseMediaSheet(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const out = [];
+  const URL_RE = /https?:\/\/[^\s,;)\]]+/g;
+  let cur = null; // { uuid|null, title|null }
+  const pushUrls = (s) => {
+    if (!cur) return;
+    const m = String(s || '').match(URL_RE);
+    if (m) m.forEach(u => out.push(cur.uuid ? { uuid: cur.uuid, url: u, source: 'sheet' } : { match: cur.title, url: u, source: 'sheet' }));
+  };
+  lines.forEach(raw => {
+    const line = raw || '';
+    const item = line.match(/^\s*[-*]\s+(.*)$/);
+    if (item) {
+      let label = item[1];
+      const idm = label.match(/\{\s*id\s*:\s*([0-9a-fA-F-]{6,})\s*\}/);
+      const uuid = idm ? idm[1] : null;
+      label = label.replace(/\{\s*id\s*:[^}]*\}/, '');           // strip the id tag
+      const beforeMedia = label.split(/\bmedia\s*:/i)[0];        // title is whatever precedes an inline "media:"
+      cur = { uuid, title: beforeMedia.replace(/[\s·|-]+$/, '').trim() || null };
+      pushUrls(label); // an inline "- Title {id} media: url" still captures the url
+      return;
+    }
+    if (/^\s*#/.test(line)) { cur = null; return; } // a header (## Movement) resets context — no stray attaches
+    pushUrls(line); // `media:` line or a bare URL continuation under the current exercise
+  });
+  return out;
+}
+function exportMediaSheet() {
+  if (typeof choiceDialog !== 'function') return;
+  choiceDialog({
+    title: '📝 Media reference sheet',
+    message: 'Export a human-readable sheet of your exercises with a slot for each one’s form-reference video links. Have Claude (chat or cowork) fill it in, then re-import the same text here — links map back by their {id} tag.',
+    choices: [
+      { label: 'Only exercises missing links', value: 'missing', style: 'primary' },
+      { label: 'All exercises', value: 'all' },
+      { label: 'Cancel', value: null }
+    ]
+  }).then(choice => {
+    if (!choice) return;
+    const sheet = buildMediaSheet(choice);
+    downloadText(sheet, `gymtracker-media-sheet${choice === 'missing' ? '-todo' : ''}.md`, 'text/markdown;charset=utf-8');
+    copyText(sheet); // also land it on the clipboard for an immediate paste into Claude chat
+    toast('📝 Sheet saved + copied — let Claude fill the links, then Import media');
+  });
+}
+async function importMediaFromClipboard() {
+  if (roBlocked('import exercise media')) return;
+  let text = '';
+  try { text = await navigator.clipboard.readText(); } catch (e) { text = ''; }
+  if (!text || !text.trim()) { toast('Clipboard is empty — copy the filled sheet first (or use Import file)'); return; }
+  importMediaData(text);
 }
 
 // Category helpers (feat 6/8). Cardio entries are time/metric based, not progressive overload.
@@ -14233,7 +14354,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 116 · 2026-06-07 22:51';
+const APP_BUILD = 'build 117 · 2026-06-07 23:01';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

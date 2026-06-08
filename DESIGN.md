@@ -837,6 +837,21 @@ They share variation **UUIDs**.
   Covered by `test/secondaryparents.spec.mjs` (primary+secondary matching, qualifying-set union, suppression + the
   cross-link row, no remaining visible cross-family dups, data preserved); `test/planpicker.spec.mjs` updated for the
   union semantics.
+- **Claude-fillable media reference sheet (feat 174):** the bulk-media tools previously only spoke JSON — `Export
+  exercise list` emitted machine JSON for the python matcher, and `Import media map` consumed a *different* JSON
+  shape. New **round-trip** path so a human (or **Claude chat / cowork**) can populate reference clips: **`📝 Media
+  sheet`** (`buildMediaSheet(scope)`) exports a plain-markdown list of every exercise — grouped by movement, each line
+  carrying a stable `{id: <uuid>}` tag and a `media:` slot pre-filled with any existing links — with fill-in
+  instructions at the top; scope is **all** or **only those missing links**. You hand it to Claude ("find good form
+  clips for each"), Claude fills the `media:` lines, and you re-import the **same text** — `parseMediaSheet()` reads
+  each exercise block by its `{id}` tag (falling back to the **title** if the tag was dropped) and grabs every
+  `http(s)` URL on the `media:` line *or* bare continuation lines, tolerant of light reformatting. Import is unified
+  via **`importMediaData()`**, which sniffs the first char (`{`/`[` → JSON map, else → sheet), so the one **Import
+  file** button (now also `.md`) and a new **`📋 Paste sheet to import`** (reads the clipboard) both accept either
+  format. The JSON importer was refactored to share `applyMediaEntries()` (attach + dedup + match-by-uuid/id/title)
+  with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
+  immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
+  parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
