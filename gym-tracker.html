@@ -887,6 +887,13 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .pexec-seq-arr { color: var(--text3); font-size: 9px; }
   .pexec-offplan { font-size: 11.5px; color: var(--text2); margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border2); line-height: 1.5; }
   .pexec-offplan-names { color: var(--text3); }
+  /* feat 164 — finished-run recap */
+  .pexec-finish { margin: 0 0 12px; display: flex; flex-direction: column; gap: 5px; }
+  .pexec-finish.all-done { font-size: 12px; font-weight: 700; color: var(--good); }
+  .pexec-fin-row { font-size: 11.5px; line-height: 1.5; padding: 6px 9px; border-radius: 8px; }
+  .pexec-fin-row b { font-weight: 800; }
+  .pexec-fin-row.incomplete { background: color-mix(in srgb, #d9a400 13%, transparent); color: #d9a400; }
+  .pexec-fin-row.skipped { background: var(--bg3); color: var(--text2); }
   .plan-hist-badge.plan-hist-clickable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .phb-chev { font-weight: 800; opacity: 0.7; }
   .plan-card.complete { border-left-color: var(--good); }
@@ -8449,6 +8456,7 @@ function renderPlanExecutionView(body, plan, session) {
     </div>`;
   }).join('');
   const statsHtml = (detail && detail.hasTiming) ? _planExecStatsHtml(detail, plan) : ''; // feat 163
+  const finishHtml = (!isActive && detail) ? _planExecFinishHtml(detail) : ''; // feat 164 — incomplete/skipped recap on a finished run
   const when = isActive ? 'This session (live)' : fmtDate(session.date);
   body.innerHTML = `<button class="drawer-btn" id="plan-exec-back">← All plans</button>
     <div class="pexec-head">
@@ -8456,9 +8464,19 @@ function renderPlanExecutionView(body, plan, session) {
       <div class="pexec-when">${escapeHtml(when)}${session.planRev ? ` · <span class="pexec-rev">rev ${session.planRev}</span>` : ''}${sum.complete ? ' · <b class="pexec-complete">complete 🎉</b>' : ''}</div>
     </div>
     <div class="pexec-rollup"><b>${sum.stepsDone}/${sum.stepsTotal}</b> steps${sum.stepsFull < sum.stepsDone ? ` <span class="pexec-fullhint">(${sum.stepsFull} full)</span>` : ''} · <b>${sum.setsDone}/${sum.setsTarget}</b> sets${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}</div>
+    ${finishHtml}
     ${statsHtml}
     <div class="pexec-steps">${stepsHtml}</div>`;
   body.querySelector('#plan-exec-back')?.addEventListener('click', () => { _plansExecId = null; _plansExecSessionDate = null; renderPlansOverlay(); });
+}
+// feat 164 — the finished-run recap: which steps were left incomplete (started, under min%) or skipped (untouched).
+function _planExecFinishHtml(detail) {
+  const { incomplete, skipped } = planIncompleteSkipped(detail);
+  if (!incomplete.length && !skipped.length) return `<div class="pexec-finish all-done">✓ Every step completed</div>`;
+  return `<div class="pexec-finish">
+    ${incomplete.length ? `<div class="pexec-fin-row incomplete">⚠ <b>${incomplete.length} incomplete</b> — ${escapeHtml(incomplete.map(s => `${s.label} (${s.logged}/${s.req})`).join(' · '))}</div>` : ''}
+    ${skipped.length ? `<div class="pexec-fin-row skipped">⏭ <b>${skipped.length} skipped</b> — ${escapeHtml(skipped.map(s => s.label).join(' · '))}</div>` : ''}
+  </div>`;
 }
 // feat 163 — the analytics panel: ETC drift (vs original) + sparkline, time breakdown, actual sequence, off-plan.
 function _planExecStatsHtml(detail, plan) {
@@ -9385,6 +9403,27 @@ function discardActiveWorkout() {
 }
 
 // Actually end the active workout (after any unsaved-set resolution).
+// feat 164 — incomplete vs skipped steps for a finished plan execution (from the live detail stepStats).
+function planIncompleteSkipped(detail) {
+  const ss = (detail && detail.stepStats) || [];
+  return {
+    incomplete: ss.filter(s => s.setsLogged > 0 && !s.satisfied).map(s => ({ i: s.i, label: s.label, logged: s.setsLogged, req: s.setsReq })),
+    skipped: ss.filter(s => s.setsLogged === 0).map(s => ({ i: s.i, label: s.label, req: s.setsReq })),
+  };
+}
+// feat 164 — historize the detailed plan execution onto the session at workout end (judged at the run revision),
+// finalized with incomplete/skipped-step stats, so it can be reviewed later even if the plan changes or is deleted.
+function finalizePlanExecution(session) {
+  if (!session || !session.planId) { if (session) delete session.planExec; return null; }
+  const plan = getPlan(session.planId);
+  const evalPlan = plan ? planAtRevision(plan, session.planRev) : null;
+  if (!evalPlan) return session.planExec || null; // plan deleted — keep any earlier snapshot
+  const detail = computePlanExecutionDetail(session, evalPlan);
+  const sum = planExecutionSummary(session, evalPlan);
+  const { incomplete, skipped } = planIncompleteSkipped(detail);
+  session.planExec = { at: new Date().toISOString(), planId: session.planId, planName: evalPlan.name, planRev: session.planRev || null, summary: sum, incomplete, skipped, detail };
+  return session.planExec;
+}
 function finalizeEndWorkout(active, skipConfirm) {
   if (!active || active.endedAt) return;
   const stats = computeSessionStats(active);
@@ -9398,6 +9437,7 @@ function finalizeEndWorkout(active, skipConfirm) {
     releaseWakeLock(); // feat 160 — let the screen sleep again once the workout is over
     hrFinalize(active); // feat 72 — roll the recorded HR samples into the session's avg/max
     if (score) active.finalScore = score; // store final score for posterity
+    finalizePlanExecution(active); // feat 164 — historize the plan execution + incomplete/skipped stats
     saveState();
     render();
     logInfo('Workout ended', (score ? score.grade + ' ' + score.points : '') + ' · ' + stats.totalSets + ' sets');
@@ -9792,11 +9832,15 @@ function renderSession(session, isToday) {
   const _plan = session.planId ? getPlan(session.planId) : null;
   let planBadge = '';
   if (_plan) {
-    const total = _plan.steps.length;
+    // feat 162/164 — judge a past run at the revision it ran; prefer the historized snapshot when present.
+    const snap = session.planExec;
+    const evalPlan = planAtRevision(_plan, session.planRev);
+    const total = (snap && snap.summary) ? snap.summary.stepsTotal : evalPlan.steps.length;
     // feat 144 — a step counts as done at its min-% threshold; "✓ full" only when every step hit its full target.
-    const doneSteps = (_plan.steps || []).reduce((n, st) => n + (stepStatus(session, st, _plan).satisfied ? 1 : 0), 0);
-    const fullSteps = (_plan.steps || []).reduce((n, st) => n + (stepStatus(session, st, _plan).done ? 1 : 0), 0);
-    const tag = (total > 0 && fullSteps >= total) ? ' ✓ full' : (total > 0 && doneSteps >= total) ? ' ✓ done' : ' · partial';
+    const doneSteps = (snap && snap.summary) ? snap.summary.stepsDone : (evalPlan.steps || []).reduce((n, st) => n + (stepStatus(session, st, evalPlan).satisfied ? 1 : 0), 0);
+    const fullSteps = (snap && snap.summary) ? snap.summary.stepsFull : (evalPlan.steps || []).reduce((n, st) => n + (stepStatus(session, st, evalPlan).done ? 1 : 0), 0);
+    const skipN = (snap && snap.skipped) ? snap.skipped.length : 0; // feat 164
+    const tag = (total > 0 && fullSteps >= total) ? ' ✓ full' : (total > 0 && doneSteps >= total) ? ' ✓ done' : (skipN ? ` · ${skipN} skipped` : ' · partial');
     // feat 145 — the badge opens the detailed Plan Execution View for this session
     planBadge = `<div class="plan-hist-badge plan-hist-clickable" data-plan-exec-sess="${escapeAttr(session.date)}" data-plan-exec-id="${escapeAttr(_plan.id)}" role="button" tabindex="0" title="View plan execution detail">📋 ${escapeHtml(_plan.name)} · ${doneSteps}/${total} step${total===1?'':'s'}${tag} <span class="phb-chev">›</span></div>`;
   } else {
@@ -14637,7 +14681,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 119 · 2026-06-08 07:22';
+const APP_BUILD = 'build 120 · 2026-06-08 07:29';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

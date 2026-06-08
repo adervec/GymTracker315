@@ -880,6 +880,17 @@ They share variation **UUIDs**.
   line) and a per-step `⏱ est · actual · %active` line; the panel is suppressed when a session has no timing data.
   Covered by `test/planexecdetail.spec.mjs` (exact active/within/between math, %active, est-vs-actual, sequence
   ordering, off-plan totals, ETC delta + series length, render integration, and graceful no-timing degradation).
+- **Historized plan execution + end-of-workout recap (feat 164):** the detailed analytics (feat 163) are now
+  **snapshotted onto the session** at workout end so a run stays reviewable later even if the plan changes or is
+  deleted. `finalizeEndWorkout` calls `finalizePlanExecution(session)`, which judges the run at the revision it ran
+  (`planAtRevision(plan, session.planRev)`) and stores `session.planExec = {at, planName, planRev, summary, detail,
+  incomplete, skipped}` — where **incomplete** = steps started but left under their min% (`{label, logged, req}`)
+  and **skipped** = steps never touched (`planIncompleteSkipped`). The execution view shows a finished-run recap
+  banner (⚠ incomplete / ⏭ skipped, or "✓ Every step completed") for any ended session, and the Log session badge
+  prefers the stored snapshot (and the run revision) for its `done/total` count and surfaces a `· N skipped` tag.
+  The snapshot travels inside the session (so it syncs + exports for free). Covered by
+  `test/planexechist.spec.mjs` (snapshot shape + incomplete/skipped classification, end-to-end finalize, the recap
+  banner, the all-complete case, the Log badge, and no-recap-while-live).
 - **Volume "Split" view (feat 119):** the Volume tab gains a **Split** level (alongside Group / Muscle / Heads) that
   aggregates the week's strength sets by **training split** — the family **mega** category (push / pull / lower /
   core / full). `getWeeklySplitVolume(weekOffset)` mirrors `getWeeklyVolume` but keys by `family.mega`;
