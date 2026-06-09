@@ -109,8 +109,9 @@ They share variation **UUIDs**.
   current/done state, tap-an-option to log it, **live ETA** from `computePlanETA` = remaining sets ×
   `computeRestStats` set+rest times, and a **⚠ gym** warning via `stepImpossibleInGym` when an active gym can do
   none of a step's options). The feat-55 auto PUSH/PULL/LOWER/CORE suggester (`computeRemainingWork`) is gated to
-  run **only when no plan is attached**. The plans overlay (`#plans-panel`) is a full builder: list → editor
-  (name, add/reorder/delete steps, per-step set count, add movement/variation options via a search picker) → use.
+  run **only when no plan is attached**. The plan creator (the **`plan-creator` router page** since feat 184; was the
+  `#plans-panel` overlay) is a full builder: list → editor (name, add/reorder/delete steps, per-step set count, add
+  movement/variation options via a search picker) → use.
 - **Plan descriptions, history & more plans (feat 71):** plans and steps carry an optional `desc` (shown on the
   card, list, and editor). Seeding is now **additive by id** with a `state.seededPlanIds` ledger (new seed plans
   append for existing users; deleted ones don't reappear) and **backfills descriptions** onto pristine seed
@@ -852,6 +853,19 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Plan Creator → page (feat 184):** the Workout Plans creator/list/editor moved out of the `#plans-panel`
+  slide-in into the **router page `plan-creator`** (Train › Prepare › Plan Creator), retiring the overlay DOM +
+  chrome CSS entirely. `renderPlansOverlay()` now hosts its list / editor / revision-history sub-views in `#trk-main`
+  whenever `currentPage==='plan-creator'`; the entry points became page adapters — `openPlansOverlay()` resets the
+  picker filters and `navTo('plan-creator')`, while `openPlanFull(id)` sets a transient `_plansDeepLink` so the page
+  render opens straight to that plan's editor (plain menu / `openPlansOverlay` entries default to the list root via
+  `renderPlanCreatorPage`). In-page sub-navigation (Edit · 🕘 History · ← All plans) re-renders within the page via
+  the existing direct `renderPlansOverlay()` calls; the top-bar ◀ Back leaves the page. Picking **Use** now
+  `navTo('workout')` (lands you on the dashboard with the plan active) instead of closing an overlay; the
+  `closePlansOverlay()` shim is a thin `navBack()`. Dashboard deep-links (plan progress line, Plans / Change buttons,
+  `#wc-plans-btn`) are unchanged — they flow through the same adapters. `planlist` / `minpct` / `planrevisions` /
+  `plandash` specs updated to read `#trk-main` + assert `currentPage==='plan-creator'` instead of the retired
+  `#plans-body` / `#plans-panel`.
 - **Plan Detail → page (feat 183):** the detailed plan-execution view (feat 145/163/164) moved out of the
   `#plans-panel` overlay into the **router page `plan-detail`** (Train › Execute › Plan Detail). `openPlanExecution`
   now stashes the target plan/session ids and `navTo('plan-detail')`; `renderPlanDetailPage(main)` resolves the

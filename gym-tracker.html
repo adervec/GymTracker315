@@ -714,16 +714,7 @@ body.brand-hidden { --topbar-h: 44px; } /* brand hidden → just the controls ro
   .metro-bpm-btn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 18px; font-weight: 700; cursor: pointer; font-family: inherit; line-height: 1; }
   .metro-bpm { font-size: 12px; font-weight: 700; color: var(--text2); min-width: 54px; text-align: center; font-variant-numeric: tabular-nums; }
   .metro-cfg { width: 34px; height: 30px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 15px; cursor: pointer; font-family: inherit; }
-  /* Workout plans (feat 70) */
-  #plans-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 10000; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-  #plans-backdrop.open { opacity: 1; pointer-events: auto; }
-  #plans-panel { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg2); border-top: 1px solid var(--border2); border-radius: 16px 16px 0 0; z-index: 10001; transform: translateY(100%); transition: transform 0.3s cubic-bezier(.32,.72,0,1); max-height: 86vh; overflow-y: auto; box-shadow: 0 -8px 32px var(--shadow); padding-bottom: env(safe-area-inset-bottom, 0px); }
-  #plans-panel.open { transform: translateY(0); }
-  #plans-handle { width: 36px; height: 4px; background: var(--border2); border-radius: 2px; margin: 10px auto 0; }
-  #plans-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg2); z-index: 2; }
-  #plans-title { font-size: 15px; font-weight: 700; color: var(--text); }
-  #plans-close { background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); padding: 5px 11px; border-radius: 7px; font-size: 13px; cursor: pointer; font-family: inherit; }
-  #plans-body { padding: 14px 16px 24px; }
+  /* Workout plans (feat 70) — the creator/list/editor renders into #trk-main as the 'plan-creator' page (feat 184); the slide-in overlay chrome was retired. */
   .plan-list-intro { font-size: 12px; color: var(--text3); line-height: 1.5; margin-bottom: 12px; }
   .plan-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .plan-row-main { flex: 1; min-width: 0; }
@@ -2318,16 +2309,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
   <div id="mw-body"></div>
 </div>
 
-<!-- ====== WORKOUT PLANS OVERLAY (feat 70) ====== -->
-<div id="plans-backdrop" onclick="closePlansOverlay()"></div>
-<div id="plans-panel">
-  <div id="plans-handle"></div>
-  <div id="plans-header">
-    <div id="plans-title">📋 Workout Plans</div>
-    <button id="plans-close" onclick="closePlansOverlay()">Done</button>
-  </div>
-  <div id="plans-body"><!-- populated by renderPlansOverlay() --></div>
-</div>
+<!-- ====== WORKOUT PLANS (feat 70/184) — now the 'plan-creator' router page; renders into #trk-main. Overlay retired. ====== -->
 
 <!-- ====== HELP OVERLAY (feat 21) ====== -->
 <div id="help-backdrop" onclick="closeHelp()"></div>
@@ -7767,7 +7749,7 @@ const PAGES = {
   exercise:      { title:'Exercise',     emoji:'✍️', kind:'leaf', parent:'execute', open:()=>openLogModal() },
   'plan-detail': { title:'Plan Detail',  emoji:'🗺️', kind:'leaf', parent:'execute', render:m=>renderPlanDetailPage(m) }, // feat 183
   equipment:     { title:'Equipment',    emoji:'🏗️', kind:'leaf', parent:'prepare', open:()=>toast('Open an exercise to set up its equipment') },
-  'plan-creator':{ title:'Plan Creator', emoji:'📝', kind:'leaf', parent:'prepare', open:()=>openPlansOverlay() },
+  'plan-creator':{ title:'Plan Creator', emoji:'📝', kind:'leaf', parent:'prepare', render:m=>renderPlanCreatorPage(m) }, // feat 184
   reference:     { title:'Reference',    emoji:'📖', kind:'leaf', parent:'study', open:()=>goPanel('panel-reference') },
   glossary:      { title:'Glossary',     emoji:'📓', kind:'leaf', parent:'study', open:()=>openGloss() },
   anatomy:       { title:'Anatomy',      emoji:'🫀', kind:'leaf', parent:'study', open:()=>openGloss() },
@@ -8452,14 +8434,19 @@ let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Exec
 let _plansRevView = false; // feat 162 — when editing a plan, show its revision history instead of the form
 let _plansSearch = '', _plansCatFilter = 'all', _plansLenFilter = 'all'; // feat 147 — plan picker search + filters
 let _plansFavOnly = false; // feat 178 — show only favorited plans
-function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; renderPlansOverlay(); document.getElementById('plans-backdrop').classList.add('open'); document.getElementById('plans-panel').classList.add('open'); document.body.style.overflow = 'hidden'; }
-function openPlanPicker() { openPlansOverlay(); }
-function openPlanFull(id) { // feat 138 — open the full plan view (overlay) focused on one plan's steps
-  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false;
+let _plansDeepLink = false; // feat 184 — openPlanFull sets this so the page render opens straight to the editor
+// feat 184 — the Plan Creator is a router page rendered into #trk-main (the #plans-panel overlay is retired).
+// openPlansOverlay opens the list; openPlanFull deep-links to one plan's editor. Both navTo the page; in-page
+// sub-navigation (Edit / 🕘 History / ← All plans) re-renders within #trk-main via renderPlansOverlay().
+function renderPlanCreatorPage(main) {
+  if (!_plansDeepLink) { _plansEditId = null; _plansRevView = false; _plansAddOptStep = null; } // plain entry → list root
+  _plansDeepLink = false;
   renderPlansOverlay();
-  document.getElementById('plans-backdrop')?.classList.add('open');
-  document.getElementById('plans-panel')?.classList.add('open');
-  document.body.style.overflow = 'hidden';
+}
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansDeepLink = false; navTo('plan-creator'); }
+function openPlanPicker() { openPlansOverlay(); }
+function openPlanFull(id) { // feat 138/184 — open the plan editor as a page, focused on one plan's steps
+  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansDeepLink = true; navTo('plan-creator');
 }
 // feat 145 — open the detailed Plan Execution View for a plan + a session (defaults to the active session).
 function openPlanExecution(planId, sessionDate) {
@@ -8475,17 +8462,17 @@ function renderPlanDetailPage(main) {
   if (plan && sess) { renderPlanExecutionView(main, planAtRevision(plan, sess.planRev), sess); return; }
   main.innerHTML = `<div class="card"><div class="card-title">No plan execution to show</div><div style="color:var(--text3);font-size:13px;line-height:1.5;">Start a workout with a plan (Train › Execute › Workout, then “Use a plan”), then open <b>Plan Detail</b> for the step-by-step breakdown.</div></div>`;
 }
-function closePlansOverlay() { document.getElementById('plans-backdrop').classList.remove('open'); document.getElementById('plans-panel').classList.remove('open'); document.body.style.overflow = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; }
+function closePlansOverlay() { _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; if (currentPage === 'plan-creator' || currentPage === 'plan-detail') navBack(); } // feat 184 — overlay retired; Back leaves the page
 function planUseForWorkout(id) {
   if (roBlocked('start a workout')) return;
   let s = getActiveSession();
   if (!s) { startWorkout(); s = getActiveSession(); }   // start a workout if not already in one
   if (!s) return;
   s.planId = id; const _pl = getPlan(id); s.planRev = _pl ? (ensurePlanRevisioned(_pl), _pl.rev || 1) : 1; // feat 162 — record which revision this execution ran
-  saveState(); closePlansOverlay(); render(); toast('Using plan for this workout');
+  saveState(); navTo('workout'); toast('Using plan for this workout'); // feat 184 — picking a plan takes you to the Workout page
 }
 function renderPlansOverlay() {
-  const body = document.getElementById('plans-body');
+  const body = (currentPage === 'plan-creator') ? document.getElementById('trk-main') : null; // feat 184 — only renders while on the plan-creator page
   if (!body) return;
   if (_plansExecId) { // feat 145 — Plan Execution View (what was actually done, per step)
     const execPlan = getPlan(_plansExecId);
@@ -14981,7 +14968,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 129 · 2026-06-09 07:47';
+const APP_BUILD = 'build 130 · 2026-06-09 08:06';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
