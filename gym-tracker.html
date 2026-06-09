@@ -25,6 +25,7 @@
    THEME VARIABLES
    ============================================= */
 :root {
+  --topbar-h:  82px; /* feat 182 — two-row top bar (centered brand row + controls row); all fixed offsets key off this */
   --bg:        #0a0a0a;
   --bg2:       #111111;
   --bg3:       #1a1a1a;
@@ -183,10 +184,22 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   background: var(--nav-bg);
   border-bottom: 1px solid var(--nav-border);
   display: flex;
-  align-items: stretch;
-  height: 48px;
+  flex-direction: column; /* feat 182 — centered brand row on top, controls row below */
   box-shadow: 0 2px 12px var(--shadow);
 }
+/* feat 182 — topmost centered brand row */
+.topbar-brand-row { display: flex; align-items: center; justify-content: center; height: 38px; flex-shrink: 0; border-bottom: 1px solid var(--nav-border); }
+body.brand-hidden .topbar-brand-row { display: none; }
+body.brand-hidden { --topbar-h: 44px; } /* brand hidden → just the controls row; offsets shrink with it */
+.topbar-brand-btn { background: none; border: none; cursor: pointer; padding: 3px 12px; display: flex; align-items: center; -webkit-tap-highlight-color: transparent; }
+.topbar-ctrl-row { display: flex; align-items: stretch; height: 44px; flex-shrink: 0; }
+.topbar-navbtn { width: 42px; flex-shrink: 0; border: none; background: transparent; color: var(--text2); font-size: 15px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.topbar-navbtn:disabled { opacity: 0.3; cursor: default; }
+.topbar-navbtn:not(:disabled):active { color: var(--accent); }
+#topbar-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 800; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 4px; }
+#topbar-title .tt-emoji { flex-shrink: 0; font-size: 16px; }
+#app-topbar .nav-tabs { display: none; } /* feat 182 — legacy panel switcher hidden (kept in DOM for compat; removed in feat 196) */
+#app-gloss-btn { display: none; }         /* feat 182 — Glossary is now a Study page */
 
 .nav-tabs {
   display: flex;
@@ -622,7 +635,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .set-input:disabled { opacity: 0.4; cursor: not-allowed; }
   /* feat 56 — opaque track + progress fill, flush under the top bar (no transparency to page content) */
   .rest-bar {
-    position: fixed; top: 48px; left: 0; right: 0; z-index: 9998;
+    position: fixed; top: var(--topbar-h); left: 0; right: 0; z-index: 9998;
     height: 30px; display: flex; align-items: center; justify-content: center;
     font-size: 12.5px; font-weight: 700; cursor: pointer;
     font-variant-numeric: tabular-nums; letter-spacing: 0.2px; white-space: nowrap; overflow: hidden;
@@ -645,24 +658,24 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .rest-bar.idle { height: 18px; font-size: 10.5px; font-weight: 600; color: var(--text3); }
   .rest-bar.flash .rest-bar-fill { animation: rest-flash 0.7s ease-in-out infinite; }
   @keyframes rest-flash { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-  body.rest-bar-on .panel { padding-top: 78px; }
-  body.rest-bar-idle .panel { padding-top: 66px; }
+  body.rest-bar-on .panel { padding-top: calc(var(--topbar-h) + 30px); }
+  body.rest-bar-idle .panel { padding-top: calc(var(--topbar-h) + 18px); }
   /* feat 139 — notched current-step bar, a HUD strip directly below the rest timer bar */
-  #plan-step-bar { position: fixed; top: 48px; left: 0; right: 0; z-index: 9997; height: 24px; display: none; align-items: center; gap: 9px; padding: 0 12px; background: var(--bg2); border-bottom: 1px solid var(--border2); font-size: 10.5px; font-weight: 700; color: var(--text2); cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
-  body.rest-bar-on #plan-step-bar { top: 78px; }
-  body.rest-bar-idle #plan-step-bar { top: 66px; }
-  body.plan-step-bar-on .panel { padding-top: 72px; }
-  body.plan-step-bar-on.rest-bar-on .panel { padding-top: 102px; }
-  body.plan-step-bar-on.rest-bar-idle .panel { padding-top: 90px; }
+  #plan-step-bar { position: fixed; top: var(--topbar-h); left: 0; right: 0; z-index: 9997; height: 24px; display: none; align-items: center; gap: 9px; padding: 0 12px; background: var(--bg2); border-bottom: 1px solid var(--border2); font-size: 10.5px; font-weight: 700; color: var(--text2); cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+  body.rest-bar-on #plan-step-bar { top: calc(var(--topbar-h) + 30px); }
+  body.rest-bar-idle #plan-step-bar { top: calc(var(--topbar-h) + 18px); }
+  body.plan-step-bar-on .panel { padding-top: calc(var(--topbar-h) + 24px); }
+  body.plan-step-bar-on.rest-bar-on .panel { padding-top: calc(var(--topbar-h) + 54px); }
+  body.plan-step-bar-on.rest-bar-idle .panel { padding-top: calc(var(--topbar-h) + 42px); }
   /* feat 148 — the Log-Sets sheet (#trk-modal) is a full-screen fixed overlay, so unlike .panel it sat at top:0
      and the fixed top bar + rest/plan-step HUD bars floated OVER its top content (clipping the exercise + sets).
      Push the sheet down to start below whichever bars are showing. Mirrors the .panel offsets above. */
-  #trk-modal { top: 48px; }
-  body.rest-bar-on #trk-modal { top: 78px; }
-  body.rest-bar-idle #trk-modal { top: 66px; }
-  body.plan-step-bar-on #trk-modal { top: 72px; }
-  body.plan-step-bar-on.rest-bar-on #trk-modal { top: 102px; }
-  body.plan-step-bar-on.rest-bar-idle #trk-modal { top: 90px; }
+  #trk-modal { top: var(--topbar-h); }
+  body.rest-bar-on #trk-modal { top: calc(var(--topbar-h) + 30px); }
+  body.rest-bar-idle #trk-modal { top: calc(var(--topbar-h) + 18px); }
+  body.plan-step-bar-on #trk-modal { top: calc(var(--topbar-h) + 24px); }
+  body.plan-step-bar-on.rest-bar-on #trk-modal { top: calc(var(--topbar-h) + 54px); }
+  body.plan-step-bar-on.rest-bar-idle #trk-modal { top: calc(var(--topbar-h) + 42px); }
   #plan-step-bar .stepbar-label { flex-shrink: 0; }
   #plan-step-bar .stepbar-notches { display: flex; flex: 1; gap: 3px; min-width: 0; height: 9px; }
   #plan-step-bar .stepbar-notch { flex: 1; background: var(--bg4, #2a2a2a); border-radius: 2px; min-width: 5px; transition: background 0.25s; }
@@ -975,7 +988,7 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 
 .panel {
   display: none;
-  padding-top: 48px;
+  padding-top: var(--topbar-h); /* feat 182 */
 }
 
 .panel.active {
@@ -2223,16 +2236,26 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 
 <!-- ====== TOP APP BAR ====== -->
 <div id="app-topbar">
-  <div class="nav-tabs">
-    <button class="nav-tab active" data-panel="panel-tracker" onclick="switchPanel('panel-tracker', this)" title="Tracker" aria-label="Tracker" data-i18n-title="nav.tracker" data-i18n-aria="nav.tracker">📈</button>
-    <button class="nav-tab" data-panel="panel-reference" onclick="switchPanel('panel-reference', this)" title="Reference" aria-label="Reference" data-i18n-title="nav.reference" data-i18n-aria="nav.reference">📚</button>
-    <button class="nav-tab" data-panel="panel-coaching" onclick="switchPanel('panel-coaching', this)" title="Coaching &amp; Progression" aria-label="Coaching and Progression">🧭</button>
+  <div class="topbar-brand-row">
+    <button id="app-brand-btn" class="topbar-brand-btn" onclick="navTo('home')" title="Home — GymTracker315" aria-label="Home">
+      <h1 id="app-brand" class="gt-brand" title="GymTracker315"><span class="gt-brand-mark">🏋️</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num">315</sup></span></h1>
+    </button>
   </div>
-  <div class="app-bar-actions">
-    <button id="app-sound-btn" class="app-bar-btn sound-btn" onclick="toggleSoundMenu(event)" title="Sound & haptics" aria-label="Sound and haptics"><span class="snd-main">🔊</span><span class="snd-haptic-badge">📳</span></button>
-    <button id="app-gloss-btn" class="app-bar-btn" onclick="openGloss()" title="Glossary" aria-label="Glossary" data-i18n-title="action.glossary" data-i18n-aria="action.glossary">📖</button>
-    <button id="app-settings-btn" onclick="openSettingsDrawer()" title="Settings" aria-label="Settings" data-i18n-title="app.settings" data-i18n-aria="app.settings">⚙️</button>
-    <button id="app-help-btn" class="app-bar-btn" onclick="openHelp()" title="Help" aria-label="Help" data-i18n-title="app.help" data-i18n-aria="app.help">❓</button>
+  <div class="topbar-ctrl-row">
+    <button id="nav-back" class="topbar-navbtn" onclick="topbarBack()" title="Back" aria-label="Back" disabled>◀</button>
+    <span id="topbar-title"></span>
+    <button id="nav-fwd" class="topbar-navbtn" onclick="navForward()" title="Forward" aria-label="Forward" disabled>▶</button>
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-panel="panel-tracker" onclick="switchPanel('panel-tracker', this)" title="Tracker" aria-label="Tracker" data-i18n-title="nav.tracker" data-i18n-aria="nav.tracker">📈</button>
+      <button class="nav-tab" data-panel="panel-reference" onclick="switchPanel('panel-reference', this)" title="Reference" aria-label="Reference" data-i18n-title="nav.reference" data-i18n-aria="nav.reference">📚</button>
+      <button class="nav-tab" data-panel="panel-coaching" onclick="switchPanel('panel-coaching', this)" title="Coaching &amp; Progression" aria-label="Coaching and Progression">🧭</button>
+    </div>
+    <div class="app-bar-actions">
+      <button id="app-sound-btn" class="app-bar-btn sound-btn" onclick="toggleSoundMenu(event)" title="Sound & haptics" aria-label="Sound and haptics"><span class="snd-main">🔊</span><span class="snd-haptic-badge">📳</span></button>
+      <button id="app-gloss-btn" class="app-bar-btn" onclick="openGloss()" title="Glossary" aria-label="Glossary" data-i18n-title="action.glossary" data-i18n-aria="action.glossary">📖</button>
+      <button id="app-settings-btn" onclick="navTo('settings')" title="Settings" aria-label="Settings" data-i18n-title="app.settings" data-i18n-aria="app.settings">⚙️</button>
+      <button id="app-help-btn" class="app-bar-btn" onclick="openHelp()" title="Help" aria-label="Help" data-i18n-title="app.help" data-i18n-aria="app.help">❓</button>
+    </div>
   </div>
 </div>
 
@@ -2319,8 +2342,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <!-- ====== TRACKER PANEL ====== -->
 <div class="panel active" id="panel-tracker">
 <header>
-  <div class="head-row">
-    <h1 id="app-brand" class="gt-brand" title="GymTracker315"><span class="gt-brand-mark">🏋️</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num">315</sup></span></h1>
+  <div class="head-row"><!-- feat 182 — brand moved to the top bar (centered, topmost) -->
     <button id="trk-export-pdf" type="button" title="Save or share this view as a PDF" aria-label="Export this view as PDF" style="display:none;">📄 PDF</button>
   </div>
   <div class="tabs">
@@ -7760,15 +7782,28 @@ const PAGES = {
 const TAB_TO_PAGE = { log:'workout', sessions:'log', history:'history', volume:'volume', trends:'trends', body:'body', gyms:'gyms' };
 let currentPage = 'workout', _pageBack = [], _pageFwd = [], _navTab = null; const _PAGE_CAP = 16;
 function pageDef(id) { return PAGES[id] || PAGES.workout; }
+function _surfaceTracker() { const ap = document.querySelector('.panel.active'); if (ap && ap.id !== 'panel-tracker' && typeof goPanel === 'function') goPanel('panel-tracker'); } // feat 182 — page nav brings the tracker panel forward (out of a Reference/Coaching slide-in)
 function navTo(id, opts) {
   opts = opts || {};
   const def = PAGES[id]; if (!def) return;
   if (def.open && !def.render && def.kind !== 'menu') { def.open(); return; } // legacy opener — keep current page
+  _surfaceTracker();
   if (!opts.replace && id !== currentPage) { _pageBack.push(currentPage); if (_pageBack.length > _PAGE_CAP) _pageBack.shift(); _pageFwd.length = 0; }
   currentPage = id; _persistPage(); renderCurrentPage();
 }
-function navBack() { if (!_pageBack.length) { const par = pageDef(currentPage).parent; if (par) navTo(par, { replace: true }); return; } _pageFwd.push(currentPage); currentPage = _pageBack.pop(); _persistPage(); renderCurrentPage(); }
-function navForward() { if (!_pageFwd.length) return; _pageBack.push(currentPage); currentPage = _pageFwd.pop(); _persistPage(); renderCurrentPage(); }
+function navBack() { _surfaceTracker(); if (!_pageBack.length) { const par = pageDef(currentPage).parent; if (par) navTo(par, { replace: true }); return; } _pageFwd.push(currentPage); currentPage = _pageBack.pop(); _persistPage(); renderCurrentPage(); }
+function navForward() { _surfaceTracker(); if (!_pageFwd.length) return; _pageBack.push(currentPage); currentPage = _pageFwd.pop(); _persistPage(); renderCurrentPage(); }
+// feat 182 — top-bar Back: if a Reference/Coaching slide-in is showing, exit it back to the app; else page-back.
+function topbarBack() { const ap = document.querySelector('.panel.active'); if (ap && ap.id !== 'panel-tracker') { if (typeof goPanel === 'function') goPanel('panel-tracker'); renderCurrentPage(); return; } navBack(); }
+// feat 182 — page title (emoji + name) + Back/Forward enabled state. Called from renderCurrentPage.
+function updateTopbarChrome(def) {
+  def = def || pageDef(currentPage);
+  const title = document.getElementById('topbar-title');
+  if (title) title.innerHTML = `<span class="tt-emoji">${def.emoji || ''}</span><span class="tt-name">${escapeHtml(def.title || '')}</span>`;
+  const ap = document.querySelector('.panel.active'), inPanel = !!(ap && ap.id !== 'panel-tracker');
+  const back = document.getElementById('nav-back'); if (back) back.disabled = !(_pageBack.length || inPanel);
+  const fwd = document.getElementById('nav-fwd'); if (fwd) fwd.disabled = !_pageFwd.length;
+}
 function _persistPage() { try { localStorage.setItem('gt_page', currentPage); } catch (_) {} }
 function _syncLegacyTabClasses() { const tab = pageDef(currentPage).tab; document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', !!tab && x.dataset.tab === tab)); }
 function renderMenu(main, ids) {
@@ -14940,7 +14975,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 127 · 2026-06-09 06:56';
+const APP_BUILD = 'build 128 · 2026-06-09 07:22';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

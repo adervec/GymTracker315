@@ -852,6 +852,21 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Top-bar redesign — brand centered/topmost + Back/Forward (feat 182):** phase 2 of the nav rework makes the
+  router visible. The **GymTracker315 brand** moved out of the tracker-panel header into a dedicated **centered,
+  topmost row** of `#app-topbar` (tap → Home); below it a controls row carries **◀ Back / page-title / ▶ Forward**
+  (`topbarBack`/`navForward`, disabled when the history stack is empty), then 🔊 ⚙️ ❓. The gear now routes to the
+  Settings menu (`navTo('settings')`). The two-row bar made the topbar taller, so all fixed offsets (panel
+  `padding-top`, `#trk-modal` / `#rest-bar` / `#plan-step-bar` positions, and their rest/step-bar combos) were
+  refactored onto a single **`--topbar-h`** variable (`calc(var(--topbar-h) + …)`); `body.brand-hidden` both hides
+  the brand row and collapses `--topbar-h` to the controls row, so the whole layout shrinks with one knob.
+  `updateTopbarChrome()` keeps the title + Back/Forward state fresh each render; `_surfaceTracker()` brings the
+  tracker panel forward on page navigations, and `topbarBack()` exits a Reference/Coaching slide-in back to the app.
+  The legacy 📈/📚/🧭 panel switcher + 📖 glossary button are **hidden but kept in the DOM** (compat) until
+  Reference/Advice become pages — then removed in feat 196; `coaching.spec`/`feedback.spec` now drive panels via
+  `goPanel()`. Covered by `test/navtopbar.spec.mjs` (brand topmost+centered, hide collapses the offset, Back/Forward
+  enable/disable, title, brand→Home + gear→Settings, hidden switcher + panel-exit Back); `restbaroverlap.spec`
+  updated for the new offsets.
 - **Page router — keystone of the nav rework (feat 181):** first phase of the total IA rework (drill-down pages +
   back/forward, per the approved plan). Adds a thin router over the existing renderers: a `PAGES` registry (`id →
   {title, emoji, kind:'menu'|'leaf', parent, tab?, render(main) | open()}`) covering the full target tree (Home ›

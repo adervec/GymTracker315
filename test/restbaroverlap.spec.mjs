@@ -15,20 +15,20 @@ test('the log sheet top clears the top bar alone, then the rest bar, then the pl
     const top = () => getComputedStyle(modal).top;
     const body = document.body;
     body.classList.remove('rest-bar-on', 'rest-bar-idle', 'plan-step-bar-on');
-    const base = top();                                   // top bar only (48px)
+    const base = top();                                   // top bar only (--topbar-h = 82px, feat 182 two-row bar)
     body.classList.add('rest-bar-on');
-    const rest = top();                                   // + rest bar (78px)
+    const rest = top();                                   // + 30px rest bar (112px)
     body.classList.add('plan-step-bar-on');
-    const both = top();                                   // + plan-step bar (102px)
+    const both = top();                                   // + 24px plan-step bar (136px)
     body.classList.remove('rest-bar-on'); body.classList.add('rest-bar-idle');
-    const idleBoth = top();                               // idle rest bar + plan-step bar (90px)
+    const idleBoth = top();                               // idle (18px) rest bar + plan-step bar (124px)
     body.classList.remove('rest-bar-idle', 'plan-step-bar-on');
     return { base, rest, both, idleBoth };
   });
-  expect(r.base).toBe('48px');     // below the 48px top app bar
-  expect(r.rest).toBe('78px');     // below top bar + 30px rest bar
-  expect(r.both).toBe('102px');    // below top bar + rest bar + 24px plan-step bar
-  expect(r.idleBoth).toBe('90px'); // idle (18px) rest bar + plan-step bar
+  expect(r.base).toBe('82px');     // below the two-row top app bar (--topbar-h)
+  expect(r.rest).toBe('112px');    // + 30px rest bar
+  expect(r.both).toBe('136px');    // + rest bar + 24px plan-step bar
+  expect(r.idleBoth).toBe('124px');// idle (18px) rest bar + plan-step bar
 });
 
 test('the sheet sits above the bars in DOM stacking but starts below them on screen (no clip)', async ({ page }) => {
@@ -38,8 +38,8 @@ test('the sheet sits above the bars in DOM stacking but starts below them on scr
     document.body.classList.add('rest-bar-on', 'plan-step-bar-on');
     const modalTop = parseFloat(getComputedStyle(modal).top);
     document.body.classList.remove('rest-bar-on', 'plan-step-bar-on');
-    // rest bar bottom = 48 (top bar) + 30 (rest) = 78; plan-step bottom = 78 + 24 = 102
+    // top bar (82) + rest (30) + plan-step (24) = 136 (feat 182 two-row top bar)
     return { modalTop };
   });
-  expect(r.modalTop).toBe(102); // exactly at the bottom of the lowest bar
+  expect(r.modalTop).toBe(136); // exactly at the bottom of the lowest bar
 });

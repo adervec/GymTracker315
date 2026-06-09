@@ -88,7 +88,7 @@ test('new exercises pass the picker visibility gate (recordable)', async ({ page
 
 test('Coaching tab renders three discipline cards linking the bundled guides', async ({ page }) => {
   expect(await page.locator('.nav-tab[data-panel="panel-coaching"]').count()).toBe(1);
-  await page.click('.nav-tab[data-panel="panel-coaching"]');
+  await page.evaluate(() => goPanel('panel-coaching')); // feat 182 — panel switcher is hidden; drive via goPanel
   await expect(page.locator('#panel-coaching')).toHaveClass(/active/);
   await expect(page.locator('#coaching-content .coach-card')).toHaveCount(3);
   const ids = await page.locator('#coaching-content .coach-card').evaluateAll((els) => els.map((e) => e.id));
@@ -101,7 +101,7 @@ test('guides are embedded in-file and open in the themed in-app reader', async (
   // all three guides are baked in as inert <template>s — no external /Guides needed
   expect(await page.locator('template[id^="guide-"]').count()).toBe(3);
 
-  await page.click('.nav-tab[data-panel="panel-coaching"]');
+  await page.evaluate(() => goPanel('panel-coaching')); // feat 182 — panel switcher is hidden; drive via goPanel
   await page.click('#coach-bouldering button.coach-chip.guide');
 
   // reader overlay opens with an iframe whose srcdoc carries the guide + a theme override
@@ -121,7 +121,7 @@ test('guides are embedded in-file and open in the themed in-app reader', async (
 });
 
 test('the guide reader can be escaped three ways (close button, Escape, Back)', async ({ page }) => {
-  await page.click('.nav-tab[data-panel="panel-coaching"]');
+  await page.evaluate(() => goPanel('panel-coaching')); // feat 182 — panel switcher is hidden; drive via goPanel
   const reader = page.locator('#guide-reader');
   const openGrip = () => page.click('#coach-grip button.coach-chip.guide');
 
@@ -147,14 +147,14 @@ test('the guide reader can be escaped three ways (close button, Escape, Back)', 
 });
 
 test('crosslink: a coaching chip opens that activity in the Reference', async ({ page }) => {
-  await page.click('.nav-tab[data-panel="panel-coaching"]');
+  await page.evaluate(() => goPanel('panel-coaching')); // feat 182 — panel switcher is hidden; drive via goPanel
   await page.click('#coach-endurance .coach-chip[data-coach-search="bike"]');
   await expect(page.locator('#panel-reference')).toHaveClass(/active/);
   await expect(page.locator('#ref-search')).toHaveValue('bike');
 });
 
 test('reverse crosslink: the Reference banner opens the Coaching tab', async ({ page }) => {
-  await page.click('.nav-tab[data-panel="panel-reference"]');
+  await page.evaluate(() => goPanel('panel-reference')); // feat 182 — panel switcher is hidden; drive via goPanel
   await page.click('#panel-reference .coach-banner');
   await expect(page.locator('#panel-coaching')).toHaveClass(/active/);
 });
