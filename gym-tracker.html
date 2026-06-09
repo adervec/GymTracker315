@@ -3791,6 +3791,29 @@ function legalDisclaimerHtml() {
     <p><b>References.</b> Widely-known training concepts (HR zones, 80/20 polarized, periodization, MEV/MAV/MRV, e1RM, etc.) are referenced for education; see the in-app glossary and the linked sources for further reading.</p>
   `;
 }
+// feat 185 — About page (Settings › About): build number + the consolidated disclaimers/trademarks/licence,
+// hosted as a full router page (was a collapsible section in the settings drawer). Reuses legalDisclaimerHtml().
+function renderAboutPage(main) {
+  if (!main) return;
+  main.innerHTML = `
+    <div class="card">
+      <div class="card-title">ℹ️ About GymTracker315</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.6;">Beat last session: more reps, more weight, or more sets. <b>e1RM = weight × (1 + reps/30)</b>. All data stays in your browser — no account, no servers, no analytics.</div>
+      <div class="about-ea" style="margin-top:12px;">
+        <span class="about-ea-tag">⚠️ Early Access</span>
+        <span>Active early-access build — features and data formats may still change. Keep your own backups via Settings › Data › Export JSON.</span>
+      </div>
+      <div class="about-credit" style="margin-top:12px;">
+        Designed &amp; built by <strong>Adam Eryavec, P.Eng.</strong><br>
+        Developed with <strong>Claude Code</strong> (Anthropic).
+      </div>
+      <div class="about-build" id="about-build">${escapeHtml(APP_BUILD)}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚖️ Disclaimer, trademarks &amp; licence (MIT)</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.55;">${legalDisclaimerHtml()}</div>
+    </div>`;
+}
 function openHelp() {
   if (document.getElementById('help-panel').classList.contains('open')) { closeHelp(); return; }
   renderHelp();
@@ -7759,7 +7782,7 @@ const PAGES = {
   'set-prefs':   { title:'Preferences',  emoji:'🎛️', kind:'leaf', parent:'settings', open:()=>openSettingsDrawer() },
   'set-data':    { title:'Data',         emoji:'📦', kind:'leaf', parent:'settings', open:()=>openDataPage() },
   'set-help':    { title:'Help',         emoji:'❓', kind:'leaf', parent:'settings', open:()=>openHelp() },
-  'set-about':   { title:'About',        emoji:'ℹ️', kind:'leaf', parent:'settings', open:()=>openSettingsDrawer() },
+  'set-about':   { title:'About',        emoji:'ℹ️', kind:'leaf', parent:'settings', render:m=>renderAboutPage(m) }, // feat 185
 };
 const TAB_TO_PAGE = { log:'workout', sessions:'log', history:'history', volume:'volume', trends:'trends', body:'body', gyms:'gyms' };
 let currentPage = 'workout', _pageBack = [], _pageFwd = [], _navTab = null; const _PAGE_CAP = 16;
@@ -14968,7 +14991,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 130 · 2026-06-09 08:06';
+const APP_BUILD = 'build 131 · 2026-06-09 08:16';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

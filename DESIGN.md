@@ -853,6 +853,13 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **About page (feat 185):** Settings › About became its own **router page** (`renderAboutPage`) instead of a
+  collapsible section buried in the settings drawer — the build stamp (`APP_BUILD`), the early-access notice, the
+  designer / Claude-Code credit, and the **consolidated disclaimer / trademarks / MIT-licence** block (reusing the
+  single `legalDisclaimerHtml()` source, now shown expanded in a card rather than behind a `<details>`). The
+  `set-about` leaf flipped from `open:()=>openSettingsDrawer()` to a `render` page — the first slice of the Settings
+  "everything its own page" split. `test/legal.spec.mjs` adds a case asserting the page carries the build + the
+  disclaimer keys (no-advice / MIT / trademarks).
 - **Plan Creator → page (feat 184):** the Workout Plans creator/list/editor moved out of the `#plans-panel`
   slide-in into the **router page `plan-creator`** (Train › Prepare › Plan Creator), retiring the overlay DOM +
   chrome CSS entirely. `renderPlansOverlay()` now hosts its list / editor / revision-history sub-views in `#trk-main`
