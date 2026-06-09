@@ -853,6 +853,15 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Yoga / Pilates / Mobility coaching + progression (feat 194):** the **finale** of the epic — three new `COACHING`
+  cards on the Advice page (Study › Advice), cross‑linked to the feat‑128 `mega:'mobility'` Reference families.
+  **🧘 Yoga** (Hatha / Vinyasa / Yin, breath‑leads, patient progression, a foundational sun‑salutation flow),
+  **🩰 Pilates** (the six principles, mat vs reformer, control‑then‑load, a starter set + safety), and **🤸 Mobility &
+  Flexibility** (dynamic‑vs‑static timing, CARs, range → load → control, a weekly template). `coachingCardForExercise`
+  now routes `mega:'mobility'` moves to the matching card (sun‑salutation / downward‑dog → Yoga, else → Mobility), so
+  the relevant‑coaching jump lands on them. The bundled‑guide `📖` chip became **optional** in `renderCoaching` (the
+  new cards are full coaching cards without a separate deep‑dive guide document). `test/coaching.spec.mjs` updated
+  (six cards, the new ids, mobility routing). With this the whole navigation‑rework + new‑guides epic is shipped.
 - **Equipment page (feat 193):** Prepare › Equipment became a **router page** (`renderEquipmentPage`) instead of a
   toast. Equipment setup is inherently per‑exercise (the inline bar / dumbbell / kettlebell / pin‑stack loader in the
   log sheet, `modalState.setup`) plus per‑gym stables (feat 135) — there is no standalone equipment state — so the

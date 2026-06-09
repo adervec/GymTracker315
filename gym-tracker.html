@@ -3704,8 +3704,15 @@ function coachingCardForExercise(ex) {
   const title = info ? (info.variation.title || '').toLowerCase() : '';
   const famId = info ? info.family.id : '';
   const bp = info ? info.bp : '';
+  const mega = info ? info.family.mega : '';
   if (/\b(boulder|climb)/.test(title) || famId === 'climbing') return 'coach-bouldering';
   if (bp === 'forearms' || FOREARM_FAMILIES.has(famId) || /\bgrip\b/.test(title)) return 'coach-grip';
+  // feat 194 — mobility-family moves (yoga / dynamic flow / static) route to the matching mobility coaching card
+  if (mega === 'mobility' || ['iso-poses', 'mobility-warmup', 'static-stretch'].includes(famId)) {
+    if (/\b(yoga|salutation|warrior|cobra|downward|child|lotus|pigeon)\b/.test(title)) return 'coach-yoga';
+    if (/\bpilates\b/.test(title)) return 'coach-pilates';
+    return 'coach-mobility';
+  }
   if (ex.cardio) return 'coach-endurance';
   return null;
 }
@@ -15131,7 +15138,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 139 · 2026-06-09 12:30';
+const APP_BUILD = 'build 140 · 2026-06-09 13:08';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -23149,6 +23156,83 @@ const COACHING = [
       { label:'Grip Training', search:'grip' },
       { label:'Wrist & forearm', search:'wrist' },
       { label:'Farmer carry', search:'carry' } ] } },
+  // feat 194 — yoga / pilates / mobility coaching + progression (cross-linked to the feat-128 mobility families).
+  { id:'coach-yoga', icon:'🧘', title:'Yoga', sub:'Hatha · Vinyasa · Yin · breath & balance',
+    blurb:'Yoga builds flexibility, balance, breath control and body awareness. Meet your body where it is — progress patiently and never force a range; the breath leads and the body follows.',
+    sections:[
+      { h:'Pick a style for the day', items:[
+        '<b>Hatha</b> — slower, hold the poses; best for learning alignment',
+        '<b>Vinyasa / Power</b> — breath-linked flow, builds heat & stamina',
+        '<b>Yin</b> — long (2-5 min) passive holds for connective tissue',
+        '<b>Restorative</b> — supported, calming; a genuine recovery day' ] },
+      { h:'Breath leads (pranayama)', items:[
+        'Breathe through the nose and let the breath set the pace',
+        'Link one breath to one movement in flows — inhale to open, exhale to fold',
+        '<b>Never hold the breath while straining</b> — if you can\'t breathe smoothly, ease off',
+        'A few slow breaths in a pose beats forcing more depth' ] },
+      { h:'Progress patiently', items:[
+        '<b>Consistency wins</b> — 10-20 min most days beats one long weekly class',
+        'Deepen by time-in-pose first, then range, then harder balances / inversions',
+        'Blocks & straps help you reach good alignment — props are progressions, not crutches',
+        'Sharp or joint (not muscle-stretch) pain → back out of the pose' ] },
+      { h:'A foundational flow', items:[
+        '<b>Sun salutation</b> — the classic warm-up flow; 3-5 rounds to start',
+        'Downward dog ↔ plank, low lunge & the warrior series for legs/hips',
+        'Cobra & cat-cow for the spine; pigeon for the hips',
+        'Always finish with a few minutes of stillness; log it as a timed mobility session' ] } ],
+    xref:{ label:'Open in Reference', chips:[
+      { label:'All mobility', mega:'mobility' },
+      { label:'Sun salutation', search:'salutation' },
+      { label:'Static stretches', search:'stretch' } ] } },
+  { id:'coach-pilates', icon:'🩰', title:'Pilates', sub:'Core control · precision · breath',
+    blurb:'Pilates trains deep-core control, precision and breath. Quality beats quantity — a handful of controlled reps outclasses many sloppy ones. Move from a strong, stable centre.',
+    sections:[
+      { h:'The six principles', items:[
+        '<b>Centring</b> — initiate every move from the deep core',
+        '<b>Concentration & control</b> — deliberate, never momentum',
+        '<b>Precision</b> — exact alignment over more reps',
+        '<b>Breath & flow</b> — exhale on the effort, move smoothly' ] },
+      { h:'Mat or reformer', items:[
+        '<b>Mat</b> — bodyweight, do it anywhere; mastery of control',
+        '<b>Reformer</b> — spring resistance adds range, support & options',
+        'Both build the same thing: a controllable, stable centre' ] },
+      { h:'Progress by control, then load', items:[
+        'First own the alignment + full <b>controlled</b> range of each move',
+        'Then add reps, slower tempo, or longer levers',
+        'Then harder variations; 2-4 focused sessions/week' ] },
+      { h:'A starter set + safety', items:[
+        'The Hundred, roll-up, single-leg stretch, leg circles, plank & side-plank series',
+        'Keep the cued spine position (neutral or imprinted) — no neck strain',
+        '<b>Breathe</b> — exhale on effort; never brace and hold the breath',
+        'Log it as a mobility / core session' ] } ],
+    xref:{ label:'Open in Reference', chips:[
+      { label:'All mobility', mega:'mobility' },
+      { label:'Core work', mega:'core' } ] } },
+  { id:'coach-mobility', icon:'🤸', title:'Mobility & Flexibility', sub:'Dynamic prep · CARs · static · recovery',
+    blurb:'Mobility is usable range of motion — strength and control through a joint\'s full range, not just passive flexibility. Train it daily in small doses; it is the cheapest insurance against injury.',
+    sections:[
+      { h:'Dynamic vs static — timing matters', items:[
+        '<b>Dynamic</b> (leg swings, arm circles, flows) <b>before</b> training — primes range without sapping power',
+        '<b>Static</b> long holds (30-60s) <b>after</b> training or on recovery days',
+        '<b>Avoid</b> long static holds right before max strength/power — they briefly cut output',
+        'A sun-salutation or tai-chi flow makes a great full-body warm-up' ] },
+      { h:'CARs — controlled articular rotations', items:[
+        'Slow, controlled circles at each joint through its biggest pain-free range',
+        'Daily, a few reps per direction per joint — builds <b>active</b> range + joint health',
+        'No momentum and no pain — you keep the range you can control' ] },
+      { h:'Progress range → load → control', items:[
+        'First earn range with consistency (most days, small doses)',
+        'Then add gentle load at end-range (loaded stretching) to make it usable',
+        'Then control it (CARs / contract-relax holds) so the range is yours under tension' ] },
+      { h:'Weekly template + what to log', items:[
+        '5-10 min dynamic flow before lifts; 1-2 dedicated 15-20 min mobility/yoga sessions per week',
+        'Stretch to <b>mild tension, not pain</b>; breathe into the stretch',
+        'Tai-chi or a slow flow is excellent active recovery between hard days',
+        'Log it as time-based holds or a mobility session' ] } ],
+    xref:{ label:'Open in Reference', chips:[
+      { label:'All mobility', mega:'mobility' },
+      { label:'Dynamic warm-up', search:'salutation' },
+      { label:'Static stretches', search:'stretch' } ] } },
 ];
 function goPanel(panelId) {
   if (panelId === 'panel-coaching') { if (typeof navTo === 'function') navTo('advice'); return; } // feat 189 — coaching is the Advice page now
@@ -23178,8 +23262,8 @@ function renderCoaching() {
       return '<button class="coach-chip" data-coach-search="' + escapeAttr(ch.search || '') +
         '" data-coach-mega="' + escapeAttr(ch.mega || '') + '">' + escapeHtml(ch.label) + ' ›</button>';
     }).join('') +
-      '<button type="button" class="coach-chip guide" data-guide="' + escapeAttr(c.guide.gid) + '">📖 ' +
-      escapeHtml(c.guide.label) + '</button>';
+      (c.guide ? '<button type="button" class="coach-chip guide" data-guide="' + escapeAttr(c.guide.gid) + '">📖 ' +
+      escapeHtml(c.guide.label) + '</button>' : ''); // feat 194 — the deep-dive bundled-guide chip is optional
     return '<div class="coach-card" id="' + c.id + '">' + head +
       '<div class="coach-blurb">' + escapeHtml(c.blurb) + '</div>' + secs +
       '<div class="coach-xref"><div class="coach-xref-label">' + escapeHtml(c.xref.label) +

@@ -86,14 +86,31 @@ test('new exercises pass the picker visibility gate (recordable)', async ({ page
   expect(visible.climbing).toBe(true);
 });
 
-test('the Advice page renders three discipline cards linking the bundled guides (feat 189)', async ({ page }) => {
+test('the Advice page renders all discipline cards; only bundled-guide cards show a 📖 chip (feat 189/194)', async ({ page }) => {
   await page.evaluate(() => navTo('advice')); // feat 189 — coaching is a router page (was the panel-coaching slide-in)
   expect(await page.evaluate(() => currentPage)).toBe('advice');
-  await expect(page.locator('#trk-main #coaching-content .coach-card')).toHaveCount(3);
+  await expect(page.locator('#trk-main #coaching-content .coach-card')).toHaveCount(6); // feat 194 — + yoga / pilates / mobility
   const ids = await page.locator('#trk-main #coaching-content .coach-card').evaluateAll((els) => els.map((e) => e.id));
-  expect(ids).toEqual(['coach-endurance', 'coach-bouldering', 'coach-grip']);
+  expect(ids).toEqual(['coach-endurance', 'coach-bouldering', 'coach-grip', 'coach-yoga', 'coach-pilates', 'coach-mobility']);
   const gids = await page.locator('#trk-main #coaching-content button.coach-chip.guide').evaluateAll((b) => b.map((x) => x.getAttribute('data-guide')));
-  expect(gids).toEqual(['endurance', 'bouldering', 'coc']);
+  expect(gids).toEqual(['endurance', 'bouldering', 'coc']); // the new yoga/pilates/mobility cards have no bundled deep-dive guide
+});
+
+test('mobility-family moves route to the yoga / mobility coaching cards (feat 194)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const uuidOf = (famId, varId) => { const f = FAMILIES.find((x) => x.id === famId); if (!f) return null; const v = (f.variations || []).find((x) => x.id === varId) || (f.variations || [])[0]; return v ? v.uuid : null; };
+    const sun = uuidOf('mobility-warmup', 'sun-salutation');
+    const dog = uuidOf('static-stretch', 'downward-dog');
+    const iso = uuidOf('iso-poses');
+    return {
+      sun: sun ? coachingCardForExercise({ varUuid: sun }) : null,
+      dog: dog ? coachingCardForExercise({ varUuid: dog }) : null,
+      iso: iso ? coachingCardForExercise({ varUuid: iso }) : null,
+    };
+  });
+  expect(r.sun).toBe('coach-yoga');     // "sun salutation" matches the yoga title rule
+  expect(r.dog).toBe('coach-yoga');     // "downward dog" matches the yoga title rule
+  expect(['coach-mobility', 'coach-yoga']).toContain(r.iso); // a mobility-family pose lands on a mobility card
 });
 
 test('guides are embedded in-file and open in the themed in-app reader', async ({ page }) => {
