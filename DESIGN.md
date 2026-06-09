@@ -852,6 +852,15 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Plan Detail → page (feat 183):** the detailed plan-execution view (feat 145/163/164) moved out of the
+  `#plans-panel` overlay into the **router page `plan-detail`** (Train › Execute › Plan Detail). `openPlanExecution`
+  now stashes the target plan/session ids and `navTo('plan-detail')`; `renderPlanDetailPage(main)` resolves the
+  plan+session (explicit ids → else active) and hosts `renderPlanExecutionView` in `#trk-main` (a friendly empty
+  state when there's no execution). The view's Back button is now a page `navBack()`. Every existing entry point
+  (rest bar, step bar, session badges, dashboard progress) flows through `openPlanExecution`, so they all open the
+  page unchanged. `test/planexec.spec.mjs` updated to assert `currentPage==='plan-detail'` + read `#trk-main`
+  instead of the overlay. (feat 181 already turned the container-based screens — Log/History/Trends/Volume/Gyms/
+  Body/Achievements — into working pages, so this kicks off the overlay→page conversions.)
 - **Top-bar redesign — brand centered/topmost + Back/Forward (feat 182):** phase 2 of the nav rework makes the
   router visible. The **GymTracker315 brand** moved out of the tracker-panel header into a dedicated **centered,
   topmost row** of `#app-topbar` (tap → Home); below it a controls row carries **◀ Back / page-title / ▶ Forward**
