@@ -1824,6 +1824,34 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .slog-pager .drawer-btn { flex: 0 0 auto; }
   .slog-pager .drawer-btn:disabled { opacity: 0.4; cursor: default; }
   .slog-page { font-size: 12px; font-weight: 700; color: var(--text2); font-variant-numeric: tabular-nums; }
+  /* feat 180 — Log calendar view */
+  .log-view-toggle { margin-bottom: 8px; }
+  .cal-head { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; }
+  .cal-month { flex: 1; text-align: center; font-size: 15px; font-weight: 800; color: var(--text); }
+  .cal-nav { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 18px; line-height: 1; cursor: pointer; font-family: inherit; }
+  .cal-nav:active { background: var(--bg4); }
+  .cal-today { flex: 0 0 auto; padding: 0 10px; height: 34px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-dow { margin-bottom: 4px; }
+  .cal-dowh { text-align: center; font-size: 10px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .cal-cell { position: relative; aspect-ratio: 1 / 1; border: 1px solid transparent; border-radius: 9px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 5px; background: var(--bg2); }
+  .cal-cell.empty { background: transparent; }
+  .cal-num { font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .cal-cell.has { background: var(--bg3); border-color: var(--border2); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .cal-cell.has .cal-num { color: var(--text); font-weight: 700; }
+  .cal-cell.today { border-color: var(--accent); }
+  .cal-cell.today .cal-num { color: var(--accent); }
+  .cal-cell.sel { background: var(--accent-bg); border-color: var(--accent); }
+  .cal-mark { display: flex; align-items: center; gap: 2px; margin-top: 3px; }
+  .cal-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); display: inline-block; }
+  .cal-grade { font-size: 10px; font-weight: 800; line-height: 1; padding: 1px 4px; border-radius: 5px; color: #0a0a0a; }
+  .cal-grade.g-S, .cal-grade.g-A { background: #5fd068; }
+  .cal-grade.g-B { background: #7fb2ff; }
+  .cal-grade.g-C { background: #e2b14a; }
+  .cal-grade.g-D { background: #888; }
+  .cal-multi { font-size: 8.5px; font-weight: 700; color: var(--text3); }
+  .cal-hint { text-align: center; font-size: 11.5px; color: var(--text3); margin: 14px 0 6px; }
+  .cal-detail { margin-top: 14px; }
 
   /* FAB — Log button (changes color when pending sets exist) */
   .fab { position: fixed; bottom: 14px; left: 14px; right: 14px; border: none; padding: 14px; border-radius: 11px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 18px rgba(180,138,255,0.35); letter-spacing: 0.5px; z-index: 50; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s, color 0.2s; }
@@ -8766,7 +8794,18 @@ function bindSessionCards(main) {
 // so the history isn't dumped all at once. The Dashboard tab stays today-only.
 let _sessionsLogPage = 0, _logMinGrade = ''; // feat 158 — min-grade (">=") filter for the Log tab
 const SESSIONS_PER_PAGE = 10;
+// feat 180 — Log tab view mode: paginated list (default) or a month calendar of workout days.
+let _logView = 'list', _calYM = null, _calSelDay = null; // _calYM = {y,m} displayed month (null = current); _calSelDay = 'y-m-d' expanded day
+function _logViewToggleHtml() {
+  return `<div class="plan-chips log-view-toggle">
+    <button class="plan-chip ${_logView !== 'calendar' ? 'active' : ''}" data-log-view="list">☰ List</button>
+    <button class="plan-chip ${_logView === 'calendar' ? 'active' : ''}" data-log-view="calendar">▦ Calendar</button>
+  </div>`;
+}
+function _dayKey(d) { d = (d instanceof Date) ? d : new Date(d); return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); }
+function _sessionsByDay() { const m = {}; (state.sessions || []).forEach(s => { const k = _dayKey(s.date); (m[k] = m[k] || []).push(s); }); return m; }
 function renderSessionsLog(main) {
+  if (_logView === 'calendar') { renderLogCalendar(main); return; } // feat 180
   const allSorted = (state.sessions || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date)); // newest first
   // feat 158 — filter to sessions graded >= the chosen grade (S highest … D floor)
   const all = _logMinGrade ? allSorted.filter(s => { const sc = sessionGrade(s); return sc && sc.grade && gradeRank(sc.grade) >= gradeRank(_logMinGrade); }) : allSorted;
@@ -8779,7 +8818,7 @@ function renderSessionsLog(main) {
   const pageSessions = all.slice(start, start + SESSIONS_PER_PAGE);
   const todayStr = new Date().toDateString();
   const gradeChip = (g) => `<button class="plan-chip ${_logMinGrade === g ? 'active' : ''}" data-log-grade="${g}">${g === '' ? 'Any grade' : 'Grade ≥ ' + g}</button>`;
-  let html = `<div class="plan-chips slog-grades">${['', 'S', 'A', 'B', 'C', 'D'].map(gradeChip).join('')}</div>`;
+  let html = _logViewToggleHtml() + `<div class="plan-chips slog-grades">${['', 'S', 'A', 'B', 'C', 'D'].map(gradeChip).join('')}</div>`;
   if (total > 0) {
     html += `<div class="stats-grid">
       <div class="stat-tile"><div class="stat-label">${_logMinGrade ? 'Matching' : 'Sessions'}</div><div class="stat-value">${total}</div></div>
@@ -8801,6 +8840,7 @@ function renderSessionsLog(main) {
   }
   main.innerHTML = html;
   bindSessionCards(main);
+  _bindLogViewToggle(main); // feat 180
   // feat 158 — grade (">=") filter chips
   main.querySelectorAll('[data-log-grade]').forEach(b => b.addEventListener('click', () => { _logMinGrade = b.dataset.logGrade; _sessionsLogPage = 0; render(); }));
   main.querySelector('#log-grade-clear')?.addEventListener('click', () => { _logMinGrade = ''; _sessionsLogPage = 0; render(); });
@@ -8808,6 +8848,68 @@ function renderSessionsLog(main) {
   main.querySelector('#slog-prev')?.addEventListener('click', () => { if (_sessionsLogPage > 0) go(-1); });
   main.querySelector('#slog-next')?.addEventListener('click', () => { if (_sessionsLogPage < pages - 1) go(1); });
 }
+function _bindLogViewToggle(main) { // feat 180
+  main.querySelectorAll('[data-log-view]').forEach(b => b.addEventListener('click', () => { if (_logView !== b.dataset.logView) { _logView = b.dataset.logView; _calSelDay = null; render(); } }));
+}
+// feat 180 — a month-grid calendar of workout days. Each day with logged session(s) is highlighted (grade chip
+// or a dot, plus a ×N badge for multiple sessions) and tappable to expand that day's full session card(s) below.
+function renderLogCalendar(main) {
+  const now = new Date();
+  const cur = _calYM || { y: now.getFullYear(), m: now.getMonth() };
+  const byDay = _sessionsByDay();
+  const first = new Date(cur.y, cur.m, 1);
+  const startDow = first.getDay();                          // 0 = Sunday
+  const daysInMonth = new Date(cur.y, cur.m + 1, 0).getDate();
+  const monthLabel = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const todayKey = _dayKey(now);
+  const setsOn = (sess) => sess.reduce((c, s) => c + (s.exercises || []).reduce((n, e) => n + (e.sets || []).length, 0), 0);
+  const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  let cells = '';
+  for (let i = 0; i < startDow; i++) cells += `<div class="cal-cell empty" aria-hidden="true"></div>`;
+  let monthDays = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const k = cur.y + '-' + cur.m + '-' + d;
+    const sess = byDay[k] || [];
+    const has = sess.length > 0; if (has) monthDays++;
+    let mark = '';
+    if (has) {
+      const g = sessionGrade(sess[0]);
+      const badge = (g && g.grade) ? `<span class="cal-grade g-${g.grade}">${g.grade}</span>` : `<span class="cal-dot" title="${setsOn(sess)} sets"></span>`;
+      mark = `<div class="cal-mark">${badge}${sess.length > 1 ? `<span class="cal-multi">×${sess.length}</span>` : ''}</div>`;
+    }
+    const cls = ['cal-cell', has ? 'has' : '', k === todayKey ? 'today' : '', k === _calSelDay ? 'sel' : ''].filter(Boolean).join(' ');
+    cells += `<div class="${cls}" ${has ? `data-cal-day="${k}" role="button" tabindex="0" aria-label="${monthLabel} ${d}, ${sess.length} workout${sess.length === 1 ? '' : 's'}"` : ''}><span class="cal-num">${d}</span>${mark}</div>`;
+  }
+  let detail;
+  if (_calSelDay && byDay[_calSelDay]) {
+    const day = byDay[_calSelDay].slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+    detail = `<div class="cal-detail">${day.map(s => renderSession(s, _calSelDay === todayKey)).join('')}</div>`;
+  } else {
+    detail = `<div class="cal-hint">${monthDays ? `${monthDays} workout day${monthDays === 1 ? '' : 's'} this month — tap a highlighted day` : 'No workouts logged this month'}</div>`;
+  }
+  main.innerHTML = _logViewToggleHtml() + `
+    <div class="cal-head">
+      <button class="cal-nav" id="cal-prev" aria-label="Previous month">‹</button>
+      <div class="cal-month">${escapeHtml(monthLabel)}</div>
+      <button class="cal-nav" id="cal-next" aria-label="Next month">›</button>
+      <button class="cal-today" id="cal-today">Today</button>
+    </div>
+    <div class="cal-grid cal-dow">${DOW.map(d => `<div class="cal-dowh">${d}</div>`).join('')}</div>
+    <div class="cal-grid cal-days">${cells}</div>
+    ${detail}`;
+  bindSessionCards(main); // the expanded day's cards reuse the normal session bindings
+  _bindLogViewToggle(main);
+  const shift = (delta) => { _calYM = _shiftMonth(cur, delta); _calSelDay = null; render(); };
+  main.querySelector('#cal-prev')?.addEventListener('click', () => shift(-1));
+  main.querySelector('#cal-next')?.addEventListener('click', () => shift(1));
+  main.querySelector('#cal-today')?.addEventListener('click', () => { _calYM = null; _calSelDay = (byDay[todayKey] ? todayKey : null); render(); });
+  const pickDay = (el) => { const k = el.dataset.calDay; _calSelDay = (_calSelDay === k) ? null : k; render(); };
+  main.querySelectorAll('[data-cal-day]').forEach(el => {
+    el.addEventListener('click', () => pickDay(el));
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickDay(el); } });
+  });
+}
+function _shiftMonth(cur, delta) { let y = cur.y, m = cur.m + delta; while (m < 0) { m += 12; y--; } while (m > 11) { m -= 12; y++; } return { y, m }; }
 // feat 157 — live-score history for the autoscaled sparkline. Sampled (REAL values, never faked) each time
 // the live estimate renders; de-duplicated and reset when the session changes. Ephemeral (not persisted).
 let _scoreSpark = { id: null, pts: [] };
@@ -14770,7 +14872,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 125 · 2026-06-08 22:40';
+const APP_BUILD = 'build 126 · 2026-06-08 23:03';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

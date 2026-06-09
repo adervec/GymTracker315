@@ -852,6 +852,15 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Calendar view of the Log (feat 180):** the Log tab gains a **List / Calendar** toggle (`_logView`). The calendar
+  (`renderLogCalendar`) draws a month grid (Sun-start) from `_sessionsByDay()`; each day with logged session(s) is
+  highlighted and shows a **grade chip** (`sessionGrade`, colour-coded S/A→green … D→grey) or a dot, plus a **×N**
+  badge for multiple sessions. **‹ / ›** page months (`_shiftMonth`, year-wrapping), **Today** jumps back to the
+  current month, and tapping a workout day expands that day's full session card(s) below the grid (reusing
+  `renderSession` + `bindSessionCards`). Today's cell and the selected day are outlined. View state is in-memory
+  (`_logView` / `_calYM` / `_calSelDay`); the grade filter stays a List-view concern. Covered by
+  `test/logcalendar.spec.mjs` (toggle routing, only-workout-days marked + ×N, day-select expands the cards + hint
+  otherwise, month-wrap navigation, controls present).
 - **Exercise-picker filters stack with the plan step (feat 179):** picking a plan-step chip in the exercise picker
   used to **override** the mega/sub/equip pills (it showed only the step's exercises and ignored the pills). Now a
   step change **resets** those pills + search to "all" (`resetPickerNormalFilters`) so every one of that step's
