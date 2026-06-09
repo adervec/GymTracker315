@@ -5516,7 +5516,7 @@ function renderSettingsDrawer() {
     </div>
     ${state.profile.dob ? `<div style="font-size:11px;color:var(--text3);margin:-4px 0 10px;">Age ${ageFromDob(state.profile.dob)} · used in body-comp & relative-strength calcs</div>` : ''}
 
-    <div class="drawer-section-title">Preferences</div>
+    <div class="drawer-section-title" data-sec-id="branding">Branding</div>
     <div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">Show GymTracker315 branding</div>
@@ -5527,6 +5527,8 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${state.hideBranding ? 'active' : ''}" data-pref-brand="hide">Off</button>
       </div>
     </div>
+
+    <div class="drawer-section-title">Preferences</div>
     <div class="drawer-setting-row">
       <div class="drawer-setting-label">Weight unit</div>
       <div class="drawer-pill-group">
@@ -6555,6 +6557,7 @@ function renderSettingsDrawer() {
   const _dpb = document.getElementById('data-page-body');
   if (_dataWrap && _dpb) { _dpb.innerHTML = ''; _dpb.appendChild(_dataWrap); }
   applySettingsFilter(_settingsSearch); // re-apply active search + collapse state after a full re-render
+  _relocateSettingsPage(); // feat 187 — if a Settings sub-page is open, project its sections into #trk-main
 }
 
 // feat 109 — open/close the full-screen Data Management page (the data sections were relocated here).
@@ -6567,6 +6570,30 @@ function openDataPage() {
 function closeDataPage() {
   document.getElementById('data-page')?.classList.remove('open');
   document.body.style.overflow = '';
+}
+
+/* feat 187 — Settings split: Profile / Cosmetic / Preferences are router pages. Each is a *bucket* of the
+   existing settings drawer sections, relocated (DOM nodes + their live bindings ride along) into #trk-main —
+   the same proven trick as the Data Management page (#drawer-data-wrap). renderSettingsDrawer()'s tail calls
+   _relocateSettingsPage() on every re-render, so a toggle whose binding re-renders the drawer refreshes the
+   page in place. The legacy all-in-one drawer still exists for the ⚙️ long-press + sound-menu entry points. */
+const SETTINGS_PAGE_SECS = {
+  'set-profile':  ['profile', 'biometrics'],
+  'set-cosmetic': ['theme', 'branding'],
+  'set-prefs':    ['language', 'preferences', 'workout-session', 'metronome', 'rest-timer-cues', 'live-dashboard', 'categories', 'reference'],
+};
+function _relocateSettingsPage() {
+  const secs = SETTINGS_PAGE_SECS[currentPage];
+  if (!secs) return; // only acts while on a Settings sub-page
+  const main = document.getElementById('trk-main'), body = document.getElementById('settings-drawer-body');
+  if (!main || !body) return;
+  main.innerHTML = '';
+  secs.forEach(id => { const sec = body.querySelector('.drawer-section[data-sec="' + id + '"]'); if (sec) { sec.classList.remove('collapsed'); main.appendChild(sec); } });
+  if (!main.children.length) main.innerHTML = '<div class="card"><div class="card-title">No settings here</div></div>';
+}
+function renderSettingsPage(main) {
+  _settingsSearch = '';        // clear any prior drawer search so every row shows
+  renderSettingsDrawer();      // its tail relocates this page's sections into #trk-main via _relocateSettingsPage()
 }
 
 function hasPendingData() {
@@ -7824,9 +7851,9 @@ const PAGES = {
   glossary:      { title:'Glossary',     emoji:'📓', kind:'leaf', parent:'study', open:()=>openGloss() },
   anatomy:       { title:'Anatomy',      emoji:'🫀', kind:'leaf', parent:'study', open:()=>openGloss() },
   advice:        { title:'Advice',       emoji:'🧭', kind:'leaf', parent:'study', open:()=>goPanel('panel-coaching') },
-  'set-profile': { title:'Profile',      emoji:'👤', kind:'leaf', parent:'settings', open:()=>openSettingsDrawer() },
-  'set-cosmetic':{ title:'Cosmetic',     emoji:'🎨', kind:'leaf', parent:'settings', open:()=>openSettingsDrawer() },
-  'set-prefs':   { title:'Preferences',  emoji:'🎛️', kind:'leaf', parent:'settings', open:()=>openSettingsDrawer() },
+  'set-profile': { title:'Profile',      emoji:'👤', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
+  'set-cosmetic':{ title:'Cosmetic',     emoji:'🎨', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
+  'set-prefs':   { title:'Preferences',  emoji:'🎛️', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
   'set-data':    { title:'Data',         emoji:'📦', kind:'leaf', parent:'settings', open:()=>openDataPage() },
   'set-help':    { title:'Help',         emoji:'❓', kind:'leaf', parent:'settings', render:m=>renderHelpPage(m) }, // feat 186
   'set-about':   { title:'About',        emoji:'ℹ️', kind:'leaf', parent:'settings', render:m=>renderAboutPage(m) }, // feat 185
@@ -15038,7 +15065,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 132 · 2026-06-09 08:26';
+const APP_BUILD = 'build 133 · 2026-06-09 08:45';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

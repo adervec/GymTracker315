@@ -853,6 +853,19 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Settings split — Profile / Cosmetic / Preferences pages (feat 187):** the next slice of "everything its own
+  page." The three leaves stopped opening the all‑in‑one drawer and became **router pages** that each relocate a
+  *bucket* of the existing settings‑drawer sections (DOM nodes + their live bindings) into `#trk-main` — the same
+  proven trick as the Data Management page (`#drawer-data-wrap`). A `SETTINGS_PAGE_SECS` map routes each `data-sec`
+  section to a page: **Profile** = profile + biometrics · **Cosmetic** = theme + branding · **Preferences** =
+  language, preferences, workout‑session, metronome, rest‑timer‑cues, live‑dashboard, categories, reference. The
+  branding toggle was promoted from a row inside *Preferences* into its own **Branding** section so it lands under
+  Cosmetic (themes/branding). `renderSettingsDrawer()`'s tail now calls `_relocateSettingsPage()`, so any toggle whose
+  binding re‑renders the drawer (pref pills, theme swatches) refreshes the open page **in place**. The legacy drawer
+  still exists for the ⚙️ long‑press + sound‑menu "More" entry points; the Gyms drawer section is intentionally not
+  bucketed (gym management lives on the dedicated Gyms page). Covered by `test/settingspages.spec.mjs` (disjoint
+  buckets, branding under Cosmetic, in‑place toggle refresh, legacy drawer intact). Data + the remaining drawer
+  retire in a later phase.
 - **Help page (feat 186):** Settings › Help became its own **router page** (`renderHelpPage`) — the same content as
   the ❓ quick-help overlay, now **searchable + collapsible** (the user asked for "up-to-date, searchable,
   collapsible"). `renderHelp()` gained an optional target id so the page reuses its exact copy verbatim (no
