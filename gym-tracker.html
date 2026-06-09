@@ -12717,6 +12717,7 @@ function openStepPicker(idx) {
   const plan = getActivePlan();
   if (!plan || !plan.steps[idx]) return;
   modalState.planStepFilter = idx;
+  resetPickerNormalFilters(); // feat 179 — entering a step resets the pills/search so all its variations show
   _planLoadCtx = plan.steps[idx].load || 'moderate'; // seed the suggested weight when one is picked
   openLogModal();
   modalState.showPicker = true; // force the picker even if a pending exercise lingers
@@ -12992,17 +12993,24 @@ function activePlanStepFilterSet() {
   if (!st) { modalState.planStepFilter = null; return null; }
   return stepQualifyingVarSet(st);
 }
+// feat 179 — when the active plan step changes, reset the picker's normal filters to "all" so EVERY one of
+// that step's compatible variations shows; the user can then re-narrow and the pills/search STACK with
+// (intersect) the step set rather than being overridden by it.
+function resetPickerNormalFilters() {
+  modalState.pickerMega = 'all';
+  modalState.pickerSub = 'all';
+  modalState.pickerEquip = 'all';
+  modalState.pickerSearch = '';
+}
 function filterVariations() {
   const q = modalState.pickerSearch.trim().toLowerCase();
-  const stepSet = activePlanStepFilterSet(); // feat 112/115 — overrides the mega/sub/equip pills
+  const stepSet = activePlanStepFilterSet(); // feat 112/115 — limits to the step's variations; feat 179 — the mega/sub/equip pills STACK with it
   const results = [];
   FAMILIES.forEach(f => {
-    if (!stepSet) {
-      const matchesMega = modalState.pickerMega === 'all' || f.mega === modalState.pickerMega;
-      const matchesSub = modalState.pickerSub === 'all' || f.sub === modalState.pickerSub;
-      const matchesEquip = modalState.pickerEquip === 'all' || (f.equip || []).includes(modalState.pickerEquip);
-      if (!matchesMega || !matchesSub || !matchesEquip) return;
-    }
+    const matchesMega = modalState.pickerMega === 'all' || f.mega === modalState.pickerMega;
+    const matchesSub = modalState.pickerSub === 'all' || f.sub === modalState.pickerSub;
+    const matchesEquip = modalState.pickerEquip === 'all' || (f.equip || []).includes(modalState.pickerEquip);
+    if (!matchesMega || !matchesSub || !matchesEquip) return;
     const favOnly = !!modalState.pickerFavOnly; // feat 178
     const matchingVars = f.variations.filter(v => {
       if (!varVisibleInPicker(f, v)) return false; // feat 23 + 36 (hide flags + active gym) + 167 (suppressed duplicate)
@@ -13124,7 +13132,19 @@ function touchBadgeHtml(t) {
 function renderPickerResults() {
   const results = filterVariations();
   const touch = buildTouchMap(); // feat 121
-  return `<div style="font-size:10.5px;color:#666;margin:4px 0 6px 2px;">${results.reduce((s, r) => s + r.variations.length + (r.secondaryVars ? r.secondaryVars.length : 0), 0)} variation${results.length === 1 ? '' : 's'}</div>
+  const shown = results.reduce((s, r) => s + r.variations.length + (r.secondaryVars ? r.secondaryVars.length : 0), 0);
+  // feat 179 — with a plan step active the pills STACK with the step set, so report how many of the step's
+  // compatible variations are currently visible: "X of Y step-compatible variations shown".
+  const stepSet = activePlanStepFilterSet();
+  let countLabel;
+  if (stepSet) {
+    let total = 0;
+    stepSet.forEach((uuid) => { const i = VAR_INDEX.get(uuid); if (i && varVisibleInPicker(i.family, i.variation)) total++; });
+    countLabel = `${shown} of ${total} step-compatible variation${total === 1 ? '' : 's'} shown`;
+  } else {
+    countLabel = `${shown} variation${shown === 1 ? '' : 's'}`;
+  }
+  return `<div style="font-size:10.5px;color:#666;margin:4px 0 6px 2px;">${countLabel}</div>
     <div class="picker-results">
       ${results.length === 0
         ? `<div class="picker-empty">No exercises match</div>`
@@ -13177,7 +13197,7 @@ function bindPicker() {
   // feat 112/115 — plan step chips: filter the picker to a step's exercises (or clear back to all)
   document.querySelectorAll('[data-picker-step]').forEach(b => b.addEventListener('click', () => {
     modalState.planStepFilter = b.dataset.pickerStep === 'clear' ? null : +b.dataset.pickerStep;
-    if (modalState.planStepFilter != null) { const plan = getActivePlan(); const st = plan && plan.steps[modalState.planStepFilter]; _planLoadCtx = st ? (st.load || 'moderate') : null; }
+    if (modalState.planStepFilter != null) { resetPickerNormalFilters(); const plan = getActivePlan(); const st = plan && plan.steps[modalState.planStepFilter]; _planLoadCtx = st ? (st.load || 'moderate') : null; } // feat 179 — switching to a step resets the pills/search (they then stack)
     renderModal();
   }));
   document.querySelectorAll('.pill[data-mega]').forEach(p => {
@@ -14616,7 +14636,7 @@ function saveSets(endingWorkout) {
     modalState.showPicker = true; modalState.isEditing = false; modalState.exNoteEditing = false;
     const idx = (plan && session) ? currentPlanStepIndex(session, plan) : null;
     modalState.planStepFilter = (plan && idx != null && idx < plan.steps.length) ? idx : null;
-    if (modalState.planStepFilter != null) _planLoadCtx = plan.steps[modalState.planStepFilter].load || 'moderate';
+    if (modalState.planStepFilter != null) { resetPickerNormalFilters(); _planLoadCtx = plan.steps[modalState.planStepFilter].load || 'moderate'; } // feat 179 — advancing to the next step resets the pills/search
     renderModal();
     return true;
   };
@@ -14750,7 +14770,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 124 · 2026-06-08 09:24';
+const APP_BUILD = 'build 125 · 2026-06-08 22:40';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

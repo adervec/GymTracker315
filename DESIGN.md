@@ -852,6 +852,14 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Exercise-picker filters stack with the plan step (feat 179):** picking a plan-step chip in the exercise picker
+  used to **override** the mega/sub/equip pills (it showed only the step's exercises and ignored the pills). Now a
+  step change **resets** those pills + search to "all" (`resetPickerNormalFilters`) so every one of that step's
+  compatible variations shows, and the pills/search then **stack** with (intersect) the step set instead of being
+  ignored — letting you narrow *within* a step. The result count reads **"X of Y step-compatible variations shown"**
+  while a step is active (`filterVariations` / `renderPickerResults`). Wired at all three step entry points: the
+  picker step chip, `openStepPicker` (dashboard), and the post-save auto-advance. Covered by
+  `test/planpicker.spec.mjs` (stacking intersection, filter-reset on entry, X-of-Y count).
 - **Favorite plans & variations (feat 178):** a ★ toggle on every plan row and every exercise-picker row, backed by
   two synced settings maps (`state.favoritePlans` / `state.favoriteVars`, both in `SETTINGS_KEYS`, defaulted in
   `normalizeState`). Helpers `isFavPlan`/`toggleFavPlan` + `isFavVar`/`toggleFavVar` (+ a shared `favStarHtml`
