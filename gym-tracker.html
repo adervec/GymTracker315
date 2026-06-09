@@ -2255,7 +2255,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
     <button id="nav-fwd" class="topbar-navbtn" onclick="navForward()" title="Forward" aria-label="Forward" disabled>▶</button>
     <div class="nav-tabs">
       <button class="nav-tab active" data-panel="panel-tracker" onclick="switchPanel('panel-tracker', this)" title="Tracker" aria-label="Tracker" data-i18n-title="nav.tracker" data-i18n-aria="nav.tracker">📈</button>
-      <button class="nav-tab" data-panel="panel-reference" onclick="switchPanel('panel-reference', this)" title="Reference" aria-label="Reference" data-i18n-title="nav.reference" data-i18n-aria="nav.reference">📚</button>
+      <button class="nav-tab" data-panel="panel-reference" onclick="navTo('reference')" title="Reference" aria-label="Reference" data-i18n-title="nav.reference" data-i18n-aria="nav.reference">📚</button>
       <button class="nav-tab" data-panel="panel-coaching" onclick="navTo('advice')" title="Coaching &amp; Progression" aria-label="Coaching and Progression">🧭</button>
     </div>
     <div class="app-bar-actions">
@@ -7236,8 +7236,7 @@ function openReferenceFor(varUuid) {
   const info = VAR_INDEX.get(varUuid);
   const term = info ? (info.variation.title || info.family.title || '') : '';
   if (typeof closeLogModal === 'function') closeLogModal();
-  const tab = document.querySelector('.nav-tab[data-panel="panel-reference"]');
-  if (typeof switchPanel === 'function' && tab) switchPanel('panel-reference', tab);
+  if (typeof navTo === 'function') navTo('reference'); // feat 191 — Reference is a router page
   const si = document.getElementById('ref-search');
   if (si) { si.value = term; si.dispatchEvent(new Event('input', { bubbles: true })); si.blur(); }
 }
@@ -7866,7 +7865,7 @@ const PAGES = {
   'plan-detail': { title:'Plan Detail',  emoji:'🗺️', kind:'leaf', parent:'execute', render:m=>renderPlanDetailPage(m) }, // feat 183
   equipment:     { title:'Equipment',    emoji:'🏗️', kind:'leaf', parent:'prepare', open:()=>toast('Open an exercise to set up its equipment') },
   'plan-creator':{ title:'Plan Creator', emoji:'📝', kind:'leaf', parent:'prepare', render:m=>renderPlanCreatorPage(m) }, // feat 184
-  reference:     { title:'Reference',    emoji:'📖', kind:'leaf', parent:'study', open:()=>goPanel('panel-reference') },
+  reference:     { title:'Reference',    emoji:'📖', kind:'leaf', parent:'study', render:m=>renderReferencePage(m) }, // feat 191
   glossary:      { title:'Glossary',     emoji:'📓', kind:'leaf', parent:'study', render:m=>renderGlossaryPage(m) }, // feat 190
   anatomy:       { title:'Anatomy',      emoji:'🫀', kind:'leaf', parent:'study', render:m=>renderAnatomyPage(m) }, // feat 190
   advice:        { title:'Advice',       emoji:'🧭', kind:'leaf', parent:'study', render:m=>renderAdvicePage(m) }, // feat 189
@@ -7880,19 +7879,28 @@ const PAGES = {
 const TAB_TO_PAGE = { log:'workout', sessions:'log', history:'history', volume:'volume', trends:'trends', body:'body', gyms:'gyms' };
 let currentPage = 'workout', _pageBack = [], _pageFwd = [], _navTab = null; const _PAGE_CAP = 16;
 function pageDef(id) { return PAGES[id] || PAGES.workout; }
-function _surfaceTracker() { const ap = document.querySelector('.panel.active'); if (ap && ap.id !== 'panel-tracker' && typeof goPanel === 'function') goPanel('panel-tracker'); } // feat 182 — page nav brings the tracker panel forward (out of a Reference/Coaching slide-in)
+// feat 191 — the Reference page lives in #panel-reference; every other page lives in #panel-tracker. Called from
+// renderCurrentPage (after currentPage is set) so the right panel is surfaced for whatever page we land on.
+function _surfacePanelForPage() {
+  const want = (currentPage === 'reference') ? 'panel-reference' : 'panel-tracker';
+  const ap = document.querySelector('.panel.active');
+  if (!ap || ap.id === want) return;
+  const btn = document.querySelector('.nav-tab[data-panel="' + want + '"]');
+  if (btn && typeof switchPanel === 'function') switchPanel(want, btn); // switchPanel directly — goPanel('panel-reference') would recurse via the navTo shim
+}
+function _surfaceTracker() { _surfacePanelForPage(); } // feat 191 — back-compat alias (panel surfacing now keys off currentPage)
+function renderReferencePage(main) { if (main) main.innerHTML = ''; if (typeof renderRef === 'function') renderRef(); } // feat 191 — Reference is a router page hosted in #panel-reference
 function navTo(id, opts) {
   opts = opts || {};
   const def = PAGES[id]; if (!def) return;
   if (def.open && !def.render && def.kind !== 'menu') { def.open(); return; } // legacy opener — keep current page
-  _surfaceTracker();
   if (!opts.replace && id !== currentPage) { _pageBack.push(currentPage); if (_pageBack.length > _PAGE_CAP) _pageBack.shift(); _pageFwd.length = 0; }
   currentPage = id; _persistPage(); renderCurrentPage();
 }
-function navBack() { _surfaceTracker(); if (!_pageBack.length) { const par = pageDef(currentPage).parent; if (par) navTo(par, { replace: true }); return; } _pageFwd.push(currentPage); currentPage = _pageBack.pop(); _persistPage(); renderCurrentPage(); }
-function navForward() { _surfaceTracker(); if (!_pageFwd.length) return; _pageBack.push(currentPage); currentPage = _pageFwd.pop(); _persistPage(); renderCurrentPage(); }
-// feat 182 — top-bar Back: if a Reference/Coaching slide-in is showing, exit it back to the app; else page-back.
-function topbarBack() { const ap = document.querySelector('.panel.active'); if (ap && ap.id !== 'panel-tracker') { if (typeof goPanel === 'function') goPanel('panel-tracker'); renderCurrentPage(); return; } navBack(); }
+function navBack() { if (!_pageBack.length) { const par = pageDef(currentPage).parent; if (par) navTo(par, { replace: true }); return; } _pageFwd.push(currentPage); currentPage = _pageBack.pop(); _persistPage(); renderCurrentPage(); }
+function navForward() { if (!_pageFwd.length) return; _pageBack.push(currentPage); currentPage = _pageFwd.pop(); _persistPage(); renderCurrentPage(); }
+// feat 182/191 — top-bar Back: pages (incl. Reference) live in the router history, so Back is just navBack().
+function topbarBack() { navBack(); }
 // feat 182 — page title (emoji + name) + Back/Forward enabled state. Called from renderCurrentPage.
 function updateTopbarChrome(def) {
   def = def || pageDef(currentPage);
@@ -7913,6 +7921,7 @@ function renderCurrentPage() {
   applyBranding(); // feat 170
   const def = pageDef(currentPage), main = document.getElementById('trk-main');
   if (!main) return;
+  if (typeof _surfacePanelForPage === 'function') _surfacePanelForPage(); // feat 191 — Reference page → panel-reference, else panel-tracker
   if (typeof _syncGlossOverlay === 'function') _syncGlossOverlay(); // feat 190 — hide the Glossary/Anatomy overlay when leaving its page
   if (def.tab) currentTab = def.tab; // legacy mirror
   _navTab = currentTab;
@@ -15079,7 +15088,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 136 · 2026-06-09 09:51';
+const APP_BUILD = 'build 137 · 2026-06-09 10:06';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -23100,6 +23109,7 @@ const COACHING = [
 ];
 function goPanel(panelId) {
   if (panelId === 'panel-coaching') { if (typeof navTo === 'function') navTo('advice'); return; } // feat 189 — coaching is the Advice page now
+  if (panelId === 'panel-reference') { if (typeof navTo === 'function') navTo('reference'); return; } // feat 191 — Reference is a router page now
   const btn = document.querySelector('.nav-tab[data-panel="' + panelId + '"]');
   if (btn && typeof switchPanel === 'function') switchPanel(panelId, btn);
 }

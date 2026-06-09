@@ -853,6 +853,19 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Reference page — last of the 3‑panel‑switcher teardown (feat 191):** Study › Reference became a **router page**.
+  Rather than rewrite the whole `renderRef` catalog (its own search / mega + equip filters / detailed·tree·table
+  views), `#panel-reference` is now the **host panel for the reference page**: the panel‑surfacing was reworked so the
+  active panel keys off `currentPage` — `_surfacePanelForPage()` (called from `renderCurrentPage`) shows
+  `panel-reference` when `currentPage==='reference'` and `panel-tracker` otherwise (it `switchPanel`s directly to
+  avoid recursing through the navTo shim). The old pre‑`currentPage` `_surfaceTracker()` calls were dropped from
+  `navTo` / `navBack` / `navForward`, and `topbarBack` collapsed to a plain `navBack()` now that Reference is in the
+  router history. Every entry point routes to the page: `goPanel('panel-reference')` → `navTo('reference')` (covers
+  `openInReference`, `topbarReferenceCurrent`), plus `openReferenceFor(uuid)` and the hidden 📚 nav‑tab.
+  `renderReferencePage` clears `#trk-main` (it's covered by the panel) and re‑runs `renderRef`. Covered by
+  `test/refpage.spec.mjs`; the coaching / navtopbar crosslink + panel‑switcher tests stay green. With this, all three
+  legacy slide‑ins (coaching, glossary, reference) are gone — `switchPanel` survives only as the thin surfacing
+  primitive for `panel-tracker` ↔ `panel-reference`.
 - **Glossary + Anatomy pages (feat 190):** Study › Glossary and Study › Anatomy became **router pages**, and the
   glossary slide‑in mode is retired — it always shows **full‑page** now (the user's "never a slide‑in / full page").
   The existing `#ref-gloss-panel` overlay machinery (search, category filters, term list, the feat‑30 anatomy chart +
