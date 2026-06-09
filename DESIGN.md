@@ -853,6 +853,18 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Glossary + Anatomy pages (feat 190):** Study › Glossary and Study › Anatomy became **router pages**, and the
+  glossary slide‑in mode is retired — it always shows **full‑page** now (the user's "never a slide‑in / full page").
+  The existing `#ref-gloss-panel` overlay machinery (search, category filters, term list, the feat‑30 anatomy chart +
+  OCR hotspots) is reused verbatim: `_showGlossOverlay(chartOpen)` displays it (Glossary → list, Anatomy → chart pane
+  open) and `renderGlossaryPage` / `renderAnatomyPage` are the leaf renderers. External entry points are now router
+  shims — `openGloss()` → `navTo('glossary')`; `openGlossaryTo(term)` re‑renders in place when you're already on the
+  page (an anatomy hotspot) else `navTo('glossary')`, so highlight‑to‑glossary, the Reference glossary button, the
+  📖 long‑press, and the anatomy crosslinks all land on the page. The panel keeps its own header; its **✕ and Escape
+  go Back through the router** (`navBack`), and `renderCurrentPage` calls `_syncGlossOverlay()` to auto‑hide it when
+  you navigate away. (The panel still sits above the app top bar — a later cleanup can re‑home it below the bar for
+  full chrome consistency.) Covered by `test/glosspage.spec.mjs`; `test/anatomy.spec.mjs` (which drives
+  `renderAnatomyChart` directly) is unaffected.
 - **Advice page — coaching out of the panel switcher (feat 189):** Study › Advice became a **router page**
   (`renderAdvicePage`) and the **`panel-coaching` slide‑in was retired** — the first dismantling of the legacy
   3‑panel switcher. The Coaching & Progression content (endurance / bouldering / grip cards + the bundled‑guide
