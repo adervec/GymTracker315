@@ -853,6 +853,14 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Help page (feat 186):** Settings › Help became its own **router page** (`renderHelpPage`) — the same content as
+  the ❓ quick-help overlay, now **searchable + collapsible** (the user asked for "up-to-date, searchable,
+  collapsible"). `renderHelp()` gained an optional target id so the page reuses its exact copy verbatim (no
+  duplication); `_decorateHelpCollapsible()` then groups each `<h3>` section into a `<details>`, and a sticky search
+  box live-filters the sections (auto-expanding matches). The content styles were promoted from `#help-body` to a
+  shared `.help-content` class so the overlay and the page render identically. The `set-help` leaf flips from
+  `open:()=>openHelp()` to a `render` page; the top-bar ❓ overlay is left unchanged for quick access. Covered by a
+  `test/legal.spec.mjs` case (sections present + collapsible, search narrows the visible list).
 - **About page (feat 185):** Settings › About became its own **router page** (`renderAboutPage`) instead of a
   collapsible section buried in the settings drawer — the build stamp (`APP_BUILD`), the early-access notice, the
   designer / Claude-Code credit, and the **consolidated disclaimer / trademarks / MIT-licence** block (reusing the

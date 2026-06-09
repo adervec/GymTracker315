@@ -1479,13 +1479,20 @@ body.brand-hidden { --topbar-h: 44px; } /* brand hidden → just the controls ro
   #help-title { font-size: 16px; font-weight: 700; color: var(--text); }
   #help-close { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 6px 14px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; }
   #help-body { padding: 16px; overflow-y: auto; flex: 1; }
-  #help-body h3 { font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; margin: 18px 0 7px; }
-  #help-body h3:first-child { margin-top: 0; }
-  #help-body p, #help-body li { font-size: 13px; color: var(--text2); line-height: 1.6; }
-  #help-body ul { margin: 4px 0 4px 4px; padding-left: 16px; }
-  #help-body li { margin-bottom: 4px; }
-  #help-body b { color: var(--text); }
-  #help-body code { background: var(--bg4); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  /* feat 186 — content styles shared by the ❓ overlay (#help-body) and the Settings › Help page (.help-content) */
+  .help-content h3 { font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; margin: 18px 0 7px; }
+  .help-content h3:first-child { margin-top: 0; }
+  .help-content p, .help-content li { font-size: 13px; color: var(--text2); line-height: 1.6; }
+  .help-content ul { margin: 4px 0 4px 4px; padding-left: 16px; }
+  .help-content li { margin-bottom: 4px; }
+  .help-content b { color: var(--text); }
+  .help-content code { background: var(--bg4); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  /* feat 186 — Help page: collapsible <details> sections + a sticky live search filter */
+  .help-content summary { font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; padding: 10px 0; cursor: pointer; }
+  .help-content .help-sec { border-bottom: 1px solid var(--border); }
+  .help-content .help-sec-body { padding: 0 0 8px; }
+  .help-page-search-row { position: sticky; top: 0; background: var(--bg); padding: 2px 0 10px; z-index: 1; }
+  #help-page-search { width: 100%; box-sizing: border-box; padding: 9px 11px; font-size: 14px; border-radius: 8px; font-family: inherit; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); }
   .help-kbd { display: inline-block; background: var(--bg4); border: 1px solid var(--border2); border-radius: 5px; padding: 1px 6px; font-size: 11px; color: var(--text); }
 
   /* Custom variations (feat 16) */
@@ -2318,7 +2325,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
     <div id="help-title">❓ Help &amp; Guide</div>
     <button id="help-close" onclick="closeHelp()">Done</button>
   </div>
-  <div id="help-body"><!-- populated by renderHelp() --></div>
+  <div id="help-body" class="help-content"><!-- populated by renderHelp() --></div>
 </div>
 
 <!-- ====== TRACKER PANEL ====== -->
@@ -3828,8 +3835,8 @@ function closeHelp() {
   document.getElementById('app-help-btn').classList.remove('active');
   document.body.style.overflow = '';
 }
-function renderHelp() {
-  const el = document.getElementById('help-body');
+function renderHelp(targetId) {
+  const el = document.getElementById(targetId || 'help-body'); // feat 186 — also targets the Help page container
   if (!el) return;
   el.innerHTML = `
     <h3>What this app does</h3>
@@ -3890,6 +3897,46 @@ function renderHelp() {
     <p style="margin-top:16px;color:var(--text3);font-size:11px;">All data stays in your browser. No account, no sync, no tracking.</p>
     <p style="margin-top:10px;color:var(--text3);font-size:10.5px;letter-spacing:0.3px;">${escapeHtml(APP_BUILD)}</p>
   `;
+}
+// feat 186 — Help as a full router page (Settings › Help): the same content as the ❓ overlay, made
+// searchable + collapsible. Reuses renderHelp() verbatim (no duplicated copy), then groups each <h3> section
+// into a <details> and wires a live text filter. The ❓ top-bar quick-help overlay is unchanged.
+function _decorateHelpCollapsible(box) {
+  if (!box) return;
+  const nodes = Array.from(box.childNodes);
+  box.innerHTML = '';
+  let body = null;
+  nodes.forEach(node => {
+    if (node.nodeType === 1 && node.tagName === 'H3') {
+      const det = document.createElement('details');
+      det.className = 'help-sec'; det.open = true;
+      const sum = document.createElement('summary');
+      sum.innerHTML = node.innerHTML;
+      body = document.createElement('div'); body.className = 'help-sec-body';
+      det.appendChild(sum); det.appendChild(body);
+      box.appendChild(det);
+    } else if (body) {
+      body.appendChild(node);
+    } else {
+      box.appendChild(node); // intro/footer nodes before the first heading
+    }
+  });
+}
+function renderHelpPage(main) {
+  if (!main) return;
+  main.innerHTML = `<div class="help-page-search-row"><input type="search" id="help-page-search" placeholder="🔍 Search help…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <div id="help-page-content" class="help-content"></div>`;
+  renderHelp('help-page-content');                                   // reuse the exact overlay content
+  _decorateHelpCollapsible(document.getElementById('help-page-content'));
+  const inp = document.getElementById('help-page-search');
+  if (inp) inp.addEventListener('input', () => {
+    const q = inp.value.trim().toLowerCase();
+    document.querySelectorAll('#help-page-content .help-sec').forEach(sec => {
+      const m = !q || sec.textContent.toLowerCase().includes(q);
+      sec.style.display = m ? '' : 'none';
+      if (q && m) sec.open = true;                                   // auto-expand matches while searching
+    });
+  });
 }
 
 /* ============================================================
@@ -7781,7 +7828,7 @@ const PAGES = {
   'set-cosmetic':{ title:'Cosmetic',     emoji:'🎨', kind:'leaf', parent:'settings', open:()=>openSettingsDrawer() },
   'set-prefs':   { title:'Preferences',  emoji:'🎛️', kind:'leaf', parent:'settings', open:()=>openSettingsDrawer() },
   'set-data':    { title:'Data',         emoji:'📦', kind:'leaf', parent:'settings', open:()=>openDataPage() },
-  'set-help':    { title:'Help',         emoji:'❓', kind:'leaf', parent:'settings', open:()=>openHelp() },
+  'set-help':    { title:'Help',         emoji:'❓', kind:'leaf', parent:'settings', render:m=>renderHelpPage(m) }, // feat 186
   'set-about':   { title:'About',        emoji:'ℹ️', kind:'leaf', parent:'settings', render:m=>renderAboutPage(m) }, // feat 185
 };
 const TAB_TO_PAGE = { log:'workout', sessions:'log', history:'history', volume:'volume', trends:'trends', body:'body', gyms:'gyms' };
@@ -14991,7 +15038,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 131 · 2026-06-09 08:16';
+const APP_BUILD = 'build 132 · 2026-06-09 08:26';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
