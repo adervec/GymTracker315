@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Contextual workout shortcuts (feat 188):** while a workout is active, the top bar grows a **third row** —
+  🔥 Workout · ✍️ Exercise · 🏁 End — for one‑tap access from anywhere; it's hidden otherwise (the nav stays a pure
+  hierarchy, the locked decision). Visibility is driven by `body.workout-active`, toggled by `updateWorkoutBar()`
+  (called from `refreshRestBar`, which runs on every workout‑state change), and the row grows `--topbar-h` by 40px so
+  every fixed offset (panel padding, rest/step bars, log sheet) keys off the taller bar automatically (122px, or 84px
+  with the brand hidden — a two‑class selector wins by specificity). 🔥 → `navTo('workout')` (highlighted when
+  there) · ✍️ → `navTo('exercise')` (the log‑sheet shim until the Exercise page lands) · 🏁 → the feat‑108
+  `attachTrackerPress` (a tap confirms, a hold skips). The `#rest-bar` deep‑link was rewired from the legacy
+  `switchPanel`+`currentTab` dance to a plain `navTo('workout')`. Covered by `test/workoutshortcuts.spec.mjs`
+  (hidden↔shown + the 82→122px height, navigation + highlight, end hides it, rest‑bar deep‑link).
 - **Settings split — Profile / Cosmetic / Preferences pages (feat 187):** the next slice of "everything its own
   page." The three leaves stopped opening the all‑in‑one drawer and became **router pages** that each relocate a
   *bucket* of the existing settings‑drawer sections (DOM nodes + their live bindings) into `#trk-main` — the same

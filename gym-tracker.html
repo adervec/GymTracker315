@@ -191,8 +191,18 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 .topbar-brand-row { display: flex; align-items: center; justify-content: center; height: 38px; flex-shrink: 0; border-bottom: 1px solid var(--nav-border); }
 body.brand-hidden .topbar-brand-row { display: none; }
 body.brand-hidden { --topbar-h: 44px; } /* brand hidden → just the controls row; offsets shrink with it */
+/* feat 188 — a contextual shortcut row appears only while a workout is active; it grows --topbar-h by 40px so
+   every fixed offset (panel padding, rest/step bars, log sheet) keys off the taller bar automatically. */
+body.workout-active { --topbar-h: 122px; }              /* 82 + 40 */
+body.brand-hidden.workout-active { --topbar-h: 84px; }  /* 44 + 40 (two-class selector wins by specificity) */
 .topbar-brand-btn { background: none; border: none; cursor: pointer; padding: 3px 12px; display: flex; align-items: center; -webkit-tap-highlight-color: transparent; }
 .topbar-ctrl-row { display: flex; align-items: stretch; height: 44px; flex-shrink: 0; }
+.topbar-shortcut-row { display: none; height: 40px; flex-shrink: 0; border-top: 1px solid var(--nav-border); }
+body.workout-active .topbar-shortcut-row { display: flex; }
+.wbar-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; background: none; border: none; border-right: 1px solid var(--nav-border); color: var(--text2); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.wbar-btn:last-child { border-right: none; }
+.wbar-btn.active { color: var(--accent); background: var(--bg3); }
+.wbar-btn.wbar-end { color: var(--warn); }
 .topbar-navbtn { width: 42px; flex-shrink: 0; border: none; background: transparent; color: var(--text2); font-size: 15px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .topbar-navbtn:disabled { opacity: 0.3; cursor: default; }
 .topbar-navbtn:not(:disabled):active { color: var(--accent); }
@@ -2255,6 +2265,12 @@ input[type=text], input[type=number], input[type=file], select, textarea {
       <button id="app-help-btn" class="app-bar-btn" onclick="openHelp()" title="Help" aria-label="Help" data-i18n-title="app.help" data-i18n-aria="app.help">❓</button>
     </div>
   </div>
+  <!-- feat 188 — contextual workout shortcuts: only shown while a workout is active (body.workout-active) -->
+  <div class="topbar-shortcut-row">
+    <button id="wbar-workout-btn" class="wbar-btn" onclick="navTo('workout')" title="Workout" aria-label="Workout">🔥 <span class="wbar-lbl">Workout</span></button>
+    <button id="wbar-exercise-btn" class="wbar-btn" onclick="navTo('exercise')" title="Log a set" aria-label="Log a set">✍️ <span class="wbar-lbl">Exercise</span></button>
+    <button id="wbar-end-btn" class="wbar-btn wbar-end" title="End workout — hold to skip the confirm" aria-label="End workout">🏁 <span class="wbar-lbl">End</span></button>
+  </div>
 </div>
 
 <!-- feat 74 — sound & haptics quick menu -->
@@ -3728,6 +3744,9 @@ function initTopbarShortcuts() {
   attachTopbarLongPress(document.getElementById('app-settings-btn'), openDataPage, 'Data'); // feat 134 — long-press Settings → Data Management page
   attachTopbarLongPress(document.querySelector('.nav-tab[data-panel="panel-coaching"]'), topbarCoachingRelevant, 'Relevant');
   // ❓ Help: long-press is intentionally the same as a tap — no separate shortcut attached.
+  // feat 188 — 🏁 End on the contextual workout shortcut row: a tap confirms, a hold skips the confirm (feat 108).
+  const wbarEnd = document.getElementById('wbar-end-btn');
+  if (wbarEnd && typeof attachTrackerPress === 'function') attachTrackerPress(wbarEnd, () => endWorkout(false), () => endWorkout(true), 'Hold to end');
 }
 
 // Resolve true when the user confirms. When hold-to-confirm is ON and a button is
@@ -15027,13 +15046,7 @@ document.getElementById('trk-modal-backdrop').addEventListener('click', () => { 
 document.getElementById('trk-notes-close').addEventListener('click', closeNotesModal);
 document.getElementById('trk-notes-backdrop').addEventListener('click', closeNotesModal);
 // feat 51 — tapping the global rest bar jumps to the Log tab
-document.getElementById('rest-bar')?.addEventListener('click', () => {
-  const trackerBtn = document.querySelector('.nav-tab[data-panel="panel-tracker"]');
-  if (trackerBtn) switchPanel('panel-tracker', trackerBtn);
-  currentTab = 'log';
-  document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === 'log'));
-  render();
-});
+document.getElementById('rest-bar')?.addEventListener('click', () => navTo('workout')); // feat 188 — open the Workout page
 // feat 139/156 — tap the notched step bar to open the detailed Plan Execution View (feat 145)
 document.getElementById('plan-step-bar')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); });
 document.getElementById('plan-step-bar')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanExecution(p.id); } });
@@ -15065,7 +15078,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 133 · 2026-06-09 08:45';
+const APP_BUILD = 'build 134 · 2026-06-09 09:14';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -15596,7 +15609,18 @@ function restBarNextExercise(prevUuid, prevSub) {
   return sug ? { label: sug, kind: 'implicit' } : null;
 }
 // DOM-only update of the global bar (opaque track + progress fill) — never calls render().
+// feat 188 — show/hide the contextual workout shortcut row (🔥 Workout · ✍️ Exercise · 🏁 End) and highlight
+// the current destination. Driven off the active session; called from refreshRestBar (which runs on every
+// workout-state change) so the row tracks start/end automatically.
+function updateWorkoutBar() {
+  const active = !!getActiveSession();
+  document.body.classList.toggle('workout-active', active);
+  const w = document.getElementById('wbar-workout-btn'), e = document.getElementById('wbar-exercise-btn');
+  if (w) w.classList.toggle('active', active && currentPage === 'workout');
+  if (e) e.classList.toggle('active', active && currentPage === 'exercise');
+}
 function refreshRestBar() {
+  updateWorkoutBar(); // feat 188 — keep the contextual shortcut row in sync with the active session
   const bar = document.getElementById('rest-bar');
   if (!bar) return;
   const wc = state.workoutControls || {};
