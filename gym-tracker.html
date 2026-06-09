@@ -1230,6 +1230,13 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   .tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
   .tab { flex-shrink: 0; padding: 7px 13px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; color: #888; font-size: 12px; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
   .tab.active { background: #b48aff; color: #0a0a0a; border-color: #b48aff; }
+  /* feat 181 — drill-down navigation menu (Home / Train / Reflect / … pages) */
+  .nav-menu { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .nav-menu-item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px 14px; border-radius: 12px; background: var(--bg2, #141414); border: 1px solid var(--border2, #2a2a2a); color: var(--text, #eee); font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .nav-menu-item:active { background: var(--bg3, #1c1c1c); }
+  .nav-menu-emoji { font-size: 20px; line-height: 1; flex-shrink: 0; width: 26px; text-align: center; }
+  .nav-menu-title { flex: 1; min-width: 0; }
+  .nav-menu-chev { color: var(--text3, #777); font-size: 18px; font-weight: 800; }
 
   main { padding: 12px 14px; }
 
@@ -7711,22 +7718,85 @@ function updateSaveBtn() {
    ============================================================ */
 let currentTab = 'log';
 
-function render() {
-  document.body.classList.toggle('readonly', isReadonly()); // feat 62 — read-only mode
-  applyBranding(); // feat 170 — reflect the hide-branding setting
-  const main = document.getElementById('trk-main');
-  document.getElementById('trk-fab').style.display = (currentTab === 'log' && !isReadonly()) ? 'flex' : 'none';
-  if (currentTab === 'log') renderLog(main);
-  else if (currentTab === 'sessions') renderSessionsLog(main); // feat 146 — paginated session list
-  else if (currentTab === 'history') renderHistory(main);
-  else if (currentTab === 'volume') renderVolume(main);
-  else if (currentTab === 'trends') renderTrends(main);
-  else if (currentTab === 'body') renderBody(main);
-  else if (currentTab === 'gyms') renderGymsTab(main);
+/* ============================================================
+   feat 181 — page router (drill-down). Every destination is a PAGE rendered into #trk-main; `navTo` pushes a
+   back/forward history. The legacy `currentTab` is kept as a mirror, and the old entry points (switchToTab /
+   the tab bar / direct `currentTab=X;render()`) keep working, so screens migrate to pages incrementally (feat
+   182+). Leaves not yet converted to pages carry an `open()` that calls their existing overlay opener.
+   ============================================================ */
+const PAGES = {
+  home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'] },
+  train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'] },
+  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','history','trends','volume','achievements'] },
+  execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail'] },
+  prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator'] },
+  study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','glossary','anatomy','advice'] },
+  settings:{ title:'Settings',emoji:'⚙️', kind:'menu', parent:'home',  children:['set-profile','set-cosmetic','set-prefs','set-data','set-help','set-about'] },
+  // leaf pages that already render into a container (reused unchanged)
+  workout:     { title:'Workout',          emoji:'🔥', kind:'leaf', parent:'execute', tab:'log',      render:m=>renderLog(m) },
+  log:         { title:'Log',              emoji:'📅', kind:'leaf', parent:'reflect', tab:'sessions', render:m=>renderSessionsLog(m) },
+  history:     { title:'History',          emoji:'🕓', kind:'leaf', parent:'reflect', tab:'history',  render:m=>renderHistory(m) },
+  trends:      { title:'Trends',           emoji:'📈', kind:'leaf', parent:'reflect', tab:'trends',   render:m=>renderTrends(m) },
+  volume:      { title:'Volume',           emoji:'🧮', kind:'leaf', parent:'reflect', tab:'volume',   render:m=>renderVolume(m) },
+  achievements:{ title:'Achievement Paths',emoji:'🏅', kind:'leaf', parent:'reflect', render:m=>{ m.innerHTML = renderAchievements(); } },
+  gyms:        { title:'Gyms',             emoji:'📍', kind:'leaf', parent:'prepare', tab:'gyms', render:m=>renderGymsTab(m) },
+  body:        { title:'Body',             emoji:'🧍', kind:'leaf', parent:'prepare', tab:'body', render:m=>renderBody(m) },
+  // leaves still served by their existing overlay/opener (converted to real pages in later phases)
+  exercise:      { title:'Exercise',     emoji:'✍️', kind:'leaf', parent:'execute', open:()=>openLogModal() },
+  'plan-detail': { title:'Plan Detail',  emoji:'🗺️', kind:'leaf', parent:'execute', open:()=>{ const p=getActivePlan(); if(p) openPlanExecution(p.id); else toast('Start a plan to see its detail'); } },
+  equipment:     { title:'Equipment',    emoji:'🏗️', kind:'leaf', parent:'prepare', open:()=>toast('Open an exercise to set up its equipment') },
+  'plan-creator':{ title:'Plan Creator', emoji:'📝', kind:'leaf', parent:'prepare', open:()=>openPlansOverlay() },
+  reference:     { title:'Reference',    emoji:'📖', kind:'leaf', parent:'study', open:()=>goPanel('panel-reference') },
+  glossary:      { title:'Glossary',     emoji:'📓', kind:'leaf', parent:'study', open:()=>openGloss() },
+  anatomy:       { title:'Anatomy',      emoji:'🫀', kind:'leaf', parent:'study', open:()=>openGloss() },
+  advice:        { title:'Advice',       emoji:'🧭', kind:'leaf', parent:'study', open:()=>goPanel('panel-coaching') },
+  'set-profile': { title:'Profile',      emoji:'👤', kind:'leaf', parent:'settings', open:()=>openSettingsDrawer() },
+  'set-cosmetic':{ title:'Cosmetic',     emoji:'🎨', kind:'leaf', parent:'settings', open:()=>openSettingsDrawer() },
+  'set-prefs':   { title:'Preferences',  emoji:'🎛️', kind:'leaf', parent:'settings', open:()=>openSettingsDrawer() },
+  'set-data':    { title:'Data',         emoji:'📦', kind:'leaf', parent:'settings', open:()=>openDataPage() },
+  'set-help':    { title:'Help',         emoji:'❓', kind:'leaf', parent:'settings', open:()=>openHelp() },
+  'set-about':   { title:'About',        emoji:'ℹ️', kind:'leaf', parent:'settings', open:()=>openSettingsDrawer() },
+};
+const TAB_TO_PAGE = { log:'workout', sessions:'log', history:'history', volume:'volume', trends:'trends', body:'body', gyms:'gyms' };
+let currentPage = 'workout', _pageBack = [], _pageFwd = [], _navTab = null; const _PAGE_CAP = 16;
+function pageDef(id) { return PAGES[id] || PAGES.workout; }
+function navTo(id, opts) {
+  opts = opts || {};
+  const def = PAGES[id]; if (!def) return;
+  if (def.open && !def.render && def.kind !== 'menu') { def.open(); return; } // legacy opener — keep current page
+  if (!opts.replace && id !== currentPage) { _pageBack.push(currentPage); if (_pageBack.length > _PAGE_CAP) _pageBack.shift(); _pageFwd.length = 0; }
+  currentPage = id; _persistPage(); renderCurrentPage();
+}
+function navBack() { if (!_pageBack.length) { const par = pageDef(currentPage).parent; if (par) navTo(par, { replace: true }); return; } _pageFwd.push(currentPage); currentPage = _pageBack.pop(); _persistPage(); renderCurrentPage(); }
+function navForward() { if (!_pageFwd.length) return; _pageBack.push(currentPage); currentPage = _pageFwd.pop(); _persistPage(); renderCurrentPage(); }
+function _persistPage() { try { localStorage.setItem('gt_page', currentPage); } catch (_) {} }
+function _syncLegacyTabClasses() { const tab = pageDef(currentPage).tab; document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', !!tab && x.dataset.tab === tab)); }
+function renderMenu(main, ids) {
+  main.innerHTML = `<div class="nav-menu">${(ids || []).map(id => { const d = PAGES[id]; return d ? `<button class="nav-menu-item" data-nav="${id}"><span class="nav-menu-emoji">${d.emoji}</span><span class="nav-menu-title">${escapeHtml(d.title)}</span><span class="nav-menu-chev">›</span></button>` : ''; }).join('')}</div>`;
+  main.querySelectorAll('[data-nav]').forEach(b => b.addEventListener('click', () => navTo(b.dataset.nav)));
+}
+function renderCurrentPage() {
+  document.body.classList.toggle('readonly', isReadonly()); // feat 62
+  applyBranding(); // feat 170
+  const def = pageDef(currentPage), main = document.getElementById('trk-main');
+  if (!main) return;
+  if (def.tab) currentTab = def.tab; // legacy mirror
+  _navTab = currentTab;
+  _syncLegacyTabClasses();
+  const fab = document.getElementById('trk-fab'); if (fab) fab.style.display = (currentPage === 'workout' && !isReadonly()) ? 'flex' : 'none';
+  if (def.kind === 'menu') renderMenu(main, def.children);
+  else if (def.render) def.render(main);
+  else if (def.open) { main.innerHTML = ''; def.open(); }
   const _exp = document.getElementById('trk-export-pdf'); // feat 133 — only the data-review views are exportable
-  if (_exp) _exp.style.display = (currentTab === 'history' || currentTab === 'volume' || currentTab === 'trends') ? '' : 'none';
+  if (_exp) _exp.style.display = (currentPage === 'history' || currentPage === 'volume' || currentPage === 'trends') ? '' : 'none';
+  if (typeof updateTopbarChrome === 'function') updateTopbarChrome(def); // feat 182 (no-op until then)
   updateFAB();
   if (typeof refreshRestBar === 'function') refreshRestBar(); // feat 51
+}
+function render() {
+  // feat 181 — honor a direct `currentTab = X` change (legacy code/tests) by syncing the page to it.
+  if (currentTab !== _navTab && TAB_TO_PAGE[currentTab]) currentPage = TAB_TO_PAGE[currentTab];
+  renderCurrentPage();
 }
 
 /* ---- feat 133 — PDF export of the current History / Volume / Trends view ----
@@ -14800,14 +14870,12 @@ applyI18n(document); // feat 61 — translate tagged static markup (attrs/text) 
 setTimeout(hrTryReconnect, 0); // feat 72 — auto-reconnect last HR device; deferred so it runs after boot completes (this INIT block is above the `let _hrConnected` declaration, so calling synchronously here hit its temporal-dead-zone and silently rejected — auto-reconnect never actually ran)
 logInfo('App loaded', (state.sessions ? state.sessions.length : 0) + ' sessions');
 
-function switchToTab(name) { // feat 146 — shared by the tab bar + in-page "see Log" link
-  document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
-  currentTab = name;
+function switchToTab(name) { // feat 146 — shared by the tab bar + in-page "see Log" link; feat 181 — routes through navTo
   historyView = 'list';
   historyKey = null;
   volWeekOffset = 0;
   _sessionsLogPage = 0; // always land on the newest page when (re)entering the Log tab
-  render();
+  navTo(TAB_TO_PAGE[name] || 'workout');
 }
 document.querySelectorAll('.tab[data-tab]').forEach(t => {
   t.addEventListener('click', () => switchToTab(t.dataset.tab));
@@ -14872,7 +14940,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 126 · 2026-06-08 23:03';
+const APP_BUILD = 'build 127 · 2026-06-09 06:56';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

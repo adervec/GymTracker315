@@ -852,6 +852,20 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Page router — keystone of the nav rework (feat 181):** first phase of the total IA rework (drill-down pages +
+  back/forward, per the approved plan). Adds a thin router over the existing renderers: a `PAGES` registry (`id →
+  {title, emoji, kind:'menu'|'leaf', parent, tab?, render(main) | open()}`) covering the full target tree (Home ›
+  Train{Reflect/Execute/Prepare}/Study/Settings), `navTo(id)` with a depth-capped back/forward stack
+  (`navBack`/`navForward`, `localStorage gt_page`), and `renderMenu(main, children)` for the drill-down menus. The
+  tracker `render()` now routes through `renderCurrentPage()` (dispatch on `currentPage`), but **everything stays
+  backward-compatible**: `currentTab` is kept as a mirror, `switchToTab` routes through `navTo`, and a `_navTab`
+  guard makes the legacy `currentTab = X; render()` pattern still work — so the 648 existing tests pass unchanged.
+  Leaves not yet converted to pages (Exercise, Plan Detail, Reference, Glossary, Settings, …) carry an `open()` that
+  calls their existing overlay opener, so the hierarchy is wired end-to-end while screens migrate incrementally
+  (feat 182+). No content moved yet; the top bar is unchanged this phase. Every nav button has a unique emoji.
+  Covered by `test/router.spec.mjs` (unique-emoji registry, leaf render + currentTab mirror + tab highlight, menu
+  drill-down + item click, Back/Forward + parent-fallback + depth cap, legacy-opener leaves, switchToTab/`currentTab`
+  compatibility, `gt_page` persistence).
 - **Calendar view of the Log (feat 180):** the Log tab gains a **List / Calendar** toggle (`_logView`). The calendar
   (`renderLogCalendar`) draws a month grid (Sun-start) from `_sessionsByDay()`; each day with logged session(s) is
   highlighted and shows a **grade chip** (`sessionGrade`, colour-coded S/A→green … D→grey) or a dot, plus a **×N**
