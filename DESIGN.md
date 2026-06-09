@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Advice page — coaching out of the panel switcher (feat 189):** Study › Advice became a **router page**
+  (`renderAdvicePage`) and the **`panel-coaching` slide‑in was retired** — the first dismantling of the legacy
+  3‑panel switcher. The Coaching & Progression content (endurance / bouldering / grip cards + the bundled‑guide
+  reader) renders into `#trk-main` by reusing `renderCoaching()` / `bindCoaching()` verbatim against
+  `#coaching-content`. `goPanel('panel-coaching')` is now a shim → `navTo('advice')`, so every entry point flows to
+  the page: the Reference panel's `.coach-banner`, the `topbarCoachingRelevant` long‑press (its scroll‑to‑relevant
+  card still works), and the hidden 🧭 nav‑tab (rewired to `navTo('advice')`). The bundled‑guide reader
+  (`#guide-reader`, body‑level) and the coaching↔Reference crosslinks are unchanged. `test/coaching.spec.mjs`
+  updated: the five panel‑coaching cases now drive `navTo('advice')` and assert `currentPage==='advice'` /
+  `#trk-main #coaching-content`. (Reference / Glossary / Anatomy follow in later phases.)
 - **Contextual workout shortcuts (feat 188):** while a workout is active, the top bar grows a **third row** —
   🔥 Workout · ✍️ Exercise · 🏁 End — for one‑tap access from anywhere; it's hidden otherwise (the nav stays a pure
   hierarchy, the locked decision). Visibility is driven by `body.workout-active`, toggled by `updateWorkoutBar()`

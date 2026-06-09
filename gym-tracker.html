@@ -2256,7 +2256,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
     <div class="nav-tabs">
       <button class="nav-tab active" data-panel="panel-tracker" onclick="switchPanel('panel-tracker', this)" title="Tracker" aria-label="Tracker" data-i18n-title="nav.tracker" data-i18n-aria="nav.tracker">📈</button>
       <button class="nav-tab" data-panel="panel-reference" onclick="switchPanel('panel-reference', this)" title="Reference" aria-label="Reference" data-i18n-title="nav.reference" data-i18n-aria="nav.reference">📚</button>
-      <button class="nav-tab" data-panel="panel-coaching" onclick="switchPanel('panel-coaching', this)" title="Coaching &amp; Progression" aria-label="Coaching and Progression">🧭</button>
+      <button class="nav-tab" data-panel="panel-coaching" onclick="navTo('advice')" title="Coaching &amp; Progression" aria-label="Coaching and Progression">🧭</button>
     </div>
     <div class="app-bar-actions">
       <button id="app-sound-btn" class="app-bar-btn sound-btn" onclick="toggleSoundMenu(event)" title="Sound & haptics" aria-label="Sound and haptics"><span class="snd-main">🔊</span><span class="snd-haptic-badge">📳</span></button>
@@ -7869,7 +7869,7 @@ const PAGES = {
   reference:     { title:'Reference',    emoji:'📖', kind:'leaf', parent:'study', open:()=>goPanel('panel-reference') },
   glossary:      { title:'Glossary',     emoji:'📓', kind:'leaf', parent:'study', open:()=>openGloss() },
   anatomy:       { title:'Anatomy',      emoji:'🫀', kind:'leaf', parent:'study', open:()=>openGloss() },
-  advice:        { title:'Advice',       emoji:'🧭', kind:'leaf', parent:'study', open:()=>goPanel('panel-coaching') },
+  advice:        { title:'Advice',       emoji:'🧭', kind:'leaf', parent:'study', render:m=>renderAdvicePage(m) }, // feat 189
   'set-profile': { title:'Profile',      emoji:'👤', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
   'set-cosmetic':{ title:'Cosmetic',     emoji:'🎨', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
   'set-prefs':   { title:'Preferences',  emoji:'🎛️', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
@@ -15078,7 +15078,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 134 · 2026-06-09 09:14';
+const APP_BUILD = 'build 135 · 2026-06-09 09:30';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -22995,17 +22995,7 @@ renderGlossary();
 </script>
 </div>
 
-<div class="panel" id="panel-coaching">
-  <header>
-    <h1>🧭 Coaching &amp; Progression</h1>
-  </header>
-  <main>
-    <div class="coach-wrap">
-      <div class="coach-intro">Coaching &amp; progression for the disciplines the tracker now covers. Tap a chip to jump to that activity in the Reference, or open the full bundled guide for the deep dive.</div>
-      <div id="coaching-content"></div>
-    </div>
-  </main>
-</div>
+<!-- feat 90/189 — Coaching & Progression is now the 'advice' router page (renders into #trk-main). Panel retired. -->
 
 <script>
 /* feat 90 — Coaching & Progression: distilled, trackable coaching for endurance,
@@ -23094,6 +23084,7 @@ const COACHING = [
       { label:'Farmer carry', search:'carry' } ] } },
 ];
 function goPanel(panelId) {
+  if (panelId === 'panel-coaching') { if (typeof navTo === 'function') navTo('advice'); return; } // feat 189 — coaching is the Advice page now
   const btn = document.querySelector('.nav-tab[data-panel="' + panelId + '"]');
   if (btn && typeof switchPanel === 'function') switchPanel(panelId, btn);
 }
@@ -23136,6 +23127,14 @@ function bindCoaching() {
     if (chip.classList.contains('guide')) { openGuide(chip.dataset.guide); return; }
     openInReference(chip.dataset.coachSearch, chip.dataset.coachMega);
   });
+}
+// feat 189 — Advice page (Study › Advice): the Coaching & Progression content hosted in #trk-main (the
+// panel-coaching slide-in is retired). Reuses renderCoaching()/bindCoaching() verbatim against #coaching-content.
+function renderAdvicePage(main) {
+  if (!main) return;
+  main.innerHTML = '<div class="coach-wrap"><div class="coach-intro">Coaching &amp; progression for the disciplines the tracker covers. Tap a chip to jump to that activity in the Reference, or open the full bundled guide for the deep dive.</div><div id="coaching-content"></div></div>';
+  renderCoaching();
+  bindCoaching();
 }
 // feat 91 — open an embedded guide (from a <template id="guide-*">) in a themed in-app
 // reader. The guide keeps its own layout but adopts the app's live theme colours + font,
