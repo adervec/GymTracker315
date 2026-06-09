@@ -853,6 +853,23 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **A heaping helping of masterly crafted plans (feat 196):** `SEED_PLANS` grew **tranche 6 — 20 new plans**
+  that finally exploit the library's untouched breadth (the previous tranches drew on ~29 of the 84 movement
+  families): implements (**Kettlebell Complete**, **Landmine One-Bar**, **Strongman Saturday**, **Power & Speed**,
+  **Band Anywhere**, **Athletic Power 30**, **Kettlebell Builder (90m)**), the feat-194 disciplines as *runnable*
+  plans (**Yoga Foundations Flow**, **Pilates-Style Core Control**, **Morning Mobility 15**, **Deep Stretch Hour**,
+  **Active Recovery Day**), cardio engines (**HIIT Engine Room**, **Zone 2 Base**, **Race Sim (HYROX-style)**), joint
+  health (**Knees Over Toes**, **Shoulder Prehab**, **Desk Posture Reset**) and specialty days that cross-link the
+  Advice guides (**Grip Forge**, **Climber Conditioning**). Discipline plans pin **real variation uuids** probed at
+  runtime via the new `tools/probe-families.mjs` (the feat-175 lesson institutionalized), so e.g. the yoga flow runs
+  Sun Salutation → Warrior II → Tree → Pigeon by name. The picker now spans **9+ derived categories** (Mobility,
+  Recovery, Cardio and Upper/Pull/Legs/Core join the classics), all three length buckets (15 m – 90 m additions;
+  3 h stays the ceiling) and the full 1–5 intensity range. Also fixes a latent **duplicate-id bug**: tranche 4's
+  *Core & Midsection* reused `id:'seed-core'` (taken by tranche 1's *Core & Conditioning*), so it **never seeded**
+  for anyone — renamed to `seed-midsection`, it now appears via the additive `seededPlanIds` ledger, and the new
+  spec asserts seed-plan ids stay unique. Covered by `test/planlibrary.spec.mjs` (presence/completeness, every
+  pinned familyId+uuid resolves, unique ids + resurrection, category/bucket/intensity spread, 90/180 clusters
+  hold with the 180-min max, fresh-user seeding + GymTracker315 authorship).
 - **Cleanup — Data folded into the router (feat 195):** Settings › Data became a proper **router page**
   (`renderDataPage`), completing the Settings "everything its own page" split — `set-data` was the last leaf still
   served by a bare overlay opener. The full‑screen `#data-page` is now shown via `navTo('set-data')`
