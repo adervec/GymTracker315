@@ -84,11 +84,11 @@ test('a not-yet-converted leaf opens its legacy overlay without changing the pag
   const r = await page.evaluate(() => {
     navTo('workout', { replace: true });
     const before = currentPage;
-    navTo('exercise'); // legacy opener → openLogModal()
-    return { open: modalState.open, page: currentPage, before };
+    navTo('set-data'); // legacy opener (the Data Management overlay) — does not change the router page
+    return { page: currentPage, before };
   });
-  expect(r.open).toBe(true);       // the log-sets modal opened
-  expect(r.page).toBe('workout');  // ...but the router page is unchanged (still a shim in feat 181)
+  expect(r.before).toBe('workout');
+  expect(r.page).toBe('workout');  // an open: leaf with no page render leaves currentPage untouched
 });
 
 test('legacy entry points still work: switchToTab + direct currentTab assignment', async ({ page }) => {

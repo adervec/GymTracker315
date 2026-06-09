@@ -7899,15 +7899,16 @@ function navTo(id, opts) {
 }
 function navBack() { if (!_pageBack.length) { const par = pageDef(currentPage).parent; if (par) navTo(par, { replace: true }); return; } _pageFwd.push(currentPage); currentPage = _pageBack.pop(); _persistPage(); renderCurrentPage(); }
 function navForward() { if (!_pageFwd.length) return; _pageBack.push(currentPage); currentPage = _pageFwd.pop(); _persistPage(); renderCurrentPage(); }
-// feat 182/191 — top-bar Back: pages (incl. Reference) live in the router history, so Back is just navBack().
-function topbarBack() { navBack(); }
+// feat 182/191/192 — top-bar Back: if the log-sets sheet is open, Back closes it (restores the page behind it);
+// otherwise pages (incl. Reference) live in the router history, so Back is just navBack().
+function topbarBack() { if (typeof modalState !== 'undefined' && modalState.open) { closeLogModal(); render(); return; } navBack(); }
 // feat 182 — page title (emoji + name) + Back/Forward enabled state. Called from renderCurrentPage.
 function updateTopbarChrome(def) {
   def = def || pageDef(currentPage);
   const title = document.getElementById('topbar-title');
   if (title) title.innerHTML = `<span class="tt-emoji">${def.emoji || ''}</span><span class="tt-name">${escapeHtml(def.title || '')}</span>`;
   const ap = document.querySelector('.panel.active'), inPanel = !!(ap && ap.id !== 'panel-tracker');
-  const back = document.getElementById('nav-back'); if (back) back.disabled = !(_pageBack.length || inPanel);
+  const back = document.getElementById('nav-back'); if (back) back.disabled = !(_pageBack.length || inPanel || (typeof modalState !== 'undefined' && modalState.open)); // feat 192 — Back also closes the open log sheet
   const fwd = document.getElementById('nav-fwd'); if (fwd) fwd.disabled = !_pageFwd.length;
 }
 function _persistPage() { try { localStorage.setItem('gt_page', currentPage); } catch (_) {} }
@@ -13050,6 +13051,21 @@ function openStepPicker(idx) {
   renderModal();
 }
 
+// feat 192 — Exercise page: the log-sets sheet (#trk-modal) is router-integrated — opening it marks currentPage
+// 'exercise' (the top bar shows ✍️ Exercise + an enabled Back) and closing it restores the page behind the sheet.
+// The sheet's content / picker / OSK / save flow are unchanged; only the surrounding router chrome is added, so the
+// modal is now a destination in the nav hierarchy (Train › Execute › Exercise) rather than a bare popup.
+let _exercisePrevPage = 'workout';
+function _markExercisePage() {
+  if (currentPage !== 'exercise') { _exercisePrevPage = currentPage; currentPage = 'exercise'; _persistPage(); }
+  if (typeof updateTopbarChrome === 'function') updateTopbarChrome();
+  if (typeof updateWorkoutBar === 'function') updateWorkoutBar(); // light up ✍️ on the workout shortcut row
+}
+function _restoreFromExercisePage() {
+  if (currentPage !== 'exercise') return;
+  currentPage = _exercisePrevPage || 'workout'; _persistPage();
+  if (typeof updateTopbarChrome === 'function') updateTopbarChrome();
+}
 function openLogModal() {
   reapAbandonedSet(); // feat 51 — clean up a stale open set after a long gap
   modalState.open = true;
@@ -13065,6 +13081,7 @@ function openLogModal() {
   document.getElementById('trk-modal').classList.add('open');
   document.getElementById('trk-modal-backdrop').classList.add('open');
   document.body.style.overflow = 'hidden';
+  _markExercisePage(); // feat 192
 }
 
 function editExisting(sessionDate, varUuid, subUuid) {
@@ -13101,6 +13118,7 @@ function editExisting(sessionDate, varUuid, subUuid) {
   document.getElementById('trk-modal').classList.add('open');
   document.getElementById('trk-modal-backdrop').classList.add('open');
   document.body.style.overflow = 'hidden';
+  _markExercisePage(); // feat 192
 }
 
 function closeLogModal() {
@@ -13111,6 +13129,7 @@ function closeLogModal() {
   document.getElementById('trk-modal-backdrop').classList.remove('open');
   document.body.style.overflow = '';
   // Pending is intentionally NOT cleared
+  _restoreFromExercisePage(); // feat 192 — reveal the page that was behind the sheet
   updateFAB();
 }
 
@@ -15088,7 +15107,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 137 · 2026-06-09 10:06';
+const APP_BUILD = 'build 138 · 2026-06-09 10:31';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

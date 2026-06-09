@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Exercise page — the log-sets sheet joins the router (feat 192):** the **highest‑risk** conversion, taken by the
+  safe route. Instead of re‑homing the whole log‑sets flow into `#trk-main` (the `_modalHost` rewrite), the existing
+  `#trk-modal` sheet — already a full‑screen surface below the top bar — is **router‑integrated as the `exercise`
+  page**: `openLogModal()` / `editExisting()` also mark `currentPage='exercise'` (the top bar shows ✍️ Exercise + an
+  enabled Back, and the ✍️ workout‑shortcut lights up) via `_markExercisePage()`, and `closeLogModal()` restores the
+  page behind the sheet via `_restoreFromExercisePage()` (remembering `_exercisePrevPage`). `topbarBack` closes the
+  sheet when it's open. The sheet's **content, picker, OSK numpad, equipment setup, and the entire save flow are
+  untouched** — only the surrounding chrome changed, so the whole logging‑spec cluster stayed green (722). Covered by
+  `test/exercisepage.spec.mjs`; `router.spec`'s open‑leaf case moved to `set-data`. (A later cleanup could re‑home the
+  sheet's *content* into `#trk-main` proper, but the overlay‑as‑page keeps the app's core flow risk‑free.)
 - **Reference page — last of the 3‑panel‑switcher teardown (feat 191):** Study › Reference became a **router page**.
   Rather than rewrite the whole `renderRef` catalog (its own search / mega + equip filters / detailed·tree·table
   views), `#panel-reference` is now the **host panel for the reference page**: the panel‑surfacing was reworked so the
