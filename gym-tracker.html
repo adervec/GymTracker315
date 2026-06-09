@@ -7863,7 +7863,7 @@ const PAGES = {
   // leaves still served by their existing overlay/opener (converted to real pages in later phases)
   exercise:      { title:'Exercise',     emoji:'✍️', kind:'leaf', parent:'execute', open:()=>openLogModal() },
   'plan-detail': { title:'Plan Detail',  emoji:'🗺️', kind:'leaf', parent:'execute', render:m=>renderPlanDetailPage(m) }, // feat 183
-  equipment:     { title:'Equipment',    emoji:'🏗️', kind:'leaf', parent:'prepare', open:()=>toast('Open an exercise to set up its equipment') },
+  equipment:     { title:'Equipment',    emoji:'🏗️', kind:'leaf', parent:'prepare', render:m=>renderEquipmentPage(m) }, // feat 193
   'plan-creator':{ title:'Plan Creator', emoji:'📝', kind:'leaf', parent:'prepare', render:m=>renderPlanCreatorPage(m) }, // feat 184
   reference:     { title:'Reference',    emoji:'📖', kind:'leaf', parent:'study', render:m=>renderReferencePage(m) }, // feat 191
   glossary:      { title:'Glossary',     emoji:'📓', kind:'leaf', parent:'study', render:m=>renderGlossaryPage(m) }, // feat 190
@@ -7890,6 +7890,30 @@ function _surfacePanelForPage() {
 }
 function _surfaceTracker() { _surfacePanelForPage(); } // feat 191 — back-compat alias (panel surfacing now keys off currentPage)
 function renderReferencePage(main) { if (main) main.innerHTML = ''; if (typeof renderRef === 'function') renderRef(); } // feat 191 — Reference is a router page hosted in #panel-reference
+// feat 193 — Equipment page (Prepare › Equipment). Equipment setup is inherently per-exercise (the inline bar /
+// dumbbell / kettlebell / pin-stack loader in the log sheet) plus per-gym stables — there is no standalone equipment
+// state — so this page explains both levels and links to where each is configured.
+function renderEquipmentPage(main) {
+  if (!main) return;
+  const gym = (typeof getActiveGym === 'function') ? getActiveGym() : null;
+  main.innerHTML = `
+    <div class="card">
+      <div class="card-title">🏗️ Equipment</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.6;">GymTracker315 tailors weight suggestions and the plate/loader picker to the gear you actually have — set up at two levels:</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Per-exercise loader · bar · dumbbell · kettlebell · pin stack</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.6;">Each loggable lift gets a setup tool matched to its equipment — a plate-loaded <b>bar</b>, a <b>dumbbell</b>/<b>kettlebell</b> size, or a machine <b>pin stack</b>. Open an exercise and tap the loader chip above the weight field to configure it; your choice persists through the workout.</div>
+      <button class="drawer-btn" id="equip-open-exercise" style="margin-top:10px;">✍️ Open an exercise to set up its loader</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Per-gym equipment stables</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.6;">Each gym stocks its own bar / dumbbell / kettlebell sizes and pin increment, which feed the loaders above. ${gym ? `Active gym: <b>${escapeHtml(gym.name)}</b>.` : 'No active gym is selected yet.'} Manage stables under <b>Gyms</b>.</div>
+      <button class="drawer-btn" id="equip-open-gyms" style="margin-top:10px;">📍 Manage gym equipment</button>
+    </div>`;
+  main.querySelector('#equip-open-exercise')?.addEventListener('click', () => { if (typeof openLogModal === 'function') openLogModal(); });
+  main.querySelector('#equip-open-gyms')?.addEventListener('click', () => navTo('gyms'));
+}
 function navTo(id, opts) {
   opts = opts || {};
   const def = PAGES[id]; if (!def) return;
@@ -15107,7 +15131,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 138 · 2026-06-09 10:31';
+const APP_BUILD = 'build 139 · 2026-06-09 12:30';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

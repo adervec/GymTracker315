@@ -853,6 +853,12 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Equipment page (feat 193):** Prepare › Equipment became a **router page** (`renderEquipmentPage`) instead of a
+  toast. Equipment setup is inherently per‑exercise (the inline bar / dumbbell / kettlebell / pin‑stack loader in the
+  log sheet, `modalState.setup`) plus per‑gym stables (feat 135) — there is no standalone equipment state — so the
+  page explains both levels and links to where each is configured: **✍️ Open an exercise** (→ the log sheet / Exercise
+  page) for the per‑exercise loader, and **📍 Manage gym equipment** (→ the Gyms page) for the per‑gym stables (the
+  active gym is surfaced). Covered by `test/equipmentpage.spec.mjs`. With this, every Prepare leaf is a real page.
 - **Exercise page — the log-sets sheet joins the router (feat 192):** the **highest‑risk** conversion, taken by the
   safe route. Instead of re‑homing the whole log‑sets flow into `#trk-main` (the `_modalHost` rewrite), the existing
   `#trk-modal` sheet — already a full‑screen surface below the top bar — is **router‑integrated as the `exercise`
