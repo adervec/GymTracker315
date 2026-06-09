@@ -45,6 +45,20 @@ test('openDataPage / closeDataPage toggle the page', async ({ page }) => {
   expect(r.closed).toBe(true);
 });
 
+test('Settings → Data is a router page; Done/Back hides the overlay (feat 195)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    navTo('settings'); navTo('set-data');
+    const onPage = { page: currentPage, open: document.getElementById('data-page').classList.contains('open'), isRender: typeof PAGES['set-data'].render === 'function' };
+    document.getElementById('data-page-close').click(); // Done → navBack through the router
+    return { onPage, afterPage: currentPage, afterOpen: document.getElementById('data-page').classList.contains('open') };
+  });
+  expect(r.onPage.isRender).toBe(true);      // set-data is a render page now (feat 195)
+  expect(r.onPage.page).toBe('set-data');
+  expect(r.onPage.open).toBe(true);          // the overlay shows
+  expect(r.afterOpen).toBe(false);           // Done closed it
+  expect(r.afterPage).toBe('settings');      // ...and returned to the Settings menu
+});
+
 test('relocated buttons keep their bindings (Export JSON still calls exportData)', async ({ page }) => {
   const calls = await page.evaluate(() => {
     let n = 0; window.exportData = () => { n++; };   // spy BEFORE bind so addEventListener captures it

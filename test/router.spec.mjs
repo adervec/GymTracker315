@@ -80,15 +80,15 @@ test('the back stack is depth-capped', async ({ page }) => {
   expect(len).toBeLessThanOrEqual(16);
 });
 
-test('a not-yet-converted leaf opens its legacy overlay without changing the page', async ({ page }) => {
+test('an open: leaf routes through its opener (the Exercise log sheet)', async ({ page }) => {
   const r = await page.evaluate(() => {
     navTo('workout', { replace: true });
-    const before = currentPage;
-    navTo('set-data'); // legacy opener (the Data Management overlay) — does not change the router page
-    return { page: currentPage, before };
+    navTo('exercise'); // the one remaining open: leaf → openLogModal()
+    return { modal: modalState.open, page: currentPage, isOpenLeaf: !!PAGES.exercise.open && !PAGES.exercise.render };
   });
-  expect(r.before).toBe('workout');
-  expect(r.page).toBe('workout');  // an open: leaf with no page render leaves currentPage untouched
+  expect(r.isOpenLeaf).toBe(true);  // exercise is still served by an open: opener (navTo's legacy branch)
+  expect(r.modal).toBe(true);       // navTo ran the opener → the log sheet opened
+  expect(r.page).toBe('exercise');  // openLogModal marks the Exercise page (feat 192)
 });
 
 test('legacy entry points still work: switchToTab + direct currentTab assignment', async ({ page }) => {

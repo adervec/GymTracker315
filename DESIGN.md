@@ -853,6 +853,17 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Cleanup — Data folded into the router (feat 195):** Settings › Data became a proper **router page**
+  (`renderDataPage`), completing the Settings "everything its own page" split — `set-data` was the last leaf still
+  served by a bare overlay opener. The full‑screen `#data-page` is now shown via `navTo('set-data')`
+  (`openDataPage` → `navTo`), its Done/✕ + leaving go through `navBack`, and `renderCurrentPage` calls
+  `_syncDataOverlay()` to hide it when you navigate away — the same overlay‑as‑page pattern as Glossary. The
+  load‑bearing `#drawer-data-wrap` → `#data-page-body` relocation (built by `renderSettingsDrawer`) is **unchanged**,
+  so the `datapage` / `sync` / `dataexport` specs stay green (they relocate with `currentPage='workout'`, which
+  `_relocateSettingsPage` leaves alone). `router.spec`'s open‑leaf case moved to `exercise` (now the only `open:`
+  leaf). The legacy settings *drawer* and the hidden nav‑tabs are intentionally **kept** — they are load‑bearing
+  (the drawer renders every settings page's sections; the nav‑tabs are the `switchPanel` surfacing primitive), not
+  dead code.
 - **Yoga / Pilates / Mobility coaching + progression (feat 194):** the **finale** of the epic — three new `COACHING`
   cards on the Advice page (Study › Advice), cross‑linked to the feat‑128 `mega:'mobility'` Reference families.
   **🧘 Yoga** (Hatha / Vinyasa / Yin, breath‑leads, patient progression, a foundational sun‑salutation flow),

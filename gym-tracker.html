@@ -6587,15 +6587,26 @@ function renderSettingsDrawer() {
 }
 
 // feat 109 — open/close the full-screen Data Management page (the data sections were relocated here).
-function openDataPage() {
+// feat 195 — Data Management is a router page (Settings › Data). The full-screen #data-page overlay is shown via
+// the router (openDataPage → navTo('set-data')); the #drawer-data-wrap relocation into #data-page-body is unchanged.
+// ✕/Done + leaving go through navBack, and _syncDataOverlay (renderCurrentPage) hides it when you navigate elsewhere.
+function openDataPage() { navTo('set-data'); }
+function renderDataPage(main) {
+  if (main) main.innerHTML = '';
   if (!document.querySelector('#data-page-body #drawer-data-wrap')) renderSettingsDrawer(); // build + relocate once
   closeSettingsDrawer();
   document.getElementById('data-page')?.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 function closeDataPage() {
+  if (currentPage === 'set-data') { navBack(); return; } // feat 195 — Back through the router (hide handled by _syncDataOverlay)
   document.getElementById('data-page')?.classList.remove('open');
   document.body.style.overflow = '';
+}
+function _syncDataOverlay() { // feat 195 — hide the Data overlay when navigating off its page
+  if (currentPage === 'set-data') return;
+  const dp = document.getElementById('data-page');
+  if (dp && dp.classList.contains('open')) { dp.classList.remove('open'); document.body.style.overflow = ''; }
 }
 
 /* feat 187 — Settings split: Profile / Cosmetic / Preferences are router pages. Each is a *bucket* of the
@@ -7879,7 +7890,7 @@ const PAGES = {
   'set-profile': { title:'Profile',      emoji:'👤', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
   'set-cosmetic':{ title:'Cosmetic',     emoji:'🎨', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
   'set-prefs':   { title:'Preferences',  emoji:'🎛️', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
-  'set-data':    { title:'Data',         emoji:'📦', kind:'leaf', parent:'settings', open:()=>openDataPage() },
+  'set-data':    { title:'Data',         emoji:'📦', kind:'leaf', parent:'settings', render:m=>renderDataPage(m) }, // feat 195
   'set-help':    { title:'Help',         emoji:'❓', kind:'leaf', parent:'settings', render:m=>renderHelpPage(m) }, // feat 186
   'set-about':   { title:'About',        emoji:'ℹ️', kind:'leaf', parent:'settings', render:m=>renderAboutPage(m) }, // feat 185
 };
@@ -7955,6 +7966,7 @@ function renderCurrentPage() {
   if (!main) return;
   if (typeof _surfacePanelForPage === 'function') _surfacePanelForPage(); // feat 191 — Reference page → panel-reference, else panel-tracker
   if (typeof _syncGlossOverlay === 'function') _syncGlossOverlay(); // feat 190 — hide the Glossary/Anatomy overlay when leaving its page
+  if (typeof _syncDataOverlay === 'function') _syncDataOverlay(); // feat 195 — hide the Data overlay when leaving its page
   if (def.tab) currentTab = def.tab; // legacy mirror
   _navTab = currentTab;
   _syncLegacyTabClasses();
@@ -15138,7 +15150,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 140 · 2026-06-09 13:08';
+const APP_BUILD = 'build 141 · 2026-06-09 13:27';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
