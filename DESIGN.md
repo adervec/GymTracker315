@@ -853,6 +853,15 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Reference deep-link lands on the exact variation (feat 204):** `openReferenceFor` (the "full
+  reference" link from the current exercise's Tips & Details, and the top-bar long-press "Recent") used to
+  just fill the search box — the list narrowed but everything stayed collapsed, leaving the user to hunt.
+  Now a new `_refRevealVariation(famId, varUuid)` runs after the (synchronous) search re-render: it expands
+  the family card (`.exercise.open`), expands the precise `.variation[data-uuid]`, restarts the feat-99
+  `coach-flash` highlight on it, and smooth-scrolls it to center. Tree/table views (no expansion concept)
+  no-op silently and report `false`. Covered by `test/refdeeplink.spec.mjs` (routing + search + both
+  accordions open + flash + log-sheet closed, the variation body's Setup detail actually visible, and the
+  detailed-vs-table landing contract).
 - **Long-press teaching shimmer (feat 203):** while any hold is charging, every OTHER control that has its
   own long-press action now **shimmers** (a soft accent box-shadow pulse), passively teaching what else can
   be held — discoverability for the growing family of hold shortcuts (feats 99/108/142/199/200). Mechanism:

@@ -7294,7 +7294,10 @@ function speakRandomTip(varUuid) {
   } catch (e) {}
 }
 
-/* Open the Reference panel filtered to a given exercise (feat 67 — Tips & Details → full reference). */
+/* Open the Reference panel filtered to a given exercise (feat 67 — Tips & Details → full reference).
+   feat 204 — the deep link now lands ON the exact variation: after the search filter re-renders the
+   list (synchronously, via the input event), the family card AND the precise variation are expanded,
+   scrolled into view and flashed — no more hunting through a collapsed card. */
 function openReferenceFor(varUuid) {
   const info = VAR_INDEX.get(varUuid);
   const term = info ? (info.variation.title || info.family.title || '') : '';
@@ -7302,6 +7305,23 @@ function openReferenceFor(varUuid) {
   if (typeof navTo === 'function') navTo('reference'); // feat 191 — Reference is a router page
   const si = document.getElementById('ref-search');
   if (si) { si.value = term; si.dispatchEvent(new Event('input', { bubbles: true })); si.blur(); }
+  if (info) _refRevealVariation(info.family.id, varUuid); // feat 204
+}
+
+// feat 204 — expand + scroll to one exact variation in the (already rendered) detailed Reference list.
+// The detailed view renders .exercise[data-id="ref-{famId}"] containing .variation[data-uuid]; the
+// tree/table views have no expansion, so this is a silent no-op there. Returns whether it landed.
+function _refRevealVariation(famId, varUuid) {
+  const card = document.querySelector(`.exercise[data-id="ref-${famId}"]`);
+  if (card) card.classList.add('open');
+  const variation = document.querySelector(`.variation[data-uuid="${varUuid}"]`);
+  if (!variation) return false;
+  variation.classList.add('open');
+  variation.classList.remove('coach-flash'); void variation.offsetWidth; // restart the feat-99 flash
+  variation.classList.add('coach-flash');
+  setTimeout(() => variation.classList.remove('coach-flash'), 1600);
+  setTimeout(() => { try { variation.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) { variation.scrollIntoView(); } }, 60);
+  return true;
 }
 
 /* ============================================================
@@ -15296,7 +15316,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 149 · 2026-06-11 15:49';
+const APP_BUILD = 'build 150 · 2026-06-11 15:55';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
