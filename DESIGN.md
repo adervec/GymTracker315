@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Hold 📋 Copy with no open set = duplicate the last set (feat 201):** the feat-142 hold (fill the open
+  set's empty reps) used to no-op with a toast when nothing was open. Now `copyRepsToOpenSet` routes that
+  case to a new `duplicateLastSet()`: it appends a set carrying BOTH the weight and reps of the most recent
+  set — the latest valid pending set, else the last logged set in history for this exercise — reusing the
+  form's single blank row when one exists (the feat-65 invariant) and committing through `commitSetField`
+  (proper `wTs`/`ts` stamps, persistence, save-button refresh, both fields flashed per feat 149). So the
+  one-gesture flow is now: hold Copy → identical set created → hold Save → logged, no popups anywhere.
+  Open-set behavior is unchanged; with nothing anywhere it stays a toast no-op. Covered by
+  `test/copydupe.spec.mjs` (dupe from pending, blank-row reuse, history fallback picks the LAST set of the
+  most recent session, feat-142 path intact, empty no-op) + the updated `copyreps.spec.mjs` contract.
 - **Hold ✕ Clear to skip the confirm (feat 200):** same gap and same fix as feat 199, on the other footer
   button: the only "long-press" Clear ever had was the feat-32 arm-then-hold flow (tap first, *then* hold —
   reads as broken). The confirmed-clear body moved out of `clearPendingModal` into a shared

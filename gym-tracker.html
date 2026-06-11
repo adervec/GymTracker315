@@ -14977,7 +14977,7 @@ function copyRepsToOpenSet() {
   const sets = pending.sets || [];
   let openIdx = -1;
   for (let i = sets.length - 1; i >= 0; i--) { if (isSetOpen(sets[i])) { openIdx = i; break; } }
-  if (openIdx === -1) { toast('No open set — enter a weight first'); return; }
+  if (openIdx === -1) { duplicateLastSet(); return; } // feat 201 — no open set: the hold dupes the last set instead
   const hasR = v => { const n = parseFloat(v); return v !== '' && v != null && !isNaN(n) && n > 0; };
   let src = null;
   for (let i = openIdx - 1; i >= 0; i--) { if (hasR(sets[i].r)) { src = sets[i].r; break; } }
@@ -14990,6 +14990,31 @@ function copyRepsToOpenSet() {
   updateSaveBtn();
   try { safeVibrate(15); } catch (_) {}
   toast('📋 Reps ' + src + ' copied');
+  if (typeof refreshRestBar === 'function') refreshRestBar();
+}
+
+// feat 201 — hold Copy with NO open set: append a new set duplicating the most recent one (weight AND
+// reps). Source = the latest valid pending set, else the last logged set in history for this exercise.
+// Reuses the form's single blank row when one exists (the feat-65 invariant) instead of stacking rows.
+function duplicateLastSet() {
+  if (!pending.varUuid) { toast('Pick an exercise first'); return; }
+  const sets = pending.sets || [];
+  const hasV = v => { const n = parseFloat(v); return v !== '' && v != null && !isNaN(n) && n > 0; };
+  let src = null;
+  for (let i = sets.length - 1; i >= 0; i--) { if (isSetValid(sets[i])) { src = { w: sets[i].w, r: sets[i].r }; break; } }
+  if (!src) { const h = getLastSetForExercise(pending.varUuid, pending.subUuid); if (h && hasV(h.r) && h.w !== '' && h.w != null) src = { w: h.w, r: h.r }; }
+  if (!src) { toast('No previous set to duplicate'); return; }
+  let idx = sets.findIndex(s => (s.w === '' || s.w == null) && (s.r === '' || s.r == null)); // reuse the blank row
+  if (idx === -1) { pending.sets.push({ w: '', r: '' }); idx = pending.sets.length - 1; }
+  commitSetField(idx, 'w', src.w);   // canonical path: parse, stamp wTs/ts, persist, live-update
+  commitSetField(idx, 'r', src.r);
+  renderModal();
+  flashSetField(idx, 'w');           // feat 149 — renderModal rebuilt the inputs, so re-flash both fields
+  flashSetField(idx, 'r');
+  updateFAB();
+  updateSaveBtn();
+  try { safeVibrate(15); } catch (_) {}
+  toast('📋 Duplicated ' + src.w + ' × ' + src.r);
   if (typeof refreshRestBar === 'function') refreshRestBar();
 }
 
@@ -15237,7 +15262,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 146 · 2026-06-11 10:04';
+const APP_BUILD = 'build 147 · 2026-06-11 10:13';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
