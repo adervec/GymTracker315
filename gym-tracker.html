@@ -1626,6 +1626,10 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .np-setup-use { flex: 1; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--accent-border); background: var(--accent-bg); color: var(--accent); font-size: 14px; font-weight: 800; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
   .np-setup-use:active { background: var(--accent); color: #fff; }
   .np-setup-use:disabled { opacity: 0.5; cursor: default; }
+  /* feat 202 — the setup key passively strikes its text when the tool is not in effect (nothing
+     configured yet, or the variation's tool override is "none"). The icon stays unstruck. */
+  .np-setup-use.struck { border-color: var(--border2); background: var(--bg3); color: var(--text3); }
+  .np-setup-use.struck .np-setup-text { text-decoration: line-through; text-decoration-thickness: 2px; opacity: 0.75; }
   .np-setup-cfg { width: 46px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 16px; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
   .np-setup-body { background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px; padding: 8px 11px; margin-top: 8px; max-height: 36vh; overflow-y: auto; }
   .np-setup-apply { width: 100%; margin-top: 10px; padding: 11px; border-radius: 9px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit; }
@@ -14013,16 +14017,23 @@ function bindSetupInline() {
   document.getElementById('trk-setup-clear')?.addEventListener('click', () => { const k = setupKindFor(pending.varUuid); if (k && modalState.setup) modalState.setup[k] = defaultSetupState(k); renderModal(); });
   document.getElementById('trk-setup-apply')?.addEventListener('click', () => { const t = setupTotal(setupKindFor(pending.varUuid)); applySetupWeight(t); renderModal(); updateSaveBtn(); toast('Loaded ' + t + ' ' + state.unit); });
 }
-/* OSK version — a chunky "Use {weight}" button at the top of the numpad + an expandable configurator. */
+/* OSK version — a chunky "Use {weight}" button at the top of the numpad + an expandable configurator.
+   feat 202 — the key passively STRIKES its text when the tool is not in effect: nothing configured yet
+   (total 0), or the variation's tool override is "none" (the strip stays visible instead of vanishing,
+   with the ⚙ configurator still available to flip the tool back on). */
 function renderNpSetup() {
-  const kind = setupKindFor(pending.varUuid); if (!kind) return '';
-  const open = modalState.setupOpen, total = setupTotal(kind);
+  const kind = setupKindFor(pending.varUuid);
+  const isOff = !kind && (state.exerciseSetup || {})[pending.varUuid] === 'none' && !!autoSetupKind(pending.varUuid);
+  if (!kind && !isOff) return '';
+  const k = kind || autoSetupKind(pending.varUuid);
+  const open = modalState.setupOpen, total = kind ? setupTotal(kind) : 0;
+  const struck = isOff || !(total > 0);
   return `<div class="np-setup ${open ? 'open' : ''}">
     <div class="np-setup-bar">
-      <button class="np-setup-use" data-np-setup-use ${total > 0 ? '' : 'disabled'}>${setupIconSvg(kind)} ${setupLabel(kind)}${total > 0 ? `: ${total} ${state.unit}` : ''}</button>
+      <button class="np-setup-use${struck ? ' struck' : ''}" data-np-setup-use ${total > 0 ? '' : 'disabled'}>${setupIconSvg(k)} <span class="np-setup-text">${setupLabel(k)}${total > 0 ? `: ${total} ${state.unit}` : (isOff ? ' · off' : '')}</span></button>
       <button class="np-setup-cfg" data-np-setup-toggle aria-label="Configure">${open ? '▾' : '⚙'}</button>
     </div>
-    ${open ? `<div class="np-setup-body">${renderSetupBody(kind, 'np')}<button class="np-setup-apply" data-np-setup-use ${total > 0 ? '' : 'disabled'}>Use ${total} ${state.unit} →</button>${renderToolSelector('np')}</div>` : ''}
+    ${open ? `<div class="np-setup-body">${kind ? renderSetupBody(kind, 'np') + `<button class="np-setup-apply" data-np-setup-use ${total > 0 ? '' : 'disabled'}>Use ${total} ${state.unit} →</button>` : ''}${renderToolSelector('np')}</div>` : ''}
   </div>`;
 }
 function bindNpSetup() {
@@ -14546,13 +14557,13 @@ function renderNumpad() {
   const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
   const sign = isW && M.mode === 'bodyweight';
   const calc = state.calcMode === true;
-  const kind = isW ? setupKindFor(pending.varUuid) : null; // feat 78 — equipment setup tool in the OSK
+  // feat 78/202 — the equipment-setup strip renders for any weight field; renderNpSetup derives the tool itself
   const label = isW ? (M.wLabel + ' (' + state.unit + ')') : M.rLabel;
   const disp = calc ? formatCalcDisplay(np.buf) : (np.buf === '' ? '0' : np.buf);
   const key = (k, txt, cls) => `<button class="np-key${cls ? ' ' + cls : ''}" data-np="${k}">${txt}</button>`;
   sheet.innerHTML = `
     <div class="np-head"><span class="np-title">Set ${np.i + 1} · ${escapeHtml(label)}</span><button class="np-calc-toggle ${calc ? 'active' : ''}" data-np="calctoggle" title="Calculator (BEDMAS)">🧮</button><button class="np-key np-close" data-np="next">Next</button></div>
-    ${kind ? renderNpSetup() : ''}
+    ${isW ? renderNpSetup() : ''}
     <div class="np-display">${escapeHtml(disp)}</div>
     ${(!isW && (M.mode === 'standard' || M.mode === 'bodyweight')) ? `<div class="np-rep-hint">🎯 Strength <b>1–5</b> · Hypertrophy <b>6–12</b> · Pump <b>15–20+</b></div>` : ''}
     ${calc ? `<div class="np-ops">${key('lparen','(')}${key('rparen',')')}${key('div','÷')}${key('mul','×')}${key('sub','−')}${key('add','+')}</div>` : ''}
@@ -14568,7 +14579,7 @@ function renderNumpad() {
       ${key('done', 'Done', 'np-wide np-primary')}
     </div>`;
   bindNumpadKeys();
-  if (kind) bindNpSetup();
+  if (isW) bindNpSetup(); // feat 202 — bind whenever the strip can render (incl. the struck "off" state's ⚙/Tool selector)
 }
 // Collapse the calculator expression to its numeric result and commit it (on Next/Done).
 function finalizeCalc(np) {
@@ -15262,7 +15273,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 147 · 2026-06-11 10:13';
+const APP_BUILD = 'build 148 · 2026-06-11 15:44';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

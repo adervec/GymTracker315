@@ -853,6 +853,17 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **OSK setup key strikes through when not in effect (feat 202):** the numpad's equipment-setup key
+  (feat 78) now *passively* communicates state instead of just dimming or vanishing. Two struck cases:
+  **(a)** the tool exists but nothing is configured (total 0 — only possible for empty-default kinds like
+  dumbbell/kettlebell/plate/pin; a barbell's default is the bar itself) → label struck + key inert;
+  **(b)** the variation's tool override is **"none"** → previously the whole strip disappeared, now it stays
+  visible struck with an "· off" suffix and the ⚙ configurator still opens (showing the Tool selector, so
+  flipping the tool back on is one tap away). Implementation: `renderNpSetup` derives the tool itself
+  (override-aware), wraps the label in `.np-setup-text`, adds `.struck` (CSS line-through, icon unstruck);
+  `renderNumpad` renders/binds the strip for any weight field (`isW`) rather than gating on a pre-derived
+  kind. Covered by `test/oskstrike.spec.mjs` (struck+inert at total 0, configured total un-strikes via
+  `solveSetupState`, override-none stays visible/struck/recoverable, reps fields never show the strip).
 - **Hold 📋 Copy with no open set = duplicate the last set (feat 201):** the feat-142 hold (fill the open
   set's empty reps) used to no-op with a toast when nothing was open. Now `copyRepsToOpenSet` routes that
   case to a new `duplicateLastSet()`: it appends a set carrying BOTH the weight and reps of the most recent
