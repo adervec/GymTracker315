@@ -853,6 +853,13 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Abandon time ×3 (feat 197):** the open-set auto-reap (`abandonMinutes`, feat 51 — deletes a set with a
+  weight entered but no reps after N minutes) defaulted to **5 minutes, ~3× too quick** in real gym use (a
+  long rest + a chat = your loaded set vanished). The default is now **15 min** everywhere it appears (state
+  default, `ensureWC`, the drawer input fallback, `reapAbandonedSet`'s fallbacks), and `normalizeState`
+  migrates a stored `5` (the old default) forward to 15 so existing devices pick up the new pace — a
+  deliberate non-default value (e.g. 8 or 30) is left alone. Covered by `test/abandontime.spec.mjs` (fresh
+  default, 5→15 migration, deliberate-value preservation, and reap behavior at 10 vs 16 minutes).
 - **A heaping helping of masterly crafted plans (feat 196):** `SEED_PLANS` grew **tranche 6 — 20 new plans**
   that finally exploit the library's untouched breadth (the previous tranches drew on ~29 of the 84 movement
   families): implements (**Kettlebell Complete**, **Landmine One-Bar**, **Strongman Saturday**, **Power & Speed**,

@@ -3313,7 +3313,7 @@ let state = {
     showLiveScoreAfterMin: 45, // show chunky live score estimate after this many minutes
     paceAnalysisStartMin: 20,  // pace algorithm kicks in after this many minutes
     restTimer: true,           // feat 51 — run the global rest-timer tick + bar
-    abandonMinutes: 5,         // delete an open set (weight in, no reps) after this long
+    abandonMinutes: 15,        // delete an open set (weight in, no reps) after this long (feat 197 — was 5, ~3x too quick)
     feedbackVibrate: true,     // vibrate on rest-zone transitions (mobile)
     feedbackBeep: false,       // subtle WebAudio blip on rest-zone transitions
     restRecEnabled: true,      // show the recommended-rest band
@@ -3396,7 +3396,7 @@ function normalizeState() {
     dashboard: { stats:true, timeline:true, liveScore:true, pace:true, physique:true, planCollapsed:false },
     longPressConfirm: { enabled:false, ms:1500 },
     workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
-      restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true },
+      restTimer:true, abandonMinutes:15, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true },
     bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
     stravaAutoLoad: { enabled:false, mode:'folder' }, // feat 89
     planDefaults: { minPct:1 }, // feat 144 — default min % of a step's sets that counts the step as "done" (overridable per plan / per step)
@@ -3404,6 +3404,8 @@ function normalizeState() {
     cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{} }, // feat 124 — DEVICE-LOCAL (not synced)
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
+  // feat 197 — the old 5-min abandon default proved ~3x too quick; migrate stored old-default values to 15.
+  if (state.workoutControls.abandonMinutes === 5) state.workoutControls.abandonMinutes = 15;
   if (!Array.isArray(state.bodyComp)) state.bodyComp = [];
   if (!Array.isArray(state.trendExclude)) state.trendExclude = []; // feat 165 — muscle groups excluded from the overall trend
   if (!state.favoritePlans || typeof state.favoritePlans !== 'object') state.favoritePlans = {}; // feat 178 — { planId: true }
@@ -5813,7 +5815,7 @@ function renderSettingsDrawer() {
         <div class="drawer-setting-label">Abandon open set after</div>
         <div class="drawer-setting-sub">Delete an unfinished set (weight in, no reps) after this long</div>
       </div>
-      <input type="number" id="drawer-abandon-min" value="${(state.workoutControls||{}).abandonMinutes || 5}" min="1" max="30" step="1"
+      <input type="number" id="drawer-abandon-min" value="${(state.workoutControls||{}).abandonMinutes || 15}" min="1" max="30" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
                background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
@@ -6400,7 +6402,7 @@ function renderSettingsDrawer() {
   });
 
   // Workout controls
-  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:5, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true }; };
+  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:15, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true }; };
   const aeInput = body.querySelector('#drawer-auto-end');
   if (aeInput) aeInput.addEventListener('change', () => {
     const v = parseInt(aeInput.value);
@@ -9764,7 +9766,7 @@ function maybeAutoEndActive() {
 function reapAbandonedSet() {
   if (!pending.sets || !pending.sets.length) return false;
   const cfg = state.workoutControls || {};
-  const limMs = Math.max(1, (cfg.abandonMinutes || 5)) * 60000;
+  const limMs = Math.max(1, (cfg.abandonMinutes || 15)) * 60000;
   const before = pending.sets.length;
   pending.sets = pending.sets.filter(s => {
     if (isSetOpen(s)) {
@@ -9776,7 +9778,7 @@ function reapAbandonedSet() {
   if (pending.sets.length === before) return false;
   if (pending.sets.length === 0) pending.sets = [{ w:'', r:'' }]; // keep placeholder invariant
   savePending();
-  toast('Removed an abandoned set — no reps for ' + (cfg.abandonMinutes || 5) + ' min');
+  toast('Removed an abandoned set — no reps for ' + (cfg.abandonMinutes || 15) + ' min');
   if (typeof logInfo === 'function') logInfo('Abandoned set reaped');
   if (modalState.open) renderModal();
   return true;
@@ -15196,7 +15198,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 142 · 2026-06-09 16:30';
+const APP_BUILD = 'build 143 · 2026-06-11 07:28';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
