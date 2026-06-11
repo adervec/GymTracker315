@@ -853,6 +853,14 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Freemotion chest fly (feat 198):** the Freemotion dual-cable chest fly was missing from the library.
+  Two variations join the `chest-fly` family via the `EXTRA_VARIATIONS` injector (uuids `f8ee0001…/f8ee0002…`):
+  **Freemotion Cable Chest Fly** (independent swing arms, constant-tension fly arc) and **Freemotion Chest
+  Fly — Half-Dome Seat** (the same station with a half dome on the seat — unstable surface, lighter load,
+  more core; tracked separately on purpose so the two loads don't muddy one progress trend). Both carry full
+  reference detail (cue/setup/movement/mistakes/programming/tip), mirror into the Reference dataset, pass the
+  picker gate, and log standard weight×reps. Freemotion joined the About-page trademark disclaimer list.
+  Covered by `test/freemotion.spec.mjs`.
 - **Abandon time ×3 (feat 197):** the open-set auto-reap (`abandonMinutes`, feat 51 — deletes a set with a
   weight entered but no reps after N minutes) defaulted to **5 minutes, ~3× too quick** in real gym use (a
   long rest + a chat = your loaded set vanished). The default is now **15 min** everywhere it appears (state
