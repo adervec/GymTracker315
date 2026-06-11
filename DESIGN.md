@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Hold 💾 Save to skip the confirm (feat 199):** "long-press Save to avoid the popup" never actually
+  existed — the footer button only had per-mode `onclick` handlers, and the feat-32 hold-to-confirm flow
+  needed a tap *first* to arm. Now the static `#trk-save-btn` is wired once through `attachTopbarLongPress`
+  (the feat-142 Copy pattern: tap keeps the existing onclick, a 1.2 s hold fires the shortcut and swallows
+  the trailing click): the hold sets a one-shot `_saveSkipConfirm` flag and re-invokes the button's own
+  current-mode handler, so sets / cardio / superset all get "hold = same save, no popup". `saveSets`'s
+  confirm gate (`hasInfeasible || alwaysConfirm`) honors the flag for that one synchronous invocation —
+  deliberate, user-initiated skipping of the over-limit warning included. A hold on a disabled Save is a
+  no-op. Covered by `test/holdsave.spec.mjs` (hold saves with zero `.choice-backdrop`, tap still asks +
+  cancel leaves nothing saved + the flag never leaks, disabled-hold no-op).
 - **Freemotion chest fly (feat 198):** the Freemotion dual-cable chest fly was missing from the library.
   Two variations join the `chest-fly` family via the `EXTRA_VARIATIONS` injector (uuids `f8ee0001…/f8ee0002…`):
   **Freemotion Cable Chest Fly** (independent swing arms, constant-tension fly arc) and **Freemotion Chest

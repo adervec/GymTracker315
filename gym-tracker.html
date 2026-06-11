@@ -15092,9 +15092,11 @@ function saveSets(endingWorkout) {
     renderModal();
     return true;
   };
-  // Confirmation popup: show if any infeasible weight OR alwaysConfirm is on
+  // Confirmation popup: show if any infeasible weight OR alwaysConfirm is on.
+  // feat 199 — a press-and-hold on 💾 Save sets _saveSkipConfirm for this one invocation, skipping the
+  // popup entirely (the feat-108 End-Workout pattern: tap asks, hold acts).
   const hasInfeasible = validSets.some(s => !isSetFeasible(s));
-  if (hasInfeasible || state.alwaysConfirm) {
+  if ((hasInfeasible || state.alwaysConfirm) && !_saveSkipConfirm) {
     const info = VAR_INDEX.get(pending.varUuid);
     const exName = info ? info.variation.title : 'this exercise';
     let msg, title = 'Save sets', danger = false;
@@ -15170,6 +15172,17 @@ document.getElementById('trk-footer-close').addEventListener('click', () => { cl
 // previous rep count into the open set's empty reps. Wired ONCE here (the footer button is static) so the
 // long-press + its click-swallower don't stack across modal re-renders.
 attachTopbarLongPress(document.getElementById('trk-copy-last'), copyRepsToOpenSet, '📋 Copy reps', 550);
+// feat 199 — hold 💾 Save to save WITHOUT the confirm popup (alwaysConfirm / over-limit). The tap path is
+// untouched: it stays the per-mode onclick (sets → saveSets, cardio → saveCardio, superset → saveSuperset),
+// so the hold simply re-invokes the current mode's handler with a one-shot skip flag set. Wired ONCE here —
+// the footer button is static — and attachTopbarLongPress swallows the trailing click after a hold fires.
+let _saveSkipConfirm = false;
+attachTopbarLongPress(document.getElementById('trk-save-btn'), () => {
+  const b = document.getElementById('trk-save-btn');
+  if (!b || b.disabled || typeof b.onclick !== 'function') return;
+  _saveSkipConfirm = true;
+  try { b.onclick(); } finally { _saveSkipConfirm = false; } // one-shot: only this synchronous invocation skips
+}, '💾 Save now', 1200);
 // feat 145 — open the Plan Execution View from any session's plan badge (dashboard today + history).
 // Delegated once on document so it works across every re-render without stacking listeners.
 document.addEventListener('click', (e) => {
@@ -15214,7 +15227,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 144 · 2026-06-11 07:34';
+const APP_BUILD = 'build 145 · 2026-06-11 07:40';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
