@@ -853,6 +853,17 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Long-press teaching shimmer (feat 203):** while any hold is charging, every OTHER control that has its
+  own long-press action now **shimmers** (a soft accent box-shadow pulse), passively teaching what else can
+  be held — discoverability for the growing family of hold shortcuts (feats 99/108/142/199/200). Mechanism:
+  all three attachers (`attachLongPress`, `attachTrackerPress` when it has an `onLong`,
+  `attachTopbarLongPress`) tag their element `[data-lp-able]` at wire time and toggle `body.lp-teaching`
+  on hold begin/end; one CSS rule animates `body.lp-teaching [data-lp-able]:not(.lp-holding):not(:disabled)`
+  (the held button itself is excluded), with a static glow under `prefers-reduced-motion`. A capture-phase
+  `pointerup`/`pointercancel` listener on `document` is the safety net so the teaching state can never
+  stick after a mid-render release. Covered by `test/shimmer.spec.mjs` (wire-time tags on
+  Save/Clear/Copy/sound/settings, on→off around a hold with the holder excluded, off-button release safety
+  net, the CSS animation actually resolves to `lp-shimmer`).
 - **OSK setup key strikes through when not in effect (feat 202):** the numpad's equipment-setup key
   (feat 78) now *passively* communicates state instead of just dimming or vanishing. Two struck cases:
   **(a)** the tool exists but nothing is configured (total 0 — only possible for empty-default kinds like
