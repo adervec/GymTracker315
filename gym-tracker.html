@@ -307,6 +307,12 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .snd-chip { width: 31px; height: 28px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; opacity: 0.4; filter: grayscale(0.55); transition: opacity 0.15s, background 0.15s; font-family: inherit; -webkit-tap-highlight-color: transparent; }
 .snd-chip.active { opacity: 1; filter: none; background: var(--accent-bg); border-color: var(--accent-border); }
 .snd-chip:active { transform: scale(0.92); }
+/* feat 205 — metronome controls live in the audio dropdown (run / bpm / Mantranome) */
+.snd-metro { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.snd-metro .snd-chip { opacity: 1; filter: none; }
+.snd-metro .snd-chip.wide { flex: 1; width: auto; font-size: 12px; font-weight: 700; }
+.snd-metro-bpm { font-size: 12px; font-weight: 800; color: var(--text2); min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
+.snd-metro #snd-metro-mantra:not(.active) { opacity: 0.45; filter: grayscale(0.55); }
 
 /* feat 75 — exercise reference media (carousel + manager) */
 #media-backdrop, #strava-backdrop { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,0.66); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
@@ -5947,8 +5953,8 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🧘 Mantra mode</div>
-        <div class="drawer-setting-sub">Chant the exercise's setup cues on each beat instead of beeping — a hypnotic, looping form reminder</div>
+        <div class="drawer-setting-label">🧘 Mantranome</div>
+        <div class="drawer-setting-sub">Chant the exercise's setup cues on each beat instead of beeping — cycles all cues up to 4 times per set, then reverts to normal ticks</div>
       </div>
       <div class="drawer-pill-group">
         <button class="drawer-pill ${metroCfg().mantra ? 'active' : ''}" data-pref-metro="mantra-on">On</button>
@@ -15316,7 +15322,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 150 · 2026-06-11 15:55';
+const APP_BUILD = 'build 151 · 2026-06-11 16:03';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -15468,15 +15474,33 @@ function renderSoundMenu() {
     </div>
     <div class="snd-src-title">Per sound ${(aOn || hOn) ? '' : '· all muted above'}</div>
     ${srcRows}
+    <div class="snd-src-title">Metronome${metronomeRunning() ? ' · running' : ''}</div>
+    <div class="snd-metro">
+      <button class="snd-chip wide ${metronomeRunning() ? 'active' : ''}" id="snd-metro-run">${metronomeRunning() ? '⏸ Stop' : '▶ Start'}</button>
+      <button class="snd-chip" id="snd-metro-bpm-dn" aria-label="Slower">−</button>
+      <span class="snd-metro-bpm" id="snd-metro-bpm">${metroCfg().bpm} bpm</span>
+      <button class="snd-chip" id="snd-metro-bpm-up" aria-label="Faster">+</button>
+      <button class="snd-chip ${metroCfg().mantra ? 'active' : ''}" id="snd-metro-mantra" title="Mantranome — chant the exercise's setup cues instead of ticks (up to 4 cycles per set)">🧘</button>
+    </div>
     <button class="snd-test" id="snd-test-btn">▶ Test</button>
     <button class="snd-more" id="snd-more-btn">Sound settings →</button>
   `;
+  // feat 205 — the metronome (incl. the Mantranome toggle) is controlled from the audio dropdown
+  menu.querySelector('#snd-metro-run').onclick = () => { toggleMetronome(); renderSoundMenu(); };
+  const bpmStep = (d) => { const m = { ...metroCfg() }; m.bpm = Math.max(20, Math.min(300, (m.bpm || 60) + d)); state.metronome = m; saveState(); restartMetronomeIfRunning(); renderSoundMenu(); };
+  menu.querySelector('#snd-metro-bpm-dn').onclick = () => bpmStep(-5);
+  menu.querySelector('#snd-metro-bpm-up').onclick = () => bpmStep(5);
+  menu.querySelector('#snd-metro-mantra').onclick = () => {
+    const m = { ...metroCfg() }; m.mantra = !m.mantra; state.metronome = m; saveState();
+    _metroMantraIdx = 0; renderSoundMenu();
+    toast(m.mantra ? '🧘 Mantranome on — cues chant up to 4 cycles per set' : 'Mantranome off');
+  };
   menu.querySelector('#snd-audio-row').onclick = () => { sndState().audio = !sndAudioOn(); persistSound(); if (sndAudioOn()) soundPreviewBeep(); };
   menu.querySelector('#snd-haptic-row').onclick = () => { sndState().haptics = !sndHapticOn(); persistSound(); if (sndHapticOn()) safeVibrate([30]); };
   const range = menu.querySelector('#snd-vol-range');
   range.oninput = (e) => { sndState().volume = (+e.target.value) / 100; const val = menu.querySelector('.snd-vol-val'); if (val) val.textContent = (+e.target.value) + '%'; refreshSoundIcon(); };
   range.onchange = (e) => { sndState().volume = (+e.target.value) / 100; saveState(); refreshSoundIcon(); soundPreviewBeep(); };
-  menu.querySelectorAll('.snd-chip').forEach(chip => {
+  menu.querySelectorAll('.snd-src .snd-chip').forEach(chip => { // feat 205 — scoped: the metro row's buttons reuse .snd-chip styling but have their own handlers
     chip.onclick = () => {
       const s = sources[+chip.dataset.si]; const c = s.chips[+chip.dataset.ci];
       const nv = !c.get(); c.set(nv); saveState();
@@ -15502,7 +15526,7 @@ function restBeep(freq, dur) {
 }
 
 /* ---- Workout metronome (feat 69) — customizable audio + haptic; on/off is per-workout (runtime only). ---- */
-let _metroId = null, _metroBeat = 0, _metroMantraIdx = 0, _metroSpeaking = false;
+let _metroId = null, _metroBeat = 0, _metroMantraIdx = 0, _metroSpeaking = false, _metroWasActive = false; // feat 205 — set-edge tracking
 function metroCfg() {
   const d = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, mantra:false, setActiveOnly:true };
   return { ...d, ...(state.metronome || {}) };
@@ -15595,8 +15619,16 @@ function metroSpeakNextTip() {
 }
 function metroTick() {
   const c = metroCfg();
-  if (c.setActiveOnly && !metroSetActive()) return;  // feat 104 — stay silent unless a set is in progress
-  if (c.mantra) { metroSpeakNextTip(); if (c.haptic) safeVibrate([18]); _metroBeat++; return; } // feat 103
+  const active = metroSetActive();
+  if (active && !_metroWasActive) _metroMantraIdx = 0; // feat 205 — a NEW set restarts the Mantranome cycles
+  _metroWasActive = active;
+  if (c.setActiveOnly && !active) return;  // feat 104 — stay silent unless a set is in progress
+  if (c.mantra) { // feat 103 — Mantranome; feat 205 — capped at 4 full cue cycles per set, then normal ticks
+    const ex = metroMantraExercise();
+    const nTips = ex ? collectExerciseTips(ex).length : 0;
+    if (nTips && _metroMantraIdx < nTips * 4) { metroSpeakNextTip(); if (c.haptic) safeVibrate([18]); _metroBeat++; return; }
+    // no cues, or all cues chanted 4× this set → fall through to the regular metronome tick
+  }
   const accent = (c.accentEvery > 1) && (_metroBeat % c.accentEvery === 0);
   if (c.audio !== false) metroBeep(accent ? (c.accentFreq || 1320) : (c.freq || 880), c.vol);
   if (c.haptic) safeVibrate(accent ? [45] : [22]);
@@ -15606,6 +15638,7 @@ function startMetronome() {
   if (_metroId != null) return;
   const bpm = Math.max(20, Math.min(300, metroCfg().bpm || 60));
   _metroBeat = 0;
+  _metroMantraIdx = 0; _metroWasActive = false; // feat 205 — fresh chant cycles per run
   metroTick();                                   // immediate downbeat (also unlocks audio on the user gesture)
   _metroId = setInterval(metroTick, 60000 / bpm);
   refreshMetronomeUI();

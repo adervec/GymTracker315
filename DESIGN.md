@@ -853,6 +853,18 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Mantranome (feat 205):** the feat-103 "mantra mode" grew into a proper named feature. **(1) Renamed**
+  to 🧘 **Mantranome** in the Preferences drawer (sub-text now explains the cycle cap). **(2) The audio
+  dropdown controls the metronome**: the 🔊 sound menu gained a Metronome row — ▶ Start/⏸ Stop, a ±5 bpm
+  stepper (clamped 20–300, restarts a running metronome), and the 🧘 Mantranome chip — so tempo and chant
+  live where every other sound control lives (the per-source audio/haptic chips were already there; their
+  handler selector is now scoped to `.snd-src .snd-chip` so the new row's buttons keep their own handlers).
+  **(3) The 4-cycle cap**: `metroTick` tracks the set-active rising edge (`_metroWasActive`) and resets the
+  chant index when a NEW set starts; while chanting, once every cue has been spoken **4×** for the current
+  set (`_metroMantraIdx >= tips×4`) the tick falls through to the regular beep path — the chant teaches,
+  then gets out of the way. With no cues at all it now ticks instead of staying silent. Covered by
+  `test/mantranome.spec.mjs` (cap → ticks, rising-edge restart, dropdown run/bpm/chip controls, rename
+  sweep) with `metronome.spec` / `restcues.spec` green unchanged.
 - **Reference deep-link lands on the exact variation (feat 204):** `openReferenceFor` (the "full
   reference" link from the current exercise's Tips & Details, and the top-bar long-press "Recent") used to
   just fill the search box — the list narrowed but everything stayed collapsed, leaving the user to hunt.
