@@ -13240,22 +13240,26 @@ function closeLogModal() {
   updateFAB();
 }
 
+// feat 200 — the actual clear, shared by the confirmed tap path and the direct press-and-hold skip.
+// Guarded so a stray double-fire (e.g. a feat-32 armed hold resolving after a direct hold already
+// cleared) is a silent no-op rather than a second toast.
+function doClearPending() {
+  if (!hasPendingData() && !pending.varUuid) return;
+  clearPending();
+  modalState.showPicker = true;
+  modalState.isEditing = false;
+  modalState.editingSessionDate = null;
+  modalState.supersetMode = false;
+  modalState.supersetPick = null;
+  pending.sets = [{ w:'', r:'' }];
+  renderModal();
+  updateFAB();
+  toast('Cleared');
+}
 function clearPendingModal() {
   if (!hasPendingData() && !pending.varUuid) { toast('Nothing to clear'); return; }
-  // feat 32 — hold-to-confirm replaces the popup when enabled
-  guardedConfirm('Clear current exercise and sets?', document.getElementById('trk-modal-clear')).then(ok => {
-    if (!ok) return;
-    clearPending();
-    modalState.showPicker = true;
-    modalState.isEditing = false;
-    modalState.editingSessionDate = null;
-    modalState.supersetMode = false;
-    modalState.supersetPick = null;
-    pending.sets = [{ w:'', r:'' }];
-    renderModal();
-    updateFAB();
-    toast('Cleared');
-  });
+  // feat 32 — hold-to-confirm replaces the popup when enabled; feat 200 — a direct hold on Clear skips both
+  guardedConfirm('Clear current exercise and sets?', document.getElementById('trk-modal-clear')).then(ok => { if (ok) doClearPending(); });
 }
 
 /* ============================================================
@@ -15183,6 +15187,12 @@ attachTopbarLongPress(document.getElementById('trk-save-btn'), () => {
   _saveSkipConfirm = true;
   try { b.onclick(); } finally { _saveSkipConfirm = false; } // one-shot: only this synchronous invocation skips
 }, '💾 Save now', 1200);
+// feat 200 — hold ✕ Clear to clear WITHOUT the confirm. The tap path keeps clearPendingModal (popup, or
+// the feat-32 arm-then-hold flow when that mode is on); the hold goes straight to the shared doClearPending.
+attachTopbarLongPress(document.getElementById('trk-modal-clear'), () => {
+  if (!hasPendingData() && !pending.varUuid) { toast('Nothing to clear'); return; }
+  doClearPending();
+}, '✕ Clear now', 1200);
 // feat 145 — open the Plan Execution View from any session's plan badge (dashboard today + history).
 // Delegated once on document so it works across every re-render without stacking listeners.
 document.addEventListener('click', (e) => {
@@ -15227,7 +15237,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 145 · 2026-06-11 07:40';
+const APP_BUILD = 'build 146 · 2026-06-11 10:04';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -853,6 +853,15 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Hold ✕ Clear to skip the confirm (feat 200):** same gap and same fix as feat 199, on the other footer
+  button: the only "long-press" Clear ever had was the feat-32 arm-then-hold flow (tap first, *then* hold —
+  reads as broken). The confirmed-clear body moved out of `clearPendingModal` into a shared
+  `doClearPending()` (guarded to no-op silently when nothing is pending, so a stray feat-32 armed resolve
+  after a direct hold can't double-toast), and the static `#trk-modal-clear` is wired once through
+  `attachTopbarLongPress`: tap → `clearPendingModal` (popup / arm flow as before), 1.2 s hold → straight to
+  `doClearPending`. An empty-state hold toasts "Nothing to clear". Covered by `test/holdclear.spec.mjs`
+  (hold clears with zero `.choice-backdrop` + picker returns, tap still asks + cancel keeps data,
+  empty-state no-op).
 - **Hold 💾 Save to skip the confirm (feat 199):** "long-press Save to avoid the popup" never actually
   existed — the footer button only had per-mode `onclick` handlers, and the feat-32 hold-to-confirm flow
   needed a tap *first* to arm. Now the static `#trk-save-btn` is wired once through `attachTopbarLongPress`
