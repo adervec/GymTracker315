@@ -5674,6 +5674,16 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">↳ Duck audio while speaking</div>
+        <div class="drawer-setting-sub">Lower the app sounds to 30% while a cue speaks. Phone music: Android usually ducks for speech on its own; iOS 17+ is asked via the audio session (a web app cannot force other apps)</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${annunciationCfg().duck ? 'active' : ''}" data-pref-ann="duck-on">On</button>
+        <button class="drawer-pill ${!annunciationCfg().duck ? 'active' : ''}" data-pref-ann="duck-off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">🎧 Headphone-only audio</div>
         <div class="drawer-setting-sub">Only play sound when it's routed to headphones — never the phone speaker (haptics still work). <b>${headphoneStatus().icon} ${escapeHtml(headphoneStatus().text)}</b>${(audioHeadphonesOnly() && _headphonesConnected == null) ? ` · <a href="#" id="drawer-hp-unlock" style="color:var(--accent);">enable detection</a>` : ''}</div>
       </div>
@@ -6434,7 +6444,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefGlossView) { state.glossaryAsPage = btn.dataset.prefGlossView === 'page'; saveState(); toast('Glossary: ' + (state.glossaryAsPage ? 'full page' : 'slide-in')); }
       else if (btn.dataset.prefReadonly) { state.readonly = btn.dataset.prefReadonly === 'on'; saveState(); render(); toast('Read-only mode: ' + (state.readonly ? 'on' : 'off')); }
       else if (btn.dataset.prefTts) { state.ttsTips = btn.dataset.prefTts === 'on'; saveState(); if (state.ttsTips) toast('Tips will be read aloud'); else { try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} toast('Tip narration off'); } }
-      else if (btn.dataset.prefAnn) { const a = { ...annunciationCfg() }; const k = btn.dataset.prefAnn; if (k === 'start-on') a.start = true; else if (k === 'start-off') a.start = false; else if (k === 'end-on') a.end = true; else if (k === 'end-off') a.end = false; state.annunciation = a; saveState(); toast(/^start/.test(k) ? ('Set-start annunciation: ' + (a.start ? 'on' : 'off')) : ('Set-end annunciation: ' + (a.end ? 'on' : 'off'))); } // feat 206/207
+      else if (btn.dataset.prefAnn) { const a = { ...annunciationCfg() }; const k = btn.dataset.prefAnn; if (k === 'start-on') a.start = true; else if (k === 'start-off') a.start = false; else if (k === 'end-on') a.end = true; else if (k === 'end-off') a.end = false; else if (k === 'duck-on') a.duck = true; else if (k === 'duck-off') { a.duck = false; if (typeof _annDuckOff === 'function') _annDuckOff(); } state.annunciation = a; saveState(); toast(/^start/.test(k) ? ('Set-start annunciation: ' + (a.start ? 'on' : 'off')) : /^end/.test(k) ? ('Set-end annunciation: ' + (a.end ? 'on' : 'off')) : ('Speech ducking: ' + (a.duck ? 'on' : 'off'))); } // feat 206/207/209
       else if (btn.dataset.prefHp) { state.audioHeadphonesOnly = btn.dataset.prefHp === 'on'; saveState(); if (state.audioHeadphonesOnly) probeAudioOutput(); refreshSoundIcon(); toast('Headphone-only audio: ' + (state.audioHeadphonesOnly ? 'on' : 'off')); }
       else if (btn.dataset.prefMetro) { const m = { ...metroCfg() }; const k = btn.dataset.prefMetro; if (k === 'audio-on') m.audio = true; else if (k === 'audio-off') m.audio = false; else if (k === 'haptic-on') m.haptic = true; else if (k === 'haptic-off') m.haptic = false; else if (k === 'mantra-on') m.mantra = true; else if (k === 'mantra-off') m.mantra = false; else if (k === 'setactive-on') m.setActiveOnly = true; else if (k === 'setactive-off') m.setActiveOnly = false; state.metronome = m; saveState(); restartMetronomeIfRunning(); }
       else if (btn.dataset.rc) { const rc = { ...restCueCfg() }; const k = btn.dataset.rc, v = btn.dataset.rcVal; if (k === 'mode') rc.mode = v; else rc[k] = (v === 'on'); state.restCues = rc; saveState(); _lastRestCueSec = -1; if (typeof refreshRestBar === 'function') refreshRestBar(); }
@@ -15373,7 +15383,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 154 · 2026-06-11 20:53';
+const APP_BUILD = 'build 155 · 2026-06-11 20:59';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -15571,7 +15581,7 @@ function restBeep(freq, dur) {
     _restAudioCtx = _restAudioCtx || new AC();
     const o = _restAudioCtx.createOscillator(), g = _restAudioCtx.createGain();
     o.frequency.value = freq; o.type = 'sine'; o.connect(g); g.connect(_restAudioCtx.destination);
-    g.gain.setValueAtTime(0.0009 * sndVol(), _restAudioCtx.currentTime);
+    g.gain.setValueAtTime(0.0009 * duckedVol(), _restAudioCtx.currentTime); // feat 209 — duck under speech
     o.start(); o.stop(_restAudioCtx.currentTime + (dur || 0.12));
   } catch(_){}
 }
@@ -15583,6 +15593,16 @@ function restBeep(freq, dur) {
    sets count toward x); otherwise y is unknown and the cue is just the in-form position. Off by default.
    ============================================================ */
 function annunciationCfg() { return { start:false, end:false, startLimit:0, endLimit:0, duck:true, ...(state.annunciation || {}) }; }
+/* feat 209 — audio DUCKING while a cue speaks (default on). What a web app can honestly do:
+   (1) duck the app's OWN sounds — every beep routes through duckedVol(), which drops to 30% while an
+   utterance is in flight; (2) on iOS 17+ set navigator.audioSession.type='transient' around the speech,
+   which asks the system to duck other apps' music; (3) on Android the system TTS engine usually requests
+   may-duck focus by itself. A web page cannot force other apps' volume beyond that. */
+let _annDuckActive = false, _annDuckTimer = null;
+function duckedVol() { return sndVol() * (_annDuckActive ? 0.3 : 1); }
+function _setAudioSessionType(t) { try { if (typeof navigator !== 'undefined' && navigator.audioSession && 'type' in navigator.audioSession) navigator.audioSession.type = t; } catch (_) {} }
+function _annDuckOn() { _annDuckActive = true; _setAudioSessionType('transient'); clearTimeout(_annDuckTimer); _annDuckTimer = setTimeout(_annDuckOff, 6000); } // safety: never stick ducked
+function _annDuckOff() { _annDuckActive = false; _setAudioSessionType('auto'); clearTimeout(_annDuckTimer); }
 // Shared speaker for annunciation cues (the feat-207 set-end cues reuse it).
 function annunce(text) {
   try {
@@ -15590,10 +15610,11 @@ function annunce(text) {
     if (!sndAudioOn() || !headphoneGatePasses()) return;
     if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
     const u = new SpeechSynthesisUtterance(String(text).slice(0, 120));
-    u.rate = 0.95; u.pitch = 1; u.lang = 'en-US'; u.volume = sndVol();
+    u.rate = 0.95; u.pitch = 1; u.lang = 'en-US'; u.volume = sndVol(); // the speech itself never ducks
+    if (annunciationCfg().duck) { _annDuckOn(); u.onend = _annDuckOff; u.onerror = _annDuckOff; } // feat 209
     window.speechSynthesis.cancel();                 // never stack utterances
     window.speechSynthesis.speak(u);
-  } catch (_) {}
+  } catch (_) { _annDuckOff(); }
 }
 // Position of the current set: kind 'start' (default) counts sets with a weight (started); kind 'end'
 // (feat 207) counts COMPLETED sets (reps in). x also includes saved sets toward the matching plan step;
@@ -15688,7 +15709,7 @@ function metroBeep(freq, vol) {
     if (_restAudioCtx.state === 'suspended') _restAudioCtx.resume();
     const o = _restAudioCtx.createOscillator(), g = _restAudioCtx.createGain();
     o.frequency.value = freq; o.type = 'sine'; o.connect(g); g.connect(_restAudioCtx.destination);
-    const t = _restAudioCtx.currentTime, v = Math.max(0.01, Math.min(1, (vol == null ? 0.3 : vol) * sndVol()));
+    const t = _restAudioCtx.currentTime, v = Math.max(0.01, Math.min(1, (vol == null ? 0.3 : vol) * duckedVol())); // feat 209 — duck under speech
     g.gain.setValueAtTime(v, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
     o.start(t); o.stop(t + 0.08);
@@ -15706,7 +15727,7 @@ function uiClickSound() {
     o.type = 'triangle';
     o.frequency.setValueAtTime(1100, t); o.frequency.exponentialRampToValueAtTime(620, t + 0.03);
     o.connect(g); g.connect(_restAudioCtx.destination);
-    const v = Math.max(0.004, Math.min(1, 0.085 * sndVol()));
+    const v = Math.max(0.004, Math.min(1, 0.085 * duckedVol())); // feat 209 — duck under speech
     g.gain.setValueAtTime(v, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
     o.start(t); o.stop(t + 0.05);

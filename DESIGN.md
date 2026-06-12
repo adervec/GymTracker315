@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Annunciation audio ducking (feat 209):** while a cue speaks, audio gets out of the way — within what
+  a web app can honestly do: **(1)** the app's OWN sounds (metronome ticks, rest beeps, UI clicks) route
+  through a new `duckedVol()` that drops to **30%** while an utterance is in flight (`_annDuckActive`,
+  armed by `annunce()` with `onend`/`onerror` + a 6 s safety timer so it can never stick); the speech
+  itself never ducks. **(2)** iOS 17+ is asked to duck other apps' music via
+  `navigator.audioSession.type='transient'` around the speech (feature-detected, restored to `'auto'`).
+  **(3)** Android generally ducks for system TTS on its own — noted in the setting's sub-text, which is
+  explicit that a web app cannot force other apps' volume. Default **on** (`annunciation.duck`); toggle
+  under the cue settings in Preferences. Covered by `test/annunce.spec.mjs` (default-on, 30% gain while
+  active + restore, annunce arms/skips the duck by setting, drawer toggle).
 - **Annunciation first/last-X limits (feat 208):** both spoken cues can now be bounded to where they
   matter: with a limit **L** set, a cue speaks only for the **first L** or the **last L** sets
   (`annunceWithinLimit(pos, L)` — the "last L" half needs the plan target `y`; plan-less positions honor

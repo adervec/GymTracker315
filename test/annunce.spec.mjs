@@ -4,6 +4,8 @@
 // feat 207 — set-END annunciations: when a set completes (reps land) — "One down — 3 to go",
 // "2 of 4 down", "Half done", "One more, then [next step]", "All done — time for [next step]".
 // feat 208 — first/last-X limits: with a limit L set, cues speak only for the first L / last L sets.
+// feat 209 — ducking: while a cue speaks, the app's own beeps drop to 30% (duckedVol), and iOS 17+
+// is asked to duck other audio via navigator.audioSession; default on.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -233,6 +235,52 @@ test('with startLimit 1 on a 3-set step: first speaks, middle is silent, last sp
     return out;
   });
   expect(said).toEqual(['First set of 3', 'Last set — make it count']);
+});
+
+test('ducking lowers the app beep gain to 30% while a cue speaks, default on (feat 209)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    normalizeState();
+    const out = {};
+    out.defaultOn = annunciationCfg().duck === true;
+    state.sound = { ...state.sound, audio: true, volume: 1 };
+    out.normal = duckedVol();                       // not speaking → full volume
+    _annDuckActive = true;
+    out.ducked = duckedVol();                       // speaking → 30%
+    _annDuckOff();
+    out.restored = duckedVol();
+    // annunce() itself arms the duck when enabled (speech exists in headless chromium)
+    state.audioHeadphonesOnly = false;              // pass the headphone gate
+    state.annunciation = { ...annunciationCfg(), duck: true };
+    annunce('test cue');
+    out.armedBySpeak = _annDuckActive;
+    _annDuckOff();
+    state.annunciation = { ...annunciationCfg(), duck: false };
+    annunce('test cue');
+    out.notArmedWhenOff = !_annDuckActive;
+    _annDuckOff(); try { window.speechSynthesis.cancel(); } catch (e) {}
+    return out;
+  });
+  expect(r.defaultOn).toBe(true);
+  expect(r.normal).toBe(1);
+  expect(r.ducked).toBeCloseTo(0.3, 5);
+  expect(r.restored).toBe(1);
+  expect(r.armedBySpeak).toBe(true);
+  expect(r.notArmedWhenOff).toBe(true);
+});
+
+test('the duck toggle row exists and switches the setting (feat 209)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    renderSettingsDrawer();
+    const has = document.body.innerHTML.includes('Duck audio while speaking');
+    document.querySelector('[data-pref-ann="duck-off"]').click();
+    const off = annunciationCfg().duck;
+    document.querySelector('[data-pref-ann="duck-on"]').click();
+    const on = annunciationCfg().duck;
+    return { has, off, on };
+  });
+  expect(r.has).toBe(true);
+  expect(r.off).toBe(false);
+  expect(r.on).toBe(true);
 });
 
 test('the drawer limit inputs persist startLimit / endLimit (feat 208)', async ({ page }) => {
