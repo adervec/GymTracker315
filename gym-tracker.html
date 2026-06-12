@@ -854,6 +854,8 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-step-sets { font-size: 11px; color: var(--text3); font-variant-numeric: tabular-nums; }
   .plan-step-sets.hit { color: var(--good); font-weight: 700; }
   .plan-step-warn { font-size: 10px; font-weight: 700; color: var(--warn); margin-left: auto; }
+  /* feat 213 — a step whose option pool overlaps another step's (one exercise could satisfy both) */
+  .plan-step-dup { font-size: 10px; font-weight: 700; color: var(--text3); border: 1px dashed var(--border2); border-radius: 5px; padding: 0 5px; cursor: help; }
   /* feat 111 — plan-progress dashboard: effort badge, live progress line, prior-run comparison */
   .plan-effort { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 999px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .plan-effort.hit { color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); }
@@ -8442,6 +8444,29 @@ function optionMatchesVar(o, varUuid) {
   }
   return false;
 }
+// feat 213 — "duplicate" steps: steps whose qualifying pools OVERLAP, i.e. one single variation could
+// satisfy two or more steps of the same plan (two row steps, a curl step plus an arms step, …). Built on
+// optionMatchesVar so alias resolution (feat 166) and secondary parents (feat 167) count. Returns a map
+// stepIndex → sorted array of the OTHER overlapping step indexes (both directions present).
+function planDuplicateSteps(plan) {
+  const steps = (plan && plan.steps) || [];
+  if (steps.length < 2) return {};
+  const pools = steps.map(() => new Set());
+  for (const [u] of VAR_INDEX) {
+    for (let i = 0; i < steps.length; i++) {
+      if ((steps[i].options || []).some(o => optionMatchesVar(o, u))) pools[i].add(u);
+    }
+  }
+  const out = {};
+  for (let i = 0; i < steps.length; i++) {
+    for (let j = i + 1; j < steps.length; j++) {
+      let hit = false;
+      for (const u of pools[i]) { if (pools[j].has(u)) { hit = true; break; } }
+      if (hit) { (out[i] = out[i] || []).push(j); (out[j] = out[j] || []).push(i); }
+    }
+  }
+  return out;
+}
 // feat 137 — count the in-progress (UNSAVED) sets being entered for the current exercise, so plan
 // progress reflects them live. Only the LIVE session counts pending, never while EDITING a saved
 // exercise (those rows are already in session.exercises → double-count), and a row counts once it has
@@ -9190,6 +9215,7 @@ function renderPlanGuide(session) {
   const eta = computePlanETA(session, plan);
   const curIdx = currentPlanStepIndex(session, plan);
   const sum = planExecutionSummary(session, plan);
+  const dups = planDuplicateSteps(plan); // feat 213 — steps a single exercise could double-serve
   const steps = plan.steps.map((st, i) => {
     const s = stepStatus(session, st, plan), impossible = stepImpossibleInGym(st);
     // feat 144 — the CURRENT step (full-target pointer) keeps the 'current' look even once its min-% is met,
@@ -9208,8 +9234,9 @@ function renderPlanGuide(session) {
       : '';
     // feat 144 — full target → "✓"; min-% met but short of target → "· min ✓" (still counts as done).
     const setsBadge = `<span class="plan-step-sets ${s.satisfied ? 'hit' : ''}">${s.logged}/${st.sets} sets${s.done ? ' ✓' : (s.satisfied ? ` · min ✓` : '')}</span>`;
+    const dupBadge = dups[i] ? `<span class="plan-step-dup" title="A single exercise could satisfy steps ${[i + 1].concat(dups[i].map(j => j + 1)).sort((a, b) => a - b).join(' & ')} — one station can serve them all, but each step still needs its own sets">⧉ with ${dups[i].map(j => j + 1).join(', ')}</span>` : ''; // feat 213
     return `<div class="plan-step ${cls}" data-plan-step-idx="${i}">
-      <div class="plan-step-top"><span class="plan-step-num">${cls === 'done' ? '✓' : (i+1)}</span>${setsBadge}${loadBadge}${effortBadge}${impossible ? `<span class="plan-step-warn" title="No option is available in the current gym">⚠ gym</span>` : ''}</div>
+      <div class="plan-step-top"><span class="plan-step-num">${cls === 'done' ? '✓' : (i+1)}</span>${setsBadge}${loadBadge}${effortBadge}${dupBadge}${impossible ? `<span class="plan-step-warn" title="No option is available in the current gym">⚠ gym</span>` : ''}</div>
       <div class="plan-step-opts">${opts || '<span style="color:var(--text3);font-size:11px;">(no exercises)</span>'}</div>
       ${st.desc ? `<div class="plan-step-desc">${escapeHtml(st.desc)}</div>` : ''}
     </div>`;
@@ -15411,7 +15438,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 158 · 2026-06-11 21:21';
+const APP_BUILD = 'build 159 · 2026-06-11 21:27';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

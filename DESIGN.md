@@ -853,6 +853,14 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Duplicate-step indicator (feat 213):** when one single variation could satisfy **2+ steps of the same
+  plan** (two curl-reachable steps, a pinned variation overlapping its own family step, …), those steps
+  now wear a dashed **⧉ with N** badge on the dashboard plan card, with a tooltip explaining that one
+  station can serve them all but each step still needs its own sets. `planDuplicateSteps(plan)` builds
+  per-step qualifying pools by testing every `VAR_INDEX` uuid through `optionMatchesVar` — so feat-166
+  alias resolution and feat-167 secondary parents count — and intersects them pairwise. Covered by
+  `test/dupsteps.spec.mjs` (movement×movement and movement×variation overlaps, disjoint and single-step
+  negatives, and the rendered badges naming their partner steps).
 - **Extra-set notches glow (feat 212):** sets logged BEYOND a plan step's target used to simply vanish —
   the notch row was capped at the target count. Now the row grows by the overflow and every over-target
   notch carries `.extra`: a **glowing `--warn` border** (box-shadow halo), with a **glowing warn fill**
