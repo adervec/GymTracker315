@@ -56,7 +56,7 @@ test('Settings → Data is a router page; Done/Back hides the overlay (feat 195)
   expect(r.onPage.page).toBe('set-data');
   expect(r.onPage.open).toBe(true);          // the overlay shows
   expect(r.afterOpen).toBe(false);           // Done closed it
-  expect(r.afterPage).toBe('settings');      // ...and returned to the Settings menu
+  expect(r.afterPage).toBe('set-prefs');     // ...and returned to Preferences (feat 221: 'settings' forwards there)
 });
 
 test('relocated buttons keep their bindings (Export JSON still calls exportData)', async ({ page }) => {

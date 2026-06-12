@@ -68,14 +68,14 @@ test('the top-bar title shows the current page emoji + name', async ({ page }) =
   expect(txt).toContain('🧮');
 });
 
-test('the brand goes Home and the gear goes to Settings', async ({ page }) => {
+test('the brand goes Home and the gear goes to Settings (feat 221: menus land on their primary leaf)', async ({ page }) => {
   const r = await page.evaluate(() => {
     document.getElementById('app-brand-btn').click(); const home = currentPage;
     document.getElementById('app-settings-btn').click(); const settings = currentPage;
     return { home, settings, settingsIsMenu: PAGES.settings.kind === 'menu' };
   });
-  expect(r.home).toBe('home');
-  expect(r.settings).toBe('settings');
+  expect(r.home).toBe('workout');      // home forwards to the Workout dashboard
+  expect(r.settings).toBe('set-prefs'); // settings forwards to Preferences
   expect(r.settingsIsMenu).toBe(true);
 });
 

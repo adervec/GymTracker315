@@ -853,6 +853,20 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Nav rework v2 — breadcrumbs + global nav tree, no full-screen menus (feat 221):** three guarantees: you can
+  get **from any screen to any screen** (two taps), you can always **see where you are**, and **no screen is ever
+  just a nav menu**. The top-bar title is now a **breadcrumb** (`_pagePath`): ancestors as emoji crumbs, the current
+  page as emoji + name; every crumb opens the new **global nav tree** — a compact anchored popover (`#nav-tree`,
+  width ≤ min(370px, 94vw), height ≤ 68vh — never the whole screen) listing every leaf page grouped by section
+  (Execute / Reflect / Prepare / Study / Settings), with the current page highlighted and the tapped crumb's section
+  focused + scrolled into view. Menu ids (home/train/reflect/execute/prepare/study/settings) are now **grouping
+  nodes only**: `navTo()` forwards them to a designated `primary` leaf (home/train/execute→Workout, reflect→Log,
+  prepare→Gyms, study→Reference, settings→Preferences), so the old full-screen drill-down lists are unreachable and
+  the history stack only ever holds content pages — Back/Forward and the empty-stack parent fallback ride through
+  the resolution. Brand tap → Workout dashboard; ⚙️ → Preferences. Covered by `test/navtree.spec.mjs` (breadcrumb
+  path shape, crumb→focused tree with active chip, every leaf reachable yet popover < 78% viewport height,
+  any→any in two taps, backdrop/✕ close) + updated `router.spec` / `navtopbar.spec` / `glosspage.spec` /
+  `refpage.spec` / `datapage.spec` for the forward-to-primary contract.
 - **Profile-shaped wireframe avatar + circumference biometrics (feat 220):** the anatomy wireframe is now
   **customizable by profile**. Body-comp entries grow seven optional **tape measurements** (neck / chest / waist /
   hips / biceps / thigh / calf) behind a collapsible 📏 row in the Body form — stored canonically in **cm**, entered

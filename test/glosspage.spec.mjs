@@ -28,11 +28,11 @@ test('Glossary opens the full-page panel (list); Anatomy opens it with the chart
 });
 
 test('the ✕ goes Back through the router and hides the overlay', async ({ page }) => {
-  await page.evaluate(() => { navTo('study'); navTo('glossary'); });
+  await page.evaluate(() => { navTo('study'); navTo('glossary'); }); // feat 221: 'study' forwards to Reference
   expect(await glossOpen(page)).toBe(true);
   await page.click('#ref-gloss-close');
   expect(await glossOpen(page)).toBe(false);
-  expect(await page.evaluate(() => currentPage)).toBe('study'); // back to the Study menu
+  expect(await page.evaluate(() => currentPage)).toBe('reference'); // back to the page that was actually shown
 });
 
 test('navigating to another page hides the glossary overlay', async ({ page }) => {

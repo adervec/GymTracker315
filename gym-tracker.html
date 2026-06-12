@@ -206,8 +206,28 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .topbar-navbtn { width: 42px; flex-shrink: 0; border: none; background: transparent; color: var(--text2); font-size: 15px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .topbar-navbtn:disabled { opacity: 0.3; cursor: default; }
 .topbar-navbtn:not(:disabled):active { color: var(--accent); }
-#topbar-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 800; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 4px; }
+#topbar-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; font-size: 13.5px; font-weight: 800; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 4px; }
 #topbar-title .tt-emoji { flex-shrink: 0; font-size: 16px; }
+/* feat 221 — breadcrumb path: ancestor crumbs are emoji-only, the current page shows emoji + name; every
+   crumb opens the nav-tree popover focused on its section. */
+.tt-crumb { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: var(--text2); font-family: inherit; font-size: 14px; font-weight: 800; cursor: pointer; padding: 3px 2px; flex-shrink: 0; -webkit-tap-highlight-color: transparent; border-radius: 6px; }
+.tt-crumb:active { background: var(--bg3); }
+.tt-crumb.current { color: var(--text); min-width: 0; flex-shrink: 1; }
+.tt-crumb .tt-name { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tt-sep { color: var(--text3); font-size: 11px; font-weight: 800; flex-shrink: 0; }
+/* feat 221 — global nav tree popover: compact, anchored under the top bar, never the whole screen. */
+#nav-tree-backdrop { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.35); display: none; }
+#nav-tree-backdrop.open { display: block; }
+#nav-tree { position: fixed; top: calc(var(--topbar-h, 82px) + 6px); left: 50%; transform: translateX(-50%); width: min(370px, 94vw); max-height: min(68vh, 540px); overflow-y: auto; background: var(--bg2, #141414); border: 1px solid var(--border2, #2a2a2a); border-radius: 14px; z-index: 10001; display: none; padding: 10px; box-shadow: 0 14px 44px rgba(0,0,0,0.5); }
+#nav-tree.open { display: block; }
+.ntree-head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 13px; color: var(--text); margin-bottom: 8px; padding: 0 2px; }
+.ntree-close { background: none; border: none; color: var(--text3); font-size: 15px; cursor: pointer; padding: 2px 6px; font-family: inherit; }
+.ntree-sec { margin-bottom: 8px; border-radius: 10px; padding: 6px; }
+.ntree-sec.focus { background: var(--accent-bg, rgba(124,92,255,0.1)); outline: 1px solid var(--accent-border, rgba(124,92,255,0.35)); }
+.ntree-sec-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); font-weight: 800; margin: 0 2px 6px; }
+.ntree-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ntree-chip { display: inline-flex; align-items: center; gap: 4px; padding: 7px 10px; border-radius: 9px; background: var(--bg3, #1c1c1c); border: 1px solid var(--border2, #2a2a2a); color: var(--text, #eee); font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ntree-chip.active { background: var(--accent-bg, rgba(124,92,255,0.12)); border-color: var(--accent-border, rgba(124,92,255,0.4)); color: var(--accent, #9b7bff); }
 #app-topbar .nav-tabs { display: none; } /* feat 182 — legacy panel switcher hidden (kept in DOM for compat; removed in feat 196) */
 #app-gloss-btn { display: none; }         /* feat 182 — Glossary is now a Study page */
 
@@ -2333,6 +2353,10 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <!-- feat 74 — sound & haptics quick menu -->
 <div id="sound-menu-backdrop" onclick="closeSoundMenu()"></div>
 <div id="sound-menu" role="dialog" aria-label="Sound and haptics"></div>
+
+<!-- feat 221 — global nav tree (compact popover; opened from any breadcrumb crumb) -->
+<div id="nav-tree-backdrop" onclick="closeNavTree()"></div>
+<div id="nav-tree" role="dialog" aria-label="Navigate"></div>
 
 <!-- feat 75 — exercise reference media (carousel + manager) -->
 <div id="media-backdrop" onclick="closeExerciseMedia()"></div>
@@ -8201,13 +8225,15 @@ let currentTab = 'log';
    182+). Leaves not yet converted to pages carry an `open()` that calls their existing overlay opener.
    ============================================================ */
 const PAGES = {
-  home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'] },
-  train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'] },
-  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','history','trends','volume','achievements','replay'] },
-  execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail'] },
-  prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator'] },
-  study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','glossary','anatomy','advice'] },
-  settings:{ title:'Settings',emoji:'⚙️', kind:'menu', parent:'home',  children:['set-profile','set-cosmetic','set-prefs','set-data','set-help','set-about'] },
+  // feat 221 — menus are grouping nodes only: navTo() forwards them to their `primary` leaf, so no screen is
+  // ever just a nav list. Browsing happens in the compact nav-tree popover; the breadcrumb shows where you are.
+  home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'], primary:'workout' },
+  train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'], primary:'workout' },
+  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','history','trends','volume','achievements','replay'], primary:'log' },
+  execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail'], primary:'workout' },
+  prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator'], primary:'gyms' },
+  study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','glossary','anatomy','advice'], primary:'reference' },
+  settings:{ title:'Settings',emoji:'⚙️', kind:'menu', parent:'home',  children:['set-profile','set-cosmetic','set-prefs','set-data','set-help','set-about'], primary:'set-prefs' },
   // leaf pages that already render into a container (reused unchanged)
   workout:     { title:'Workout',          emoji:'🔥', kind:'leaf', parent:'execute', tab:'log',      render:m=>renderLog(m) },
   log:         { title:'Log',              emoji:'📅', kind:'leaf', parent:'reflect', tab:'sessions', render:m=>renderSessionsLog(m) },
@@ -8272,9 +8298,16 @@ function renderEquipmentPage(main) {
   main.querySelector('#equip-open-exercise')?.addEventListener('click', () => { if (typeof openLogModal === 'function') openLogModal(); });
   main.querySelector('#equip-open-gyms')?.addEventListener('click', () => navTo('gyms'));
 }
+// feat 221 — a menu id resolves to its primary leaf (recursively), so menus never render as screens.
+function _menuPrimary(id) {
+  let n = 0;
+  while (PAGES[id] && PAGES[id].kind === 'menu' && n++ < 6) id = PAGES[id].primary || (PAGES[id].children || [])[0];
+  return id;
+}
 function navTo(id, opts) {
   opts = opts || {};
-  const def = PAGES[id]; if (!def) return;
+  let def = PAGES[id]; if (!def) return;
+  if (def.kind === 'menu') { id = _menuPrimary(id); def = PAGES[id]; if (!def) return; } // feat 221 — forward to content
   if (def.open && !def.render && def.kind !== 'menu') { def.open(); return; } // legacy opener — keep current page
   if (!opts.replace && id !== currentPage) { _pageBack.push(currentPage); if (_pageBack.length > _PAGE_CAP) _pageBack.shift(); _pageFwd.length = 0; }
   currentPage = id; _persistPage(); renderCurrentPage();
@@ -8284,14 +8317,66 @@ function navForward() { if (!_pageFwd.length) return; _pageBack.push(currentPage
 // feat 182/191/192 — top-bar Back: if the log-sets sheet is open, Back closes it (restores the page behind it);
 // otherwise pages (incl. Reference) live in the router history, so Back is just navBack().
 function topbarBack() { if (typeof modalState !== 'undefined' && modalState.open) { closeLogModal(); render(); return; } navBack(); }
-// feat 182 — page title (emoji + name) + Back/Forward enabled state. Called from renderCurrentPage.
+// feat 221 — the ancestor chain of a page (home → … → page), for the breadcrumb.
+function _pagePath(id) {
+  const path = []; let cur = id, n = 0;
+  while (cur && PAGES[cur] && n++ < 6) { path.unshift(cur); cur = PAGES[cur].parent; }
+  return path;
+}
+// feat 182/221 — topbar centre is a breadcrumb (ancestors as emoji crumbs, current page as emoji + name).
+// Every crumb opens the nav-tree popover — focused on that section — so any screen is ≤2 taps away.
 function updateTopbarChrome(def) {
   def = def || pageDef(currentPage);
   const title = document.getElementById('topbar-title');
-  if (title) title.innerHTML = `<span class="tt-emoji">${def.emoji || ''}</span><span class="tt-name">${escapeHtml(def.title || '')}</span>`;
+  if (title) {
+    const path = _pagePath(currentPage);
+    title.innerHTML = path.map((pid, i) => {
+      const d = PAGES[pid], last = i === path.length - 1;
+      return last
+        ? `<button class="tt-crumb current" data-crumb="${pid}" title="${escapeAttr(d.title)} — open the map" aria-label="${escapeAttr(d.title)} — open the navigation map"><span class="tt-emoji">${d.emoji || ''}</span><span class="tt-name">${escapeHtml(d.title || '')}</span></button>`
+        : `<button class="tt-crumb" data-crumb="${pid}" title="${escapeAttr(d.title)}" aria-label="${escapeAttr(d.title)}">${d.emoji || ''}</button><span class="tt-sep">›</span>`;
+    }).join('');
+    title.querySelectorAll('.tt-crumb').forEach(b => b.addEventListener('click', () => {
+      const pid = b.dataset.crumb, d = PAGES[pid];
+      openNavTree(d && d.kind === 'menu' ? pid : (d && d.parent) || null);
+    }));
+  }
   const ap = document.querySelector('.panel.active'), inPanel = !!(ap && ap.id !== 'panel-tracker');
   const back = document.getElementById('nav-back'); if (back) back.disabled = !(_pageBack.length || inPanel || (typeof modalState !== 'undefined' && modalState.open)); // feat 192 — Back also closes the open log sheet
   const fwd = document.getElementById('nav-fwd'); if (fwd) fwd.disabled = !_pageFwd.length;
+}
+/* ============================================================
+   feat 221 — GLOBAL NAV TREE. A compact anchored popover (never the whole screen) listing every leaf
+   page grouped by section; reachable from any screen via the breadcrumb. The current page is
+   highlighted; a crumb-tap focuses its section.
+   ============================================================ */
+const NAV_TREE_SECTIONS = ['execute', 'reflect', 'prepare', 'study', 'settings'];
+let _navTreeOpen = false;
+function renderNavTree(focusId) {
+  const menu = document.getElementById('nav-tree');
+  if (!menu) return;
+  menu.innerHTML = `<div class="ntree-head"><span>🧭 Navigate</span><button class="ntree-close" onclick="closeNavTree()" aria-label="Close">✕</button></div>` +
+    NAV_TREE_SECTIONS.map(sec => {
+      const d = PAGES[sec]; if (!d) return '';
+      return `<div class="ntree-sec ${focusId === sec ? 'focus' : ''}" data-ntree-sec="${sec}">
+        <div class="ntree-sec-title">${d.emoji} ${escapeHtml(d.title)}</div>
+        <div class="ntree-chips">${(d.children || []).map(cid => { const c = PAGES[cid]; return c ? `<button class="ntree-chip ${currentPage === cid ? 'active' : ''}" data-ntree-go="${cid}">${c.emoji} ${escapeHtml(c.title)}</button>` : ''; }).join('')}</div>
+      </div>`;
+    }).join('');
+  menu.querySelectorAll('[data-ntree-go]').forEach(b => b.addEventListener('click', () => { closeNavTree(); navTo(b.dataset.ntreeGo); }));
+}
+function openNavTree(focusId) {
+  if (focusId === 'home' || focusId === 'train') focusId = null; // top levels → the whole tree
+  renderNavTree(focusId || null);
+  const menu = document.getElementById('nav-tree'), bd = document.getElementById('nav-tree-backdrop');
+  if (!menu || !bd) return;
+  menu.classList.add('open'); bd.classList.add('open'); _navTreeOpen = true;
+  if (focusId) { const el = menu.querySelector(`[data-ntree-sec="${focusId}"]`); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); }
+}
+function closeNavTree() {
+  document.getElementById('nav-tree')?.classList.remove('open');
+  document.getElementById('nav-tree-backdrop')?.classList.remove('open');
+  _navTreeOpen = false;
 }
 function _persistPage() { try { localStorage.setItem('gt_page', currentPage); } catch (_) {} }
 function _syncLegacyTabClasses() { const tab = pageDef(currentPage).tab; document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', !!tab && x.dataset.tab === tab)); }
@@ -16018,7 +16103,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 166 · 2026-06-12 06:57';
+const APP_BUILD = 'build 167 · 2026-06-12 07:09';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

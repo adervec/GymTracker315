@@ -34,41 +34,44 @@ test('navTo a leaf renders it into #trk-main and mirrors currentTab + the tab hi
   expect(r.mainNonEmpty).toBe(true);
 });
 
-test('navTo a menu renders a drill-down list of its children', async ({ page }) => {
+test('feat 221: a menu id forwards to its primary leaf — no screen is ever just a nav list', async ({ page }) => {
   const r = await page.evaluate(() => {
-    navTo('train');
-    const items = [...document.querySelectorAll('#trk-main .nav-menu-item')].map(b => b.dataset.nav);
-    return { page: currentPage, items };
+    const landed = {};
+    ['home', 'train', 'reflect', 'execute', 'prepare', 'study', 'settings'].forEach(id => { navTo(id); landed[id] = currentPage; });
+    return { landed, menuList: !!document.querySelector('#trk-main .nav-menu-item') };
   });
-  expect(r.page).toBe('train');
-  expect(r.items).toEqual(['reflect', 'execute', 'prepare']);
+  expect(r.landed).toEqual({ home: 'workout', train: 'workout', reflect: 'log', execute: 'workout', prepare: 'gyms', study: 'reference', settings: 'set-prefs' });
+  expect(r.menuList).toBe(false); // the full-screen drill-down list is gone
 });
 
-test('a menu item click navigates into that page', async ({ page }) => {
+test('feat 221: a nav-tree chip navigates to that page and closes the popover', async ({ page }) => {
   const r = await page.evaluate(() => {
-    navTo('reflect');
-    document.querySelector('#trk-main .nav-menu-item[data-nav="history"]').click();
-    return currentPage;
+    navTo('workout', { replace: true });
+    openNavTree('reflect');
+    document.querySelector('#nav-tree [data-ntree-go="history"]').click();
+    return { page: currentPage, open: document.getElementById('nav-tree').classList.contains('open') };
   });
-  expect(r).toBe('history');
+  expect(r.page).toBe('history');
+  expect(r.open).toBe(false);
 });
 
 test('Back / Forward walk the history stack; Back at the root falls to the parent', async ({ page }) => {
   const r = await page.evaluate(() => {
     navTo('workout', { replace: true });
+    // feat 221: menus forward to their primary leaf, so this walk lands on workout → log → history
     navTo('train'); navTo('reflect'); navTo('history');
-    navBack(); const b1 = currentPage;     // reflect
-    navBack(); const b2 = currentPage;      // train
-    navForward(); const f1 = currentPage;   // reflect
-    // empty-stack Back falls back to the page's parent
+    navBack(); const b1 = currentPage;     // log (reflect's primary)
+    navBack(); const b2 = currentPage;      // workout (train's primary)
+    navForward(); const f1 = currentPage;   // log
+    // empty-stack Back falls back to the page's parent (feat 221: the menu resolves to its primary leaf)
     _pageBack.length = 0; _pageFwd.length = 0; currentPage = 'history';
-    navBack(); const par = currentPage;     // history.parent === reflect
+    navBack(); const par = currentPage;     // history.parent === reflect → primary 'log'
     return { b1, b2, f1, par };
   });
-  expect(r.b1).toBe('reflect');
-  expect(r.b2).toBe('train');
-  expect(r.f1).toBe('reflect');
-  expect(r.par).toBe('reflect');
+  expect(r.b1).toBe('log');
+  expect(r.b2).toBe('workout');
+  expect(r.f1).toBe('log');
+  expect(r.par).toBe('log');
 });
 
 test('the back stack is depth-capped', async ({ page }) => {

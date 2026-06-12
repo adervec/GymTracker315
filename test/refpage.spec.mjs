@@ -24,10 +24,10 @@ test('navTo("reference") surfaces panel-reference + renders the catalog; leaving
 });
 
 test('the top-bar Back leaves the Reference page through the router history', async ({ page }) => {
-  await page.evaluate(() => { navTo('study'); navTo('reference'); });
+  await page.evaluate(() => { navTo('workout', { replace: true }); navTo('reference'); });
   expect(await activePanel(page)).toBe('panel-reference');
   await page.evaluate(() => topbarBack());
-  expect(await page.evaluate(() => currentPage)).toBe('study');
+  expect(await page.evaluate(() => currentPage)).toBe('workout'); // feat 221: Back returns to the previous content page
   expect(await activePanel(page)).toBe('panel-tracker');
 });
 
