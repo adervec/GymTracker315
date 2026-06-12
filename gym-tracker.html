@@ -3267,7 +3267,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
-  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','annunciation','plans','seededPlanIds','hrDevice',
+  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
   'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
@@ -3456,6 +3456,7 @@ function normalizeState() {
   if (!(state.biometricStaleDays > 0)) state.biometricStaleDays = 14;
   if (typeof state.calcMode !== 'boolean') state.calcMode = false;
   if (typeof state.ttsTips !== 'boolean') state.ttsTips = true;
+  if (typeof state.ttsVoice !== 'string') state.ttsVoice = 'auto'; // feat 210 — 'auto' = the gruff coach pick; 'system' = untouched
   if (typeof state.audioHeadphonesOnly !== 'boolean') state.audioHeadphonesOnly = true; // feat 105 — default on
   // feat 144 — default minimum completion % (0..100). 1% means "even 1 set counts the step as done".
   { const m = Number(state.planDefaults.minPct); state.planDefaults.minPct = isNaN(m) ? 1 : Math.min(100, Math.max(0, m)); }
@@ -5638,6 +5639,16 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">🏋️ Coach voice</div>
+        <div class="drawer-setting-sub">Spoken cues default to a deeper, gruffer coach (deep voice + low pitch, tough but fair). System = leave the device default untouched</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${state.ttsVoice !== 'system' ? 'active' : ''}" data-pref-voice="coach">Gruff coach ★</button>
+        <button class="drawer-pill ${state.ttsVoice === 'system' ? 'active' : ''}" data-pref-voice="system">System</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">🗣 Annunciate set start</div>
         <div class="drawer-setting-sub">Speak the position when a set starts (weight entered) — "First set of 4", "Set 2 of 4", "Last set", plan-aware</div>
       </div>
@@ -6444,6 +6455,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefGlossView) { state.glossaryAsPage = btn.dataset.prefGlossView === 'page'; saveState(); toast('Glossary: ' + (state.glossaryAsPage ? 'full page' : 'slide-in')); }
       else if (btn.dataset.prefReadonly) { state.readonly = btn.dataset.prefReadonly === 'on'; saveState(); render(); toast('Read-only mode: ' + (state.readonly ? 'on' : 'off')); }
       else if (btn.dataset.prefTts) { state.ttsTips = btn.dataset.prefTts === 'on'; saveState(); if (state.ttsTips) toast('Tips will be read aloud'); else { try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} toast('Tip narration off'); } }
+      else if (btn.dataset.prefVoice) { state.ttsVoice = btn.dataset.prefVoice === 'system' ? 'system' : 'auto'; _coachVoice = null; saveState(); annunce(state.ttsVoice === 'system' ? 'System voice' : 'Coach voice on. Get under the bar.'); toast('Voice: ' + (state.ttsVoice === 'system' ? 'system default' : 'gruff coach')); } // feat 210
       else if (btn.dataset.prefAnn) { const a = { ...annunciationCfg() }; const k = btn.dataset.prefAnn; if (k === 'start-on') a.start = true; else if (k === 'start-off') a.start = false; else if (k === 'end-on') a.end = true; else if (k === 'end-off') a.end = false; else if (k === 'duck-on') a.duck = true; else if (k === 'duck-off') { a.duck = false; if (typeof _annDuckOff === 'function') _annDuckOff(); } state.annunciation = a; saveState(); toast(/^start/.test(k) ? ('Set-start annunciation: ' + (a.start ? 'on' : 'off')) : /^end/.test(k) ? ('Set-end annunciation: ' + (a.end ? 'on' : 'off')) : ('Speech ducking: ' + (a.duck ? 'on' : 'off'))); } // feat 206/207/209
       else if (btn.dataset.prefHp) { state.audioHeadphonesOnly = btn.dataset.prefHp === 'on'; saveState(); if (state.audioHeadphonesOnly) probeAudioOutput(); refreshSoundIcon(); toast('Headphone-only audio: ' + (state.audioHeadphonesOnly ? 'on' : 'off')); }
       else if (btn.dataset.prefMetro) { const m = { ...metroCfg() }; const k = btn.dataset.prefMetro; if (k === 'audio-on') m.audio = true; else if (k === 'audio-off') m.audio = false; else if (k === 'haptic-on') m.haptic = true; else if (k === 'haptic-off') m.haptic = false; else if (k === 'mantra-on') m.mantra = true; else if (k === 'mantra-off') m.mantra = false; else if (k === 'setactive-on') m.setActiveOnly = true; else if (k === 'setactive-off') m.setActiveOnly = false; state.metronome = m; saveState(); restartMetronomeIfRunning(); }
@@ -7354,7 +7366,8 @@ function speakRandomTip(varUuid) {
   try {
     window.speechSynthesis.cancel();                 // never stack utterances
     const u = new SpeechSynthesisUtterance(String(tip).slice(0, 240));
-    u.rate = 1; u.pitch = 1; u.lang = 'en-US'; u.volume = sndVol();
+    u.rate = 1; u.lang = 'en-US'; u.volume = sndVol();
+    coachify(u); // feat 210 — tips read in the gruff coach voice
     window.speechSynthesis.speak(u);
   } catch (e) {}
 }
@@ -15383,7 +15396,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 155 · 2026-06-11 20:59';
+const APP_BUILD = 'build 156 · 2026-06-11 21:06';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -15598,6 +15611,42 @@ function annunciationCfg() { return { start:false, end:false, startLimit:0, endL
    utterance is in flight; (2) on iOS 17+ set navigator.audioSession.type='transient' around the speech,
    which asks the system to duck other apps' music; (3) on Android the system TTS engine usually requests
    may-duck focus by itself. A web page cannot force other apps' volume beyond that. */
+/* feat 210 — the coach VOICE: deeper, gruffer, tough-but-fair by default. The Web Speech API only
+   offers voice choice + pitch/rate, so: rank getVoices() for a deep male English voice (named-male and
+   known-voice heuristics, female names score down) and drop pitch to 0.8. state.ttsVoice: 'auto' (the
+   coach pick, default) | 'system' (leave everything alone) | an explicit voiceURI/name override. */
+let _coachVoice = null;
+function pickCoachVoice() {
+  try {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
+    const vs = window.speechSynthesis.getVoices() || [];
+    if (!vs.length) return null;
+    const en = vs.filter(v => /^en/i.test(v.lang || ''));
+    const pool = en.length ? en : vs;
+    const MALE = /\b(male|david|mark|daniel|alex|fred|george|james|guy|ryan|aaron|arthur|reed|rocko)\b/i;
+    const FEMALE = /\b(female|zira|susan|hazel|samantha|victoria|karen|moira|tessa|fiona|serena|kate|allison|ava|joanna|salli|kimberly|ivy|aria|jenny|sonia|natasha)\b/i;
+    const score = v => (MALE.test(v.name) ? 4 : 0) + (FEMALE.test(v.name) ? -4 : 0)
+      + (/uk english male|en-gb/i.test(v.name + ' ' + v.lang) ? 1 : 0) + (v.localService ? 1 : 0) + (v.default ? 0.5 : 0);
+    return pool.slice().sort((a, b) => score(b) - score(a))[0] || null;
+  } catch (_) { return null; }
+}
+function coachVoice() {
+  if (state.ttsVoice === 'system') return null;
+  if (state.ttsVoice && state.ttsVoice !== 'auto') {
+    try { const vs = window.speechSynthesis.getVoices() || []; const m = vs.find(v => v.voiceURI === state.ttsVoice || v.name === state.ttsVoice); if (m) return m; } catch (_) {}
+  }
+  if (!_coachVoice) _coachVoice = pickCoachVoice();
+  return _coachVoice;
+}
+// Apply the gruff-coach profile to an utterance ('system' mode leaves it untouched).
+function coachify(u) {
+  if (state.ttsVoice === 'system') return u;
+  try { const v = coachVoice(); if (v) u.voice = v; } catch (_) {}
+  u.pitch = 0.8; // deeper
+  return u;
+}
+try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.onvoiceschanged = () => { _coachVoice = null; }; } catch (_) {} // voices arrive async — refresh the pick
+
 let _annDuckActive = false, _annDuckTimer = null;
 function duckedVol() { return sndVol() * (_annDuckActive ? 0.3 : 1); }
 function _setAudioSessionType(t) { try { if (typeof navigator !== 'undefined' && navigator.audioSession && 'type' in navigator.audioSession) navigator.audioSession.type = t; } catch (_) {} }
@@ -15610,7 +15659,8 @@ function annunce(text) {
     if (!sndAudioOn() || !headphoneGatePasses()) return;
     if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
     const u = new SpeechSynthesisUtterance(String(text).slice(0, 120));
-    u.rate = 0.95; u.pitch = 1; u.lang = 'en-US'; u.volume = sndVol(); // the speech itself never ducks
+    u.rate = 0.95; u.lang = 'en-US'; u.volume = sndVol(); // the speech itself never ducks
+    coachify(u); // feat 210 — the gruff coach voice profile
     if (annunciationCfg().duck) { _annDuckOn(); u.onend = _annDuckOff; u.onerror = _annDuckOff; } // feat 209
     window.speechSynthesis.cancel();                 // never stack utterances
     window.speechSynthesis.speak(u);
@@ -15775,7 +15825,8 @@ function metroSpeakNextTip() {
     const tip = metroNextMantraTip(metroMantraExercise());
     if (!tip) return;
     const u = new SpeechSynthesisUtterance(String(tip).slice(0, 180));
-    u.rate = 0.92; u.pitch = 1; u.lang = 'en-US'; u.volume = sndVol();
+    u.rate = 0.92; u.lang = 'en-US'; u.volume = sndVol();
+    coachify(u); // feat 210 — the Mantranome chants in the coach voice too
     _metroSpeaking = true;
     u.onend = () => { _metroSpeaking = false; };
     u.onerror = () => { _metroSpeaking = false; };

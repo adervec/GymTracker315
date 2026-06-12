@@ -853,6 +853,18 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Gruff coach voice (feat 210):** all spoken output now defaults to a **deeper, gruffer,
+  tough-but-fair coach**. Within what the Web Speech API offers (voice choice + pitch/rate):
+  `pickCoachVoice()` ranks `getVoices()` for a deep male English voice (named-male heuristics score up,
+  female-named voices score down, local/default nudge; cache invalidated on `voiceschanged` since Chromium
+  loads voices async), and `coachify(u)` applies the profile — the picked voice + **pitch 0.8** — to every
+  utterance on all three speech paths: annunciations (`annunce`), the Mantranome chant
+  (`metroSpeakNextTip`) and tip narration (`speakRandomTip`). `state.ttsVoice` (a settings key):
+  `'auto'` (default, the coach pick) / `'system'` (leave the device voice completely untouched) / an
+  explicit voiceURI-or-name override that wins verbatim. Preferences → "🏋️ Coach voice" pills, with an
+  audible sample on switch ("Coach voice on. Get under the bar."). Covered by `test/coachvoice.spec.mjs`
+  (default+pitch profile vs system, ranked pick over stubbed voices + cache, explicit override, and an
+  utterance-capture proving all three paths run through `coachify`).
 - **Annunciation audio ducking (feat 209):** while a cue speaks, audio gets out of the way — within what
   a web app can honestly do: **(1)** the app's OWN sounds (metronome ticks, rest beeps, UI clicks) route
   through a new `duckedVol()` that drops to **30%** while an utterance is in flight (`_annDuckActive`,
