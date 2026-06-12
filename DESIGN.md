@@ -853,6 +853,18 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Info pack export (feat 216):** Settings › Data gained an **"Info pack export"** block: pick all or a
+  subset of the app's information sections — ❓ Help (the live `renderHelp` output), ℹ️ About (brand,
+  credit, `APP_BUILD`), 📋 Quick reference (every movement with its tag, 💡 quick cue and variation index,
+  with an as-of count), 🧭 Coaching guides (all `COACHING` cards with their sections), 📖 Glossary (every
+  term grouped by category) — and export them as a **fully branded, self-contained HTML document**: wordmark
+  header, generation timestamp, build number, data-last-saved stamp, and the complete
+  `legalDisclaimerHtml()` block appended to EVERY export (the legal section is not optional) plus an
+  informational-only footer. ⬆ downloads `gymtracker315-info-<date>.html` via `downloadText`; 🖨 stages the
+  same body in the feat-133 `#print-root` and calls `print()` (choose "Save as PDF"). Covered by
+  `test/infoexport.spec.mjs` (branding/date/build/disclaimers/footer on the full doc, subset keeps only its
+  picks but always the legal block, real section content + counts, the Data-page UI round-trip with a spied
+  download, and the print-root staging/cleanup).
 - **Note templates + stock-ticker display (feat 215):** variation notes keep their freetext, but the
   feat-54 editor now opens with **eight quick-pick calibration chips** (💺 Seat, 🛋 Backrest, 💪 Armrest,
   🦵 Leg pad, 📌 Pin/stack, 🤝 Handles, 📐 Incline, #️⃣ Machine #) that append a structured field to the

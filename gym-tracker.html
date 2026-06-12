@@ -6202,6 +6202,20 @@ function renderSettingsDrawer() {
     </div>
     ${dataCategoryTableHtml()}
 
+    <div class="drawer-section-title">Info pack export</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">
+      A branded, dated, build-stamped document of the app's information sections — pick all or a subset.
+      The HTML file is self-contained; 🖨 prints it (choose "Save as PDF").
+      Disclaimers are always included.
+    </div>
+    <div id="info-export-picks" style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:9px;">
+      ${INFO_EXPORT_SECTIONS.map(s => `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;"><input type="checkbox" data-info-sec="${s.id}" checked style="accent-color:var(--accent);"> ${s.label}</label>`).join('')}
+    </div>
+    <div class="drawer-data-row">
+      <button class="drawer-btn" id="info-export-html-btn">⬆ Export Info HTML</button>
+      <button class="drawer-btn" id="info-export-print-btn">🖨 Print / PDF</button>
+    </div>
+
     <div class="drawer-section-title">Activity &amp; Error Log</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">
       ${_eventLog.length} entr${_eventLog.length===1?'y':'ies'} (last ${LOG_MAX}). Kept separate from your data — never written into the export JSON.
@@ -6615,6 +6629,9 @@ function renderSettingsDrawer() {
 
   // Data buttons
   body.querySelector('#drawer-export-btn').addEventListener('click', exportData);
+  // feat 216 — info pack export (wired before #drawer-data-wrap relocates; listeners ride along)
+  body.querySelector('#info-export-html-btn')?.addEventListener('click', () => exportInfoPack());
+  body.querySelector('#info-export-print-btn')?.addEventListener('click', () => printInfoPack());
   body.querySelector('#drawer-export-workout-btn')?.addEventListener('click', () => { closeDataPage(); closeSettingsDrawer(); openExportDialog({ preset:'week' }); });
   body.querySelector('#drawer-export-ref-csv-btn').addEventListener('click', exportReferenceCsv);
   // feat 129 — per-category export (wired before #drawer-data-wrap relocates; listeners ride along)
@@ -6896,6 +6913,126 @@ function downloadBlob(blob, filename) {
 }
 function downloadText(text, filename, mime) {
   downloadBlob(new Blob([text], { type: mime || 'text/plain;charset=utf-8' }), filename);
+}
+
+/* ============================================================
+   feat 216 — INFO PACK EXPORT. A branded, dated, build-stamped, fully-disclaimed document of the app's
+   information sections — all or a subset: Help, About & disclaimers, Quick reference, Coaching guides,
+   Glossary. Exported as a self-contained HTML file (downloadText), or printed via the feat-133
+   #print-root path (choose "Save as PDF" in the dialog). Disclaimers ride along on EVERY export.
+   ============================================================ */
+const INFO_EXPORT_SECTIONS = [
+  { id: 'help', label: '❓ Help' },
+  { id: 'about', label: 'ℹ️ About' },
+  { id: 'quickref', label: '📋 Quick reference' },
+  { id: 'coaching', label: '🧭 Coaching guides' },
+  { id: 'glossary', label: '📖 Glossary' },
+];
+function _infoHelpHtml() {
+  const tmp = document.createElement('div'); tmp.id = '_info-export-help-tmp'; tmp.style.display = 'none';
+  document.body.appendChild(tmp);
+  try { renderHelp('_info-export-help-tmp'); return tmp.innerHTML; } finally { tmp.remove(); }
+}
+function _infoAboutHtml() {
+  return `<p><b>GymTracker315</b> — a progressive-overload gym tracker. Beat last session: more reps, more
+    weight, or more sets. e1RM = weight × (1 + reps/30). All data stays in your browser.</p>
+    <p>Designed &amp; built by <b>Adam Eryavec, P.Eng.</b> · Developed with <b>Claude Code</b> (Anthropic) · MIT License.</p>
+    <p style="font-family:ui-monospace,Consolas,monospace;">${escapeHtml(APP_BUILD)}</p>`;
+}
+function _infoQuickRefHtml() {
+  return exercises.map(ex => `<div class="qr-fam">
+    <h3>${escapeHtml(ex.title)} <span class="muted">${escapeHtml(ex.tag || '')}</span></h3>
+    ${ex.quickCue ? `<p class="qr-cue">💡 ${escapeHtml(ex.quickCue)}</p>` : ''}
+    <p class="qr-vars">${(ex.variations || []).map(v => escapeHtml(v.title)).join(' · ')}</p>
+  </div>`).join('');
+}
+function _infoCoachingHtml() {
+  return COACHING.map(c => `<div class="coach-sec">
+    <h3>${c.icon || ''} ${escapeHtml(c.title)} <span class="muted">${escapeHtml(c.sub || '')}</span></h3>
+    ${c.blurb ? `<p>${escapeHtml(c.blurb)}</p>` : ''}
+    ${(c.sections || []).map(s => `<h4>${escapeHtml(s.h)}</h4><ul>${(s.items || []).map(it => `<li>${it}</li>`).join('')}</ul>`).join('')}
+  </div>`).join('');
+}
+function _infoGlossaryHtml() {
+  return glossaryCategories.filter(c => c.id !== 'all').map(c => {
+    const terms = glossary.filter(g => g.cat === c.id);
+    if (!terms.length) return '';
+    return `<h3>${escapeHtml(c.label)}</h3><dl>${terms.map(g =>
+      `<dt>${escapeHtml(g.term)}${g.aka ? ` <span class="muted">(${escapeHtml(g.aka)})</span>` : ''}</dt><dd>${escapeHtml(g.def)}</dd>`).join('')}</dl>`;
+  }).join('');
+}
+// The assembled document body (shared by the file export and the print path).
+function buildInfoExportBody(ids) {
+  const want = (id) => !ids || !ids.length || ids.includes(id);
+  let when = ''; try { when = new Date().toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (_) { when = new Date().toISOString(); }
+  const savedAt = state.savedAt ? new Date(state.savedAt).toLocaleString() : null;
+  const parts = [];
+  parts.push(`<header class="ip-head">
+    <div class="ip-brand">🏋️ Gym<b>Tracker</b><sup>315</sup></div>
+    <div class="ip-meta">Information pack · generated ${escapeHtml(when)} · ${escapeHtml(APP_BUILD)}${savedAt ? ` · data last saved ${escapeHtml(savedAt)}` : ''}</div>
+  </header>`);
+  const SEC = {
+    help: () => `<section><h2>❓ Help</h2>${_infoHelpHtml()}</section>`,
+    about: () => `<section><h2>ℹ️ About</h2>${_infoAboutHtml()}</section>`,
+    quickref: () => `<section><h2>📋 Quick reference <span class="muted">(${exercises.length} movements, as of ${escapeHtml(when)})</span></h2>${_infoQuickRefHtml()}</section>`,
+    coaching: () => `<section><h2>🧭 Coaching guides</h2>${_infoCoachingHtml()}</section>`,
+    glossary: () => `<section><h2>📖 Glossary <span class="muted">(${glossary.length} terms)</span></h2>${_infoGlossaryHtml()}</section>`,
+  };
+  INFO_EXPORT_SECTIONS.forEach(s => { if (want(s.id) && SEC[s.id]) parts.push(SEC[s.id]()); });
+  // fully disclaimed — ALWAYS, regardless of the selection
+  parts.push(`<section class="ip-legal"><h2>⚖️ Disclaimer, trademarks &amp; licence</h2>${legalDisclaimerHtml()}</section>`);
+  parts.push(`<footer class="ip-foot">GymTracker315 · ${escapeHtml(APP_BUILD)} · generated ${escapeHtml(when)} · this document is informational only — see the disclaimer above.</footer>`);
+  return parts.join('\n');
+}
+function buildInfoExportHtml(ids) {
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>GymTracker315 — Information pack</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #1c1c22; background: #fff; max-width: 820px; margin: 0 auto; padding: 28px 20px 60px; line-height: 1.55; }
+  .ip-head { border-bottom: 3px solid #6b4bd6; padding-bottom: 10px; margin-bottom: 22px; }
+  .ip-brand { font-size: 26px; font-weight: 800; letter-spacing: 0.3px; }
+  .ip-brand sup { font-size: 12px; color: #6b4bd6; }
+  .ip-meta { font-size: 12px; color: #666; margin-top: 4px; }
+  h2 { font-size: 19px; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-top: 34px; }
+  h3 { font-size: 15px; margin: 18px 0 4px; }
+  h4 { font-size: 13px; margin: 12px 0 3px; color: #444; }
+  p, li, dd { font-size: 12.5px; color: #333; }
+  dt { font-weight: 700; font-size: 12.5px; margin-top: 8px; }
+  dd { margin: 1px 0 0 14px; }
+  .muted { color: #888; font-weight: 400; font-size: 11px; }
+  .qr-cue { color: #555; font-style: italic; margin: 2px 0; }
+  .qr-vars { color: #666; font-size: 11.5px; margin: 2px 0 0; }
+  .ip-legal { background: #f6f4fc; border: 1px solid #e2dcf5; border-radius: 8px; padding: 4px 16px 10px; margin-top: 36px; }
+  .ip-foot { margin-top: 26px; font-size: 10.5px; color: #999; border-top: 1px solid #eee; padding-top: 8px; }
+  .help-kbd { border: 1px solid #ccc; border-radius: 4px; padding: 0 4px; font-size: 11px; }
+  @media print { body { padding: 0; } section { break-inside: auto; } h2 { break-after: avoid; } }
+</style></head>
+<body>${buildInfoExportBody(ids)}</body></html>`;
+}
+function _infoExportPicks() {
+  const checked = [...document.querySelectorAll('#info-export-picks [data-info-sec]:checked')].map(c => c.dataset.infoSec);
+  return checked.length ? checked : INFO_EXPORT_SECTIONS.map(s => s.id);
+}
+function exportInfoPack(ids) {
+  const list = ids || _infoExportPicks();
+  const stamp = new Date().toISOString().slice(0, 10);
+  downloadText(buildInfoExportHtml(list), `gymtracker315-info-${stamp}.html`, 'text/html;charset=utf-8');
+  toast('⬆ Info pack exported (' + list.length + ' section' + (list.length === 1 ? '' : 's') + ')');
+  logInfo('Info pack export', list.join(','));
+}
+function printInfoPack(ids) {
+  const list = ids || _infoExportPicks();
+  let pr = document.getElementById('print-root');
+  if (!pr) { pr = document.createElement('div'); pr.id = 'print-root'; document.body.appendChild(pr); }
+  pr.innerHTML = `<div class="print-body" style="color:#1c1c22;">${buildInfoExportBody(list)}</div>`;
+  document.body.classList.add('printing');
+  const cleanup = () => { document.body.classList.remove('printing'); if (pr) pr.innerHTML = ''; };
+  window.addEventListener('afterprint', cleanup, { once: true });
+  setTimeout(() => { if (document.body.classList.contains('printing')) cleanup(); }, 60000);
+  logInfo('Info pack print', list.join(','));
+  try { window.print(); } catch (_) { cleanup(); toast('Printing not available in this browser'); }
 }
 // Copy text — Clipboard API in a secure context, hidden-textarea fallback otherwise
 // (file:// is treated as secure in current browsers; the fallback covers the rest).
@@ -15514,7 +15651,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 161 · 2026-06-11 21:40';
+const APP_BUILD = 'build 162 · 2026-06-11 21:48';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
