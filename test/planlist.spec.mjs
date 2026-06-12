@@ -54,7 +54,7 @@ test('the picker renders a search box, category + length chips, and grouped head
   await seedPlans(page);
   const r = await page.evaluate(() => {
     openPlansOverlay();
-    const body = document.getElementById('plans-body');
+    const body = document.getElementById('trk-main');
     const cats = [...body.querySelectorAll('.plan-cat-head')].map(h => h.firstChild.textContent.trim());
     return {
       hasSearch: !!body.querySelector('#plans-search'),
@@ -80,7 +80,7 @@ test('search narrows the list by name/theme', async ({ page }) => {
   const r = await page.evaluate(() => {
     openPlansOverlay();
     _plansSearch = 'bench'; renderPlansOverlay(); // matches "Bench Blast"
-    const body = document.getElementById('plans-body');
+    const body = document.getElementById('trk-main');
     const names = [...body.querySelectorAll('.plan-row-name')].map(n => n.textContent);
     return { count: names.length, names };
   });
@@ -92,9 +92,9 @@ test('a category chip filters to that category only', async ({ page }) => {
   await seedPlans(page);
   const r = await page.evaluate(() => {
     openPlansOverlay();
-    const body = document.getElementById('plans-body');
+    const body = document.getElementById('trk-main');
     body.querySelector('[data-plan-cat="Push"]').click(); // filter to Push
-    const body2 = document.getElementById('plans-body');
+    const body2 = document.getElementById('trk-main');
     return {
       filter: _plansCatFilter,
       rows: body2.querySelectorAll('.plan-row').length,
@@ -113,12 +113,12 @@ test('the length filter selects by duration bucket, and Clear resets everything'
   const r = await page.evaluate(() => {
     openPlansOverlay();
     _plansLenFilter = 'long'; renderPlansOverlay(); // only the long Full Body plan
-    const longRows = document.getElementById('plans-body').querySelectorAll('.plan-row').length;
+    const longRows = document.getElementById('trk-main').querySelectorAll('.plan-row').length;
     // a filter that matches nothing -> empty state with a Clear button
     _plansCatFilter = 'Legs'; renderPlansOverlay(); // Legs + long = none
-    const empty = !!document.getElementById('plans-body').querySelector('.plan-list-empty');
+    const empty = !!document.getElementById('trk-main').querySelector('.plan-list-empty');
     document.getElementById('plan-clear-filters').click();
-    return { longRows, empty, cat: _plansCatFilter, len: _plansLenFilter, search: _plansSearch, rowsAfter: document.getElementById('plans-body').querySelectorAll('.plan-row').length };
+    return { longRows, empty, cat: _plansCatFilter, len: _plansLenFilter, search: _plansSearch, rowsAfter: document.getElementById('trk-main').querySelectorAll('.plan-row').length };
   });
   expect(r.longRows).toBe(1);       // only the marathon plan is "long"
   expect(r.empty).toBe(true);       // Legs ∩ long = nothing

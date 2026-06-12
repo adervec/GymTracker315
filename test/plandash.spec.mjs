@@ -144,11 +144,11 @@ test('clicking the plan progress line opens the full plan view (feat 138)', asyn
   const r = await page.evaluate(() => {
     state.sessions = [{ id: 'today', date: new Date().toISOString(), planId: 'P', exercises: [] }];
     const html = renderPlanGuide(state.sessions[0]);
-    openPlanFull('P'); // what the progress-line click handler calls
-    const body = document.getElementById('plans-body').innerHTML;
+    openPlanFull('P'); // what the progress-line click handler calls → navTo('plan-creator')
+    const body = document.getElementById('trk-main').innerHTML; // feat 184 — the editor is a page now
     return {
       hasClickable: html.includes('id="plan-progress-open"'),
-      panelOpen: document.getElementById('plans-panel').classList.contains('open'),
+      panelOpen: currentPage === 'plan-creator',
       showsFullPlan: /plan-name-input/.test(body) && body.includes('Step 1'), // the editor with all steps
     };
   });

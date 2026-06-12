@@ -1,7 +1,8 @@
 // feat 142 — the footer Copy button: a TAP copies the weight to the next set (feat 58); a HOLD copies
 // the previous rep count into the open set's still-empty reps (so an identical-reps scheme logs in one
-// gesture). The hold is applicable only when there's an open set (weight in, reps empty) AND a prior
-// rep count to pull from (an earlier pending set, else the last logged set in history).
+// gesture). With an open set, the hold needs a prior rep count to pull from (an earlier pending set,
+// else the last logged set in history). feat 201 — with NO open set the hold now duplicates the most
+// recent set (weight AND reps) instead of no-op'ing; see copydupe.spec.mjs for the full matrix.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -41,23 +42,25 @@ test('hold-copy falls back to the last logged set in history when no prior pendi
   expect(Number(r)).toBe(12);
 });
 
-test('hold-copy is a no-op when there is no open set, and when there are no prior reps', async ({ page }) => {
+test('no open set → the hold dupes the last set (feat 201); open set with no prior reps stays a no-op', async ({ page }) => {
   const u = await stdUuid(page);
   const r = await page.evaluate((u) => {
     state.sessions = [];
     modalState.open = true; modalState.showPicker = false;
-    // (a) no open set — the bottom set already has reps
+    // (a) no open set — the bottom set already has reps → feat 201 duplicates it
     pending = { varUuid: u, subUuid: null, sets: [{ w: 100, r: 5 }] };
     copyRepsToOpenSet();
-    const noOpen = JSON.stringify(pending.sets);
+    const duped = pending.sets.map(s => ({ w: s.w, r: s.r }));
     // (b) an open set but no prior reps anywhere (no pending history, no logged history)
     pending = { varUuid: u, subUuid: null, sets: [{ w: 100, r: '' }] };
     copyRepsToOpenSet();
     const noPrior = pending.sets[0].r;
-    return { noOpen, noPrior };
+    return { duped, noPrior };
   }, u);
-  expect(r.noOpen).toBe(JSON.stringify([{ w: 100, r: 5 }])); // untouched
-  expect(r.noPrior).toBe('');                                // still empty (nothing to copy)
+  expect(r.duped).toHaveLength(2);            // feat 201 — a dupe row was created…
+  expect(String(r.duped[1].w)).toBe('100');   // …carrying the weight…
+  expect(String(r.duped[1].r)).toBe('5');     // …and the reps
+  expect(r.noPrior).toBe('');                 // open set with nothing to copy: still empty
 });
 
 test('the Copy button taps to copy-weight and holds to copy-reps (feat 142)', async ({ page }) => {

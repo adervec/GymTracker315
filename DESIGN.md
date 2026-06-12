@@ -109,8 +109,9 @@ They share variation **UUIDs**.
   current/done state, tap-an-option to log it, **live ETA** from `computePlanETA` = remaining sets ×
   `computeRestStats` set+rest times, and a **⚠ gym** warning via `stepImpossibleInGym` when an active gym can do
   none of a step's options). The feat-55 auto PUSH/PULL/LOWER/CORE suggester (`computeRemainingWork`) is gated to
-  run **only when no plan is attached**. The plans overlay (`#plans-panel`) is a full builder: list → editor
-  (name, add/reorder/delete steps, per-step set count, add movement/variation options via a search picker) → use.
+  run **only when no plan is attached**. The plan creator (the **`plan-creator` router page** since feat 184; was the
+  `#plans-panel` overlay) is a full builder: list → editor (name, add/reorder/delete steps, per-step set count, add
+  movement/variation options via a search picker) → use.
 - **Plan descriptions, history & more plans (feat 71):** plans and steps carry an optional `desc` (shown on the
   card, list, and editor). Seeding is now **additive by id** with a `state.seededPlanIds` ledger (new seed plans
   append for existing users; deleted ones don't reappear) and **backfills descriptions** onto pristine seed
@@ -852,6 +853,471 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **French internationalization (feat 222):** the feat-61 i18n groundwork goes live. **Français** joins
+  `LANGUAGES` (the drawer's Language picker was already wired to `setLang`), backed by an `I18N.fr` dictionary
+  (~100 keys) covering the **UI chrome**: top-bar buttons + static tagged markup, all **page titles** via a new
+  `pageTitle(id)` ('page.<id>' from the active dictionary, falling back to the registry's English title), which
+  the feat-221 **breadcrumb** and **nav tree** now render — so the whole navigation system speaks French
+  (Séance / Journal / Bilan / Préparation / Étude / Réglages…) — plus the **Body page end-to-end** (titles,
+  stat tiles, form fields, girth labels via `girthLabel()`, avatar card) as the dynamic-render pattern.
+  `t(key, params)` interpolation is used in anger ('{page} — ouvrir le plan de navigation', girth-unit
+  substitution). English remains the byte-identical default; the **reference/coaching/glossary content corpus
+  deliberately stays English** for now — flagged honestly in the Language setting's subtitle in both languages.
+  Covered by `test/i18n.spec.mjs` (fr registered + t() translate/interpolate/fallback chain, pageTitle en/fr/
+  passthrough, live chrome flip on setLang — html lang, top bar, breadcrumb, nav tree — French Body page,
+  picker → state + localStorage persistence via SETTINGS_KEYS, and English-by-default untouched).
+- **Nav rework v2 — breadcrumbs + global nav tree, no full-screen menus (feat 221):** three guarantees: you can
+  get **from any screen to any screen** (two taps), you can always **see where you are**, and **no screen is ever
+  just a nav menu**. The top-bar title is now a **breadcrumb** (`_pagePath`): ancestors as emoji crumbs, the current
+  page as emoji + name; every crumb opens the new **global nav tree** — a compact anchored popover (`#nav-tree`,
+  width ≤ min(370px, 94vw), height ≤ 68vh — never the whole screen) listing every leaf page grouped by section
+  (Execute / Reflect / Prepare / Study / Settings), with the current page highlighted and the tapped crumb's section
+  focused + scrolled into view. Menu ids (home/train/reflect/execute/prepare/study/settings) are now **grouping
+  nodes only**: `navTo()` forwards them to a designated `primary` leaf (home/train/execute→Workout, reflect→Log,
+  prepare→Gyms, study→Reference, settings→Preferences), so the old full-screen drill-down lists are unreachable and
+  the history stack only ever holds content pages — Back/Forward and the empty-stack parent fallback ride through
+  the resolution. Brand tap → Workout dashboard; ⚙️ → Preferences. Covered by `test/navtree.spec.mjs` (breadcrumb
+  path shape, crumb→focused tree with active chip, every leaf reachable yet popover < 78% viewport height,
+  any→any in two taps, backdrop/✕ close) + updated `router.spec` / `navtopbar.spec` / `glosspage.spec` /
+  `refpage.spec` / `datapage.spec` for the forward-to-primary contract.
+- **Profile-shaped wireframe avatar + circumference biometrics (feat 220):** the anatomy wireframe is now
+  **customizable by profile**. Body-comp entries grow seven optional **tape measurements** (neck / chest / waist /
+  hips / biceps / thigh / calf) behind a collapsible 📏 row in the Body form — stored canonically in **cm**, entered
+  and shown in cm (kg mode) or inches (lb mode), surfaced on the latest-stats line, prefilled on edit, exported in
+  the body-comp CSV and accepted by the biometrics JSON importer. A new **Wireframe Avatar** card on the Body page
+  picks **Classic** (the original outline, byte-for-byte) or **My profile**, plus playful **hat** (cap/beanie/
+  headband/crown/top hat/cowboy) and **hairstyle** (buzz/spiky/curly/mohawk/ponytail/long) overlays with a live
+  preview. Profile mode (`avatarProportions()`) shapes shoulders/chest/waist/hips/thighs/calves/arm thickness from
+  **gender** (Settings → Profile), **BMI** (latest weight + height, clamped), and the **newest logged girth per
+  dimension** — specific tape data overrides the BMI estimate. `anatomyOutline(cx, p?)` resolves the avatar itself,
+  so the glossary chart, the volume/live/replay heatmaps and the preview all pick it up automatically; `state.avatar`
+  ({style, hat, hair}) travels with settings (`SETTINGS_KEYS`). Covered by `test/avatar.spec.mjs` (classic default
+  byte-identical + no headgear, girth save/round-trip/CSV in inches→cm, proportions vs gender/tape/BMI, profile +
+  headgear reshaping the heatmap renderer and restoring on classic, Body-page card UI with live preview).
+- **Historical replay (feat 219):** a new **Reflect › ⏪ Replay** router page that scrubs or **▶ plays**
+  through training history week by week (capped at 104), animating four things in lockstep: the anatomy
+  **heatmap** for that week (full group/muscle/head toggles), the **top-6 volume bars**, a whole-history
+  **trend strip** (weekly set totals sparkline) with a glowing cursor at the replay position, and **that
+  week's log** (sessions with exercise/set counts + grades). Controls: ⏮ oldest / ▶⏸ / ⏭ now / a range
+  scrubber; Play restarts from the oldest week, advances every 1.1 s (test-tunable `_replayTickMs`),
+  stops itself at "now" and politely dies when you leave the page. Opens on the current week. Covered by
+  `test/replay.spec.mjs` (Reflect registration + opens-on-now with all parts, scrub swaps heat+log between
+  a squat week and a bench week, play runs oldest→now and self-stops, leaving the page kills the timer).
+- **Live-workout heatmap — hit so far + plan projection (feat 218):** the same wireframe renderer, live
+  on the workout dashboard while a session runs: **"Hit so far"** builds its accumulator from the active
+  session's saved sets plus COMPLETED pending sets (the feat-211 semantics — an open set paints nothing),
+  and **"When plan done"** layers on every remaining step's outstanding sets through its first option's
+  representative variation (`planProjectionMuscleAcc`), so you can see what the finished workout will have
+  covered before you do it. Mode pair + the group/muscle/head resolution toggles, set totals in the title
+  ("so far 6 sets" / "projected 18 sets"), projection disabled with a tooltip when no plan is attached, and
+  the card only renders for a live (un-ended) session. Covered by `test/liveheatmap.spec.mjs` (so-far
+  semantics incl. the open-set exclusion, projection math = remaining×steps onto the right muscles, the
+  dashboard card's mode/level flow with exact titles, and absent-card cases).
+- **Volume heatmap on the anatomy wireframe (feat 217):** the Volume page now opens with a 🔥 heatmap
+  card — weekly volume painted straight onto the built-in front/back wireframe figures. Resolution
+  toggles between **muscle group / muscle / muscle head** (the user-asked trio) or **🔁 auto-cycles**
+  through them every 3.5 s (test-tunable `_heatCycleMs`; the cycle politely kills itself when the card
+  leaves the DOM). Plumbing: `HEAT_REGION_MODEL` maps each `ANATOMY_REGIONS` wireframe ellipse set to its
+  volume-model group + muscle ids (regions outside the model — forearms, adductors, tibialis — render as
+  gray dashed "not modeled"); `heatValuesFromAcc(acc, level)` rolls any muscle-level accumulator up/down
+  (group rollup via `MUSCLE_INDEX`, head expansion via each muscle's `heads`), with the weekly source
+  being the existing `getWeeklyMuscleVolume` honoring `volWeekOffset`; `heatColor` maps value/max onto a
+  green→red hsla ramp (transparent at zero); `anatomyHeatmapSvg` re-renders the wireframe with filled
+  ellipses + per-region set-count tooltips and a 0→max legend. The renderer is deliberately
+  accumulator-agnostic — feat 218 feeds it live-workout and plan-projection accs. Covered by
+  `test/heatmap.spec.mjs` (region math incl. n/a + untouched, the color ramp, full-card render with exact
+  ellipse/na counts + level toggles, and the auto-cycle advance/self-stop).
+- **Info pack export (feat 216):** Settings › Data gained an **"Info pack export"** block: pick all or a
+  subset of the app's information sections — ❓ Help (the live `renderHelp` output), ℹ️ About (brand,
+  credit, `APP_BUILD`), 📋 Quick reference (every movement with its tag, 💡 quick cue and variation index,
+  with an as-of count), 🧭 Coaching guides (all `COACHING` cards with their sections), 📖 Glossary (every
+  term grouped by category) — and export them as a **fully branded, self-contained HTML document**: wordmark
+  header, generation timestamp, build number, data-last-saved stamp, and the complete
+  `legalDisclaimerHtml()` block appended to EVERY export (the legal section is not optional) plus an
+  informational-only footer. ⬆ downloads `gymtracker315-info-<date>.html` via `downloadText`; 🖨 stages the
+  same body in the feat-133 `#print-root` and calls `print()` (choose "Save as PDF"). Covered by
+  `test/infoexport.spec.mjs` (branding/date/build/disclaimers/footer on the full doc, subset keeps only its
+  picks but always the legal block, real section content + counts, the Data-page UI round-trip with a spied
+  download, and the print-root staging/cleanup).
+- **Note templates + stock-ticker display (feat 215):** variation notes keep their freetext, but the
+  feat-54 editor now opens with **eight quick-pick calibration chips** (💺 Seat, 🛋 Backrest, 💪 Armrest,
+  🦵 Leg pad, 📌 Pin/stack, 🤝 Handles, 📐 Incline, #️⃣ Machine #) that append a structured field to the
+  text — separator-aware (`· ` joins non-empty text) with the caret parked after the inserted label, so
+  "Seat: 4 · Pin: 7" takes three taps and two digits. The saved note then **plays like a stock ticker**
+  on the active exercise header: a single-line marquee (doubled content + `translateX(-50%)` keyframe for
+  a seamless loop) whose duration scales with text length (8–60 s), static under
+  `prefers-reduced-motion`. Covered by `test/notetemplates.spec.mjs` (chip set + separator-aware
+  appends, freetext save path untouched, ticker markup/animation/duration, no chips outside edit mode).
+- **Skip a step → back of the queue (feat 214):** every not-done step on the dashboard plan card now has
+  a **⏭** control: skipping does NOT remove the step — it goes onto `session.skippedSteps` (per-session,
+  skip-ordered, synced with the session) and `currentPlanStepIndex` serves unskipped steps first, then
+  skipped ones **in skip order** (oldest first), so a busy or unwanted station stops nagging but its work
+  never disappears. Everything downstream inherits the new pointer for free: the picker's step filter
+  (feats 114/115), the step HUD bar, rest-bar next-up (feat 177) and the feat-207 "time for X" cue. The
+  row dims with a struck number + a "skipped → back of queue" tag, the control flips to **↩** un-skip
+  (restores its natural place), and completing a skipped step anyway still counts/clears normally.
+  Covered by `test/skipstep.spec.mjs` (pointer walk incl. all-skipped oldest-first service + persistence,
+  done-beats-skipped, and the rendered control flow).
+- **Duplicate-step indicator (feat 213):** when one single variation could satisfy **2+ steps of the same
+  plan** (two curl-reachable steps, a pinned variation overlapping its own family step, …), those steps
+  now wear a dashed **⧉ with N** badge on the dashboard plan card, with a tooltip explaining that one
+  station can serve them all but each step still needs its own sets. `planDuplicateSteps(plan)` builds
+  per-step qualifying pools by testing every `VAR_INDEX` uuid through `optionMatchesVar` — so feat-166
+  alias resolution and feat-167 secondary parents count — and intersects them pairwise. Covered by
+  `test/dupsteps.spec.mjs` (movement×movement and movement×variation overlaps, disjoint and single-step
+  negatives, and the rendered badges naming their partner steps).
+- **Extra-set notches glow (feat 212):** sets logged BEYOND a plan step's target used to simply vanish —
+  the notch row was capped at the target count. Now the row grows by the overflow and every over-target
+  notch carries `.extra`: a **glowing `--warn` border** (box-shadow halo), with a **glowing warn fill**
+  when the extra set is complete and the feat-211 **checkered fill** (in warn) when it's still
+  in-progress. Pairs with feat 206's "Extra set N" spoken vocabulary. The X/Y label keeps showing the
+  honest counted overflow (e.g. `3/2 ✓`). Covered by `test/extrasets.spec.mjs` (the exact class sequence
+  `filled,filled,pending extra,inprog extra` + label + done state, the no-overflow negative, and computed
+  border/glow CSS resolution).
+- **In-progress sets no longer count toward plan X/Y + checkered notch (feat 211):** a set with a
+  weight entered but reps still pending used to inflate live plan progress (`pendingStepSets` counted any
+  weight-filled pending set), so a step could read "done" off the back of a set you hadn't finished. Now
+  only **completed** pending sets (weight AND reps) fold into `stepLoggedSets` — the feat-137 intent
+  (unsaved-but-complete sets count, revert on discard) survives intact — and a new display-only
+  `pendingStepOpenSets()` feeds the step HUD bar, where the in-prog set renders as a **checkered notch**
+  (`repeating-conic-gradient` checkerboard) between the dimmed pending-complete notches and the empty
+  ones; the X/Y label excludes it. `minpct.spec`'s live-progress expectation updated to the new contract.
+  Covered by `test/inprogsets.spec.mjs` (open set excluded from logged/done, no done-via-open-set, the
+  full notch sequence solid→dimmed→checkered→empty with the label, and reps landing converting the
+  checkered notch into a counted one).
+- **Gruff coach voice (feat 210):** all spoken output now defaults to a **deeper, gruffer,
+  tough-but-fair coach**. Within what the Web Speech API offers (voice choice + pitch/rate):
+  `pickCoachVoice()` ranks `getVoices()` for a deep male English voice (named-male heuristics score up,
+  female-named voices score down, local/default nudge; cache invalidated on `voiceschanged` since Chromium
+  loads voices async), and `coachify(u)` applies the profile — the picked voice + **pitch 0.8** — to every
+  utterance on all three speech paths: annunciations (`annunce`), the Mantranome chant
+  (`metroSpeakNextTip`) and tip narration (`speakRandomTip`). `state.ttsVoice` (a settings key):
+  `'auto'` (default, the coach pick) / `'system'` (leave the device voice completely untouched) / an
+  explicit voiceURI-or-name override that wins verbatim. Preferences → "🏋️ Coach voice" pills, with an
+  audible sample on switch ("Coach voice on. Get under the bar."). Covered by `test/coachvoice.spec.mjs`
+  (default+pitch profile vs system, ranked pick over stubbed voices + cache, explicit override, and an
+  utterance-capture proving all three paths run through `coachify`).
+- **Annunciation audio ducking (feat 209):** while a cue speaks, audio gets out of the way — within what
+  a web app can honestly do: **(1)** the app's OWN sounds (metronome ticks, rest beeps, UI clicks) route
+  through a new `duckedVol()` that drops to **30%** while an utterance is in flight (`_annDuckActive`,
+  armed by `annunce()` with `onend`/`onerror` + a 6 s safety timer so it can never stick); the speech
+  itself never ducks. **(2)** iOS 17+ is asked to duck other apps' music via
+  `navigator.audioSession.type='transient'` around the speech (feature-detected, restored to `'auto'`).
+  **(3)** Android generally ducks for system TTS on its own — noted in the setting's sub-text, which is
+  explicit that a web app cannot force other apps' volume. Default **on** (`annunciation.duck`); toggle
+  under the cue settings in Preferences. Covered by `test/annunce.spec.mjs` (default-on, 30% gain while
+  active + restore, annunce arms/skips the duck by setting, drawer toggle).
+- **Annunciation first/last-X limits (feat 208):** both spoken cues can now be bounded to where they
+  matter: with a limit **L** set, a cue speaks only for the **first L** or the **last L** sets
+  (`annunceWithinLimit(pos, L)` — the "last L" half needs the plan target `y`; plan-less positions honor
+  only the "first L" half; 0 = every set, the default). Separate `startLimit` / `endLimit` fields on
+  `state.annunciation`, two "↳ … cue limit" number inputs (0–10) under the toggles in Preferences. So
+  "limit 1" gives exactly the gym-useful pair: "First set of 4" … silence … "Last set — make it count".
+  Covered by `test/annunce.spec.mjs` (gate matrix incl. the muted middle and plan-less halves, a
+  3-set integration run speaking only first+last, drawer input persistence).
+- **Set-end annunciations (feat 207):** the closing half of the spoken-cue pair — when a set COMPLETES
+  (reps land; the `commitSetField` reps→`ts` rising edge, so rep edits on an already-done set stay silent
+  and a zero-rep entry never counts): **"One down — 3 to go" / "2 of 4 down" / "Half done" (at ⌈y/2⌉ for
+  targets ≥3) / "One more, then Squat" / "All done — time for Squat" / "Extra set down"**, or plan-less
+  "One down" / "3 down". `setPositionInfo` gained an `'end'` mode that counts completed sets only;
+  `nextStepLabelAfterCurrent()` names the next incomplete step after the current exercise's step (wrapping,
+  via `stepStatus`/`optionLabel`) so the all-done and one-more cues hand you to the next station. Toggle:
+  Preferences → "🗣 Annunciate set end" (off by default; same `state.annunciation` settings object).
+  Covered by `test/annunce.spec.mjs` (full end-phrase matrix, rising-edge/edit/zero-rep/off behavior, and
+  the plan flow speaking "One more, then <next>" → "All done — time for <next>").
+- **Set-start annunciations (feat 206):** a new opt-in spoken cue the moment a set STARTS (the canonical
+  `commitSetField` weight→`wTs` stamp, so the native inputs and the OSK share one hook; edits to an
+  already-open set stay silent): **"First set of 4" / "Set 2 of 4" / "Last set — make it count" /
+  "Extra set 1"** (beyond-target vocabulary that feat 212's glowing notches will mirror), or plan-less
+  "First set" / "Set 3". Plan-aware position via `setPositionInfo()` — the active plan's first step whose
+  options match the current exercise supplies the target `y`, with that step's SAVED sets counting toward
+  `x` (mid-edit sessions excluded). The new engine (`annunciationCfg` / `annunce` / `setStartPhrase` /
+  `annunceSetStart`) respects the master audio gate + headphone-only mode and never stacks utterances;
+  state lives in `state.annunciation` (a `SETTINGS_KEYS` member; `startLimit`/`endLimit`/`duck` fields are
+  pre-seeded for feats 207-209). Toggle: Preferences → "🗣 Annunciate set start" (off by default). Covered
+  by `test/annunce.spec.mjs` (default+persistence, the full phrase matrix, plan-aware x/y math,
+  speak-once-per-start with silent edits + silent when off, drawer toggle round-trip).
+- **Mantranome (feat 205):** the feat-103 "mantra mode" grew into a proper named feature. **(1) Renamed**
+  to 🧘 **Mantranome** in the Preferences drawer (sub-text now explains the cycle cap). **(2) The audio
+  dropdown controls the metronome**: the 🔊 sound menu gained a Metronome row — ▶ Start/⏸ Stop, a ±5 bpm
+  stepper (clamped 20–300, restarts a running metronome), and the 🧘 Mantranome chip — so tempo and chant
+  live where every other sound control lives (the per-source audio/haptic chips were already there; their
+  handler selector is now scoped to `.snd-src .snd-chip` so the new row's buttons keep their own handlers).
+  **(3) The 4-cycle cap**: `metroTick` tracks the set-active rising edge (`_metroWasActive`) and resets the
+  chant index when a NEW set starts; while chanting, once every cue has been spoken **4×** for the current
+  set (`_metroMantraIdx >= tips×4`) the tick falls through to the regular beep path — the chant teaches,
+  then gets out of the way. With no cues at all it now ticks instead of staying silent. Covered by
+  `test/mantranome.spec.mjs` (cap → ticks, rising-edge restart, dropdown run/bpm/chip controls, rename
+  sweep) with `metronome.spec` / `restcues.spec` green unchanged.
+- **Reference deep-link lands on the exact variation (feat 204):** `openReferenceFor` (the "full
+  reference" link from the current exercise's Tips & Details, and the top-bar long-press "Recent") used to
+  just fill the search box — the list narrowed but everything stayed collapsed, leaving the user to hunt.
+  Now a new `_refRevealVariation(famId, varUuid)` runs after the (synchronous) search re-render: it expands
+  the family card (`.exercise.open`), expands the precise `.variation[data-uuid]`, restarts the feat-99
+  `coach-flash` highlight on it, and smooth-scrolls it to center. Tree/table views (no expansion concept)
+  no-op silently and report `false`. Covered by `test/refdeeplink.spec.mjs` (routing + search + both
+  accordions open + flash + log-sheet closed, the variation body's Setup detail actually visible, and the
+  detailed-vs-table landing contract).
+- **Long-press teaching shimmer (feat 203):** while any hold is charging, every OTHER control that has its
+  own long-press action now **shimmers** (a soft accent box-shadow pulse), passively teaching what else can
+  be held — discoverability for the growing family of hold shortcuts (feats 99/108/142/199/200). Mechanism:
+  all three attachers (`attachLongPress`, `attachTrackerPress` when it has an `onLong`,
+  `attachTopbarLongPress`) tag their element `[data-lp-able]` at wire time and toggle `body.lp-teaching`
+  on hold begin/end; one CSS rule animates `body.lp-teaching [data-lp-able]:not(.lp-holding):not(:disabled)`
+  (the held button itself is excluded), with a static glow under `prefers-reduced-motion`. A capture-phase
+  `pointerup`/`pointercancel` listener on `document` is the safety net so the teaching state can never
+  stick after a mid-render release. Covered by `test/shimmer.spec.mjs` (wire-time tags on
+  Save/Clear/Copy/sound/settings, on→off around a hold with the holder excluded, off-button release safety
+  net, the CSS animation actually resolves to `lp-shimmer`).
+- **OSK setup key strikes through when not in effect (feat 202):** the numpad's equipment-setup key
+  (feat 78) now *passively* communicates state instead of just dimming or vanishing. Two struck cases:
+  **(a)** the tool exists but nothing is configured (total 0 — only possible for empty-default kinds like
+  dumbbell/kettlebell/plate/pin; a barbell's default is the bar itself) → label struck + key inert;
+  **(b)** the variation's tool override is **"none"** → previously the whole strip disappeared, now it stays
+  visible struck with an "· off" suffix and the ⚙ configurator still opens (showing the Tool selector, so
+  flipping the tool back on is one tap away). Implementation: `renderNpSetup` derives the tool itself
+  (override-aware), wraps the label in `.np-setup-text`, adds `.struck` (CSS line-through, icon unstruck);
+  `renderNumpad` renders/binds the strip for any weight field (`isW`) rather than gating on a pre-derived
+  kind. Covered by `test/oskstrike.spec.mjs` (struck+inert at total 0, configured total un-strikes via
+  `solveSetupState`, override-none stays visible/struck/recoverable, reps fields never show the strip).
+- **Hold 📋 Copy with no open set = duplicate the last set (feat 201):** the feat-142 hold (fill the open
+  set's empty reps) used to no-op with a toast when nothing was open. Now `copyRepsToOpenSet` routes that
+  case to a new `duplicateLastSet()`: it appends a set carrying BOTH the weight and reps of the most recent
+  set — the latest valid pending set, else the last logged set in history for this exercise — reusing the
+  form's single blank row when one exists (the feat-65 invariant) and committing through `commitSetField`
+  (proper `wTs`/`ts` stamps, persistence, save-button refresh, both fields flashed per feat 149). So the
+  one-gesture flow is now: hold Copy → identical set created → hold Save → logged, no popups anywhere.
+  Open-set behavior is unchanged; with nothing anywhere it stays a toast no-op. Covered by
+  `test/copydupe.spec.mjs` (dupe from pending, blank-row reuse, history fallback picks the LAST set of the
+  most recent session, feat-142 path intact, empty no-op) + the updated `copyreps.spec.mjs` contract.
+- **Hold ✕ Clear to skip the confirm (feat 200):** same gap and same fix as feat 199, on the other footer
+  button: the only "long-press" Clear ever had was the feat-32 arm-then-hold flow (tap first, *then* hold —
+  reads as broken). The confirmed-clear body moved out of `clearPendingModal` into a shared
+  `doClearPending()` (guarded to no-op silently when nothing is pending, so a stray feat-32 armed resolve
+  after a direct hold can't double-toast), and the static `#trk-modal-clear` is wired once through
+  `attachTopbarLongPress`: tap → `clearPendingModal` (popup / arm flow as before), 1.2 s hold → straight to
+  `doClearPending`. An empty-state hold toasts "Nothing to clear". Covered by `test/holdclear.spec.mjs`
+  (hold clears with zero `.choice-backdrop` + picker returns, tap still asks + cancel keeps data,
+  empty-state no-op).
+- **Hold 💾 Save to skip the confirm (feat 199):** "long-press Save to avoid the popup" never actually
+  existed — the footer button only had per-mode `onclick` handlers, and the feat-32 hold-to-confirm flow
+  needed a tap *first* to arm. Now the static `#trk-save-btn` is wired once through `attachTopbarLongPress`
+  (the feat-142 Copy pattern: tap keeps the existing onclick, a 1.2 s hold fires the shortcut and swallows
+  the trailing click): the hold sets a one-shot `_saveSkipConfirm` flag and re-invokes the button's own
+  current-mode handler, so sets / cardio / superset all get "hold = same save, no popup". `saveSets`'s
+  confirm gate (`hasInfeasible || alwaysConfirm`) honors the flag for that one synchronous invocation —
+  deliberate, user-initiated skipping of the over-limit warning included. A hold on a disabled Save is a
+  no-op. Covered by `test/holdsave.spec.mjs` (hold saves with zero `.choice-backdrop`, tap still asks +
+  cancel leaves nothing saved + the flag never leaks, disabled-hold no-op).
+- **Freemotion chest fly (feat 198):** the Freemotion dual-cable chest fly was missing from the library.
+  Two variations join the `chest-fly` family via the `EXTRA_VARIATIONS` injector (uuids `f8ee0001…/f8ee0002…`):
+  **Freemotion Cable Chest Fly** (independent swing arms, constant-tension fly arc) and **Freemotion Chest
+  Fly — Half-Dome Seat** (the same station with a half dome on the seat — unstable surface, lighter load,
+  more core; tracked separately on purpose so the two loads don't muddy one progress trend). Both carry full
+  reference detail (cue/setup/movement/mistakes/programming/tip), mirror into the Reference dataset, pass the
+  picker gate, and log standard weight×reps. Freemotion joined the About-page trademark disclaimer list.
+  Covered by `test/freemotion.spec.mjs`.
+- **Abandon time ×3 (feat 197):** the open-set auto-reap (`abandonMinutes`, feat 51 — deletes a set with a
+  weight entered but no reps after N minutes) defaulted to **5 minutes, ~3× too quick** in real gym use (a
+  long rest + a chat = your loaded set vanished). The default is now **15 min** everywhere it appears (state
+  default, `ensureWC`, the drawer input fallback, `reapAbandonedSet`'s fallbacks), and `normalizeState`
+  migrates a stored `5` (the old default) forward to 15 so existing devices pick up the new pace — a
+  deliberate non-default value (e.g. 8 or 30) is left alone. Covered by `test/abandontime.spec.mjs` (fresh
+  default, 5→15 migration, deliberate-value preservation, and reap behavior at 10 vs 16 minutes).
+- **A heaping helping of masterly crafted plans (feat 196):** `SEED_PLANS` grew **tranche 6 — 20 new plans**
+  that finally exploit the library's untouched breadth (the previous tranches drew on ~29 of the 84 movement
+  families): implements (**Kettlebell Complete**, **Landmine One-Bar**, **Strongman Saturday**, **Power & Speed**,
+  **Band Anywhere**, **Athletic Power 30**, **Kettlebell Builder (90m)**), the feat-194 disciplines as *runnable*
+  plans (**Yoga Foundations Flow**, **Pilates-Style Core Control**, **Morning Mobility 15**, **Deep Stretch Hour**,
+  **Active Recovery Day**), cardio engines (**HIIT Engine Room**, **Zone 2 Base**, **Race Sim (HYROX-style)**), joint
+  health (**Knees Over Toes**, **Shoulder Prehab**, **Desk Posture Reset**) and specialty days that cross-link the
+  Advice guides (**Grip Forge**, **Climber Conditioning**). Discipline plans pin **real variation uuids** probed at
+  runtime via the new `tools/probe-families.mjs` (the feat-175 lesson institutionalized), so e.g. the yoga flow runs
+  Sun Salutation → Warrior II → Tree → Pigeon by name. The picker now spans **9+ derived categories** (Mobility,
+  Recovery, Cardio and Upper/Pull/Legs/Core join the classics), all three length buckets (15 m – 90 m additions;
+  3 h stays the ceiling) and the full 1–5 intensity range. Also fixes a latent **duplicate-id bug**: tranche 4's
+  *Core & Midsection* reused `id:'seed-core'` (taken by tranche 1's *Core & Conditioning*), so it **never seeded**
+  for anyone — renamed to `seed-midsection`, it now appears via the additive `seededPlanIds` ledger, and the new
+  spec asserts seed-plan ids stay unique. Covered by `test/planlibrary.spec.mjs` (presence/completeness, every
+  pinned familyId+uuid resolves, unique ids + resurrection, category/bucket/intensity spread, 90/180 clusters
+  hold with the 180-min max, fresh-user seeding + GymTracker315 authorship).
+- **Cleanup — Data folded into the router (feat 195):** Settings › Data became a proper **router page**
+  (`renderDataPage`), completing the Settings "everything its own page" split — `set-data` was the last leaf still
+  served by a bare overlay opener. The full‑screen `#data-page` is now shown via `navTo('set-data')`
+  (`openDataPage` → `navTo`), its Done/✕ + leaving go through `navBack`, and `renderCurrentPage` calls
+  `_syncDataOverlay()` to hide it when you navigate away — the same overlay‑as‑page pattern as Glossary. The
+  load‑bearing `#drawer-data-wrap` → `#data-page-body` relocation (built by `renderSettingsDrawer`) is **unchanged**,
+  so the `datapage` / `sync` / `dataexport` specs stay green (they relocate with `currentPage='workout'`, which
+  `_relocateSettingsPage` leaves alone). `router.spec`'s open‑leaf case moved to `exercise` (now the only `open:`
+  leaf). The legacy settings *drawer* and the hidden nav‑tabs are intentionally **kept** — they are load‑bearing
+  (the drawer renders every settings page's sections; the nav‑tabs are the `switchPanel` surfacing primitive), not
+  dead code.
+- **Yoga / Pilates / Mobility coaching + progression (feat 194):** the **finale** of the epic — three new `COACHING`
+  cards on the Advice page (Study › Advice), cross‑linked to the feat‑128 `mega:'mobility'` Reference families.
+  **🧘 Yoga** (Hatha / Vinyasa / Yin, breath‑leads, patient progression, a foundational sun‑salutation flow),
+  **🩰 Pilates** (the six principles, mat vs reformer, control‑then‑load, a starter set + safety), and **🤸 Mobility &
+  Flexibility** (dynamic‑vs‑static timing, CARs, range → load → control, a weekly template). `coachingCardForExercise`
+  now routes `mega:'mobility'` moves to the matching card (sun‑salutation / downward‑dog → Yoga, else → Mobility), so
+  the relevant‑coaching jump lands on them. The bundled‑guide `📖` chip became **optional** in `renderCoaching` (the
+  new cards are full coaching cards without a separate deep‑dive guide document). `test/coaching.spec.mjs` updated
+  (six cards, the new ids, mobility routing). With this the whole navigation‑rework + new‑guides epic is shipped.
+- **Equipment page (feat 193):** Prepare › Equipment became a **router page** (`renderEquipmentPage`) instead of a
+  toast. Equipment setup is inherently per‑exercise (the inline bar / dumbbell / kettlebell / pin‑stack loader in the
+  log sheet, `modalState.setup`) plus per‑gym stables (feat 135) — there is no standalone equipment state — so the
+  page explains both levels and links to where each is configured: **✍️ Open an exercise** (→ the log sheet / Exercise
+  page) for the per‑exercise loader, and **📍 Manage gym equipment** (→ the Gyms page) for the per‑gym stables (the
+  active gym is surfaced). Covered by `test/equipmentpage.spec.mjs`. With this, every Prepare leaf is a real page.
+- **Exercise page — the log-sets sheet joins the router (feat 192):** the **highest‑risk** conversion, taken by the
+  safe route. Instead of re‑homing the whole log‑sets flow into `#trk-main` (the `_modalHost` rewrite), the existing
+  `#trk-modal` sheet — already a full‑screen surface below the top bar — is **router‑integrated as the `exercise`
+  page**: `openLogModal()` / `editExisting()` also mark `currentPage='exercise'` (the top bar shows ✍️ Exercise + an
+  enabled Back, and the ✍️ workout‑shortcut lights up) via `_markExercisePage()`, and `closeLogModal()` restores the
+  page behind the sheet via `_restoreFromExercisePage()` (remembering `_exercisePrevPage`). `topbarBack` closes the
+  sheet when it's open. The sheet's **content, picker, OSK numpad, equipment setup, and the entire save flow are
+  untouched** — only the surrounding chrome changed, so the whole logging‑spec cluster stayed green (722). Covered by
+  `test/exercisepage.spec.mjs`; `router.spec`'s open‑leaf case moved to `set-data`. (A later cleanup could re‑home the
+  sheet's *content* into `#trk-main` proper, but the overlay‑as‑page keeps the app's core flow risk‑free.)
+- **Reference page — last of the 3‑panel‑switcher teardown (feat 191):** Study › Reference became a **router page**.
+  Rather than rewrite the whole `renderRef` catalog (its own search / mega + equip filters / detailed·tree·table
+  views), `#panel-reference` is now the **host panel for the reference page**: the panel‑surfacing was reworked so the
+  active panel keys off `currentPage` — `_surfacePanelForPage()` (called from `renderCurrentPage`) shows
+  `panel-reference` when `currentPage==='reference'` and `panel-tracker` otherwise (it `switchPanel`s directly to
+  avoid recursing through the navTo shim). The old pre‑`currentPage` `_surfaceTracker()` calls were dropped from
+  `navTo` / `navBack` / `navForward`, and `topbarBack` collapsed to a plain `navBack()` now that Reference is in the
+  router history. Every entry point routes to the page: `goPanel('panel-reference')` → `navTo('reference')` (covers
+  `openInReference`, `topbarReferenceCurrent`), plus `openReferenceFor(uuid)` and the hidden 📚 nav‑tab.
+  `renderReferencePage` clears `#trk-main` (it's covered by the panel) and re‑runs `renderRef`. Covered by
+  `test/refpage.spec.mjs`; the coaching / navtopbar crosslink + panel‑switcher tests stay green. With this, all three
+  legacy slide‑ins (coaching, glossary, reference) are gone — `switchPanel` survives only as the thin surfacing
+  primitive for `panel-tracker` ↔ `panel-reference`.
+- **Glossary + Anatomy pages (feat 190):** Study › Glossary and Study › Anatomy became **router pages**, and the
+  glossary slide‑in mode is retired — it always shows **full‑page** now (the user's "never a slide‑in / full page").
+  The existing `#ref-gloss-panel` overlay machinery (search, category filters, term list, the feat‑30 anatomy chart +
+  OCR hotspots) is reused verbatim: `_showGlossOverlay(chartOpen)` displays it (Glossary → list, Anatomy → chart pane
+  open) and `renderGlossaryPage` / `renderAnatomyPage` are the leaf renderers. External entry points are now router
+  shims — `openGloss()` → `navTo('glossary')`; `openGlossaryTo(term)` re‑renders in place when you're already on the
+  page (an anatomy hotspot) else `navTo('glossary')`, so highlight‑to‑glossary, the Reference glossary button, the
+  📖 long‑press, and the anatomy crosslinks all land on the page. The panel keeps its own header; its **✕ and Escape
+  go Back through the router** (`navBack`), and `renderCurrentPage` calls `_syncGlossOverlay()` to auto‑hide it when
+  you navigate away. (The panel still sits above the app top bar — a later cleanup can re‑home it below the bar for
+  full chrome consistency.) Covered by `test/glosspage.spec.mjs`; `test/anatomy.spec.mjs` (which drives
+  `renderAnatomyChart` directly) is unaffected.
+- **Advice page — coaching out of the panel switcher (feat 189):** Study › Advice became a **router page**
+  (`renderAdvicePage`) and the **`panel-coaching` slide‑in was retired** — the first dismantling of the legacy
+  3‑panel switcher. The Coaching & Progression content (endurance / bouldering / grip cards + the bundled‑guide
+  reader) renders into `#trk-main` by reusing `renderCoaching()` / `bindCoaching()` verbatim against
+  `#coaching-content`. `goPanel('panel-coaching')` is now a shim → `navTo('advice')`, so every entry point flows to
+  the page: the Reference panel's `.coach-banner`, the `topbarCoachingRelevant` long‑press (its scroll‑to‑relevant
+  card still works), and the hidden 🧭 nav‑tab (rewired to `navTo('advice')`). The bundled‑guide reader
+  (`#guide-reader`, body‑level) and the coaching↔Reference crosslinks are unchanged. `test/coaching.spec.mjs`
+  updated: the five panel‑coaching cases now drive `navTo('advice')` and assert `currentPage==='advice'` /
+  `#trk-main #coaching-content`. (Reference / Glossary / Anatomy follow in later phases.)
+- **Contextual workout shortcuts (feat 188):** while a workout is active, the top bar grows a **third row** —
+  🔥 Workout · ✍️ Exercise · 🏁 End — for one‑tap access from anywhere; it's hidden otherwise (the nav stays a pure
+  hierarchy, the locked decision). Visibility is driven by `body.workout-active`, toggled by `updateWorkoutBar()`
+  (called from `refreshRestBar`, which runs on every workout‑state change), and the row grows `--topbar-h` by 40px so
+  every fixed offset (panel padding, rest/step bars, log sheet) keys off the taller bar automatically (122px, or 84px
+  with the brand hidden — a two‑class selector wins by specificity). 🔥 → `navTo('workout')` (highlighted when
+  there) · ✍️ → `navTo('exercise')` (the log‑sheet shim until the Exercise page lands) · 🏁 → the feat‑108
+  `attachTrackerPress` (a tap confirms, a hold skips). The `#rest-bar` deep‑link was rewired from the legacy
+  `switchPanel`+`currentTab` dance to a plain `navTo('workout')`. Covered by `test/workoutshortcuts.spec.mjs`
+  (hidden↔shown + the 82→122px height, navigation + highlight, end hides it, rest‑bar deep‑link).
+- **Settings split — Profile / Cosmetic / Preferences pages (feat 187):** the next slice of "everything its own
+  page." The three leaves stopped opening the all‑in‑one drawer and became **router pages** that each relocate a
+  *bucket* of the existing settings‑drawer sections (DOM nodes + their live bindings) into `#trk-main` — the same
+  proven trick as the Data Management page (`#drawer-data-wrap`). A `SETTINGS_PAGE_SECS` map routes each `data-sec`
+  section to a page: **Profile** = profile + biometrics · **Cosmetic** = theme + branding · **Preferences** =
+  language, preferences, workout‑session, metronome, rest‑timer‑cues, live‑dashboard, categories, reference. The
+  branding toggle was promoted from a row inside *Preferences* into its own **Branding** section so it lands under
+  Cosmetic (themes/branding). `renderSettingsDrawer()`'s tail now calls `_relocateSettingsPage()`, so any toggle whose
+  binding re‑renders the drawer (pref pills, theme swatches) refreshes the open page **in place**. The legacy drawer
+  still exists for the ⚙️ long‑press + sound‑menu "More" entry points; the Gyms drawer section is intentionally not
+  bucketed (gym management lives on the dedicated Gyms page). Covered by `test/settingspages.spec.mjs` (disjoint
+  buckets, branding under Cosmetic, in‑place toggle refresh, legacy drawer intact). Data + the remaining drawer
+  retire in a later phase.
+- **Help page (feat 186):** Settings › Help became its own **router page** (`renderHelpPage`) — the same content as
+  the ❓ quick-help overlay, now **searchable + collapsible** (the user asked for "up-to-date, searchable,
+  collapsible"). `renderHelp()` gained an optional target id so the page reuses its exact copy verbatim (no
+  duplication); `_decorateHelpCollapsible()` then groups each `<h3>` section into a `<details>`, and a sticky search
+  box live-filters the sections (auto-expanding matches). The content styles were promoted from `#help-body` to a
+  shared `.help-content` class so the overlay and the page render identically. The `set-help` leaf flips from
+  `open:()=>openHelp()` to a `render` page; the top-bar ❓ overlay is left unchanged for quick access. Covered by a
+  `test/legal.spec.mjs` case (sections present + collapsible, search narrows the visible list).
+- **About page (feat 185):** Settings › About became its own **router page** (`renderAboutPage`) instead of a
+  collapsible section buried in the settings drawer — the build stamp (`APP_BUILD`), the early-access notice, the
+  designer / Claude-Code credit, and the **consolidated disclaimer / trademarks / MIT-licence** block (reusing the
+  single `legalDisclaimerHtml()` source, now shown expanded in a card rather than behind a `<details>`). The
+  `set-about` leaf flipped from `open:()=>openSettingsDrawer()` to a `render` page — the first slice of the Settings
+  "everything its own page" split. `test/legal.spec.mjs` adds a case asserting the page carries the build + the
+  disclaimer keys (no-advice / MIT / trademarks).
+- **Plan Creator → page (feat 184):** the Workout Plans creator/list/editor moved out of the `#plans-panel`
+  slide-in into the **router page `plan-creator`** (Train › Prepare › Plan Creator), retiring the overlay DOM +
+  chrome CSS entirely. `renderPlansOverlay()` now hosts its list / editor / revision-history sub-views in `#trk-main`
+  whenever `currentPage==='plan-creator'`; the entry points became page adapters — `openPlansOverlay()` resets the
+  picker filters and `navTo('plan-creator')`, while `openPlanFull(id)` sets a transient `_plansDeepLink` so the page
+  render opens straight to that plan's editor (plain menu / `openPlansOverlay` entries default to the list root via
+  `renderPlanCreatorPage`). In-page sub-navigation (Edit · 🕘 History · ← All plans) re-renders within the page via
+  the existing direct `renderPlansOverlay()` calls; the top-bar ◀ Back leaves the page. Picking **Use** now
+  `navTo('workout')` (lands you on the dashboard with the plan active) instead of closing an overlay; the
+  `closePlansOverlay()` shim is a thin `navBack()`. Dashboard deep-links (plan progress line, Plans / Change buttons,
+  `#wc-plans-btn`) are unchanged — they flow through the same adapters. `planlist` / `minpct` / `planrevisions` /
+  `plandash` specs updated to read `#trk-main` + assert `currentPage==='plan-creator'` instead of the retired
+  `#plans-body` / `#plans-panel`.
+- **Plan Detail → page (feat 183):** the detailed plan-execution view (feat 145/163/164) moved out of the
+  `#plans-panel` overlay into the **router page `plan-detail`** (Train › Execute › Plan Detail). `openPlanExecution`
+  now stashes the target plan/session ids and `navTo('plan-detail')`; `renderPlanDetailPage(main)` resolves the
+  plan+session (explicit ids → else active) and hosts `renderPlanExecutionView` in `#trk-main` (a friendly empty
+  state when there's no execution). The view's Back button is now a page `navBack()`. Every existing entry point
+  (rest bar, step bar, session badges, dashboard progress) flows through `openPlanExecution`, so they all open the
+  page unchanged. `test/planexec.spec.mjs` updated to assert `currentPage==='plan-detail'` + read `#trk-main`
+  instead of the overlay. (feat 181 already turned the container-based screens — Log/History/Trends/Volume/Gyms/
+  Body/Achievements — into working pages, so this kicks off the overlay→page conversions.)
+- **Top-bar redesign — brand centered/topmost + Back/Forward (feat 182):** phase 2 of the nav rework makes the
+  router visible. The **GymTracker315 brand** moved out of the tracker-panel header into a dedicated **centered,
+  topmost row** of `#app-topbar` (tap → Home); below it a controls row carries **◀ Back / page-title / ▶ Forward**
+  (`topbarBack`/`navForward`, disabled when the history stack is empty), then 🔊 ⚙️ ❓. The gear now routes to the
+  Settings menu (`navTo('settings')`). The two-row bar made the topbar taller, so all fixed offsets (panel
+  `padding-top`, `#trk-modal` / `#rest-bar` / `#plan-step-bar` positions, and their rest/step-bar combos) were
+  refactored onto a single **`--topbar-h`** variable (`calc(var(--topbar-h) + …)`); `body.brand-hidden` both hides
+  the brand row and collapses `--topbar-h` to the controls row, so the whole layout shrinks with one knob.
+  `updateTopbarChrome()` keeps the title + Back/Forward state fresh each render; `_surfaceTracker()` brings the
+  tracker panel forward on page navigations, and `topbarBack()` exits a Reference/Coaching slide-in back to the app.
+  The legacy 📈/📚/🧭 panel switcher + 📖 glossary button are **hidden but kept in the DOM** (compat) until
+  Reference/Advice become pages — then removed in feat 196; `coaching.spec`/`feedback.spec` now drive panels via
+  `goPanel()`. Covered by `test/navtopbar.spec.mjs` (brand topmost+centered, hide collapses the offset, Back/Forward
+  enable/disable, title, brand→Home + gear→Settings, hidden switcher + panel-exit Back); `restbaroverlap.spec`
+  updated for the new offsets.
+- **Page router — keystone of the nav rework (feat 181):** first phase of the total IA rework (drill-down pages +
+  back/forward, per the approved plan). Adds a thin router over the existing renderers: a `PAGES` registry (`id →
+  {title, emoji, kind:'menu'|'leaf', parent, tab?, render(main) | open()}`) covering the full target tree (Home ›
+  Train{Reflect/Execute/Prepare}/Study/Settings), `navTo(id)` with a depth-capped back/forward stack
+  (`navBack`/`navForward`, `localStorage gt_page`), and `renderMenu(main, children)` for the drill-down menus. The
+  tracker `render()` now routes through `renderCurrentPage()` (dispatch on `currentPage`), but **everything stays
+  backward-compatible**: `currentTab` is kept as a mirror, `switchToTab` routes through `navTo`, and a `_navTab`
+  guard makes the legacy `currentTab = X; render()` pattern still work — so the 648 existing tests pass unchanged.
+  Leaves not yet converted to pages (Exercise, Plan Detail, Reference, Glossary, Settings, …) carry an `open()` that
+  calls their existing overlay opener, so the hierarchy is wired end-to-end while screens migrate incrementally
+  (feat 182+). No content moved yet; the top bar is unchanged this phase. Every nav button has a unique emoji.
+  Covered by `test/router.spec.mjs` (unique-emoji registry, leaf render + currentTab mirror + tab highlight, menu
+  drill-down + item click, Back/Forward + parent-fallback + depth cap, legacy-opener leaves, switchToTab/`currentTab`
+  compatibility, `gt_page` persistence).
+- **Calendar view of the Log (feat 180):** the Log tab gains a **List / Calendar** toggle (`_logView`). The calendar
+  (`renderLogCalendar`) draws a month grid (Sun-start) from `_sessionsByDay()`; each day with logged session(s) is
+  highlighted and shows a **grade chip** (`sessionGrade`, colour-coded S/A→green … D→grey) or a dot, plus a **×N**
+  badge for multiple sessions. **‹ / ›** page months (`_shiftMonth`, year-wrapping), **Today** jumps back to the
+  current month, and tapping a workout day expands that day's full session card(s) below the grid (reusing
+  `renderSession` + `bindSessionCards`). Today's cell and the selected day are outlined. View state is in-memory
+  (`_logView` / `_calYM` / `_calSelDay`); the grade filter stays a List-view concern. Covered by
+  `test/logcalendar.spec.mjs` (toggle routing, only-workout-days marked + ×N, day-select expands the cards + hint
+  otherwise, month-wrap navigation, controls present).
+- **Exercise-picker filters stack with the plan step (feat 179):** picking a plan-step chip in the exercise picker
+  used to **override** the mega/sub/equip pills (it showed only the step's exercises and ignored the pills). Now a
+  step change **resets** those pills + search to "all" (`resetPickerNormalFilters`) so every one of that step's
+  compatible variations shows, and the pills/search then **stack** with (intersect) the step set instead of being
+  ignored — letting you narrow *within* a step. The result count reads **"X of Y step-compatible variations shown"**
+  while a step is active (`filterVariations` / `renderPickerResults`). Wired at all three step entry points: the
+  picker step chip, `openStepPicker` (dashboard), and the post-save auto-advance. Covered by
+  `test/planpicker.spec.mjs` (stacking intersection, filter-reset on entry, X-of-Y count).
 - **Favorite plans & variations (feat 178):** a ★ toggle on every plan row and every exercise-picker row, backed by
   two synced settings maps (`state.favoritePlans` / `state.favoriteVars`, both in `SETTINGS_KEYS`, defaulted in
   `normalizeState`). Helpers `isFavPlan`/`toggleFavPlan` + `isFavVar`/`toggleFavVar` (+ a shared `favStarHtml`

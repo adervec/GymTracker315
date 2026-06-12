@@ -127,7 +127,7 @@ test('the editor shows the revision bar; Commit/Revert disabled when clean', asy
   await freshPlan(page);
   const r = await page.evaluate(() => {
     _plansEditId = 'P'; _plansRevView = false;
-    const body = document.getElementById('plans-body');
+    const body = document.getElementById('trk-main'); // feat 184 — the editor renders into the page container
     renderPlanEditor(body, getPlan('P'));
     const commit = body.querySelector('#plan-commit-btn'), revert = body.querySelector('#plan-revert-btn');
     return { hasBar: !!body.querySelector('.plan-rev-bar'), commitDisabled: commit.disabled, revertDisabled: revert.disabled, hasHistory: !!body.querySelector('#plan-history-btn') };

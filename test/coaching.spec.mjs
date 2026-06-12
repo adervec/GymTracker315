@@ -86,22 +86,38 @@ test('new exercises pass the picker visibility gate (recordable)', async ({ page
   expect(visible.climbing).toBe(true);
 });
 
-test('Coaching tab renders three discipline cards linking the bundled guides', async ({ page }) => {
-  expect(await page.locator('.nav-tab[data-panel="panel-coaching"]').count()).toBe(1);
-  await page.click('.nav-tab[data-panel="panel-coaching"]');
-  await expect(page.locator('#panel-coaching')).toHaveClass(/active/);
-  await expect(page.locator('#coaching-content .coach-card')).toHaveCount(3);
-  const ids = await page.locator('#coaching-content .coach-card').evaluateAll((els) => els.map((e) => e.id));
-  expect(ids).toEqual(['coach-endurance', 'coach-bouldering', 'coach-grip']);
-  const gids = await page.locator('#coaching-content button.coach-chip.guide').evaluateAll((b) => b.map((x) => x.getAttribute('data-guide')));
-  expect(gids).toEqual(['endurance', 'bouldering', 'coc']);
+test('the Advice page renders all discipline cards; only bundled-guide cards show a 📖 chip (feat 189/194)', async ({ page }) => {
+  await page.evaluate(() => navTo('advice')); // feat 189 — coaching is a router page (was the panel-coaching slide-in)
+  expect(await page.evaluate(() => currentPage)).toBe('advice');
+  await expect(page.locator('#trk-main #coaching-content .coach-card')).toHaveCount(6); // feat 194 — + yoga / pilates / mobility
+  const ids = await page.locator('#trk-main #coaching-content .coach-card').evaluateAll((els) => els.map((e) => e.id));
+  expect(ids).toEqual(['coach-endurance', 'coach-bouldering', 'coach-grip', 'coach-yoga', 'coach-pilates', 'coach-mobility']);
+  const gids = await page.locator('#trk-main #coaching-content button.coach-chip.guide').evaluateAll((b) => b.map((x) => x.getAttribute('data-guide')));
+  expect(gids).toEqual(['endurance', 'bouldering', 'coc']); // the new yoga/pilates/mobility cards have no bundled deep-dive guide
+});
+
+test('mobility-family moves route to the yoga / mobility coaching cards (feat 194)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const uuidOf = (famId, varId) => { const f = FAMILIES.find((x) => x.id === famId); if (!f) return null; const v = (f.variations || []).find((x) => x.id === varId) || (f.variations || [])[0]; return v ? v.uuid : null; };
+    const sun = uuidOf('mobility-warmup', 'sun-salutation');
+    const dog = uuidOf('static-stretch', 'downward-dog');
+    const iso = uuidOf('iso-poses');
+    return {
+      sun: sun ? coachingCardForExercise({ varUuid: sun }) : null,
+      dog: dog ? coachingCardForExercise({ varUuid: dog }) : null,
+      iso: iso ? coachingCardForExercise({ varUuid: iso }) : null,
+    };
+  });
+  expect(r.sun).toBe('coach-yoga');     // "sun salutation" matches the yoga title rule
+  expect(r.dog).toBe('coach-yoga');     // "downward dog" matches the yoga title rule
+  expect(['coach-mobility', 'coach-yoga']).toContain(r.iso); // a mobility-family pose lands on a mobility card
 });
 
 test('guides are embedded in-file and open in the themed in-app reader', async ({ page }) => {
   // all three guides are baked in as inert <template>s — no external /Guides needed
   expect(await page.locator('template[id^="guide-"]').count()).toBe(3);
 
-  await page.click('.nav-tab[data-panel="panel-coaching"]');
+  await page.evaluate(() => navTo('advice')); // feat 189 — the Advice page
   await page.click('#coach-bouldering button.coach-chip.guide');
 
   // reader overlay opens with an iframe whose srcdoc carries the guide + a theme override
@@ -121,7 +137,7 @@ test('guides are embedded in-file and open in the themed in-app reader', async (
 });
 
 test('the guide reader can be escaped three ways (close button, Escape, Back)', async ({ page }) => {
-  await page.click('.nav-tab[data-panel="panel-coaching"]');
+  await page.evaluate(() => navTo('advice')); // feat 189 — the Advice page
   const reader = page.locator('#guide-reader');
   const openGrip = () => page.click('#coach-grip button.coach-chip.guide');
 
@@ -143,20 +159,20 @@ test('the guide reader can be escaped three ways (close button, Escape, Back)', 
   await expect(reader).toHaveClass(/open/);
   await page.goBack();
   await expect(reader).not.toHaveClass(/open/);
-  await expect(page.locator('#panel-coaching')).toHaveClass(/active/); // still in the app
+  expect(await page.evaluate(() => currentPage)).toBe('advice'); // still on the Advice page (not left the app)
 });
 
 test('crosslink: a coaching chip opens that activity in the Reference', async ({ page }) => {
-  await page.click('.nav-tab[data-panel="panel-coaching"]');
-  await page.click('#coach-endurance .coach-chip[data-coach-search="bike"]');
+  await page.evaluate(() => navTo('advice')); // feat 189 — the Advice page
+  await page.click('#trk-main #coach-endurance .coach-chip[data-coach-search="bike"]');
   await expect(page.locator('#panel-reference')).toHaveClass(/active/);
   await expect(page.locator('#ref-search')).toHaveValue('bike');
 });
 
-test('reverse crosslink: the Reference banner opens the Coaching tab', async ({ page }) => {
-  await page.click('.nav-tab[data-panel="panel-reference"]');
+test('reverse crosslink: the Reference banner opens the Advice page (feat 189)', async ({ page }) => {
+  await page.evaluate(() => goPanel('panel-reference')); // feat 182 — panel switcher is hidden; drive via goPanel
   await page.click('#panel-reference .coach-banner');
-  await expect(page.locator('#panel-coaching')).toHaveClass(/active/);
+  expect(await page.evaluate(() => currentPage)).toBe('advice'); // the banner now opens the Advice router page
 });
 
 test('mobility content: new dynamic/static moves + the Isometric Holds family are present & indexed (feat 128)', async ({ page }) => {

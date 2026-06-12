@@ -55,8 +55,8 @@ test('min% is checked on SAVED sets after a save, never on the live pending set 
       s1Sat: saved1.satisfied, s1Done: saved1.done, curIdx1, s3Done: saved3.done };
   }, a);
   expect(r.minSets).toBe(1);          // ceil(3 × 1%) -> 1
-  expect(r.liveLogged).toBe(1);       // the pending set still shows in live progress (feat 137)
-  expect(r.liveSatisfied).toBe(false);// but min% is NOT met by a pending set — only after a save
+  expect(r.liveLogged).toBe(0);       // feat 211 — an OPEN pending set (weight, no reps) no longer counts in live progress (a COMPLETED pending set still does, per feat 137)
+  expect(r.liveSatisfied).toBe(false);// and min% is NOT met by a pending set — only after a save
   expect(r.liveDone).toBe(false);
   expect(r.s1Sat).toBe(true);         // after saving 1 set, the step counts as done at 1%
   expect(r.s1Done).toBe(false);       // ...but the full target isn't met...
@@ -109,13 +109,13 @@ test('the plan editor exposes per-plan + per-step min% and persists the override
     state.plans = [{ id: 'P', name: 'P', steps: [{ id: 's0', sets: 4, options: [] }] }];
   });
   const r = await page.evaluate(() => {
-    openPlanFull('P'); // renders the full plan editor into #plans-body
-    const body = document.getElementById('plans-body');
+    openPlanFull('P'); // feat 184 — renders the full plan editor into #trk-main as the plan-creator page
+    const body = document.getElementById('trk-main');
     const planInp = body.querySelector('#plan-minpct-input');
     const stepInp = body.querySelector('[data-step-minpct="0"]');
     const has = { plan: !!planInp, step: !!stepInp, placeholderPlan: planInp ? planInp.getAttribute('placeholder') : null };
     planInp.value = '50'; planInp.dispatchEvent(new Event('change', { bubbles: true }));     // re-renders the body
-    const stepInp2 = document.getElementById('plans-body').querySelector('[data-step-minpct="0"]');
+    const stepInp2 = document.getElementById('trk-main').querySelector('[data-step-minpct="0"]');
     stepInp2.value = '75'; stepInp2.dispatchEvent(new Event('change', { bubbles: true }));
     const p = getPlan('P');
     return { ...has, planMinPct: p.minPct, stepMinPct: p.steps[0].minPct };

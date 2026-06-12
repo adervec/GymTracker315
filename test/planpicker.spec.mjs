@@ -1,6 +1,9 @@
 // feat 112/115 — plan-aware picker: incomplete plan steps appear as chips; choosing one filters the
-// picker to exactly that step's exercises (the union of its options), overriding the mega/sub/equip
-// pills. The dashboard reaches the same filter via openStepPicker.
+// picker to exactly that step's exercises (the union of its options). The dashboard reaches the same
+// filter via openStepPicker.
+// feat 179 — switching steps resets the normal filters (mega/sub/equip/search) to "all", and the pills
+// then STACK with (intersect) the step set instead of overriding it; the count reads
+// "X of Y step-compatible variations shown".
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -29,19 +32,25 @@ test('stepQualifyingVarSet unions variation + whole-movement options', async ({ 
   expect(r.movSize).toBe(r.famCount + r.secCount); // every native variation + every cross-listed (secondary) variation qualifies
 });
 
-test('a plan-step filter overrides the mega pill and shows only that step exercises', async ({ page }) => {
+test('feat 179 — a plan-step filter STACKS with the mega pill (intersection, not override)', async ({ page }) => {
   const r = await page.evaluate(() => {
     let a = null; for (const [u] of VAR_INDEX) { if (exMode(u).mode === 'standard') { a = u; break; } }
     state.plans = [{ id: 'P', name: 'P', steps: [{ id: 's0', sets: 1, options: [{ type: 'variation', uuid: a }] }] }];
     state.sessions = [{ id: 'cur', date: new Date().toISOString(), planId: 'P', exercises: [] }];
     const aMega = VAR_INDEX.get(a).family.mega;
-    modalState.pickerMega = (aMega === 'push') ? 'pull' : 'push'; // a mega 'a' is NOT in -> would normally exclude it
     modalState.pickerSub = 'all'; modalState.pickerEquip = 'all'; modalState.pickerSearch = '';
     modalState.planStepFilter = 0;
-    const vars = filterVariations().flatMap((r) => r.variations.map((v) => v.uuid));
-    return { onlyA: vars.length === 1 && vars[0] === a };
+    modalState.pickerMega = 'all'; // pills neutral -> the step's exercise shows
+    const allVars = filterVariations().flatMap((r) => r.variations.map((v) => v.uuid));
+    modalState.pickerMega = aMega; // matching mega -> still shows (both satisfied)
+    const matchVars = filterVariations().flatMap((r) => r.variations.map((v) => v.uuid));
+    modalState.pickerMega = (aMega === 'push') ? 'pull' : 'push'; // conflicting mega -> intersection empty
+    const conflictVars = filterVariations().flatMap((r) => r.variations.map((v) => v.uuid));
+    return { allHasA: allVars.includes(a), matchHasA: matchVars.includes(a), conflictEmpty: conflictVars.length === 0 };
   });
-  expect(r.onlyA).toBe(true);
+  expect(r.allHasA).toBe(true);
+  expect(r.matchHasA).toBe(true);
+  expect(r.conflictEmpty).toBe(true);
 });
 
 test('renderPicker shows incomplete-step chips when a plan is active', async ({ page }) => {
@@ -72,4 +81,31 @@ test('openStepPicker opens the modal with the picker filtered to the step', asyn
   expect(r.showPicker).toBe(true);
   expect(r.open).toBe(true);
   expect(r.hasChip).toBe(true);
+});
+
+test('feat 179 — entering a step resets the normal filters to all', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let a = null; for (const [u] of VAR_INDEX) { if (exMode(u).mode === 'standard') { a = u; break; } }
+    state.readonly = false;
+    state.plans = [{ id: 'P', name: 'P', steps: [{ id: 's0', sets: 1, options: [{ type: 'variation', uuid: a }] }] }];
+    state.sessions = [{ id: 'cur', date: new Date().toISOString(), planId: 'P', exercises: [] }];
+    pending = { varUuid: null, subUuid: null, sets: [] };
+    modalState.pickerMega = 'pull'; modalState.pickerSub = 'sub'; modalState.pickerEquip = 'barbell'; modalState.pickerSearch = 'zzz';
+    openStepPicker(0);
+    return { mega: modalState.pickerMega, sub: modalState.pickerSub, equip: modalState.pickerEquip, search: modalState.pickerSearch, filter: modalState.planStepFilter };
+  });
+  expect(r).toEqual({ mega: 'all', sub: 'all', equip: 'all', search: '', filter: 0 });
+});
+
+test('feat 179 — picker count reads "X of Y step-compatible" when a step is active', async ({ page }) => {
+  const txt = await page.evaluate(() => {
+    let a = null; for (const [u] of VAR_INDEX) { if (exMode(u).mode === 'standard') { a = u; break; } }
+    const fam = VAR_INDEX.get(a).family;
+    state.plans = [{ id: 'P', name: 'P', steps: [{ id: 's0', sets: 1, options: [{ type: 'movement', familyId: fam.id }] }] }];
+    state.sessions = [{ id: 'cur', date: new Date().toISOString(), planId: 'P', exercises: [] }];
+    modalState.planStepFilter = 0;
+    modalState.pickerMega = 'all'; modalState.pickerSub = 'all'; modalState.pickerEquip = 'all'; modalState.pickerSearch = ''; modalState.pickerFavOnly = false;
+    return renderPickerResults();
+  });
+  expect(txt).toMatch(/\b\d+ of \d+ step-compatible variations? shown\b/);
 });

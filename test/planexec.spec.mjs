@@ -30,9 +30,9 @@ test('the execution view lists the variations that satisfied each step, with set
     ] };
     state.sessions = [sess]; pending = { varUuid: null, sets: [] }; modalState.open = false;
     openPlanExecution('P');
-    const body = document.getElementById('plans-body');
+    const body = document.getElementById('trk-main'); // feat 183 — Plan Detail is a page now
     return {
-      panelOpen: document.getElementById('plans-panel').classList.contains('open'),
+      panelOpen: currentPage === 'plan-detail',
       html: body.innerHTML,
       nameA: displayName(a, null), nameB: displayName(b, null), nameC: displayName(c, null),
       hasBack: !!body.querySelector('#plan-exec-back'),
@@ -71,16 +71,17 @@ test('the rollup shows steps (with full hint) + sets, and the back button return
     ] };
     state.sessions = [sess]; pending = { varUuid: null, sets: [] };
     openPlanExecution('P');
-    const body = document.getElementById('plans-body');
+    const body = document.getElementById('trk-main');
     const rollup = body.querySelector('.pexec-rollup').textContent;
-    body.querySelector('#plan-exec-back').click(); // back to the plan list
-    const afterBack = document.getElementById('plans-body').innerHTML;
-    return { rollup, backToList: afterBack.includes('plan-new-btn') };
+    const wasDetail = currentPage === 'plan-detail';
+    body.querySelector('#plan-exec-back').click(); // feat 183 — page-back, leaves the detail page
+    return { rollup, wasDetail, leftDetail: currentPage !== 'plan-detail' };
   }, { a, b });
   expect(r.rollup).toContain('2/2'); // both steps min-satisfied
   expect(r.rollup).toContain('(1 full)');
   expect(r.rollup).toContain('sets');
-  expect(r.backToList).toBe(true);
+  expect(r.wasDetail).toBe(true);   // opened the Plan Detail page
+  expect(r.leftDetail).toBe(true);  // Back navigated away from it
 });
 
 test('the current-step HUD bar opens the execution view (feat 156)', async ({ page }) => {
@@ -90,9 +91,9 @@ test('the current-step HUD bar opens the execution view (feat 156)', async ({ pa
     state.sessions = [{ id: 'cur', date: new Date().toISOString(), planId: 'P', exercises: [{ varUuid: a, sets: [{ w: 100, r: 5 }] }] }];
     pending = { varUuid: null, sets: [] }; modalState.open = false;
     if (typeof refreshPlanStepBar === 'function') refreshPlanStepBar();
-    document.getElementById('plan-step-bar').click(); // wired at init to openPlanExecution
-    const body = document.getElementById('plans-body');
-    return { panelOpen: document.getElementById('plans-panel').classList.contains('open'),
+    document.getElementById('plan-step-bar').click(); // wired at init to openPlanExecution → navTo('plan-detail')
+    const body = document.getElementById('trk-main');
+    return { panelOpen: currentPage === 'plan-detail',
       isExec: body.innerHTML.includes('Satisfied by') && !!body.querySelector('#plan-exec-back') };
   }, a);
   expect(r.panelOpen).toBe(true);
@@ -110,8 +111,8 @@ test('a past session\'s plan badge is clickable and opens its execution view (fe
     const badgeHtml = renderSession(past, false);
     // simulate the delegated click handler resolving the badge's data attributes
     const hasData = badgeHtml.includes('data-plan-exec-sess="2026-05-01T10:00:00.000Z"') && badgeHtml.includes('data-plan-exec-id="P"');
-    openPlanExecution('P', '2026-05-01T10:00:00.000Z'); // what the click does
-    const body = document.getElementById('plans-body');
+    openPlanExecution('P', '2026-05-01T10:00:00.000Z'); // what the click does → navTo('plan-detail')
+    const body = document.getElementById('trk-main');
     return { hasData, clickable: badgeHtml.includes('plan-hist-clickable'),
       showsPastDate: body.querySelector('.pexec-when').textContent, html: body.innerHTML, nameA: displayName(a, null) };
   }, a);
