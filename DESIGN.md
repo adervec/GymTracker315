@@ -853,6 +853,18 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Set-start annunciations (feat 206):** a new opt-in spoken cue the moment a set STARTS (the canonical
+  `commitSetField` weight→`wTs` stamp, so the native inputs and the OSK share one hook; edits to an
+  already-open set stay silent): **"First set of 4" / "Set 2 of 4" / "Last set — make it count" /
+  "Extra set 1"** (beyond-target vocabulary that feat 212's glowing notches will mirror), or plan-less
+  "First set" / "Set 3". Plan-aware position via `setPositionInfo()` — the active plan's first step whose
+  options match the current exercise supplies the target `y`, with that step's SAVED sets counting toward
+  `x` (mid-edit sessions excluded). The new engine (`annunciationCfg` / `annunce` / `setStartPhrase` /
+  `annunceSetStart`) respects the master audio gate + headphone-only mode and never stacks utterances;
+  state lives in `state.annunciation` (a `SETTINGS_KEYS` member; `startLimit`/`endLimit`/`duck` fields are
+  pre-seeded for feats 207-209). Toggle: Preferences → "🗣 Annunciate set start" (off by default). Covered
+  by `test/annunce.spec.mjs` (default+persistence, the full phrase matrix, plan-aware x/y math,
+  speak-once-per-start with silent edits + silent when off, drawer toggle round-trip).
 - **Mantranome (feat 205):** the feat-103 "mantra mode" grew into a proper named feature. **(1) Renamed**
   to 🧘 **Mantranome** in the Preferences drawer (sub-text now explains the cycle cap). **(2) The audio
   dropdown controls the metronome**: the 🔊 sound menu gained a Metronome row — ▶ Start/⏸ Stop, a ±5 bpm

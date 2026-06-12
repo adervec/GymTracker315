@@ -3267,7 +3267,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
-  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','plans','seededPlanIds','hrDevice',
+  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','metronome','annunciation','plans','seededPlanIds','hrDevice',
   'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
@@ -3460,6 +3460,9 @@ function normalizeState() {
   // feat 144 — default minimum completion % (0..100). 1% means "even 1 set counts the step as done".
   { const m = Number(state.planDefaults.minPct); state.planDefaults.minPct = isNaN(m) ? 1 : Math.min(100, Math.max(0, m)); }
   state.metronome = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, mantra:false, setActiveOnly:true, ...(state.metronome && typeof state.metronome === 'object' ? state.metronome : {}) };
+  // feat 206 — set start/end annunciations (spoken position cues); off by default. startLimit/endLimit
+  // (feat 208) bound them to the first/last X sets (0 = no limit); duck (feat 209) lowers other audio.
+  state.annunciation = { start:false, end:false, startLimit:0, endLimit:0, duck:true, ...(state.annunciation && typeof state.annunciation === 'object' ? state.annunciation : {}) };
   // feat 104 — separate, richly-configurable audible rest timer (count up / countdown + interval cues)
   state.restCues = { enabled:false, mode:'down', target:90, interval:30, countdown:3, endCue:true, audio:true, haptic:true, freq:784, ...(state.restCues && typeof state.restCues === 'object' ? state.restCues : {}) };
   // feat 118 — custom hi-res anatomy chart (image stored in IndexedDB; this holds the view pref + OCR label map)
@@ -5635,6 +5638,16 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">🗣 Annunciate set start</div>
+        <div class="drawer-setting-sub">Speak the position when a set starts (weight entered) — "First set of 4", "Set 2 of 4", "Last set", plan-aware</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${annunciationCfg().start ? 'active' : ''}" data-pref-ann="start-on">On</button>
+        <button class="drawer-pill ${!annunciationCfg().start ? 'active' : ''}" data-pref-ann="start-off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">🎧 Headphone-only audio</div>
         <div class="drawer-setting-sub">Only play sound when it's routed to headphones — never the phone speaker (haptics still work). <b>${headphoneStatus().icon} ${escapeHtml(headphoneStatus().text)}</b>${(audioHeadphonesOnly() && _headphonesConnected == null) ? ` · <a href="#" id="drawer-hp-unlock" style="color:var(--accent);">enable detection</a>` : ''}</div>
       </div>
@@ -6395,6 +6408,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefGlossView) { state.glossaryAsPage = btn.dataset.prefGlossView === 'page'; saveState(); toast('Glossary: ' + (state.glossaryAsPage ? 'full page' : 'slide-in')); }
       else if (btn.dataset.prefReadonly) { state.readonly = btn.dataset.prefReadonly === 'on'; saveState(); render(); toast('Read-only mode: ' + (state.readonly ? 'on' : 'off')); }
       else if (btn.dataset.prefTts) { state.ttsTips = btn.dataset.prefTts === 'on'; saveState(); if (state.ttsTips) toast('Tips will be read aloud'); else { try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} toast('Tip narration off'); } }
+      else if (btn.dataset.prefAnn) { const a = { ...annunciationCfg() }; const k = btn.dataset.prefAnn; if (k === 'start-on') a.start = true; else if (k === 'start-off') a.start = false; state.annunciation = a; saveState(); toast('Set-start annunciation: ' + (a.start ? 'on' : 'off')); } // feat 206
       else if (btn.dataset.prefHp) { state.audioHeadphonesOnly = btn.dataset.prefHp === 'on'; saveState(); if (state.audioHeadphonesOnly) probeAudioOutput(); refreshSoundIcon(); toast('Headphone-only audio: ' + (state.audioHeadphonesOnly ? 'on' : 'off')); }
       else if (btn.dataset.prefMetro) { const m = { ...metroCfg() }; const k = btn.dataset.prefMetro; if (k === 'audio-on') m.audio = true; else if (k === 'audio-off') m.audio = false; else if (k === 'haptic-on') m.haptic = true; else if (k === 'haptic-off') m.haptic = false; else if (k === 'mantra-on') m.mantra = true; else if (k === 'mantra-off') m.mantra = false; else if (k === 'setactive-on') m.setActiveOnly = true; else if (k === 'setactive-off') m.setActiveOnly = false; state.metronome = m; saveState(); restartMetronomeIfRunning(); }
       else if (btn.dataset.rc) { const rc = { ...restCueCfg() }; const k = btn.dataset.rc, v = btn.dataset.rcVal; if (k === 'mode') rc.mode = v; else rc[k] = (v === 'on'); state.restCues = rc; saveState(); _lastRestCueSec = -1; if (typeof refreshRestBar === 'function') refreshRestBar(); }
@@ -14513,7 +14527,7 @@ function commitSetField(i, f, val) {
   s[f] = (val === '' || val == null || isNaN(n)) ? '' : n;
   const wFilled = s.w !== '' && s.w != null;
   if (f === 'w') {
-    if (wFilled && !s.wTs) s.wTs = new Date().toISOString();        // weight entered → set starts
+    if (wFilled && !s.wTs) { s.wTs = new Date().toISOString(); if (typeof annunceSetStart === 'function') annunceSetStart(); } // weight entered → set starts (feat 206 — speak the position)
     else if (!wFilled) { s.wTs = undefined; s.ts = undefined; }     // weight cleared → reset both
   } else if (f === 'r') {
     const rFilled = s.r !== '' && s.r != null;
@@ -15322,7 +15336,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 151 · 2026-06-11 16:03';
+const APP_BUILD = 'build 152 · 2026-06-11 20:39';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -15523,6 +15537,53 @@ function restBeep(freq, dur) {
     g.gain.setValueAtTime(0.0009 * sndVol(), _restAudioCtx.currentTime);
     o.start(); o.stop(_restAudioCtx.currentTime + (dur || 0.12));
   } catch(_){}
+}
+
+/* ============================================================
+   feat 206 — SET ANNUNCIATIONS. Speak a short position cue when a set STARTS (the moment a weight is
+   entered and the set opens): "First set of 4", "Set 2 of 4", "Last set — make it count", "Extra set 1".
+   Plan-aware: when the active plan has a step this exercise satisfies, y is that step's target (saved
+   sets count toward x); otherwise y is unknown and the cue is just the in-form position. Off by default.
+   ============================================================ */
+function annunciationCfg() { return { start:false, end:false, startLimit:0, endLimit:0, duck:true, ...(state.annunciation || {}) }; }
+// Shared speaker for annunciation cues (the feat-207 set-end cues reuse it).
+function annunce(text) {
+  try {
+    if (!text) return;
+    if (!sndAudioOn() || !headphoneGatePasses()) return;
+    if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
+    const u = new SpeechSynthesisUtterance(String(text).slice(0, 120));
+    u.rate = 0.95; u.pitch = 1; u.lang = 'en-US'; u.volume = sndVol();
+    window.speechSynthesis.cancel();                 // never stack utterances
+    window.speechSynthesis.speak(u);
+  } catch (_) {}
+}
+// Position of the just-started set: x = sets with a weight in this form (+ saved sets toward the
+// matching plan step), y = the matching plan step's target (null without a plan/step match).
+function setPositionInfo() {
+  const x0 = (pending.sets || []).filter(s => s && s.w !== '' && s.w != null && !isNaN(parseFloat(s.w))).length;
+  const plan = (typeof getActivePlan === 'function') ? getActivePlan() : null;
+  const session = (typeof getActiveSession === 'function') ? getActiveSession() : null;
+  const editing = (typeof modalState !== 'undefined') && modalState.isEditing;
+  if (plan && session && pending.varUuid && !editing) {
+    const step = (plan.steps || []).find(st => (st.options || []).some(o => optionMatchesVar(o, pending.varUuid)));
+    if (step && step.sets > 0) return { x: stepSavedSets(session, step) + x0, y: step.sets, onPlan: true };
+  }
+  return { x: x0, y: null, onPlan: false };
+}
+function setStartPhrase(pos) {
+  if (pos.y) {
+    if (pos.x > pos.y) return 'Extra set ' + (pos.x - pos.y);                 // beyond the plan target
+    if (pos.x === pos.y) return pos.y > 1 ? 'Last set — make it count' : 'One set — make it count';
+    if (pos.x === 1) return 'First set of ' + pos.y;
+    return 'Set ' + pos.x + ' of ' + pos.y;
+  }
+  return pos.x === 1 ? 'First set' : 'Set ' + pos.x;
+}
+function annunceSetStart() {
+  const c = annunciationCfg();
+  if (!c.start) return;
+  annunce(setStartPhrase(setPositionInfo()));
 }
 
 /* ---- Workout metronome (feat 69) — customizable audio + haptic; on/off is per-workout (runtime only). ---- */
