@@ -853,6 +853,20 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Profile-shaped wireframe avatar + circumference biometrics (feat 220):** the anatomy wireframe is now
+  **customizable by profile**. Body-comp entries grow seven optional **tape measurements** (neck / chest / waist /
+  hips / biceps / thigh / calf) behind a collapsible 📏 row in the Body form — stored canonically in **cm**, entered
+  and shown in cm (kg mode) or inches (lb mode), surfaced on the latest-stats line, prefilled on edit, exported in
+  the body-comp CSV and accepted by the biometrics JSON importer. A new **Wireframe Avatar** card on the Body page
+  picks **Classic** (the original outline, byte-for-byte) or **My profile**, plus playful **hat** (cap/beanie/
+  headband/crown/top hat/cowboy) and **hairstyle** (buzz/spiky/curly/mohawk/ponytail/long) overlays with a live
+  preview. Profile mode (`avatarProportions()`) shapes shoulders/chest/waist/hips/thighs/calves/arm thickness from
+  **gender** (Settings → Profile), **BMI** (latest weight + height, clamped), and the **newest logged girth per
+  dimension** — specific tape data overrides the BMI estimate. `anatomyOutline(cx, p?)` resolves the avatar itself,
+  so the glossary chart, the volume/live/replay heatmaps and the preview all pick it up automatically; `state.avatar`
+  ({style, hat, hair}) travels with settings (`SETTINGS_KEYS`). Covered by `test/avatar.spec.mjs` (classic default
+  byte-identical + no headgear, girth save/round-trip/CSV in inches→cm, proportions vs gender/tape/BMI, profile +
+  headgear reshaping the heatmap renderer and restoring on classic, Body-page card UI with live preview).
 - **Historical replay (feat 219):** a new **Reflect › ⏪ Replay** router page that scrubs or **▶ plays**
   through training history week by week (capped at 104), animating four things in lockstep: the anatomy
   **heatmap** for that week (full group/muscle/head toggles), the **top-6 volume bars**, a whole-history

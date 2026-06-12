@@ -3321,7 +3321,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -3424,8 +3424,10 @@ let state = {
   // ---- Long-press to replace yes/no confirmation popups (feat 32) ----
   longPressConfirm: { enabled: false, ms: 1500 },
   // ---- Body composition log (feat 24) — manual Garmin S2 scale entry ----
-  bodyComp: [],        // [{date, weight, bodyFatPct, muscleMass, boneMass, bodyWaterPct, bmi, note}]
+  bodyComp: [],        // [{date, weight, bodyFatPct, muscleMass, boneMass, bodyWaterPct, bmi, note, …girths (feat 220: neckCm/chestCm/waistCm/hipsCm/bicepsCm/thighCm/calfCm)}]
   bodyCompUnit: 'lb',  // display unit for body weight
+  // ---- Wireframe avatar (feat 220) — 'classic' keeps the original outline; 'profile' shapes it from gender/BMI/girths ----
+  avatar: { style: 'classic', hat: 'none', hair: 'none' },
   // ---- Muscle volume weightings (feat 10/11) ----
   muscleWeights: null,            // null = use AI defaults; else { [muscle]: number }
   muscleWeightPreset: 'default',  // selected preset id
@@ -3550,6 +3552,10 @@ function normalizeState() {
   (state.plans || []).forEach(p => { if (!(p.intensity >= 1 && p.intensity <= 5)) p.intensity = p.intensity || 3; (p.steps || []).forEach(st => { if (st && !st.load) st.load = 'moderate'; }); }); // feat 82 defaults
   (state.plans || []).forEach(ensurePlanRevisioned); // feat 162 — backfill authorship + an initial revision baseline (idempotent)
   if (!state.bodyCompUnit) state.bodyCompUnit = state.unit || 'lb';
+  if (!state.avatar || typeof state.avatar !== 'object') state.avatar = { style: 'classic', hat: 'none', hair: 'none' }; // feat 220
+  if (state.avatar.style !== 'profile') state.avatar.style = 'classic';
+  if (!state.avatar.hat) state.avatar.hat = 'none';
+  if (!state.avatar.hair) state.avatar.hair = 'none';
   if (!state.hiddenCategories || typeof state.hiddenCategories !== 'object') state.hiddenCategories = {};
   if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
   if (!state.exerciseMedia || typeof state.exerciseMedia !== 'object') state.exerciseMedia = {}; // feat 75 — per-exercise reference video links
@@ -13009,9 +13015,10 @@ function csvWorkouts() {
   return rows;
 }
 function csvBodyComp() {
-  const rows = [['date', 'weight', 'unit', 'bodyFatPct', 'muscleMass', 'boneMass', 'bodyWaterPct', 'bmi', 'note']];
+  const rows = [['date', 'weight', 'unit', 'bodyFatPct', 'muscleMass', 'boneMass', 'bodyWaterPct', 'bmi', 'note', 'neckCm', 'chestCm', 'waistCm', 'hipsCm', 'bicepsCm', 'thighCm', 'calfCm']];
   (state.bodyComp || []).slice().sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(b =>
-    rows.push([_dDay(b.date), b.weight ?? '', state.bodyCompUnit || state.unit || 'lb', b.bodyFatPct ?? '', b.muscleMass ?? '', b.boneMass ?? '', b.bodyWaterPct ?? '', b.bmi ?? '', b.note || '']));
+    rows.push([_dDay(b.date), b.weight ?? '', state.bodyCompUnit || state.unit || 'lb', b.bodyFatPct ?? '', b.muscleMass ?? '', b.boneMass ?? '', b.bodyWaterPct ?? '', b.bmi ?? '', b.note || '',
+      b.neckCm ?? '', b.chestCm ?? '', b.waistCm ?? '', b.hipsCm ?? '', b.bicepsCm ?? '', b.thighCm ?? '', b.calfCm ?? '']));
   return rows;
 }
 function csvSleep() {
@@ -13362,6 +13369,34 @@ function bodyInputToKg(v) {
 function sortedBodyComp() {
   return [...state.bodyComp].sort((a, b) => new Date(b.date) - new Date(a.date));
 }
+/* feat 220 — optional circumference (tape) measurements. Stored canonically in cm; displayed in cm
+   (kg mode) or inches (lb mode). `ref` is a typical adult girth used to scale the wireframe avatar. */
+const GIRTH_FIELDS = [
+  { id: 'neck',   key: 'neckCm',   label: 'Neck',   ref: 38 },
+  { id: 'chest',  key: 'chestCm',  label: 'Chest',  ref: 100 },
+  { id: 'waist',  key: 'waistCm',  label: 'Waist',  ref: 85 },
+  { id: 'hips',   key: 'hipsCm',   label: 'Hips',   ref: 98 },
+  { id: 'biceps', key: 'bicepsCm', label: 'Biceps', ref: 33 },
+  { id: 'thigh',  key: 'thighCm',  label: 'Thigh',  ref: 55 },
+  { id: 'calf',   key: 'calfCm',   label: 'Calf',   ref: 37 },
+];
+function girthUnit() { return state.bodyCompUnit === 'kg' ? 'cm' : 'in'; }
+function girthDisp(cm) {
+  if (cm == null || cm === '') return '';
+  const v = state.bodyCompUnit === 'kg' ? cm : cm / 2.54;
+  return Math.round(v * 10) / 10;
+}
+function girthInputToCm(v) {
+  const n = parseFloat(v);
+  if (isNaN(n) || n <= 0) return null;
+  const cm = state.bodyCompUnit === 'kg' ? n : n * 2.54;
+  return Math.round(cm * 10) / 10;
+}
+// Newest non-null value per girth field across the log (measurements can be sporadic).
+function latestGirth(key) {
+  const e = sortedBodyComp().find(x => x[key] != null);
+  return e ? e[key] : null;
+}
 
 function renderBody(main) {
   const u = state.bodyCompUnit;
@@ -13400,7 +13435,7 @@ function renderBody(main) {
       ${tile('Muscle', latest.muscleMassKg != null ? bodyDispW(latest.muscleMassKg) : '—', u + (prev && latest.muscleMassKg!=null && prev.muscleMassKg!=null ? delta(bodyDispW(latest.muscleMassKg), bodyDispW(prev.muscleMassKg), u) : ''))}
       ${tile('BMI', bmiVal != null ? bmiVal.toFixed(1) : '—', h ? 'from profile' : 'set height')}
     </div>
-    <div style="font-size:10.5px;color:var(--text3);margin-bottom:10px;">Latest ${fmtDate(latest.date)}${latest.bodyWaterPct!=null?` · water ${latest.bodyWaterPct}%`:''}${latest.boneMassKg!=null?` · bone ${bodyDispW(latest.boneMassKg)}${u}`:''}</div>`;
+    <div style="font-size:10.5px;color:var(--text3);margin-bottom:10px;">Latest ${fmtDate(latest.date)}${latest.bodyWaterPct!=null?` · water ${latest.bodyWaterPct}%`:''}${latest.boneMassKg!=null?` · bone ${bodyDispW(latest.boneMassKg)}${u}`:''}${GIRTH_FIELDS.filter(g => latest[g.key] != null).map(g => ` · ${g.label.toLowerCase()} ${girthDisp(latest[g.key])}${girthUnit()}`).join('')}</div>`;
   } else {
     html += `<div class="card" style="margin-bottom:10px;"><div style="color:var(--text2);font-size:13px;">No measurements yet. Tap below to add your scale stats.</div></div>`;
   }
@@ -13434,6 +13469,15 @@ function renderBody(main) {
         ${fld('bc-bone','Bone ('+u+')', e?bodyDispW(e.boneMassKg):'', '0.0')}
         ${fld('bc-water','Water %', e?e.bodyWaterPct:'', '0.0')}
       </div>
+      <details class="bc-girths" style="margin-bottom:10px;" ${e && GIRTH_FIELDS.some(g => e[g.key] != null) ? 'open' : ''}>
+        <summary style="font-size:11px;color:var(--text2);cursor:pointer;user-select:none;">📏 Circumferences (optional, ${girthUnit()}) — shapes your wireframe avatar</summary>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+          ${GIRTH_FIELDS.slice(0, 4).map(g => fld('bc-g-' + g.id, g.label + ' (' + girthUnit() + ')', e ? girthDisp(e[g.key]) : '', '—')).join('')}
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+          ${GIRTH_FIELDS.slice(4).map(g => fld('bc-g-' + g.id, g.label + ' (' + girthUnit() + ')', e ? girthDisp(e[g.key]) : '', '—')).join('')}
+        </div>
+      </details>
       <input type="text" id="bc-note" value="${e?escapeAttr(e.note||''):''}" placeholder="Note (optional)"
         style="width:100%;padding:8px;font-size:13px;border-radius:7px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);margin-bottom:10px;box-sizing:border-box;">
       <button class="full" id="bc-save-btn" style="background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;color:#fff;padding:11px;border-radius:9px;font-weight:700;font-size:14px;cursor:pointer;width:100%;">💾 ${e?'Update':'Save'} Measurement</button>
@@ -13455,6 +13499,26 @@ function renderBody(main) {
         </div>
       </div>`).join('');
   }
+
+  // feat 220 — wireframe avatar customization (drives the glossary chart + every heatmap)
+  const av = avatarCfg();
+  const avSel = (id, opts, cur) => `<select id="${id}" style="flex:1;min-width:90px;padding:7px;font-size:12px;border-radius:7px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    ${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  html += `<div class="card-title" style="margin-top:14px;">Wireframe Avatar</div>
+  <div class="card" id="avatar-card" style="margin-bottom:12px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+      <div class="drawer-pill-group" style="display:inline-flex;">
+        <button class="drawer-pill ${av.style !== 'profile' ? 'active' : ''}" data-av-style="classic">Classic</button>
+        <button class="drawer-pill ${av.style === 'profile' ? 'active' : ''}" data-av-style="profile">My profile</button>
+      </div>
+      ${avSel('av-hat', AVATAR_HATS, av.hat)}
+      ${avSel('av-hair', AVATAR_HAIR, av.hair)}
+    </div>
+    <div style="display:flex;justify-content:center;">
+      <svg id="av-preview" class="anat-svg" viewBox="0 0 100 196" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1" style="width:96px;max-width:40%;">${anatomyOutline(50)}</svg>
+    </div>
+    <div style="font-size:10.5px;color:var(--text3);margin-top:8px;">Profile mode shapes the wireframe from your gender (Settings → Profile), BMI and tape measurements above — and it carries into the glossary chart and every volume heatmap. Hats &amp; hair are pure swagger.</div>
+  </div>`;
 
   main.innerHTML = html;
 
@@ -13480,6 +13544,12 @@ function renderBody(main) {
       saveState(); logInfo('Body measurement deleted'); renderBody(main);
     });
   }));
+  // feat 220 — avatar bindings
+  main.querySelectorAll('[data-av-style]').forEach(b => b.addEventListener('click', () => {
+    avatarCfg().style = b.dataset.avStyle; saveState(); renderBody(main);
+  }));
+  main.querySelector('#av-hat')?.addEventListener('change', e => { avatarCfg().hat = e.target.value; saveState(); renderBody(main); });
+  main.querySelector('#av-hair')?.addEventListener('change', e => { avatarCfg().hair = e.target.value; saveState(); renderBody(main); });
 }
 
 function saveBodyEntry(main) {
@@ -13503,6 +13573,10 @@ function saveBodyEntry(main) {
     bodyWaterPct: isNaN(water) ? null : Math.round(water * 10) / 10,
     note: note || null,
   };
+  GIRTH_FIELDS.forEach(g => { // feat 220 — optional tape measurements
+    const el = document.getElementById('bc-g-' + g.id);
+    entry[g.key] = el ? girthInputToCm(el.value) : null;
+  });
   // Replace existing entry for the same calendar day (or the one being edited)
   state.bodyComp = state.bodyComp.filter(x =>
     x.date !== bodyEditDate && new Date(x.date).toDateString() !== new Date(isoDate).toDateString()
@@ -13528,7 +13602,7 @@ function normBiometricEntry(r) {
   let wkg = r.weightKg != null ? +r.weightKg : (r.weightLb != null ? lbToKg(+r.weightLb) : null);
   if (wkg == null || !(wkg > 0)) return null;
   const isoDate = String(r.date).length > 10 ? d.toISOString() : (String(r.date).slice(0, 10) + 'T12:00:00.000Z');
-  return {
+  const e = {
     date: isoDate,
     weightKg: Math.round(wkg * 100) / 100,
     bodyFatPct: _bioNum(r.bodyFatPct),
@@ -13537,6 +13611,8 @@ function normBiometricEntry(r) {
     bodyWaterPct: _bioNum(r.bodyWaterPct),
     note: r.note || null,
   };
+  ['neckCm', 'chestCm', 'waistCm', 'hipsCm', 'bicepsCm', 'thighCm', 'calfCm'].forEach(k => { const v = _bioNum(r[k]); if (v != null && v > 0) e[k] = v; }); // feat 220
+  return e;
 }
 function parseBiometrics(text) {
   text = String(text || '').trim(); if (!text) return null;
@@ -15942,7 +16018,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 165 · 2026-06-11 22:17';
+const APP_BUILD = 'build 166 · 2026-06-12 06:57';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -23914,10 +23990,90 @@ const ANATOMY_REGIONS = [
   { term:'Calves',               e:[[143,162,5,13],[157,162,5,13]] },
 ];
 const ANATOMY_TERMS = new Set(ANATOMY_REGIONS.map(r => r.term));
-function anatomyOutline(cx) {
-  return `<circle cx="${cx}" cy="12" r="7" fill="none" stroke="var(--border2)"/>
+/* ============================================================
+   feat 220 — PROFILE-SHAPED WIREFRAME AVATAR. 'classic' keeps the original outline byte-for-byte;
+   'profile' derives the figure from gender (Settings → Profile), BMI (latest weight + height) and
+   the optional tape measurements logged on the Body page. Hats & hairstyles are playful overlays
+   that apply in either style. Every wireframe consumer (glossary chart, volume / live / replay
+   heatmaps, Body-page preview) calls anatomyOutline(), so they all pick this up automatically.
+   ============================================================ */
+const AVATAR_HATS = [['none', 'No hat'], ['cap', '🧢 Cap'], ['beanie', 'Beanie'], ['headband', 'Headband'], ['crown', '👑 Crown'], ['tophat', '🎩 Top hat'], ['cowboy', '🤠 Cowboy']];
+const AVATAR_HAIR = [['none', 'Bald'], ['buzz', 'Buzz cut'], ['spiky', 'Spiky'], ['curly', 'Curly'], ['mohawk', 'Mohawk'], ['ponytail', 'Ponytail'], ['long', 'Long hair']];
+function avatarCfg() { return (state && state.avatar) || { style: 'classic', hat: 'none', hair: 'none' }; }
+// null → classic outline; else absolute torso half-widths + limb factors for the parameterized build.
+function avatarProportions() {
+  const av = avatarCfg();
+  if (av.style !== 'profile') return null;
+  const g = (state.profile && state.profile.gender) || '';
+  const base = g === 'male'   ? { S: 13.5, Ch: 12.3, W: 10,   H: 9.6,  arm: 1.15 }
+             : g === 'female' ? { S: 11,   Ch: 11,   W: 8.8,  H: 11.6, arm: 0.95 }
+             :                  { S: 12,   Ch: 11.2, W: 10.6, H: 10,   arm: 1 };
+  // BMI nudge: 22 → 1.0, clamped so the figure stays plausible
+  let wf = 1;
+  const latest = sortedBodyComp().find(e => e.weightKg);
+  const hcm = state.profile && state.profile.heightCm;
+  if (latest && hcm) { const b = bmi(latest.weightKg, hcm); if (b) wf = Math.max(0.85, Math.min(1.4, 1 + (b - 22) * 0.03)); }
+  const lf = 1 + (wf - 1) * 0.6; // limbs follow BMI at 60%
+  // A logged girth overrides the BMI estimate for its own dimension (more specific data wins)
+  const gf = (key) => {
+    const v = latestGirth(key);
+    if (v == null) return null;
+    const ref = GIRTH_FIELDS.find(x => x.key === key).ref;
+    return Math.max(0.75, Math.min(1.5, v / ref));
+  };
+  const chest = gf('chestCm'), waist = gf('waistCm'), hips = gf('hipsCm'),
+        thigh = gf('thighCm'), calf = gf('calfCm'), biceps = gf('bicepsCm'), neck = gf('neckCm');
+  const r1 = n => Math.round(n * 10) / 10;
+  return {
+    shoulder: r1(base.S * (1 + (wf - 1) * 0.4)),
+    chest:    r1(base.Ch * (chest != null ? chest : wf)),
+    waist:    r1(base.W * (waist != null ? waist : wf)),
+    hip:      r1(base.H * (hips != null ? hips : wf)),
+    thigh:    thigh != null ? thigh : lf,
+    calf:     calf != null ? calf : lf,
+    armW:     Math.max(0.7, Math.min(1.8, base.arm * (biceps != null ? biceps : lf))),
+    neck:     neck != null ? neck : 1,
+  };
+}
+// Playful hair + hat overlays around the head (centre cx,12 r7 → crown at y≈5).
+function avatarHeadgear(cx, av) {
+  const HAIR = {
+    buzz:     `<path d="M ${cx-6} 8.4 A 7.2 7.2 0 0 1 ${cx+6} 8.4"/>`,
+    spiky:    `<path d="M ${cx-6} 8 L ${cx-4.8} 2.5 L ${cx-3.2} 6.5 L ${cx-1.6} 1.8 L ${cx} 6.2 L ${cx+1.6} 1.8 L ${cx+3.2} 6.5 L ${cx+4.8} 2.5 L ${cx+6} 8"/>`,
+    curly:    `<circle cx="${cx-4.2}" cy="6.2" r="2.4"/><circle cx="${cx}" cy="4.6" r="2.6"/><circle cx="${cx+4.2}" cy="6.2" r="2.4"/>`,
+    mohawk:   `<path d="M ${cx-1.4} 5.6 L ${cx-1} 0.6 L ${cx+1} 0.6 L ${cx+1.4} 5.6"/>`,
+    ponytail: `<circle cx="${cx+6.2}" cy="7.6" r="2"/><path d="M ${cx+6.8} 9.4 Q ${cx+9.2} 15 ${cx+7.6} 21"/>`,
+    long:     `<path d="M ${cx-6.8} 9 Q ${cx-8.6} 17 ${cx-7.2} 24 M ${cx+6.8} 9 Q ${cx+8.6} 17 ${cx+7.2} 24"/>`,
+  };
+  const HATS = {
+    cap:      `<path d="M ${cx-6.4} 8 A 6.8 6.8 0 0 1 ${cx+6.4} 8"/><path d="M ${cx+5} 8 L ${cx+11.5} 7"/>`,
+    beanie:   `<path d="M ${cx-6.4} 8.6 A 6.8 6.8 0 0 1 ${cx+6.4} 8.6 M ${cx-6.6} 8.6 L ${cx+6.6} 8.6"/><circle cx="${cx}" cy="1.2" r="1.1"/>`,
+    headband: `<path d="M ${cx-6.9} 7.4 L ${cx+6.9} 7.4"/>`,
+    crown:    `<path d="M ${cx-6} 7.5 L ${cx-6} 2.5 L ${cx-3} 5.5 L ${cx} 1.8 L ${cx+3} 5.5 L ${cx+6} 2.5 L ${cx+6} 7.5 Z"/>`,
+    tophat:   `<path d="M ${cx-9} 6.5 L ${cx+9} 6.5 M ${cx-4.8} 6.5 L ${cx-4.8} 0.4 L ${cx+4.8} 0.4 L ${cx+4.8} 6.5"/>`,
+    cowboy:   `<path d="M ${cx-11} 6.8 Q ${cx} 10.5 ${cx+11} 6.8 M ${cx-4.6} 6.8 Q ${cx-4} 0.8 ${cx} 0.8 Q ${cx+4} 0.8 ${cx+4.6} 6.8"/>`,
+  };
+  let out = '';
+  if (av.hair && HAIR[av.hair]) out += `<g class="av-hair" fill="none" stroke="var(--text3)">${HAIR[av.hair]}</g>`;
+  if (av.hat && HATS[av.hat]) out += `<g class="av-hat" fill="none" stroke="var(--accent)">${HATS[av.hat]}</g>`;
+  return out;
+}
+function anatomyOutline(cx, p) {
+  if (p === undefined) p = (typeof avatarProportions === 'function') ? avatarProportions() : null;
+  const gear = (typeof avatarHeadgear === 'function') ? avatarHeadgear(cx, avatarCfg()) : '';
+  if (!p) { // classic — the original wireframe, unchanged
+    return `<circle cx="${cx}" cy="12" r="7" fill="none" stroke="var(--border2)"/>
     <path d="M ${cx-12} 30 Q ${cx} 24 ${cx+12} 30 L ${cx+10} 95 L ${cx+13} 182 L ${cx+5} 184 L ${cx+2} 100 L ${cx-2} 100 L ${cx-5} 184 L ${cx-13} 182 L ${cx-10} 95 Z" fill="none" stroke="var(--border2)"/>
-    <path d="M ${cx-12} 33 L ${cx-21} 96 M ${cx+12} 33 L ${cx+21} 96" fill="none" stroke="var(--border2)"/>`;
+    <path d="M ${cx-12} 33 L ${cx-21} 96 M ${cx+12} 33 L ${cx+21} 96" fill="none" stroke="var(--border2)"/>` + gear;
+  }
+  const r1 = n => Math.round(n * 10) / 10;
+  const S = p.shoulder, Ch = p.chest, W = p.waist, H = p.hip;
+  const neckY = r1(Math.max(21, Math.min(27, 24 + (1 - p.neck) * 4)));   // thick neck → shallower dip
+  const thighX = r1(2 + 9.5 * p.thigh), calfX = r1(4 + 8.3 * p.calf), ankleX = r1(6 + 7 * p.calf);
+  const armW = r1(p.armW);
+  return `<circle cx="${cx}" cy="12" r="7" fill="none" stroke="var(--border2)"/>
+    <path class="av-body" d="M ${cx-S} 30 Q ${cx} ${neckY} ${cx+S} 30 L ${cx+Ch} 55 L ${cx+W} 75 L ${cx+H} 95 L ${cx+thighX} 138 L ${cx+calfX} 162 L ${cx+ankleX} 182 L ${cx+5} 184 L ${cx+2} 100 L ${cx-2} 100 L ${cx-5} 184 L ${cx-ankleX} 182 L ${cx-calfX} 162 L ${cx-thighX} 138 L ${cx-H} 95 L ${cx-W} 75 L ${cx-Ch} 55 Z" fill="none" stroke="var(--border2)"/>
+    <path class="av-arms" d="M ${cx-S} 33 L ${cx-S-9} 96 M ${cx+S} 33 L ${cx+S+9} 96" fill="none" stroke="var(--border2)" stroke-width="${armW}"/>` + gear;
 }
 /* ============================================================
    feat 118 — CUSTOM HI-RES ANATOMY CHART. Upload a detailed labelled chart (stored in IndexedDB) to
