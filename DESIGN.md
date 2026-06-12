@@ -853,6 +853,14 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Extra-set notches glow (feat 212):** sets logged BEYOND a plan step's target used to simply vanish —
+  the notch row was capped at the target count. Now the row grows by the overflow and every over-target
+  notch carries `.extra`: a **glowing `--warn` border** (box-shadow halo), with a **glowing warn fill**
+  when the extra set is complete and the feat-211 **checkered fill** (in warn) when it's still
+  in-progress. Pairs with feat 206's "Extra set N" spoken vocabulary. The X/Y label keeps showing the
+  honest counted overflow (e.g. `3/2 ✓`). Covered by `test/extrasets.spec.mjs` (the exact class sequence
+  `filled,filled,pending extra,inprog extra` + label + done state, the no-overflow negative, and computed
+  border/glow CSS resolution).
 - **In-progress sets no longer count toward plan X/Y + checkered notch (feat 211):** a set with a
   weight entered but reps still pending used to inflate live plan progress (`pendingStepSets` counted any
   weight-filled pending set), so a step could read "done" off the back of a set you hadn't finished. Now

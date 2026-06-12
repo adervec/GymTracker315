@@ -699,6 +699,10 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   #plan-step-bar .stepbar-notch.pending { background: var(--accent); opacity: 0.5; }
   /* feat 211 — checkered fill = the IN-PROGRESS set (weight in, reps pending); it never counts toward X/Y */
   #plan-step-bar .stepbar-notch.inprog { background: repeating-conic-gradient(var(--accent) 0% 25%, transparent 0% 50%) 0 0 / 6px 6px; opacity: 0.8; }
+  /* feat 212 — EXTRA sets beyond the step target: glowing border; glowing fill when complete, checkered when in-prog */
+  #plan-step-bar .stepbar-notch.extra { border: 1px solid var(--warn); box-shadow: 0 0 6px 1px color-mix(in srgb, var(--warn) 70%, transparent); }
+  #plan-step-bar .stepbar-notch.extra.filled, #plan-step-bar .stepbar-notch.extra.pending { background: var(--warn); opacity: 1; }
+  #plan-step-bar .stepbar-notch.extra.inprog { background: repeating-conic-gradient(var(--warn) 0% 25%, transparent 0% 50%) 0 0 / 6px 6px; opacity: 0.9; }
   #plan-step-bar.done { color: var(--good); }
   #plan-step-bar.done .stepbar-notch.filled { background: var(--good); }
   /* feat 57 — on-screen numpad bottom sheet */
@@ -15407,7 +15411,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 157 · 2026-06-11 21:15';
+const APP_BUILD = 'build 158 · 2026-06-11 21:21';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -16217,9 +16221,15 @@ function refreshPlanStepBar() {
   _planIgnorePending = true; const saved = stepStatus(session, st).logged; _planIgnorePending = false; // saved-only, to split solid vs dimmed notches
   const inprog = pendingStepOpenSets(st); // feat 211 — weight in, reps pending → checkered, never counted
   const pend = Math.max(0, total - saved), done = target > 0 ? total >= target : total > 0;
-  const notchCount = target > 0 ? target : Math.max(total + inprog, 1);
+  // feat 212 — sets BEYOND the step target get their own glowing notches instead of vanishing
+  const overflow = target > 0 ? Math.max(0, (total + inprog) - target) : 0;
+  const notchCount = target > 0 ? target + overflow : Math.max(total + inprog, 1);
   let notches = '';
-  for (let i = 0; i < notchCount; i++) notches += `<div class="stepbar-notch ${i < saved ? 'filled' : (i < saved + pend ? 'pending' : (i < saved + pend + inprog ? 'inprog' : ''))}"></div>`;
+  for (let i = 0; i < notchCount; i++) {
+    const cls = i < saved ? 'filled' : (i < saved + pend ? 'pending' : (i < total + inprog ? 'inprog' : ''));
+    const extra = target > 0 && i >= target ? ' extra' : ''; // feat 212 — glow marks the over-target sets
+    notches += `<div class="stepbar-notch ${cls}${extra}"></div>`;
+  }
   bar.className = done ? 'done' : 'current';
   bar.innerHTML = `<span class="stepbar-label">📋 Step ${idx + 1}/${plan.steps.length} · ${total}/${target}${done ? ' ✓' : ''}</span><div class="stepbar-notches">${notches}</div>`;
   bar.style.display = 'flex';
