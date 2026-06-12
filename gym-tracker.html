@@ -856,6 +856,12 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-step-warn { font-size: 10px; font-weight: 700; color: var(--warn); margin-left: auto; }
   /* feat 213 — a step whose option pool overlaps another step's (one exercise could satisfy both) */
   .plan-step-dup { font-size: 10px; font-weight: 700; color: var(--text3); border: 1px dashed var(--border2); border-radius: 5px; padding: 0 5px; cursor: help; }
+  /* feat 214 — skip a step for this session: back of the next-exercise queue, not removed */
+  .plan-step-skip { font-size: 12px; line-height: 1; background: transparent; border: 1px solid var(--border2); color: var(--text3); border-radius: 6px; padding: 2px 6px; cursor: pointer; font-family: inherit; }
+  .plan-step-skip:active { color: var(--accent); border-color: var(--accent-border); }
+  .plan-step.skipped { opacity: 0.55; }
+  .plan-step.skipped .plan-step-num { text-decoration: line-through; }
+  .plan-step-skiptag { font-size: 9.5px; font-weight: 700; color: var(--warn); text-transform: uppercase; letter-spacing: 0.3px; }
   /* feat 111 — plan-progress dashboard: effort badge, live progress line, prior-run comparison */
   .plan-effort { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 999px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .plan-effort.hit { color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); }
@@ -8526,9 +8532,31 @@ function stepStatus(session, step, plan) {
   const satisfied = target > 0 ? saved >= minSets : saved > 0;
   return { logged, target, saved, minSets, done, satisfied, started: logged > 0 };
 }
+/* feat 214 — SKIP a step for this session: not removed, just sent to the back of the next-exercise
+   queue (a crowded or unwanted station stops nagging). session.skippedSteps = [stepId,…] in skip order. */
+function sessionSkippedSteps(session) { return (session && Array.isArray(session.skippedSteps)) ? session.skippedSteps : []; }
+function stepIsSkipped(session, step) { return !!(step && step.id && sessionSkippedSteps(session).includes(step.id)); }
+function toggleStepSkip(session, step) {
+  if (!session || !step || !step.id) return false;
+  const list = sessionSkippedSteps(session).slice();
+  const i = list.indexOf(step.id);
+  if (i >= 0) list.splice(i, 1); else list.push(step.id);
+  session.skippedSteps = list;
+  touchSession(session); saveState();
+  return list.includes(step.id);
+}
 function currentPlanStepIndex(session, plan) {
-  for (let i = 0; i < plan.steps.length; i++) if (!stepStatus(session, plan.steps[i], plan).done) return i;
-  return plan.steps.length;
+  // feat 214 — prefer the first not-done UNSKIPPED step; once only skipped steps remain, serve them in
+  // skip order (oldest skip first) — back of the queue, never gone.
+  const skipped = sessionSkippedSteps(session);
+  let fallbackIdx = -1, fallbackOrder = Infinity;
+  for (let i = 0; i < plan.steps.length; i++) {
+    if (stepStatus(session, plan.steps[i], plan).done) continue;
+    const k = skipped.indexOf(plan.steps[i].id);
+    if (k < 0) return i;
+    if (k < fallbackOrder) { fallbackOrder = k; fallbackIdx = i; }
+  }
+  return fallbackIdx >= 0 ? fallbackIdx : plan.steps.length;
 }
 // Gym feasibility: a step is "impossible" only if an active gym is set and NO option can be performed there.
 function optionDoableInGym(o) {
@@ -9235,8 +9263,10 @@ function renderPlanGuide(session) {
     // feat 144 — full target → "✓"; min-% met but short of target → "· min ✓" (still counts as done).
     const setsBadge = `<span class="plan-step-sets ${s.satisfied ? 'hit' : ''}">${s.logged}/${st.sets} sets${s.done ? ' ✓' : (s.satisfied ? ` · min ✓` : '')}</span>`;
     const dupBadge = dups[i] ? `<span class="plan-step-dup" title="A single exercise could satisfy steps ${[i + 1].concat(dups[i].map(j => j + 1)).sort((a, b) => a - b).join(' & ')} — one station can serve them all, but each step still needs its own sets">⧉ with ${dups[i].map(j => j + 1).join(', ')}</span>` : ''; // feat 213
-    return `<div class="plan-step ${cls}" data-plan-step-idx="${i}">
-      <div class="plan-step-top"><span class="plan-step-num">${cls === 'done' ? '✓' : (i+1)}</span>${setsBadge}${loadBadge}${effortBadge}${dupBadge}${impossible ? `<span class="plan-step-warn" title="No option is available in the current gym">⚠ gym</span>` : ''}</div>
+    const skipped = stepIsSkipped(session, st); // feat 214 — skipped = sent to the back of the queue, not removed
+    const skipBtn = (!s.done && st.id) ? `<button class="plan-step-skip" data-plan-skip="${i}" title="${skipped ? 'Un-skip — restore this step to its place in the queue' : 'Skip for now — sends this step to the back of the next-exercise queue (station busy / unwanted), it is NOT removed'}">${skipped ? '↩' : '⏭'}</button>` : '';
+    return `<div class="plan-step ${cls}${skipped ? ' skipped' : ''}" data-plan-step-idx="${i}">
+      <div class="plan-step-top"><span class="plan-step-num">${cls === 'done' ? '✓' : (i+1)}</span>${setsBadge}${loadBadge}${effortBadge}${dupBadge}${skipped ? '<span class="plan-step-skiptag">skipped → back of queue</span>' : ''}${skipBtn}${impossible ? `<span class="plan-step-warn" title="No option is available in the current gym">⚠ gym</span>` : ''}</div>
       <div class="plan-step-opts">${opts || '<span style="color:var(--text3);font-size:11px;">(no exercises)</span>'}</div>
       ${st.desc ? `<div class="plan-step-desc">${escapeHtml(st.desc)}</div>` : ''}
     </div>`;
@@ -9618,8 +9648,19 @@ function renderLog(main) {
   main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
   main.querySelector('#plan-abandon-btn')?.addEventListener('click', () => { const s = getActiveSession(); if (s) { s.planId = undefined; saveState(); toast('Plan abandoned'); render(); } });
   main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt], st.load); }));
+  // feat 214 — ⏭ skip / ↩ un-skip a step for this session (back of the next-exercise queue, not removed)
+  main.querySelectorAll('.plan-step-skip[data-plan-skip]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const plan = getActivePlan(), s = getActiveSession();
+    if (!plan || !s) return;
+    const st = plan.steps[+el.dataset.planSkip];
+    const nowSkipped = toggleStepSkip(s, st);
+    toast(nowSkipped ? '⏭ Step sent to the back of the queue' : '↩ Step back in its place');
+    render();
+    if (typeof refreshPlanStepBar === 'function') refreshPlanStepBar();
+  }));
   // feat 112 — tapping a step (not its specific option buttons) opens the picker filtered to that step's full exercise list
-  main.querySelectorAll('.plan-step[data-plan-step-idx]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('.plan-opt')) return; openStepPicker(+el.dataset.planStepIdx); }));
+  main.querySelectorAll('.plan-step[data-plan-step-idx]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('.plan-opt') || e.target.closest('.plan-step-skip')) return; openStepPicker(+el.dataset.planStepIdx); }));
   // feat 113 — plan-complete banner actions
   main.querySelector('#plan-complete-end')?.addEventListener('click', () => endWorkout(false));
   main.querySelector('#plan-complete-summary')?.addEventListener('click', showPlanCompleteDialog);
@@ -15438,7 +15479,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 159 · 2026-06-11 21:27';
+const APP_BUILD = 'build 160 · 2026-06-11 21:33';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Skip a step → back of the queue (feat 214):** every not-done step on the dashboard plan card now has
+  a **⏭** control: skipping does NOT remove the step — it goes onto `session.skippedSteps` (per-session,
+  skip-ordered, synced with the session) and `currentPlanStepIndex` serves unskipped steps first, then
+  skipped ones **in skip order** (oldest first), so a busy or unwanted station stops nagging but its work
+  never disappears. Everything downstream inherits the new pointer for free: the picker's step filter
+  (feats 114/115), the step HUD bar, rest-bar next-up (feat 177) and the feat-207 "time for X" cue. The
+  row dims with a struck number + a "skipped → back of queue" tag, the control flips to **↩** un-skip
+  (restores its natural place), and completing a skipped step anyway still counts/clears normally.
+  Covered by `test/skipstep.spec.mjs` (pointer walk incl. all-skipped oldest-first service + persistence,
+  done-beats-skipped, and the rendered control flow).
 - **Duplicate-step indicator (feat 213):** when one single variation could satisfy **2+ steps of the same
   plan** (two curl-reachable steps, a pinned variation overlapping its own family step, …), those steps
   now wear a dashed **⧉ with N** badge on the dashboard plan card, with a tooltip explaining that one
