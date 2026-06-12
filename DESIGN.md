@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Live-workout heatmap — hit so far + plan projection (feat 218):** the same wireframe renderer, live
+  on the workout dashboard while a session runs: **"Hit so far"** builds its accumulator from the active
+  session's saved sets plus COMPLETED pending sets (the feat-211 semantics — an open set paints nothing),
+  and **"When plan done"** layers on every remaining step's outstanding sets through its first option's
+  representative variation (`planProjectionMuscleAcc`), so you can see what the finished workout will have
+  covered before you do it. Mode pair + the group/muscle/head resolution toggles, set totals in the title
+  ("so far 6 sets" / "projected 18 sets"), projection disabled with a tooltip when no plan is attached, and
+  the card only renders for a live (un-ended) session. Covered by `test/liveheatmap.spec.mjs` (so-far
+  semantics incl. the open-set exclusion, projection math = remaining×steps onto the right muscles, the
+  dashboard card's mode/level flow with exact titles, and absent-card cases).
 - **Volume heatmap on the anatomy wireframe (feat 217):** the Volume page now opens with a 🔥 heatmap
   card — weekly volume painted straight onto the built-in front/back wireframe figures. Resolution
   toggles between **muscle group / muscle / muscle head** (the user-asked trio) or **🔁 auto-cycles**

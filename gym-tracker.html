@@ -9708,6 +9708,7 @@ function renderLog(main) {
 
     // Workout plan guide (feat 70) — shown when active; the auto-suggester below runs only when no plan is attached.
     if (!today.endedAt) html += renderPlanGuide(today);
+    if (!today.endedAt) html += renderLiveHeatmapCard(); // feat 218 — hit so far / when the plan is done
 
     // Remaining-exercises evaluation (feat 55) — auto PUSH/PULL/LOWER/CORE suggestions only apply with NO plan.
     if (!today.endedAt && state.dashboard.physique !== false && !getActivePlan()) {
@@ -9812,6 +9813,7 @@ function renderLog(main) {
   main.querySelector('#plan-progress-open')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanFull(p.id); }); // feat 138 — tap the progress line → full plan
   main.querySelector('#plan-progress-open')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
   main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
+  _bindLiveHeatmapCard(main); // feat 218
   main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
   main.querySelector('#plan-exec-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); }); // feat 145 — detailed execution view
   main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
@@ -11440,6 +11442,70 @@ function _bindHeatmapCard(root) {
   if (!card) return;
   card.querySelectorAll('[data-hm-level]').forEach(b => b.addEventListener('click', () => { _heatLevel = b.dataset.hmLevel; _heatStopCycle(); render(); }));
   card.querySelector('[data-hm-cycle]')?.addEventListener('click', () => { _heatCycleOn ? _heatStopCycle() : _heatStartCycle(); render(); });
+}
+
+/* feat 218 — LIVE-WORKOUT heatmaps on the same renderer: "hit so far" (saved + completed pending sets,
+   feat-211 semantics) and "when this plan is done" (so-far + every remaining step's sets through its
+   first option's representative variation). Shown on the workout dashboard while a session is active. */
+let _liveHeatMode = 'sofar', _liveHeatLevel = 'group';
+function liveWorkoutMuscleAcc(level) {
+  const acc = {};
+  const add = (varUuid, n) => {
+    if (!varUuid || !n) return;
+    let contrib = muscleContribForVar(varUuid);
+    if (!contrib) return;
+    contrib = (level === 'head') ? toHeadContrib(contrib) : toMuscleContrib(contrib);
+    for (const mid in contrib) acc[mid] = (acc[mid] || 0) + contrib[mid] * n;
+  };
+  const s = getActiveSession();
+  if (s) (s.exercises || []).forEach(ex => add(ex.varUuid, (ex.sets || []).length));
+  if (typeof pending !== 'undefined' && pending && pending.varUuid && !(typeof modalState !== 'undefined' && modalState.isEditing)) {
+    const done = (pending.sets || []).filter(x => x && x.w !== '' && x.w != null && !isNaN(parseFloat(x.w)) && x.r !== '' && x.r != null && parseFloat(x.r) > 0).length;
+    add(pending.varUuid, done);
+  }
+  return acc;
+}
+function planProjectionMuscleAcc(level) {
+  const acc = liveWorkoutMuscleAcc(level);
+  const s = getActiveSession(), plan = getActivePlan();
+  if (!s || !plan) return acc;
+  (plan.steps || []).forEach(st => {
+    const remaining = Math.max(0, (st.sets || 0) - stepStatus(s, st, plan).logged);
+    if (!remaining) return;
+    const o = (st.options || [])[0]; if (!o) return;
+    let u = null;
+    if (o.type === 'variation') u = o.uuid;
+    else { const f = FAMILIES.find(x => x.id === resolveFamilyId(o.familyId)); u = f && f.variations[0] && f.variations[0].uuid; }
+    if (!u) return;
+    let contrib = muscleContribForVar(u);
+    if (!contrib) return;
+    contrib = (level === 'head') ? toHeadContrib(contrib) : toMuscleContrib(contrib);
+    for (const mid in contrib) acc[mid] = (acc[mid] || 0) + contrib[mid] * remaining;
+  });
+  return acc;
+}
+function renderLiveHeatmapCard() {
+  const plan = getActivePlan();
+  const mode = (_liveHeatMode === 'projected' && plan) ? 'projected' : 'sofar';
+  const acc = mode === 'projected' ? planProjectionMuscleAcc(_liveHeatLevel) : liveWorkoutMuscleAcc(_liveHeatLevel);
+  const total = Math.round(Object.values(acc).reduce((a, b) => a + b, 0) * 10) / 10;
+  const values = heatValuesFromAcc(acc, _liveHeatLevel);
+  return `<div class="card heatmap-card" id="live-heatmap">
+    <div class="card-title">🔥 Session heatmap <span style="font-size:10px;color:var(--text3);font-weight:600;">· ${mode === 'projected' ? 'projected' : 'so far'} ${total} sets</span></div>
+    <div class="hm-controls">
+      <button class="hm-lvl ${mode === 'sofar' ? 'active' : ''}" data-lhm-mode="sofar">Hit so far</button>
+      <button class="hm-lvl ${mode === 'projected' ? 'active' : ''}" data-lhm-mode="projected" ${plan ? '' : 'disabled title="Attach a plan to project the finished workout"'}>When plan done</button>
+    </div>
+    <div class="hm-controls">${HEAT_LEVELS.map(l => `<button class="hm-lvl ${_liveHeatLevel === l ? 'active' : ''}" data-lhm-level="${l}">${l === 'group' ? 'Group' : (l === 'muscle' ? 'Muscle' : 'Heads')}</button>`).join('')}</div>
+    ${anatomyHeatmapSvg(values)}
+    <div class="hm-legend"><span>0</span><span class="hm-grad"></span><span>max</span><span class="hm-na">▨ not modeled</span></div>
+  </div>`;
+}
+function _bindLiveHeatmapCard(root) {
+  const card = (root || document).querySelector('#live-heatmap');
+  if (!card) return;
+  card.querySelectorAll('[data-lhm-mode]').forEach(b => b.addEventListener('click', () => { if (b.disabled) return; _liveHeatMode = b.dataset.lhmMode; render(); }));
+  card.querySelectorAll('[data-lhm-level]').forEach(b => b.addEventListener('click', () => { _liveHeatLevel = b.dataset.lhmLevel; render(); }));
 }
 
 function renderVolume(main) {
@@ -15771,7 +15837,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 163 · 2026-06-11 22:04';
+const APP_BUILD = 'build 164 · 2026-06-11 22:10';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
