@@ -853,6 +853,19 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **French internationalization (feat 222):** the feat-61 i18n groundwork goes live. **Français** joins
+  `LANGUAGES` (the drawer's Language picker was already wired to `setLang`), backed by an `I18N.fr` dictionary
+  (~100 keys) covering the **UI chrome**: top-bar buttons + static tagged markup, all **page titles** via a new
+  `pageTitle(id)` ('page.<id>' from the active dictionary, falling back to the registry's English title), which
+  the feat-221 **breadcrumb** and **nav tree** now render — so the whole navigation system speaks French
+  (Séance / Journal / Bilan / Préparation / Étude / Réglages…) — plus the **Body page end-to-end** (titles,
+  stat tiles, form fields, girth labels via `girthLabel()`, avatar card) as the dynamic-render pattern.
+  `t(key, params)` interpolation is used in anger ('{page} — ouvrir le plan de navigation', girth-unit
+  substitution). English remains the byte-identical default; the **reference/coaching/glossary content corpus
+  deliberately stays English** for now — flagged honestly in the Language setting's subtitle in both languages.
+  Covered by `test/i18n.spec.mjs` (fr registered + t() translate/interpolate/fallback chain, pageTitle en/fr/
+  passthrough, live chrome flip on setLang — html lang, top bar, breadcrumb, nav tree — French Body page,
+  picker → state + localStorage persistence via SETTINGS_KEYS, and English-by-default untouched).
 - **Nav rework v2 — breadcrumbs + global nav tree, no full-screen menus (feat 221):** three guarantees: you can
   get **from any screen to any screen** (two taps), you can always **see where you are**, and **no screen is ever
   just a nav menu**. The top-bar title is now a **breadcrumb** (`_pagePath`): ancestors as emoji crumbs, the current
