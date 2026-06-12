@@ -853,6 +853,15 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Note templates + stock-ticker display (feat 215):** variation notes keep their freetext, but the
+  feat-54 editor now opens with **eight quick-pick calibration chips** (💺 Seat, 🛋 Backrest, 💪 Armrest,
+  🦵 Leg pad, 📌 Pin/stack, 🤝 Handles, 📐 Incline, #️⃣ Machine #) that append a structured field to the
+  text — separator-aware (`· ` joins non-empty text) with the caret parked after the inserted label, so
+  "Seat: 4 · Pin: 7" takes three taps and two digits. The saved note then **plays like a stock ticker**
+  on the active exercise header: a single-line marquee (doubled content + `translateX(-50%)` keyframe for
+  a seamless loop) whose duration scales with text length (8–60 s), static under
+  `prefers-reduced-motion`. Covered by `test/notetemplates.spec.mjs` (chip set + separator-aware
+  appends, freetext save path untouched, ticker markup/animation/duration, no chips outside edit mode).
 - **Skip a step → back of the queue (feat 214):** every not-done step on the dashboard plan card now has
   a **⏭** control: skipping does NOT remove the step — it goes onto `session.skippedSteps` (per-session,
   skip-ordered, synced with the session) and `currentPlanStepIndex` serves unskipped steps first, then

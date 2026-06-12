@@ -2030,6 +2030,16 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .logstep.done .logstep-fill { background: var(--good); }
   .picker-back-current:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .ex-note-input { margin-top: 6px; font-size: 13px; resize: vertical; }
+  /* feat 215 — note template chips (equipment calibration quick-picks) + the stock-ticker display */
+  .note-tpl-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .note-tpl-chip { font-size: 11px; font-weight: 600; background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); border-radius: 7px; padding: 4px 8px; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .note-tpl-chip:active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  .ex-note.ticker { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; }
+  .ex-note-ticker { flex: 1; min-width: 0; overflow: hidden; }
+  .ex-note-ticker-inner { display: inline-block; white-space: nowrap; animation: note-ticker linear infinite; will-change: transform; }
+  .ex-note-ticker-inner .ex-note-gap { padding: 0 14px; color: var(--text3); }
+  @keyframes note-ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) { .ex-note-ticker-inner { animation: none; } }
 
   /* Subvariation in modal */
   .sub-select-wrap { background: #1f1a2a; border: 1px solid #2e2640; border-radius: 7px; padding: 8px 10px; margin: 0 0 10px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -2488,6 +2498,18 @@ function trackingKey(varUuid, subUuid) {
   return subUuid ? `${varUuid}|${subUuid}` : varUuid;
 }
 
+// feat 215 — quick-pick note templates: equipment-calibration fields a tap inserts into the freetext
+// note (seat height, armrests, pads, pins, machine number…). Freetext stays king — these just seed it.
+const NOTE_TEMPLATES = [
+  { label: '💺 Seat', text: 'Seat: ' },
+  { label: '🛋 Backrest', text: 'Backrest: ' },
+  { label: '💪 Armrest', text: 'Armrest: ' },
+  { label: '🦵 Leg pad', text: 'Leg pad: ' },
+  { label: '📌 Pin / stack', text: 'Pin: ' },
+  { label: '🤝 Handles', text: 'Handles: ' },
+  { label: '📐 Incline', text: 'Incline: ' },
+  { label: '#️⃣ Machine #', text: 'Machine #: ' },
+];
 // feat 54 — persistent, per-exercise custom note keyed by variation uuid.
 // "Sticks to the exercise": auto-shows in the log-sets header every time it's logged.
 function getExerciseNote(varUuid) {
@@ -14471,17 +14493,21 @@ function renderSetsForm() {
   }).join('');
 
   // feat 54 — per-exercise custom note region for the header
+  // feat 215 — quick-pick equipment-calibration templates in the editor + a stock-ticker display
   const exNote = getExerciseNote(pending.varUuid);
   let exNoteHtml;
   if (modalState.exNoteEditing) {
-    exNoteHtml = `<textarea class="ex-note-input" id="trk-ex-note-input" rows="2" placeholder="Setup, cues, machine #, grip…">${escapeHtml(exNote ? exNote.text : '')}</textarea>
+    const chips = NOTE_TEMPLATES.map((t, ti) => `<button type="button" class="note-tpl-chip" data-note-tpl="${ti}">${t.label}</button>`).join('');
+    exNoteHtml = `<div class="note-tpl-row">${chips}</div>
+      <textarea class="ex-note-input" id="trk-ex-note-input" rows="2" placeholder="Setup, cues, machine #, grip… (tap a chip to insert a calibration field)">${escapeHtml(exNote ? exNote.text : '')}</textarea>
       <div class="btn-row" style="margin-top:6px;">
         <button class="secondary" id="trk-ex-note-save">Save note</button>
         <button class="secondary" id="trk-ex-note-cancel">Cancel</button>
         ${exNote ? '<button class="danger" id="trk-ex-note-clear">Clear</button>' : ''}
       </div>`;
   } else if (exNote) {
-    exNoteHtml = `<div class="ex-note">📝 <span class="ex-note-text">${escapeHtml(exNote.text)}</span> <button type="button" class="ex-note-add" id="trk-ex-note-edit">edit</button></div>`;
+    const t = exNote.text, dur = Math.max(8, Math.min(60, Math.round(t.length * 0.45)));
+    exNoteHtml = `<div class="ex-note ticker">📝 <span class="ex-note-ticker"><span class="ex-note-ticker-inner" style="animation-duration:${dur}s"><span class="ex-note-text">${escapeHtml(t)}</span><span class="ex-note-gap">···</span><span class="ex-note-text" aria-hidden="true">${escapeHtml(t)}</span><span class="ex-note-gap" aria-hidden="true">···</span></span></span> <button type="button" class="ex-note-add" id="trk-ex-note-edit">edit</button></div>`;
   } else {
     exNoteHtml = `<button type="button" class="ex-note-add" id="trk-ex-note-edit">＋ Add note</button>`;
   }
@@ -14909,6 +14935,15 @@ function bindSetsForm() {
     renderModal();
     document.getElementById('trk-ex-note-input')?.focus();
   });
+  // feat 215 — template chips append a calibration field to the freetext (separator-aware) and refocus
+  document.querySelectorAll('.note-tpl-chip[data-note-tpl]').forEach(chip => chip.addEventListener('click', () => {
+    const ta = document.getElementById('trk-ex-note-input'); if (!ta) return;
+    const tpl = NOTE_TEMPLATES[+chip.dataset.noteTpl]; if (!tpl) return;
+    const cur = ta.value;
+    ta.value = cur + (cur && !/[\s·]$/.test(cur) ? ' · ' : '') + tpl.text;
+    ta.focus();
+    try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (_) {}
+  }));
   document.getElementById('trk-ex-note-save')?.addEventListener('click', () => {
     const ta = document.getElementById('trk-ex-note-input');
     const v = ta ? ta.value : '';
@@ -15479,7 +15514,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 160 · 2026-06-11 21:33';
+const APP_BUILD = 'build 161 · 2026-06-11 21:40';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
