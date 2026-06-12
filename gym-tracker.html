@@ -5658,6 +5658,22 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">↳ Start cue limit</div>
+        <div class="drawer-setting-sub">Speak only for the first / last X sets (0 = every set)</div>
+      </div>
+      <input type="number" id="ann-start-limit" value="${annunciationCfg().startLimit || 0}" min="0" max="10" step="1"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">↳ End cue limit</div>
+        <div class="drawer-setting-sub">Speak only for the first / last X sets (0 = every set)</div>
+      </div>
+      <input type="number" id="ann-end-limit" value="${annunciationCfg().endLimit || 0}" min="0" max="10" step="1"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">🎧 Headphone-only audio</div>
         <div class="drawer-setting-sub">Only play sound when it's routed to headphones — never the phone speaker (haptics still work). <b>${headphoneStatus().icon} ${escapeHtml(headphoneStatus().text)}</b>${(audioHeadphonesOnly() && _headphonesConnected == null) ? ` · <a href="#" id="drawer-hp-unlock" style="color:var(--accent);">enable detection</a>` : ''}</div>
       </div>
@@ -6472,6 +6488,15 @@ function renderSettingsDrawer() {
   if (mwInput) mwInput.addEventListener('change', () => {
     const v = parseInt(mwInput.value);
     if (!isNaN(v) && v >= 100) { state.maxWeightLb = v; saveState(); toast('Weight limit: ' + v + ' lb'); }
+  });
+
+  // feat 208 — annunciation first/last-X limits (0 = every set)
+  [['#ann-start-limit', 'startLimit', 'Start cue limit'], ['#ann-end-limit', 'endLimit', 'End cue limit']].forEach(([sel, key, label]) => {
+    const inp = body.querySelector(sel);
+    if (inp) inp.addEventListener('change', () => {
+      const v = parseInt(inp.value);
+      if (!isNaN(v) && v >= 0 && v <= 10) { state.annunciation = { ...annunciationCfg(), [key]: v }; saveState(); toast(label + ': ' + (v ? 'first/last ' + v : 'every set')); }
+    });
   });
 
   // Workout controls
@@ -15348,7 +15373,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 153 · 2026-06-11 20:47';
+const APP_BUILD = 'build 154 · 2026-06-11 20:53';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -15595,10 +15620,19 @@ function setStartPhrase(pos) {
   }
   return pos.x === 1 ? 'First set' : 'Set ' + pos.x;
 }
+// feat 208 — first/last-X limit: with a limit L, a cue only speaks for the first L or the last L sets.
+// The "last L" half needs a plan target (y); plan-less positions honor only the "first L" half. 0 = no limit.
+function annunceWithinLimit(pos, L) {
+  if (!(L > 0)) return true;
+  if (pos.x <= L) return true;
+  return pos.y ? pos.x > pos.y - L : false;
+}
 function annunceSetStart() {
   const c = annunciationCfg();
   if (!c.start) return;
-  annunce(setStartPhrase(setPositionInfo()));
+  const pos = setPositionInfo();
+  if (!annunceWithinLimit(pos, c.startLimit)) return; // feat 208
+  annunce(setStartPhrase(pos));
 }
 // feat 207 — set-END cues, spoken when a set completes (reps land): "One down — 3 to go",
 // "2 of 4 down", "Half done", "One more, then Squat", "All done — time for Squat".
@@ -15631,6 +15665,7 @@ function annunceSetEnd() {
   if (!c.end) return;
   const pos = setPositionInfo('end');
   if (!pos.x) return;
+  if (!annunceWithinLimit(pos, c.endLimit)) return; // feat 208
   const next = (pos.y && pos.x >= pos.y - 1) ? nextStepLabelAfterCurrent() : null;
   annunce(setEndPhrase(pos, next));
 }

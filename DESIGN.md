@@ -853,6 +853,14 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Annunciation first/last-X limits (feat 208):** both spoken cues can now be bounded to where they
+  matter: with a limit **L** set, a cue speaks only for the **first L** or the **last L** sets
+  (`annunceWithinLimit(pos, L)` — the "last L" half needs the plan target `y`; plan-less positions honor
+  only the "first L" half; 0 = every set, the default). Separate `startLimit` / `endLimit` fields on
+  `state.annunciation`, two "↳ … cue limit" number inputs (0–10) under the toggles in Preferences. So
+  "limit 1" gives exactly the gym-useful pair: "First set of 4" … silence … "Last set — make it count".
+  Covered by `test/annunce.spec.mjs` (gate matrix incl. the muted middle and plan-less halves, a
+  3-set integration run speaking only first+last, drawer input persistence).
 - **Set-end annunciations (feat 207):** the closing half of the spoken-cue pair — when a set COMPLETES
   (reps land; the `commitSetField` reps→`ts` rising edge, so rep edits on an already-done set stay silent
   and a zero-rep entry never counts): **"One down — 3 to go" / "2 of 4 down" / "Half done" (at ⌈y/2⌉ for

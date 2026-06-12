@@ -3,6 +3,7 @@
 // step's target supplies y; saved sets count toward x). Off by default; a persisted setting.
 // feat 207 — set-END annunciations: when a set completes (reps land) — "One down — 3 to go",
 // "2 of 4 down", "Half done", "One more, then [next step]", "All done — time for [next step]".
+// feat 208 — first/last-X limits: with a limit L set, cues speak only for the first L / last L sets.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -185,4 +186,68 @@ test('plan flow: "One more, then [next]" and "All done — time for [next]" (fea
   });
   expect(r.out[0]).toBe('One more, then ' + r.sqTitle);
   expect(r.out[1]).toBe('All done — time for ' + r.sqTitle);
+});
+
+test('annunceWithinLimit gates by first/last X (plan-less has no "last") (feat 208)', async ({ page }) => {
+  const r = await page.evaluate(() => ({
+    noLimit: annunceWithinLimit({ x: 5, y: 6 }, 0),
+    first: annunceWithinLimit({ x: 2, y: 6 }, 2),
+    middle: annunceWithinLimit({ x: 3, y: 6 }, 2),
+    middle2: annunceWithinLimit({ x: 4, y: 6 }, 2),
+    last: annunceWithinLimit({ x: 5, y: 6 }, 2),
+    veryLast: annunceWithinLimit({ x: 6, y: 6 }, 2),
+    planlessIn: annunceWithinLimit({ x: 2, y: null }, 2),
+    planlessOut: annunceWithinLimit({ x: 3, y: null }, 2),
+  }));
+  expect(r.noLimit).toBe(true);     // 0 = every set
+  expect(r.first).toBe(true);       // within the first 2
+  expect(r.middle).toBe(false);     // the muted middle
+  expect(r.middle2).toBe(false);
+  expect(r.last).toBe(true);        // within the last 2
+  expect(r.veryLast).toBe(true);
+  expect(r.planlessIn).toBe(true);  // without y only the "first X" half applies
+  expect(r.planlessOut).toBe(false);
+});
+
+test('with startLimit 1 on a 3-set step: first speaks, middle is silent, last speaks (feat 208)', async ({ page }) => {
+  const said = await page.evaluate(() => {
+    normalizeState();
+    const fam = FAMILIES.find(f => f.id === 'bicep-curl');
+    const u = fam.variations.find(v => exMode(v.uuid).mode === 'standard').uuid;
+    state.plans = [{ id: 'p-lim', name: 'Lim', steps: [{ id: 's1', sets: 3, options: [{ type: 'movement', familyId: 'bicep-curl' }] }] }];
+    state.sessions = [{ id: 'sess', date: new Date().toISOString(), updatedAt: new Date().toISOString(), planId: 'p-lim', exercises: [] }];
+    modalState.isEditing = false;
+    window._said = [];
+    window.annunce = (t) => { window._said.push(t); };
+    state.annunciation = { ...annunciationCfg(), start: true, end: false, startLimit: 1 };
+    pending.varUuid = u; pending.subUuid = null;
+    pending.sets = [{ w: '', r: '' }];
+    commitSetField(0, 'w', '50');                     // set 1 → within first 1 → speaks
+    pending.sets[0].r = 10; pending.sets.push({ w: '', r: '' });
+    commitSetField(1, 'w', '50');                     // set 2 → muted middle
+    pending.sets[1].r = 10; pending.sets.push({ w: '', r: '' });
+    commitSetField(2, 'w', '50');                     // set 3 → within last 1 → speaks
+    const out = window._said.slice();
+    pending.sets = [{ w: '', r: '' }]; pending.varUuid = null; state.sessions = []; state.plans = [];
+    state.annunciation = { ...annunciationCfg(), start: false, startLimit: 0 };
+    return out;
+  });
+  expect(said).toEqual(['First set of 3', 'Last set — make it count']);
+});
+
+test('the drawer limit inputs persist startLimit / endLimit (feat 208)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    renderSettingsDrawer();
+    const sl = document.getElementById('ann-start-limit'), el = document.getElementById('ann-end-limit');
+    sl.value = '2'; sl.dispatchEvent(new Event('change', { bubbles: true }));
+    el.value = '3'; el.dispatchEvent(new Event('change', { bubbles: true }));
+    const got = { start: annunciationCfg().startLimit, end: annunciationCfg().endLimit,
+      persisted: JSON.parse(localStorage.getItem('overload_tracker_v2')).annunciation };
+    state.annunciation = { ...annunciationCfg(), startLimit: 0, endLimit: 0 }; saveState();
+    return got;
+  });
+  expect(r.start).toBe(2);
+  expect(r.end).toBe(3);
+  expect(r.persisted.startLimit).toBe(2);
+  expect(r.persisted.endLimit).toBe(3);
 });
