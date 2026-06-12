@@ -2246,6 +2246,13 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .hm-legend { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text3); margin-top: 4px; }
 .hm-grad { flex: 0 0 90px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, hsla(120,85%,52%,0.35), hsla(60,85%,52%,0.6), hsla(0,85%,52%,0.8)); }
 .hm-na { margin-left: auto; }
+/* feat 219 — historical replay */
+.replay-trend { position: relative; margin: 6px 0 2px; }
+.replay-trend svg { width: 100%; height: 30px; display: block; }
+.replay-cursor { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); border-radius: 1px; box-shadow: 0 0 5px var(--accent); pointer-events: none; }
+.replay-stats { font-size: 11.5px; color: var(--text2); font-weight: 700; margin: 2px 0 4px; }
+.replay-sess { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text2); padding: 5px 0; border-bottom: 1px solid var(--border2); }
+.replay-sess:last-child { border-bottom: none; }
 @media (max-width: 560px) {
   .gloss-panel.chart-open .gloss-main { flex-direction: column; }
   .gloss-panel.chart-open .gloss-chart { width: auto; max-height: 46%; border-right: none; border-bottom: 1px solid var(--border2); display: flex; gap: 8px; }
@@ -8190,7 +8197,7 @@ let currentTab = 'log';
 const PAGES = {
   home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'] },
   train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'] },
-  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','history','trends','volume','achievements'] },
+  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','history','trends','volume','achievements','replay'] },
   execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail'] },
   prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator'] },
   study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','glossary','anatomy','advice'] },
@@ -8202,6 +8209,7 @@ const PAGES = {
   trends:      { title:'Trends',           emoji:'📈', kind:'leaf', parent:'reflect', tab:'trends',   render:m=>renderTrends(m) },
   volume:      { title:'Volume',           emoji:'🧮', kind:'leaf', parent:'reflect', tab:'volume',   render:m=>renderVolume(m) },
   achievements:{ title:'Achievement Paths',emoji:'🏅', kind:'leaf', parent:'reflect', render:m=>{ m.innerHTML = renderAchievements(); } },
+  replay:      { title:'Replay',           emoji:'⏪', kind:'leaf', parent:'reflect', render:m=>renderReplayPage(m) }, // feat 219
   gyms:        { title:'Gyms',             emoji:'📍', kind:'leaf', parent:'prepare', tab:'gyms', render:m=>renderGymsTab(m) },
   body:        { title:'Body',             emoji:'🧍', kind:'leaf', parent:'prepare', tab:'body', render:m=>renderBody(m) },
   // leaves still served by their existing overlay/opener (converted to real pages in later phases)
@@ -11506,6 +11514,103 @@ function _bindLiveHeatmapCard(root) {
   if (!card) return;
   card.querySelectorAll('[data-lhm-mode]').forEach(b => b.addEventListener('click', () => { if (b.disabled) return; _liveHeatMode = b.dataset.lhmMode; render(); }));
   card.querySelectorAll('[data-lhm-level]').forEach(b => b.addEventListener('click', () => { _liveHeatLevel = b.dataset.lhmLevel; render(); }));
+}
+
+/* ============================================================
+   feat 219 — HISTORICAL REPLAY (Reflect › ⏪ Replay). Scrub or ▶ play through training history week by
+   week — the anatomy heatmap, top volume bars, a whole-history trend strip with a cursor, and that
+   week's sessions all animate together. Capped at the last 104 weeks.
+   ============================================================ */
+let _replayOffset = null, _replayPlaying = false, _replayTimer = null, _replayLevel = 'group', _replayTickMs = 1100;
+function replayMaxOffset() {
+  if (!state.sessions.length) return 0;
+  const now = startOfWeek(new Date());
+  let oldest = now;
+  state.sessions.forEach(s => { const w = startOfWeek(new Date(s.date)); if (w < oldest) oldest = w; });
+  return Math.min(104, Math.round((now - oldest) / (7 * 86400000)));
+}
+function _replayStop() { _replayPlaying = false; clearInterval(_replayTimer); _replayTimer = null; }
+function _replayPlay() {
+  _replayStop();
+  _replayPlaying = true;
+  if (_replayOffset == null || _replayOffset <= 0) _replayOffset = replayMaxOffset(); // restart from the oldest week
+  _replayRefresh();
+  _replayTimer = setInterval(() => {
+    if (!document.getElementById('replay-page')) { _replayStop(); return; } // left the page
+    if (_replayOffset <= 0) { _replayStop(); _replayRefresh(); return; }    // reached "now"
+    _replayOffset--;
+    _replayRefresh();
+  }, _replayTickMs);
+}
+function _replayWeekSessions(offset) {
+  const start = startOfWeek(new Date()) - offset * 7 * 86400000, end = start + 7 * 86400000;
+  return state.sessions.filter(s => { const t = new Date(s.date).getTime(); return t >= start && t < end; })
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+}
+function _replaySeries() {
+  const max = replayMaxOffset(), out = [];
+  for (let off = max; off >= 0; off--) {
+    const sets = _replayWeekSessions(off).reduce((n, s) => n + (s.exercises || []).reduce((m, e) => m + (e.sets || []).length, 0), 0);
+    out.push(sets);
+  }
+  return out;
+}
+function renderReplayPage(main) {
+  if (!main) return;
+  const max = replayMaxOffset();
+  if (_replayOffset == null || _replayOffset > max) _replayOffset = 0; // open on "now"; ▶ Play restarts from the oldest week
+  const off = _replayOffset;
+  const weekStart = new Date(startOfWeek(new Date()) - off * 7 * 86400000);
+  const sessions = _replayWeekSessions(off);
+  const weekSets = sessions.reduce((n, s) => n + (s.exercises || []).reduce((m, e) => m + (e.sets || []).length, 0), 0);
+  const values = heatRegionValues(_replayLevel, off);
+  const series = _replaySeries();
+  const cursorPct = max > 0 ? ((max - off) / max) * 100 : 100;
+  const vol = getWeeklyVolume(off);
+  const topBars = BODY_PARTS.map(bp => ({ bp, sets: vol[bp] || 0 })).filter(x => x.sets > 0)
+    .sort((a, b) => b.sets - a.sets).slice(0, 6);
+  const barMax = Math.max.apply(null, topBars.map(x => x.sets).concat([1]));
+  main.innerHTML = `<div id="replay-page">
+    <div class="card heatmap-card">
+      <div class="card-title">⏪ Historical replay <span style="font-size:10.5px;color:var(--text3);font-weight:600;">· week of ${weekStart.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}${off === 0 ? ' (now)' : ''}</span></div>
+      <div class="hm-controls">
+        <button class="hm-lvl" id="replay-oldest" title="Jump to the oldest week">⏮</button>
+        <button class="hm-lvl ${_replayPlaying ? 'active' : ''}" id="replay-play">${_replayPlaying ? '⏸ Pause' : '▶ Play'}</button>
+        <button class="hm-lvl" id="replay-now" title="Jump to this week">⏭</button>
+        ${HEAT_LEVELS.map(l => `<button class="hm-lvl ${_replayLevel === l ? 'active' : ''}" data-replay-level="${l}">${l === 'group' ? 'Group' : (l === 'muscle' ? 'Muscle' : 'Heads')}</button>`).join('')}
+      </div>
+      <input type="range" id="replay-scrub" min="0" max="${max}" step="1" value="${max - off}" style="width:100%;accent-color:var(--accent);" aria-label="Replay week">
+      <div class="replay-trend">
+        ${series.length >= 2 ? sparklineSvg(series, { w: 320, h: 30 }) : ''}
+        <div class="replay-cursor" style="left:${cursorPct.toFixed(1)}%"></div>
+      </div>
+      <div class="replay-stats">${sessions.length} session${sessions.length === 1 ? '' : 's'} · ${weekSets} sets this week</div>
+      ${anatomyHeatmapSvg(values)}
+      <div class="hm-legend"><span>0</span><span class="hm-grad"></span><span>max</span><span class="hm-na">▨ not modeled</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🧮 Top volume that week</div>
+      ${topBars.length ? topBars.map(x => `<div class="vol-row"><div class="vol-label">${BP_LABELS[x.bp] || x.bp}</div><div class="vol-bar-track"><div class="vol-bar-fill" style="width:${(x.sets / barMax) * 100}%"></div></div><div class="vol-num">${x.sets}</div></div>`).join('') : '<div style="font-size:12px;color:var(--text3);">No sets that week.</div>'}
+    </div>
+    <div class="card">
+      <div class="card-title">📅 That week's log</div>
+      ${sessions.length ? sessions.map(s => {
+        const sets = (s.exercises || []).reduce((m, e) => m + (e.sets || []).length, 0);
+        const grade = s.finalScore && s.finalScore.grade ? ` · ${escapeHtml(s.finalScore.grade)}` : '';
+        return `<div class="replay-sess"><span>${new Date(s.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span><span>${(s.exercises || []).length} exercises · ${sets} sets${grade}</span></div>`;
+      }).join('') : '<div style="font-size:12px;color:var(--text3);">A rest week.</div>'}
+    </div>
+  </div>`;
+  main.querySelector('#replay-scrub').addEventListener('input', (e) => { _replayStop(); _replayOffset = max - (+e.target.value); _replayRefresh(); });
+  main.querySelector('#replay-play').addEventListener('click', () => { _replayPlaying ? (_replayStop(), _replayRefresh()) : _replayPlay(); });
+  main.querySelector('#replay-oldest').addEventListener('click', () => { _replayStop(); _replayOffset = max; _replayRefresh(); });
+  main.querySelector('#replay-now').addEventListener('click', () => { _replayStop(); _replayOffset = 0; _replayRefresh(); });
+  main.querySelectorAll('[data-replay-level]').forEach(b => b.addEventListener('click', () => { _replayLevel = b.dataset.replayLevel; _replayRefresh(); }));
+}
+function _replayRefresh() {
+  const host = document.getElementById('replay-page');
+  if (!host || !host.parentElement) return;
+  renderReplayPage(host.parentElement);
 }
 
 function renderVolume(main) {
@@ -15837,7 +15942,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 164 · 2026-06-11 22:10';
+const APP_BUILD = 'build 165 · 2026-06-11 22:17';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

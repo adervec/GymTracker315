@@ -853,6 +853,15 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Historical replay (feat 219):** a new **Reflect › ⏪ Replay** router page that scrubs or **▶ plays**
+  through training history week by week (capped at 104), animating four things in lockstep: the anatomy
+  **heatmap** for that week (full group/muscle/head toggles), the **top-6 volume bars**, a whole-history
+  **trend strip** (weekly set totals sparkline) with a glowing cursor at the replay position, and **that
+  week's log** (sessions with exercise/set counts + grades). Controls: ⏮ oldest / ▶⏸ / ⏭ now / a range
+  scrubber; Play restarts from the oldest week, advances every 1.1 s (test-tunable `_replayTickMs`),
+  stops itself at "now" and politely dies when you leave the page. Opens on the current week. Covered by
+  `test/replay.spec.mjs` (Reflect registration + opens-on-now with all parts, scrub swaps heat+log between
+  a squat week and a bench week, play runs oldest→now and self-stops, leaving the page kills the timer).
 - **Live-workout heatmap — hit so far + plan projection (feat 218):** the same wireframe renderer, live
   on the workout dashboard while a session runs: **"Hit so far"** builds its accumulator from the active
   session's saved sets plus COMPLETED pending sets (the feat-211 semantics — an open set paints nothing),
