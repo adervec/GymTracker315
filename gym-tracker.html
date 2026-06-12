@@ -2236,6 +2236,16 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .anat-hotspot.box { transform: none; border: 1.5px solid var(--accent); border-radius: 4px; background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .anat-hotspot.dot:hover, .anat-hotspot.box:hover { background: color-mix(in srgb, var(--accent) 60%, transparent); }
 .anat-hotspot.active { outline: 2px solid var(--good); }
+/* feat 217 — the anatomy volume heatmap (Volume page; feat 218 reuses it on the live workout) */
+.heatmap-card .anat-svg { width: 100%; max-width: 430px; display: block; margin: 4px auto 0; }
+.hm-region { stroke: var(--border2); fill: transparent; transition: fill 0.4s; }
+.hm-region.na { stroke-dasharray: 2 2; opacity: 0.4; }
+.hm-controls { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.hm-lvl { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+.hm-lvl.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+.hm-legend { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text3); margin-top: 4px; }
+.hm-grad { flex: 0 0 90px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, hsla(120,85%,52%,0.35), hsla(60,85%,52%,0.6), hsla(0,85%,52%,0.8)); }
+.hm-na { margin-left: auto; }
 @media (max-width: 560px) {
   .gloss-panel.chart-open .gloss-main { flex-direction: column; }
   .gloss-panel.chart-open .gloss-chart { width: auto; max-height: 46%; border-right: none; border-bottom: 1px solid var(--border2); display: flex; gap: 8px; }
@@ -11324,6 +11334,114 @@ function renderCardioGoals(weekOffset) {
   </div>`;
 }
 
+/* ============================================================
+   feat 217 — VOLUME HEATMAP on the anatomy wireframe. Weekly volume painted onto the built-in
+   front/back figures at three resolutions — muscle GROUP / MUSCLE / muscle HEAD — toggleable or
+   auto-cycling. Cool green = touched, hot red = hammered, gray dashes = not in the volume model.
+   The renderer is shared with feat 218's live-workout heatmaps.
+   ============================================================ */
+// Wireframe region → volume-model mapping (the group, and the muscle ids inside each region).
+const HEAT_REGION_MODEL = {
+  'Pec / Pectorals': { group: 'chest', muscles: ['upper-chest', 'mid-lower-chest'] },
+  'Delts': { group: 'shoulders', muscles: ['front-delt', 'side-delt', 'rear-delt'] },
+  'Bis / Biceps': { group: 'biceps', muscles: ['biceps', 'brachialis'] },
+  'Core': { group: 'core', muscles: ['rectus-abdominis'] },
+  'Obliques': { group: 'core', muscles: ['obliques'] },
+  'Quads / Quadriceps': { group: 'quads', muscles: ['quads'] },
+  'Traps': { group: 'back', muscles: ['traps', 'rhomboids'] },
+  'Lats': { group: 'back', muscles: ['lats'] },
+  'Tris / Triceps': { group: 'triceps', muscles: ['triceps'] },
+  'Erectors': { group: 'back', muscles: ['erectors'] },
+  'Glutes': { group: 'glutes', muscles: ['glute-max', 'glute-med-min'] },
+  'Hams / Hamstrings': { group: 'hamstrings', muscles: ['hamstrings'] },
+  'Calves': { group: 'calves', muscles: ['gastrocnemius', 'soleus'] },
+  'Forearms': null, 'Adductors': null, 'Tibialis Anterior': null, // not in the volume model → "n/a" style
+};
+// Per-region value at a resolution, from any muscle-level accumulator (weekly or live).
+function heatValuesFromAcc(acc, level) {
+  const groupAcc = {};
+  for (const mid in acc) { const inf = MUSCLE_INDEX[mid]; if (inf) groupAcc[inf.group] = (groupAcc[inf.group] || 0) + acc[mid]; }
+  return ANATOMY_REGIONS.map(r => {
+    const m = HEAT_REGION_MODEL[r.term];
+    if (!m) return { term: r.term, v: null };
+    let v = 0;
+    if (level === 'group') v = groupAcc[m.group] || 0;
+    else if (level === 'head') {
+      m.muscles.forEach(id => {
+        const inf = MUSCLE_INDEX[id];
+        if (inf && inf.heads) inf.heads.forEach(h => { v += acc[h.id] || 0; });
+        else v += acc[id] || 0;
+      });
+    } else m.muscles.forEach(id => { v += acc[id] || 0; });
+    return { term: r.term, v: Math.round(v * 10) / 10 };
+  });
+}
+function heatRegionValues(level, weekOffset) {
+  return heatValuesFromAcc(getWeeklyMuscleVolume(weekOffset || 0, level === 'head' ? 'head' : 'muscle'), level);
+}
+function heatColor(v, max) {
+  if (v == null) return null;                 // not modeled
+  if (!max || v <= 0) return 'transparent';
+  const t = Math.min(1, v / max);
+  const hue = 120 - 120 * t;                  // green → red
+  return `hsla(${Math.round(hue)}, 85%, 52%, ${(0.3 + 0.5 * t).toFixed(2)})`;
+}
+function anatomyHeatmapSvg(values) {
+  const max = Math.max.apply(null, values.map(x => x.v || 0).concat([0.0001]));
+  const byTerm = {}; values.forEach(x => { byTerm[x.term] = x; });
+  const region = (r) => {
+    const val = byTerm[r.term] || { v: null };
+    const na = val.v == null;
+    const fill = heatColor(val.v, max);
+    return r.e.map(([cx, cy, rx, ry]) =>
+      `<ellipse class="hm-region${na ? ' na' : ''}" data-hm-term="${escapeAttr(r.term)}" data-hm-v="${na ? '' : val.v}" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"${na ? '' : ` style="fill:${fill};"`}><title>${escapeHtml(r.term)} — ${na ? 'not in the volume model' : val.v + ' sets'}</title></ellipse>`).join('');
+  };
+  return `<svg class="anat-svg heatmap" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
+    ${anatomyOutline(50)}${anatomyOutline(150)}
+    ${ANATOMY_REGIONS.map(region).join('')}
+    <text class="anat-fig-label" x="50" y="190">Front</text>
+    <text class="anat-fig-label" x="150" y="190">Back</text>
+  </svg>`;
+}
+const HEAT_LEVELS = ['group', 'muscle', 'head'];
+let _heatLevel = 'group', _heatCycleOn = false, _heatCycleId = null, _heatCycleMs = 3500;
+function heatmapCardHtml(values, level, title, opts) {
+  const o = opts || {};
+  return `<div class="card heatmap-card" id="${o.id || 'vol-heatmap'}">
+    <div class="card-title">🔥 ${escapeHtml(title || 'Volume heatmap')}</div>
+    <div class="hm-controls">
+      ${HEAT_LEVELS.map(l => `<button class="hm-lvl ${level === l ? 'active' : ''}" data-hm-level="${l}">${l === 'group' ? 'Group' : (l === 'muscle' ? 'Muscle' : 'Heads')}</button>`).join('')}
+      ${o.noCycle ? '' : `<button class="hm-lvl cycle ${_heatCycleOn ? 'active' : ''}" data-hm-cycle="1" title="Auto-cycle the resolution">🔁 Auto</button>`}
+    </div>
+    ${anatomyHeatmapSvg(values)}
+    <div class="hm-legend"><span>0</span><span class="hm-grad"></span><span>max</span><span class="hm-na">▨ not modeled</span></div>
+  </div>`;
+}
+function renderVolumeHeatmapCard() {
+  const values = heatRegionValues(_heatLevel, volWeekOffset);
+  const name = _heatLevel === 'group' ? 'muscle groups' : (_heatLevel === 'muscle' ? 'muscles' : 'muscle heads');
+  return heatmapCardHtml(values, _heatLevel, 'Volume heatmap · ' + name);
+}
+function _heatStopCycle() { _heatCycleOn = false; clearInterval(_heatCycleId); _heatCycleId = null; }
+function _heatStartCycle() {
+  _heatStopCycle();
+  _heatCycleOn = true;
+  _heatCycleId = setInterval(() => {
+    const card = document.getElementById('vol-heatmap');
+    if (!card) { _heatStopCycle(); return; }   // left the Volume page — stop quietly
+    _heatLevel = HEAT_LEVELS[(HEAT_LEVELS.indexOf(_heatLevel) + 1) % HEAT_LEVELS.length];
+    const tmp = document.createElement('div'); tmp.innerHTML = renderVolumeHeatmapCard();
+    card.replaceWith(tmp.firstElementChild);
+    _bindHeatmapCard(document);
+  }, _heatCycleMs);
+}
+function _bindHeatmapCard(root) {
+  const card = (root || document).querySelector('#vol-heatmap');
+  if (!card) return;
+  card.querySelectorAll('[data-hm-level]').forEach(b => b.addEventListener('click', () => { _heatLevel = b.dataset.hmLevel; _heatStopCycle(); render(); }));
+  card.querySelector('[data-hm-cycle]')?.addEventListener('click', () => { _heatCycleOn ? _heatStopCycle() : _heatStartCycle(); render(); });
+}
+
 function renderVolume(main) {
   const weekDate = new Date(startOfWeek(new Date()) - volWeekOffset * 7 * 86400000);
   let html = `<div class="sub-tabs">
@@ -11337,6 +11455,7 @@ function renderVolume(main) {
     <div class="sub-tab ${volLevel==='muscle'?'active':''}" data-vollevel="muscle">Muscle</div>
     <div class="sub-tab ${volLevel==='head'?'active':''}" data-vollevel="head">Heads</div>
   </div>`;
+  html += renderVolumeHeatmapCard(); // feat 217 — the anatomy heatmap rides above the bars
 
   if (!categoryHidden('cardio')) html += renderCardioGoals(volWeekOffset); // feat 7
 
@@ -11349,6 +11468,7 @@ function renderVolume(main) {
   }
 
   main.innerHTML = html;
+  _bindHeatmapCard(main); // feat 217
   // Cardio goals (feat 7)
   main.querySelector('#cardio-goals-edit')?.addEventListener('click', () => { cardioGoalsEditOpen = !cardioGoalsEditOpen; render(); });
   main.querySelectorAll('[data-cg]').forEach(inp => inp.addEventListener('change', () => {
@@ -15651,7 +15771,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 162 · 2026-06-11 21:48';
+const APP_BUILD = 'build 163 · 2026-06-11 22:04';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

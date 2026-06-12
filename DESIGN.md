@@ -853,6 +853,20 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Volume heatmap on the anatomy wireframe (feat 217):** the Volume page now opens with a 🔥 heatmap
+  card — weekly volume painted straight onto the built-in front/back wireframe figures. Resolution
+  toggles between **muscle group / muscle / muscle head** (the user-asked trio) or **🔁 auto-cycles**
+  through them every 3.5 s (test-tunable `_heatCycleMs`; the cycle politely kills itself when the card
+  leaves the DOM). Plumbing: `HEAT_REGION_MODEL` maps each `ANATOMY_REGIONS` wireframe ellipse set to its
+  volume-model group + muscle ids (regions outside the model — forearms, adductors, tibialis — render as
+  gray dashed "not modeled"); `heatValuesFromAcc(acc, level)` rolls any muscle-level accumulator up/down
+  (group rollup via `MUSCLE_INDEX`, head expansion via each muscle's `heads`), with the weekly source
+  being the existing `getWeeklyMuscleVolume` honoring `volWeekOffset`; `heatColor` maps value/max onto a
+  green→red hsla ramp (transparent at zero); `anatomyHeatmapSvg` re-renders the wireframe with filled
+  ellipses + per-region set-count tooltips and a 0→max legend. The renderer is deliberately
+  accumulator-agnostic — feat 218 feeds it live-workout and plan-projection accs. Covered by
+  `test/heatmap.spec.mjs` (region math incl. n/a + untouched, the color ramp, full-card render with exact
+  ellipse/na counts + level toggles, and the auto-cycle advance/self-stop).
 - **Info pack export (feat 216):** Settings › Data gained an **"Info pack export"** block: pick all or a
   subset of the app's information sections — ❓ Help (the live `renderHelp` output), ℹ️ About (brand,
   credit, `APP_BUILD`), 📋 Quick reference (every movement with its tag, 💡 quick cue and variation index,
