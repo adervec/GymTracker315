@@ -697,6 +697,8 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   #plan-step-bar .stepbar-notch { flex: 1; background: var(--bg4, #2a2a2a); border-radius: 2px; min-width: 5px; transition: background 0.25s; }
   #plan-step-bar .stepbar-notch.filled { background: var(--accent); }
   #plan-step-bar .stepbar-notch.pending { background: var(--accent); opacity: 0.5; }
+  /* feat 211 — checkered fill = the IN-PROGRESS set (weight in, reps pending); it never counts toward X/Y */
+  #plan-step-bar .stepbar-notch.inprog { background: repeating-conic-gradient(var(--accent) 0% 25%, transparent 0% 50%) 0 0 / 6px 6px; opacity: 0.8; }
   #plan-step-bar.done { color: var(--good); }
   #plan-step-bar.done .stepbar-notch.filled { background: var(--good); }
   /* feat 57 — on-screen numpad bottom sheet */
@@ -8444,7 +8446,16 @@ let _planIgnorePending = false; // feat 137 — suppress the live-pending fold f
 function pendingStepSets(step) {
   if (_planIgnorePending || !pending || !pending.varUuid || (typeof modalState !== 'undefined' && modalState.isEditing)) return 0;
   if (!(step.options || []).some(o => optionMatchesVar(o, pending.varUuid))) return 0;
-  return (pending.sets || []).filter(s => s && s.w !== '' && s.w != null && !isNaN(parseFloat(s.w))).length;
+  // feat 211 — only COMPLETED pending sets (weight AND reps) count toward a step's X/Y. An in-progress
+  // set (weight entered, reps pending) no longer inflates plan progress — it shows as a checkered notch
+  // in the step HUD bar (refreshPlanStepBar) instead.
+  return (pending.sets || []).filter(s => s && s.w !== '' && s.w != null && !isNaN(parseFloat(s.w)) && s.r !== '' && s.r != null && parseFloat(s.r) > 0).length;
+}
+// feat 211 — the IN-PROGRESS pending sets (weight in, reps not yet) toward a step. Display-only.
+function pendingStepOpenSets(step) {
+  if (_planIgnorePending || !pending || !pending.varUuid || (typeof modalState !== 'undefined' && modalState.isEditing)) return 0;
+  if (!(step.options || []).some(o => optionMatchesVar(o, pending.varUuid))) return 0;
+  return (pending.sets || []).filter(s => s && isSetOpen(s)).length;
 }
 // SAVED-only set count for a step (no live pending fold) — used by the feat 144 min-% "satisfied" check,
 // which is deliberately evaluated AFTER a save, never on the sets being entered.
@@ -15396,7 +15407,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 156 · 2026-06-11 21:06';
+const APP_BUILD = 'build 157 · 2026-06-11 21:15';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -16204,10 +16215,11 @@ function refreshPlanStepBar() {
   if (!session || !plan || idx < 0 || idx >= plan.steps.length) { bar.style.display = 'none'; document.body.classList.remove('plan-step-bar-on'); return; }
   const st = plan.steps[idx], total = stepStatus(session, st).logged, target = st.sets || 0;
   _planIgnorePending = true; const saved = stepStatus(session, st).logged; _planIgnorePending = false; // saved-only, to split solid vs dimmed notches
+  const inprog = pendingStepOpenSets(st); // feat 211 — weight in, reps pending → checkered, never counted
   const pend = Math.max(0, total - saved), done = target > 0 ? total >= target : total > 0;
-  const notchCount = target > 0 ? target : Math.max(total, 1);
+  const notchCount = target > 0 ? target : Math.max(total + inprog, 1);
   let notches = '';
-  for (let i = 0; i < notchCount; i++) notches += `<div class="stepbar-notch ${i < saved ? 'filled' : (i < saved + pend ? 'pending' : '')}"></div>`;
+  for (let i = 0; i < notchCount; i++) notches += `<div class="stepbar-notch ${i < saved ? 'filled' : (i < saved + pend ? 'pending' : (i < saved + pend + inprog ? 'inprog' : ''))}"></div>`;
   bar.className = done ? 'done' : 'current';
   bar.innerHTML = `<span class="stepbar-label">📋 Step ${idx + 1}/${plan.steps.length} · ${total}/${target}${done ? ' ✓' : ''}</span><div class="stepbar-notches">${notches}</div>`;
   bar.style.display = 'flex';

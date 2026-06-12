@@ -853,6 +853,17 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **In-progress sets no longer count toward plan X/Y + checkered notch (feat 211):** a set with a
+  weight entered but reps still pending used to inflate live plan progress (`pendingStepSets` counted any
+  weight-filled pending set), so a step could read "done" off the back of a set you hadn't finished. Now
+  only **completed** pending sets (weight AND reps) fold into `stepLoggedSets` — the feat-137 intent
+  (unsaved-but-complete sets count, revert on discard) survives intact — and a new display-only
+  `pendingStepOpenSets()` feeds the step HUD bar, where the in-prog set renders as a **checkered notch**
+  (`repeating-conic-gradient` checkerboard) between the dimmed pending-complete notches and the empty
+  ones; the X/Y label excludes it. `minpct.spec`'s live-progress expectation updated to the new contract.
+  Covered by `test/inprogsets.spec.mjs` (open set excluded from logged/done, no done-via-open-set, the
+  full notch sequence solid→dimmed→checkered→empty with the label, and reps landing converting the
+  checkered notch into a counted one).
 - **Gruff coach voice (feat 210):** all spoken output now defaults to a **deeper, gruffer,
   tough-but-fair coach**. Within what the Web Speech API offers (voice choice + pitch/rate):
   `pickCoachVoice()` ranks `getVoices()` for a deep male English voice (named-male heuristics score up,
