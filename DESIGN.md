@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Set-end annunciations (feat 207):** the closing half of the spoken-cue pair — when a set COMPLETES
+  (reps land; the `commitSetField` reps→`ts` rising edge, so rep edits on an already-done set stay silent
+  and a zero-rep entry never counts): **"One down — 3 to go" / "2 of 4 down" / "Half done" (at ⌈y/2⌉ for
+  targets ≥3) / "One more, then Squat" / "All done — time for Squat" / "Extra set down"**, or plan-less
+  "One down" / "3 down". `setPositionInfo` gained an `'end'` mode that counts completed sets only;
+  `nextStepLabelAfterCurrent()` names the next incomplete step after the current exercise's step (wrapping,
+  via `stepStatus`/`optionLabel`) so the all-done and one-more cues hand you to the next station. Toggle:
+  Preferences → "🗣 Annunciate set end" (off by default; same `state.annunciation` settings object).
+  Covered by `test/annunce.spec.mjs` (full end-phrase matrix, rising-edge/edit/zero-rep/off behavior, and
+  the plan flow speaking "One more, then <next>" → "All done — time for <next>").
 - **Set-start annunciations (feat 206):** a new opt-in spoken cue the moment a set STARTS (the canonical
   `commitSetField` weight→`wTs` stamp, so the native inputs and the OSK share one hook; edits to an
   already-open set stay silent): **"First set of 4" / "Set 2 of 4" / "Last set — make it count" /

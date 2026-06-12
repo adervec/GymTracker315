@@ -5648,6 +5648,16 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">🗣 Annunciate set end</div>
+        <div class="drawer-setting-sub">Speak progress when a set completes — one down, x of y down, half done, one more then the next step, all done (plan-aware)</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${annunciationCfg().end ? 'active' : ''}" data-pref-ann="end-on">On</button>
+        <button class="drawer-pill ${!annunciationCfg().end ? 'active' : ''}" data-pref-ann="end-off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">🎧 Headphone-only audio</div>
         <div class="drawer-setting-sub">Only play sound when it's routed to headphones — never the phone speaker (haptics still work). <b>${headphoneStatus().icon} ${escapeHtml(headphoneStatus().text)}</b>${(audioHeadphonesOnly() && _headphonesConnected == null) ? ` · <a href="#" id="drawer-hp-unlock" style="color:var(--accent);">enable detection</a>` : ''}</div>
       </div>
@@ -6408,7 +6418,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefGlossView) { state.glossaryAsPage = btn.dataset.prefGlossView === 'page'; saveState(); toast('Glossary: ' + (state.glossaryAsPage ? 'full page' : 'slide-in')); }
       else if (btn.dataset.prefReadonly) { state.readonly = btn.dataset.prefReadonly === 'on'; saveState(); render(); toast('Read-only mode: ' + (state.readonly ? 'on' : 'off')); }
       else if (btn.dataset.prefTts) { state.ttsTips = btn.dataset.prefTts === 'on'; saveState(); if (state.ttsTips) toast('Tips will be read aloud'); else { try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} toast('Tip narration off'); } }
-      else if (btn.dataset.prefAnn) { const a = { ...annunciationCfg() }; const k = btn.dataset.prefAnn; if (k === 'start-on') a.start = true; else if (k === 'start-off') a.start = false; state.annunciation = a; saveState(); toast('Set-start annunciation: ' + (a.start ? 'on' : 'off')); } // feat 206
+      else if (btn.dataset.prefAnn) { const a = { ...annunciationCfg() }; const k = btn.dataset.prefAnn; if (k === 'start-on') a.start = true; else if (k === 'start-off') a.start = false; else if (k === 'end-on') a.end = true; else if (k === 'end-off') a.end = false; state.annunciation = a; saveState(); toast(/^start/.test(k) ? ('Set-start annunciation: ' + (a.start ? 'on' : 'off')) : ('Set-end annunciation: ' + (a.end ? 'on' : 'off'))); } // feat 206/207
       else if (btn.dataset.prefHp) { state.audioHeadphonesOnly = btn.dataset.prefHp === 'on'; saveState(); if (state.audioHeadphonesOnly) probeAudioOutput(); refreshSoundIcon(); toast('Headphone-only audio: ' + (state.audioHeadphonesOnly ? 'on' : 'off')); }
       else if (btn.dataset.prefMetro) { const m = { ...metroCfg() }; const k = btn.dataset.prefMetro; if (k === 'audio-on') m.audio = true; else if (k === 'audio-off') m.audio = false; else if (k === 'haptic-on') m.haptic = true; else if (k === 'haptic-off') m.haptic = false; else if (k === 'mantra-on') m.mantra = true; else if (k === 'mantra-off') m.mantra = false; else if (k === 'setactive-on') m.setActiveOnly = true; else if (k === 'setactive-off') m.setActiveOnly = false; state.metronome = m; saveState(); restartMetronomeIfRunning(); }
       else if (btn.dataset.rc) { const rc = { ...restCueCfg() }; const k = btn.dataset.rc, v = btn.dataset.rcVal; if (k === 'mode') rc.mode = v; else rc[k] = (v === 'on'); state.restCues = rc; saveState(); _lastRestCueSec = -1; if (typeof refreshRestBar === 'function') refreshRestBar(); }
@@ -14531,7 +14541,9 @@ function commitSetField(i, f, val) {
     else if (!wFilled) { s.wTs = undefined; s.ts = undefined; }     // weight cleared → reset both
   } else if (f === 'r') {
     const rFilled = s.r !== '' && s.r != null;
+    const wasDone = !!s.ts; // feat 207 — annunce only on the rising edge, not on rep edits
     s.ts = rFilled ? new Date().toISOString() : undefined;          // reps entered → set done
+    if (s.ts && !wasDone && parseFloat(s.r) > 0 && typeof annunceSetEnd === 'function') annunceSetEnd(); // feat 207
   }
   savePending();
   updateFAB();
@@ -15336,7 +15348,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 152 · 2026-06-11 20:39';
+const APP_BUILD = 'build 153 · 2026-06-11 20:47';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -15558,10 +15570,13 @@ function annunce(text) {
     window.speechSynthesis.speak(u);
   } catch (_) {}
 }
-// Position of the just-started set: x = sets with a weight in this form (+ saved sets toward the
-// matching plan step), y = the matching plan step's target (null without a plan/step match).
-function setPositionInfo() {
-  const x0 = (pending.sets || []).filter(s => s && s.w !== '' && s.w != null && !isNaN(parseFloat(s.w))).length;
+// Position of the current set: kind 'start' (default) counts sets with a weight (started); kind 'end'
+// (feat 207) counts COMPLETED sets (reps in). x also includes saved sets toward the matching plan step;
+// y = that step's target (null without a plan/step match).
+function setPositionInfo(kind) {
+  const started = s => s && s.w !== '' && s.w != null && !isNaN(parseFloat(s.w));
+  const done = s => started(s) && s.r !== '' && s.r != null && parseFloat(s.r) > 0;
+  const x0 = (pending.sets || []).filter(kind === 'end' ? done : started).length;
   const plan = (typeof getActivePlan === 'function') ? getActivePlan() : null;
   const session = (typeof getActiveSession === 'function') ? getActiveSession() : null;
   const editing = (typeof modalState !== 'undefined') && modalState.isEditing;
@@ -15584,6 +15599,40 @@ function annunceSetStart() {
   const c = annunciationCfg();
   if (!c.start) return;
   annunce(setStartPhrase(setPositionInfo()));
+}
+// feat 207 — set-END cues, spoken when a set completes (reps land): "One down — 3 to go",
+// "2 of 4 down", "Half done", "One more, then Squat", "All done — time for Squat".
+function stepLabelShort(st) { const o = ((st && st.options) || [])[0]; return o ? optionLabel(o) : ((st && st.desc) || 'the next step'); }
+// The step to call out once the CURRENT exercise's step wraps: the next incomplete step after it
+// (wrapping around), or null when nothing else is left in the plan.
+function nextStepLabelAfterCurrent() {
+  const plan = (typeof getActivePlan === 'function') ? getActivePlan() : null;
+  const session = (typeof getActiveSession === 'function') ? getActiveSession() : null;
+  if (!plan || !session || !pending.varUuid) return null;
+  const steps = plan.steps || [];
+  const i = steps.findIndex(st => (st.options || []).some(o => optionMatchesVar(o, pending.varUuid)));
+  if (i < 0) return null;
+  for (let j = i + 1; j < steps.length; j++) if (!stepStatus(session, steps[j], plan).done) return stepLabelShort(steps[j]);
+  for (let j = 0; j < i; j++) if (!stepStatus(session, steps[j], plan).done) return stepLabelShort(steps[j]);
+  return null;
+}
+function setEndPhrase(pos, nextLabel) {
+  if (pos.y) {
+    if (pos.x > pos.y) return 'Extra set down';
+    if (pos.x === pos.y) return 'All done' + (nextLabel ? ' — time for ' + nextLabel : '');
+    if (pos.x === pos.y - 1) return 'One more' + (nextLabel ? ', then ' + nextLabel : ' to go');
+    if (pos.y >= 3 && pos.x === Math.ceil(pos.y / 2)) return 'Half done';
+    return pos.x === 1 ? 'One down — ' + (pos.y - 1) + ' to go' : pos.x + ' of ' + pos.y + ' down';
+  }
+  return pos.x === 1 ? 'One down' : pos.x + ' down';
+}
+function annunceSetEnd() {
+  const c = annunciationCfg();
+  if (!c.end) return;
+  const pos = setPositionInfo('end');
+  if (!pos.x) return;
+  const next = (pos.y && pos.x >= pos.y - 1) ? nextStepLabelAfterCurrent() : null;
+  annunce(setEndPhrase(pos, next));
 }
 
 /* ---- Workout metronome (feat 69) — customizable audio + haptic; on/off is per-workout (runtime only). ---- */
