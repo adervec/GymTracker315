@@ -853,6 +853,18 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Equipment-true setup tools (feat 223):** classic movements whose *names* carry no equipment word
+  (Arnold Press, Kroc Row, Viking Press, Turkish Get-Up, Svend Press…) were silently inheriting the
+  family's first-listed equipment in `autoSetupKind()` — so the **Arnold Press shipped with the barbell
+  plate-loader** instead of a dumbbell picker. A new authoritative **`VAR_EQUIP_OVERRIDES`** table (keyed
+  by variation id) pins ~25 such movements to their real implement and is consulted first; the keyword
+  regexes also now accept **spaced names** (`trap bar`, `t bar`, `roc it`) and a bare **`Plate`** title
+  routes to the plate picker (Plate Front Raise, Plate Pinch, plate tibialis raises). User overrides
+  (`state.exerciseSetup`) still win over the table. The Arnold Press setup text was corrected ("clear the
+  bar/DB path"). Covered by `test/equipkind.spec.mjs` (Arnold→dumbbell incl. user-override precedence, the
+  named-movement table, bare-Plate routing, every override id exists + names a valid kind) and a reusable
+  **`tools/probe-equip.mjs`** audit that flags any variation whose loader contradicts its own text
+  (returns "0 flagged" — run it after editing content).
 - **French internationalization (feat 222):** the feat-61 i18n groundwork goes live. **Français** joins
   `LANGUAGES` (the drawer's Language picker was already wired to `setLang`), backed by an `I18N.fr` dictionary
   (~100 keys) covering the **UI chrome**: top-bar buttons + static tagged markup, all **page titles** via a new

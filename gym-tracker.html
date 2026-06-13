@@ -14718,8 +14718,27 @@ function setupIconSvg(kind) {
   };
   return `<svg class="setup-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[kind] || paths.barbell}</svg>`;
 }
+// feat 223 — authoritative per-variation equipment table for classic movements whose NAMES carry no
+// equipment word (the Arnold-Press problem: silent title → family fallback handed it the barbell
+// loader). The Arnold press is a dumbbell lift, the Kroc row a dumbbell row, the Viking press a
+// landmine movement, the Turkish get-up a kettlebell lift, the Svend press a plate squeeze…
+const VAR_EQUIP_OVERRIDES = {
+  'arnold-press': 'dumbbell', 'half-kneeling-press': 'dumbbell', 'concentration-curl': 'dumbbell',
+  'spider-curl': 'dumbbell', 'tate-press': 'dumbbell', 'tricep-kickback': 'dumbbell',
+  'single-arm-overhead-tri': 'dumbbell', 'batwing-row': 'dumbbell', 'kroc-row': 'dumbbell',
+  'side-lying-er': 'dumbbell', 'preacher-rear-delt': 'dumbbell', 'suitcase-deadlift': 'dumbbell',
+  'snatch-grip-shrug': 'barbell',
+  'viking-press': 'landmine',
+  'turkish-get-up': 'kettlebell', 'helen': 'kettlebell',
+  'svend-press': 'plate', 'weighted-crunch': 'plate', 'sicilian-crunch': 'plate',
+  'roman-weighted-back-ext': 'plate', 'roman-weighted-sit-up': 'plate',
+  'neck-flex-weighted': 'plate', 'neck-ext-weighted': 'plate', 'neck-lateral': 'plate',
+  'neck-harness-ext': 'plate', 'neck-harness': 'plate', 'neck-plate': 'plate',
+};
 function autoSetupKind(varUuid) {
   const i = VAR_INDEX.get(varUuid); if (!i) return null;
+  const ov = VAR_EQUIP_OVERRIDES[i.variation.id];                                 // feat 223 — table wins
+  if (ov !== undefined) return ov;
   const t = ((i.variation.title || '') + ' ' + (i.variation.id || '') + ' ' + (i.family.title || '')).toLowerCase();
   if (/landmine|meadows/.test(t)) return 'landmine';
   if (/medicine|med ball|wall ball|slam ball/.test(t)) return 'medicineball';
@@ -14727,9 +14746,10 @@ function autoSetupKind(varUuid) {
   if (/dumbbell|\bdb\b/.test(t)) return 'dumbbell';
   if (/\bgoblet\b/.test(t)) return 'dumbbell';                                    // held DB/KB lift (single-weight picker)
   if (/smith/.test(t)) return 'barbell';                                          // smith bar lives inside Barbell Setup
-  if (/plate-?load|iso-?lateral|\bmts\b|t-?bar|hammer strength|leverage/.test(t)) return 'plate';
-  if (/barbell|\bbb\b|ez-?bar|trap-?bar|safety-?bar|\bssb\b|cambered/.test(t)) return 'barbell';
-  if (/cable|pulley|pushdown|pulldown|crossover|\brope\b|freemotion|roc-?it|d-?handle/.test(t)) return 'pin';
+  if (/plate[- ]?load|iso[- ]?lateral|\bmts\b|\bt[- ]?bar|hammer strength|leverage/.test(t)) return 'plate'; // feat 223 — spaced names too
+  if (/\bplate\b/.test(t)) return 'plate';                                        // feat 223 — single-plate implements (plate raise / pinch / tibialis…)
+  if (/barbell|\bbb\b|ez[- ]?bar|trap[- ]?bar|safety[- ]?bar|\bssb\b|cambered/.test(t)) return 'barbell';
+  if (/cable|pulley|pushdown|pulldown|crossover|\brope\b|freemotion|roc[- ]?it|\bd[- ]?handle/.test(t)) return 'pin';
   if (/machine|selectoriz|\bstack\b|fixed/.test(t)) return 'pin';
   if (/\bbodyweight\b|body ?weight/.test(t)) return null;                          // explicitly bodyweight → no loading tool
   const mode = (typeof exMode === 'function') ? exMode(varUuid).mode : 'standard';
@@ -16197,7 +16217,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 168 · 2026-06-12 07:20';
+const APP_BUILD = 'build 169 · 2026-06-12 23:09';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -17587,7 +17607,7 @@ const exercises = [
     keywords:'overhead press ohp shoulder military dumbbell barbell machine kettlebell',
     quickCue:'Brace abs HARD. Bar/DBs travel straight up. Don\'t hyperextend low back.',
     general:{
-      setup:['Wrists stacked over elbows','Core + glutes braced HARD','Slight backward head shift to clear bar path'],
+      setup:['Wrists stacked over elbows','Core + glutes braced HARD','Slight backward head shift to clear the bar/DB path'],
       movement:['Press straight up — vertical bar path','Push head "through" the window at lockout','Lower controlled to start position'],
       mistakes:['Excessive lower-back arch — use abs','Pressing in front of body','Soft core/glutes leaks force','Bar drifting forward']
     },
