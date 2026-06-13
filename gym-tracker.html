@@ -761,6 +761,22 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .metro-cfg { width: 34px; height: 30px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 15px; cursor: pointer; font-family: inherit; }
   /* Workout plans (feat 70) — the creator/list/editor renders into #trk-main as the 'plan-creator' page (feat 184); the slide-in overlay chrome was retired. */
   .plan-list-intro { font-size: 12px; color: var(--text3); line-height: 1.5; margin-bottom: 12px; }
+  /* feat 226 — Quick Pick recommender block at the top of the plan picker */
+  .quick-pick { background: linear-gradient(135deg, var(--accent-bg), var(--bg2)); border: 1px solid var(--accent-border); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
+  .qp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+  .qp-title { font-size: 14px; font-weight: 800; color: var(--text); }
+  .qp-q { font-size: 11px; color: var(--text3); }
+  .qp-times { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 11px; }
+  .qp-time { flex: 1; min-width: 44px; padding: 7px 4px; border-radius: 9px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .qp-time-u { font-size: 10px; font-weight: 600; opacity: 0.7; }
+  .qp-time.active { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
+  .qp-recs { display: flex; flex-direction: column; gap: 7px; }
+  .qp-rec { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
+  .qp-rec-main { flex: 1; min-width: 0; }
+  .qp-rec-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qp-fav { color: var(--accent); font-size: 11px; }
+  .qp-rec-reason { font-size: 11px; color: var(--text3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qp-use { flex-shrink: 0; font-size: 12px; font-weight: 700; background: var(--accent); border: none; color: #0a0a0a; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-family: inherit; }
   .plan-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .plan-row-main { flex: 1; min-width: 0; }
   .plan-row-name { font-size: 14px; font-weight: 600; color: var(--text); }
@@ -3348,7 +3364,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -3582,6 +3598,7 @@ function normalizeState() {
   if (!state.avatar || typeof state.avatar !== 'object') state.avatar = { style: 'classic', hat: 'none', hair: 'none' }; // feat 220
   if (state.avatar.style !== 'profile') state.avatar.style = 'classic';
   if (!state.avatar.hat) state.avatar.hat = 'none';
+  if (!(state.planPickMinutes >= 5 && state.planPickMinutes <= 240)) state.planPickMinutes = 45; // feat 226 — quick-pick time budget
   if (!state.avatar.hair) state.avatar.hair = 'none';
   if (!state.hiddenCategories || typeof state.hiddenCategories !== 'object') state.hiddenCategories = {};
   if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
@@ -9217,6 +9234,70 @@ function planCategory(plan) {
 }
 // Coarse length bucket for the picker's duration filter.
 function planLengthBucket(plan) { const m = estimatePlanMinutes(plan); return m <= 40 ? 'quick' : (m >= 90 ? 'long' : 'standard'); }
+/* ============================================================
+   feat 226 — QUICK-PICK PLAN RECOMMENDER. Scores every plan on two axes and surfaces the best few at the
+   top of the picker: (1) TIME — how well the plan fits the minutes you have; (2) FRESHNESS — favour
+   plans that hit muscle groups you HAVEN'T hammered in the last few days (recovery-aware variety). Pure
+   functions over state.plans + state.sessions so they're unit-testable.
+   ============================================================ */
+const PLAN_PICK_TIMES = [15, 30, 45, 60, 90, 120]; // the minute chips
+function planPickMinutes() { const m = state && state.planPickMinutes; return (m >= 5 && m <= 240) ? m : 45; }
+// Per-mega LOGGED-set load over the last `days` days of sessions (cardio excluded). Mirrors sessionSplitLabel's
+// mega bucketing so "recent activity" lines up with how a session is labelled.
+function recentMegaLoad(days) {
+  const cutoff = Date.now() - (days || 4) * 86400000, mega = {};
+  (state.sessions || []).forEach(s => {
+    const t = new Date(s.endedAt || s.date).getTime();
+    if (isNaN(t) || t < cutoff) return;
+    (s.exercises || []).forEach(ex => {
+      if (ex.cardio) return;
+      const n = (ex.sets || []).filter(set => (set.w !== '' && set.w != null) || (set.r !== '' && set.r != null)).length;
+      if (!n) return;
+      const info = VAR_INDEX.get(ex.varUuid), m = info ? (info.family.mega || 'other') : 'other';
+      mega[m] = (mega[m] || 0) + n;
+    });
+  });
+  return mega;
+}
+// 0..1 — 1.0 when the plan exactly fills the budget; gentle penalty for finishing early, steeper for overrunning.
+function planTimeScore(plan, minutes) {
+  const est = estimatePlanMinutes(plan), ratio = est / Math.max(5, minutes);
+  if (ratio <= 1) return 0.55 + 0.45 * ratio;          // fits — fuller use of the time scores higher
+  return Math.max(0, 1 - (ratio - 1));                 // over budget — 1.0 just over → 0 at 2× the budget
+}
+// 0..1 — weighted by the plan's own mega mix; a mega you've recently saturated (~12+ sets) contributes ~0.
+function planFreshnessScore(plan, recentMega) {
+  const { mega, total } = planMegaDist(plan);
+  if (!total) return 0.5;
+  const SAT = 12; let s = 0;
+  Object.keys(mega).forEach(m => { const frac = mega[m] / total, stale = 1 - Math.min(1, (recentMega[m] || 0) / SAT); s += frac * stale; });
+  return s;
+}
+// A short human reason for why a plan is recommended (time fit + freshness angle).
+function planRecReason(plan, minutes, recentMega) {
+  const est = estimatePlanMinutes(plan), cat = planCategory(plan);
+  const timeBit = est <= minutes ? `≈${est} min, fits your ${minutes}` : `≈${est} min (a touch over ${minutes})`;
+  const topMega = Object.entries(planMegaDist(plan).mega).sort((a, b) => b[1] - a[1])[0];
+  let freshBit = '';
+  if (topMega) {
+    const NAME = { push:'push', pull:'pull', lower:'legs', core:'core', full:'full-body', mobility:'mobility', recovery:'recovery', cardio:'conditioning' };
+    const label = NAME[topMega[0]] || cat.toLowerCase();
+    freshBit = (recentMega[topMega[0]] || 0) < 4 ? ` · ${label} is well-rested` : ` · more ${label}`;
+  }
+  return `${timeBit} min${freshBit}`;
+}
+// Rank plans for the available time + recent activity. Returns [{ plan, score, time, fresh, reason }] best-first.
+function recommendPlans(minutes, limit) {
+  minutes = (minutes >= 5 && minutes <= 240) ? minutes : planPickMinutes();
+  const recent = recentMegaLoad(4);
+  const scored = (state.plans || []).map(plan => {
+    const time = planTimeScore(plan, minutes), fresh = planFreshnessScore(plan, recent);
+    const favBump = (typeof isFavPlan === 'function' && isFavPlan(plan.id)) ? 0.05 : 0;
+    return { plan, time, fresh, score: time * 0.6 + fresh * 0.4 + favBump };
+  });
+  scored.sort((a, b) => b.score - a.score || estimatePlanMinutes(a.plan) - estimatePlanMinutes(b.plan));
+  return scored.slice(0, limit || 3).map(x => ({ ...x, reason: planRecReason(x.plan, minutes, recent) }));
+}
 const PLAN_CAT_ORDER = ['Full Body','Upper','Push','Pull','Legs','Core','Mixed','Mobility','Recovery','Other'];
 function planCatRank(c) { const i = PLAN_CAT_ORDER.indexOf(c); return i < 0 ? PLAN_CAT_ORDER.length : i; }
 // "Pickable" suggested weight — pre-load the matching picker to approximate the target.
@@ -9322,6 +9403,23 @@ const _planRowHtml = (p) => `<div class="plan-row">
       <button class="drawer-btn danger" data-plan-del="${p.id}">Del</button>
     </div>
   </div>`;
+// feat 226 — the Quick Pick block at the top of the picker: a time selector + the top-3 recommendations
+// for that budget and your recent training. Shown only on the unfiltered list (it's a starting point).
+function quickPickHtml() {
+  const mins = planPickMinutes();
+  const recs = recommendPlans(mins, 3);
+  if (!recs.length) return '';
+  const times = PLAN_PICK_TIMES.map(m => `<button class="qp-time ${mins === m ? 'active' : ''}" data-pick-min="${m}" aria-pressed="${mins === m}">${m}<span class="qp-time-u">m</span></button>`).join('');
+  const recCards = recs.map(r => `<div class="qp-rec">
+      <div class="qp-rec-main"><div class="qp-rec-name">${escapeHtml(r.plan.name)}${isFavPlan(r.plan.id) ? ' <span class="qp-fav">★</span>' : ''}</div><div class="qp-rec-reason">${escapeHtml(r.reason)}</div></div>
+      <button class="qp-use" data-plan-use="${escapeAttr(r.plan.id)}">Use</button>
+    </div>`).join('');
+  return `<div class="quick-pick" id="quick-pick">
+    <div class="qp-head"><span class="qp-title">⚡ Quick Pick</span><span class="qp-q">How long have you got?</span></div>
+    <div class="qp-times" id="qp-times">${times}</div>
+    <div class="qp-recs">${recCards}</div>
+  </div>`;
+}
 function renderPlansList(body) {
   const plans = state.plans || [];
   const q = (_plansSearch || '').trim().toLowerCase();
@@ -9349,7 +9447,9 @@ function renderPlansList(body) {
     : (filtered.length === 0
       ? '<div class="plan-list-empty">No plans match. <button class="plan-clear-filters" id="plan-clear-filters">Clear filters</button></div>'
       : groupCats.map(c => `<div class="plan-cat-head">${escapeHtml(c)} <span class="plan-cat-count">${groups[c].length}</span></div>${groups[c].map(_planRowHtml).join('')}`).join(''));
-  body.innerHTML = `<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
+  // feat 226 — Quick Pick only on the unfiltered landing view (hidden once you search/filter/favourite-only).
+  const showQuickPick = plans.length > 0 && !q && _plansCatFilter === 'all' && _plansLenFilter === 'all' && !_plansFavOnly;
+  body.innerHTML = `${showQuickPick ? quickPickHtml() : ''}<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
     <input type="search" id="plans-search" class="plans-search" placeholder="🔍 Search plans by name or theme…" value="${escapeAttr(_plansSearch)}" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="plan-chips">${favN ? `<button class="plan-chip fav-chip ${_plansFavOnly?'active':''}" data-plan-fav="1" title="Show favorites only">★ Favorites <span class="plan-chip-n">${favN}</span></button>` : ''}${catChip('all','All',plans.length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
     <div class="plan-chips">${LEN.map(([v,l]) => lenChip(v,l)).join('')}</div>
@@ -9361,6 +9461,7 @@ function renderPlansList(body) {
 function bindPlansList(body) {
   const search = body.querySelector('#plans-search');
   if (search) search.addEventListener('input', () => { _plansSearch = search.value; const pos = search.selectionStart; renderPlansOverlay(); const s2 = document.getElementById('plans-search'); if (s2) { s2.focus(); try { s2.setSelectionRange(pos, pos); } catch (_) {} } });
+  body.querySelectorAll('[data-pick-min]').forEach(b => b.addEventListener('click', () => { state.planPickMinutes = +b.dataset.pickMin; saveState(); renderPlansOverlay(); })); // feat 226 — quick-pick time budget
   body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { _plansCatFilter = b.dataset.planCat; renderPlansOverlay(); }));
   body.querySelectorAll('[data-plan-len]').forEach(b => b.addEventListener('click', () => { _plansLenFilter = b.dataset.planLen; renderPlansOverlay(); }));
   body.querySelector('[data-plan-fav]')?.addEventListener('click', () => { _plansFavOnly = !_plansFavOnly; renderPlansOverlay(); }); // feat 178
@@ -16254,7 +16355,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 171 · 2026-06-13 00:21';
+const APP_BUILD = 'build 172 · 2026-06-13 00:30';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

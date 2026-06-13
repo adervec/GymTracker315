@@ -853,6 +853,20 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Quick-pick plan recommender (feat 226):** a **⚡ Quick Pick** block at the top of the plan picker that
+  recommends the best plans for the time you have and what you've trained lately. Two pure, unit-testable
+  scoring axes: **time** — `planTimeScore()` peaks when `estimatePlanMinutes` exactly fills the chosen
+  budget, eases off for finishing early and falls steeply for overrunning (0 at 2× the budget); and
+  **freshness** — `recentMegaLoad(4d)` tallies logged sets per muscle-group (mega) over the last four days
+  (mirroring `sessionSplitLabel`'s bucketing), and `planFreshnessScore()` weights a plan by how *little* its
+  mega mix has been hammered (saturating at ~12 sets) — so it steers you toward recovery-aware variety. The
+  combined score (0.6 time + 0.4 freshness, with a small favourite bump) drives `recommendPlans()`, whose
+  top-3 render as cards with a plain reason ("≈45 min, fits your 45 min · legs is well-rested"). A row of
+  time chips (15/30/45/60/90/120) remembers the budget in `state.planPickMinutes` (in `SETTINGS_KEYS`); the
+  block shows on the unfiltered landing view and steps aside once you search or filter. Recommendation Use
+  buttons reuse the existing `data-plan-use` → `planUseForWorkout` path. Covered by `test/quickpick.spec.mjs`
+  (recentMegaLoad tally, freshness ordering, time-fit ordering, end-to-end ranking + reason, the rendered
+  block + active chip, chip click persists + re-recommends, Use attaches the plan, hide-on-filter).
 - **More workout plans — tranche 7 (feat 225):** 14 new seed plans broadening the library to ~74:
   aesthetics (Beach Body Pump, Glutes & Shoulders), specialization (Back Width, Hamstring Focus, Bench
   Press Specialist, Deadlift Builder), dedicated hypertrophy splits (Push / Pull / Leg Hypertrophy),
