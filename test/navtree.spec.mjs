@@ -79,19 +79,31 @@ test('any screen → any screen in two taps: crumb, then chip', async ({ page })
   expect(r.crumbName).toBe('About');   // the breadcrumb followed
 });
 
-test('feat 224: the legacy tracker tab pills are retired — hidden, but kept in DOM for compat', async ({ page }) => {
+test('feat 227: the legacy tracker tab bar is GONE from the DOM; the currentTab mirror still tracks', async ({ page }) => {
   const r = await page.evaluate(() => {
-    const bar = document.querySelector('#panel-tracker > header .tabs');
-    navTo('volume'); // the class mirror still tracks the page
+    navTo('volume');
     return {
-      hidden: getComputedStyle(bar).display === 'none',
-      stillInDom: bar.querySelectorAll('.tab[data-tab]').length,
-      mirrorWorks: !!bar.querySelector('.tab[data-tab="volume"].active'),
+      barInHeader: !!document.querySelector('#panel-tracker > header .tabs'), // physically removed
+      anyTabPills: document.querySelectorAll('#panel-tracker .tab[data-tab]').length,
+      mirror: currentTab, // the variable mirror still works for switchToTab + render()
+      page: currentPage,
     };
   });
-  expect(r.hidden).toBe(true);             // no more redundant nav pills under the top bar
-  expect(r.stillInDom).toBeGreaterThan(0); // compat: legacy class-asserts keep passing
-  expect(r.mirrorWorks).toBe(true);
+  expect(r.barInHeader).toBe(false);   // no element to render, cache or not
+  expect(r.anyTabPills).toBe(0);
+  expect(r.mirror).toBe('volume');     // currentTab still mirrors the page
+  expect(r.page).toBe('volume');
+});
+
+test('feat 227: the top-bar Settings & Help buttons are hidden — navigation goes through the breadcrumb', async ({ page }) => {
+  const r = await page.evaluate(() => ({
+    gear: getComputedStyle(document.getElementById('app-settings-btn')).display,
+    help: getComputedStyle(document.getElementById('app-help-btn')).display,
+    gearInDom: !!document.getElementById('app-settings-btn'), // kept for the shim/specs to click
+  }));
+  expect(r.gear).toBe('none');
+  expect(r.help).toBe('none');
+  expect(r.gearInDom).toBe(true);
 });
 
 test('feat 224: the tracker header collapses on plain pages, expands for the contextual PDF button', async ({ page }) => {

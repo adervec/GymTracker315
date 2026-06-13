@@ -22,15 +22,13 @@ test('every page has a unique emoji and is a menu (children) or a leaf (render/o
   expect(r.bad).toEqual([]);
 });
 
-test('navTo a leaf renders it into #trk-main and mirrors currentTab + the tab highlight', async ({ page }) => {
+test('navTo a leaf renders it into #trk-main and mirrors currentTab', async ({ page }) => {
   const r = await page.evaluate(() => {
     navTo('volume');
-    const tabActive = !!document.querySelector('.tab[data-tab="volume"].active');
-    return { page: currentPage, tab: currentTab, tabActive, mainNonEmpty: document.getElementById('trk-main').innerHTML.length > 20 };
+    return { page: currentPage, tab: currentTab, mainNonEmpty: document.getElementById('trk-main').innerHTML.length > 20 };
   });
   expect(r.page).toBe('volume');
-  expect(r.tab).toBe('volume');     // legacy mirror
-  expect(r.tabActive).toBe(true);
+  expect(r.tab).toBe('volume');     // legacy currentTab mirror still tracks (feat 227 — the DOM tab bar is gone)
   expect(r.mainNonEmpty).toBe(true);
 });
 

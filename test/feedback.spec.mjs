@@ -46,19 +46,19 @@ test('feedback targets interactive controls only, and the click sound never thro
 });
 
 test('clicking a button fires a haptic; the toggle gates it', async ({ page }) => {
-  // feat 182 — the panel switcher is hidden now; any visible button fires the tap haptic (settings ⚙️ here)
+  // feat 227 — the ⚙️/❓ buttons are hidden now; the always-visible brand button fires the tap haptic
   await page.evaluate(() => { window.__vibes = []; });
-  await page.click('#app-settings-btn');
+  await page.click('#app-brand-btn');
   expect(await page.evaluate(() => window.__vibes.length), 'haptic fires on a button tap by default').toBeGreaterThan(0);
 
   // turn the Button-taps haptic off -> no buzz
   await page.evaluate(() => { state.uiFeedback.haptic = false; window.__vibes = []; });
-  await page.click('#app-settings-btn');
+  await page.click('#app-brand-btn');
   expect(await page.evaluate(() => window.__vibes.length), 'no haptic once the source is off').toBe(0);
 
   // master haptics off also suppresses it (re-enable source first)
   await page.evaluate(() => { state.uiFeedback.haptic = true; state.sound.haptics = false; window.__vibes = []; });
-  await page.click('#app-settings-btn');
+  await page.click('#app-brand-btn');
   expect(await page.evaluate(() => window.__vibes.length), 'master haptics gate wins').toBe(0);
 });
 

@@ -230,7 +230,8 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .ntree-chip.active { background: var(--accent-bg, rgba(124,92,255,0.12)); border-color: var(--accent-border, rgba(124,92,255,0.4)); color: var(--accent, #9b7bff); }
 #app-topbar .nav-tabs { display: none; } /* feat 182 — legacy panel switcher hidden (kept in DOM for compat; removed in feat 196) */
 #app-gloss-btn { display: none; }         /* feat 182 — Glossary is now a Study page */
-#panel-tracker > header .tabs { display: none; } /* feat 224 — legacy 7-tab pill bar retired: the breadcrumb + nav tree (feat 221) replace it; kept in DOM for the currentTab class-mirror tests */
+#app-settings-btn, #app-help-btn { display: none !important; } /* feat 227 — Settings & Help are reached through the breadcrumb → nav tree (kept in DOM so the shims/specs still click them); !important overrides the later display:flex on #app-settings-btn */
+/* feat 227 — the legacy 7-tab bar is removed from the DOM entirely (see #panel-tracker header); only the collapse rules for the contextual PDF-button header remain. */
 #panel-tracker > header.header-collapsed { padding: 0; border-bottom: none; } /* feat 224 — no contextual PDF button on this page → no empty header strip */
 #panel-tracker > header.header-collapsed .head-row { margin-bottom: 0; }
 
@@ -2450,15 +2451,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
   <div class="head-row"><!-- feat 182 — brand moved to the top bar (centered, topmost) -->
     <button id="trk-export-pdf" type="button" title="Save or share this view as a PDF" aria-label="Export this view as PDF" style="display:none;">📄 PDF</button>
   </div>
-  <div class="tabs">
-    <div class="tab active" data-tab="log">Dashboard</div>
-    <div class="tab" data-tab="sessions">Log</div>
-    <div class="tab" data-tab="history">History</div>
-    <div class="tab" data-tab="volume">Volume</div>
-    <div class="tab" data-tab="trends">Trends</div>
-    <div class="tab" data-tab="body">Body</div>
-    <div class="tab" data-tab="gyms">Gyms</div>
-  </div>
+  <!-- feat 227 — the legacy 7-tab bar (Dashboard/Log/History/Volume/Trends/Body/Gyms) is fully retired:
+       removed from the DOM (not just hidden), superseded by the feat-221 breadcrumb + nav tree. -->
 </header>
 
 <main id="trk-main"></main>
@@ -16355,7 +16349,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 172 · 2026-06-13 00:30';
+const APP_BUILD = 'build 173 · 2026-06-13 00:52';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

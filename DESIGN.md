@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Breadcrumb-only top bar (feat 227):** finishes retiring the legacy nav chrome. feat 224 only *hid* the
+  old 7-tab bar (Dashboard/Log/History/Volume/Trends/Body/Gyms) with CSS, so anyone on a cached PWA shell
+  still saw it — now it's **removed from the DOM entirely** (the `currentTab` variable mirror still drives
+  `switchToTab`/`render()`; nothing visual depends on the elements). The top-bar **⚙️ Settings** and **❓ Help**
+  buttons are hidden too (`display:none !important` to beat their later `display:flex`), kept in the DOM only
+  so the goPanel/openHelp shims and specs can still click them — navigation to those sections now goes
+  through the **breadcrumb → nav tree** (Settings ▸ Preferences/Help). The 🔊 sound/haptics menu stays (it's
+  an intentional popup). Specs updated off the dead tab DOM: `router.spec`/`sessionslog.spec` assert on
+  `currentTab`/`currentPage` + `pageTitle()` instead of `.tab.active`; `navtree.spec` asserts the bar is gone
+  and the buttons are hidden; `feedback.spec`'s haptic probe taps the always-visible brand button.
 - **Quick-pick plan recommender (feat 226):** a **⚡ Quick Pick** block at the top of the plan picker that
   recommends the best plans for the time you have and what you've trained lately. Two pure, unit-testable
   scoring axes: **time** — `planTimeScore()` peaks when `estimatePlanMinutes` exactly fills the chosen
