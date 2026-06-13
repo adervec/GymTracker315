@@ -11684,22 +11684,31 @@ const HEAT_REGION_MODEL = {
   'Forearms': null, 'Adductors': null, 'Tibialis Anterior': null, // not in the volume model → "n/a" style
 };
 // Per-region value at a resolution, from any muscle-level accumulator (weekly or live).
+// feat 228 — a region's SUB-COMPONENTS at the chosen resolution, each with its own value. group → one
+// (the muscle group); muscle → each modeled muscle; head → each muscle's heads (or the muscle itself if it
+// has none). The heatmap renders one oval per sub-component, so the oval COUNT now grows with resolution.
+const _r1 = (n) => Math.round(n * 10) / 10;
+function regionSubsFor(m, level, acc, groupAcc) {
+  if (level === 'group') return [{ label: m.group, v: _r1(groupAcc[m.group] || 0) }];
+  if (level === 'head') {
+    const out = [];
+    m.muscles.forEach(id => {
+      const inf = MUSCLE_INDEX[id];
+      if (inf && inf.heads && inf.heads.length) inf.heads.forEach(h => out.push({ label: (MUSCLE_INDEX[h.id] && MUSCLE_INDEX[h.id].label) || h.id, v: _r1(acc[h.id] || 0) }));
+      else out.push({ label: (inf && inf.label) || id, v: _r1(acc[id] || 0) });
+    });
+    return out;
+  }
+  return m.muscles.map(id => ({ label: (MUSCLE_INDEX[id] && MUSCLE_INDEX[id].label) || id, v: _r1(acc[id] || 0) }));
+}
 function heatValuesFromAcc(acc, level) {
   const groupAcc = {};
   for (const mid in acc) { const inf = MUSCLE_INDEX[mid]; if (inf) groupAcc[inf.group] = (groupAcc[inf.group] || 0) + acc[mid]; }
   return ANATOMY_REGIONS.map(r => {
     const m = HEAT_REGION_MODEL[r.term];
-    if (!m) return { term: r.term, v: null };
-    let v = 0;
-    if (level === 'group') v = groupAcc[m.group] || 0;
-    else if (level === 'head') {
-      m.muscles.forEach(id => {
-        const inf = MUSCLE_INDEX[id];
-        if (inf && inf.heads) inf.heads.forEach(h => { v += acc[h.id] || 0; });
-        else v += acc[id] || 0;
-      });
-    } else m.muscles.forEach(id => { v += acc[id] || 0; });
-    return { term: r.term, v: Math.round(v * 10) / 10 };
+    if (!m) return { term: r.term, v: null, subs: null }; // not modeled → "n/a"
+    const subs = regionSubsFor(m, level, acc, groupAcc);
+    return { term: r.term, v: _r1(subs.reduce((s, x) => s + x.v, 0)), subs };
   });
 }
 function heatRegionValues(level, weekOffset) {
@@ -11712,15 +11721,31 @@ function heatColor(v, max) {
   const hue = 120 - 120 * t;                  // green → red
   return `hsla(${Math.round(hue)}, 85%, 52%, ${(0.3 + 0.5 * t).toFixed(2)})`;
 }
+// feat 228 — tile a region's bounding ellipse into K sub-ovals (stacked along its longer axis), one per
+// sub-component, so finer resolutions visibly split a region into more (smaller) ovals.
+function _splitEllipse(cx, cy, rx, ry, k) {
+  if (k <= 1) return [[cx, cy, rx, ry]];
+  const out = [], vertical = ry >= rx;
+  for (let i = 0; i < k; i++) {
+    if (vertical) { const sry = ry / k; out.push([cx, _r1(cy - ry + sry * (2 * i + 1)), rx, _r1(sry * 0.9)]); }
+    else { const srx = rx / k; out.push([_r1(cx - rx + srx * (2 * i + 1)), cy, _r1(srx * 0.9), ry]); }
+  }
+  return out;
+}
 function anatomyHeatmapSvg(values) {
-  const max = Math.max.apply(null, values.map(x => x.v || 0).concat([0.0001]));
+  const max = Math.max.apply(null, values.flatMap(x => x.subs ? x.subs.map(s => s.v) : [0]).concat([0.0001]));
   const byTerm = {}; values.forEach(x => { byTerm[x.term] = x; });
   const region = (r) => {
-    const val = byTerm[r.term] || { v: null };
-    const na = val.v == null;
-    const fill = heatColor(val.v, max);
-    return r.e.map(([cx, cy, rx, ry]) =>
-      `<ellipse class="hm-region${na ? ' na' : ''}" data-hm-term="${escapeAttr(r.term)}" data-hm-v="${na ? '' : val.v}" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"${na ? '' : ` style="fill:${fill};"`}><title>${escapeHtml(r.term)} — ${na ? 'not in the volume model' : val.v + ' sets'}</title></ellipse>`).join('');
+    const val = byTerm[r.term] || { v: null, subs: null };
+    if (!val.subs) { // not modeled — a single n/a oval per bilateral placement
+      return r.e.map(([cx, cy, rx, ry]) =>
+        `<ellipse class="hm-region na" data-hm-term="${escapeAttr(r.term)}" data-hm-v="" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"><title>${escapeHtml(r.term)} — not in the volume model</title></ellipse>`).join('');
+    }
+    const subs = val.subs, multi = subs.length > 1;
+    return r.e.map(([cx, cy, rx, ry]) => _splitEllipse(cx, cy, rx, ry, subs.length).map((s, k) => {
+      const sub = subs[k] || { v: 0, label: '' };
+      return `<ellipse class="hm-region" data-hm-term="${escapeAttr(r.term)}" data-hm-v="${sub.v}"${multi ? ` data-hm-sub="${escapeAttr(sub.label)}"` : ''} cx="${s[0]}" cy="${s[1]}" rx="${s[2]}" ry="${s[3]}" style="fill:${heatColor(sub.v, max)};"><title>${escapeHtml(r.term)}${multi ? ' · ' + escapeHtml(sub.label) : ''} — ${sub.v} sets</title></ellipse>`;
+    }).join('')).join('');
   };
   return `<svg class="anat-svg heatmap" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
     ${anatomyOutline(50)}${anatomyOutline(150)}
@@ -16349,7 +16374,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 173 · 2026-06-13 00:52';
+const APP_BUILD = 'build 174 · 2026-06-13 01:00';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

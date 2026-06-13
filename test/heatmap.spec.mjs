@@ -64,6 +64,28 @@ test('the Volume page renders the heatmap card with all regions and working leve
   expect(r.after.active).toBe(true);
 });
 
+test('feat 228 — finer resolution splits regions into MORE ovals (group < muscle < head)', async ({ page }) => {
+  await seedChestWeek(page);
+  const r = await page.evaluate(() => {
+    const count = (level) => (anatomyHeatmapSvg(heatRegionValues(level, 0)).match(/class="hm-region/g) || []).length;
+    // a multi-head region (Delts → front/side/rear) splits at head level; subs carry the resolution
+    const delt = (level) => { const v = heatRegionValues(level, 0).find(x => x.term === 'Delts'); return v && v.subs ? v.subs.length : 0; };
+    // a chest set spreads across multiple chest muscles at finer resolution → multiple non-zero sub-ovals
+    const svgHead = anatomyHeatmapSvg(heatRegionValues('head', 0));
+    return {
+      group: count('group'), muscle: count('muscle'), head: count('head'),
+      deltGroup: delt('group'), deltMuscle: delt('muscle'), deltHead: delt('head'),
+      headHasSubLabels: svgHead.includes('data-hm-sub='),
+    };
+  });
+  expect(r.muscle).toBeGreaterThan(r.group);  // muscles split the group regions
+  expect(r.head).toBeGreaterThan(r.muscle);   // heads split further
+  expect(r.deltGroup).toBe(1);                 // one oval for the shoulders group…
+  expect(r.deltMuscle).toBe(3);                // …front/side/rear delt at muscle level…
+  expect(r.deltHead).toBeGreaterThanOrEqual(3); // …and at least that many at head level
+  expect(r.headHasSubLabels).toBe(true);       // split ovals carry their sub-component label
+});
+
 test('auto-cycle advances the resolution and stops once the card leaves the DOM', async ({ page }) => {
   await seedChestWeek(page);
   await page.evaluate(() => { _heatCycleMs = 120; navTo('volume'); document.querySelector('#vol-heatmap [data-hm-cycle]').click(); }); // fast ticks for the test

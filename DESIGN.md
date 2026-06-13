@@ -853,6 +853,18 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Anatomy heatmap resolution actually splits the ovals (feat 228):** the wireframe heatmap painted the
+  same fixed ~24 region ovals at every resolution — switching group → muscle → heads only recoloured them,
+  never adding detail. Now `heatValuesFromAcc()` computes each region's **sub-components** for the chosen
+  level (`regionSubsFor`: group → the one muscle group; muscle → each modeled muscle; head → each muscle's
+  heads, or the muscle itself if it has none), each with its own value, and `anatomyHeatmapSvg()` tiles each
+  region's bounding ellipse(s) into one sub-oval per sub-component (`_splitEllipse` stacks them along the
+  longer axis). So the oval **count grows with resolution** — e.g. group 29 → muscle 42 → head 56, and the
+  Delts region becomes 1 oval (shoulders) → 3 (front/side/rear) → its heads — with each split oval carrying
+  its own colour, `data-hm-v`, `data-hm-sub` label and tooltip. Group level is unchanged (one oval per
+  bilateral placement, the group value), so the live/replay group-level views and their specs are
+  untouched. Covered by a new `heatmap.spec` case (group < muscle < head oval counts; Delts 1→3→heads;
+  split ovals carry sub-labels).
 - **Breadcrumb-only top bar (feat 227):** finishes retiring the legacy nav chrome. feat 224 only *hid* the
   old 7-tab bar (Dashboard/Log/History/Volume/Trends/Body/Gyms) with CSS, so anyone on a cached PWA shell
   still saw it — now it's **removed from the DOM entirely** (the `currentTab` variable mirror still drives
