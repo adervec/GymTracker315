@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **More workout plans — tranche 7 (feat 225):** 14 new seed plans broadening the library to ~74:
+  aesthetics (Beach Body Pump, Glutes & Shoulders), specialization (Back Width, Hamstring Focus, Bench
+  Press Specialist, Deadlift Builder), dedicated hypertrophy splits (Push / Pull / Leg Hypertrophy),
+  quick hits (Express 10, Hotel Room 20, Total Core & Abs) and conditioning (Sprint & Sled, EMOM Full
+  Body 30). Authored against **verified** movement family ids (re-probed via `tools/probe-families.mjs` —
+  the feat-175 lesson: a wrong id silently no-ops), each with a 1–5 intensity and a written description, so
+  they seed through the existing additive `seededPlanIds` ledger for current users. The short entries
+  deliberately deepen the "quick" length bucket so the feat-226 recommender has range to match a tight
+  time budget. Covered by `test/plansmore.spec.mjs` (all 14 present + complete + options resolve, ids
+  unique, fresh-user seeding + authorship + ledger, sensible categories, widened quick bucket).
 - **Retire the residual legacy tab pills (feat 224):** the feat-221 breadcrumb + global nav tree made the
   old 7-pill tracker tab bar (Dashboard · Log · History · Volume · Trends · Body · Gyms) redundant — a
   second, less intuitive navigation surface sitting right under the breadcrumb. It's now hidden
