@@ -879,6 +879,16 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .pr-tag.pr-load { color: var(--good); }
   .pr-tag.pr-reps { color: var(--accent); }
   .pr-tag.pr-deload { color: #d8a83a; }
+  /* feat 234 — concrete next-load target + one-tap prefill in the log sheet */
+  .prog-target { display: flex; align-items: center; gap: 10px; margin-top: 10px; background: var(--bg2); border: 1px solid var(--border2); border-left: 3px solid var(--accent); border-radius: 8px; padding: 9px 12px; }
+  .prog-target.prog-add-load { border-left-color: var(--good); }
+  .prog-target.prog-deload { border-left-color: #d8a83a; }
+  .prog-target-main { flex: 1; min-width: 0; }
+  .prog-target-aim { display: block; font-size: 13px; color: var(--text); }
+  .prog-target-aim b { color: var(--accent); }
+  .prog-target.prog-add-load .prog-target-aim b { color: var(--good); }
+  .prog-target-note { display: block; font-size: 10.5px; color: var(--text3); margin-top: 1px; }
+  .prog-prefill { flex-shrink: 0; font-size: 12px; font-weight: 800; background: var(--accent); border: none; color: #0a0a0a; padding: 8px 13px; border-radius: 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
   .plan-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .plan-row-main { flex: 1; min-width: 0; }
   .plan-row-name { font-size: 14px; font-weight: 600; color: var(--text); }
@@ -15735,6 +15745,8 @@ function renderSetsForm() {
   const v = info.variation;
   const fam = info.family;
   const M = exMode(pending.varUuid); // tracking mode (feat 26/27)
+  // feat 234 — concrete next-load target (double progression, deload-aware) for live weight×reps logging.
+  const progTarget = (M.mode === 'standard' && !modalState.isEditing && typeof suggestProgression === 'function') ? suggestProgression(pending.varUuid) : null;
 
   // Tips section
   const hasFamilyTips = fam.quickCue;
@@ -15976,6 +15988,10 @@ function renderSetsForm() {
     ${suggestion ? `<div class="suggestion">
       <div class="suggestion-label">${suggestion.label}</div>
       <div class="suggestion-text">${suggestion.text}</div>
+    </div>` : ''}
+    ${progTarget ? `<div class="prog-target prog-${progTarget.action}">
+      <div class="prog-target-main"><span class="prog-target-aim">🎯 Aim for <b>${progTarget.next.w} × ${progTarget.next.r}</b></span><span class="prog-target-note">${escapeHtml(progTarget.note)}</span></div>
+      <button type="button" class="prog-prefill" id="trk-prog-prefill" data-w="${progTarget.next.w}" title="Load the suggested weight into the next set">↪ Load ${progTarget.next.w}</button>
     </div>` : ''}
     ${renderSetupInline()}
 
@@ -16339,6 +16355,17 @@ function bindSetsForm() {
       confirmDialog(`You've entered ${entered} sets for ${escapeHtml(displayName(pending.varUuid, pending.subUuid))} that aren't saved yet. Picking a different exercise will discard them. Continue?`,
         { title: 'Change exercise?', okLabel: 'Change exercise', cancelLabel: 'Keep logging', danger: true }).then(ok => { if (ok) go(); });
     } else go();
+  });
+
+  // feat 234 — one-tap prefill: load the suggested weight into the first empty set (weight only — you still
+  // log the reps you actually do), and pre-seed the plate/loader picker for it.
+  document.getElementById('trk-prog-prefill')?.addEventListener('click', (e) => {
+    const w = parseFloat(e.currentTarget.dataset.w); if (!(w > 0)) return;
+    let i = (pending.sets || []).findIndex(s => s && (s.w === '' || s.w == null));
+    if (i < 0) { pending.sets.push({ w: '', r: '' }); i = pending.sets.length - 1; }
+    pending.sets[i].w = w; savePending();                          // direct prefill (matches feat-58/82) — no premature set-start stamp
+    if (typeof seedSetupForWeight === 'function') seedSetupForWeight(pending.varUuid, w); // pre-seed the loader picker
+    renderModal(); updateFAB(); updateSaveBtn();
   });
 
   document.getElementById('trk-sub-select')?.addEventListener('change', e => {
@@ -16951,7 +16978,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 179 · 2026-06-13 08:21';
+const APP_BUILD = 'build 180 · 2026-06-13 08:39';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

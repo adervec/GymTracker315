@@ -853,6 +853,19 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Next-load suggestion in the log sheet (feat 234):** brings feat-233's auto-progression to the moment
+  you load the bar. When you open an exercise to log it live (standard weight×reps, not editing a past
+  entry) and it has history, the sheet shows a concrete **🎯 Aim for W × R** target — the same
+  double-progression, deload-aware `suggestProgression()` result — with its rationale ("Hit 12 reps — add
+  load, reset to 8") and colour by action (green add-load / accent add-rep / amber deload), sitting just
+  under the existing qualitative `getProgressionSuggestion` feedback. A one-tap **↪ Load W** prefills the
+  **weight only** of the next empty set (you still log the reps you actually do) and pre-seeds the plate/
+  loader picker via `seedSetupForWeight` — done with a direct `pending.sets` assignment (matching the
+  feat-58 history and feat-82 plan prefills) so it doesn't prematurely stamp the set-start or annunce.
+  Gated off for cardio/time/bodyweight modes, edits, and no-history lifts. Covered by
+  `test/progsheet.spec.mjs` (the target + Load button for add-load, weight-only prefill, the add-a-rep case,
+  the deload back-off, and the edit/no-history/non-standard gating); the full logging-spec cluster stays
+  green.
 - **Auto-progression (feat 233):** closes the planning loop by connecting periodization's *intent* to your
   *logged* numbers. A new **Reflect › 🚀 Progression** page reads each recently-trained lift's **most recent
   top set** (`recentTopSet` — the heaviest set by e1RM of the latest session that trained it) and suggests
