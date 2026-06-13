@@ -853,6 +853,20 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Media wizard — "needs media" filter, inline preview, watch tracking (feat 238):** three additions to the
+  bulk wizard. (1) A **⚠ needs media** toggle (`mediaWizardState.uncoveredOnly`) restricts the list to genuine
+  gaps — a **variation** is "uncovered" only when it has no clip of its own *and* its parent **movement** has no
+  demo either, and a movement is "uncovered" when it lacks its own demo; it overrides "with media only". (2) An
+  embeddable link gets a **▶ preview** button that toggles an inline `<iframe>` (the same nocookie embed URL the
+  carousel uses) right under the row, so you can eyeball a clip without leaving the wizard. (3) A **watch-tracking**
+  engine records the last time you *actually watched* a clip: `mediaWatchKey(m)` keys by the clip itself
+  (`platform:vid`, or the URL) so a watch is shared everywhere that clip appears; `_watchDwell(el, m)` starts a
+  5 s timer when a preview iframe mounts and only calls `markMediaWatched(m)` if the embed is **still connected**
+  after the dwell — opening the preview and lingering counts, scrolling past a row never does. Each row shows a
+  **👁 watched <when>** badge (`fmtDate`) or "never watched". State lives in `state.mediaWatched` (a clip-key →
+  ISO map, in `SETTINGS_KEYS`, normalized to `{}`). Covered by new `test/mediawizard.spec.mjs` cases (clip-keyed
+  marking shared across exercises, the uncovered-by-self-and-parent filter, the rendered preview button + iframe
+  mount, and the dwell marking a previewed clip watched while a merely-rendered row stays unwatched).
 - **Creator "stable" in the media wizard (feat 237):** the wizard now surfaces *who* your reference clips
   come from. `mediaCreator(entry)` reads the creator/channel from the link wherever the platform exposes it —
   a **TikTok**/​**Instagram** `@handle` in the path, a **YouTube** channel link (`/@handle`, `/c/`, `/user/`,

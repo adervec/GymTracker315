@@ -212,6 +212,109 @@ test('feat 237 — the wizard renders the creator stable with purge buttons and 
   expect(r.entryCreator).toBe('@kneesovertoesguy'); // the link row shows its creator
 });
 
+// feat 238 — watch tracking + "needs media" filter + inline preview
+test('feat 238 — watch tracking keys by the clip itself and only marks when explicitly recorded', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let a = null, b = null; for (const [u] of VAR_INDEX) { if (!a) { a = u; continue; } b = u; break; }
+    state.readonly = false; state.exerciseMedia = {}; state.mediaWatched = {};
+    addExerciseMedia(a, 'https://www.youtube.com/watch?v=abcdefghij1'); // same clip…
+    addExerciseMedia(b, 'https://www.youtube.com/watch?v=abcdefghij1'); // …added under a second exercise
+    const m = getExerciseMedia(a)[0], m2 = getExerciseMedia(b)[0];
+    const beforeA = mediaWatchedAt(m);
+    markMediaWatched(m);
+    return {
+      key: mediaWatchKey(m),
+      keyMatches: mediaWatchKey(m) === mediaWatchKey(m2),   // keyed by the clip, so it's shared everywhere it appears
+      beforeA,
+      afterA: !!mediaWatchedAt(m),
+      afterB_sharedClip: !!mediaWatchedAt(m2),              // the same clip under b reads as watched too
+    };
+  });
+  expect(r.key).toBe('youtube:abcdefghij1');
+  expect(r.keyMatches).toBe(true);
+  expect(r.beforeA).toBeNull();          // nothing watched until recorded — a fresh clip is "never watched"
+  expect(r.afterA).toBe(true);
+  expect(r.afterB_sharedClip).toBe(true);
+});
+
+test('feat 238 — the "needs media" filter shows only variations uncovered by themselves AND their parent', async ({ page }) => {
+  const r = await page.evaluate((url) => {
+    const f = FAMILIES.find(x => (x.variations || []).filter(v => v.uuid && !isSuppressedVar(v.uuid)).length >= 2);
+    const vs = f.variations.filter(v => v.uuid && !isSuppressedVar(v.uuid));
+    const ownClip = vs[0].uuid, bare = vs[1].uuid;
+    // case 1: one variation has its own clip, the other has nothing (and the parent has nothing)
+    state.exerciseMedia = {}; state.readonly = false;
+    addExerciseMedia(ownClip, url);
+    mediaWizardState = { search: '', withMediaOnly: false, kind: 'variation', uncoveredOnly: true, preview: null, reassign: null, reassignSearch: '' };
+    const ids1 = mediaWizardRows().map(x => x.id);
+    // case 2: the PARENT movement carries a demo → its bare variation is no longer "uncovered"
+    state.exerciseMedia = {};
+    addExerciseMedia(f.id, url);
+    const ids2 = mediaWizardRows().map(x => x.id);
+    return {
+      ownClipShown: ids1.includes(ownClip),   // has its own clip → not flagged
+      bareShown: ids1.includes(bare),         // no clip, no parent demo → flagged
+      bareCoveredByParent: !ids2.includes(bare), // parent demo now covers it → not flagged
+    };
+  }, YT);
+  expect(r.ownClipShown).toBe(false);
+  expect(r.bareShown).toBe(true);
+  expect(r.bareCoveredByParent).toBe(true);
+});
+
+test('feat 238 — a row shows a preview button + watch label; toggling preview mounts the embed iframe', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let a = null; for (const [u] of VAR_INDEX) { a = u; break; }
+    state.readonly = false; state.exerciseMedia = {}; state.mediaWatched = {};
+    addExerciseMedia(a, 'https://www.youtube.com/watch?v=abcdefghij1'); // embeddable
+    mediaWizardState = { search: '', withMediaOnly: true, kind: 'all', uncoveredOnly: false, preview: null, reassign: null, reassignSearch: '' };
+    document.getElementById('media-wizard').classList.add('open');
+    renderMediaWizard();
+    const body = document.getElementById('mw-body');
+    const hasPrevBtn = !!body.querySelector('[data-mw-preview]');
+    const labelBefore = body.querySelector('.mw-link-watched')?.textContent;
+    const frameBefore = !!body.querySelector('[data-mw-frame]');
+    body.querySelector('[data-mw-preview]').click(); // open the inline preview
+    const frame = document.querySelector('#mw-body [data-mw-frame]');
+    return { hasPrevBtn, labelBefore, frameBefore, frameAfter: !!frame, src: frame?.getAttribute('src') || '' };
+  });
+  expect(r.hasPrevBtn).toBe(true);
+  expect(r.labelBefore).toContain('never watched'); // not watched yet
+  expect(r.frameBefore).toBe(false);                // no iframe until you open the preview
+  expect(r.frameAfter).toBe(true);
+  expect(r.src).toContain('/embed/');               // the real embed URL (youtube-nocookie)
+});
+
+test('feat 238 — opening a preview marks it watched after the dwell; merely rendering a row does not', async ({ page }) => {
+  // scroll-past: render the row but never open the preview → nothing is marked watched
+  const passive = await page.evaluate(() => {
+    let a = null; for (const [u] of VAR_INDEX) { a = u; break; }
+    state.readonly = false; state.exerciseMedia = {}; state.mediaWatched = {}; _mediaWatchDwellMs = 40;
+    addExerciseMedia(a, 'https://www.youtube.com/watch?v=abcdefghij1');
+    mediaWizardState = { search: '', withMediaOnly: true, kind: 'all', uncoveredOnly: false, preview: null, reassign: null, reassignSearch: '' };
+    document.getElementById('media-wizard').classList.add('open');
+    renderMediaWizard(); // preview stays closed
+    return Object.keys(state.mediaWatched).length;
+  });
+  await page.waitForTimeout(150);
+  const stillUnwatched = await page.evaluate(() => Object.keys(state.mediaWatched).length);
+  expect(passive).toBe(0);
+  expect(stillUnwatched).toBe(0); // scrolling past a thumbnail never counts
+
+  // active: open the preview and let it dwell → it becomes watched, and the label updates
+  await page.evaluate(() => { document.querySelector('#mw-body [data-mw-preview]').click(); });
+  await page.waitForFunction(() => state.mediaWatched && Object.keys(state.mediaWatched).length > 0, null, { timeout: 3000 });
+  const r = await page.evaluate(() => {
+    let a = null; for (const [u] of VAR_INDEX) { a = u; break; }
+    const m = getExerciseMedia(a)[0];
+    document.querySelector('#mw-body [data-mw-preview]').click(); // hide → re-render with the fresh watch state
+    return { watchedKey: mediaWatchKey(m), watchedAt: mediaWatchedAt(m), label: document.querySelector('#mw-body .mw-link-watched')?.textContent || '' };
+  });
+  expect(r.watchedKey).toBe('youtube:abcdefghij1');
+  expect(r.watchedAt).toBeTruthy();        // a real ISO timestamp
+  expect(r.label).toContain('👁');         // the row now shows the watched badge
+});
+
 test('isDesktopWizard returns a boolean', async ({ page }) => {
   const t = await page.evaluate(() => typeof isDesktopWizard());
   expect(t).toBe('boolean');

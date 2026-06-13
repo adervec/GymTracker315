@@ -561,6 +561,12 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .mw-creators-hint code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10px; background: var(--bg3); padding: 0 3px; border-radius: 3px; }
 .mw-link-creator { font-size: 10.5px; font-weight: 700; color: var(--accent); background: var(--accent-bg); border-radius: 5px; padding: 1px 6px; white-space: nowrap; flex-shrink: 0; }
 .mw-link-creator.untag { color: var(--text3); background: var(--bg2); font-weight: 600; }
+/* feat 238 — watch-tracking label + inline embed preview */
+.mw-link-watched { font-size: 10px; font-weight: 700; color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); border-radius: 5px; padding: 1px 6px; white-space: nowrap; flex-shrink: 0; }
+.mw-link-watched.none { color: var(--text3); background: var(--bg2); font-weight: 600; }
+.mw-prev-btn.on { color: var(--accent); border-color: var(--accent); }
+.mw-preview { margin: 4px 0 2px; border: 1px solid var(--border2); border-radius: 9px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; max-width: 480px; }
+.mw-preview iframe { width: 100%; height: 100%; border: 0; display: block; }
 .mw-reassign { margin-top: 6px; padding: 7px 9px; background: var(--bg3); border: 1px dashed var(--accent); border-radius: 8px; }
 .mw-reassign input { width: 100%; background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px; padding: 5px 8px; color: var(--text); font-size: 12px; font-family: inherit; margin-bottom: 6px; }
 .mw-reassign .mw-target { display: block; width: 100%; text-align: left; background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px; padding: 5px 8px; color: var(--text2); font-size: 12px; cursor: pointer; margin-bottom: 3px; font-family: inherit; }
@@ -3495,7 +3501,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -3742,6 +3748,7 @@ function normalizeState() {
   if (!state.hiddenCategories || typeof state.hiddenCategories !== 'object') state.hiddenCategories = {};
   if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
   if (!state.exerciseMedia || typeof state.exerciseMedia !== 'object') state.exerciseMedia = {}; // feat 75 — per-exercise reference video links
+  if (!state.mediaWatched || typeof state.mediaWatched !== 'object') state.mediaWatched = {}; // feat 238 — last-watched timestamp per media clip
   if (['detailed','tree','table'].indexOf(state.refView) < 0) state.refView = 'detailed'; // feat 76 — reference view mode
   if (!Array.isArray(state.stravaActivities)) state.stravaActivities = []; // feat 77 — imported Strava strength activities
   if (!state.exerciseSetup || typeof state.exerciseSetup !== 'object') state.exerciseSetup = {}; // feat 79 — per-variation setup-tool override
@@ -7945,6 +7952,25 @@ function purgeCreator(name) {
   return removed;
 }
 function getExerciseMedia(uuid) { if (!uuid || !state.exerciseMedia) return []; return state.exerciseMedia[uuid] || []; }
+/* feat 238 — WATCH TRACKING. The last time you actually WATCHED a clip (keyed by the clip itself, so it's
+   shared everywhere the clip appears). "Watched" = you opened the embed and it stayed up for the dwell
+   window — quickly scrolling past a thumbnail does NOT count. */
+let _mediaWatchDwellMs = 5000; // test-tunable
+function mediaWatchKey(m) { if (!m) return null; return m.vid ? ((m.platform || 'x') + ':' + m.vid) : (m.watchUrl || m.url || null); }
+function mediaWatchedAt(m) { const k = mediaWatchKey(m); return (k && state.mediaWatched) ? (state.mediaWatched[k] || null) : null; }
+function markMediaWatched(m) {
+  const k = mediaWatchKey(m); if (!k) return;
+  if (typeof roBlocked === 'function' && roBlocked('record watch')) return;
+  state.mediaWatched = state.mediaWatched || {};
+  state.mediaWatched[k] = new Date().toISOString();
+  saveState();
+}
+// Start the dwell timer for a freshly-mounted embed element; marks watched only if it survives the window.
+function _watchDwell(el, m) {
+  if (!el || !m) return;
+  const t = setTimeout(() => { if (el.isConnected) markMediaWatched(m); }, _mediaWatchDwellMs);
+  el.addEventListener('_unmount', () => clearTimeout(t), { once: true });
+}
 function addExerciseMedia(uuid, url) {
   if (!uuid) return { ok: false, err: 'No exercise selected' };
   if (roBlocked('add reference video')) return { ok: false, err: null };
@@ -8191,7 +8217,7 @@ function importMediaSheet(text) {
 function isDesktopWizard() {
   try { return ('showSaveFilePicker' in window) || (typeof window !== 'undefined' && window.innerWidth >= 1024 && (!window.matchMedia || window.matchMedia('(pointer:fine)').matches)); } catch (_) { return false; }
 }
-let mediaWizardState = { search: '', withMediaOnly: true, kind: 'all', reassign: null, reassignSearch: '' }; // feat 236 — kind: all | movement | variation
+let mediaWizardState = { search: '', withMediaOnly: true, kind: 'all', uncoveredOnly: false, preview: null, reassign: null, reassignSearch: '' }; // feat 236 kind; feat 238 uncoveredOnly + preview {key,idx}
 function openMediaWizard() {
   if (!isDesktopWizard()) { toast('The bulk media wizard is a desktop tool'); return; }
   closeDataPage(); closeSettingsDrawer();
@@ -8233,13 +8259,15 @@ function mediaWizardRetestAll() {
 }
 function mediaWizardRows() {
   const q = (mediaWizardState.search || '').trim().toLowerCase();
-  const kind = mediaWizardState.kind || 'all', withOnly = mediaWizardState.withMediaOnly;
+  const kind = mediaWizardState.kind || 'all', uncovered = mediaWizardState.uncoveredOnly;
+  const withOnly = mediaWizardState.withMediaOnly && !uncovered; // feat 238 — "uncovered" overrides "with media only"
   const matchq = (s) => !q || s.toLowerCase().includes(q);
   const rows = [];
   if (kind === 'all' || kind === 'movement') { // feat 236 — the MOVEMENT itself can hold a general demo clip
     FAMILIES.forEach(f => {
       const media = getExerciseMedia(f.id);
       if (!matchq(f.title)) return;
+      if (uncovered && media.length) return;   // feat 238 — a movement is "uncovered" when it has no demo of its own
       if (withOnly && !media.length) return;
       const vars = (f.variations || []).filter(v => v.uuid && !isSuppressedVar(v.uuid));
       const childWith = vars.filter(v => getExerciseMedia(v.uuid).length).length;
@@ -8250,9 +8278,11 @@ function mediaWizardRows() {
     VAR_INDEX.forEach((info, uuid) => {
       const media = getExerciseMedia(uuid);
       const title = info.variation.title || '', fam = info.family.title || '';
+      const parentHas = getExerciseMedia(info.family.id).length > 0;
       if (!matchq(title + ' ' + fam)) return;
+      if (uncovered && (media.length || parentHas)) return; // feat 238 — uncovered = no clip of its own AND none on its parent movement
       if (withOnly && !media.length) return;
-      rows.push({ type: 'variation', id: uuid, title, fam, bp: info.bp, media, parentTitle: fam, parentHasMedia: getExerciseMedia(info.family.id).length > 0 });
+      rows.push({ type: 'variation', id: uuid, title, fam, bp: info.bp, media, parentTitle: fam, parentHasMedia: parentHas });
     });
   }
   rows.sort((a, b) => (a.type !== b.type ? (a.type === 'movement' ? -1 : 1) : (b.media.length - a.media.length) || a.title.localeCompare(b.title)));
@@ -8271,7 +8301,8 @@ function renderMediaWizard() {
   tb.innerHTML = `
     <input type="text" id="mw-search" placeholder="🔍 Search movements & variations…" value="${escapeAttr(mediaWizardState.search)}">
     <div class="mw-kindseg">${kindBtn('all', 'All')}${kindBtn('movement', 'Movements')}${kindBtn('variation', 'Variations')}</div>
-    <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="mw-withmedia" ${mediaWizardState.withMediaOnly ? 'checked' : ''}> with media only</label>
+    <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="mw-withmedia" ${mediaWizardState.withMediaOnly ? 'checked' : ''} ${mediaWizardState.uncoveredOnly ? 'disabled' : ''}> with media only</label>
+    <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--warn);cursor:pointer;" title="Variations with no clip of their own AND none on their parent movement"><input type="checkbox" id="mw-uncovered" ${mediaWizardState.uncoveredOnly ? 'checked' : ''}> ⚠ needs media</label>
     <button class="drawer-btn" id="mw-export-sheet" style="padding:6px 10px;" title="Export the Claude-fillable media sheet">📝 Export sheet</button>
     <label class="drawer-btn" id="mw-import-sheet-lbl" style="padding:6px 10px;cursor:pointer;" title="Import a filled media sheet (.md / .txt / .json)">⬆ Import sheet<input type="file" id="mw-import-sheet" accept=".md,.txt,.json" hidden></label>
     <button class="drawer-btn" id="mw-retest" style="padding:6px 10px;">↻ Re-test all</button>
@@ -8296,16 +8327,23 @@ function mediaCreatorStableHtml() {
 }
 function mediaWizardRowHtml(r) {
   const key = r.id; // a variation uuid OR a movement (family) id — every media op is key-generic
-  const links = r.media.map((m, i) => { const cr = mediaCreator(m); return `
+  const links = r.media.map((m, i) => {
+    const cr = mediaCreator(m);
+    const wAt = mediaWatchedAt(m); // feat 238 — the last time this clip was actually watched (dwell-confirmed)
+    const isPrev = !!(mediaWizardState.preview && mediaWizardState.preview.key === key && mediaWizardState.preview.idx === i);
+    return `
     <div class="mw-link">
       <span>${mediaPlatformIcon(m.platform)}</span>
       <span class="mw-link-url" title="${escapeAttr(m.watchUrl || m.url)}">${escapeHtml(m.watchUrl || m.url)}</span>
       ${cr ? `<span class="mw-link-creator" title="Creator: ${escapeAttr(cr)}">${escapeHtml(cr)}</span>` : '<span class="mw-link-creator untag">untagged</span>'}
       <span class="mw-badge ${m.embedUrl ? 'ok' : 'no'}">${m.embedUrl ? 'embeddable' : 'link-only'}</span>
+      ${wAt ? `<span class="mw-link-watched" title="Last watched ${escapeAttr(new Date(wAt).toLocaleString())}">👁 ${escapeHtml(fmtDate(wAt))}</span>` : '<span class="mw-link-watched none">never watched</span>'}
+      ${m.embedUrl ? `<button class="mw-prev-btn ${isPrev ? 'on' : ''}" data-mw-preview="${escapeAttr(key)}" data-mw-pidx="${i}">${isPrev ? '▼ hide' : '▶ preview'}</button>` : ''}
       <button data-mw-open="${escapeAttr(m.watchUrl || m.url)}">↗ open</button>
       <button data-mw-reassign="${escapeAttr(key)}" data-mw-idx="${i}">→ move</button>
       <button class="del" data-mw-del="${escapeAttr(key)}" data-mw-idx="${i}">✕</button>
     </div>
+    ${isPrev && m.embedUrl ? `<div class="mw-preview"><iframe data-mw-frame="${escapeAttr(key)}" data-mw-fidx="${i}" src="${escapeAttr(m.embedUrl)}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>` : ''}
     ${(mediaWizardState.reassign && mediaWizardState.reassign.uuid === key && mediaWizardState.reassign.idx === i) ? mediaWizardReassignHtml() : ''}`; }).join('');
   if (r.type === 'movement') { // feat 236 — a MOVEMENT row: its own demo + how many child variations are covered
     const cov = r.childTotal ? `${r.childWith}/${r.childTotal} variations have video` : 'no variations';
@@ -8351,6 +8389,11 @@ function bindMediaWizard() {
     confirmDialog(`Remove all ${n} reference link${n === 1 ? '' : 's'} from ${name}? This can't be undone (export your media first if unsure).`, { title: 'Purge creator?', okLabel: 'Purge', cancelLabel: 'Keep', danger: true }).then(ok => { if (!ok) return; const removed = purgeCreator(name); renderMediaWizard(); toast(`Purged ${removed} link${removed === 1 ? '' : 's'} from ${name}`); });
   }));
   body.querySelectorAll('[data-mw-open]').forEach(b => b.addEventListener('click', () => { try { window.open(b.dataset.mwOpen, '_blank', 'noopener'); } catch (_) {} }));
+  body.querySelectorAll('[data-mw-preview]').forEach(b => b.addEventListener('click', () => { // feat 238 — toggle the inline embed preview
+    const k = b.dataset.mwPreview, idx = +b.dataset.mwPidx, cur = mediaWizardState.preview;
+    mediaWizardState.preview = (cur && cur.key === k && cur.idx === idx) ? null : { key: k, idx };
+    renderMediaWizard();
+  }));
   body.querySelectorAll('[data-mw-del]').forEach(b => b.addEventListener('click', () => { removeExerciseMedia(b.dataset.mwDel, +b.dataset.mwIdx); renderMediaWizard(); }));
   body.querySelectorAll('[data-mw-reassign]').forEach(b => b.addEventListener('click', () => { mediaWizardState.reassign = { uuid: b.dataset.mwReassign, idx: +b.dataset.mwIdx }; mediaWizardState.reassignSearch = ''; renderMediaWizard(); }));
   body.querySelectorAll('[data-mw-addbtn]').forEach(b => b.addEventListener('click', () => {
@@ -8362,6 +8405,10 @@ function bindMediaWizard() {
   if (rs) rs.addEventListener('input', () => { mediaWizardState.reassignSearch = rs.value; renderMediaWizard(); const x = document.getElementById('mw-reassign-search'); if (x) { x.focus(); x.setSelectionRange(x.value.length, x.value.length); } });
   body.querySelectorAll('[data-mw-to]').forEach(b => b.addEventListener('click', () => { const rj = mediaWizardState.reassign; if (rj) { reassignMedia(rj.uuid, rj.idx, b.dataset.mwTo); mediaWizardState.reassign = null; renderMediaWizard(); toast('Moved'); } }));
   body.querySelector('[data-mw-cancel]')?.addEventListener('click', () => { mediaWizardState.reassign = null; renderMediaWizard(); });
+  // feat 238 — an open preview's iframe just mounted; start the dwell timer so it counts as "watched" only if it stays up
+  const frame = body.querySelector('[data-mw-frame]');
+  const pv = mediaWizardState.preview;
+  if (frame && pv) { const m = getExerciseMedia(pv.key)[pv.idx]; if (m) _watchDwell(frame, m); }
 }
 function exportExerciseList() {
   const movements = FAMILIES.map(f => ({ id: f.id, title: f.title, mega: f.mega }));
@@ -17117,7 +17164,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 183 · 2026-06-13 10:59';
+const APP_BUILD = 'build 184 · 2026-06-13 12:12';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
