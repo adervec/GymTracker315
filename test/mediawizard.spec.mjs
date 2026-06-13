@@ -148,6 +148,70 @@ test('renderMediaWizard renders a row per matching exercise', async ({ page }) =
   expect(rows).toBeGreaterThanOrEqual(1);
 });
 
+test('feat 237 — mediaCreator reads the creator from the link where the platform exposes it', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const cr = (url) => mediaCreator(parseMediaUrl(url));
+    return {
+      tiktok: cr('https://www.tiktok.com/@squatuniversity/video/7300000000000000000'),
+      ytChannelParam: cr('https://www.youtube.com/watch?v=abcdefghij1&ab_channel=AthleanX'),
+      ytHandle: cr('https://www.youtube.com/@jefnippard'),
+      ytPlain: cr('https://youtu.be/abcdefghij1'),
+      ig: cr('https://www.instagram.com/squat_university/reel/Cabcdef/'),
+    };
+  });
+  expect(r.tiktok).toBe('@squatuniversity');
+  expect(r.ytChannelParam).toBe('AthleanX'); // &ab_channel from a desktop "copy link"
+  expect(r.ytHandle).toBe('@jefnippard');
+  expect(r.ytPlain).toBeNull();              // a plain video URL has no channel → untagged
+  expect(r.ig).toBe('@squat_university');
+});
+
+test('feat 237 — the stable groups by creator with counts, and purge removes a whole creator', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let a = null, b = null; for (const [u] of VAR_INDEX) { if (!a) { a = u; continue; } b = u; break; }
+    state.readonly = false; state.exerciseMedia = {};
+    addExerciseMedia(a, 'https://www.tiktok.com/@squatuniversity/video/7300000000000000000');
+    addExerciseMedia(a, 'https://www.youtube.com/watch?v=abcdefghij1&ab_channel=AthleanX');
+    addExerciseMedia(b, 'https://www.tiktok.com/@squatuniversity/video/7300000000000000001');
+    addExerciseMedia(b, 'https://youtu.be/zzzzzzzzzzz'); // untagged
+    const tagged = getExerciseMedia(a).every(m => m.creator);  // stored at add time when known
+    const stable = mediaCreatorStable();
+    const removed = purgeCreator('@squatuniversity');          // wipe that creator everywhere
+    const after = mediaCreatorStable();
+    return { tagged, stable: stable.list, untagged: stable.untagged, removed, afterList: after.list.map(c => c.creator), aLeft: getExerciseMedia(a).length };
+  });
+  expect(r.tagged).toBe(true);
+  expect(r.stable).toEqual([{ creator: '@squatuniversity', count: 2 }, { creator: 'AthleanX', count: 1 }]); // by count desc
+  expect(r.untagged).toBe(1);
+  expect(r.removed).toBe(2);                       // both @squatuniversity links removed across exercises
+  expect(r.afterList).toEqual(['AthleanX']);       // only the other creator remains
+  expect(r.aLeft).toBe(1);                          // exercise a keeps its AthleanX link, loses the TikTok one
+});
+
+test('feat 237 — the wizard renders the creator stable with purge buttons and per-entry creator labels', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let a = null; for (const [u] of VAR_INDEX) { a = u; break; }
+    state.exerciseMedia = {};
+    addExerciseMedia(a, 'https://www.tiktok.com/@kneesovertoesguy/video/7300000000000000002');
+    mediaWizardState = { search: '', withMediaOnly: true, kind: 'all', reassign: null, reassignSearch: '' };
+    document.getElementById('media-wizard').classList.add('open');
+    renderMediaWizard();
+    const body = document.getElementById('mw-body');
+    return {
+      hasStable: !!body.querySelector('.mw-creators'),
+      creatorChip: body.querySelector('.mw-creator .mw-creator-name')?.textContent,
+      hasPurge: !!body.querySelector('[data-mw-purge="@kneesovertoesguy"]'),
+      purgeN: body.querySelector('[data-mw-purge]')?.dataset.mwPurgeN,
+      entryCreator: body.querySelector('.mw-link-creator')?.textContent,
+    };
+  });
+  expect(r.hasStable).toBe(true);
+  expect(r.creatorChip).toBe('@kneesovertoesguy');
+  expect(r.hasPurge).toBe(true);
+  expect(r.purgeN).toBe('1');
+  expect(r.entryCreator).toBe('@kneesovertoesguy'); // the link row shows its creator
+});
+
 test('isDesktopWizard returns a boolean', async ({ page }) => {
   const t = await page.evaluate(() => typeof isDesktopWizard());
   expect(t).toBe('boolean');

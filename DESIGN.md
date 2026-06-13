@@ -853,6 +853,17 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Creator "stable" in the media wizard (feat 237):** the wizard now surfaces *who* your reference clips
+  come from. `mediaCreator(entry)` reads the creator/channel from the link wherever the platform exposes it —
+  a **TikTok**/​**Instagram** `@handle` in the path, a **YouTube** channel link (`/@handle`, `/c/`, `/user/`,
+  `/channel/`), or a YouTube watch URL carrying **`&ab_channel=`** (what a desktop "copy link" includes); a
+  plain video URL has no channel, so it reads as **untagged**. The creator is stored on each entry at add
+  time (`addExerciseMedia`/`applyMediaEntries`) and derived on the fly for older links. A **🎬 Creator stable**
+  panel atop the wizard lists every distinct creator by link count (plus an untagged tally), each with a **🗑
+  purge** button — `purgeCreator(name)` removes every link attributed to that creator across all exercises
+  (confirm-gated, with the count). Each link row now shows its **creator label** (or "untagged"). Covered by
+  new `test/mediawizard.spec.mjs` cases (per-platform creator extraction incl. the plain-video null, the
+  stable grouping + counts + cross-exercise purge, and the rendered panel + purge buttons + per-entry label).
 - **Bulk media wizard — movements, filter, coverage, parent badge, sheet I/O (feat 236):** the desktop
   wizard (feat 110) managed only variation links; it now mirrors the feat-235 two-level model. `mediaWizardRows()`
   emits **MOVEMENT rows** (family-keyed demos) alongside variations — the movement row is accent-bordered with

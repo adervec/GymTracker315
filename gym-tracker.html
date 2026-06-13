@@ -547,6 +547,20 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .mw-cov.full { color: var(--good); }
 .mw-cov.part { color: #d8a83a; }
 .mw-cov.none { color: var(--warn); }
+/* feat 237 — creator stable + per-entry creator label */
+.mw-creators { border: 1px solid var(--border2); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; background: var(--bg2); }
+.mw-creators-head { font-size: 12.5px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+.mw-creator-untag { color: var(--text3); font-weight: 600; }
+.mw-creators-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.mw-creator { display: inline-flex; align-items: center; gap: 5px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 12px; }
+.mw-creator-name { font-weight: 700; color: var(--text); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mw-creator-n { font-size: 10.5px; font-weight: 800; color: var(--accent); background: var(--accent-bg); border-radius: 999px; padding: 1px 7px; }
+.mw-creator-purge { background: none; border: none; cursor: pointer; font-size: 12px; padding: 2px 4px; border-radius: 6px; opacity: 0.65; }
+.mw-creator-purge:hover { opacity: 1; background: var(--danger-bg, color-mix(in srgb, var(--danger) 16%, transparent)); }
+.mw-creators-hint { font-size: 10.5px; color: var(--text3); line-height: 1.5; margin-top: 8px; }
+.mw-creators-hint code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10px; background: var(--bg3); padding: 0 3px; border-radius: 3px; }
+.mw-link-creator { font-size: 10.5px; font-weight: 700; color: var(--accent); background: var(--accent-bg); border-radius: 5px; padding: 1px 6px; white-space: nowrap; flex-shrink: 0; }
+.mw-link-creator.untag { color: var(--text3); background: var(--bg2); font-weight: 600; }
 .mw-reassign { margin-top: 6px; padding: 7px 9px; background: var(--bg3); border: 1px dashed var(--accent); border-radius: 8px; }
 .mw-reassign input { width: 100%; background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px; padding: 5px 8px; color: var(--text); font-size: 12px; font-family: inherit; margin-bottom: 6px; }
 .mw-reassign .mw-target { display: block; width: 100%; text-align: left; background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px; padding: 5px 8px; color: var(--text2); font-size: 12px; cursor: pointer; margin-bottom: 3px; font-family: inherit; }
@@ -7891,6 +7905,45 @@ function parseMediaUrl(raw) {
   if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(host)) return null; // reject non-domains (typos / pasted noise)
   return mk('link', null, null);
 }
+// feat 237 — the creator/channel behind a media entry, read from the link where the platform exposes it:
+// a TikTok/Instagram @handle in the path, a YouTube channel link (/@handle, /c/, /user/, /channel/), or a
+// YouTube watch URL carrying &ab_channel=. A plain YouTube video URL has no channel, so it's "untagged".
+function mediaCreator(m) {
+  if (!m) return null;
+  if (m.creator) return m.creator; // stored at add time when known
+  const url = m.watchUrl || m.url; if (!url) return null;
+  let u; try { u = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url); } catch (_) { return null; }
+  const host = u.hostname.replace(/^www\./, '').toLowerCase();
+  if (/(^|\.)tiktok\.com$/.test(host)) { const h = u.pathname.match(/\/@([\w.\-]+)/); return h ? '@' + h[1] : null; }
+  if (/(^|\.)youtube\.com$/.test(host) || host === 'youtu.be' || /(^|\.)youtube-nocookie\.com$/.test(host)) {
+    const ab = u.searchParams.get('ab_channel'); if (ab) return ab.replace(/\+/g, ' ').trim();
+    const h = u.pathname.match(/\/@([\w.\-]+)/) || u.pathname.match(/\/(?:c|user|channel)\/([\w.\-]+)/); return h ? '@' + h[1] : null;
+  }
+  if (/(^|\.)instagram\.com$/.test(host)) { const h = u.pathname.match(/^\/([\w.\-]+)\/(?:reels?|p|tv)\//); return (h && !/^(reels?|p|tv)$/i.test(h[1])) ? '@' + h[1] : null; }
+  return null;
+}
+// The "stable": every distinct creator referenced across all media (movements + variations), by link count.
+function mediaCreatorStable() {
+  const map = {}; let untagged = 0;
+  Object.keys(state.exerciseMedia || {}).forEach(k => (state.exerciseMedia[k] || []).forEach(m => {
+    const c = mediaCreator(m); if (c) map[c] = (map[c] || 0) + 1; else untagged++;
+  }));
+  const list = Object.keys(map).map(c => ({ creator: c, count: map[c] })).sort((a, b) => b.count - a.count || a.creator.localeCompare(b.creator));
+  return { list, untagged, total: list.length };
+}
+// Remove every media entry attributed to a creator, across all exercises. Returns the count removed.
+function purgeCreator(name) {
+  if (!name || (typeof roBlocked === 'function' && roBlocked('purge creator media'))) return 0;
+  let removed = 0;
+  Object.keys(state.exerciseMedia || {}).forEach(k => {
+    const list = state.exerciseMedia[k] || [], before = list.length;
+    state.exerciseMedia[k] = list.filter(m => mediaCreator(m) !== name);
+    removed += before - state.exerciseMedia[k].length;
+    if (!state.exerciseMedia[k].length) delete state.exerciseMedia[k];
+  });
+  if (removed) saveState();
+  return removed;
+}
 function getExerciseMedia(uuid) { if (!uuid || !state.exerciseMedia) return []; return state.exerciseMedia[uuid] || []; }
 function addExerciseMedia(uuid, url) {
   if (!uuid) return { ok: false, err: 'No exercise selected' };
@@ -7900,7 +7953,7 @@ function addExerciseMedia(uuid, url) {
   state.exerciseMedia = state.exerciseMedia || {};
   const list = state.exerciseMedia[uuid] = state.exerciseMedia[uuid] || [];
   if (list.some(m => m.url === parsed.url || (parsed.embedUrl && m.embedUrl === parsed.embedUrl))) return { ok: false, err: 'Already added' };
-  list.push({ ...parsed, addedAt: new Date().toISOString() });
+  list.push({ ...parsed, creator: mediaCreator(parsed) || undefined, addedAt: new Date().toISOString() }); // feat 237 — tag the creator when the link reveals it
   saveState();
   logInfo('Reference video added', mediaPlatformName(parsed.platform) + (parsed.embedUrl ? '' : ' (link only)'));
   return { ok: true, item: parsed };
@@ -8098,7 +8151,7 @@ function applyMediaEntries(arr) {
     const parsed = parseMediaUrl(e.url); if (!parsed) { bad++; return; }
     const list = state.exerciseMedia[key] = state.exerciseMedia[key] || [];
     if (list.some(m => m.url === parsed.url || (parsed.embedUrl && m.embedUrl === parsed.embedUrl))) { dup++; return; }
-    list.push({ ...parsed, addedAt: new Date().toISOString(), source: e.source || undefined });
+    list.push({ ...parsed, creator: mediaCreator(parsed) || undefined, addedAt: new Date().toISOString(), source: e.source || undefined }); // feat 237
     added++;
   });
   return { added, dup, unmatched, bad };
@@ -8225,22 +8278,35 @@ function renderMediaWizard() {
     <span class="mw-stat">${varWith} variations · ${movWith} movements · ${totalLinks} links · ${notEmbed} not embeddable</span>`;
   const rows = mediaWizardRows();
   const capped = rows.length > 150 ? rows.slice(0, 150) : rows;
-  body.innerHTML = (rows.length > 150 ? `<div class="mw-stat" style="margin-bottom:8px;">Showing first 150 of ${rows.length} — refine the search.</div>` : '')
+  body.innerHTML = mediaCreatorStableHtml() // feat 237 — the creator stable, atop the row list
+    + (rows.length > 150 ? `<div class="mw-stat" style="margin-bottom:8px;">Showing first 150 of ${rows.length} — refine the search.</div>` : '')
     + (capped.length ? capped.map(mediaWizardRowHtml).join('') : `<div class="mw-stat">${mediaWizardState.search ? 'No exercises match' : 'No exercises have media yet — search to add some.'}</div>`);
   bindMediaWizard();
 }
+// feat 237 — the "stable" of creators referenced, with a per-creator link count + a purge control.
+function mediaCreatorStableHtml() {
+  const s = mediaCreatorStable();
+  if (!s.list.length && !s.untagged) return '';
+  const chips = s.list.map(c => `<span class="mw-creator"><span class="mw-creator-name">${escapeHtml(c.creator)}</span><span class="mw-creator-n">${c.count}</span><button class="mw-creator-purge" data-mw-purge="${escapeAttr(c.creator)}" data-mw-purge-n="${c.count}" title="Purge all ${c.count} link${c.count === 1 ? '' : 's'} from ${escapeAttr(c.creator)}">🗑</button></span>`).join('');
+  return `<div class="mw-creators">
+    <div class="mw-creators-head">🎬 Creator stable · ${s.total} creator${s.total === 1 ? '' : 's'}${s.untagged ? ` · <span class="mw-creator-untag">${s.untagged} untagged</span>` : ''}</div>
+    <div class="mw-creators-list">${chips || '<span class="mw-stat">No creators identified yet.</span>'}</div>
+    <div class="mw-creators-hint">Creator is read from the link where the platform shows it — a TikTok/Instagram handle, a YouTube channel link, or a desktop “copy link” URL carrying <code>&amp;ab_channel=</code>. Plain video links are untagged. 🗑 removes every link from that creator across all exercises.</div>
+  </div>`;
+}
 function mediaWizardRowHtml(r) {
   const key = r.id; // a variation uuid OR a movement (family) id — every media op is key-generic
-  const links = r.media.map((m, i) => `
+  const links = r.media.map((m, i) => { const cr = mediaCreator(m); return `
     <div class="mw-link">
       <span>${mediaPlatformIcon(m.platform)}</span>
       <span class="mw-link-url" title="${escapeAttr(m.watchUrl || m.url)}">${escapeHtml(m.watchUrl || m.url)}</span>
+      ${cr ? `<span class="mw-link-creator" title="Creator: ${escapeAttr(cr)}">${escapeHtml(cr)}</span>` : '<span class="mw-link-creator untag">untagged</span>'}
       <span class="mw-badge ${m.embedUrl ? 'ok' : 'no'}">${m.embedUrl ? 'embeddable' : 'link-only'}</span>
       <button data-mw-open="${escapeAttr(m.watchUrl || m.url)}">↗ open</button>
       <button data-mw-reassign="${escapeAttr(key)}" data-mw-idx="${i}">→ move</button>
       <button class="del" data-mw-del="${escapeAttr(key)}" data-mw-idx="${i}">✕</button>
     </div>
-    ${(mediaWizardState.reassign && mediaWizardState.reassign.uuid === key && mediaWizardState.reassign.idx === i) ? mediaWizardReassignHtml() : ''}`).join('');
+    ${(mediaWizardState.reassign && mediaWizardState.reassign.uuid === key && mediaWizardState.reassign.idx === i) ? mediaWizardReassignHtml() : ''}`; }).join('');
   if (r.type === 'movement') { // feat 236 — a MOVEMENT row: its own demo + how many child variations are covered
     const cov = r.childTotal ? `${r.childWith}/${r.childTotal} variations have video` : 'no variations';
     const covClass = r.childTotal && r.childWith === r.childTotal ? 'full' : (r.childWith ? 'part' : 'none');
@@ -8280,6 +8346,10 @@ function bindMediaWizard() {
   tb.querySelector('#mw-export-sheet')?.addEventListener('click', exportMediaSheet); // feat 236 — export the fillable sheet
   tb.querySelector('#mw-import-sheet')?.addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const rd = new FileReader(); rd.onload = () => { importMediaData(String(rd.result || '')); renderMediaWizard(); }; rd.readAsText(f); }); // feat 236 — import a filled sheet
   tb.querySelector('#mw-retest')?.addEventListener('click', mediaWizardRetestAll);
+  body.querySelectorAll('[data-mw-purge]').forEach(b => b.addEventListener('click', () => { // feat 237 — purge a whole creator
+    const name = b.dataset.mwPurge, n = +b.dataset.mwPurgeN || 0;
+    confirmDialog(`Remove all ${n} reference link${n === 1 ? '' : 's'} from ${name}? This can't be undone (export your media first if unsure).`, { title: 'Purge creator?', okLabel: 'Purge', cancelLabel: 'Keep', danger: true }).then(ok => { if (!ok) return; const removed = purgeCreator(name); renderMediaWizard(); toast(`Purged ${removed} link${removed === 1 ? '' : 's'} from ${name}`); });
+  }));
   body.querySelectorAll('[data-mw-open]').forEach(b => b.addEventListener('click', () => { try { window.open(b.dataset.mwOpen, '_blank', 'noopener'); } catch (_) {} }));
   body.querySelectorAll('[data-mw-del]').forEach(b => b.addEventListener('click', () => { removeExerciseMedia(b.dataset.mwDel, +b.dataset.mwIdx); renderMediaWizard(); }));
   body.querySelectorAll('[data-mw-reassign]').forEach(b => b.addEventListener('click', () => { mediaWizardState.reassign = { uuid: b.dataset.mwReassign, idx: +b.dataset.mwIdx }; mediaWizardState.reassignSearch = ''; renderMediaWizard(); }));
@@ -17047,7 +17117,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 182 · 2026-06-13 10:48';
+const APP_BUILD = 'build 183 · 2026-06-13 10:59';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
