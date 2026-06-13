@@ -853,6 +853,19 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Periodization mesocycle (feat 232):** an optional multi-week block layered onto the split planner —
+  volume **ramps base → peak then deloads**, repeating. `mesoWeekPlan(length)` lays out a 3–6 week cycle:
+  the accumulation weeks scale linearly **1.0× → 1.3×** (Base → Build → Peak) with rising RPE cues, the last
+  week deloads to **0.55×** (RPE 5–6); `mesoCurrentWeek()` reads the current week from the start date,
+  cycling continuously after each deload. The big tie-in: `splitAnalysis(plans, volMult)` now takes a volume
+  multiplier, so the **coverage over/under analysis scales to the current week** — accumulation weeks read
+  closer to (or past) MRV, the deload pulls everything down — and the card flags "week N · X%". A
+  **📈 Periodization** card on the planner toggles the cycle on/off (`state.meso = {enabled, length, start}`,
+  in `SETTINGS_KEYS`), shows a current-phase banner ("Week 2 of 4 · Build · 115% volume · RPE 8"), a week
+  strip (each week's phase + volume %, current highlighted), cycle-length chips, and a "↻ Restart this week"
+  to re-anchor the block. It's planning guidance — not auto-applied to logged sets. Covered by
+  `test/periodization.spec.mjs` (the ramp/deload plan, current-week tracking + wrap, the analysis multiplier,
+  the card toggle/strip/banner/coverage-tag, and length-change + restart re-anchoring).
 - **Program adherence tracking (feat 231):** closes the loop on the scheduled program by matching your
   logged sessions back to it. `programWeekAdherence(weeksBack)` walks a Mon–Sun week and grades each
   scheduled day **done** (a session logged that day on the scheduled plan) · **off-plan** (you trained, but
