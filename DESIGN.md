@@ -853,6 +853,76 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Media Gallery page (feat 239):** a dedicated **Study › 🎞️ Media Gallery** page that shows *every* reference
+  clip — movement demos and variation links alike — in one searchable, filterable, scrollable grid, reachable
+  from the **Reference** header (a 🎞️ button) and the **bulk wizard** toolbar (🎞️ Gallery), plus the breadcrumb
+  nav-tree. `allMediaClips()` flattens `state.exerciseMedia` into `{ key, idx, m, owner, watchedAt, creator }`
+  records (`mediaOwnerInfo(key)` resolves a variation uuid or a movement/family id to a label + kind);
+  `mediaGalleryClips()` applies the search (exercise / creator / link text), a **watch filter** (All / ▶ Unwatched
+  / 👁 Watched) and a **kind filter** (All / Movements / Variations), sorting **unwatched-first** then by most-recent
+  watch. Each tile shows a YouTube thumbnail (`mediaThumb`) or a platform placeholder, a ▶/↗ affordance, the
+  movement/variation label + parent + creator, and a **👁 watched `<when>`** badge (or "unwatched"). Clicking a
+  playable tile toggles an **inline embed** in place and starts the feat-238 dwell — lingering past the window marks
+  the clip watched (`_watchDwell` → `markMediaWatched`), so the gallery doubles as a "what have I actually
+  reviewed?" tracker; merely scrolling the grid never marks anything. The list caps at 120 with a "refine the
+  search" note. Covered by new `test/mediagallery.spec.mjs` (flatten + filter, the YouTube-thumbnail helper, the
+  rendered grid + segments, the dwell-marks-watched-then-filter path, unique-emoji Study registration, and the
+  Reference → gallery navigation).
+- **Media wizard — "needs media" filter, inline preview, watch tracking (feat 238):** three additions to the
+  bulk wizard. (1) A **⚠ needs media** toggle (`mediaWizardState.uncoveredOnly`) restricts the list to genuine
+  gaps — a **variation** is "uncovered" only when it has no clip of its own *and* its parent **movement** has no
+  demo either, and a movement is "uncovered" when it lacks its own demo; it overrides "with media only". (2) An
+  embeddable link gets a **▶ preview** button that toggles an inline `<iframe>` (the same nocookie embed URL the
+  carousel uses) right under the row, so you can eyeball a clip without leaving the wizard. (3) A **watch-tracking**
+  engine records the last time you *actually watched* a clip: `mediaWatchKey(m)` keys by the clip itself
+  (`platform:vid`, or the URL) so a watch is shared everywhere that clip appears; `_watchDwell(el, m)` starts a
+  5 s timer when a preview iframe mounts and only calls `markMediaWatched(m)` if the embed is **still connected**
+  after the dwell — opening the preview and lingering counts, scrolling past a row never does. Each row shows a
+  **👁 watched <when>** badge (`fmtDate`) or "never watched". State lives in `state.mediaWatched` (a clip-key →
+  ISO map, in `SETTINGS_KEYS`, normalized to `{}`). Covered by new `test/mediawizard.spec.mjs` cases (clip-keyed
+  marking shared across exercises, the uncovered-by-self-and-parent filter, the rendered preview button + iframe
+  mount, and the dwell marking a previewed clip watched while a merely-rendered row stays unwatched).
+- **Creator "stable" in the media wizard (feat 237):** the wizard now surfaces *who* your reference clips
+  come from. `mediaCreator(entry)` reads the creator/channel from the link wherever the platform exposes it —
+  a **TikTok**/​**Instagram** `@handle` in the path, a **YouTube** channel link (`/@handle`, `/c/`, `/user/`,
+  `/channel/`), or a YouTube watch URL carrying **`&ab_channel=`** (what a desktop "copy link" includes); a
+  plain video URL has no channel, so it reads as **untagged**. The creator is stored on each entry at add
+  time (`addExerciseMedia`/`applyMediaEntries`) and derived on the fly for older links. A **🎬 Creator stable**
+  panel atop the wizard lists every distinct creator by link count (plus an untagged tally), each with a **🗑
+  purge** button — `purgeCreator(name)` removes every link attributed to that creator across all exercises
+  (confirm-gated, with the count). Each link row now shows its **creator label** (or "untagged"). Covered by
+  new `test/mediawizard.spec.mjs` cases (per-platform creator extraction incl. the plain-video null, the
+  stable grouping + counts + cross-exercise purge, and the rendered panel + purge buttons + per-entry label).
+- **Bulk media wizard — movements, filter, coverage, parent badge, sheet I/O (feat 236):** the desktop
+  wizard (feat 110) managed only variation links; it now mirrors the feat-235 two-level model. `mediaWizardRows()`
+  emits **MOVEMENT rows** (family-keyed demos) alongside variations — the movement row is accent-bordered with
+  a **MOVEMENT** tag, its own links, and a **child-coverage** read ("X/Y variations have video", green when
+  full / amber partial / red none). Every **variation row** that sits under a movement with its own demo gets a
+  **▸ movement demo ✓** badge. A **kind filter** (All / Movements / Variations) restricts the list; the stat
+  line splits the counts ("V variations · M movements · L links · N not embeddable"). The toolbar gains
+  **📝 Export sheet** (the feat-174/235 `exportMediaSheet` choice dialog) and **⬆ Import sheet** (a file input
+  → `importMediaData`), so the whole Claude round-trip happens inside the wizard. All media ops are key-generic
+  (`addExerciseMedia`/`removeExerciseMedia`/`reassignMedia` on a uuid *or* a family id), and the move-target
+  search now lists movements too, so a general demo can be moved up to its movement. Covered by new
+  `test/mediawizard.spec.mjs` cases (movement rows + child coverage + parent badge, the kind filter, the
+  toolbar controls + tagged movement row + split stat, and the Import-sheet → importMediaData round-trip);
+  the existing wizard tests were updated for the row `.id` field (uuid for variations, family id for movements).
+- **Media sheet covers movements + variations with explicit parentage (feat 235):** the Claude-fillable
+  media reference sheet (feat 174) listed only variations, with the movement merely a `## ` group header.
+  It now lists **both levels**: each `## ` section opens with a fillable **MOVEMENT** entry
+  (`- MOVEMENT — <title>  {mid: <familyId>}`) — a slot for a general demo of the pattern itself — and every
+  **variation** below carries a `{parent: <familyId>}` tag right after its `{id: <uuid>}`, so the
+  movement→variation hierarchy is explicit even reading a line out of context. `parseMediaSheet()` learns
+  two tags: `{mid:…}` → a `{id: familyId}` entry (which `resolveExerciseKey` already maps to the family key,
+  and `openExerciseMedia(uuid, …, movementId)` already surfaces on the variation's "Whole movement" carousel
+  — so movement-level media displays with **zero model change**), and it strips the new `{mid}`/`{parent}`
+  tags from titles; the `{id: <uuid>}` variation tag stays byte-identical so the existing round-trip is
+  untouched. The header stamp now reports both counts ("84 movements (N with links) · 789 variations (M with
+  links)"); the missing-links scope keeps a movement on the to-do sheet when it lacks its own demo even if
+  all its variations are covered. The sheet help text explains the two levels. Covered by new
+  `test/mediasheet.spec.mjs` cases (movement entry + per-variation parent tag + dual-count stamp,
+  movement-link round-trip keyed to the family and combined onto the variation carousel, missing-scope
+  movement retention) alongside the unchanged feat-174 round-trip tests.
 - **Next-load suggestion in the log sheet (feat 234):** brings feat-233's auto-progression to the moment
   you load the bar. When you open an exercise to log it live (standard weight×reps, not editing a past
   entry) and it has history, the sheet shows a concrete **🎯 Aim for W × R** target — the same
