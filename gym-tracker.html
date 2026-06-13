@@ -230,6 +230,10 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .ntree-chip.active { background: var(--accent-bg, rgba(124,92,255,0.12)); border-color: var(--accent-border, rgba(124,92,255,0.4)); color: var(--accent, #9b7bff); }
 #app-topbar .nav-tabs { display: none; } /* feat 182 — legacy panel switcher hidden (kept in DOM for compat; removed in feat 196) */
 #app-gloss-btn { display: none; }         /* feat 182 — Glossary is now a Study page */
+#app-settings-btn, #app-help-btn { display: none !important; } /* feat 227 — Settings & Help are reached through the breadcrumb → nav tree (kept in DOM so the shims/specs still click them); !important overrides the later display:flex on #app-settings-btn */
+/* feat 227 — the legacy 7-tab bar is removed from the DOM entirely (see #panel-tracker header); only the collapse rules for the contextual PDF-button header remain. */
+#panel-tracker > header.header-collapsed { padding: 0; border-bottom: none; } /* feat 224 — no contextual PDF button on this page → no empty header strip */
+#panel-tracker > header.header-collapsed .head-row { margin-bottom: 0; }
 
 .nav-tabs {
   display: flex;
@@ -758,6 +762,133 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .metro-cfg { width: 34px; height: 30px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 15px; cursor: pointer; font-family: inherit; }
   /* Workout plans (feat 70) — the creator/list/editor renders into #trk-main as the 'plan-creator' page (feat 184); the slide-in overlay chrome was retired. */
   .plan-list-intro { font-size: 12px; color: var(--text3); line-height: 1.5; margin-bottom: 12px; }
+  /* feat 226 — Quick Pick recommender block at the top of the plan picker */
+  .quick-pick { background: linear-gradient(135deg, var(--accent-bg), var(--bg2)); border: 1px solid var(--accent-border); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
+  .qp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+  .qp-title { font-size: 14px; font-weight: 800; color: var(--text); }
+  .qp-q { font-size: 11px; color: var(--text3); }
+  .qp-times { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 11px; }
+  .qp-time { flex: 1; min-width: 44px; padding: 7px 4px; border-radius: 9px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .qp-time-u { font-size: 10px; font-weight: 600; opacity: 0.7; }
+  .qp-time.active { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
+  .qp-recs { display: flex; flex-direction: column; gap: 7px; }
+  .qp-rec { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
+  .qp-rec-main { flex: 1; min-width: 0; }
+  .qp-rec-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qp-fav { color: var(--accent); font-size: 11px; }
+  .qp-rec-reason { font-size: 11px; color: var(--text3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qp-use { flex-shrink: 0; font-size: 12px; font-weight: 700; background: var(--accent); border: none; color: #0a0a0a; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+  /* feat 229 — Split Planner */
+  .sp-intro { font-size: 12px; color: var(--text3); line-height: 1.5; margin-bottom: 12px; }
+  .sp-input { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+  .sp-input-lbl { font-size: 11.5px; color: var(--text2); font-weight: 600; width: 96px; flex-shrink: 0; }
+  .sp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sp-chip { min-width: 38px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .sp-chip.active { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
+  .sp-note { font-size: 11.5px; color: var(--warn); margin-top: 8px; line-height: 1.4; }
+  .sp-days { display: flex; flex-direction: column; gap: 7px; }
+  .sp-day { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
+  .sp-day-slot { flex-shrink: 0; width: 64px; }
+  .sp-day-n { display: block; font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; }
+  .sp-day-cat { display: block; font-size: 12.5px; font-weight: 800; color: var(--accent); }
+  .sp-day-main { flex: 1; min-width: 0; }
+  .sp-day-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sp-day-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .sp-use { flex-shrink: 0; font-size: 12px; font-weight: 700; background: var(--accent); border: none; color: #0a0a0a; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+  .sp-balance { font-size: 13px; font-weight: 700; color: var(--text2); margin-bottom: 12px; }
+  .sp-bal-score { font-weight: 800; }
+  .sp-grps { display: flex; flex-direction: column; gap: 11px; }
+  .sp-grp-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .sp-grp-name { font-size: 12.5px; font-weight: 700; color: var(--text); }
+  .sp-grp-val { font-size: 11px; font-weight: 700; }
+  .sp-bar { position: relative; height: 10px; background: var(--bg3); border-radius: 5px; overflow: hidden; }
+  .sp-bar-band { position: absolute; top: 0; bottom: 0; background: var(--good); opacity: 0.28; }
+  .sp-bar-mark { position: absolute; top: -2px; width: 3px; height: 14px; border-radius: 2px; transform: translateX(-1.5px); background: var(--text); }
+  .sp-grp-tgt { font-size: 10px; color: var(--text3); margin-top: 3px; }
+  .sp-legend { font-size: 10.5px; color: var(--text3); margin-top: 12px; line-height: 1.5; }
+  .sp-under, .sp-bar-mark.sp-under, .sp-bal-score.sp-under { color: var(--warn); }
+  .sp-bar-mark.sp-under { background: var(--warn); }
+  .sp-light, .sp-bar-mark.sp-light, .sp-bal-score.sp-light { color: #d8a83a; }
+  .sp-bar-mark.sp-light { background: #d8a83a; }
+  .sp-optimal, .sp-bal-score.good, .sp-bar-mark.sp-optimal { color: var(--good); }
+  .sp-bar-mark.sp-optimal { background: var(--good); }
+  .sp-over, .sp-bar-mark.sp-over, .sp-bal-score.sp-over { color: var(--danger); }
+  .sp-bar-mark.sp-over { background: var(--danger); }
+  /* feat 230 — scheduled weekly program */
+  .sp-save { font-size: 11.5px; font-weight: 700; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 5px 11px; border-radius: 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .sp-clear { font-size: 11px; font-weight: 700; background: var(--bg3); border: 1px solid var(--border2); color: var(--text3); padding: 4px 10px; border-radius: 7px; cursor: pointer; font-family: inherit; }
+  .pg-today { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: linear-gradient(135deg, var(--accent-bg), var(--bg2)); border: 1px solid var(--accent-border); border-radius: 10px; padding: 10px 12px; margin-bottom: 11px; }
+  .pg-today.rest { background: var(--bg3); border-color: var(--border2); }
+  .pg-today-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); font-weight: 800; }
+  .pg-today-name { font-size: 14px; font-weight: 800; color: var(--text); }
+  .pg-week { display: flex; flex-direction: column; gap: 5px; }
+  .pg-day { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: var(--bg2); border: 1px solid var(--border2); border-radius: 9px; padding: 8px 11px; color: var(--text); font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .pg-day.rest { opacity: 0.62; }
+  .pg-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-border) inset; }
+  .pg-dow { flex-shrink: 0; width: 72px; font-size: 11px; font-weight: 800; color: var(--text3); }
+  .pg-day.today .pg-dow { color: var(--accent); }
+  .pg-plan { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pg-day.rest .pg-plan { font-weight: 600; color: var(--text3); }
+  .plan-pick-btn.pg-start { background: var(--accent); border-color: var(--accent); color: #0a0a0a; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
+  /* feat 231 — program adherence */
+  .pg-adh { font-size: 12px; color: var(--text2); font-weight: 600; margin-bottom: 11px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+  .pg-adh b { color: var(--text); font-weight: 800; }
+  .pg-missed-txt { color: var(--warn); font-weight: 700; }
+  .pg-trend { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; }
+  .pg-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bg4, #2a2a2a); border: 1px solid var(--border2); }
+  .pg-dot.part { background: #d8a83a; border-color: #d8a83a; }
+  .pg-dot.full { background: var(--good); border-color: var(--good); }
+  .pg-trend-lbl { font-size: 9.5px; color: var(--text3); font-weight: 700; margin-left: 3px; }
+  .pg-status { flex-shrink: 0; font-size: 13px; font-weight: 800; width: 18px; text-align: center; }
+  .pg-day.pg-done .pg-status, .pg-day.pg-done .pg-plan { color: var(--good); }
+  .pg-day.pg-off-plan .pg-status { color: #d8a83a; }
+  .pg-day.pg-missed .pg-status { color: var(--warn); }
+  .pg-day.pg-missed .pg-plan { color: var(--text3); text-decoration: line-through; opacity: 0.8; }
+  .pg-day.pg-upcoming .pg-status, .pg-day.pg-today .pg-status { color: var(--text3); }
+  /* feat 232 — periodization */
+  .sp-toggle { font-size: 11.5px; font-weight: 800; background: var(--bg3); border: 1px solid var(--border2); color: var(--text3); padding: 4px 14px; border-radius: 999px; cursor: pointer; font-family: inherit; }
+  .sp-toggle.on { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
+  .ms-banner { font-size: 12.5px; color: var(--text); background: var(--bg3); border: 1px solid var(--border2); border-left: 3px solid var(--accent); border-radius: 8px; padding: 9px 11px; margin-bottom: 11px; line-height: 1.5; }
+  .ms-banner.ms-deload { border-left-color: var(--good); }
+  .ms-banner.ms-peak { border-left-color: var(--danger); }
+  .ms-strip { display: flex; gap: 5px; }
+  .ms-wk { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 2px; border-radius: 8px; background: var(--bg3); border: 1px solid var(--border2); text-align: center; }
+  .ms-wk.cur { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-border) inset; background: var(--accent-bg); }
+  .ms-wk-n { font-size: 11px; font-weight: 800; color: var(--text); }
+  .ms-wk-phase { font-size: 9px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.3px; }
+  .ms-wk-vol { font-size: 11px; font-weight: 800; color: var(--accent); }
+  .ms-wk.ms-deload .ms-wk-vol { color: var(--good); }
+  .ms-wk.ms-peak .ms-wk-vol { color: var(--danger); }
+  .ms-cov-tag { font-size: 10px; font-weight: 800; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 6px; padding: 1px 6px; vertical-align: middle; }
+  .ms-cov-tag.ms-deload { color: var(--good); }
+  .ms-cov-tag.ms-peak { color: var(--danger); }
+  /* feat 233 — auto-progression */
+  .pr-list { display: flex; flex-direction: column; gap: 7px; }
+  .pr-row { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-left: 3px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
+  .pr-row.pr-load { border-left-color: var(--good); }
+  .pr-row.pr-reps { border-left-color: var(--accent); }
+  .pr-row.pr-deload { border-left-color: #d8a83a; }
+  .pr-main { flex: 1; min-width: 0; }
+  .pr-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pr-note { font-size: 10.5px; color: var(--text3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pr-nums { flex-shrink: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; }
+  .pr-cur { color: var(--text3); }
+  .pr-arrow { color: var(--text3); }
+  .pr-next { color: var(--text); font-weight: 800; }
+  .pr-tag { font-size: 9.5px; font-weight: 800; padding: 2px 6px; border-radius: 6px; background: var(--bg3); white-space: nowrap; }
+  .pr-tag.pr-load { color: var(--good); }
+  .pr-tag.pr-reps { color: var(--accent); }
+  .pr-tag.pr-deload { color: #d8a83a; }
+  /* feat 234 — concrete next-load target + one-tap prefill in the log sheet */
+  .prog-target { display: flex; align-items: center; gap: 10px; margin-top: 10px; background: var(--bg2); border: 1px solid var(--border2); border-left: 3px solid var(--accent); border-radius: 8px; padding: 9px 12px; }
+  .prog-target.prog-add-load { border-left-color: var(--good); }
+  .prog-target.prog-deload { border-left-color: #d8a83a; }
+  .prog-target-main { flex: 1; min-width: 0; }
+  .prog-target-aim { display: block; font-size: 13px; color: var(--text); }
+  .prog-target-aim b { color: var(--accent); }
+  .prog-target.prog-add-load .prog-target-aim b { color: var(--good); }
+  .prog-target-note { display: block; font-size: 10.5px; color: var(--text3); margin-top: 1px; }
+  .prog-prefill { flex-shrink: 0; font-size: 12px; font-weight: 800; background: var(--accent); border: none; color: #0a0a0a; padding: 8px 13px; border-radius: 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
   .plan-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .plan-row-main { flex: 1; min-width: 0; }
   .plan-row-name { font-size: 14px; font-weight: 600; color: var(--text); }
@@ -2431,15 +2562,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
   <div class="head-row"><!-- feat 182 — brand moved to the top bar (centered, topmost) -->
     <button id="trk-export-pdf" type="button" title="Save or share this view as a PDF" aria-label="Export this view as PDF" style="display:none;">📄 PDF</button>
   </div>
-  <div class="tabs">
-    <div class="tab active" data-tab="log">Dashboard</div>
-    <div class="tab" data-tab="sessions">Log</div>
-    <div class="tab" data-tab="history">History</div>
-    <div class="tab" data-tab="volume">Volume</div>
-    <div class="tab" data-tab="trends">Trends</div>
-    <div class="tab" data-tab="body">Body</div>
-    <div class="tab" data-tab="gyms">Gyms</div>
-  </div>
+  <!-- feat 227 — the legacy 7-tab bar (Dashboard/Log/History/Volume/Trends/Body/Gyms) is fully retired:
+       removed from the DOM (not just hidden), superseded by the feat-221 breadcrumb + nav tree. -->
 </header>
 
 <main id="trk-main"></main>
@@ -3345,7 +3469,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -3579,6 +3703,15 @@ function normalizeState() {
   if (!state.avatar || typeof state.avatar !== 'object') state.avatar = { style: 'classic', hat: 'none', hair: 'none' }; // feat 220
   if (state.avatar.style !== 'profile') state.avatar.style = 'classic';
   if (!state.avatar.hat) state.avatar.hat = 'none';
+  if (!(state.planPickMinutes >= 5 && state.planPickMinutes <= 240)) state.planPickMinutes = 45; // feat 226 — quick-pick time budget
+  if (!state.splitPlan || typeof state.splitPlan !== 'object') state.splitPlan = { sessions: 3, days: 7, minutes: 60 }; // feat 229 — split planner inputs
+  state.splitPlan.sessions = Math.max(2, Math.min(6, state.splitPlan.sessions | 0 || 3));
+  state.splitPlan.days = Math.max(state.splitPlan.sessions, Math.min(7, state.splitPlan.days | 0 || 7));
+  if (!(state.splitPlan.minutes >= 15 && state.splitPlan.minutes <= 240)) state.splitPlan.minutes = 60;
+  if (state.program && (!Array.isArray(state.program.week) || state.program.week.length !== 7 || !Array.isArray(state.program.pool))) state.program = null; // feat 230 — drop a malformed program
+  if (!state.meso || typeof state.meso !== 'object') state.meso = { enabled: false, length: 4, start: null }; // feat 232 — periodization mesocycle
+  state.meso.length = Math.max(3, Math.min(6, state.meso.length | 0 || 4));
+  state.meso.enabled = !!state.meso.enabled;
   if (!state.avatar.hair) state.avatar.hair = 'none';
   if (!state.hiddenCategories || typeof state.hiddenCategories !== 'object') state.hiddenCategories = {};
   if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
@@ -8316,9 +8449,9 @@ const PAGES = {
   // ever just a nav list. Browsing happens in the compact nav-tree popover; the breadcrumb shows where you are.
   home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'], primary:'workout' },
   train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'], primary:'workout' },
-  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','history','trends','volume','achievements','replay'], primary:'log' },
+  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','history','trends','volume','achievements','replay','progression'], primary:'log' },
   execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail'], primary:'workout' },
-  prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator'], primary:'gyms' },
+  prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator','split-planner'], primary:'gyms' },
   study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','glossary','anatomy','advice'], primary:'reference' },
   settings:{ title:'Settings',emoji:'⚙️', kind:'menu', parent:'home',  children:['set-profile','set-cosmetic','set-prefs','set-data','set-help','set-about'], primary:'set-prefs' },
   // leaf pages that already render into a container (reused unchanged)
@@ -8329,6 +8462,7 @@ const PAGES = {
   volume:      { title:'Volume',           emoji:'🧮', kind:'leaf', parent:'reflect', tab:'volume',   render:m=>renderVolume(m) },
   achievements:{ title:'Achievement Paths',emoji:'🏅', kind:'leaf', parent:'reflect', render:m=>{ m.innerHTML = renderAchievements(); } },
   replay:      { title:'Replay',           emoji:'⏪', kind:'leaf', parent:'reflect', render:m=>renderReplayPage(m) }, // feat 219
+  progression: { title:'Progression',      emoji:'🚀', kind:'leaf', parent:'reflect', render:m=>renderProgressionPage(m) }, // feat 233
   gyms:        { title:'Gyms',             emoji:'📍', kind:'leaf', parent:'prepare', tab:'gyms', render:m=>renderGymsTab(m) },
   body:        { title:'Body',             emoji:'🧍', kind:'leaf', parent:'prepare', tab:'body', render:m=>renderBody(m) },
   // leaves still served by their existing overlay/opener (converted to real pages in later phases)
@@ -8336,6 +8470,7 @@ const PAGES = {
   'plan-detail': { title:'Plan Detail',  emoji:'🗺️', kind:'leaf', parent:'execute', render:m=>renderPlanDetailPage(m) }, // feat 183
   equipment:     { title:'Equipment',    emoji:'🏗️', kind:'leaf', parent:'prepare', render:m=>renderEquipmentPage(m) }, // feat 193
   'plan-creator':{ title:'Plan Creator', emoji:'📝', kind:'leaf', parent:'prepare', render:m=>renderPlanCreatorPage(m) }, // feat 184
+  'split-planner':{ title:'Split Planner', emoji:'🗓️', kind:'leaf', parent:'prepare', render:m=>renderSplitPlannerPage(m) }, // feat 229
   reference:     { title:'Reference',    emoji:'📖', kind:'leaf', parent:'study', render:m=>renderReferencePage(m) }, // feat 191
   glossary:      { title:'Glossary',     emoji:'📓', kind:'leaf', parent:'study', render:m=>renderGlossaryPage(m) }, // feat 190
   anatomy:       { title:'Anatomy',      emoji:'🫀', kind:'leaf', parent:'study', render:m=>renderAnatomyPage(m) }, // feat 190
@@ -8493,7 +8628,11 @@ function renderCurrentPage() {
   else if (def.render) def.render(main);
   else if (def.open) { main.innerHTML = ''; def.open(); }
   const _exp = document.getElementById('trk-export-pdf'); // feat 133 — only the data-review views are exportable
-  if (_exp) _exp.style.display = (currentPage === 'history' || currentPage === 'volume' || currentPage === 'trends') ? '' : 'none';
+  const _expShown = (currentPage === 'history' || currentPage === 'volume' || currentPage === 'trends');
+  if (_exp) _exp.style.display = _expShown ? '' : 'none';
+  // feat 224 — with the legacy tab pills retired, the tracker header only carries the contextual PDF button;
+  // collapse it (no empty strip + border under the breadcrumb) on every page that doesn't show that button.
+  const _hdr = document.querySelector('#panel-tracker > header'); if (_hdr) _hdr.classList.toggle('header-collapsed', !_expShown);
   if (typeof updateTopbarChrome === 'function') updateTopbarChrome(def); // feat 182 (no-op until then)
   updateFAB();
   if (typeof refreshRestBar === 'function') refreshRestBar(); // feat 51
@@ -8703,6 +8842,36 @@ const SEED_PLANS = [
     _pstep(3,[_vrOpt('947cb508-3c9b-4e81-a5b8-4a210cff410e')],'Ball slams — full body, full intent.','light'), _pstep(3,[_vrOpt('844e7c89-8aee-4f03-aa25-bdac127e44e3')],'Rotational throws — hips lead, arms follow.','light'), _pstep(3,[_vrOpt('0012af71-e609-422f-8ebc-6a46d19beadf')],'Box jumps — step down between reps.','light'), _pstep(3,[_mvOpt('medicine-ball')],'Chest pass or overhead throw.','light') ] },
   { id:'seed-kb-90', name:'Kettlebell Builder (90m)', intensity:4, desc:'A full ninety-minute bell session — swings, presses, squats, snatch work, lunges, carries and core. High volume with a cannonball; pace the rests and own every rep.', steps:[
     _pstep(6,[_mvOpt('kettlebell-specific')],'Swings — sharp hips every set.'), _pstep(5,[_mvOpt('kettlebell-specific')],'Clean and press ladders.','heavy'), _pstep(5,[_mvOpt('kettlebell-specific')],'Goblet or front-rack squats.'), _pstep(5,[_mvOpt('kettlebell-specific')],'Snatch or high pull — crisp technique.'), _pstep(5,[_mvOpt('lunge')],'Rack lunges.'), _pstep(4,[_mvOpt('loaded-carries')],'Carry medley.','heavy'), _pstep(4,[_mvOpt('core-stability')],'Get-ups and windmills.','light') ] },
+  // —— Tranche 7 (feat 225) — aesthetics, specialization, hypertrophy splits, quick hits & conditioning.
+  // More short options especially, so the feat-226 quick-pick recommender has range to match any time budget.
+  { id:'seed-express-10', name:'Express 10', intensity:3, desc:'The bare minimum that still counts — three big compounds, two brisk sets each. Ten focused minutes beats a skipped session every time.', steps:[
+    _pstep(2,[_mvOpt('squat'),_mvOpt('leg-press')],'','heavy'), _pstep(2,[_mvOpt('flat-bench-press')],'','heavy'), _pstep(2,[_mvOpt('row'),_mvOpt('lat-pulldown')]) ] },
+  { id:'seed-beach-pump', name:'Beach Body Pump', intensity:3, desc:'The mirror muscles — chest, shoulders and arms chased with moderate weight and lots of blood. Vanity, but make it productive.', steps:[
+    _pstep(4,[_mvOpt('incline-bench-press')],'Upper-chest shelf.','heavy'), _pstep(3,[_mvOpt('chest-fly')],'Stretch and squeeze.','light'), _pstep(4,[_mvOpt('lateral-raise')],'Cap the delts for width.','light'), _pstep(3,[_mvOpt('bicep-curl')],'','light'), _pstep(3,[_mvOpt('tricep-extension')],'','light'), _pstep(2,[_mvOpt('abs-dynamic')],'Tighten the midsection.','light') ] },
+  { id:'seed-hourglass', name:'Glutes & Shoulders', intensity:4, desc:'Build the hourglass — round, strong glutes paired with capped shoulders for shape from every angle.', steps:[
+    _pstep(4,[_mvOpt('hip-thrust')],'Squeeze hard at lockout.','heavy'), _pstep(3,[_mvOpt('deadlift')],'Romanian deadlift for the stretch.','heavy'), _pstep(3,[_mvOpt('lunge')]), _pstep(3,[_mvOpt('glute-accessories')],'Abductions / kickbacks.','light'), _pstep(4,[_mvOpt('lateral-raise')],'Side-delt width.','light'), _pstep(3,[_mvOpt('rear-delt')],'','light') ] },
+  { id:'seed-back-width', name:'Back Width Specialist', intensity:4, desc:'Build the V-taper — vertical pulls first for lat width, then rows and pullovers to fill out the spread. Pull with the elbows, not the hands.', steps:[
+    _pstep(4,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'Wide grip — chase the stretch at the top.','heavy'), _pstep(4,[_mvOpt('lat-pulldown')],'A second angle of vertical pull.'), _pstep(4,[_mvOpt('row')],'Thickness to back the width.','heavy'), _pstep(3,[_mvOpt('pullover')],'Long-lat stretch.','light'), _pstep(3,[_mvOpt('rear-delt')],'','light') ] },
+  { id:'seed-ham-focus', name:'Hamstring Focus', intensity:4, desc:'Bring up lagging hamstrings — a heavy hinge for the stretch, curls for the contraction, and single-leg work to even it out.', steps:[
+    _pstep(4,[_mvOpt('deadlift')],'Romanian deadlift — push the hips back, feel the stretch.','heavy'), _pstep(4,[_mvOpt('leg-curl')],'Seated and lying if you can.'), _pstep(3,[_mvOpt('lunge')],'Long-stride for the back leg.'), _pstep(3,[_mvOpt('back-extension')],'Hip-hinge focus.','light'), _pstep(3,[_mvOpt('calf-raise')],'','light') ] },
+  { id:'seed-push-hyper', name:'Push Hypertrophy', intensity:3, desc:'A full hour of pressing volume — chest, shoulders and triceps through moderate loads and high sets. Chase the pump, mind the tempo.', steps:[
+    _pstep(4,[_mvOpt('flat-bench-press')],'','heavy'), _pstep(4,[_mvOpt('incline-bench-press')],'Upper-chest bias.'), _pstep(3,[_mvOpt('chest-fly')],'','light'), _pstep(4,[_mvOpt('shoulder-press')]), _pstep(4,[_mvOpt('lateral-raise')],'','light'), _pstep(4,[_mvOpt('tricep-extension')],'','light') ] },
+  { id:'seed-pull-hyper', name:'Pull Hypertrophy', intensity:3, desc:'An hour of pulling volume — width, thickness, rear delts and a full biceps finish. Squeeze every rep at the contraction.', steps:[
+    _pstep(4,[_mvOpt('lat-pulldown'),_mvOpt('pull-up')],'','heavy'), _pstep(4,[_mvOpt('row')],'','heavy'), _pstep(3,[_mvOpt('rear-delt')],'','light'), _pstep(4,[_mvOpt('bicep-curl')],'','light'), _pstep(3,[_mvOpt('hammer-curl')],'','light'), _pstep(3,[_mvOpt('shrugs')]) ] },
+  { id:'seed-leg-hyper', name:'Leg Hypertrophy', intensity:4, desc:'Quad and ham volume for an hour — press and extensions for the front, curls and a hinge for the back, calves to finish.', steps:[
+    _pstep(4,[_mvOpt('squat'),_mvOpt('leg-press')],'','heavy'), _pstep(4,[_mvOpt('leg-extension')],'','light'), _pstep(4,[_mvOpt('leg-curl')]), _pstep(3,[_mvOpt('lunge')]), _pstep(4,[_mvOpt('calf-raise')],'','light') ] },
+  { id:'seed-bench-spec', name:'Bench Press Specialist', intensity:5, desc:'Move the bench up — heavy top sets, paused work to kill the sticking point, then targeted triceps and upper back to support the press.', steps:[
+    _pstep(5,[_mvOpt('flat-bench-press')],'Heavy top sets — powerlifting tempo.','heavy'), _pstep(4,[_mvOpt('flat-bench-press')],'Paused or close-grip back-off.','heavy'), _pstep(3,[_mvOpt('incline-bench-press')]), _pstep(3,[_mvOpt('row')],'Pull to balance all the pressing.'), _pstep(3,[_mvOpt('tricep-extension')],'Lockout strength.','light') ] },
+  { id:'seed-dl-builder', name:'Deadlift Builder', intensity:5, desc:'Own the pull — heavy deadlifts up front, a back-off variation, then rows, hamstrings and lower-back work to bullet-proof the lift.', steps:[
+    _pstep(5,[_mvOpt('deadlift')],'Heavy triples and fives — reset every rep.','heavy'), _pstep(3,[_mvOpt('deadlift')],'Deficit or rack-pull back-off.','heavy'), _pstep(3,[_mvOpt('row')],'Thicken the upper back.'), _pstep(3,[_mvOpt('leg-curl')]), _pstep(3,[_mvOpt('back-extension')],'','light') ] },
+  { id:'seed-sprint-sled', name:'Sprint & Sled', intensity:4, desc:'Pure conditioning power — short all-out efforts and heavy sled work. Big output, long rests, no junk volume. Scale the distances to your level.', steps:[
+    _pstep(5,[_mvOpt('conditioning')],'Sled push or drag — heavy, explosive.','heavy'), _pstep(4,[_mvOpt('plyometrics')],'Jumps or bounds — quiet landings.','light'), _pstep(3,[_mvOpt('loaded-carries')],'Carry medley.','heavy'), _pstep(2,[_mvOpt('core-stability')],'Brace and breathe.','light') ] },
+  { id:'seed-hotel-20', name:'Hotel Room 20', intensity:2, desc:'No gym, no problem — bodyweight and a band in twenty minutes. Push, squat, pull and core anywhere you can stand. Zero footprint.', steps:[
+    _pstep(3,[_mvOpt('push-ups')],'Hands elevated or on the floor.','light'), _pstep(3,[_mvOpt('lunge')],'Bodyweight split squats.','light'), _pstep(3,[_mvOpt('resistance-bands')],'Band rows and pull-aparts.','light'), _pstep(3,[_mvOpt('abs-dynamic')],'Core to finish.','light') ] },
+  { id:'seed-total-core', name:'Total Core & Abs', intensity:2, desc:'A focused twenty on the midsection — dynamic flexion, anti-movement holds, obliques and lower-back balance. Brace every rep.', steps:[
+    _pstep(4,[_mvOpt('abs-dynamic')],'Crunch / leg-raise variations.','light'), _pstep(3,[_mvOpt('core-stability')],'Planks / hollow holds.','light'), _pstep(3,[_mvOpt('obliques')],'Rotation and side flexion.','light'), _pstep(2,[_mvOpt('back-extension')],'Balance the front.','light') ] },
+  { id:'seed-emom-30', name:'EMOM Full Body 30', intensity:4, desc:'Every minute on the minute — a compound each minute rotating push, pull and legs. Work fast, rest in what is left of the minute. A metabolic full-body hit.', steps:[
+    _pstep(5,[_mvOpt('squat'),_mvOpt('leg-press')],'Legs — minute one of the cycle.','heavy'), _pstep(5,[_mvOpt('flat-bench-press'),_mvOpt('push-ups')],'Push — minute two.'), _pstep(5,[_mvOpt('row'),_mvOpt('pull-up')],'Pull — minute three.'), _pstep(4,[_mvOpt('shoulder-press')],'Shoulders — keep moving.'), _pstep(3,[_mvOpt('abs-dynamic')],'Core flush.','light') ] },
 ];
 function cloneSeedPlan(sp) {
   return { id:sp.id, name:sp.name, desc:sp.desc||'', intensity:sp.intensity||3, steps:sp.steps.map(s => ({ id:newUuid(), sets:s.sets, desc:s.desc||'', load:s.load||'moderate', options:s.options.map(o => ({ ...o })) })) };
@@ -9180,7 +9349,534 @@ function planCategory(plan) {
 }
 // Coarse length bucket for the picker's duration filter.
 function planLengthBucket(plan) { const m = estimatePlanMinutes(plan); return m <= 40 ? 'quick' : (m >= 90 ? 'long' : 'standard'); }
+/* ============================================================
+   feat 226 — QUICK-PICK PLAN RECOMMENDER. Scores every plan on two axes and surfaces the best few at the
+   top of the picker: (1) TIME — how well the plan fits the minutes you have; (2) FRESHNESS — favour
+   plans that hit muscle groups you HAVEN'T hammered in the last few days (recovery-aware variety). Pure
+   functions over state.plans + state.sessions so they're unit-testable.
+   ============================================================ */
+const PLAN_PICK_TIMES = [15, 30, 45, 60, 90, 120]; // the minute chips
+function planPickMinutes() { const m = state && state.planPickMinutes; return (m >= 5 && m <= 240) ? m : 45; }
+// Per-mega LOGGED-set load over the last `days` days of sessions (cardio excluded). Mirrors sessionSplitLabel's
+// mega bucketing so "recent activity" lines up with how a session is labelled.
+function recentMegaLoad(days) {
+  const cutoff = Date.now() - (days || 4) * 86400000, mega = {};
+  (state.sessions || []).forEach(s => {
+    const t = new Date(s.endedAt || s.date).getTime();
+    if (isNaN(t) || t < cutoff) return;
+    (s.exercises || []).forEach(ex => {
+      if (ex.cardio) return;
+      const n = (ex.sets || []).filter(set => (set.w !== '' && set.w != null) || (set.r !== '' && set.r != null)).length;
+      if (!n) return;
+      const info = VAR_INDEX.get(ex.varUuid), m = info ? (info.family.mega || 'other') : 'other';
+      mega[m] = (mega[m] || 0) + n;
+    });
+  });
+  return mega;
+}
+// 0..1 — 1.0 when the plan exactly fills the budget; gentle penalty for finishing early, steeper for overrunning.
+function planTimeScore(plan, minutes) {
+  const est = estimatePlanMinutes(plan), ratio = est / Math.max(5, minutes);
+  if (ratio <= 1) return 0.55 + 0.45 * ratio;          // fits — fuller use of the time scores higher
+  return Math.max(0, 1 - (ratio - 1));                 // over budget — 1.0 just over → 0 at 2× the budget
+}
+// 0..1 — weighted by the plan's own mega mix; a mega you've recently saturated (~12+ sets) contributes ~0.
+function planFreshnessScore(plan, recentMega) {
+  const { mega, total } = planMegaDist(plan);
+  if (!total) return 0.5;
+  const SAT = 12; let s = 0;
+  Object.keys(mega).forEach(m => { const frac = mega[m] / total, stale = 1 - Math.min(1, (recentMega[m] || 0) / SAT); s += frac * stale; });
+  return s;
+}
+// A short human reason for why a plan is recommended (time fit + freshness angle).
+function planRecReason(plan, minutes, recentMega) {
+  const est = estimatePlanMinutes(plan), cat = planCategory(plan);
+  const timeBit = est <= minutes ? `≈${est} min, fits your ${minutes}` : `≈${est} min (a touch over ${minutes})`;
+  const topMega = Object.entries(planMegaDist(plan).mega).sort((a, b) => b[1] - a[1])[0];
+  let freshBit = '';
+  if (topMega) {
+    const NAME = { push:'push', pull:'pull', lower:'legs', core:'core', full:'full-body', mobility:'mobility', recovery:'recovery', cardio:'conditioning' };
+    const label = NAME[topMega[0]] || cat.toLowerCase();
+    freshBit = (recentMega[topMega[0]] || 0) < 4 ? ` · ${label} is well-rested` : ` · more ${label}`;
+  }
+  return `${timeBit} min${freshBit}`;
+}
+// Rank plans for the available time + recent activity. Returns [{ plan, score, time, fresh, reason }] best-first.
+function recommendPlans(minutes, limit) {
+  minutes = (minutes >= 5 && minutes <= 240) ? minutes : planPickMinutes();
+  const recent = recentMegaLoad(4);
+  const scored = (state.plans || []).map(plan => {
+    const time = planTimeScore(plan, minutes), fresh = planFreshnessScore(plan, recent);
+    const favBump = (typeof isFavPlan === 'function' && isFavPlan(plan.id)) ? 0.05 : 0;
+    return { plan, time, fresh, score: time * 0.6 + fresh * 0.4 + favBump };
+  });
+  scored.sort((a, b) => b.score - a.score || estimatePlanMinutes(a.plan) - estimatePlanMinutes(b.plan));
+  return scored.slice(0, limit || 3).map(x => ({ ...x, reason: planRecReason(x.plan, minutes, recent) }));
+}
 const PLAN_CAT_ORDER = ['Full Body','Upper','Push','Pull','Legs','Core','Mixed','Mobility','Recovery','Other'];
+/* ============================================================
+   feat 229 — SPLIT PLANNER. Optional weekly-split facility: recommend a split for the sessions / days /
+   hours you have, then analyse how far that split over- or under-shoots each muscle group's weekly volume
+   target (MEV…MRV). Pure functions over state.plans + the MUSCLE_GROUPS_MODEL targets.
+   ============================================================ */
+// Per-GROUP weekly volume target band, summed from each muscle's MAV → {mev, mav, mrv}.
+const GROUP_TARGETS = (() => {
+  const out = {};
+  MUSCLE_GROUPS_MODEL.forEach(g => {
+    let mev = 0, mav = 0, mrv = 0;
+    g.muscles.forEach(mu => { const t = targetsFor(mu.mav); mev += t.mev; mav += t.mav; mrv += t.mrv; });
+    out[g.group] = { label: g.label, mev, mav, mrv };
+  });
+  return out;
+})();
+// A representative variation uuid for a plan step's first option (variation → itself; movement → family's first).
+function _stepRepVar(st) {
+  const o = (st.options || [])[0]; if (!o) return null;
+  if (o.type === 'variation') return o.uuid;
+  const f = FAMILIES.find(x => x.id === resolveFamilyId(o.familyId));
+  return (f && f.variations[0] && f.variations[0].uuid) || null;
+}
+// Per-muscle weekly sets a single plan delivers (representative variation per step × that step's sets).
+function planMuscleAcc(plan) {
+  const acc = {};
+  (plan.steps || []).forEach(st => {
+    const n = st.sets || 0; if (!n) return;
+    const u = _stepRepVar(st); if (!u) return;
+    let contrib = muscleContribForVar(u); if (!contrib) return;
+    contrib = toMuscleContrib(contrib);
+    for (const mid in contrib) acc[mid] = (acc[mid] || 0) + contrib[mid] * n;
+  });
+  return acc;
+}
+// Roll a set of plans up to per-GROUP weekly set totals.
+function splitGroupVolume(plans) {
+  const macc = {};
+  (plans || []).forEach(p => { if (!p) return; const a = planMuscleAcc(p); for (const mid in a) macc[mid] = (macc[mid] || 0) + a[mid]; });
+  const groups = {};
+  for (const mid in macc) { const inf = MUSCLE_INDEX[mid]; if (inf) groups[inf.group] = (groups[inf.group] || 0) + macc[mid]; }
+  return groups;
+}
+function splitGroupStatus(sets, t) {
+  if (sets < t.mev) return 'under';      // below the minimum effective dose
+  if (sets < t.mav) return 'light';      // maintained, but below the optimal band
+  if (sets <= t.mrv) return 'optimal';   // in the productive MAV…MRV window
+  return 'over';                         // past the recoverable ceiling
+}
+// Per-group over/under analysis + an overall "off-base" score (0 = perfectly on target).
+function splitAnalysis(plans, volMult) {
+  const mult = (volMult > 0) ? volMult : 1; // feat 232 — periodization scales the projected weekly volume
+  const vol = splitGroupVolume(plans);
+  const rows = MUSCLE_GROUPS_MODEL.map(g => {
+    const t = GROUP_TARGETS[g.group], sets = Math.round((vol[g.group] || 0) * mult * 10) / 10;
+    let off = 0;
+    if (sets < t.mev) off = (t.mev - sets) / t.mev;            // how far below the floor
+    else if (sets > t.mrv) off = (sets - t.mrv) / t.mrv;       // how far above the ceiling
+    return { group: g.group, label: g.label, sets, mev: t.mev, mav: t.mav, mrv: t.mrv, status: splitGroupStatus(sets, t), off: Math.round(off * 100) / 100 };
+  });
+  const avgOff = rows.reduce((s, r) => s + r.off, 0) / (rows.length || 1);
+  return {
+    rows,
+    balance: Math.max(0, Math.round((1 - avgOff) * 100)), // 100 = bang on; lower = further off-base
+    under: rows.filter(r => r.status === 'under').length,
+    over: rows.filter(r => r.status === 'over').length,
+  };
+}
+/* ============================================================
+   feat 232 — PERIODIZATION (mesocycle). An optional multi-week block: volume ramps from a base week up to a
+   peak, then a deload week, repeating. Drives a per-week volume multiplier that the coverage analysis uses,
+   plus an effort (RPE) cue — so accumulation weeks read closer to MRV and the deload backs off. Planning
+   guidance, not auto-applied to logged sets.
+   ============================================================ */
+// The weeks of a length-week mesocycle (last = deload): { week, phase, vol (×), effort }.
+function mesoWeekPlan(length) {
+  const len = Math.max(3, Math.min(6, length | 0 || 4)), ramp = len - 1, out = [];
+  for (let w = 1; w <= len; w++) {
+    if (w === len) { out.push({ week: w, phase: 'Deload', vol: 0.55, effort: 'RPE 5–6 · recover' }); continue; }
+    const t = ramp <= 1 ? 0 : (w - 1) / (ramp - 1);              // 0..1 across the accumulation weeks
+    const vol = Math.round((1 + 0.3 * t) * 100) / 100;            // 1.0 → 1.3×
+    out.push({ week: w, phase: w === 1 ? 'Base' : (t >= 0.999 ? 'Peak' : 'Build'), vol, effort: w === 1 ? 'RPE 7 · controlled' : (t >= 0.999 ? 'RPE 9 · hardest week' : 'RPE 8 · push') });
+  }
+  return out;
+}
+function mesoCfg() { return state.meso || (state.meso = { enabled: false, length: 4, start: null }); }
+function mesoStartMonday() {
+  const m = mesoCfg();
+  if (m.start) { const d = new Date(m.start); if (!isNaN(d.getTime())) { d.setHours(0, 0, 0, 0); return d; } }
+  return _weekMonday(0);
+}
+// The current week of the cycle (1-based), repeating after the deload — or null when periodization is off.
+function mesoCurrentWeek() {
+  const m = mesoCfg(); if (!m.enabled) return null;
+  const len = Math.max(3, Math.min(6, m.length || 4));
+  const weeks = Math.round((_weekMonday(0) - mesoStartMonday()) / (7 * 86400000));
+  const idx = ((weeks % len) + len) % len;                       // 0..len-1, repeating across blocks
+  return { ...mesoWeekPlan(len)[idx], length: len, index: idx };
+}
+function mesoRestart() { mesoCfg().start = _weekMonday(0).toISOString().slice(0, 10); saveState(); }
+/* ============================================================
+   feat 233 — AUTO-PROGRESSION. Connect the periodization plan to your real logged numbers: from the most
+   recent top set of a lift, suggest the next target via double progression (climb a rep range, then add the
+   smallest sensible load and reset), backing off on a deload week. Pure helpers + a Reflect › Progression
+   page. Suggestions only — nothing is auto-written to your sets.
+   ============================================================ */
+function _progNums(arr) { return (Array.isArray(arr) ? arr : []).filter(x => typeof x === 'number' && x > 0).slice().sort((a, b) => a - b); }
+// The heaviest valid set (by e1RM) of the most recent session that trained this variation.
+function recentTopSet(varUuid) {
+  const sorted = (state.sessions || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  for (const s of sorted) {
+    let top = null;
+    (s.exercises || []).forEach(ex => {
+      if (ex.varUuid !== varUuid || ex.cardio) return;
+      (ex.sets || []).forEach(set => {
+        const w = parseFloat(set.w), r = parseInt(set.r, 10);
+        if (w > 0 && r > 0) { const e = estimated1RM(w, r); if (!top || e > top.e) top = { w, r, e }; }
+      });
+    });
+    if (top) return { w: top.w, r: top.r, date: s.date };
+  }
+  return null;
+}
+// A double-progression rep window keyed off where you're already training.
+function progRepRange(r) {
+  if (r <= 6) return { lo: 3, hi: 6 };       // strength
+  if (r <= 12) return { lo: 8, hi: 12 };     // hypertrophy
+  return { lo: 12, hi: 20 };                 // endurance / metabolite
+}
+// Smallest sensible load jump for the lift's implement.
+function progLoadStep(varUuid, w) {
+  const unit = state.unit, kind = (typeof setupKindFor === 'function') ? setupKindFor(varUuid) : null;
+  try {
+    if (kind === 'dumbbell' || kind === 'kettlebell') {
+      const list = _progNums(kind === 'dumbbell' ? dumbbellWeights() : kettlebellWeights());
+      const next = list.find(x => x > w + 0.01);
+      if (next) return Math.round((next - w) * 10) / 10;
+    }
+  } catch (_) {}
+  if (kind === 'pin') return unit === 'kg' ? 5 : 10;
+  return unit === 'kg' ? 2.5 : 5;            // barbell / plate / default — one small jump
+}
+function progRound(varUuid, w) {
+  const kind = (typeof setupKindFor === 'function') ? setupKindFor(varUuid) : null;
+  try {
+    if (kind === 'dumbbell' || kind === 'kettlebell') { const list = _progNums(kind === 'dumbbell' ? dumbbellWeights() : kettlebellWeights()); if (list.length) return nearestInList(w, list); }
+  } catch (_) {}
+  const inc = state.unit === 'kg' ? 2.5 : 5;
+  return Math.round(w / inc) * inc;
+}
+// The next target for a lift: { current{w,r}, next{w,r}, action, note } — or null with no history.
+function suggestProgression(varUuid) {
+  const top = recentTopSet(varUuid); if (!top) return null;
+  const { lo, hi } = progRepRange(top.r), meso = (typeof mesoCurrentWeek === 'function') ? mesoCurrentWeek() : null;
+  if (meso && meso.phase === 'Deload') {
+    return { current: top, next: { w: progRound(varUuid, Math.round(top.w * 0.9)), r: lo }, action: 'deload', note: `Deload week — back off ~10% and keep it crisp` };
+  }
+  if (top.r >= hi) {
+    const step = progLoadStep(varUuid, top.w);
+    return { current: top, next: { w: Math.round((top.w + step) * 10) / 10, r: lo }, action: 'add-load', note: `Hit ${hi} reps — add load, reset to ${lo}` };
+  }
+  return { current: top, next: { w: top.w, r: top.r + 1 }, action: 'add-reps', note: `Add a rep — build to ${hi}, then add load` };
+}
+// Every recently-trained variation (last 120 days) with a progression suggestion, newest-trained first.
+function progressionList(maxDays) {
+  const cutoff = Date.now() - (maxDays || 120) * 86400000, seen = {}, out = [];
+  (state.sessions || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(s => {
+    if (new Date(s.date).getTime() < cutoff) return;
+    (s.exercises || []).forEach(ex => {
+      if (ex.cardio || !ex.varUuid || seen[ex.varUuid]) return;
+      if (!(ex.sets || []).some(set => parseFloat(set.w) > 0 && parseInt(set.r, 10) > 0)) return;
+      seen[ex.varUuid] = true;
+      const sug = suggestProgression(ex.varUuid);
+      if (sug) out.push({ varUuid: ex.varUuid, ...sug });
+    });
+  });
+  return out;
+}
+const PROG_ACTION = { 'add-load': { cls: 'load', icon: '⬆', label: 'add load' }, 'add-reps': { cls: 'reps', icon: '➕', label: 'add a rep' }, deload: { cls: 'deload', icon: '⬇', label: 'deload' }, hold: { cls: 'hold', icon: '＝', label: 'hold' } };
+function renderProgressionPage(main) {
+  if (!main) return;
+  const list = progressionList(120), meso = (typeof mesoCurrentWeek === 'function') ? mesoCurrentWeek() : null, unit = state.unit;
+  const rows = list.map(p => {
+    const vi = VAR_INDEX.get(p.varUuid), name = vi ? vi.variation.title : (p.varUuid || 'Unknown');
+    const a = PROG_ACTION[p.action] || PROG_ACTION.hold;
+    return `<div class="pr-row pr-${a.cls}">
+      <div class="pr-main"><div class="pr-name">${escapeHtml(name)}</div><div class="pr-note">${escapeHtml(p.note)}</div></div>
+      <div class="pr-nums"><span class="pr-cur">${p.current.w}×${p.current.r}</span><span class="pr-arrow">→</span><span class="pr-next">${p.next.w}×${p.next.r}</span><span class="pr-tag pr-${a.cls}">${a.icon} ${a.label}</span></div>
+    </div>`;
+  }).join('');
+  main.innerHTML = `
+    <div class="card">
+      <div class="card-title">🚀 Progression</div>
+      <div class="sp-intro">Your next-session targets, built from your most recent top set via double progression — climb the rep range, then add the smallest sensible load and reset.${meso ? ` Adjusted for your <b>${escapeHtml(meso.phase)}</b> week.` : ''} Suggestions only — nothing is written to your sets.</div>
+      ${list.length ? `<div class="pr-list">${rows}</div>` : `<div class="empty"><div class="empty-large">🚀</div>Log a few weighted sets and your next-load suggestions will appear here.</div>`}
+      ${list.length ? `<div class="sp-legend">Weights in ${escapeHtml(unit)}. ⬆ add load (hit the top of the range) · ➕ add a rep · ⬇ deload week.${meso ? '' : ' Turn on Periodization in the Split Planner to factor in deload weeks.'}</div>` : ''}
+    </div>`;
+}
+// Slot templates by sessions/week — the classic, balanced layouts.
+const SPLIT_TEMPLATES = {
+  2: ['Full Body', 'Full Body'],
+  3: ['Push', 'Pull', 'Legs'],
+  4: ['Upper', 'Legs', 'Upper', 'Legs'],
+  5: ['Push', 'Pull', 'Legs', 'Upper', 'Legs'],
+  6: ['Push', 'Pull', 'Legs', 'Push', 'Pull', 'Legs'],
+};
+function splitTemplateFor(sessions) { return SPLIT_TEMPLATES[Math.max(2, Math.min(6, sessions | 0))] || SPLIT_TEMPLATES[3]; }
+// The muscle GROUPS a slot is meant to cover — so a "Pull" day is judged on back+biceps volume, not just
+// on fitting the clock (which would otherwise pick a tiny Arm Day over a proper rowing session).
+const SLOT_GROUPS = {
+  'Push': ['chest', 'shoulders', 'triceps'],
+  'Pull': ['back', 'biceps'],
+  'Legs': ['quads', 'hamstrings', 'glutes', 'calves'],
+  'Upper': ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
+  'Full Body': ['chest', 'back', 'quads', 'hamstrings', 'glutes', 'shoulders'],
+  'Core': ['core'],
+};
+// BREADTH of a plan over the slot's intended groups: the fraction it trains with ≥2 sets. Rewards a
+// balanced session over a lopsided one WITHOUT favouring a giant high-volume plan (depth is the analysis's
+// job, not the slot pick's) — so a tidy 60-min Upper day beats a 3-hour marathon for a 60-min slot.
+function slotCoverage(plan, slot) {
+  const want = SLOT_GROUPS[slot]; if (!want || !want.length) return 1;
+  const vol = splitGroupVolume([plan]);
+  return want.filter(g => (vol[g] || 0) >= 2).length / want.length;
+}
+// Build the recommended split: for each slot pick the plan that best covers the slot's muscles AND fits the
+// time budget, gently avoiding repeats so a 6-day PPL doesn't pick the same Push plan twice.
+function buildRecommendedSplit(opts) {
+  opts = opts || {};
+  const sessions = Math.max(2, Math.min(6, opts.sessions | 0 || 3));
+  const minutes = (opts.minutes >= 15 && opts.minutes <= 240) ? opts.minutes : 60;
+  const slots = splitTemplateFor(sessions);
+  const plans = state.plans || [];
+  const used = {};
+  return slots.map((cat, i) => {
+    const cands = plans.filter(p => planCategory(p) === cat);
+    const pool = cands.length ? cands : plans;
+    const scored = pool.map(p => {
+      const cover = slotCoverage(p, cat);          // 0..1 — breadth over the slot's groups
+      const time = planTimeScore(p, minutes);      // 0..1 — how well it fits the clock
+      return { p, score: cover * 0.5 + time * 0.5 - (used[p.id] ? 0.5 : 0) + (isFavPlan(p.id) ? 0.04 : 0) };
+    });
+    scored.sort((a, b) => b.score - a.score || planTotalSets(b.p) - planTotalSets(a.p));
+    const pick = scored[0] ? scored[0].p : null;
+    if (pick) used[pick.id] = true;
+    return { day: i + 1, slot: cat, plan: pick, est: pick ? estimatePlanMinutes(pick) : 0 };
+  });
+}
+const SPLIT_STATUS_LABEL = { under: 'under', light: 'light', optimal: 'on target', over: 'over' };
+function splitPlanCfg() { return state.splitPlan || (state.splitPlan = { sessions: 3, days: 7, minutes: 60 }); }
+/* ============================================================
+   feat 230 — SCHEDULED WEEKLY PROGRAM. The future-oriented layer over the split planner: save a recommended
+   split as a day-by-day weekly program (state.program), then the app knows what's planned for each day —
+   "today's session" surfaces with a Start button on the planner and the dashboard. Pure helpers + a JS
+   day-of-week (0=Sun … 6=Sat) week array.
+   ============================================================ */
+const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0]; // display Monday-first (a training week)
+// Sensible default day placements (JS DOW) per session count — spaced for recovery.
+const PROGRAM_DOW_PICKS = { 2: [1, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 5, 6], 6: [1, 2, 3, 4, 5, 6] };
+function getProgram() { return state.program || null; }
+function buildProgramFromSplit(split, sessions, minutes) {
+  const picks = PROGRAM_DOW_PICKS[Math.max(2, Math.min(6, sessions | 0 || 3))] || PROGRAM_DOW_PICKS[3];
+  const week = [null, null, null, null, null, null, null], pool = [];
+  (split || []).forEach((s, i) => {
+    if (!s || !s.plan || picks[i] == null) return;
+    week[picks[i]] = s.plan.id;
+    if (!pool.includes(s.plan.id)) pool.push(s.plan.id);
+  });
+  return { name: sessions + '-day split', createdAt: new Date().toISOString(), sessions, minutes, pool, week };
+}
+function saveProgramFromSplit() {
+  const cfg = splitPlanCfg();
+  const split = buildRecommendedSplit({ sessions: cfg.sessions, minutes: cfg.minutes });
+  state.program = buildProgramFromSplit(split, cfg.sessions, cfg.minutes);
+  saveState();
+}
+function clearProgram() { state.program = null; saveState(); }
+// The planned session for a given JS day-of-week (or null = rest / no program).
+function programForDow(dow) {
+  const p = getProgram(); if (!p || !p.week) return null;
+  const id = p.week[dow]; if (!id) return null;
+  const plan = getPlan(id); return plan ? { dow, planId: id, plan } : null;
+}
+function programToday() { return programForDow(new Date().getDay()); }
+// The next planned session within the coming 7 days (today first), for the "up next" surfacing.
+function programNextUp() {
+  if (!getProgram()) return null;
+  const today = new Date().getDay();
+  for (let i = 0; i < 7; i++) { const e = programForDow((today + i) % 7); if (e) return { ...e, inDays: i }; }
+  return null;
+}
+// Tap a day to cycle Rest → each distinct program plan → Rest.
+function cycleProgramDay(dow) {
+  const p = getProgram(); if (!p) return;
+  const opts = [null].concat(p.pool || []);
+  let idx = opts.indexOf(p.week[dow] || null); if (idx < 0) idx = 0;
+  p.week[dow] = opts[(idx + 1) % opts.length];
+  saveState();
+}
+/* ============================================================
+   feat 231 — PROGRAM ADHERENCE. Match logged sessions back to the scheduled program: what was hit, what was
+   missed, and the current streak. Trailing weeks assume the same schedule applied — a fair proxy for "are
+   you actually training on your planned days".
+   ============================================================ */
+function _weekMonday(weeksBack) {
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  const dow = d.getDay(); // 0=Sun … 6=Sat
+  d.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow) - 7 * (weeksBack || 0)); // back to this/that week's Monday
+  return d;
+}
+function _realSessionsOnDate(dateObj) {
+  const y = dateObj.getFullYear(), m = dateObj.getMonth(), day = dateObj.getDate();
+  return (state.sessions || []).filter(s => {
+    const sd = new Date(s.date);
+    return sd.getFullYear() === y && sd.getMonth() === m && sd.getDate() === day
+      && (s.exercises || []).some(e => e.cardio || (e.sets || []).length);
+  });
+}
+// Per scheduled day of a week (0 = this week, 1 = last week …): { dow, date, planId, status } + totals.
+// status: done (a session with the scheduled plan) · off-plan (trained, but a different/no plan) · missed
+// (a past scheduled day with nothing) · today · upcoming.
+function programWeekAdherence(weeksBack) {
+  const p = getProgram(); if (!p) return null;
+  const monday = _weekMonday(weeksBack), today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(monday); date.setDate(monday.getDate() + i);
+    const planId = p.week[date.getDay()]; if (!planId) continue;
+    const sess = _realSessionsOnDate(date);
+    let status;
+    if (sess.some(s => s.planId === planId)) status = 'done';
+    else if (sess.length) status = 'off-plan';
+    else if (date < today) status = 'missed';
+    else if (+date === +today) status = 'today';
+    else status = 'upcoming';
+    days.push({ dow: date.getDay(), date: date.toISOString().slice(0, 10), planId, status });
+  }
+  const done = days.filter(d => d.status === 'done' || d.status === 'off-plan').length;
+  const missed = days.filter(d => d.status === 'missed').length;
+  return { days, scheduled: days.length, done, missed, pending: days.length - done - missed };
+}
+// Consecutive scheduled sessions trained, walking back from yesterday (stops at the first missed).
+function programAdherenceStreak() {
+  const p = getProgram(); if (!p) return 0;
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  let streak = 0;
+  for (let i = 1; i <= 180; i++) {
+    const day = new Date(d); day.setDate(d.getDate() - i);
+    if (!p.week[day.getDay()]) continue;        // not a scheduled day → skip
+    if (_realSessionsOnDate(day).length) streak++; else break;
+  }
+  return streak;
+}
+// done/scheduled for each of the last n weeks (oldest → newest), for the mini trend dots.
+function programAdherenceTrend(n) {
+  const out = [];
+  for (let w = (n || 4) - 1; w >= 0; w--) { const a = programWeekAdherence(w); out.push(a ? { done: a.done, scheduled: a.scheduled } : { done: 0, scheduled: 0 }); }
+  return out;
+}
+// feat 229 — the Split Planner page (Prepare › Split Planner).
+function renderSplitPlannerPage(main) {
+  if (!main) return;
+  const cfg = splitPlanCfg();
+  const split = buildRecommendedSplit({ sessions: cfg.sessions, minutes: cfg.minutes });
+  const meso = mesoCurrentWeek(); // feat 232 — periodization scales the coverage projection by the current week's volume
+  const analysis = splitAnalysis(split.map(s => s.plan).filter(Boolean), meso ? meso.vol : 1);
+  const chip = (attr, val, cur, label) => `<button class="sp-chip ${cur === val ? 'active' : ''}" data-${attr}="${val}">${label}</button>`;
+  const sessChips = [2, 3, 4, 5, 6].map(n => chip('sp-sessions', n, cfg.sessions, n)).join('');
+  const dayChips = [3, 4, 5, 6, 7].filter(d => d >= cfg.sessions).map(d => chip('sp-days', d, cfg.days, d)).join('');
+  const minChips = [30, 45, 60, 90, 120].map(m => chip('sp-min', m, cfg.minutes, m + 'm')).join('');
+  const doubles = cfg.sessions > cfg.days;
+  // recommended split rows
+  const splitRows = split.map(s => s.plan
+    ? `<div class="sp-day"><div class="sp-day-slot"><span class="sp-day-n">Day ${s.day}</span><span class="sp-day-cat">${escapeHtml(s.slot)}</span></div>
+         <div class="sp-day-main"><div class="sp-day-name">${escapeHtml(s.plan.name)}</div><div class="sp-day-sub">~${s.est} min · ${planTotalSets(s.plan)} sets</div></div>
+         <button class="sp-use" data-plan-use="${escapeAttr(s.plan.id)}">Use</button></div>`
+    : `<div class="sp-day"><div class="sp-day-slot"><span class="sp-day-n">Day ${s.day}</span><span class="sp-day-cat">${escapeHtml(s.slot)}</span></div><div class="sp-day-main"><div class="sp-day-sub">No ${escapeHtml(s.slot)} plan in your library yet.</div></div></div>`
+  ).join('');
+  // per-group over/under bars
+  const barRows = analysis.rows.map(r => {
+    const scale = Math.max(r.mrv * 1.25, r.sets * 1.05, 1);
+    const pct = (x) => (Math.min(x, scale) / scale * 100).toFixed(1);
+    const bandL = pct(r.mev), bandW = (pct(r.mrv) - pct(r.mev)).toFixed(1), mark = pct(r.sets);
+    return `<div class="sp-grp">
+      <div class="sp-grp-head"><span class="sp-grp-name">${escapeHtml(r.label)}</span><span class="sp-grp-val sp-${r.status}">${r.sets} sets · ${SPLIT_STATUS_LABEL[r.status]}</span></div>
+      <div class="sp-bar"><div class="sp-bar-band" style="left:${bandL}%;width:${bandW}%;"></div><div class="sp-bar-mark sp-${r.status}" style="left:${mark}%;"></div></div>
+      <div class="sp-grp-tgt">target ${r.mev}–${r.mrv} sets/wk</div>
+    </div>`;
+  }).join('');
+  const balClass = analysis.balance >= 80 ? 'good' : (analysis.balance >= 60 ? 'light' : 'under');
+  // feat 230 — the saved weekly program; feat 231 — adherence (what you've hit / missed this week + streak).
+  const prog = getProgram(), todayDow = new Date().getDay(), todayEntry = programToday();
+  const adh = prog ? programWeekAdherence(0) : null, adhByDow = {};
+  if (adh) adh.days.forEach(x => { adhByDow[x.dow] = x.status; });
+  const PG_ICON = { done: '✓', 'off-plan': '✓', missed: '✗', today: '▸', upcoming: '·' };
+  const agendaRows = DOW_ORDER.map(d => {
+    const entry = programForDow(d), isToday = d === todayDow;
+    const st = entry ? (adhByDow[d] || (isToday ? 'today' : 'upcoming')) : null;
+    return `<button class="pg-day ${isToday ? 'today' : ''} ${entry ? '' : 'rest'}${st ? ' pg-' + st : ''}" data-pg-dow="${d}" title="Tap to change this day">
+      <span class="pg-dow">${DOW_SHORT[d]}${isToday ? ' · today' : ''}</span>
+      <span class="pg-plan">${entry ? escapeHtml(entry.plan.name) : '— rest —'}</span>
+      ${st ? `<span class="pg-status pg-${st}">${PG_ICON[st] || ''}</span>` : ''}
+    </button>`;
+  }).join('');
+  const streak = prog ? programAdherenceStreak() : 0;
+  const trend = prog ? programAdherenceTrend(4) : [];
+  const trendDots = trend.map(w => `<span class="pg-dot ${w.scheduled && w.done >= w.scheduled ? 'full' : (w.done ? 'part' : 'none')}" title="${w.done}/${w.scheduled} done"></span>`).join('');
+  const adhLine = adh ? `<div class="pg-adh">This week <b>${adh.done}/${adh.scheduled}</b> done${adh.missed ? ` · <span class="pg-missed-txt">${adh.missed} missed</span>` : ''}${streak ? ` · 🔥 ${streak}-session streak` : ''}<span class="pg-trend">${trendDots}<span class="pg-trend-lbl">4 wks</span></span></div>` : '';
+  const programCard = prog ? `
+    <div class="card" id="sp-program">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>📅 Your weekly program</span><button class="sp-clear" id="pg-clear">Clear</button></div>
+      ${adhLine}
+      ${todayEntry
+        ? `<div class="pg-today"><div><div class="pg-today-lbl">Today · ${DOW_SHORT[todayDow]}${adhByDow[todayDow] === 'done' ? ' · done ✓' : ''}</div><div class="pg-today-name">${escapeHtml(todayEntry.plan.name)}</div></div>${adhByDow[todayDow] === 'done' ? '' : `<button class="sp-use" data-plan-use="${escapeAttr(todayEntry.planId)}">▶ Start</button>`}</div>`
+        : `<div class="pg-today rest"><div class="pg-today-name">Rest day — nothing scheduled today.</div></div>`}
+      <div class="pg-week">${agendaRows}</div>
+      <div class="sp-legend">✓ done · ✗ missed · today highlighted. Tap any day to reassign it (cycles through your split's sessions and rest).</div>
+    </div>` : '';
+  // feat 232 — periodization card: enable a mesocycle, see the week ramp, restart the block.
+  const mcfg = mesoCfg();
+  const mesoStrip = mesoWeekPlan(mcfg.length).map(w => `<div class="ms-wk ms-${w.phase.toLowerCase()} ${meso && meso.week === w.week ? 'cur' : ''}"><span class="ms-wk-n">W${w.week}</span><span class="ms-wk-phase">${w.phase}</span><span class="ms-wk-vol">${Math.round(w.vol * 100)}%</span></div>`).join('');
+  const mesoLenChips = [3, 4, 5, 6].map(n => `<button class="sp-chip ${mcfg.length === n ? 'active' : ''}" data-ms-len="${n}">${n} wk</button>`).join('');
+  const mesoCard = `
+    <div class="card" id="sp-meso">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>📈 Periodization</span><button class="sp-toggle ${mcfg.enabled ? 'on' : ''}" id="ms-toggle" role="switch" aria-checked="${mcfg.enabled}">${mcfg.enabled ? 'On' : 'Off'}</button></div>
+      <div class="sp-intro">Ramp volume across a mesocycle, then deload — accumulation weeks push toward your MRV, the deload backs off. Planning guidance, not auto-applied to your logged sets.</div>
+      ${mcfg.enabled ? `${meso ? `<div class="ms-banner ms-${meso.phase.toLowerCase()}"><b>Week ${meso.week} of ${meso.length} · ${meso.phase}</b> · ${Math.round(meso.vol * 100)}% volume · ${meso.effort}</div>` : ''}
+      <div class="sp-input"><div class="sp-input-lbl">Cycle length</div><div class="sp-chips">${mesoLenChips}</div></div>
+      <div class="ms-strip">${mesoStrip}</div>
+      <button class="sp-save" id="ms-restart" style="margin-top:10px;">↻ Restart cycle this week</button>` : ''}
+    </div>`;
+  main.innerHTML = `
+    <div class="card">
+      <div class="card-title">🗓️ Split Planner</div>
+      <div class="sp-intro">Tell us what you've got — we'll recommend a weekly split and show how well it covers each muscle group against its weekly volume target (MEV–MRV). It's a planning aid, not a rule.</div>
+      <div class="sp-input"><div class="sp-input-lbl">Sessions / week</div><div class="sp-chips">${sessChips}</div></div>
+      <div class="sp-input"><div class="sp-input-lbl">Days / week</div><div class="sp-chips">${dayChips}</div></div>
+      <div class="sp-input"><div class="sp-input-lbl">Time / session</div><div class="sp-chips">${minChips}</div></div>
+      ${doubles ? `<div class="sp-note">⚠️ ${cfg.sessions} sessions across ${cfg.days} days means some days double up — make sure you can recover.</div>` : ''}
+    </div>
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>Recommended split</span><button class="sp-save" id="pg-save">${prog ? '↻ Reschedule' : '📅 Save as program'}</button></div>
+      <div class="sp-days">${splitRows}</div>
+    </div>
+    ${programCard}
+    ${mesoCard}
+    <div class="card">
+      <div class="card-title">Coverage vs targets${meso ? ` <span class="ms-cov-tag ms-${meso.phase.toLowerCase()}">week ${meso.week} · ${Math.round(meso.vol * 100)}%</span>` : ''}</div>
+      <div class="sp-balance">Balance <span class="sp-bal-score sp-${balClass}">${analysis.balance}%</span>${analysis.under ? ` · <span class="sp-under">${analysis.under} under</span>` : ''}${analysis.over ? ` · <span class="sp-over">${analysis.over} over</span>` : ''}${!analysis.under && !analysis.over ? ' · well balanced 💪' : ''}</div>
+      <div class="sp-grps">${barRows}</div>
+      <div class="sp-legend">Bar = your weekly sets · green band = the productive MEV–MRV window · marker colour = status.${meso ? ` Volumes shown for <b>${meso.phase}</b> week (${Math.round(meso.vol * 100)}% of base).` : ''}</div>
+    </div>`;
+  main.querySelectorAll('[data-sp-sessions]').forEach(b => b.addEventListener('click', () => { cfg.sessions = +b.dataset.spSessions; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; saveState(); renderSplitPlannerPage(main); }));
+  main.querySelectorAll('[data-sp-days]').forEach(b => b.addEventListener('click', () => { cfg.days = +b.dataset.spDays; saveState(); renderSplitPlannerPage(main); }));
+  main.querySelectorAll('[data-sp-min]').forEach(b => b.addEventListener('click', () => { cfg.minutes = +b.dataset.spMin; saveState(); renderSplitPlannerPage(main); }));
+  main.querySelector('#pg-save')?.addEventListener('click', () => { saveProgramFromSplit(); renderSplitPlannerPage(main); }); // feat 230
+  main.querySelector('#pg-clear')?.addEventListener('click', () => { clearProgram(); renderSplitPlannerPage(main); });
+  main.querySelectorAll('[data-pg-dow]').forEach(b => b.addEventListener('click', () => { cycleProgramDay(+b.dataset.pgDow); renderSplitPlannerPage(main); }));
+  main.querySelector('#ms-toggle')?.addEventListener('click', () => { const m = mesoCfg(); m.enabled = !m.enabled; if (m.enabled && !m.start) m.start = _weekMonday(0).toISOString().slice(0, 10); saveState(); renderSplitPlannerPage(main); }); // feat 232
+  main.querySelectorAll('[data-ms-len]').forEach(b => b.addEventListener('click', () => { mesoCfg().length = +b.dataset.msLen; saveState(); renderSplitPlannerPage(main); }));
+  main.querySelector('#ms-restart')?.addEventListener('click', () => { mesoRestart(); renderSplitPlannerPage(main); });
+  main.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
+}
 function planCatRank(c) { const i = PLAN_CAT_ORDER.indexOf(c); return i < 0 ? PLAN_CAT_ORDER.length : i; }
 // "Pickable" suggested weight — pre-load the matching picker to approximate the target.
 function greedyPlates(perSide, denoms) { const plates = {}; let rem = Math.max(0, perSide); denoms.forEach(d => { while (rem >= d - 0.001) { plates[d] = (plates[d] || 0) + 1; rem -= d; } }); return plates; }
@@ -9285,6 +9981,23 @@ const _planRowHtml = (p) => `<div class="plan-row">
       <button class="drawer-btn danger" data-plan-del="${p.id}">Del</button>
     </div>
   </div>`;
+// feat 226 — the Quick Pick block at the top of the picker: a time selector + the top-3 recommendations
+// for that budget and your recent training. Shown only on the unfiltered list (it's a starting point).
+function quickPickHtml() {
+  const mins = planPickMinutes();
+  const recs = recommendPlans(mins, 3);
+  if (!recs.length) return '';
+  const times = PLAN_PICK_TIMES.map(m => `<button class="qp-time ${mins === m ? 'active' : ''}" data-pick-min="${m}" aria-pressed="${mins === m}">${m}<span class="qp-time-u">m</span></button>`).join('');
+  const recCards = recs.map(r => `<div class="qp-rec">
+      <div class="qp-rec-main"><div class="qp-rec-name">${escapeHtml(r.plan.name)}${isFavPlan(r.plan.id) ? ' <span class="qp-fav">★</span>' : ''}</div><div class="qp-rec-reason">${escapeHtml(r.reason)}</div></div>
+      <button class="qp-use" data-plan-use="${escapeAttr(r.plan.id)}">Use</button>
+    </div>`).join('');
+  return `<div class="quick-pick" id="quick-pick">
+    <div class="qp-head"><span class="qp-title">⚡ Quick Pick</span><span class="qp-q">How long have you got?</span></div>
+    <div class="qp-times" id="qp-times">${times}</div>
+    <div class="qp-recs">${recCards}</div>
+  </div>`;
+}
 function renderPlansList(body) {
   const plans = state.plans || [];
   const q = (_plansSearch || '').trim().toLowerCase();
@@ -9312,7 +10025,9 @@ function renderPlansList(body) {
     : (filtered.length === 0
       ? '<div class="plan-list-empty">No plans match. <button class="plan-clear-filters" id="plan-clear-filters">Clear filters</button></div>'
       : groupCats.map(c => `<div class="plan-cat-head">${escapeHtml(c)} <span class="plan-cat-count">${groups[c].length}</span></div>${groups[c].map(_planRowHtml).join('')}`).join(''));
-  body.innerHTML = `<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
+  // feat 226 — Quick Pick only on the unfiltered landing view (hidden once you search/filter/favourite-only).
+  const showQuickPick = plans.length > 0 && !q && _plansCatFilter === 'all' && _plansLenFilter === 'all' && !_plansFavOnly;
+  body.innerHTML = `${showQuickPick ? quickPickHtml() : ''}<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
     <input type="search" id="plans-search" class="plans-search" placeholder="🔍 Search plans by name or theme…" value="${escapeAttr(_plansSearch)}" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="plan-chips">${favN ? `<button class="plan-chip fav-chip ${_plansFavOnly?'active':''}" data-plan-fav="1" title="Show favorites only">★ Favorites <span class="plan-chip-n">${favN}</span></button>` : ''}${catChip('all','All',plans.length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
     <div class="plan-chips">${LEN.map(([v,l]) => lenChip(v,l)).join('')}</div>
@@ -9324,6 +10039,7 @@ function renderPlansList(body) {
 function bindPlansList(body) {
   const search = body.querySelector('#plans-search');
   if (search) search.addEventListener('input', () => { _plansSearch = search.value; const pos = search.selectionStart; renderPlansOverlay(); const s2 = document.getElementById('plans-search'); if (s2) { s2.focus(); try { s2.setSelectionRange(pos, pos); } catch (_) {} } });
+  body.querySelectorAll('[data-pick-min]').forEach(b => b.addEventListener('click', () => { state.planPickMinutes = +b.dataset.pickMin; saveState(); renderPlansOverlay(); })); // feat 226 — quick-pick time budget
   body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { _plansCatFilter = b.dataset.planCat; renderPlansOverlay(); }));
   body.querySelectorAll('[data-plan-len]').forEach(b => b.addEventListener('click', () => { _plansLenFilter = b.dataset.planLen; renderPlansOverlay(); }));
   body.querySelector('[data-plan-fav]')?.addEventListener('click', () => { _plansFavOnly = !_plansFavOnly; renderPlansOverlay(); }); // feat 178
@@ -9599,7 +10315,9 @@ function renderOptionPicker(body, plan) {
 function renderPlanGuide(session) {
   const plan = getActivePlan();
   if (!plan) {
-    return `<div class="plan-bar"><span class="plan-bar-none">No plan · auto suggestions on</span><button class="plan-pick-btn" id="plan-pick-btn">📋 Use a plan</button></div>`;
+    const todayEntry = (typeof programToday === 'function') ? programToday() : null; // feat 230 — today's planned session
+    const todayBtn = todayEntry ? `<button class="plan-pick-btn pg-start" id="plan-today-btn" data-today-plan="${escapeAttr(todayEntry.planId)}" title="Start today's planned session">📅 Today: ${escapeHtml(todayEntry.plan.name)}</button>` : '';
+    return `<div class="plan-bar"><span class="plan-bar-none">${todayEntry ? 'Program · today is scheduled' : 'No plan · auto suggestions on'}</span>${todayBtn}<button class="plan-pick-btn" id="plan-pick-btn">📋 Use a plan</button></div>`;
   }
   const eta = computePlanETA(session, plan);
   const curIdx = currentPlanStepIndex(session, plan);
@@ -10005,6 +10723,7 @@ function renderLog(main) {
   main.querySelector('#plan-progress-open')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanFull(p.id); }); // feat 138 — tap the progress line → full plan
   main.querySelector('#plan-progress-open')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
   main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
+  main.querySelector('#plan-today-btn')?.addEventListener('click', e => planUseForWorkout(e.currentTarget.dataset.todayPlan)); // feat 230 — start today's scheduled session
   _bindLiveHeatmapCard(main); // feat 218
   main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
   main.querySelector('#plan-exec-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); }); // feat 145 — detailed execution view
@@ -11552,22 +12271,31 @@ const HEAT_REGION_MODEL = {
   'Forearms': null, 'Adductors': null, 'Tibialis Anterior': null, // not in the volume model → "n/a" style
 };
 // Per-region value at a resolution, from any muscle-level accumulator (weekly or live).
+// feat 228 — a region's SUB-COMPONENTS at the chosen resolution, each with its own value. group → one
+// (the muscle group); muscle → each modeled muscle; head → each muscle's heads (or the muscle itself if it
+// has none). The heatmap renders one oval per sub-component, so the oval COUNT now grows with resolution.
+const _r1 = (n) => Math.round(n * 10) / 10;
+function regionSubsFor(m, level, acc, groupAcc) {
+  if (level === 'group') return [{ label: m.group, v: _r1(groupAcc[m.group] || 0) }];
+  if (level === 'head') {
+    const out = [];
+    m.muscles.forEach(id => {
+      const inf = MUSCLE_INDEX[id];
+      if (inf && inf.heads && inf.heads.length) inf.heads.forEach(h => out.push({ label: (MUSCLE_INDEX[h.id] && MUSCLE_INDEX[h.id].label) || h.id, v: _r1(acc[h.id] || 0) }));
+      else out.push({ label: (inf && inf.label) || id, v: _r1(acc[id] || 0) });
+    });
+    return out;
+  }
+  return m.muscles.map(id => ({ label: (MUSCLE_INDEX[id] && MUSCLE_INDEX[id].label) || id, v: _r1(acc[id] || 0) }));
+}
 function heatValuesFromAcc(acc, level) {
   const groupAcc = {};
   for (const mid in acc) { const inf = MUSCLE_INDEX[mid]; if (inf) groupAcc[inf.group] = (groupAcc[inf.group] || 0) + acc[mid]; }
   return ANATOMY_REGIONS.map(r => {
     const m = HEAT_REGION_MODEL[r.term];
-    if (!m) return { term: r.term, v: null };
-    let v = 0;
-    if (level === 'group') v = groupAcc[m.group] || 0;
-    else if (level === 'head') {
-      m.muscles.forEach(id => {
-        const inf = MUSCLE_INDEX[id];
-        if (inf && inf.heads) inf.heads.forEach(h => { v += acc[h.id] || 0; });
-        else v += acc[id] || 0;
-      });
-    } else m.muscles.forEach(id => { v += acc[id] || 0; });
-    return { term: r.term, v: Math.round(v * 10) / 10 };
+    if (!m) return { term: r.term, v: null, subs: null }; // not modeled → "n/a"
+    const subs = regionSubsFor(m, level, acc, groupAcc);
+    return { term: r.term, v: _r1(subs.reduce((s, x) => s + x.v, 0)), subs };
   });
 }
 function heatRegionValues(level, weekOffset) {
@@ -11580,15 +12308,31 @@ function heatColor(v, max) {
   const hue = 120 - 120 * t;                  // green → red
   return `hsla(${Math.round(hue)}, 85%, 52%, ${(0.3 + 0.5 * t).toFixed(2)})`;
 }
+// feat 228 — tile a region's bounding ellipse into K sub-ovals (stacked along its longer axis), one per
+// sub-component, so finer resolutions visibly split a region into more (smaller) ovals.
+function _splitEllipse(cx, cy, rx, ry, k) {
+  if (k <= 1) return [[cx, cy, rx, ry]];
+  const out = [], vertical = ry >= rx;
+  for (let i = 0; i < k; i++) {
+    if (vertical) { const sry = ry / k; out.push([cx, _r1(cy - ry + sry * (2 * i + 1)), rx, _r1(sry * 0.9)]); }
+    else { const srx = rx / k; out.push([_r1(cx - rx + srx * (2 * i + 1)), cy, _r1(srx * 0.9), ry]); }
+  }
+  return out;
+}
 function anatomyHeatmapSvg(values) {
-  const max = Math.max.apply(null, values.map(x => x.v || 0).concat([0.0001]));
+  const max = Math.max.apply(null, values.flatMap(x => x.subs ? x.subs.map(s => s.v) : [0]).concat([0.0001]));
   const byTerm = {}; values.forEach(x => { byTerm[x.term] = x; });
   const region = (r) => {
-    const val = byTerm[r.term] || { v: null };
-    const na = val.v == null;
-    const fill = heatColor(val.v, max);
-    return r.e.map(([cx, cy, rx, ry]) =>
-      `<ellipse class="hm-region${na ? ' na' : ''}" data-hm-term="${escapeAttr(r.term)}" data-hm-v="${na ? '' : val.v}" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"${na ? '' : ` style="fill:${fill};"`}><title>${escapeHtml(r.term)} — ${na ? 'not in the volume model' : val.v + ' sets'}</title></ellipse>`).join('');
+    const val = byTerm[r.term] || { v: null, subs: null };
+    if (!val.subs) { // not modeled — a single n/a oval per bilateral placement
+      return r.e.map(([cx, cy, rx, ry]) =>
+        `<ellipse class="hm-region na" data-hm-term="${escapeAttr(r.term)}" data-hm-v="" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"><title>${escapeHtml(r.term)} — not in the volume model</title></ellipse>`).join('');
+    }
+    const subs = val.subs, multi = subs.length > 1;
+    return r.e.map(([cx, cy, rx, ry]) => _splitEllipse(cx, cy, rx, ry, subs.length).map((s, k) => {
+      const sub = subs[k] || { v: 0, label: '' };
+      return `<ellipse class="hm-region" data-hm-term="${escapeAttr(r.term)}" data-hm-v="${sub.v}"${multi ? ` data-hm-sub="${escapeAttr(sub.label)}"` : ''} cx="${s[0]}" cy="${s[1]}" rx="${s[2]}" ry="${s[3]}" style="fill:${heatColor(sub.v, max)};"><title>${escapeHtml(r.term)}${multi ? ' · ' + escapeHtml(sub.label) : ''} — ${sub.v} sets</title></ellipse>`;
+    }).join('')).join('');
   };
   return `<svg class="anat-svg heatmap" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
     ${anatomyOutline(50)}${anatomyOutline(150)}
@@ -14718,8 +15462,27 @@ function setupIconSvg(kind) {
   };
   return `<svg class="setup-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[kind] || paths.barbell}</svg>`;
 }
+// feat 223 — authoritative per-variation equipment table for classic movements whose NAMES carry no
+// equipment word (the Arnold-Press problem: silent title → family fallback handed it the barbell
+// loader). The Arnold press is a dumbbell lift, the Kroc row a dumbbell row, the Viking press a
+// landmine movement, the Turkish get-up a kettlebell lift, the Svend press a plate squeeze…
+const VAR_EQUIP_OVERRIDES = {
+  'arnold-press': 'dumbbell', 'half-kneeling-press': 'dumbbell', 'concentration-curl': 'dumbbell',
+  'spider-curl': 'dumbbell', 'tate-press': 'dumbbell', 'tricep-kickback': 'dumbbell',
+  'single-arm-overhead-tri': 'dumbbell', 'batwing-row': 'dumbbell', 'kroc-row': 'dumbbell',
+  'side-lying-er': 'dumbbell', 'preacher-rear-delt': 'dumbbell', 'suitcase-deadlift': 'dumbbell',
+  'snatch-grip-shrug': 'barbell',
+  'viking-press': 'landmine',
+  'turkish-get-up': 'kettlebell', 'helen': 'kettlebell',
+  'svend-press': 'plate', 'weighted-crunch': 'plate', 'sicilian-crunch': 'plate',
+  'roman-weighted-back-ext': 'plate', 'roman-weighted-sit-up': 'plate',
+  'neck-flex-weighted': 'plate', 'neck-ext-weighted': 'plate', 'neck-lateral': 'plate',
+  'neck-harness-ext': 'plate', 'neck-harness': 'plate', 'neck-plate': 'plate',
+};
 function autoSetupKind(varUuid) {
   const i = VAR_INDEX.get(varUuid); if (!i) return null;
+  const ov = VAR_EQUIP_OVERRIDES[i.variation.id];                                 // feat 223 — table wins
+  if (ov !== undefined) return ov;
   const t = ((i.variation.title || '') + ' ' + (i.variation.id || '') + ' ' + (i.family.title || '')).toLowerCase();
   if (/landmine|meadows/.test(t)) return 'landmine';
   if (/medicine|med ball|wall ball|slam ball/.test(t)) return 'medicineball';
@@ -14727,9 +15490,10 @@ function autoSetupKind(varUuid) {
   if (/dumbbell|\bdb\b/.test(t)) return 'dumbbell';
   if (/\bgoblet\b/.test(t)) return 'dumbbell';                                    // held DB/KB lift (single-weight picker)
   if (/smith/.test(t)) return 'barbell';                                          // smith bar lives inside Barbell Setup
-  if (/plate-?load|iso-?lateral|\bmts\b|t-?bar|hammer strength|leverage/.test(t)) return 'plate';
-  if (/barbell|\bbb\b|ez-?bar|trap-?bar|safety-?bar|\bssb\b|cambered/.test(t)) return 'barbell';
-  if (/cable|pulley|pushdown|pulldown|crossover|\brope\b|freemotion|roc-?it|d-?handle/.test(t)) return 'pin';
+  if (/plate[- ]?load|iso[- ]?lateral|\bmts\b|\bt[- ]?bar|hammer strength|leverage/.test(t)) return 'plate'; // feat 223 — spaced names too
+  if (/\bplate\b/.test(t)) return 'plate';                                        // feat 223 — single-plate implements (plate raise / pinch / tibialis…)
+  if (/barbell|\bbb\b|ez[- ]?bar|trap[- ]?bar|safety[- ]?bar|\bssb\b|cambered/.test(t)) return 'barbell';
+  if (/cable|pulley|pushdown|pulldown|crossover|\brope\b|freemotion|roc[- ]?it|\bd[- ]?handle/.test(t)) return 'pin';
   if (/machine|selectoriz|\bstack\b|fixed/.test(t)) return 'pin';
   if (/\bbodyweight\b|body ?weight/.test(t)) return null;                          // explicitly bodyweight → no loading tool
   const mode = (typeof exMode === 'function') ? exMode(varUuid).mode : 'standard';
@@ -14981,6 +15745,8 @@ function renderSetsForm() {
   const v = info.variation;
   const fam = info.family;
   const M = exMode(pending.varUuid); // tracking mode (feat 26/27)
+  // feat 234 — concrete next-load target (double progression, deload-aware) for live weight×reps logging.
+  const progTarget = (M.mode === 'standard' && !modalState.isEditing && typeof suggestProgression === 'function') ? suggestProgression(pending.varUuid) : null;
 
   // Tips section
   const hasFamilyTips = fam.quickCue;
@@ -15222,6 +15988,10 @@ function renderSetsForm() {
     ${suggestion ? `<div class="suggestion">
       <div class="suggestion-label">${suggestion.label}</div>
       <div class="suggestion-text">${suggestion.text}</div>
+    </div>` : ''}
+    ${progTarget ? `<div class="prog-target prog-${progTarget.action}">
+      <div class="prog-target-main"><span class="prog-target-aim">🎯 Aim for <b>${progTarget.next.w} × ${progTarget.next.r}</b></span><span class="prog-target-note">${escapeHtml(progTarget.note)}</span></div>
+      <button type="button" class="prog-prefill" id="trk-prog-prefill" data-w="${progTarget.next.w}" title="Load the suggested weight into the next set">↪ Load ${progTarget.next.w}</button>
     </div>` : ''}
     ${renderSetupInline()}
 
@@ -15585,6 +16355,17 @@ function bindSetsForm() {
       confirmDialog(`You've entered ${entered} sets for ${escapeHtml(displayName(pending.varUuid, pending.subUuid))} that aren't saved yet. Picking a different exercise will discard them. Continue?`,
         { title: 'Change exercise?', okLabel: 'Change exercise', cancelLabel: 'Keep logging', danger: true }).then(ok => { if (ok) go(); });
     } else go();
+  });
+
+  // feat 234 — one-tap prefill: load the suggested weight into the first empty set (weight only — you still
+  // log the reps you actually do), and pre-seed the plate/loader picker for it.
+  document.getElementById('trk-prog-prefill')?.addEventListener('click', (e) => {
+    const w = parseFloat(e.currentTarget.dataset.w); if (!(w > 0)) return;
+    let i = (pending.sets || []).findIndex(s => s && (s.w === '' || s.w == null));
+    if (i < 0) { pending.sets.push({ w: '', r: '' }); i = pending.sets.length - 1; }
+    pending.sets[i].w = w; savePending();                          // direct prefill (matches feat-58/82) — no premature set-start stamp
+    if (typeof seedSetupForWeight === 'function') seedSetupForWeight(pending.varUuid, w); // pre-seed the loader picker
+    renderModal(); updateFAB(); updateSaveBtn();
   });
 
   document.getElementById('trk-sub-select')?.addEventListener('change', e => {
@@ -16197,7 +16978,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 168 · 2026-06-12 07:20';
+const APP_BUILD = 'build 180 · 2026-06-13 08:39';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -17587,7 +18368,7 @@ const exercises = [
     keywords:'overhead press ohp shoulder military dumbbell barbell machine kettlebell',
     quickCue:'Brace abs HARD. Bar/DBs travel straight up. Don\'t hyperextend low back.',
     general:{
-      setup:['Wrists stacked over elbows','Core + glutes braced HARD','Slight backward head shift to clear bar path'],
+      setup:['Wrists stacked over elbows','Core + glutes braced HARD','Slight backward head shift to clear the bar/DB path'],
       movement:['Press straight up — vertical bar path','Push head "through" the window at lockout','Lower controlled to start position'],
       mistakes:['Excessive lower-back arch — use abs','Pressing in front of body','Soft core/glutes leaks force','Bar drifting forward']
     },

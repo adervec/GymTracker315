@@ -22,15 +22,19 @@ const seed = (page, n, setsPer = 2) => page.evaluate(({ n, setsPer }) => {
   _sessionsLogPage = 0;
 }, { n, setsPer });
 
-test('the tab bar renames the default to "Dashboard" and adds a separate "Log" tab', async ({ page }) => {
-  const r = await page.evaluate(() => ({
-    dash: document.querySelector('.tab[data-tab="log"]')?.textContent.trim(),
-    log: document.querySelector('.tab[data-tab="sessions"]')?.textContent.trim(),
-    history: document.querySelector('.tab[data-tab="history"]')?.textContent.trim(),
-  }));
-  expect(r.dash).toBe('Dashboard');
-  expect(r.log).toBe('Log');
-  expect(r.history).toBe('History'); // History stays as its own (filtered) view
+test('the dashboard (today) and the Log (full history) are distinct pages (feat 227 — legacy tab bar retired)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    // the legacy tab names map to router pages: dashboard tab 'log' → Workout page; 'sessions' → Log page
+    switchToTab('log'); const dash = currentPage;
+    switchToTab('sessions'); const log = currentPage;
+    switchToTab('history'); const history = currentPage;
+    return { dash, log, history, dashTitle: pageTitle('workout'), logTitle: pageTitle('log') };
+  });
+  expect(r.dash).toBe('workout');     // the former "Dashboard" tab → the Workout page (today only)
+  expect(r.log).toBe('log');          // a separate Log page (full paginated history)
+  expect(r.history).toBe('history');  // History stays its own (filtered) view
+  expect(r.dashTitle).toBe('Workout');
+  expect(r.logTitle).toBe('Log');
 });
 
 test('the Dashboard shows only today (not older sessions) + a link to the Log', async ({ page }) => {
@@ -97,9 +101,9 @@ test('the Dashboard "see Log" link switches to the Log tab', async ({ page }) =>
     switchToTab('log');
     document.getElementById('dash-see-log').click();
     const main = document.getElementById('trk-main');
-    return { tab: currentTab, hasSessions: main.querySelectorAll('.session-item').length > 0, tabActive: document.querySelector('.tab[data-tab="sessions"]').classList.contains('active') };
+    return { tab: currentTab, page: currentPage, hasSessions: main.querySelectorAll('.session-item').length > 0 };
   });
-  expect(r.tab).toBe('sessions');
+  expect(r.tab).toBe('sessions'); // feat 227 — the DOM tab bar is gone; currentTab/currentPage carry the state
+  expect(r.page).toBe('log');
   expect(r.hasSessions).toBe(true);
-  expect(r.tabActive).toBe(true);
 });

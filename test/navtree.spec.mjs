@@ -79,6 +79,49 @@ test('any screen → any screen in two taps: crumb, then chip', async ({ page })
   expect(r.crumbName).toBe('About');   // the breadcrumb followed
 });
 
+test('feat 227: the legacy tracker tab bar is GONE from the DOM; the currentTab mirror still tracks', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    navTo('volume');
+    return {
+      barInHeader: !!document.querySelector('#panel-tracker > header .tabs'), // physically removed
+      anyTabPills: document.querySelectorAll('#panel-tracker .tab[data-tab]').length,
+      mirror: currentTab, // the variable mirror still works for switchToTab + render()
+      page: currentPage,
+    };
+  });
+  expect(r.barInHeader).toBe(false);   // no element to render, cache or not
+  expect(r.anyTabPills).toBe(0);
+  expect(r.mirror).toBe('volume');     // currentTab still mirrors the page
+  expect(r.page).toBe('volume');
+});
+
+test('feat 227: the top-bar Settings & Help buttons are hidden — navigation goes through the breadcrumb', async ({ page }) => {
+  const r = await page.evaluate(() => ({
+    gear: getComputedStyle(document.getElementById('app-settings-btn')).display,
+    help: getComputedStyle(document.getElementById('app-help-btn')).display,
+    gearInDom: !!document.getElementById('app-settings-btn'), // kept for the shim/specs to click
+  }));
+  expect(r.gear).toBe('none');
+  expect(r.help).toBe('none');
+  expect(r.gearInDom).toBe(true);
+});
+
+test('feat 224: the tracker header collapses on plain pages, expands for the contextual PDF button', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    navTo('workout'); // no PDF export here
+    const hdr = document.querySelector('#panel-tracker > header');
+    const onWorkout = { collapsed: hdr.classList.contains('header-collapsed'), border: getComputedStyle(hdr).borderBottomWidth, pdf: getComputedStyle(document.getElementById('trk-export-pdf')).display };
+    navTo('volume'); // Volume shows the 📄 PDF button
+    const onVolume = { collapsed: hdr.classList.contains('header-collapsed'), pdf: getComputedStyle(document.getElementById('trk-export-pdf')).display };
+    return { onWorkout, onVolume };
+  });
+  expect(r.onWorkout.collapsed).toBe(true);     // empty header → no strip
+  expect(r.onWorkout.border).toBe('0px');       // …and no leftover border line
+  expect(r.onWorkout.pdf).toBe('none');
+  expect(r.onVolume.collapsed).toBe(false);     // PDF button present → header expands to host it
+  expect(r.onVolume.pdf).not.toBe('none');
+});
+
 test('the backdrop and ✕ both close the tree', async ({ page }) => {
   const r = await page.evaluate(() => {
     openNavTree('study');

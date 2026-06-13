@@ -853,6 +853,156 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Next-load suggestion in the log sheet (feat 234):** brings feat-233's auto-progression to the moment
+  you load the bar. When you open an exercise to log it live (standard weight×reps, not editing a past
+  entry) and it has history, the sheet shows a concrete **🎯 Aim for W × R** target — the same
+  double-progression, deload-aware `suggestProgression()` result — with its rationale ("Hit 12 reps — add
+  load, reset to 8") and colour by action (green add-load / accent add-rep / amber deload), sitting just
+  under the existing qualitative `getProgressionSuggestion` feedback. A one-tap **↪ Load W** prefills the
+  **weight only** of the next empty set (you still log the reps you actually do) and pre-seeds the plate/
+  loader picker via `seedSetupForWeight` — done with a direct `pending.sets` assignment (matching the
+  feat-58 history and feat-82 plan prefills) so it doesn't prematurely stamp the set-start or annunce.
+  Gated off for cardio/time/bodyweight modes, edits, and no-history lifts. Covered by
+  `test/progsheet.spec.mjs` (the target + Load button for add-load, weight-only prefill, the add-a-rep case,
+  the deload back-off, and the edit/no-history/non-standard gating); the full logging-spec cluster stays
+  green.
+- **Auto-progression (feat 233):** closes the planning loop by connecting periodization's *intent* to your
+  *logged* numbers. A new **Reflect › 🚀 Progression** page reads each recently-trained lift's **most recent
+  top set** (`recentTopSet` — the heaviest set by e1RM of the latest session that trained it) and suggests
+  the next target via **double progression** (`suggestProgression`): climb a rep window keyed to where you
+  already train (`progRepRange`: ≤6 → 3–6 · ≤12 → 8–12 · else 12–20), and when you hit the top, **add the
+  smallest sensible load** for the implement (`progLoadStep` — a barbell's +5 lb/+2.5 kg, the next dumbbell/
+  kettlebell size, a pin's +10 lb/+5 kg) and reset to the bottom; mid-range just **adds a rep**. On a
+  **deload week** (periodization on) it instead suggests backing the load off ~10% — so the suggestion line
+  honors `mesoCurrentWeek()`. `progressionList(120d)` gathers every recently-trained lift (deduped, newest
+  first) and the page shows each as **current → next** with an ⬆ add-load / ➕ add-a-rep / ⬇ deload tag and a
+  one-line rationale. Strictly **suggestions** — nothing is written to your sets. Covered by
+  `test/progression.spec.mjs` (most-recent-session top set, add-load vs add-rep double progression, the
+  deload back-off, rep-range buckets + unit-aware load step, list dedup/recency, and the page's rows +
+  empty state).
+- **Periodization mesocycle (feat 232):** an optional multi-week block layered onto the split planner —
+  volume **ramps base → peak then deloads**, repeating. `mesoWeekPlan(length)` lays out a 3–6 week cycle:
+  the accumulation weeks scale linearly **1.0× → 1.3×** (Base → Build → Peak) with rising RPE cues, the last
+  week deloads to **0.55×** (RPE 5–6); `mesoCurrentWeek()` reads the current week from the start date,
+  cycling continuously after each deload. The big tie-in: `splitAnalysis(plans, volMult)` now takes a volume
+  multiplier, so the **coverage over/under analysis scales to the current week** — accumulation weeks read
+  closer to (or past) MRV, the deload pulls everything down — and the card flags "week N · X%". A
+  **📈 Periodization** card on the planner toggles the cycle on/off (`state.meso = {enabled, length, start}`,
+  in `SETTINGS_KEYS`), shows a current-phase banner ("Week 2 of 4 · Build · 115% volume · RPE 8"), a week
+  strip (each week's phase + volume %, current highlighted), cycle-length chips, and a "↻ Restart this week"
+  to re-anchor the block. It's planning guidance — not auto-applied to logged sets. Covered by
+  `test/periodization.spec.mjs` (the ramp/deload plan, current-week tracking + wrap, the analysis multiplier,
+  the card toggle/strip/banner/coverage-tag, and length-change + restart re-anchoring).
+- **Program adherence tracking (feat 231):** closes the loop on the scheduled program by matching your
+  logged sessions back to it. `programWeekAdherence(weeksBack)` walks a Mon–Sun week and grades each
+  scheduled day **done** (a session logged that day on the scheduled plan) · **off-plan** (you trained, but
+  a different/no plan) · **missed** (a past scheduled day with nothing) · **today** · **upcoming**, with
+  this-week totals; `programAdherenceStreak()` counts consecutive scheduled sessions trained walking back
+  from yesterday; `programAdherenceTrend(4)` gives done/scheduled for the last four weeks. The program card
+  now leads with an adherence line ("This week **3/7** done · 2 missed · 🔥 2-session streak" + four
+  trailing-week dots), the **weekly agenda shows a ✓ / ✗ status per scheduled day** (missed days struck
+  through, done days greened), and once **today** is done the **Start** button is replaced by a "done ✓"
+  marker so you're not nudged to repeat it. Trailing weeks are retrospective (they assume the same schedule
+  applied) — a fair proxy for "are you training on your planned days". Covered by `test/adherence.spec.mjs`
+  (done vs missed vs off-plan, the streak with a gap, the trailing trend, the no-program guard, the card
+  summary + per-day icons, and Start→done once today is logged).
+- **Scheduled weekly program (feat 230):** the future-oriented layer over the split planner — turn a
+  recommended split into a saved, day-by-day weekly **program** the app remembers and looks ahead with.
+  **📅 Save as program** lays the recommended split onto sensible, recovery-spaced days
+  (`PROGRAM_DOW_PICKS`: 3 → Mon/Wed/Fri, 4 → Mon/Tue/Thu/Fri, …) as `state.program` ({sessions, minutes,
+  pool, week[7]} keyed by JS day-of-week). The planner then shows a **Monday-first weekly agenda** (each day
+  its plan or a rest day, today highlighted), a **Today** banner with a **▶ Start** button, and lets you
+  **tap any day to reassign it** (`cycleProgramDay` rotates Rest → each pool plan → Rest); **↻ Reschedule**
+  re-lays the split, **Clear** drops it. `programToday()` / `programForDow(dow)` / `programNextUp()` resolve
+  the planned session for a day or the next one within the coming week. The **dashboard plan bar** now
+  surfaces the day's scheduled session — when a program has today planned and there's no active plan, a
+  **📅 Today: <plan>** Start button sits next to "Use a plan" so the program is actionable right where you
+  begin a workout. `state.program` travels with settings (`SETTINGS_KEYS`), validated/dropped if malformed.
+  Covered by `test/program.spec.mjs` (day placement + distinct pool, dow resolution, day-cycling, next-up,
+  the planner save/agenda/clear, day reassignment, and the dashboard Start hook attaching the plan).
+- **Split Planner (feat 229):** an optional **Prepare › 🗓️ Split Planner** page that answers "given X
+  sessions across Y days with Z hours each, what split should I run — and how well does it cover me?" Two
+  halves: a **recommender** and an **over/under analysis**. `buildRecommendedSplit({sessions, minutes})`
+  lays out a slot template by session count (2 → Full Body ×2, 3 → PPL, 4 → Upper/Lower ×2, 5 → PPL+UL,
+  6 → PPL ×2) and fills each slot with the plan that best **covers that slot's muscle groups** (`slotCoverage`
+  = breadth over `SLOT_GROUPS`, ≥2 sets per group — so a proper rowing day wins the Pull slot, not a tiny
+  Arm Day, and a tidy 60-min Upper day beats a 3-hour marathon) **and fits the clock** (`planTimeScore`),
+  avoiding repeats. `splitAnalysis()` then rolls the chosen plans' per-muscle volume (`planMuscleAcc` →
+  `splitGroupVolume`) up to groups and compares each to its weekly **MEV–MAV–MRV** band (`GROUP_TARGETS`,
+  summed from the muscle model), classifying **under / light / on-target / over** and an overall **balance
+  score** (how far off-base, 0–100) with under/over counts — so 3 sessions/week honestly reads as many
+  groups under MEV while 5 climbs toward balanced. The page renders session/day/hour input chips
+  (`state.splitPlan`, in `SETTINGS_KEYS`), the recommended day-by-day split (each with a **Use** button via
+  `planUseForWorkout`), and a coverage bar per group (your sets vs the green MEV–MRV window). Covered by
+  `test/splitplanner.spec.mjs` (target bands, plan→group loading + over/under flags, slot template + per-slot
+  coverage, more-sessions→better-balance, the rendered page + chip persistence, Use attaches the plan).
+- **Anatomy heatmap resolution actually splits the ovals (feat 228):** the wireframe heatmap painted the
+  same fixed ~24 region ovals at every resolution — switching group → muscle → heads only recoloured them,
+  never adding detail. Now `heatValuesFromAcc()` computes each region's **sub-components** for the chosen
+  level (`regionSubsFor`: group → the one muscle group; muscle → each modeled muscle; head → each muscle's
+  heads, or the muscle itself if it has none), each with its own value, and `anatomyHeatmapSvg()` tiles each
+  region's bounding ellipse(s) into one sub-oval per sub-component (`_splitEllipse` stacks them along the
+  longer axis). So the oval **count grows with resolution** — e.g. group 29 → muscle 42 → head 56, and the
+  Delts region becomes 1 oval (shoulders) → 3 (front/side/rear) → its heads — with each split oval carrying
+  its own colour, `data-hm-v`, `data-hm-sub` label and tooltip. Group level is unchanged (one oval per
+  bilateral placement, the group value), so the live/replay group-level views and their specs are
+  untouched. Covered by a new `heatmap.spec` case (group < muscle < head oval counts; Delts 1→3→heads;
+  split ovals carry sub-labels).
+- **Breadcrumb-only top bar (feat 227):** finishes retiring the legacy nav chrome. feat 224 only *hid* the
+  old 7-tab bar (Dashboard/Log/History/Volume/Trends/Body/Gyms) with CSS, so anyone on a cached PWA shell
+  still saw it — now it's **removed from the DOM entirely** (the `currentTab` variable mirror still drives
+  `switchToTab`/`render()`; nothing visual depends on the elements). The top-bar **⚙️ Settings** and **❓ Help**
+  buttons are hidden too (`display:none !important` to beat their later `display:flex`), kept in the DOM only
+  so the goPanel/openHelp shims and specs can still click them — navigation to those sections now goes
+  through the **breadcrumb → nav tree** (Settings ▸ Preferences/Help). The 🔊 sound/haptics menu stays (it's
+  an intentional popup). Specs updated off the dead tab DOM: `router.spec`/`sessionslog.spec` assert on
+  `currentTab`/`currentPage` + `pageTitle()` instead of `.tab.active`; `navtree.spec` asserts the bar is gone
+  and the buttons are hidden; `feedback.spec`'s haptic probe taps the always-visible brand button.
+- **Quick-pick plan recommender (feat 226):** a **⚡ Quick Pick** block at the top of the plan picker that
+  recommends the best plans for the time you have and what you've trained lately. Two pure, unit-testable
+  scoring axes: **time** — `planTimeScore()` peaks when `estimatePlanMinutes` exactly fills the chosen
+  budget, eases off for finishing early and falls steeply for overrunning (0 at 2× the budget); and
+  **freshness** — `recentMegaLoad(4d)` tallies logged sets per muscle-group (mega) over the last four days
+  (mirroring `sessionSplitLabel`'s bucketing), and `planFreshnessScore()` weights a plan by how *little* its
+  mega mix has been hammered (saturating at ~12 sets) — so it steers you toward recovery-aware variety. The
+  combined score (0.6 time + 0.4 freshness, with a small favourite bump) drives `recommendPlans()`, whose
+  top-3 render as cards with a plain reason ("≈45 min, fits your 45 min · legs is well-rested"). A row of
+  time chips (15/30/45/60/90/120) remembers the budget in `state.planPickMinutes` (in `SETTINGS_KEYS`); the
+  block shows on the unfiltered landing view and steps aside once you search or filter. Recommendation Use
+  buttons reuse the existing `data-plan-use` → `planUseForWorkout` path. Covered by `test/quickpick.spec.mjs`
+  (recentMegaLoad tally, freshness ordering, time-fit ordering, end-to-end ranking + reason, the rendered
+  block + active chip, chip click persists + re-recommends, Use attaches the plan, hide-on-filter).
+- **More workout plans — tranche 7 (feat 225):** 14 new seed plans broadening the library to ~74:
+  aesthetics (Beach Body Pump, Glutes & Shoulders), specialization (Back Width, Hamstring Focus, Bench
+  Press Specialist, Deadlift Builder), dedicated hypertrophy splits (Push / Pull / Leg Hypertrophy),
+  quick hits (Express 10, Hotel Room 20, Total Core & Abs) and conditioning (Sprint & Sled, EMOM Full
+  Body 30). Authored against **verified** movement family ids (re-probed via `tools/probe-families.mjs` —
+  the feat-175 lesson: a wrong id silently no-ops), each with a 1–5 intensity and a written description, so
+  they seed through the existing additive `seededPlanIds` ledger for current users. The short entries
+  deliberately deepen the "quick" length bucket so the feat-226 recommender has range to match a tight
+  time budget. Covered by `test/plansmore.spec.mjs` (all 14 present + complete + options resolve, ids
+  unique, fresh-user seeding + authorship + ledger, sensible categories, widened quick bucket).
+- **Retire the residual legacy tab pills (feat 224):** the feat-221 breadcrumb + global nav tree made the
+  old 7-pill tracker tab bar (Dashboard · Log · History · Volume · Trends · Body · Gyms) redundant — a
+  second, less intuitive navigation surface sitting right under the breadcrumb. It's now hidden
+  (`#panel-tracker > header .tabs { display:none }`) but kept in the DOM so the `currentTab` class-mirror
+  that legacy specs assert on still updates. With the pills gone the tracker `<header>` only ever carries
+  the **contextual 📄 PDF button** (History/Volume/Trends), so `renderCurrentPage()` now toggles a
+  `header-collapsed` class that zeroes the header's padding + border on every other page — no empty strip
+  under the breadcrumb. Covered by the two new `test/navtree.spec.mjs` cases (pills hidden yet in-DOM with a
+  working mirror; header collapses on Workout, expands to host the PDF button on Volume).
+- **Equipment-true setup tools (feat 223):** classic movements whose *names* carry no equipment word
+  (Arnold Press, Kroc Row, Viking Press, Turkish Get-Up, Svend Press…) were silently inheriting the
+  family's first-listed equipment in `autoSetupKind()` — so the **Arnold Press shipped with the barbell
+  plate-loader** instead of a dumbbell picker. A new authoritative **`VAR_EQUIP_OVERRIDES`** table (keyed
+  by variation id) pins ~25 such movements to their real implement and is consulted first; the keyword
+  regexes also now accept **spaced names** (`trap bar`, `t bar`, `roc it`) and a bare **`Plate`** title
+  routes to the plate picker (Plate Front Raise, Plate Pinch, plate tibialis raises). User overrides
+  (`state.exerciseSetup`) still win over the table. The Arnold Press setup text was corrected ("clear the
+  bar/DB path"). Covered by `test/equipkind.spec.mjs` (Arnold→dumbbell incl. user-override precedence, the
+  named-movement table, bare-Plate routing, every override id exists + names a valid kind) and a reusable
+  **`tools/probe-equip.mjs`** audit that flags any variation whose loader contradicts its own text
+  (returns "0 flagged" — run it after editing content).
 - **French internationalization (feat 222):** the feat-61 i18n groundwork goes live. **Français** joins
   `LANGUAGES` (the drawer's Language picker was already wired to `setLang`), backed by an `I18N.fr` dictionary
   (~100 keys) covering the **UI chrome**: top-bar buttons + static tagged markup, all **page titles** via a new
