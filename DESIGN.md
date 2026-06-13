@@ -853,6 +853,19 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Program adherence tracking (feat 231):** closes the loop on the scheduled program by matching your
+  logged sessions back to it. `programWeekAdherence(weeksBack)` walks a Mon–Sun week and grades each
+  scheduled day **done** (a session logged that day on the scheduled plan) · **off-plan** (you trained, but
+  a different/no plan) · **missed** (a past scheduled day with nothing) · **today** · **upcoming**, with
+  this-week totals; `programAdherenceStreak()` counts consecutive scheduled sessions trained walking back
+  from yesterday; `programAdherenceTrend(4)` gives done/scheduled for the last four weeks. The program card
+  now leads with an adherence line ("This week **3/7** done · 2 missed · 🔥 2-session streak" + four
+  trailing-week dots), the **weekly agenda shows a ✓ / ✗ status per scheduled day** (missed days struck
+  through, done days greened), and once **today** is done the **Start** button is replaced by a "done ✓"
+  marker so you're not nudged to repeat it. Trailing weeks are retrospective (they assume the same schedule
+  applied) — a fair proxy for "are you training on your planned days". Covered by `test/adherence.spec.mjs`
+  (done vs missed vs off-plan, the streak with a gap, the trailing trend, the no-program guard, the card
+  summary + per-day icons, and Start→done once today is logged).
 - **Scheduled weekly program (feat 230):** the future-oriented layer over the split planner — turn a
   recommended split into a saved, day-by-day weekly **program** the app remembers and looks ahead with.
   **📅 Save as program** lays the recommended split onto sensible, recovery-spaced days

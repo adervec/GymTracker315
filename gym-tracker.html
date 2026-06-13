@@ -830,6 +830,21 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .pg-plan { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pg-day.rest .pg-plan { font-weight: 600; color: var(--text3); }
   .plan-pick-btn.pg-start { background: var(--accent); border-color: var(--accent); color: #0a0a0a; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
+  /* feat 231 — program adherence */
+  .pg-adh { font-size: 12px; color: var(--text2); font-weight: 600; margin-bottom: 11px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+  .pg-adh b { color: var(--text); font-weight: 800; }
+  .pg-missed-txt { color: var(--warn); font-weight: 700; }
+  .pg-trend { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; }
+  .pg-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bg4, #2a2a2a); border: 1px solid var(--border2); }
+  .pg-dot.part { background: #d8a83a; border-color: #d8a83a; }
+  .pg-dot.full { background: var(--good); border-color: var(--good); }
+  .pg-trend-lbl { font-size: 9.5px; color: var(--text3); font-weight: 700; margin-left: 3px; }
+  .pg-status { flex-shrink: 0; font-size: 13px; font-weight: 800; width: 18px; text-align: center; }
+  .pg-day.pg-done .pg-status, .pg-day.pg-done .pg-plan { color: var(--good); }
+  .pg-day.pg-off-plan .pg-status { color: #d8a83a; }
+  .pg-day.pg-missed .pg-status { color: var(--warn); }
+  .pg-day.pg-missed .pg-plan { color: var(--text3); text-decoration: line-through; opacity: 0.8; }
+  .pg-day.pg-upcoming .pg-status, .pg-day.pg-today .pg-status { color: var(--text3); }
   .plan-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .plan-row-main { flex: 1; min-width: 0; }
   .plan-row-name { font-size: 14px; font-weight: 600; color: var(--text); }
@@ -9519,6 +9534,66 @@ function cycleProgramDay(dow) {
   p.week[dow] = opts[(idx + 1) % opts.length];
   saveState();
 }
+/* ============================================================
+   feat 231 — PROGRAM ADHERENCE. Match logged sessions back to the scheduled program: what was hit, what was
+   missed, and the current streak. Trailing weeks assume the same schedule applied — a fair proxy for "are
+   you actually training on your planned days".
+   ============================================================ */
+function _weekMonday(weeksBack) {
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  const dow = d.getDay(); // 0=Sun … 6=Sat
+  d.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow) - 7 * (weeksBack || 0)); // back to this/that week's Monday
+  return d;
+}
+function _realSessionsOnDate(dateObj) {
+  const y = dateObj.getFullYear(), m = dateObj.getMonth(), day = dateObj.getDate();
+  return (state.sessions || []).filter(s => {
+    const sd = new Date(s.date);
+    return sd.getFullYear() === y && sd.getMonth() === m && sd.getDate() === day
+      && (s.exercises || []).some(e => e.cardio || (e.sets || []).length);
+  });
+}
+// Per scheduled day of a week (0 = this week, 1 = last week …): { dow, date, planId, status } + totals.
+// status: done (a session with the scheduled plan) · off-plan (trained, but a different/no plan) · missed
+// (a past scheduled day with nothing) · today · upcoming.
+function programWeekAdherence(weeksBack) {
+  const p = getProgram(); if (!p) return null;
+  const monday = _weekMonday(weeksBack), today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(monday); date.setDate(monday.getDate() + i);
+    const planId = p.week[date.getDay()]; if (!planId) continue;
+    const sess = _realSessionsOnDate(date);
+    let status;
+    if (sess.some(s => s.planId === planId)) status = 'done';
+    else if (sess.length) status = 'off-plan';
+    else if (date < today) status = 'missed';
+    else if (+date === +today) status = 'today';
+    else status = 'upcoming';
+    days.push({ dow: date.getDay(), date: date.toISOString().slice(0, 10), planId, status });
+  }
+  const done = days.filter(d => d.status === 'done' || d.status === 'off-plan').length;
+  const missed = days.filter(d => d.status === 'missed').length;
+  return { days, scheduled: days.length, done, missed, pending: days.length - done - missed };
+}
+// Consecutive scheduled sessions trained, walking back from yesterday (stops at the first missed).
+function programAdherenceStreak() {
+  const p = getProgram(); if (!p) return 0;
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  let streak = 0;
+  for (let i = 1; i <= 180; i++) {
+    const day = new Date(d); day.setDate(d.getDate() - i);
+    if (!p.week[day.getDay()]) continue;        // not a scheduled day → skip
+    if (_realSessionsOnDate(day).length) streak++; else break;
+  }
+  return streak;
+}
+// done/scheduled for each of the last n weeks (oldest → newest), for the mini trend dots.
+function programAdherenceTrend(n) {
+  const out = [];
+  for (let w = (n || 4) - 1; w >= 0; w--) { const a = programWeekAdherence(w); out.push(a ? { done: a.done, scheduled: a.scheduled } : { done: 0, scheduled: 0 }); }
+  return out;
+}
 // feat 229 — the Split Planner page (Prepare › Split Planner).
 function renderSplitPlannerPage(main) {
   if (!main) return;
@@ -9549,23 +9624,33 @@ function renderSplitPlannerPage(main) {
     </div>`;
   }).join('');
   const balClass = analysis.balance >= 80 ? 'good' : (analysis.balance >= 60 ? 'light' : 'under');
-  // feat 230 — the saved weekly program (future-oriented layer): agenda + today's session.
+  // feat 230 — the saved weekly program; feat 231 — adherence (what you've hit / missed this week + streak).
   const prog = getProgram(), todayDow = new Date().getDay(), todayEntry = programToday();
+  const adh = prog ? programWeekAdherence(0) : null, adhByDow = {};
+  if (adh) adh.days.forEach(x => { adhByDow[x.dow] = x.status; });
+  const PG_ICON = { done: '✓', 'off-plan': '✓', missed: '✗', today: '▸', upcoming: '·' };
   const agendaRows = DOW_ORDER.map(d => {
     const entry = programForDow(d), isToday = d === todayDow;
-    return `<button class="pg-day ${isToday ? 'today' : ''} ${entry ? '' : 'rest'}" data-pg-dow="${d}" title="Tap to change this day">
+    const st = entry ? (adhByDow[d] || (isToday ? 'today' : 'upcoming')) : null;
+    return `<button class="pg-day ${isToday ? 'today' : ''} ${entry ? '' : 'rest'}${st ? ' pg-' + st : ''}" data-pg-dow="${d}" title="Tap to change this day">
       <span class="pg-dow">${DOW_SHORT[d]}${isToday ? ' · today' : ''}</span>
       <span class="pg-plan">${entry ? escapeHtml(entry.plan.name) : '— rest —'}</span>
+      ${st ? `<span class="pg-status pg-${st}">${PG_ICON[st] || ''}</span>` : ''}
     </button>`;
   }).join('');
+  const streak = prog ? programAdherenceStreak() : 0;
+  const trend = prog ? programAdherenceTrend(4) : [];
+  const trendDots = trend.map(w => `<span class="pg-dot ${w.scheduled && w.done >= w.scheduled ? 'full' : (w.done ? 'part' : 'none')}" title="${w.done}/${w.scheduled} done"></span>`).join('');
+  const adhLine = adh ? `<div class="pg-adh">This week <b>${adh.done}/${adh.scheduled}</b> done${adh.missed ? ` · <span class="pg-missed-txt">${adh.missed} missed</span>` : ''}${streak ? ` · 🔥 ${streak}-session streak` : ''}<span class="pg-trend">${trendDots}<span class="pg-trend-lbl">4 wks</span></span></div>` : '';
   const programCard = prog ? `
     <div class="card" id="sp-program">
       <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>📅 Your weekly program</span><button class="sp-clear" id="pg-clear">Clear</button></div>
+      ${adhLine}
       ${todayEntry
-        ? `<div class="pg-today"><div><div class="pg-today-lbl">Today · ${DOW_SHORT[todayDow]}</div><div class="pg-today-name">${escapeHtml(todayEntry.plan.name)}</div></div><button class="sp-use" data-plan-use="${escapeAttr(todayEntry.planId)}">▶ Start</button></div>`
+        ? `<div class="pg-today"><div><div class="pg-today-lbl">Today · ${DOW_SHORT[todayDow]}${adhByDow[todayDow] === 'done' ? ' · done ✓' : ''}</div><div class="pg-today-name">${escapeHtml(todayEntry.plan.name)}</div></div>${adhByDow[todayDow] === 'done' ? '' : `<button class="sp-use" data-plan-use="${escapeAttr(todayEntry.planId)}">▶ Start</button>`}</div>`
         : `<div class="pg-today rest"><div class="pg-today-name">Rest day — nothing scheduled today.</div></div>`}
       <div class="pg-week">${agendaRows}</div>
-      <div class="sp-legend">Tap any day to reassign it (cycles through your split's sessions and rest). Today is highlighted.</div>
+      <div class="sp-legend">✓ done · ✗ missed · today highlighted. Tap any day to reassign it (cycles through your split's sessions and rest).</div>
     </div>` : '';
   main.innerHTML = `
     <div class="card">
@@ -16679,7 +16764,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 176 · 2026-06-13 04:47';
+const APP_BUILD = 'build 177 · 2026-06-13 05:01';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
