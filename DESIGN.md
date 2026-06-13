@@ -853,6 +853,20 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Auto-progression (feat 233):** closes the planning loop by connecting periodization's *intent* to your
+  *logged* numbers. A new **Reflect › 🚀 Progression** page reads each recently-trained lift's **most recent
+  top set** (`recentTopSet` — the heaviest set by e1RM of the latest session that trained it) and suggests
+  the next target via **double progression** (`suggestProgression`): climb a rep window keyed to where you
+  already train (`progRepRange`: ≤6 → 3–6 · ≤12 → 8–12 · else 12–20), and when you hit the top, **add the
+  smallest sensible load** for the implement (`progLoadStep` — a barbell's +5 lb/+2.5 kg, the next dumbbell/
+  kettlebell size, a pin's +10 lb/+5 kg) and reset to the bottom; mid-range just **adds a rep**. On a
+  **deload week** (periodization on) it instead suggests backing the load off ~10% — so the suggestion line
+  honors `mesoCurrentWeek()`. `progressionList(120d)` gathers every recently-trained lift (deduped, newest
+  first) and the page shows each as **current → next** with an ⬆ add-load / ➕ add-a-rep / ⬇ deload tag and a
+  one-line rationale. Strictly **suggestions** — nothing is written to your sets. Covered by
+  `test/progression.spec.mjs` (most-recent-session top set, add-load vs add-rep double progression, the
+  deload back-off, rep-range buckets + unit-aware load step, list dedup/recency, and the page's rows +
+  empty state).
 - **Periodization mesocycle (feat 232):** an optional multi-week block layered onto the split planner —
   volume **ramps base → peak then deloads**, repeating. `mesoWeekPlan(length)` lays out a 3–6 week cycle:
   the accumulation weeks scale linearly **1.0× → 1.3×** (Base → Build → Peak) with rising RPE cues, the last

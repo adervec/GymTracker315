@@ -862,6 +862,23 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .ms-cov-tag { font-size: 10px; font-weight: 800; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 6px; padding: 1px 6px; vertical-align: middle; }
   .ms-cov-tag.ms-deload { color: var(--good); }
   .ms-cov-tag.ms-peak { color: var(--danger); }
+  /* feat 233 — auto-progression */
+  .pr-list { display: flex; flex-direction: column; gap: 7px; }
+  .pr-row { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-left: 3px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
+  .pr-row.pr-load { border-left-color: var(--good); }
+  .pr-row.pr-reps { border-left-color: var(--accent); }
+  .pr-row.pr-deload { border-left-color: #d8a83a; }
+  .pr-main { flex: 1; min-width: 0; }
+  .pr-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pr-note { font-size: 10.5px; color: var(--text3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pr-nums { flex-shrink: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; }
+  .pr-cur { color: var(--text3); }
+  .pr-arrow { color: var(--text3); }
+  .pr-next { color: var(--text); font-weight: 800; }
+  .pr-tag { font-size: 9.5px; font-weight: 800; padding: 2px 6px; border-radius: 6px; background: var(--bg3); white-space: nowrap; }
+  .pr-tag.pr-load { color: var(--good); }
+  .pr-tag.pr-reps { color: var(--accent); }
+  .pr-tag.pr-deload { color: #d8a83a; }
   .plan-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .plan-row-main { flex: 1; min-width: 0; }
   .plan-row-name { font-size: 14px; font-weight: 600; color: var(--text); }
@@ -8422,7 +8439,7 @@ const PAGES = {
   // ever just a nav list. Browsing happens in the compact nav-tree popover; the breadcrumb shows where you are.
   home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'], primary:'workout' },
   train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'], primary:'workout' },
-  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','history','trends','volume','achievements','replay'], primary:'log' },
+  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','history','trends','volume','achievements','replay','progression'], primary:'log' },
   execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail'], primary:'workout' },
   prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator','split-planner'], primary:'gyms' },
   study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','glossary','anatomy','advice'], primary:'reference' },
@@ -8435,6 +8452,7 @@ const PAGES = {
   volume:      { title:'Volume',           emoji:'🧮', kind:'leaf', parent:'reflect', tab:'volume',   render:m=>renderVolume(m) },
   achievements:{ title:'Achievement Paths',emoji:'🏅', kind:'leaf', parent:'reflect', render:m=>{ m.innerHTML = renderAchievements(); } },
   replay:      { title:'Replay',           emoji:'⏪', kind:'leaf', parent:'reflect', render:m=>renderReplayPage(m) }, // feat 219
+  progression: { title:'Progression',      emoji:'🚀', kind:'leaf', parent:'reflect', render:m=>renderProgressionPage(m) }, // feat 233
   gyms:        { title:'Gyms',             emoji:'📍', kind:'leaf', parent:'prepare', tab:'gyms', render:m=>renderGymsTab(m) },
   body:        { title:'Body',             emoji:'🧍', kind:'leaf', parent:'prepare', tab:'body', render:m=>renderBody(m) },
   // leaves still served by their existing overlay/opener (converted to real pages in later phases)
@@ -9485,6 +9503,104 @@ function mesoCurrentWeek() {
   return { ...mesoWeekPlan(len)[idx], length: len, index: idx };
 }
 function mesoRestart() { mesoCfg().start = _weekMonday(0).toISOString().slice(0, 10); saveState(); }
+/* ============================================================
+   feat 233 — AUTO-PROGRESSION. Connect the periodization plan to your real logged numbers: from the most
+   recent top set of a lift, suggest the next target via double progression (climb a rep range, then add the
+   smallest sensible load and reset), backing off on a deload week. Pure helpers + a Reflect › Progression
+   page. Suggestions only — nothing is auto-written to your sets.
+   ============================================================ */
+function _progNums(arr) { return (Array.isArray(arr) ? arr : []).filter(x => typeof x === 'number' && x > 0).slice().sort((a, b) => a - b); }
+// The heaviest valid set (by e1RM) of the most recent session that trained this variation.
+function recentTopSet(varUuid) {
+  const sorted = (state.sessions || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  for (const s of sorted) {
+    let top = null;
+    (s.exercises || []).forEach(ex => {
+      if (ex.varUuid !== varUuid || ex.cardio) return;
+      (ex.sets || []).forEach(set => {
+        const w = parseFloat(set.w), r = parseInt(set.r, 10);
+        if (w > 0 && r > 0) { const e = estimated1RM(w, r); if (!top || e > top.e) top = { w, r, e }; }
+      });
+    });
+    if (top) return { w: top.w, r: top.r, date: s.date };
+  }
+  return null;
+}
+// A double-progression rep window keyed off where you're already training.
+function progRepRange(r) {
+  if (r <= 6) return { lo: 3, hi: 6 };       // strength
+  if (r <= 12) return { lo: 8, hi: 12 };     // hypertrophy
+  return { lo: 12, hi: 20 };                 // endurance / metabolite
+}
+// Smallest sensible load jump for the lift's implement.
+function progLoadStep(varUuid, w) {
+  const unit = state.unit, kind = (typeof setupKindFor === 'function') ? setupKindFor(varUuid) : null;
+  try {
+    if (kind === 'dumbbell' || kind === 'kettlebell') {
+      const list = _progNums(kind === 'dumbbell' ? dumbbellWeights() : kettlebellWeights());
+      const next = list.find(x => x > w + 0.01);
+      if (next) return Math.round((next - w) * 10) / 10;
+    }
+  } catch (_) {}
+  if (kind === 'pin') return unit === 'kg' ? 5 : 10;
+  return unit === 'kg' ? 2.5 : 5;            // barbell / plate / default — one small jump
+}
+function progRound(varUuid, w) {
+  const kind = (typeof setupKindFor === 'function') ? setupKindFor(varUuid) : null;
+  try {
+    if (kind === 'dumbbell' || kind === 'kettlebell') { const list = _progNums(kind === 'dumbbell' ? dumbbellWeights() : kettlebellWeights()); if (list.length) return nearestInList(w, list); }
+  } catch (_) {}
+  const inc = state.unit === 'kg' ? 2.5 : 5;
+  return Math.round(w / inc) * inc;
+}
+// The next target for a lift: { current{w,r}, next{w,r}, action, note } — or null with no history.
+function suggestProgression(varUuid) {
+  const top = recentTopSet(varUuid); if (!top) return null;
+  const { lo, hi } = progRepRange(top.r), meso = (typeof mesoCurrentWeek === 'function') ? mesoCurrentWeek() : null;
+  if (meso && meso.phase === 'Deload') {
+    return { current: top, next: { w: progRound(varUuid, Math.round(top.w * 0.9)), r: lo }, action: 'deload', note: `Deload week — back off ~10% and keep it crisp` };
+  }
+  if (top.r >= hi) {
+    const step = progLoadStep(varUuid, top.w);
+    return { current: top, next: { w: Math.round((top.w + step) * 10) / 10, r: lo }, action: 'add-load', note: `Hit ${hi} reps — add load, reset to ${lo}` };
+  }
+  return { current: top, next: { w: top.w, r: top.r + 1 }, action: 'add-reps', note: `Add a rep — build to ${hi}, then add load` };
+}
+// Every recently-trained variation (last 120 days) with a progression suggestion, newest-trained first.
+function progressionList(maxDays) {
+  const cutoff = Date.now() - (maxDays || 120) * 86400000, seen = {}, out = [];
+  (state.sessions || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(s => {
+    if (new Date(s.date).getTime() < cutoff) return;
+    (s.exercises || []).forEach(ex => {
+      if (ex.cardio || !ex.varUuid || seen[ex.varUuid]) return;
+      if (!(ex.sets || []).some(set => parseFloat(set.w) > 0 && parseInt(set.r, 10) > 0)) return;
+      seen[ex.varUuid] = true;
+      const sug = suggestProgression(ex.varUuid);
+      if (sug) out.push({ varUuid: ex.varUuid, ...sug });
+    });
+  });
+  return out;
+}
+const PROG_ACTION = { 'add-load': { cls: 'load', icon: '⬆', label: 'add load' }, 'add-reps': { cls: 'reps', icon: '➕', label: 'add a rep' }, deload: { cls: 'deload', icon: '⬇', label: 'deload' }, hold: { cls: 'hold', icon: '＝', label: 'hold' } };
+function renderProgressionPage(main) {
+  if (!main) return;
+  const list = progressionList(120), meso = (typeof mesoCurrentWeek === 'function') ? mesoCurrentWeek() : null, unit = state.unit;
+  const rows = list.map(p => {
+    const vi = VAR_INDEX.get(p.varUuid), name = vi ? vi.variation.title : (p.varUuid || 'Unknown');
+    const a = PROG_ACTION[p.action] || PROG_ACTION.hold;
+    return `<div class="pr-row pr-${a.cls}">
+      <div class="pr-main"><div class="pr-name">${escapeHtml(name)}</div><div class="pr-note">${escapeHtml(p.note)}</div></div>
+      <div class="pr-nums"><span class="pr-cur">${p.current.w}×${p.current.r}</span><span class="pr-arrow">→</span><span class="pr-next">${p.next.w}×${p.next.r}</span><span class="pr-tag pr-${a.cls}">${a.icon} ${a.label}</span></div>
+    </div>`;
+  }).join('');
+  main.innerHTML = `
+    <div class="card">
+      <div class="card-title">🚀 Progression</div>
+      <div class="sp-intro">Your next-session targets, built from your most recent top set via double progression — climb the rep range, then add the smallest sensible load and reset.${meso ? ` Adjusted for your <b>${escapeHtml(meso.phase)}</b> week.` : ''} Suggestions only — nothing is written to your sets.</div>
+      ${list.length ? `<div class="pr-list">${rows}</div>` : `<div class="empty"><div class="empty-large">🚀</div>Log a few weighted sets and your next-load suggestions will appear here.</div>`}
+      ${list.length ? `<div class="sp-legend">Weights in ${escapeHtml(unit)}. ⬆ add load (hit the top of the range) · ➕ add a rep · ⬇ deload week.${meso ? '' : ' Turn on Periodization in the Split Planner to factor in deload weeks.'}</div>` : ''}
+    </div>`;
+}
 // Slot templates by sessions/week — the classic, balanced layouts.
 const SPLIT_TEMPLATES = {
   2: ['Full Body', 'Full Body'],
@@ -16835,7 +16951,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 178 · 2026-06-13 08:07';
+const APP_BUILD = 'build 179 · 2026-06-13 08:21';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
