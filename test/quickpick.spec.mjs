@@ -74,7 +74,7 @@ test('the Quick Pick block renders with time chips and the top-3 recommendation 
     };
   });
   expect(r.present).toBe(true);
-  expect(r.times).toEqual([15, 30, 45, 60, 90, 120]);
+  expect(r.times).toEqual([15, 30, 45, 60, 90, 120, 150, 180]); // feat 240 — up to 3h
   expect(r.activeTime).toBe('30');          // reflects state.planPickMinutes
   expect(r.recs).toBe(3);
   expect(r.firstUse).toBe('legs');
@@ -97,6 +97,35 @@ test('clicking a time chip updates + persists the budget and re-recommends', asy
   expect(r.persisted).toBe(120);            // travels with settings
   expect(r.active).toBe('120');
   expect(r.topEst).toBeGreaterThan(40);     // a 2-hour budget now welcomes the longer plan
+});
+
+test('feat 240 — a 3h (180m) budget chip is offered, selectable, and lets a long plan fit', async ({ page }) => {
+  await seed(page);
+  const r = await page.evaluate(() => {
+    openPlansOverlay();
+    const has180 = !!document.querySelector('#quick-pick [data-pick-min="180"]');
+    document.querySelector('#quick-pick [data-pick-min="180"]').click();
+    const ids30 = recommendPlans(30, 3).map(x => x.plan.id);
+    const recs180 = recommendPlans(180, 3), ids180 = recs180.map(x => x.plan.id);
+    const mara = recs180.find(x => x.plan.id === 'marathon');
+    return {
+      has180,
+      min: state.planPickMinutes,
+      active: document.querySelector('#quick-pick .qp-time.active')?.dataset.pickMin,
+      maraIdx30: ids30.indexOf('marathon'),
+      maraIdx180: ids180.indexOf('marathon'),
+      maraAheadOfPush: ids180.indexOf('marathon') < ids180.indexOf('push'),
+      maraReason: mara ? mara.reason : '',
+    };
+  });
+  expect(r.has180).toBe(true);
+  expect(r.min).toBe(180);
+  expect(r.active).toBe('180');
+  expect(r.maraIdx30).toBe(2);                     // the ≈90-min marathon ranked last on a half-hour
+  expect(r.maraIdx180).toBeLessThan(r.maraIdx30);  // …and climbs once there's 3h for it
+  expect(r.maraAheadOfPush).toBe(true);            // now ahead of the freshly-hammered push day
+  expect(r.maraReason).toContain('fits');          // ≈90 min comfortably fits the 3h budget
+  expect(r.maraReason).toContain('180');
 });
 
 test('a recommended Use button starts/attaches that plan to the workout', async ({ page }) => {

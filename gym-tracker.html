@@ -978,6 +978,12 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-cat-tag { color: var(--accent); font-weight: 700; }
   .plan-list-empty { font-size: 12.5px; color: var(--text3); padding: 18px 0; text-align: center; }
   .plan-clear-filters { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 7px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; margin-left: 4px; }
+  /* feat 240 — plan-list pager */
+  .plan-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; }
+  .plan-page-btn { background: var(--bg3); border: 1px solid var(--border2); color: var(--text); border-radius: 8px; padding: 6px 13px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .plan-page-btn:disabled { opacity: 0.4; cursor: default; }
+  .plan-page-btn:not(:disabled):hover { border-color: var(--accent-border); color: var(--accent); }
+  .plan-page-ind { font-size: 11px; font-weight: 700; color: var(--text3); white-space: nowrap; }
   .plan-new-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; } /* feat 155 */
   .plan-new-row .drawer-btn { flex: 1; min-width: 130px; }
   .plan-edit-step { background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; padding: 9px 10px; margin-bottom: 8px; }
@@ -9684,7 +9690,7 @@ function planLengthBucket(plan) { const m = estimatePlanMinutes(plan); return m 
    plans that hit muscle groups you HAVEN'T hammered in the last few days (recovery-aware variety). Pure
    functions over state.plans + state.sessions so they're unit-testable.
    ============================================================ */
-const PLAN_PICK_TIMES = [15, 30, 45, 60, 90, 120]; // the minute chips
+const PLAN_PICK_TIMES = [15, 30, 45, 60, 90, 120, 150, 180]; // the minute chips (feat 240 — up to 3h)
 function planPickMinutes() { const m = state && state.planPickMinutes; return (m >= 5 && m <= 240) ? m : 45; }
 // Per-mega LOGGED-set load over the last `days` days of sessions (cardio excluded). Mirrors sessionSplitLabel's
 // mega bucketing so "recent activity" lines up with how a session is labelled.
@@ -10247,6 +10253,7 @@ let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Exec
 let _plansRevView = false; // feat 162 — when editing a plan, show its revision history instead of the form
 let _plansSearch = '', _plansCatFilter = 'all', _plansLenFilter = 'all'; // feat 147 — plan picker search + filters
 let _plansFavOnly = false; // feat 178 — show only favorited plans
+let _plansPage = 0; // feat 240 — paginate the (filtered) plan list
 let _plansDeepLink = false; // feat 184 — openPlanFull sets this so the page render opens straight to the editor
 // feat 184 — the Plan Creator is a router page rendered into #trk-main (the #plans-panel overlay is retired).
 // openPlansOverlay opens the list; openPlanFull deep-links to one plan's editor. Both navTo the page; in-page
@@ -10256,7 +10263,7 @@ function renderPlanCreatorPage(main) {
   _plansDeepLink = false;
   renderPlansOverlay();
 }
-function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansDeepLink = false; navTo('plan-creator'); }
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; _plansDeepLink = false; navTo('plan-creator'); }
 function openPlanPicker() { openPlansOverlay(); }
 function openPlanFull(id) { // feat 138/184 — open the plan editor as a page, focused on one plan's steps
   _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansDeepLink = true; navTo('plan-creator');
@@ -10349,11 +10356,24 @@ function renderPlansList(body) {
   const catChip = (val, label, n) => `<button class="plan-chip ${_plansCatFilter===val?'active':''}" data-plan-cat="${escapeAttr(val)}">${escapeHtml(label)}${n!=null?` <span class="plan-chip-n">${n}</span>`:''}</button>`;
   const lenChip = (val, label) => `<button class="plan-chip ${_plansLenFilter===val?'active':''}" data-plan-len="${val}">${label}</button>`;
   const favN = favPlanCount(); // feat 178
+  // feat 240 — paginate the (filtered) list so a big plan library stays scannable. Page over the
+  // category-rank-ordered, favourites-first flat list; re-emit a category head whenever it changes on a page.
+  const PLANS_PER_PAGE = 12;
+  const ordered = groupCats.flatMap(c => groups[c]);
+  const pageCount = Math.max(1, Math.ceil(ordered.length / PLANS_PER_PAGE));
+  if (_plansPage >= pageCount) _plansPage = pageCount - 1;
+  if (_plansPage < 0) _plansPage = 0;
+  const pageItems = ordered.slice(_plansPage * PLANS_PER_PAGE, _plansPage * PLANS_PER_PAGE + PLANS_PER_PAGE);
+  let pageRows = '', _lastCat = null;
+  pageItems.forEach(p => { const c = planCategory(p); if (c !== _lastCat) { pageRows += `<div class="plan-cat-head">${escapeHtml(c)} <span class="plan-cat-count">${groups[c].length}</span></div>`; _lastCat = c; } pageRows += _planRowHtml(p); });
+  const pagerHtml = pageCount > 1
+    ? `<div class="plan-pager"><button class="plan-page-btn" data-plan-page="prev" ${_plansPage === 0 ? 'disabled' : ''}>‹ Prev</button><span class="plan-page-ind">Page ${_plansPage + 1} / ${pageCount} · ${ordered.length} plans</span><button class="plan-page-btn" data-plan-page="next" ${_plansPage >= pageCount - 1 ? 'disabled' : ''}>Next ›</button></div>`
+    : '';
   const listHtml = plans.length === 0
     ? '<div class="plan-list-intro">No plans yet — tap “＋ New plan”.</div>'
     : (filtered.length === 0
       ? '<div class="plan-list-empty">No plans match. <button class="plan-clear-filters" id="plan-clear-filters">Clear filters</button></div>'
-      : groupCats.map(c => `<div class="plan-cat-head">${escapeHtml(c)} <span class="plan-cat-count">${groups[c].length}</span></div>${groups[c].map(_planRowHtml).join('')}`).join(''));
+      : `${pagerHtml}${pageRows}${pagerHtml}`);
   // feat 226 — Quick Pick only on the unfiltered landing view (hidden once you search/filter/favourite-only).
   const showQuickPick = plans.length > 0 && !q && _plansCatFilter === 'all' && _plansLenFilter === 'all' && !_plansFavOnly;
   body.innerHTML = `${showQuickPick ? quickPickHtml() : ''}<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
@@ -10367,13 +10387,14 @@ function renderPlansList(body) {
 }
 function bindPlansList(body) {
   const search = body.querySelector('#plans-search');
-  if (search) search.addEventListener('input', () => { _plansSearch = search.value; const pos = search.selectionStart; renderPlansOverlay(); const s2 = document.getElementById('plans-search'); if (s2) { s2.focus(); try { s2.setSelectionRange(pos, pos); } catch (_) {} } });
+  if (search) search.addEventListener('input', () => { _plansSearch = search.value; _plansPage = 0; const pos = search.selectionStart; renderPlansOverlay(); const s2 = document.getElementById('plans-search'); if (s2) { s2.focus(); try { s2.setSelectionRange(pos, pos); } catch (_) {} } });
   body.querySelectorAll('[data-pick-min]').forEach(b => b.addEventListener('click', () => { state.planPickMinutes = +b.dataset.pickMin; saveState(); renderPlansOverlay(); })); // feat 226 — quick-pick time budget
-  body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { _plansCatFilter = b.dataset.planCat; renderPlansOverlay(); }));
-  body.querySelectorAll('[data-plan-len]').forEach(b => b.addEventListener('click', () => { _plansLenFilter = b.dataset.planLen; renderPlansOverlay(); }));
-  body.querySelector('[data-plan-fav]')?.addEventListener('click', () => { _plansFavOnly = !_plansFavOnly; renderPlansOverlay(); }); // feat 178
+  body.querySelectorAll('[data-plan-page]').forEach(b => b.addEventListener('click', () => { _plansPage += (b.dataset.planPage === 'next' ? 1 : -1); renderPlansOverlay(); })); // feat 240 — paginate (render re-clamps)
+  body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { _plansCatFilter = b.dataset.planCat; _plansPage = 0; renderPlansOverlay(); }));
+  body.querySelectorAll('[data-plan-len]').forEach(b => b.addEventListener('click', () => { _plansLenFilter = b.dataset.planLen; _plansPage = 0; renderPlansOverlay(); }));
+  body.querySelector('[data-plan-fav]')?.addEventListener('click', () => { _plansFavOnly = !_plansFavOnly; _plansPage = 0; renderPlansOverlay(); }); // feat 178
   body.querySelectorAll('[data-fav-plan]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); toggleFavPlan(b.dataset.favPlan); renderPlansOverlay(); })); // feat 178
-  body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; renderPlansOverlay(); });
+  body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; renderPlansOverlay(); });
   body.querySelectorAll('[data-plan-media]').forEach(b => b.addEventListener('click', () => openPlanMedia(b.dataset.planMedia)));
   body.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
   body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; renderPlansOverlay(); }));
@@ -17307,7 +17328,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 186 · 2026-06-13 14:48';
+const APP_BUILD = 'build 187 · 2026-06-13 15:33';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

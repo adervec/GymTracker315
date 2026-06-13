@@ -853,6 +853,16 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Plan picker — 3h Quick Pick budget + paginated list (feat 240):** two refinements to the plan picker.
+  `PLAN_PICK_TIMES` gains **150** and **180** chips, so Quick Pick now spans **15 min → 3 h** (the budget cap
+  was already 240, and the recommender's time-fit scoring + reason text handle the longer budgets unchanged —
+  a ≈90-min plan that sank on a half-hour now "fits your 180"). The plan **list paginates at 12/page**
+  (`_plansPage`): it pages over the category-rank-ordered, favourites-first flat list and re-emits a category
+  head whenever it changes on a page, with a **‹ Prev / Page X / Y · N plans / Next ›** pager top and bottom
+  (disabled at the ends). Any search/category/length/favourite change resets to page 1. Covered by
+  `test/quickpick.spec.mjs` (the 180 chip is offered, selectable, and lifts a long plan's rank) and
+  `test/planlist.spec.mjs` (12/page, prev/next + end-disabling, filter-resets-page); the favourites test now
+  reads the on-star from the favourites-only view since a deep favourite may sit past page 1.
 - **Media Gallery page (feat 239):** a dedicated **Study › 🎞️ Media Gallery** page that shows *every* reference
   clip — movement demos and variation links alike — in one searchable, filterable, scrollable grid, reachable
   from the **Reference** header (a 🎞️ button) and the **bulk wizard** toolbar (🎞️ Gallery), plus the breadcrumb
