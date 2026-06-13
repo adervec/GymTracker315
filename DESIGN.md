@@ -853,6 +853,22 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Split Planner (feat 229):** an optional **Prepare › 🗓️ Split Planner** page that answers "given X
+  sessions across Y days with Z hours each, what split should I run — and how well does it cover me?" Two
+  halves: a **recommender** and an **over/under analysis**. `buildRecommendedSplit({sessions, minutes})`
+  lays out a slot template by session count (2 → Full Body ×2, 3 → PPL, 4 → Upper/Lower ×2, 5 → PPL+UL,
+  6 → PPL ×2) and fills each slot with the plan that best **covers that slot's muscle groups** (`slotCoverage`
+  = breadth over `SLOT_GROUPS`, ≥2 sets per group — so a proper rowing day wins the Pull slot, not a tiny
+  Arm Day, and a tidy 60-min Upper day beats a 3-hour marathon) **and fits the clock** (`planTimeScore`),
+  avoiding repeats. `splitAnalysis()` then rolls the chosen plans' per-muscle volume (`planMuscleAcc` →
+  `splitGroupVolume`) up to groups and compares each to its weekly **MEV–MAV–MRV** band (`GROUP_TARGETS`,
+  summed from the muscle model), classifying **under / light / on-target / over** and an overall **balance
+  score** (how far off-base, 0–100) with under/over counts — so 3 sessions/week honestly reads as many
+  groups under MEV while 5 climbs toward balanced. The page renders session/day/hour input chips
+  (`state.splitPlan`, in `SETTINGS_KEYS`), the recommended day-by-day split (each with a **Use** button via
+  `planUseForWorkout`), and a coverage bar per group (your sets vs the green MEV–MRV window). Covered by
+  `test/splitplanner.spec.mjs` (target bands, plan→group loading + over/under flags, slot template + per-slot
+  coverage, more-sessions→better-balance, the rendered page + chip persistence, Use attaches the plan).
 - **Anatomy heatmap resolution actually splits the ovals (feat 228):** the wireframe heatmap painted the
   same fixed ~24 region ovals at every resolution — switching group → muscle → heads only recoloured them,
   never adding detail. Now `heatValuesFromAcc()` computes each region's **sub-components** for the chosen
