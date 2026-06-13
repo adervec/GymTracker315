@@ -853,6 +853,20 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Scheduled weekly program (feat 230):** the future-oriented layer over the split planner — turn a
+  recommended split into a saved, day-by-day weekly **program** the app remembers and looks ahead with.
+  **📅 Save as program** lays the recommended split onto sensible, recovery-spaced days
+  (`PROGRAM_DOW_PICKS`: 3 → Mon/Wed/Fri, 4 → Mon/Tue/Thu/Fri, …) as `state.program` ({sessions, minutes,
+  pool, week[7]} keyed by JS day-of-week). The planner then shows a **Monday-first weekly agenda** (each day
+  its plan or a rest day, today highlighted), a **Today** banner with a **▶ Start** button, and lets you
+  **tap any day to reassign it** (`cycleProgramDay` rotates Rest → each pool plan → Rest); **↻ Reschedule**
+  re-lays the split, **Clear** drops it. `programToday()` / `programForDow(dow)` / `programNextUp()` resolve
+  the planned session for a day or the next one within the coming week. The **dashboard plan bar** now
+  surfaces the day's scheduled session — when a program has today planned and there's no active plan, a
+  **📅 Today: <plan>** Start button sits next to "Use a plan" so the program is actionable right where you
+  begin a workout. `state.program` travels with settings (`SETTINGS_KEYS`), validated/dropped if malformed.
+  Covered by `test/program.spec.mjs` (day placement + distinct pool, dow resolution, day-cycling, next-up,
+  the planner save/agenda/clear, day reassignment, and the dashboard Start hook attaching the plan).
 - **Split Planner (feat 229):** an optional **Prepare › 🗓️ Split Planner** page that answers "given X
   sessions across Y days with Z hours each, what split should I run — and how well does it cover me?" Two
   halves: a **recommender** and an **over/under analysis**. `buildRecommendedSplit({sessions, minutes})`

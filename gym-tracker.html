@@ -814,6 +814,22 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .sp-bar-mark.sp-optimal { background: var(--good); }
   .sp-over, .sp-bar-mark.sp-over, .sp-bal-score.sp-over { color: var(--danger); }
   .sp-bar-mark.sp-over { background: var(--danger); }
+  /* feat 230 — scheduled weekly program */
+  .sp-save { font-size: 11.5px; font-weight: 700; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 5px 11px; border-radius: 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .sp-clear { font-size: 11px; font-weight: 700; background: var(--bg3); border: 1px solid var(--border2); color: var(--text3); padding: 4px 10px; border-radius: 7px; cursor: pointer; font-family: inherit; }
+  .pg-today { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: linear-gradient(135deg, var(--accent-bg), var(--bg2)); border: 1px solid var(--accent-border); border-radius: 10px; padding: 10px 12px; margin-bottom: 11px; }
+  .pg-today.rest { background: var(--bg3); border-color: var(--border2); }
+  .pg-today-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); font-weight: 800; }
+  .pg-today-name { font-size: 14px; font-weight: 800; color: var(--text); }
+  .pg-week { display: flex; flex-direction: column; gap: 5px; }
+  .pg-day { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: var(--bg2); border: 1px solid var(--border2); border-radius: 9px; padding: 8px 11px; color: var(--text); font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .pg-day.rest { opacity: 0.62; }
+  .pg-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-border) inset; }
+  .pg-dow { flex-shrink: 0; width: 72px; font-size: 11px; font-weight: 800; color: var(--text3); }
+  .pg-day.today .pg-dow { color: var(--accent); }
+  .pg-plan { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pg-day.rest .pg-plan { font-weight: 600; color: var(--text3); }
+  .plan-pick-btn.pg-start { background: var(--accent); border-color: var(--accent); color: #0a0a0a; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
   .plan-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .plan-row-main { flex: 1; min-width: 0; }
   .plan-row-name { font-size: 14px; font-weight: 600; color: var(--text); }
@@ -3394,7 +3410,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -3633,6 +3649,7 @@ function normalizeState() {
   state.splitPlan.sessions = Math.max(2, Math.min(6, state.splitPlan.sessions | 0 || 3));
   state.splitPlan.days = Math.max(state.splitPlan.sessions, Math.min(7, state.splitPlan.days | 0 || 7));
   if (!(state.splitPlan.minutes >= 15 && state.splitPlan.minutes <= 240)) state.splitPlan.minutes = 60;
+  if (state.program && (!Array.isArray(state.program.week) || state.program.week.length !== 7 || !Array.isArray(state.program.pool))) state.program = null; // feat 230 — drop a malformed program
   if (!state.avatar.hair) state.avatar.hair = 'none';
   if (!state.hiddenCategories || typeof state.hiddenCategories !== 'object') state.hiddenCategories = {};
   if (!state.exerciseNotes || typeof state.exerciseNotes !== 'object') state.exerciseNotes = {}; // feat 54 — per-exercise custom notes
@@ -9452,6 +9469,56 @@ function buildRecommendedSplit(opts) {
 }
 const SPLIT_STATUS_LABEL = { under: 'under', light: 'light', optimal: 'on target', over: 'over' };
 function splitPlanCfg() { return state.splitPlan || (state.splitPlan = { sessions: 3, days: 7, minutes: 60 }); }
+/* ============================================================
+   feat 230 — SCHEDULED WEEKLY PROGRAM. The future-oriented layer over the split planner: save a recommended
+   split as a day-by-day weekly program (state.program), then the app knows what's planned for each day —
+   "today's session" surfaces with a Start button on the planner and the dashboard. Pure helpers + a JS
+   day-of-week (0=Sun … 6=Sat) week array.
+   ============================================================ */
+const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0]; // display Monday-first (a training week)
+// Sensible default day placements (JS DOW) per session count — spaced for recovery.
+const PROGRAM_DOW_PICKS = { 2: [1, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 5, 6], 6: [1, 2, 3, 4, 5, 6] };
+function getProgram() { return state.program || null; }
+function buildProgramFromSplit(split, sessions, minutes) {
+  const picks = PROGRAM_DOW_PICKS[Math.max(2, Math.min(6, sessions | 0 || 3))] || PROGRAM_DOW_PICKS[3];
+  const week = [null, null, null, null, null, null, null], pool = [];
+  (split || []).forEach((s, i) => {
+    if (!s || !s.plan || picks[i] == null) return;
+    week[picks[i]] = s.plan.id;
+    if (!pool.includes(s.plan.id)) pool.push(s.plan.id);
+  });
+  return { name: sessions + '-day split', createdAt: new Date().toISOString(), sessions, minutes, pool, week };
+}
+function saveProgramFromSplit() {
+  const cfg = splitPlanCfg();
+  const split = buildRecommendedSplit({ sessions: cfg.sessions, minutes: cfg.minutes });
+  state.program = buildProgramFromSplit(split, cfg.sessions, cfg.minutes);
+  saveState();
+}
+function clearProgram() { state.program = null; saveState(); }
+// The planned session for a given JS day-of-week (or null = rest / no program).
+function programForDow(dow) {
+  const p = getProgram(); if (!p || !p.week) return null;
+  const id = p.week[dow]; if (!id) return null;
+  const plan = getPlan(id); return plan ? { dow, planId: id, plan } : null;
+}
+function programToday() { return programForDow(new Date().getDay()); }
+// The next planned session within the coming 7 days (today first), for the "up next" surfacing.
+function programNextUp() {
+  if (!getProgram()) return null;
+  const today = new Date().getDay();
+  for (let i = 0; i < 7; i++) { const e = programForDow((today + i) % 7); if (e) return { ...e, inDays: i }; }
+  return null;
+}
+// Tap a day to cycle Rest → each distinct program plan → Rest.
+function cycleProgramDay(dow) {
+  const p = getProgram(); if (!p) return;
+  const opts = [null].concat(p.pool || []);
+  let idx = opts.indexOf(p.week[dow] || null); if (idx < 0) idx = 0;
+  p.week[dow] = opts[(idx + 1) % opts.length];
+  saveState();
+}
 // feat 229 — the Split Planner page (Prepare › Split Planner).
 function renderSplitPlannerPage(main) {
   if (!main) return;
@@ -9482,6 +9549,24 @@ function renderSplitPlannerPage(main) {
     </div>`;
   }).join('');
   const balClass = analysis.balance >= 80 ? 'good' : (analysis.balance >= 60 ? 'light' : 'under');
+  // feat 230 — the saved weekly program (future-oriented layer): agenda + today's session.
+  const prog = getProgram(), todayDow = new Date().getDay(), todayEntry = programToday();
+  const agendaRows = DOW_ORDER.map(d => {
+    const entry = programForDow(d), isToday = d === todayDow;
+    return `<button class="pg-day ${isToday ? 'today' : ''} ${entry ? '' : 'rest'}" data-pg-dow="${d}" title="Tap to change this day">
+      <span class="pg-dow">${DOW_SHORT[d]}${isToday ? ' · today' : ''}</span>
+      <span class="pg-plan">${entry ? escapeHtml(entry.plan.name) : '— rest —'}</span>
+    </button>`;
+  }).join('');
+  const programCard = prog ? `
+    <div class="card" id="sp-program">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>📅 Your weekly program</span><button class="sp-clear" id="pg-clear">Clear</button></div>
+      ${todayEntry
+        ? `<div class="pg-today"><div><div class="pg-today-lbl">Today · ${DOW_SHORT[todayDow]}</div><div class="pg-today-name">${escapeHtml(todayEntry.plan.name)}</div></div><button class="sp-use" data-plan-use="${escapeAttr(todayEntry.planId)}">▶ Start</button></div>`
+        : `<div class="pg-today rest"><div class="pg-today-name">Rest day — nothing scheduled today.</div></div>`}
+      <div class="pg-week">${agendaRows}</div>
+      <div class="sp-legend">Tap any day to reassign it (cycles through your split's sessions and rest). Today is highlighted.</div>
+    </div>` : '';
   main.innerHTML = `
     <div class="card">
       <div class="card-title">🗓️ Split Planner</div>
@@ -9492,9 +9577,10 @@ function renderSplitPlannerPage(main) {
       ${doubles ? `<div class="sp-note">⚠️ ${cfg.sessions} sessions across ${cfg.days} days means some days double up — make sure you can recover.</div>` : ''}
     </div>
     <div class="card">
-      <div class="card-title">Recommended split</div>
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>Recommended split</span><button class="sp-save" id="pg-save">${prog ? '↻ Reschedule' : '📅 Save as program'}</button></div>
       <div class="sp-days">${splitRows}</div>
     </div>
+    ${programCard}
     <div class="card">
       <div class="card-title">Coverage vs targets</div>
       <div class="sp-balance">Balance <span class="sp-bal-score sp-${balClass}">${analysis.balance}%</span>${analysis.under ? ` · <span class="sp-under">${analysis.under} under</span>` : ''}${analysis.over ? ` · <span class="sp-over">${analysis.over} over</span>` : ''}${!analysis.under && !analysis.over ? ' · well balanced 💪' : ''}</div>
@@ -9504,6 +9590,9 @@ function renderSplitPlannerPage(main) {
   main.querySelectorAll('[data-sp-sessions]').forEach(b => b.addEventListener('click', () => { cfg.sessions = +b.dataset.spSessions; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; saveState(); renderSplitPlannerPage(main); }));
   main.querySelectorAll('[data-sp-days]').forEach(b => b.addEventListener('click', () => { cfg.days = +b.dataset.spDays; saveState(); renderSplitPlannerPage(main); }));
   main.querySelectorAll('[data-sp-min]').forEach(b => b.addEventListener('click', () => { cfg.minutes = +b.dataset.spMin; saveState(); renderSplitPlannerPage(main); }));
+  main.querySelector('#pg-save')?.addEventListener('click', () => { saveProgramFromSplit(); renderSplitPlannerPage(main); }); // feat 230
+  main.querySelector('#pg-clear')?.addEventListener('click', () => { clearProgram(); renderSplitPlannerPage(main); });
+  main.querySelectorAll('[data-pg-dow]').forEach(b => b.addEventListener('click', () => { cycleProgramDay(+b.dataset.pgDow); renderSplitPlannerPage(main); }));
   main.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
 }
 function planCatRank(c) { const i = PLAN_CAT_ORDER.indexOf(c); return i < 0 ? PLAN_CAT_ORDER.length : i; }
@@ -9944,7 +10033,9 @@ function renderOptionPicker(body, plan) {
 function renderPlanGuide(session) {
   const plan = getActivePlan();
   if (!plan) {
-    return `<div class="plan-bar"><span class="plan-bar-none">No plan · auto suggestions on</span><button class="plan-pick-btn" id="plan-pick-btn">📋 Use a plan</button></div>`;
+    const todayEntry = (typeof programToday === 'function') ? programToday() : null; // feat 230 — today's planned session
+    const todayBtn = todayEntry ? `<button class="plan-pick-btn pg-start" id="plan-today-btn" data-today-plan="${escapeAttr(todayEntry.planId)}" title="Start today's planned session">📅 Today: ${escapeHtml(todayEntry.plan.name)}</button>` : '';
+    return `<div class="plan-bar"><span class="plan-bar-none">${todayEntry ? 'Program · today is scheduled' : 'No plan · auto suggestions on'}</span>${todayBtn}<button class="plan-pick-btn" id="plan-pick-btn">📋 Use a plan</button></div>`;
   }
   const eta = computePlanETA(session, plan);
   const curIdx = currentPlanStepIndex(session, plan);
@@ -10350,6 +10441,7 @@ function renderLog(main) {
   main.querySelector('#plan-progress-open')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanFull(p.id); }); // feat 138 — tap the progress line → full plan
   main.querySelector('#plan-progress-open')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
   main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
+  main.querySelector('#plan-today-btn')?.addEventListener('click', e => planUseForWorkout(e.currentTarget.dataset.todayPlan)); // feat 230 — start today's scheduled session
   _bindLiveHeatmapCard(main); // feat 218
   main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
   main.querySelector('#plan-exec-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); }); // feat 145 — detailed execution view
@@ -16587,7 +16679,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 175 · 2026-06-13 01:12';
+const APP_BUILD = 'build 176 · 2026-06-13 04:47';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
