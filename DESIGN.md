@@ -853,6 +853,21 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Media Gallery page (feat 239):** a dedicated **Study › 🎞️ Media Gallery** page that shows *every* reference
+  clip — movement demos and variation links alike — in one searchable, filterable, scrollable grid, reachable
+  from the **Reference** header (a 🎞️ button) and the **bulk wizard** toolbar (🎞️ Gallery), plus the breadcrumb
+  nav-tree. `allMediaClips()` flattens `state.exerciseMedia` into `{ key, idx, m, owner, watchedAt, creator }`
+  records (`mediaOwnerInfo(key)` resolves a variation uuid or a movement/family id to a label + kind);
+  `mediaGalleryClips()` applies the search (exercise / creator / link text), a **watch filter** (All / ▶ Unwatched
+  / 👁 Watched) and a **kind filter** (All / Movements / Variations), sorting **unwatched-first** then by most-recent
+  watch. Each tile shows a YouTube thumbnail (`mediaThumb`) or a platform placeholder, a ▶/↗ affordance, the
+  movement/variation label + parent + creator, and a **👁 watched `<when>`** badge (or "unwatched"). Clicking a
+  playable tile toggles an **inline embed** in place and starts the feat-238 dwell — lingering past the window marks
+  the clip watched (`_watchDwell` → `markMediaWatched`), so the gallery doubles as a "what have I actually
+  reviewed?" tracker; merely scrolling the grid never marks anything. The list caps at 120 with a "refine the
+  search" note. Covered by new `test/mediagallery.spec.mjs` (flatten + filter, the YouTube-thumbnail helper, the
+  rendered grid + segments, the dwell-marks-watched-then-filter path, unique-emoji Study registration, and the
+  Reference → gallery navigation).
 - **Media wizard — "needs media" filter, inline preview, watch tracking (feat 238):** three additions to the
   bulk wizard. (1) A **⚠ needs media** toggle (`mediaWizardState.uncoveredOnly`) restricts the list to genuine
   gaps — a **variation** is "uncovered" only when it has no clip of its own *and* its parent **movement** has no
