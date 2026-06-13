@@ -853,6 +853,20 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Bulk media wizard — movements, filter, coverage, parent badge, sheet I/O (feat 236):** the desktop
+  wizard (feat 110) managed only variation links; it now mirrors the feat-235 two-level model. `mediaWizardRows()`
+  emits **MOVEMENT rows** (family-keyed demos) alongside variations — the movement row is accent-bordered with
+  a **MOVEMENT** tag, its own links, and a **child-coverage** read ("X/Y variations have video", green when
+  full / amber partial / red none). Every **variation row** that sits under a movement with its own demo gets a
+  **▸ movement demo ✓** badge. A **kind filter** (All / Movements / Variations) restricts the list; the stat
+  line splits the counts ("V variations · M movements · L links · N not embeddable"). The toolbar gains
+  **📝 Export sheet** (the feat-174/235 `exportMediaSheet` choice dialog) and **⬆ Import sheet** (a file input
+  → `importMediaData`), so the whole Claude round-trip happens inside the wizard. All media ops are key-generic
+  (`addExerciseMedia`/`removeExerciseMedia`/`reassignMedia` on a uuid *or* a family id), and the move-target
+  search now lists movements too, so a general demo can be moved up to its movement. Covered by new
+  `test/mediawizard.spec.mjs` cases (movement rows + child coverage + parent badge, the kind filter, the
+  toolbar controls + tagged movement row + split stat, and the Import-sheet → importMediaData round-trip);
+  the existing wizard tests were updated for the row `.id` field (uuid for variations, family id for movements).
 - **Media sheet covers movements + variations with explicit parentage (feat 235):** the Claude-fillable
   media reference sheet (feat 174) listed only variations, with the movement merely a `## ` group header.
   It now lists **both levels**: each `## ` section opens with a fillable **MOVEMENT** entry

@@ -535,6 +535,18 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .mw-link button.del:hover { color: var(--danger); border-color: var(--danger); }
 .mw-add { display: flex; gap: 6px; margin-top: 7px; }
 .mw-add input { flex: 1; min-width: 0; background: var(--bg3); border: 1px solid var(--border2); border-radius: 7px; padding: 5px 9px; color: var(--text); font-size: 12px; font-family: inherit; }
+/* feat 236 — movement rows, kind filter, coverage + parent badges */
+.mw-kindseg { display: inline-flex; gap: 2px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 2px; }
+.mw-kind { background: none; border: none; color: var(--text2); font-size: 11.5px; font-weight: 700; padding: 5px 11px; border-radius: 6px; cursor: pointer; font-family: inherit; }
+.mw-kind.active { background: var(--accent); color: #0a0a0a; }
+.mw-row-mov { border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--bg2)); }
+.mw-tag { font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 5px; letter-spacing: 0.4px; vertical-align: middle; }
+.mw-tag.mov { color: #0a0a0a; background: var(--accent); }
+.mw-tag.parent { color: var(--good); background: color-mix(in srgb, var(--good) 15%, transparent); }
+.mw-cov { font-weight: 700; }
+.mw-cov.full { color: var(--good); }
+.mw-cov.part { color: #d8a83a; }
+.mw-cov.none { color: var(--warn); }
 .mw-reassign { margin-top: 6px; padding: 7px 9px; background: var(--bg3); border: 1px dashed var(--accent); border-radius: 8px; }
 .mw-reassign input { width: 100%; background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px; padding: 5px 8px; color: var(--text); font-size: 12px; font-family: inherit; margin-bottom: 6px; }
 .mw-reassign .mw-target { display: block; width: 100%; text-align: left; background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px; padding: 5px 8px; color: var(--text2); font-size: 12px; cursor: pointer; margin-bottom: 3px; font-family: inherit; }
@@ -8126,7 +8138,7 @@ function importMediaSheet(text) {
 function isDesktopWizard() {
   try { return ('showSaveFilePicker' in window) || (typeof window !== 'undefined' && window.innerWidth >= 1024 && (!window.matchMedia || window.matchMedia('(pointer:fine)').matches)); } catch (_) { return false; }
 }
-let mediaWizardState = { search: '', withMediaOnly: true, reassign: null, reassignSearch: '' };
+let mediaWizardState = { search: '', withMediaOnly: true, kind: 'all', reassign: null, reassignSearch: '' }; // feat 236 — kind: all | movement | variation
 function openMediaWizard() {
   if (!isDesktopWizard()) { toast('The bulk media wizard is a desktop tool'); return; }
   closeDataPage(); closeSettingsDrawer();
@@ -8168,27 +8180,49 @@ function mediaWizardRetestAll() {
 }
 function mediaWizardRows() {
   const q = (mediaWizardState.search || '').trim().toLowerCase();
+  const kind = mediaWizardState.kind || 'all', withOnly = mediaWizardState.withMediaOnly;
+  const matchq = (s) => !q || s.toLowerCase().includes(q);
   const rows = [];
-  VAR_INDEX.forEach((info, uuid) => {
-    const media = getExerciseMedia(uuid);
-    const title = info.variation.title || '', fam = info.family.title || '';
-    if (q) { if (!(title + ' ' + fam).toLowerCase().includes(q)) return; }
-    else if (mediaWizardState.withMediaOnly && !media.length) return;
-    rows.push({ uuid, title, fam, bp: info.bp, media });
-  });
-  rows.sort((a, b) => (b.media.length - a.media.length) || a.title.localeCompare(b.title));
+  if (kind === 'all' || kind === 'movement') { // feat 236 — the MOVEMENT itself can hold a general demo clip
+    FAMILIES.forEach(f => {
+      const media = getExerciseMedia(f.id);
+      if (!matchq(f.title)) return;
+      if (withOnly && !media.length) return;
+      const vars = (f.variations || []).filter(v => v.uuid && !isSuppressedVar(v.uuid));
+      const childWith = vars.filter(v => getExerciseMedia(v.uuid).length).length;
+      rows.push({ type: 'movement', id: f.id, title: f.title, mega: f.mega, media, childTotal: vars.length, childWith });
+    });
+  }
+  if (kind === 'all' || kind === 'variation') {
+    VAR_INDEX.forEach((info, uuid) => {
+      const media = getExerciseMedia(uuid);
+      const title = info.variation.title || '', fam = info.family.title || '';
+      if (!matchq(title + ' ' + fam)) return;
+      if (withOnly && !media.length) return;
+      rows.push({ type: 'variation', id: uuid, title, fam, bp: info.bp, media, parentTitle: fam, parentHasMedia: getExerciseMedia(info.family.id).length > 0 });
+    });
+  }
+  rows.sort((a, b) => (a.type !== b.type ? (a.type === 'movement' ? -1 : 1) : (b.media.length - a.media.length) || a.title.localeCompare(b.title)));
   return rows;
 }
 function renderMediaWizard() {
   const tb = document.getElementById('mw-toolbar'), body = document.getElementById('mw-body');
   if (!tb || !body) return;
-  let vWithMedia = 0, totalLinks = 0, notEmbed = 0;
-  Object.keys(state.exerciseMedia || {}).forEach(uuid => { const l = state.exerciseMedia[uuid] || []; if (l.length) vWithMedia++; l.forEach(m => { totalLinks++; if (!m.embedUrl) notEmbed++; }); });
+  let movWith = 0, varWith = 0, totalLinks = 0, notEmbed = 0;
+  Object.keys(state.exerciseMedia || {}).forEach(k => {
+    const l = state.exerciseMedia[k] || []; if (!l.length) return;
+    if (FAMILIES.some(f => f.id === k)) movWith++; else varWith++; // feat 236 — split movement vs variation coverage
+    l.forEach(m => { totalLinks++; if (!m.embedUrl) notEmbed++; });
+  });
+  const kindBtn = (val, label) => `<button class="mw-kind ${(mediaWizardState.kind || 'all') === val ? 'active' : ''}" data-mw-kind="${val}">${label}</button>`;
   tb.innerHTML = `
-    <input type="text" id="mw-search" placeholder="🔍 Search exercises to add/manage…" value="${escapeAttr(mediaWizardState.search)}">
+    <input type="text" id="mw-search" placeholder="🔍 Search movements & variations…" value="${escapeAttr(mediaWizardState.search)}">
+    <div class="mw-kindseg">${kindBtn('all', 'All')}${kindBtn('movement', 'Movements')}${kindBtn('variation', 'Variations')}</div>
     <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="mw-withmedia" ${mediaWizardState.withMediaOnly ? 'checked' : ''}> with media only</label>
+    <button class="drawer-btn" id="mw-export-sheet" style="padding:6px 10px;" title="Export the Claude-fillable media sheet">📝 Export sheet</button>
+    <label class="drawer-btn" id="mw-import-sheet-lbl" style="padding:6px 10px;cursor:pointer;" title="Import a filled media sheet (.md / .txt / .json)">⬆ Import sheet<input type="file" id="mw-import-sheet" accept=".md,.txt,.json" hidden></label>
     <button class="drawer-btn" id="mw-retest" style="padding:6px 10px;">↻ Re-test all</button>
-    <span class="mw-stat">${vWithMedia} exercises · ${totalLinks} links · ${notEmbed} not embeddable</span>`;
+    <span class="mw-stat">${varWith} variations · ${movWith} movements · ${totalLinks} links · ${notEmbed} not embeddable</span>`;
   const rows = mediaWizardRows();
   const capped = rows.length > 150 ? rows.slice(0, 150) : rows;
   body.innerHTML = (rows.length > 150 ? `<div class="mw-stat" style="margin-bottom:8px;">Showing first 150 of ${rows.length} — refine the search.</div>` : '')
@@ -8196,26 +8230,38 @@ function renderMediaWizard() {
   bindMediaWizard();
 }
 function mediaWizardRowHtml(r) {
+  const key = r.id; // a variation uuid OR a movement (family) id — every media op is key-generic
   const links = r.media.map((m, i) => `
     <div class="mw-link">
       <span>${mediaPlatformIcon(m.platform)}</span>
       <span class="mw-link-url" title="${escapeAttr(m.watchUrl || m.url)}">${escapeHtml(m.watchUrl || m.url)}</span>
       <span class="mw-badge ${m.embedUrl ? 'ok' : 'no'}">${m.embedUrl ? 'embeddable' : 'link-only'}</span>
       <button data-mw-open="${escapeAttr(m.watchUrl || m.url)}">↗ open</button>
-      <button data-mw-reassign="${r.uuid}" data-mw-idx="${i}">→ move</button>
-      <button class="del" data-mw-del="${r.uuid}" data-mw-idx="${i}">✕</button>
+      <button data-mw-reassign="${escapeAttr(key)}" data-mw-idx="${i}">→ move</button>
+      <button class="del" data-mw-del="${escapeAttr(key)}" data-mw-idx="${i}">✕</button>
     </div>
-    ${(mediaWizardState.reassign && mediaWizardState.reassign.uuid === r.uuid && mediaWizardState.reassign.idx === i) ? mediaWizardReassignHtml() : ''}`).join('');
-  return `<div class="mw-row" data-mw-uuid="${r.uuid}">
-    <div class="mw-row-head"><span class="mw-row-name">${escapeHtml(r.title)}</span><span class="mw-row-meta">${escapeHtml(r.fam)} · ${BP_LABELS[r.bp] || r.bp} · ${r.media.length} link${r.media.length === 1 ? '' : 's'}</span></div>
+    ${(mediaWizardState.reassign && mediaWizardState.reassign.uuid === key && mediaWizardState.reassign.idx === i) ? mediaWizardReassignHtml() : ''}`).join('');
+  if (r.type === 'movement') { // feat 236 — a MOVEMENT row: its own demo + how many child variations are covered
+    const cov = r.childTotal ? `${r.childWith}/${r.childTotal} variations have video` : 'no variations';
+    const covClass = r.childTotal && r.childWith === r.childTotal ? 'full' : (r.childWith ? 'part' : 'none');
+    return `<div class="mw-row mw-row-mov" data-mw-uuid="${escapeAttr(key)}">
+      <div class="mw-row-head"><span class="mw-row-name"><span class="mw-tag mov">MOVEMENT</span> ${escapeHtml(r.title)}</span><span class="mw-row-meta">${MEGA_LABELS[r.mega] || r.mega} · <span class="mw-cov ${covClass}">${cov}</span> · ${r.media.length} link${r.media.length === 1 ? '' : 's'}</span></div>
+      ${r.media.length ? `<div class="mw-links">${links}</div>` : ''}
+      <div class="mw-add"><input type="text" data-mw-add="${escapeAttr(key)}" placeholder="Paste a general demo of the ${escapeAttr(r.title)} movement…"><button data-mw-addbtn="${escapeAttr(key)}">+ Add</button></div>
+    </div>`;
+  }
+  const parentBadge = r.parentHasMedia ? `<span class="mw-tag parent" title="The ${escapeAttr(r.parentTitle)} movement has its own demo clip">▸ movement demo ✓</span>` : '';
+  return `<div class="mw-row" data-mw-uuid="${escapeAttr(key)}">
+    <div class="mw-row-head"><span class="mw-row-name">${escapeHtml(r.title)} ${parentBadge}</span><span class="mw-row-meta">${escapeHtml(r.fam)} · ${BP_LABELS[r.bp] || r.bp} · ${r.media.length} link${r.media.length === 1 ? '' : 's'}</span></div>
     ${r.media.length ? `<div class="mw-links">${links}</div>` : ''}
-    <div class="mw-add"><input type="text" data-mw-add="${r.uuid}" placeholder="Paste a YouTube / Shorts / TikTok / Reel link…"><button data-mw-addbtn="${r.uuid}">+ Add</button></div>
+    <div class="mw-add"><input type="text" data-mw-add="${escapeAttr(key)}" placeholder="Paste a YouTube / Shorts / TikTok / Reel link…"><button data-mw-addbtn="${escapeAttr(key)}">+ Add</button></div>
   </div>`;
 }
 function mediaWizardReassignHtml() {
   const q = (mediaWizardState.reassignSearch || '').trim().toLowerCase();
   let opts = [];
   if (q.length >= 2) {
+    FAMILIES.forEach(f => { if (f.id === mediaWizardState.reassign.uuid) return; if (f.title.toLowerCase().includes(q)) opts.push({ uuid: f.id, label: '🏋 ' + f.title + ' — movement' }); }); // feat 236 — move to a movement too
     VAR_INDEX.forEach((info, uuid) => { if (uuid === mediaWizardState.reassign.uuid) return; if ((info.variation.title + ' ' + info.family.title).toLowerCase().includes(q)) opts.push({ uuid, label: info.variation.title + ' — ' + info.family.title }); });
     opts = opts.slice(0, 12);
   }
@@ -8230,6 +8276,9 @@ function bindMediaWizard() {
   const search = tb.querySelector('#mw-search');
   if (search) search.addEventListener('input', () => { mediaWizardState.search = search.value; renderMediaWizard(); const s = document.getElementById('mw-search'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } });
   tb.querySelector('#mw-withmedia')?.addEventListener('change', e => { mediaWizardState.withMediaOnly = e.target.checked; renderMediaWizard(); });
+  tb.querySelectorAll('[data-mw-kind]').forEach(b => b.addEventListener('click', () => { mediaWizardState.kind = b.dataset.mwKind; renderMediaWizard(); })); // feat 236 — movement/variation filter
+  tb.querySelector('#mw-export-sheet')?.addEventListener('click', exportMediaSheet); // feat 236 — export the fillable sheet
+  tb.querySelector('#mw-import-sheet')?.addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const rd = new FileReader(); rd.onload = () => { importMediaData(String(rd.result || '')); renderMediaWizard(); }; rd.readAsText(f); }); // feat 236 — import a filled sheet
   tb.querySelector('#mw-retest')?.addEventListener('click', mediaWizardRetestAll);
   body.querySelectorAll('[data-mw-open]').forEach(b => b.addEventListener('click', () => { try { window.open(b.dataset.mwOpen, '_blank', 'noopener'); } catch (_) {} }));
   body.querySelectorAll('[data-mw-del]').forEach(b => b.addEventListener('click', () => { removeExerciseMedia(b.dataset.mwDel, +b.dataset.mwIdx); renderMediaWizard(); }));
@@ -16998,7 +17047,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 181 · 2026-06-13 10:21';
+const APP_BUILD = 'build 182 · 2026-06-13 10:48';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
