@@ -853,6 +853,17 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Refresh always lands on Workout (feat 241):** a refresh / PWA restart used to sometimes open to a blank or
+  wrong screen — you had to tap the brand to get to your workout. Cause: the legacy `restorePanel()` boot step
+  re-surfaced the last-visited *panel* from `gt_panel` (e.g. `panel-reference`) on **top** of the router, which had
+  already rendered Workout into `#panel-tracker`; with the nav-tabs retired this left a stale non-tracker panel
+  showing (blank if it hadn't been populated) until a later re-render — or a brand tap — flipped it back. The
+  router (`currentPage`) is the source of truth now, so boot simply `navTo('workout', { replace:true })` and the
+  panel restore is gone. Two defensive hardenings ride along: `switchPanel` no longer throws on a null `btn` (the
+  router surfaces panels without one), and `_surfacePanelForPage` activates the wanted panel even when *no* panel
+  is currently active instead of bailing out (which would leave a black screen). Covered by
+  `test/boottoworkout.spec.mjs` (browse to the Reference → refresh → lands on Workout with `#trk-main` populated;
+  `switchPanel(panel, null)` surfaces without throwing).
 - **Plan picker — 3h Quick Pick budget + paginated list (feat 240):** two refinements to the plan picker.
   `PLAN_PICK_TIMES` gains **150** and **180** chips, so Quick Pick now spans **15 min → 3 h** (the budget cap
   was already 240, and the recommender's time-fit scoring + reason text handle the longer budgets unchanged —

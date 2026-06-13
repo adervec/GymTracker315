@@ -8831,9 +8831,9 @@ function pageTitle(id) {
 function _surfacePanelForPage() {
   const want = (currentPage === 'reference') ? 'panel-reference' : 'panel-tracker';
   const ap = document.querySelector('.panel.active');
-  if (!ap || ap.id === want) return;
+  if (ap && ap.id === want) return; // feat 241 — if NO panel is active (stale state), fall through and surface `want` rather than leaving a blank screen
   const btn = document.querySelector('.nav-tab[data-panel="' + want + '"]');
-  if (btn && typeof switchPanel === 'function') switchPanel(want, btn); // switchPanel directly — goPanel('panel-reference') would recurse via the navTo shim
+  if (typeof switchPanel === 'function') switchPanel(want, btn); // switchPanel directly (null btn ok); goPanel() would recurse via the navTo shim
 }
 function _surfaceTracker() { _surfacePanelForPage(); } // feat 191 — back-compat alias (panel surfacing now keys off currentPage)
 function renderReferencePage(main) { if (main) main.innerHTML = ''; if (typeof renderRef === 'function') renderRef(); } // feat 191 — Reference is a router page hosted in #panel-reference
@@ -17328,7 +17328,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 187 · 2026-06-13 15:33';
+const APP_BUILD = 'build 188 · 2026-06-13 16:41';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -18225,16 +18225,11 @@ render();
 ensureRestTick(); // feat 51 — start the global rest-timer tick
 refreshSoundIcon(); // feat 74 — reflect saved audio/haptics state in the top-bar icon
 initTopbarShortcuts(); // feat 99 — long-press shortcuts on the top-bar icons
-// Restore the last-visited panel across refreshes / PWA restarts.
-(function restorePanel() {
-  try {
-    const saved = localStorage.getItem('gt_panel');
-    if (saved && saved !== 'panel-tracker') {
-      const btn = document.querySelector(`.nav-tab[data-panel="${saved}"]`);
-      if (btn && document.getElementById(saved)) switchPanel(saved, btn);
-    }
-  } catch (_) {}
-})();
+// feat 241 — always land on the Workout page on boot / refresh / PWA restart. The router (currentPage) is the
+// source of truth post nav-rework; the legacy gt_panel restore used to re-surface a stale non-tracker panel
+// (e.g. the Reference) on TOP of the router, leaving a blank / wrong screen until you tapped the brand. Land on
+// Workout explicitly so a refresh always opens there — panel-tracker surfaced and #trk-main populated.
+try { navTo('workout', { replace: true }); } catch (_) { try { render(); } catch (_2) {} }
 // feat 105 — probe audio output now and whenever devices change, for the headphone-only gate
 try { probeAudioOutput(); if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', probeAudioOutput); } catch (_) {}
 try { loadAnatomyImage(); } catch (_) {} // feat 118 — warm-load the custom anatomy chart from IndexedDB
@@ -25813,7 +25808,7 @@ function switchPanel(panelId, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(panelId).classList.add('active');
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active'); // feat 241 — the nav-tabs are retired; surfacing a panel via the router passes no btn (don't throw)
   window.scrollTo(0, 0);
   try { localStorage.setItem('gt_panel', panelId); } catch (_) {}
 }
