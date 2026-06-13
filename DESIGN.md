@@ -853,6 +853,22 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Media sheet covers movements + variations with explicit parentage (feat 235):** the Claude-fillable
+  media reference sheet (feat 174) listed only variations, with the movement merely a `## ` group header.
+  It now lists **both levels**: each `## ` section opens with a fillable **MOVEMENT** entry
+  (`- MOVEMENT — <title>  {mid: <familyId>}`) — a slot for a general demo of the pattern itself — and every
+  **variation** below carries a `{parent: <familyId>}` tag right after its `{id: <uuid>}`, so the
+  movement→variation hierarchy is explicit even reading a line out of context. `parseMediaSheet()` learns
+  two tags: `{mid:…}` → a `{id: familyId}` entry (which `resolveExerciseKey` already maps to the family key,
+  and `openExerciseMedia(uuid, …, movementId)` already surfaces on the variation's "Whole movement" carousel
+  — so movement-level media displays with **zero model change**), and it strips the new `{mid}`/`{parent}`
+  tags from titles; the `{id: <uuid>}` variation tag stays byte-identical so the existing round-trip is
+  untouched. The header stamp now reports both counts ("84 movements (N with links) · 789 variations (M with
+  links)"); the missing-links scope keeps a movement on the to-do sheet when it lacks its own demo even if
+  all its variations are covered. The sheet help text explains the two levels. Covered by new
+  `test/mediasheet.spec.mjs` cases (movement entry + per-variation parent tag + dual-count stamp,
+  movement-link round-trip keyed to the family and combined onto the variation carousel, missing-scope
+  movement retention) alongside the unchanged feat-174 round-trip tests.
 - **Next-load suggestion in the log sheet (feat 234):** brings feat-233's auto-progression to the moment
   you load the bar. When you open an exercise to log it live (standard weight×reps, not editing a past
   entry) and it has history, the sheet shows a concrete **🎯 Aim for W × R** target — the same

@@ -8259,31 +8259,44 @@ function exportExerciseList() {
    Claude fills the `media:` lines, and you re-import the SAME text — parseMediaSheet reads the `{id}` tag
    (or falls back to the title) and every http(s) URL in each exercise block. Tolerant of light reformatting. */
 const _MEDIA_SHEET_HELP = [
-  'How to fill this in: after each exercise’s `media:` marker, paste one or more form-reference video',
-  'links (YouTube, Shorts, TikTok, Instagram Reel) separated by commas or new lines. Leave `media:` blank to',
-  'skip. Keep the `{id:…}` tag on each line unchanged — it maps the line back to the exercise when you',
-  're-import this file (Settings → Data → Exercise media → Import). You may delete whole sections you don’t need.'
+  'How to fill this in: after each entry’s `media:` marker, paste one or more form-reference video links',
+  '(YouTube, Shorts, TikTok, Instagram Reel) separated by commas or new lines. Leave `media:` blank to skip.',
+  '',
+  'The catalogue has two levels and BOTH appear here:',
+  '  • a MOVEMENT (the `{mid: …}` line at the top of each `## ` section) — a general demo of the pattern itself;',
+  '  • its VARIATIONS (the `{id: …}` lines below it) — each carries a `{parent: <movement-id>}` tag naming the',
+  '    movement it belongs to, so the movement→variation hierarchy is explicit even out of context.',
+  '',
+  'Keep every `{id:…}`, `{mid:…}` and `{parent:…}` tag unchanged — they map each line back when you re-import',
+  '(Settings → Data → Exercise media → Import). You may delete whole sections you don’t need.'
 ];
 function buildMediaSheet(scope) { // scope: 'all' (default) | 'missing'
   const missingOnly = scope === 'missing';
-  let total = 0, withLinks = 0;
+  let movTotal = 0, movWith = 0, varTotal = 0, varWith = 0;
   const body = [];
   FAMILIES.forEach(f => {
     const rows = (f.variations || [])
       .filter(v => v.uuid && !isSuppressedVar(v.uuid)) // feat 167 — skip cross-listed duplicate copies
       .map(v => ({ v, media: getExerciseMedia(v.uuid) }));
-    const shown = missingOnly ? rows.filter(r => !r.media.length) : rows;
-    rows.forEach(r => { total++; if (r.media.length) withLinks++; });
-    if (!shown.length) return;
+    const movMedia = getExerciseMedia(f.id); // feat 235 — the MOVEMENT itself can carry a general demo clip
+    movTotal++; if (movMedia.length) movWith++;
+    rows.forEach(r => { varTotal++; if (r.media.length) varWith++; });
+    const shownVars = missingOnly ? rows.filter(r => !r.media.length) : rows;
+    const showMov = missingOnly ? !movMedia.length : true;
+    if (!showMov && !shownVars.length) return; // nothing left to fill in this movement
     body.push(`## ${MEGA_LABELS[f.mega] || f.mega} · ${f.title}`);
-    shown.forEach(({ v, media }) => {
+    if (showMov) { // the movement-level entry — a demo of the pattern as a whole
+      body.push(`- MOVEMENT — ${f.title}  {mid: ${f.id}}`);
+      body.push(`  media: ${movMedia.map(m => m.watchUrl || m.url).filter(Boolean).join(', ')}`);
+    }
+    shownVars.forEach(({ v, media }) => { // its variations, each tagged with their parent movement
       const urls = media.map(m => m.watchUrl || m.url).filter(Boolean);
-      body.push(`- ${v.title}  {id: ${v.uuid}}`);
+      body.push(`- ${v.title}  {id: ${v.uuid}} {parent: ${f.id}}`);
       body.push(`  media: ${urls.join(', ')}`);
     });
     body.push('');
   });
-  const stamp = `Generated ${new Date().toISOString().slice(0, 10)} · ${total} exercises · ${withLinks} with links · scope: ${missingOnly ? 'missing links only' : 'all'}`;
+  const stamp = `Generated ${new Date().toISOString().slice(0, 10)} · ${movTotal} movements (${movWith} with links) · ${varTotal} variations (${varWith} with links) · scope: ${missingOnly ? 'missing links only' : 'all'}`;
   return ['# GymTracker — Media Reference Sheet', '', ..._MEDIA_SHEET_HELP, '', stamp, ''].concat(body).join('\n').replace(/\n+$/, '\n');
 }
 // Parse a (possibly Claude-edited) media sheet back into media entries. Robust: an exercise block starts at
@@ -8293,22 +8306,29 @@ function parseMediaSheet(text) {
   const lines = String(text || '').split(/\r?\n/);
   const out = [];
   const URL_RE = /https?:\/\/[^\s,;)\]]+/g;
-  let cur = null; // { uuid|null, title|null }
+  let cur = null; // { uuid|null, famId|null, title|null }
   const pushUrls = (s) => {
     if (!cur) return;
     const m = String(s || '').match(URL_RE);
-    if (m) m.forEach(u => out.push(cur.uuid ? { uuid: cur.uuid, url: u, source: 'sheet' } : { match: cur.title, url: u, source: 'sheet' }));
+    if (!m) return;
+    m.forEach(u => {
+      if (cur.uuid) out.push({ uuid: cur.uuid, url: u, source: 'sheet' });           // a variation, by uuid
+      else if (cur.famId) out.push({ id: cur.famId, url: u, source: 'sheet' });        // feat 235 — a movement, by family id
+      else out.push({ match: cur.title, url: u, source: 'sheet' });                    // title fallback
+    });
   };
   lines.forEach(raw => {
     const line = raw || '';
     const item = line.match(/^\s*[-*]\s+(.*)$/);
     if (item) {
       let label = item[1];
-      const idm = label.match(/\{\s*id\s*:\s*([0-9a-fA-F-]{6,})\s*\}/);
-      const uuid = idm ? idm[1] : null;
-      label = label.replace(/\{\s*id\s*:[^}]*\}/, '');           // strip the id tag
+      const midm = label.match(/\{\s*mid\s*:\s*([\w-]+)\s*\}/);                         // feat 235 — movement-level entry
+      const idm = label.match(/\{\s*id\s*:\s*([0-9a-fA-F-]{6,})\s*\}/);                 // variation entry
+      const famId = midm ? midm[1] : null;
+      const uuid = (!famId && idm) ? idm[1] : null;
+      label = label.replace(/\{\s*(?:id|mid|parent)\s*:[^}]*\}/g, '');                  // strip every id / mid / parent tag
       const beforeMedia = label.split(/\bmedia\s*:/i)[0];        // title is whatever precedes an inline "media:"
-      cur = { uuid, title: beforeMedia.replace(/[\s·|-]+$/, '').trim() || null };
+      cur = { uuid, famId, title: beforeMedia.replace(/[\s·|—-]+$/, '').replace(/^MOVEMENT\s*[—-]\s*/i, '').trim() || null };
       pushUrls(label); // an inline "- Title {id} media: url" still captures the url
       return;
     }
@@ -16978,7 +16998,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 180 · 2026-06-13 08:39';
+const APP_BUILD = 'build 181 · 2026-06-13 10:21';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

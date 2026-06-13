@@ -2,6 +2,8 @@
 // buildMediaSheet() emits a markdown list of every exercise with a stable {id:<uuid>} tag and a `media:`
 // slot; parseMediaSheet()/importMediaData() read the same text back (by id tag, else by title), so you can
 // have Claude fill in form-reference links and re-import the same document.
+// feat 235 — the sheet now lists BOTH levels: a MOVEMENT entry ({mid:<familyId>}) per `## ` section plus its
+// VARIATIONS, each carrying a {parent:<familyId>} tag so the movement→variation hierarchy is explicit.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -20,7 +22,7 @@ test('the sheet lists exercises with an {id} tag, a media: slot, and fill-in ins
     const sheet = buildMediaSheet('all');
     return {
       hasHeader: sheet.includes('# GymTracker — Media Reference Sheet'),
-      hasHelp: /Keep the .?\{id/.test(sheet) && /media:/.test(sheet),
+      hasHelp: /Keep every .*\{id/.test(sheet) && /media:/.test(sheet),
       hasIdTag: sheet.includes('{id: ' + u + '}'),
       hasTitle: sheet.includes(info.variation.title),
       hasMovementHeader: /\n## /.test(sheet),
@@ -109,6 +111,60 @@ test('the "missing links only" scope omits exercises that already have media', a
   expect(r.idInAll).toBe(true);
   expect(r.idInMissing).toBe(false); // it has a link, so it's excluded from the to-do sheet
   expect(r.stampMissing).toBe(true);
+});
+
+test('feat 235 — the sheet includes the MOVEMENT as a fillable entry and tags each variation with its parent', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.exerciseMedia = {};
+    const f = FAMILIES.find(x => (x.variations || []).some(v => v.uuid && !isSuppressedVar(v.uuid)));
+    const v = f.variations.find(x => x.uuid && !isSuppressedVar(x.uuid));
+    const sheet = buildMediaSheet('all');
+    return {
+      movEntry: sheet.includes('{mid: ' + f.id + '}'),
+      movTitleShown: sheet.includes('MOVEMENT — ' + f.title),
+      varParentTag: sheet.includes('{id: ' + v.uuid + '} {parent: ' + f.id + '}'),
+      stampCounts: /\d+ movements \(\d+ with links\) · \d+ variations \(\d+ with links\)/.test(sheet),
+    };
+  });
+  expect(r.movEntry).toBe(true);        // the movement itself is a fillable line
+  expect(r.movTitleShown).toBe(true);
+  expect(r.varParentTag).toBe(true);    // …and every variation names its parent movement
+  expect(r.stampCounts).toBe(true);     // the stamp counts both levels
+});
+
+test('feat 235 — a movement-level link round-trips by its {mid} tag and shows on the variation carousel', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.exerciseMedia = {};
+    const f = FAMILIES.find(x => (x.variations || []).some(v => v.uuid && !isSuppressedVar(v.uuid)));
+    const v = f.variations.find(x => x.uuid && !isSuppressedVar(x.uuid));
+    const sheet = `## X · ${f.title}\n- MOVEMENT — ${f.title}  {mid: ${f.id}}\n  media: https://youtu.be/movieMOVMOV\n- ${v.title}  {id: ${v.uuid}} {parent: ${f.id}}\n  media: https://youtu.be/varVARVARva\n`;
+    const entries = parseMediaSheet(sheet);
+    importMediaData(sheet);
+    return {
+      movKeyed: entries.some(e => e.id === f.id && /movieMOVMOV/.test(e.url)),
+      varKeyed: entries.some(e => e.uuid === v.uuid && /varVARVARva/.test(e.url)),
+      movMedia: getExerciseMedia(f.id).map(m => m.vid),
+      varMedia: getExerciseMedia(v.uuid).map(m => m.vid),
+      combined: _mediaCombinedCount(v.uuid, f.id),
+    };
+  });
+  expect(r.movKeyed).toBe(true);             // a {mid} line parses to the family id…
+  expect(r.varKeyed).toBe(true);             // …a {id} line to the variation uuid (parent tag ignored for keying)
+  expect(r.movMedia).toContain('movieMOVMOV'); // the movement clip attaches to the family key
+  expect(r.varMedia).toContain('varVARVARva');
+  expect(r.combined).toBe(2);                // the variation's carousel surfaces both (its own + the movement's)
+});
+
+test('feat 235 — the missing-links scope still surfaces a movement that has no demo clip', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.exerciseMedia = {};
+    const f = FAMILIES.find(x => (x.variations || []).some(v => v.uuid && !isSuppressedVar(v.uuid)));
+    f.variations.forEach(v => { if (v.uuid && !isSuppressedVar(v.uuid)) addExerciseMedia(v.uuid, 'https://youtu.be/aaaaaaaaaaa'); }); // every variation covered…
+    const missing = buildMediaSheet('missing');
+    return { movInMissing: missing.includes('{mid: ' + f.id + '}'), varExcluded: !missing.includes('{parent: ' + f.id + '}') };
+  });
+  expect(r.movInMissing).toBe(true);  // …but the movement still needs its own demo, so it stays on the to-do sheet
+  expect(r.varExcluded).toBe(true);   // the covered variations drop out
 });
 
 test('unknown exercise titles are reported, not thrown', async ({ page }) => {
