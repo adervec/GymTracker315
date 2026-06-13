@@ -853,6 +853,15 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Retire the residual legacy tab pills (feat 224):** the feat-221 breadcrumb + global nav tree made the
+  old 7-pill tracker tab bar (Dashboard · Log · History · Volume · Trends · Body · Gyms) redundant — a
+  second, less intuitive navigation surface sitting right under the breadcrumb. It's now hidden
+  (`#panel-tracker > header .tabs { display:none }`) but kept in the DOM so the `currentTab` class-mirror
+  that legacy specs assert on still updates. With the pills gone the tracker `<header>` only ever carries
+  the **contextual 📄 PDF button** (History/Volume/Trends), so `renderCurrentPage()` now toggles a
+  `header-collapsed` class that zeroes the header's padding + border on every other page — no empty strip
+  under the breadcrumb. Covered by the two new `test/navtree.spec.mjs` cases (pills hidden yet in-DOM with a
+  working mirror; header collapses on Workout, expands to host the PDF button on Volume).
 - **Equipment-true setup tools (feat 223):** classic movements whose *names* carry no equipment word
   (Arnold Press, Kroc Row, Viking Press, Turkish Get-Up, Svend Press…) were silently inheriting the
   family's first-listed equipment in `autoSetupKind()` — so the **Arnold Press shipped with the barbell

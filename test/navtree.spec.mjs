@@ -79,6 +79,37 @@ test('any screen → any screen in two taps: crumb, then chip', async ({ page })
   expect(r.crumbName).toBe('About');   // the breadcrumb followed
 });
 
+test('feat 224: the legacy tracker tab pills are retired — hidden, but kept in DOM for compat', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const bar = document.querySelector('#panel-tracker > header .tabs');
+    navTo('volume'); // the class mirror still tracks the page
+    return {
+      hidden: getComputedStyle(bar).display === 'none',
+      stillInDom: bar.querySelectorAll('.tab[data-tab]').length,
+      mirrorWorks: !!bar.querySelector('.tab[data-tab="volume"].active'),
+    };
+  });
+  expect(r.hidden).toBe(true);             // no more redundant nav pills under the top bar
+  expect(r.stillInDom).toBeGreaterThan(0); // compat: legacy class-asserts keep passing
+  expect(r.mirrorWorks).toBe(true);
+});
+
+test('feat 224: the tracker header collapses on plain pages, expands for the contextual PDF button', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    navTo('workout'); // no PDF export here
+    const hdr = document.querySelector('#panel-tracker > header');
+    const onWorkout = { collapsed: hdr.classList.contains('header-collapsed'), border: getComputedStyle(hdr).borderBottomWidth, pdf: getComputedStyle(document.getElementById('trk-export-pdf')).display };
+    navTo('volume'); // Volume shows the 📄 PDF button
+    const onVolume = { collapsed: hdr.classList.contains('header-collapsed'), pdf: getComputedStyle(document.getElementById('trk-export-pdf')).display };
+    return { onWorkout, onVolume };
+  });
+  expect(r.onWorkout.collapsed).toBe(true);     // empty header → no strip
+  expect(r.onWorkout.border).toBe('0px');       // …and no leftover border line
+  expect(r.onWorkout.pdf).toBe('none');
+  expect(r.onVolume.collapsed).toBe(false);     // PDF button present → header expands to host it
+  expect(r.onVolume.pdf).not.toBe('none');
+});
+
 test('the backdrop and ✕ both close the tree', async ({ page }) => {
   const r = await page.evaluate(() => {
     openNavTree('study');

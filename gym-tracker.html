@@ -230,6 +230,9 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .ntree-chip.active { background: var(--accent-bg, rgba(124,92,255,0.12)); border-color: var(--accent-border, rgba(124,92,255,0.4)); color: var(--accent, #9b7bff); }
 #app-topbar .nav-tabs { display: none; } /* feat 182 — legacy panel switcher hidden (kept in DOM for compat; removed in feat 196) */
 #app-gloss-btn { display: none; }         /* feat 182 — Glossary is now a Study page */
+#panel-tracker > header .tabs { display: none; } /* feat 224 — legacy 7-tab pill bar retired: the breadcrumb + nav tree (feat 221) replace it; kept in DOM for the currentTab class-mirror tests */
+#panel-tracker > header.header-collapsed { padding: 0; border-bottom: none; } /* feat 224 — no contextual PDF button on this page → no empty header strip */
+#panel-tracker > header.header-collapsed .head-row { margin-bottom: 0; }
 
 .nav-tabs {
   display: flex;
@@ -8493,7 +8496,11 @@ function renderCurrentPage() {
   else if (def.render) def.render(main);
   else if (def.open) { main.innerHTML = ''; def.open(); }
   const _exp = document.getElementById('trk-export-pdf'); // feat 133 — only the data-review views are exportable
-  if (_exp) _exp.style.display = (currentPage === 'history' || currentPage === 'volume' || currentPage === 'trends') ? '' : 'none';
+  const _expShown = (currentPage === 'history' || currentPage === 'volume' || currentPage === 'trends');
+  if (_exp) _exp.style.display = _expShown ? '' : 'none';
+  // feat 224 — with the legacy tab pills retired, the tracker header only carries the contextual PDF button;
+  // collapse it (no empty strip + border under the breadcrumb) on every page that doesn't show that button.
+  const _hdr = document.querySelector('#panel-tracker > header'); if (_hdr) _hdr.classList.toggle('header-collapsed', !_expShown);
   if (typeof updateTopbarChrome === 'function') updateTopbarChrome(def); // feat 182 (no-op until then)
   updateFAB();
   if (typeof refreshRestBar === 'function') refreshRestBar(); // feat 51
@@ -16217,7 +16224,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 169 · 2026-06-12 23:09';
+const APP_BUILD = 'build 170 · 2026-06-12 23:17';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
