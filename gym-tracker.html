@@ -404,9 +404,13 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .ref-media-btn { background: transparent; border: 1px solid var(--border2); color: var(--text3); border-radius: 6px; font-size: 11px; padding: 3px 8px; cursor: pointer; margin-left: 6px; font-family: inherit; }
 .ref-media-btn:hover { color: var(--accent); border-color: var(--accent); }
 /* Log-Sets header media button */
-.ex-media-row { margin-top: 8px; }
-.ex-media-btn { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 8px; font-size: 12px; font-weight: 700; padding: 7px 12px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 4px; }
+.ex-media-row { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+.ex-media-btn { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 8px; font-size: 12px; font-weight: 700; padding: 7px 12px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ex-media-btn.no-media { color: var(--text2); background: var(--bg3); border-color: var(--border2); } /* feat 251 — nothing to watch yet → "Configure Media" reads as a setup action */
 .ex-media-btn:active { filter: brightness(0.92); }
+/* feat 251 — total time + % active for the exercise in the log sheet */
+.ex-time-stat { font-size: 11.5px; color: var(--text3); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.ex-time-stat b { color: var(--text2); font-weight: 700; }
 .media-src-tag { display: inline-block; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 4px; padding: 1px 5px; margin-left: 5px; vertical-align: middle; }
 .media-sec-label { font-size: 10.5px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin: 4px 2px 7px; }
 .media-sec-label + .media-add-row { margin-top: 0; }
@@ -8107,6 +8111,50 @@ function _mediaCombinedCount(uuid, mov) {
   let n = getExerciseMedia(uuid).length;
   if (mov && mov !== uuid) { const seen = new Set(getExerciseMedia(uuid).map(m => m.embedUrl || m.url)); getExerciseMedia(mov).forEach(m => { if (!seen.has(m.embedUrl || m.url)) n++; }); }
   return n;
+}
+// feat 251 — the combined clip list (variation's media first, then the parent movement's, deduped).
+function _mediaCombinedList(uuid, mov) {
+  const out = getExerciseMedia(uuid).slice();
+  if (mov && mov !== uuid) { const seen = new Set(out.map(m => m.embedUrl || m.url)); getExerciseMedia(mov).forEach(m => { if (!seen.has(m.embedUrl || m.url)) out.push(m); }); }
+  return out;
+}
+// feat 251 — a short human format type for a clip: Short / Reel / TikTok / video.
+function mediaTypeLabel(m) {
+  if (!m) return 'clip';
+  if (m.platform === 'tiktok') return 'TikTok';
+  if (m.platform === 'instagram') return 'Reel';
+  if (m.platform === 'youtube') return /\/shorts\//i.test(m.watchUrl || m.url || '') ? 'Short' : 'video';
+  return 'clip';
+}
+// feat 251 — the exercise-screen media button label: "Configure Media" when empty, else "Watch <type> from <creator>".
+function exMediaBtnLabel(uuid, mov) {
+  const list = _mediaCombinedList(uuid, mov);
+  if (!list.length) return '⚙ Configure Media';
+  const m = list[0], cr = (typeof mediaCreator === 'function') ? mediaCreator(m) : null;
+  return `▶ Watch ${mediaTypeLabel(m)}${cr ? ' from ' + cr : ''}${list.length > 1 ? ` (+${list.length - 1})` : ''}`;
+}
+// feat 251 — total time + %-active for the exercise currently in the log sheet. Spans from the first set's
+// start (wTs) to the last set's done-stamp (ts); active = summed under-tension per set. Logging combines the
+// already-saved batches for this exercise with the open draft; editing uses just the loaded sets.
+function exerciseTiming(varUuid, subUuid) {
+  if (!varUuid) return null;
+  let sets = [];
+  if (!(typeof modalState !== 'undefined' && modalState.isEditing)) {
+    const sess = (typeof getActiveSession === 'function') ? getActiveSession() : null;
+    if (sess) (sess.exercises || []).forEach(ex => { if (trackingKey(ex.varUuid, ex.subUuid) === trackingKey(varUuid, subUuid)) sets = sets.concat(ex.sets || []); });
+  }
+  if (typeof pending !== 'undefined' && pending) sets = sets.concat(pending.sets || []);
+  let firstStart = Infinity, lastDone = -Infinity, activeMs = 0;
+  sets.forEach(s => {
+    const ws = s && s.wTs ? new Date(s.wTs).getTime() : null;
+    const ds = s && s.ts ? new Date(s.ts).getTime() : null;
+    if (ws != null && !isNaN(ws)) firstStart = Math.min(firstStart, ws);
+    if (ds != null && !isNaN(ds)) lastDone = Math.max(lastDone, ds);
+    if (ws != null && ds != null && ds > ws) activeMs += (ds - ws);
+  });
+  if (!isFinite(firstStart) || lastDone < 0 || lastDone <= firstStart) return null;
+  const totalMs = lastDone - firstStart;
+  return { totalMs, activeMs, pctActive: totalMs > 0 ? Math.round(activeMs / totalMs * 100) : null };
 }
 // Keep every 🎬 count badge (Reference + Log-Sets) fresh without a full re-render.
 function refreshMediaCounts() {
@@ -16452,13 +16500,14 @@ function renderSetsForm() {
       <div class="selected-ex-label">${modalState.isEditing ? 'Editing' : 'Logging'}</div>
       <div class="selected-ex-name">${escapeHtml(info.variation.title)}${M.mode!=='standard'?`<span class="ex-mode-tag">${M.mode==='bodyweight'?'BW+':M.mode==='distance'?'dist':'time'}</span>`:''}</div>
       <div class="selected-ex-family">${escapeHtml(info.family.title)} · ${BP_LABELS[info.bp] || info.bp}</div>
+      ${(() => { const t = exerciseTiming(pending.varUuid, pending.subUuid); return t ? `<div class="ex-time-stat">⏱ <b>${formatDuration(t.totalMs / 1000)}</b> on this exercise${t.pctActive != null ? ` · <b>${t.pctActive}%</b> active` : ''}</div>` : ''; })()}
       ${M.mode !== 'standard' ? `<div class="ex-mode-hint">${
         M.mode==='bodyweight' ? `Bodyweight baseline — log <b>added load</b> in the weight field (use a negative number for assistance, 0 for pure bodyweight).${(() => { const bw = getCurrentBodyweightKg(); return bw ? ` Effective ≈ bodyweight ${bodyDispW(bw)}${state.bodyCompUnit} + added.` : ''; })()}` :
         M.mode==='distance' ? `Carry — log <b>weight × distance</b> instead of reps (distance in your preferred unit).` :
         `Hold — log <b>weight × seconds</b> instead of reps.`
       }</div>` : ''}
       <div class="ex-note-row">${exNoteHtml}</div>
-      <div class="ex-media-row"><button class="ex-media-btn" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}" data-media-label="🎬 Reference videos">🎬 Reference videos${(() => { const n = _mediaCombinedCount(pending.varUuid, info.family && info.family.id); return n ? ` (${n})` : ''; })()}</button><button class="ex-media-btn" id="trk-ex-trends-btn" type="button">📈 Trends</button></div>
+      <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-ex-trends-btn" type="button">📈 Trends</button></div>
       ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
     </div>
 
@@ -17470,7 +17519,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 197 · 2026-06-13 21:19';
+const APP_BUILD = 'build 198 · 2026-06-13 21:24';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
