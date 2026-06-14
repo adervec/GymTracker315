@@ -853,6 +853,44 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Target-weight Load reuses the open set (feat 247):** the feat-234 "Load `<weight>`" prefill found the first
+  *weight-less* set, so a second tap (the open set now has a weight) appended a fresh set — repeated taps stacked
+  open sets. It now targets the first **incomplete** set (`!isSetValid` — an open or blank set), so taps re-load
+  the same open set. `test/progsheet.spec.mjs`.
+- **Rest timer snaps live on foreground return (feat 248):** browsers freeze/throttle `setInterval` while a tab is
+  hidden, so the 1 s rest tick stalled (phone screen off / app switch) and the bar showed a stale time on return.
+  The `visibilitychange` handler now also `ensureRestTick()` + `restTick()` on becoming visible, repainting at once.
+  `test/resttickvis.spec.mjs`.
+- **Bigger OSK weight/reps text (feat 249):** the numpad's "Set N · Weight/Reps" label was a tiny 12px in a
+  full-width header → 16px/800; the rep-range hint 11→13px; the set-row figures 15→16.5px.
+- **Brand personalization (feat 250):** a **custom brand emoji** (`state.brandMark`, Cosmetic-settings picker +
+  free-text, exports too) replaces the 🏋️; and the **315 easter egg** — the wordmark's "315" is split into digits
+  that quietly sparkle once you've put 315 lb (≈142.9 kg, ≥1 rep) on the bar for the matching lift (3=bench,
+  1=deadlift, 5=squat via `lift315`). `test/branding.spec.mjs`.
+- **Exercise screen — time + media (feat 251):** the log sheet shows a **total-time + %-active** readout
+  (`exerciseTiming`: first set start → last done, active = summed under-tension ÷ span), and a context-aware media
+  button — "Configure Media" when empty, else "Watch `<type>` from `<creator>`" (`exMediaBtnLabel` /
+  `mediaTypeLabel`). `test/exscreen.spec.mjs`.
+- **Plan-progress steps underline (feat 252):** wherever the plan progress shows "X/Y steps" (the dashboard strip +
+  the card progress line) the text is underlined with a thin accent bar sized to the fraction (`stepsFracHtml`
+  → `--sf`).
+- **Powerlifting milestones are barbell-only (feat 253):** the bench/squat/deadlift "plates on the bar" achievement
+  paths matched any variation, so hack squat / leg press / Smith / RDL inflated the number. Each path now carries an
+  `exclude` regex; `_achKwBestLb` skips matching variations, so only the genuine barbell lift counts (names became
+  "Barbell …"). `test/achievements.spec.mjs`.
+- **What-weight-to-record clarity (feat 254):** a `weightRecordHint` on the exercise screen states the convention
+  so logging stays consistent — two-dumbbell upper lifts log **one** dumbbell's number (45, not 90); independent-arm
+  machines (Freemotion) **write the number you read**; a weight **held for a leg movement** (goblet/KB squat,
+  DB lunge) logs the **total** held; barbell/plate/pin/bodyweight get no hint. Per-muscle volume is set-count based,
+  so the convention doesn't change group-hit math — it keeps per-exercise weight comparisons honest.
+  `test/exscreen.spec.mjs`.
+- **Themed split picker (feat 255):** `THEMED_SPLITS` — curated complementary-plan weeks with coy, euphemistic names
+  alluding to famous on-screen physiques ("Man of Lifting Steel", "The Golden-Era Oak", "Three Hundred Reasons", "God
+  of Thunder", "The People's Pump", "The Caped Crusader's Cut"). No source is named and no copyrighted routine is
+  reproduced — the programming is our own PPL/upper-lower/full-body archetype and the recommender fills each slot
+  from your library. `buildRecommendedSplit` takes an explicit `opts.slots`; the planner page gains the picker (sets
+  slots + session count, tap again to clear) and a themed save names the program after the theme.
+  `test/splitplanner.spec.mjs`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
