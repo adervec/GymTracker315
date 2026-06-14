@@ -870,6 +870,14 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .sp-chip { min-width: 38px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
   .sp-chip.active { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
   .sp-note { font-size: 11.5px; color: var(--warn); margin-top: 8px; line-height: 1.4; }
+  /* feat 255 — themed split picker */
+  .sp-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .sp-theme { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); cursor: pointer; font-family: inherit; }
+  .sp-theme.active { border-color: var(--accent); background: var(--accent-bg); }
+  .sp-theme-emoji { font-size: 17px; line-height: 1; }
+  .sp-theme-name { font-size: 12.5px; font-weight: 800; }
+  .sp-theme-tag { font-size: 10px; color: var(--text3); }
+  .sp-theme.active .sp-theme-tag { color: var(--accent); }
   .sp-days { display: flex; flex-direction: column; gap: 7px; }
   .sp-day { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
   .sp-day-slot { flex-shrink: 0; width: 64px; }
@@ -10090,6 +10098,19 @@ const SPLIT_TEMPLATES = {
   6: ['Push', 'Pull', 'Legs', 'Push', 'Pull', 'Legs'],
 };
 function splitTemplateFor(sessions) { return SPLIT_TEMPLATES[Math.max(2, Math.min(6, sessions | 0))] || SPLIT_TEMPLATES[3]; }
+// feat 255 — curated "themed" splits that group complementary plans into a coherent week. The names are coy,
+// euphemistic allusions to famous on-screen physiques — we don't name anyone or reproduce any copyrighted
+// routine; the programming is our own generic archetype (PPL / upper-lower / full-body), and the recommender
+// fills each slot from YOUR plan library. Purely a fun starting point.
+const THEMED_SPLITS = [
+  { id:'steel',   name:'Man of Lifting Steel',     emoji:'🦸', tag:'4-day · caped strength',      blurb:'Heavy presses and a back built to fill a cape — upper/lower, then a pull and a push to finish.', slots:['Upper','Legs','Pull','Push'] },
+  { id:'oak',     name:'The Golden-Era Oak',       emoji:'🌳', tag:'6-day · mirror muscles',      blurb:'A high-volume, sun-soaked beach classic — chest & back paired, legs honoured, arms never skipped.', slots:['Push','Pull','Legs','Push','Pull','Legs'] },
+  { id:'spartan', name:'Three Hundred Reasons',    emoji:'🛡️', tag:'3-day · lean & conditioned',  blurb:'A lean warrior look: full-body strength three times a week, every session earns its sweat.', slots:['Full Body','Full Body','Full Body'] },
+  { id:'thunder', name:'God of Thunder',           emoji:'⚡', tag:'4-day · overhead power',       blurb:'Shoulder-forward and powerful — press overhead like a worthy hammer depends on it.', slots:['Push','Pull','Legs','Upper'] },
+  { id:'people',  name:'The People’s Pump',        emoji:'🌋', tag:'5-day · boulder shoulders',    blurb:'Big chest and bigger delts, five days, maximum effort — no day wasted, my friends.', slots:['Push','Pull','Legs','Push','Pull'] },
+  { id:'cowl',    name:'The Caped Crusader’s Cut',  emoji:'🦇', tag:'4-day · athletic minimalism', blurb:'Dense and athletic — an upper/lower you could run out of a cave anywhere in the city.', slots:['Upper','Legs','Upper','Legs'] },
+];
+function themedSplit(id) { return THEMED_SPLITS.find(t => t.id === id) || null; }
 // The muscle GROUPS a slot is meant to cover — so a "Pull" day is judged on back+biceps volume, not just
 // on fitting the clock (which would otherwise pick a tiny Arm Day over a proper rowing session).
 const SLOT_GROUPS = {
@@ -10114,7 +10135,7 @@ function buildRecommendedSplit(opts) {
   opts = opts || {};
   const sessions = Math.max(2, Math.min(6, opts.sessions | 0 || 3));
   const minutes = (opts.minutes >= 15 && opts.minutes <= 240) ? opts.minutes : 60;
-  const slots = splitTemplateFor(sessions);
+  const slots = (Array.isArray(opts.slots) && opts.slots.length) ? opts.slots : splitTemplateFor(sessions); // feat 255 — themed splits pass an explicit slot sequence
   const plans = state.plans || [];
   const used = {};
   return slots.map((cat, i) => {
@@ -10156,8 +10177,11 @@ function buildProgramFromSplit(split, sessions, minutes) {
 }
 function saveProgramFromSplit() {
   const cfg = splitPlanCfg();
-  const split = buildRecommendedSplit({ sessions: cfg.sessions, minutes: cfg.minutes });
-  state.program = buildProgramFromSplit(split, cfg.sessions, cfg.minutes);
+  const t = cfg.theme ? themedSplit(cfg.theme) : null; // feat 255 — honour the chosen themed split
+  const sessions = t ? t.slots.length : cfg.sessions;
+  const split = buildRecommendedSplit({ sessions, minutes: cfg.minutes, slots: t ? t.slots : null });
+  state.program = buildProgramFromSplit(split, sessions, cfg.minutes);
+  if (t) state.program.name = t.name;
   saveState();
 }
 function clearProgram() { state.program = null; saveState(); }
@@ -10247,7 +10271,8 @@ function programAdherenceTrend(n) {
 function renderSplitPlannerPage(main) {
   if (!main) return;
   const cfg = splitPlanCfg();
-  const split = buildRecommendedSplit({ sessions: cfg.sessions, minutes: cfg.minutes });
+  const theme = cfg.theme ? themedSplit(cfg.theme) : null; // feat 255
+  const split = buildRecommendedSplit({ sessions: theme ? theme.slots.length : cfg.sessions, minutes: cfg.minutes, slots: theme ? theme.slots : null });
   const meso = mesoCurrentWeek(); // feat 232 — periodization scales the coverage projection by the current week's volume
   const analysis = splitAnalysis(split.map(s => s.plan).filter(Boolean), meso ? meso.vol : 1);
   const chip = (attr, val, cur, label) => `<button class="sp-chip ${cur === val ? 'active' : ''}" data-${attr}="${val}">${label}</button>`;
@@ -10325,7 +10350,12 @@ function renderSplitPlannerPage(main) {
       ${doubles ? `<div class="sp-note">⚠️ ${cfg.sessions} sessions across ${cfg.days} days means some days double up — make sure you can recover.</div>` : ''}
     </div>
     <div class="card">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>Recommended split</span><button class="sp-save" id="pg-save">${prog ? '↻ Reschedule' : '📅 Save as program'}</button></div>
+      <div class="card-title">✨ Themed splits</div>
+      <div class="sp-intro">Curated splits that group complementary plans into one coherent week — pick a vibe to shape the recommendation below (tap again to clear). ${theme ? `<b>${escapeHtml(theme.name)}</b> — ${escapeHtml(theme.blurb)}` : 'The recommender fills each day from your own plan library.'}</div>
+      <div class="sp-themes">${THEMED_SPLITS.map(t => `<button class="sp-theme ${cfg.theme === t.id ? 'active' : ''}" data-sp-theme="${escapeAttr(t.id)}" title="${escapeAttr(t.blurb)}"><span class="sp-theme-emoji">${t.emoji}</span><span class="sp-theme-name">${escapeHtml(t.name)}</span><span class="sp-theme-tag">${escapeHtml(t.tag)}</span></button>`).join('')}</div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>${theme ? '🎬 ' + escapeHtml(theme.name) : 'Recommended split'}</span><button class="sp-save" id="pg-save">${prog ? '↻ Reschedule' : '📅 Save as program'}</button></div>
       <div class="sp-days">${splitRows}</div>
     </div>
     ${programCard}
@@ -10336,7 +10366,13 @@ function renderSplitPlannerPage(main) {
       <div class="sp-grps">${barRows}</div>
       <div class="sp-legend">Bar = your weekly sets · green band = the productive MEV–MRV window · marker colour = status.${meso ? ` Volumes shown for <b>${meso.phase}</b> week (${Math.round(meso.vol * 100)}% of base).` : ''}</div>
     </div>`;
-  main.querySelectorAll('[data-sp-sessions]').forEach(b => b.addEventListener('click', () => { cfg.sessions = +b.dataset.spSessions; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; saveState(); renderSplitPlannerPage(main); }));
+  main.querySelectorAll('[data-sp-sessions]').forEach(b => b.addEventListener('click', () => { cfg.sessions = +b.dataset.spSessions; cfg.theme = null; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; saveState(); renderSplitPlannerPage(main); })); // feat 255 — a manual session count clears the themed slot sequence
+  main.querySelectorAll('[data-sp-theme]').forEach(b => b.addEventListener('click', () => { // feat 255 — pick / clear a themed split
+    const id = b.dataset.spTheme; cfg.theme = (cfg.theme === id) ? null : id;
+    const t = cfg.theme ? themedSplit(cfg.theme) : null;
+    if (t) { cfg.sessions = t.slots.length; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; }
+    saveState(); renderSplitPlannerPage(main);
+  }));
   main.querySelectorAll('[data-sp-days]').forEach(b => b.addEventListener('click', () => { cfg.days = +b.dataset.spDays; saveState(); renderSplitPlannerPage(main); }));
   main.querySelectorAll('[data-sp-min]').forEach(b => b.addEventListener('click', () => { cfg.minutes = +b.dataset.spMin; saveState(); renderSplitPlannerPage(main); }));
   main.querySelector('#pg-save')?.addEventListener('click', () => { saveProgramFromSplit(); renderSplitPlannerPage(main); }); // feat 230
@@ -17548,7 +17584,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 201 · 2026-06-13 21:39';
+const APP_BUILD = 'build 202 · 2026-06-13 21:44';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

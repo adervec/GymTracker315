@@ -117,3 +117,53 @@ test('a recommended day Use button attaches that plan to the workout', async ({ 
   });
   expect(planId.got).toBe(planId.want);
 });
+
+// feat 255 — curated "themed" splits (coy, allusive names) that drive an explicit slot sequence.
+test('feat 255 — THEMED_SPLITS are well-formed and buildRecommendedSplit honours an explicit slot list', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const ok = THEMED_SPLITS.every(t => t.id && t.name && Array.isArray(t.slots) && t.slots.length >= 2 && t.slots.length <= 6);
+    const oak = themedSplit('oak');
+    const built = buildRecommendedSplit({ slots: oak.slots, minutes: 60 }).map(s => s.slot);
+    return { count: THEMED_SPLITS.length, ok, oakSlots: oak.slots, built, missing: themedSplit('nope') };
+  });
+  expect(r.count).toBeGreaterThanOrEqual(6);
+  expect(r.ok).toBe(true);
+  expect(r.built).toEqual(r.oakSlots);   // the split follows the theme's slot sequence
+  expect(r.missing).toBeNull();
+});
+
+test('feat 255 — picking a themed split sets the slots + session count; tapping again clears it', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.splitPlan = { sessions: 3, days: 7, minutes: 60 };
+    const main = document.getElementById('trk-main');
+    renderSplitPlannerPage(main);
+    const chipCount = main.querySelectorAll('[data-sp-theme]').length;
+    main.querySelector('[data-sp-theme="oak"]').click(); // 6-day PPL theme
+    const m2 = document.getElementById('trk-main');
+    const after = { theme: state.splitPlan.theme, sessions: state.splitPlan.sessions, slots: [...m2.querySelectorAll('.sp-day .sp-day-cat')].map(e => e.textContent) };
+    m2.querySelector('[data-sp-theme="oak"]').click(); // tap again → clear
+    return { chipCount, after, clearedTheme: state.splitPlan.theme };
+  });
+  expect(r.chipCount).toBeGreaterThanOrEqual(6);
+  expect(r.after.theme).toBe('oak');
+  expect(r.after.sessions).toBe(6);
+  expect(r.after.slots).toEqual(['Push', 'Pull', 'Legs', 'Push', 'Pull', 'Legs']);
+  expect(r.clearedTheme).toBeFalsy();
+});
+
+test('feat 255 — saving a themed split names the weekly program after the theme', async ({ page }) => {
+  const { push, pull, lower } = await megaVars(page);
+  const r = await page.evaluate(({ push, pull, lower }) => {
+    const step = (u) => ({ id: 's' + Math.random(), sets: 3, options: [{ type: 'variation', uuid: u }] });
+    state.plans = [
+      { id: 'pu', name: 'Push A', steps: [step(push), step(push)] },
+      { id: 'pl', name: 'Pull A', steps: [step(pull), step(pull)] },
+      { id: 'lg', name: 'Legs A', steps: [step(lower), step(lower)] },
+    ];
+    state.splitPlan = { sessions: 3, days: 7, minutes: 60, theme: 'oak' };
+    saveProgramFromSplit();
+    return { name: state.program.name, sessions: state.program.sessions };
+  }, { push, pull, lower });
+  expect(r.name).toBe('The Golden-Era Oak');  // named after the theme, not "6-day split"
+  expect(r.sessions).toBe(6);
+});
