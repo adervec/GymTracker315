@@ -1846,6 +1846,8 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   /* Tracking modes (feat 26/27) */
   .ex-mode-tag { display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 4px; padding: 0 5px; margin-left: 8px; vertical-align: middle; }
   .ex-mode-hint { font-size: 11px; color: var(--text2); line-height: 1.5; margin-top: 6px; padding: 6px 9px; background: var(--bg3); border-radius: 7px; border: 1px solid var(--border2); }
+  /* feat 254 — what-weight-to-record convention hint (dumbbell / kettlebell / freemotion) */
+  .weight-record-hint { font-size: 11px; color: var(--text2); line-height: 1.45; margin-top: 6px; padding: 6px 9px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 7px; }
   .ex-mode-hint b { color: var(--text); }
 
   /* Cardio form (feat 6) */
@@ -16053,6 +16055,21 @@ function setupKindFor(varUuid) {
   if (ov) return ov === 'none' ? null : ov;
   return autoSetupKind(varUuid);
 }
+// feat 254 — clarify WHAT number to record, so logging stays consistent (and e1RM/tonnage comparisons stay valid).
+// Convention: per-hand implements that load the working muscle each side (DB curl/press/row) → log ONE implement's
+// number (45, not 90). Dual-independent-arm machines (Freemotion) → write the number you read. A weight HELD for a
+// leg movement (goblet / KB squat, DB lunge/RDL) → log the TOTAL held, since the arms only carry it. Returns null
+// for barbell / plate / pin / bodyweight, where the loaded number is unambiguous.
+function weightRecordHint(varUuid) {
+  const info = VAR_INDEX.get(varUuid); if (!info) return null;
+  const kind = setupKindFor(varUuid);
+  const t = ((info.variation.title || '') + ' ' + (info.family.title || '') + ' ' + (info.variation.id || '')).toLowerCase();
+  if (/freemotion|free.?motion|iso.?lateral|independent.?(arm|stack)|dual.?(arm|stack)/.test(t)) return '💡 Independent arms — log the number you read on the stack, don’t double it.';
+  const heldForLegs = info.family.mega === 'lower';
+  if (kind === 'dumbbell') return heldForLegs ? '💡 Held for legs — log the TOTAL weight held (both bells), not one.' : '💡 Two-dumbbell lift — log ONE dumbbell’s number (e.g. 45, not 90). Keep it consistent.';
+  if (kind === 'kettlebell') return heldForLegs ? '💡 Held for legs — log the TOTAL kettlebell weight held.' : '💡 Log one kettlebell’s number (the single-bell weight, not the pair).';
+  return null;
+}
 function setSetupOverride(varUuid, val) {
   state.exerciseSetup = state.exerciseSetup || {};
   if (!val || val === 'auto') delete state.exerciseSetup[varUuid]; else state.exerciseSetup[varUuid] = val;
@@ -16517,6 +16534,7 @@ function renderSetsForm() {
         M.mode==='distance' ? `Carry — log <b>weight × distance</b> instead of reps (distance in your preferred unit).` :
         `Hold — log <b>weight × seconds</b> instead of reps.`
       }</div>` : ''}
+      ${(() => { const h = weightRecordHint(pending.varUuid); return h ? `<div class="weight-record-hint">${escapeHtml(h)}</div>` : ''; })()}
       <div class="ex-note-row">${exNoteHtml}</div>
       <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-ex-trends-btn" type="button">📈 Trends</button></div>
       ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
@@ -17530,7 +17548,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 200 · 2026-06-13 21:36';
+const APP_BUILD = 'build 201 · 2026-06-13 21:39';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

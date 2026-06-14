@@ -80,3 +80,23 @@ test('feat 251 — the log sheet renders the time stat + the context-aware media
   expect(r.btnLabel).toBe('⚙ Configure Media');   // none added yet
   expect(r.noMediaClass).toBe(true);
 });
+
+test('feat 254 — weightRecordHint clarifies what number to record per equipment', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const find = (re) => { for (const [u, i] of VAR_INDEX) { const n = i.variation.title + ' ' + i.family.title; if (re.test(n) && exMode(u).mode === 'standard') return u; } return null; };
+    const dbCurl = find(/dumbbell.*curl|db curl|dumbbell bicep/i);
+    const goblet = find(/goblet/i);
+    const freemo = find(/freemotion/i);
+    const barbell = find(/barbell (squat|bench|deadlift)/i);
+    return {
+      db: dbCurl ? weightRecordHint(dbCurl) : null,
+      goblet: goblet ? weightRecordHint(goblet) : null,
+      freemo: freemo ? weightRecordHint(freemo) : null,
+      barbell: barbell ? weightRecordHint(barbell) : 'no-barbell',
+    };
+  });
+  if (r.db) expect(r.db).toContain('ONE dumbbell');       // standing DB curl → one dumbbell (45, not 90)
+  if (r.goblet) expect(r.goblet).toContain('TOTAL');      // goblet squat → total held (legs do the work)
+  if (r.freemo) expect(r.freemo).toContain('number you read'); // freemotion → write the number you read
+  expect(r.barbell).toBeNull();                            // barbell → unambiguous, no hint
+});
