@@ -30,13 +30,19 @@ test('a session on the scheduled plan marks the day done; a past empty scheduled
   await logDaysAgo(page, [0], pid); // train today, on the scheduled plan
   const r = await page.evaluate(() => {
     const adh = programWeekAdherence(0);
-    const todayRow = adh.days.find(d => d.dow === new Date().getDay());
-    return { scheduled: adh.scheduled, done: adh.done, todayStatus: todayRow.status, statuses: adh.days.map(d => d.status) };
+    const todayDow = new Date().getDay();
+    const todayRow = adh.days.find(d => d.dow === todayDow);
+    // the training week runs Monday-first, so Sunday (0) is the LAST day — then there are no later days to be "upcoming"
+    const order = [1, 2, 3, 4, 5, 6, 0];
+    const isLastDayOfWeek = order.indexOf(todayDow) === order.length - 1;
+    return { scheduled: adh.scheduled, done: adh.done, todayStatus: todayRow.status, statuses: adh.days.map(d => d.status), isLastDayOfWeek };
   });
   expect(r.scheduled).toBe(7);
   expect(r.done).toBeGreaterThanOrEqual(1);
   expect(r.todayStatus).toBe('done');            // trained today on plan
-  expect(r.statuses).toContain('upcoming');      // later days this week are still upcoming
+  // later days this week are still "upcoming" — unless today IS the last day of the week (Sunday), when none remain
+  if (r.isLastDayOfWeek) expect(r.statuses).not.toContain('upcoming');
+  else expect(r.statuses).toContain('upcoming');
 });
 
 test('a session with a DIFFERENT plan counts as off-plan (trained, not on the scheduled plan)', async ({ page }) => {
