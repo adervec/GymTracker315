@@ -2200,12 +2200,16 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .fab-status { font-size: 11.5px; opacity: 0.85; font-weight: 600; }
   .fab:active { transform: scale(0.98); }
 
-  /* Modal */
-  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  /* Modal — feat 256: a full-screen overlay must sit ABOVE the fixed top bar (z-index 9999), otherwise the bar
+     paints over the modal's sticky header and clips its top (the "Session Notes" title + Close were hidden behind
+     the breadcrumb). Mirrors the glossary/help/wizard/data-page overlays, which already clear the bar. Stays below
+     the OSK numpad (10060) and the confirm/choice dialog (10070) so those still layer on top of the modal. */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10040; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
   .modal-backdrop.open { opacity: 1; pointer-events: auto; }
-  .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 210; transform: translateY(100%); transition: transform 0.3s ease-out; background: #0a0a0a; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 10041; transform: translateY(100%); transition: transform 0.3s ease-out; background: #0a0a0a; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .modal.open { transform: translateY(0); }
-  .modal-header { padding: 12px 14px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: #0a0a0a; z-index: 10; }
+  /* feat 256: pad the sticky header past the status-bar/notch on a phone, matching #data-page-header / #mw-header. */
+  .modal-header { padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 12px 14px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: #0a0a0a; z-index: 10; }
   .modal-title { font-size: 15px; font-weight: 700; }
   .modal-actions { display: flex; gap: 6px; }
   .modal-btn { background: #1a1a1a; border: 1px solid #2a2a2a; color: #aaa; padding: 6px 12px; border-radius: 7px; font-size: 13px; cursor: pointer; font-family: inherit; }
@@ -17584,7 +17588,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 204 · 2026-06-14 07:07';
+const APP_BUILD = 'build 205 · 2026-06-14 07:20';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

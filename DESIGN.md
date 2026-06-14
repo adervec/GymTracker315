@@ -891,6 +891,12 @@ They share variation **UUIDs**.
   from your library. `buildRecommendedSplit` takes an explicit `opts.slots`; the planner page gains the picker (sets
   slots + session count, tap again to clear) and a themed save names the program after the theme.
   `test/splitplanner.spec.mjs`.
+- **Notes modal clears the top bar (feat 256):** the full-screen Session-Notes modal layered at `z-index: 210`, but
+  the fixed top bar (the feat-227 breadcrumb) is `z-index: 9999` and ~83 px tall — so the bar painted over the modal's
+  sticky header, hiding the "Session Notes" title + Close (and the first form field): "top of notes gets clipped". The
+  `.modal` overlay now sits **above** the bar (10041, backdrop 10040 — matching the glossary/wizard/data-page
+  full-screen overlays; still below the OSK numpad at 10060 and the confirm/choice dialog at 10070), and `.modal-header`
+  gains an `env(safe-area-inset-top)` pad so it also clears a phone's notch. `test/notes.spec.mjs`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

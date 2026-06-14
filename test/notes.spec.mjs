@@ -58,3 +58,28 @@ test('no suggestions for an empty token', async ({ page }) => {
   });
   expect(n).toBe(0);
 });
+
+// feat 256 — the full-screen notes modal must layer ABOVE the fixed top bar, otherwise the bar paints over its
+// sticky header and clips the "Session Notes" title + Close (the bug report: "top of notes gets clipped").
+test('the open notes modal sits above the top bar, so its header is never clipped', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.readonly = false; state.gyms = [];
+    const date = new Date().toISOString();
+    state.sessions = [{ id: 's', date, exercises: [] }];
+    openNotesModal(date);
+    const modal = document.getElementById('trk-notes-modal');
+    const topbar = document.getElementById('app-topbar');
+    modal.style.transition = 'none';            // skip the 0.3s slide-up so geometry is settled
+    modal.classList.add('open');
+    void modal.offsetHeight;
+    const modalZ = parseInt(getComputedStyle(modal).zIndex, 10);
+    const topbarZ = parseInt(getComputedStyle(topbar).zIndex, 10);
+    const hdr = modal.querySelector('.modal-header');
+    const hr = hdr.getBoundingClientRect();
+    // what actually paints at the header's centre — must be the modal's own header, not the top bar behind it
+    const elAtHeader = document.elementFromPoint(Math.round(window.innerWidth / 2), Math.round(hr.top + hr.height / 2));
+    return { modalZ, topbarZ, headerTopmost: modal.contains(elAtHeader) };
+  });
+  expect(r.modalZ).toBeGreaterThan(r.topbarZ);  // overlay clears the bar (9999)
+  expect(r.headerTopmost).toBe(true);           // …so the header is the element on top, not occluded
+});
