@@ -1485,6 +1485,18 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .gt-brand-word { color: var(--text); }
   .gt-brand-word b { color: var(--accent); font-weight: 800; }
   .gt-brand-num { font-size: 0.52em; font-weight: 800; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 5px; padding: 1px 4px; margin-left: 3px; vertical-align: super; letter-spacing: 0.5px; }
+  /* feat 250 — the 315-club easter egg: a digit sparkles once you've put 315 on the bar for that lift */
+  .gt-brand-d { display: inline-block; }
+  @keyframes gt-sparkle { 0%, 86%, 100% { color: var(--accent); text-shadow: none; transform: none; } 91% { color: #ffe9a8; text-shadow: 0 0 5px #ffd86b, 0 0 10px #ffcf4d; transform: translateY(-0.5px) scale(1.12); } 96% { color: #fff; text-shadow: 0 0 9px #ffe08a, 0 0 16px #ffd24d; transform: none; } }
+  .gt-brand-d.sparkle { animation: gt-sparkle 5s ease-in-out infinite; }
+  .gt-brand-num .gt-brand-d:nth-child(2).sparkle { animation-delay: 1.6s; }
+  .gt-brand-num .gt-brand-d:nth-child(3).sparkle { animation-delay: 3.2s; }
+  @media (prefers-reduced-motion: reduce) { .gt-brand-d.sparkle { animation: none; color: #ffe09a; text-shadow: 0 0 5px #ffd86b; } }
+  /* feat 250 — brand emoji picker in Cosmetic settings */
+  .brand-emoji-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+  .brand-emoji { font-size: 20px; width: 40px; height: 40px; line-height: 1; background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; cursor: pointer; }
+  .brand-emoji.active { border-color: var(--accent); background: var(--accent-bg); }
+  .brand-emoji-input { width: 100%; box-sizing: border-box; background: var(--input-bg, var(--bg3)); border: 1px solid var(--border2); border-radius: 8px; padding: 7px 10px; color: var(--text); font-size: 16px; font-family: inherit; }
   body.brand-hidden #app-brand { display: none; }
   /* print/export variant */
   .gt-brand.gt-brand-print { font-size: 16px; }
@@ -2558,7 +2570,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <div id="app-topbar">
   <div class="topbar-brand-row">
     <button id="app-brand-btn" class="topbar-brand-btn" onclick="navTo('home')" title="Home — GymTracker315" aria-label="Home">
-      <h1 id="app-brand" class="gt-brand" title="GymTracker315"><span class="gt-brand-mark">🏋️</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num">315</sup></span></h1>
+      <h1 id="app-brand" class="gt-brand" title="GymTracker315"><span class="gt-brand-mark">🏋️</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num"><span class="gt-brand-d" data-lift="bench">3</span><span class="gt-brand-d" data-lift="dead">1</span><span class="gt-brand-d" data-lift="squat">5</span></sup></span></h1>
     </button>
     <!-- feat 244 — live HR (💓 bpm + sparkline) + workout elapsed (⏱), next to the brand; hidden when empty -->
     <div id="topbar-live" class="topbar-live" aria-live="off"></div>
@@ -3575,7 +3587,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -6017,6 +6029,16 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${state.hideBranding ? 'active' : ''}" data-pref-brand="hide">Off</button>
       </div>
     </div>
+    <div class="drawer-setting-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+      <div>
+        <div class="drawer-setting-label">Brand emoji</div>
+        <div class="drawer-setting-sub">The little lifter beside the wordmark — make it yours. (The “315” digits quietly sparkle once you’ve put 315 lb on the bar in bench · deadlift · squat.)</div>
+      </div>
+      <div class="brand-emoji-pick">
+        ${['🏋️','💪','🦍','🐉','🔥','⚡','🏆','🦾','🧗','🤼','🥇','🤘'].map(e => `<button type="button" class="brand-emoji ${brandMark() === e ? 'active' : ''}" data-brand-emoji="${escapeAttr(e)}">${e}</button>`).join('')}
+      </div>
+      <input type="text" id="brand-emoji-custom" class="brand-emoji-input" maxlength="8" placeholder="…or paste any emoji" value="${escapeAttr(brandMark() === '🏋️' ? '' : brandMark())}">
+    </div>
 
     <div class="drawer-section-title">Preferences</div>
     <div class="drawer-setting-row">
@@ -6858,6 +6880,16 @@ function renderSettingsDrawer() {
       saveState();
       renderSettingsDrawer(); // re-render to update active state
     });
+  });
+
+  // feat 250 — brand emoji picker
+  body.querySelectorAll('[data-brand-emoji]').forEach(b => b.addEventListener('click', () => {
+    state.brandMark = b.dataset.brandEmoji; saveState(); applyBranding(); renderSettingsDrawer();
+  }));
+  const beInput = body.querySelector('#brand-emoji-custom');
+  if (beInput) beInput.addEventListener('input', () => {
+    state.brandMark = beInput.value.trim(); saveState(); applyBranding();
+    body.querySelectorAll('[data-brand-emoji]').forEach(b => b.classList.toggle('active', b.dataset.brandEmoji === brandMark())); // live, without stealing focus
   });
 
   // Language picker (feat 61)
@@ -9035,9 +9067,27 @@ function currentViewLabel() {
 // feat 170 — GymTracker315 placeholder wordmark (stylized text; not trademarked/copyrighted). The in-app
 // header copy hides when state.hideBranding is on, but image/PDF exports ALWAYS carry the brand at the top.
 function brandLogoHtml(forExport) {
-  return `<span class="gt-brand${forExport ? ' gt-brand-print' : ''}"><span class="gt-brand-mark">🏋️</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num">315</sup></span></span>`;
+  // feat 250 — carry the custom emoji into image / PDF exports too
+  return `<span class="gt-brand${forExport ? ' gt-brand-print' : ''}"><span class="gt-brand-mark">${escapeHtml(brandMark())}</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num">315</sup></span></span>`;
 }
-function applyBranding() { try { document.body.classList.toggle('brand-hidden', !!state.hideBranding); } catch (_) {} }
+// feat 250 — custom brand mark + the 315-club sparkle easter egg.
+function brandMark() { return (state.brandMark && /\S/.test(state.brandMark)) ? state.brandMark.trim() : '🏋️'; }
+// Has the user put 315 lb (≈142.9 kg) on the bar for any variation of this movement, for at least 1 rep?
+function lift315(familyId) {
+  if (!familyId) return false;
+  const fam = FAMILIES.find(f => f.id === familyId); if (!fam) return false;
+  const thr = state.unit === 'kg' ? (315 / 2.205) : 315;
+  const uuids = new Set((fam.variations || []).map(v => v.uuid).filter(Boolean));
+  return (state.sessions || []).some(s => (s.exercises || []).some(ex =>
+    uuids.has(ex.varUuid) && (ex.sets || []).some(set => { const w = parseFloat(set.w), r = parseFloat(set.r); return w >= thr && r >= 1; })));
+}
+const _BRAND_DIGIT_LIFT = { bench: 'flat-bench-press', dead: 'deadlift', squat: 'squat' }; // 3 · 1 · 5 → bench · deadlift · squat
+function applyBranding() {
+  try { document.body.classList.toggle('brand-hidden', !!state.hideBranding); } catch (_) {}
+  try { const m = document.querySelector('#app-brand .gt-brand-mark'); if (m && m.textContent !== brandMark()) m.textContent = brandMark(); } catch (_) {} // feat 250 — custom emoji
+  // feat 250 — each digit of "315" sparkles once you've hit 315 in the matching lift (3=bench, 1=deadlift, 5=squat)
+  try { document.querySelectorAll('#app-brand .gt-brand-d').forEach(el => el.classList.toggle('sparkle', lift315(_BRAND_DIGIT_LIFT[el.dataset.lift]))); } catch (_) {}
+}
 function exportCurrentViewPdf() {
   const main = document.getElementById('trk-main'); if (!main) return;
   let pr = document.getElementById('print-root');
@@ -17420,7 +17470,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 196 · 2026-06-13 21:13';
+const APP_BUILD = 'build 197 · 2026-06-13 21:19';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
