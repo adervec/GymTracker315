@@ -1115,6 +1115,8 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-effort.hit { color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); }
   .plan-effort.miss { color: var(--text3); background: var(--bg3); }
   .plan-progress-line { font-size: 11.5px; color: var(--text2); margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+  /* feat 252 — "X/Y steps" underlined with a subtle progress bar at that fraction (--sf) */
+  .steps-frac { background-image: linear-gradient(var(--accent), var(--accent)); background-repeat: no-repeat; background-position: 0 100%; background-size: calc(var(--sf, 0) * 100%) 2px; padding-bottom: 3px; border-radius: 1px; }
   .plan-progress-line b { color: var(--text); }
   .plan-progress-line.plan-progress-open { cursor: pointer; display: inline-flex; align-items: center; }
   .plan-progress-line.plan-progress-open:hover b { color: var(--accent); }
@@ -10803,6 +10805,11 @@ function renderOptionPicker(body, plan) {
   body.querySelectorAll('[data-pick-mv]').forEach(b => b.addEventListener('click', () => addOpt(_mvOpt(b.dataset.pickMv))));
   body.querySelectorAll('[data-pick-vr]').forEach(b => b.addEventListener('click', () => addOpt(_vrOpt(b.dataset.pickVr))));
 }
+// feat 252 — "X/Y steps" with a subtle underline progress bar at that fraction (a CSS background draws the bar).
+function stepsFracHtml(done, total) {
+  const frac = total > 0 ? Math.max(0, Math.min(1, done / total)) : 0;
+  return `<span class="steps-frac" style="--sf:${frac.toFixed(4)}"><b>${done}/${total}</b> steps</span>`;
+}
 // Active-workout plan guide (or a "use a plan" prompt when none).
 // feat 246 — the workout tab shows only a COMPACT plan strip (name · progress · ETC) that taps through to the
 // full Plan Detail page; the verbose step-by-step card was relocated there to reclaim space on the dashboard.
@@ -10815,7 +10822,7 @@ function renderPlanStrip(session) {
   const etc = sum.complete ? 'complete 🎉' : (eta.remainingMin > 0 ? `ETC ~${eta.remainingMin}m` : 'almost done');
   return `<div class="plan-strip${sum.complete ? ' complete' : ''}" id="plan-strip" role="button" tabindex="0" title="Open the full plan detail">
     <span class="ps-name">📋 ${escapeHtml(plan.name)}</span>
-    <span class="ps-prog"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · <b>${sum.stepsDone}/${sum.stepsTotal}</b> steps · ${etc}</span>
+    <span class="ps-prog"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · ${stepsFracHtml(sum.stepsDone, sum.stepsTotal)} · ${etc}</span>
     <span class="ps-go">🗺️ Details ›</span>
   </div>`;
 }
@@ -10873,7 +10880,7 @@ function renderPlanGuide(session) {
     : 'plan complete 🎉';
   // feat 144 — steps "done" = min-% satisfied; show "(N full)" when fewer were taken all the way to target.
   const fullHint = (sum.stepsFull < sum.stepsDone) ? ` <span class="plan-progress-full">(${sum.stepsFull} full)</span>` : '';
-  const progLine = `<div class="plan-progress-line plan-progress-open" id="plan-progress-open" role="button" tabindex="0" title="Open the full plan"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · <b>${sum.stepsDone}/${sum.stepsTotal}</b> steps${fullHint}${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}<span class="plan-progress-chev">›</span></div>`;
+  const progLine = `<div class="plan-progress-line plan-progress-open" id="plan-progress-open" role="button" tabindex="0" title="Open the full plan"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · ${stepsFracHtml(sum.stepsDone, sum.stepsTotal)}${fullHint}${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}<span class="plan-progress-chev">›</span></div>`;
   // feat 127 — collapsible: tap the header to fold the plan card down to just its name + progress line.
   const collapsed = !!(state.dashboard && state.dashboard.planCollapsed);
   return `<div class="plan-card${sum.complete ? ' complete' : ''}${collapsed ? ' collapsed' : ''}">
@@ -17519,7 +17526,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 198 · 2026-06-13 21:24';
+const APP_BUILD = 'build 199 · 2026-06-13 21:28';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
