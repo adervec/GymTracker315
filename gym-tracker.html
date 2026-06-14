@@ -1643,6 +1643,15 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .set-input.field-flash { animation: field-flash 0.5s ease-out; }
   @keyframes field-flash { 0% { box-shadow: 0 0 0 2.5px var(--accent); } 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); } }
   .set-remove { background: transparent; color: #555; border: none; font-size: 18px; padding: 4px; cursor: pointer; }
+  /* feat 257 — live hold timer for timed sets (planks / dead hangs / wall sits / L-sits). Once the set has
+     started (weight entered → wTs) the open row shows a count-up button; a tap drops the elapsed seconds into
+     the Seconds field. Pulses subtly so it reads as live. */
+  .hold-timer-btn { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin: 3px 0 7px; padding: 9px 10px; border: 1px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-family: inherit; font-weight: 800; font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; animation: hold-timer-pulse 1.8s ease-in-out infinite; }
+  .hold-timer-btn:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  .hold-timer-btn .ht-time { font-size: 17px; letter-spacing: 0.3px; }
+  .hold-timer-btn .ht-tap { font-size: 11px; font-weight: 600; opacity: 0.82; }
+  @keyframes hold-timer-pulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); } 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); } }
+  @media (prefers-reduced-motion: reduce) { .hold-timer-btn { animation: none; } }
   .set-remove:active { color: #ff9090; }
   .set-header { display: grid; grid-template-columns: 30px 1fr 1fr 30px; gap: 8px; font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.4px; padding-bottom: 4px; }
   /* feat 88 — per-set sub-variation selector */
@@ -15475,6 +15484,7 @@ function editExisting(sessionDate, varUuid, subUuid) {
 function closeLogModal() {
   modalState.open = false;
   modalState.planStepFilter = null; // feat 112/115
+  if (typeof stopHoldTimers === 'function') stopHoldTimers(); // feat 257 — kill the hold-timer interval on close
   if (typeof closeNumpad === 'function') closeNumpad(); // feat 57 — don't leave the numpad sheet open
   document.getElementById('trk-modal').classList.remove('open');
   document.getElementById('trk-modal-backdrop').classList.remove('open');
@@ -15652,6 +15662,7 @@ function renderNotesCard(session) {
 
 function renderModal() {
   const body = document.getElementById('trk-modal-body');
+  stopHoldTimers(); // feat 257 — drop any prior hold-timer interval; bindSetsForm re-arms it if a timed set is open
   let isSets = false; // feat 58 — track whether the strength sets form is showing (for the footer Add button)
   if (modalState.supersetMode && modalState.supersetPick === 'done') {
     body.innerHTML = renderSupersetForm();
@@ -16530,6 +16541,15 @@ function renderSetsForm() {
     const wAttrs = np ? 'type="text" inputmode="none" readonly' : 'type="number" inputmode="decimal" step="any"';
     const rAttrs = np ? 'type="text" inputmode="none" readonly' : `type="number" inputmode="${repsIm}" step="${M.mode==='standard'||M.mode==='bodyweight'?'1':'any'}"`;
     const npCls = np ? ' numpad-mode' : '';
+    // feat 257 — live hold timer: for a TIMED hold (plank / dead hang / wall sit / L-sit) once the set has
+    // STARTED (weight entered → wTs) but isn't DONE yet, surface a count-up button. Tapping it records the
+    // current elapsed seconds straight into the Seconds field — no manual stopwatch. Logging only (skipped
+    // while editing a past session, where wTs may be days old).
+    const holdStartMs = (M.mode === 'time' && !modalState.isEditing && s.wTs && !s.ts && (s.r === '' || s.r == null))
+      ? new Date(s.wTs).getTime() : null;
+    const holdTimerHtml = (holdStartMs && holdStartMs > 0)
+      ? `<button type="button" class="hold-timer-btn" data-hold-idx="${i}" data-hold-start="${holdStartMs}" title="Tap to log the current hold time as this set's seconds">⏱ <span class="ht-time">${formatDuration((Date.now() - holdStartMs) / 1000)}</span> <span class="ht-tap">— tap to log</span></button>`
+      : '';
     return `
       <div class="${rowClass}">
         <div class="set-num">${i + 1}</div>
@@ -16539,6 +16559,7 @@ function renderSetsForm() {
         ${overloadTagHtml}
         ${recordHintHtml}
       </div>
+      ${holdTimerHtml}
       ${mixSub ? `<div class="set-sub-row"><span class="set-sub-lbl">${escapeHtml(sub.label)}</span><select class="set-sub-select" data-set-sub="${i}">${sub.options.map(o => `<option value="${o.uuid}" ${((s.subUuid || pending.subUuid) === o.uuid) ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select></div>` : ''}
     `;
   }).join('');
@@ -16767,6 +16788,30 @@ function commitSetField(i, f, val) {
   if (typeof refreshRestBar === 'function') refreshRestBar();
   if (s[f] !== prev) flashSetField(i, f); // feat 149 — visual confirmation the field changed
 }
+
+// feat 257 — live "hold timer" ticker. While a timed hold is open (started, not done) its set row shows a
+// count-up button; this repaints every second from each button's data-hold-start. Self-terminating once no
+// button remains in the DOM (a re-render or modal close clears them), and re-armed by bindSetsForm.
+let _holdTimerInt = null;
+function tickHoldTimers() {
+  const btns = document.querySelectorAll('.hold-timer-btn[data-hold-start]');
+  if (!btns.length) { stopHoldTimers(); return; }
+  const now = Date.now();
+  btns.forEach(btn => {
+    const start = parseInt(btn.dataset.holdStart, 10);
+    if (!(start > 0)) return;
+    const span = btn.querySelector('.ht-time');
+    if (span) span.textContent = formatDuration((now - start) / 1000);
+  });
+}
+function ensureHoldTimers() {
+  stopHoldTimers();
+  if (document.querySelector('.hold-timer-btn[data-hold-start]')) {
+    tickHoldTimers();                              // paint once immediately so it never shows a stale frame
+    _holdTimerInt = setInterval(tickHoldTimers, 1000);
+  }
+}
+function stopHoldTimers() { if (_holdTimerInt) { clearInterval(_holdTimerInt); _holdTimerInt = null; } }
 
 /* feat 57 — optional in-app numpad (avoids the native mobile keyboard reflowing the form) */
 /* ---- OSK calculator (feat 65) ---- safe BEDMAS evaluator for the numpad.
@@ -17046,6 +17091,17 @@ function bindSetsForm() {
   document.querySelectorAll('#trk-sets-container input').forEach(input => {
     input.addEventListener('input', () => commitSetField(parseInt(input.dataset.i), input.dataset.field, input.value));
   });
+  // feat 257 — tap the live hold timer to record the current elapsed seconds as this timed set's value.
+  document.querySelectorAll('.hold-timer-btn[data-hold-idx]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.holdIdx, 10);
+      const start = parseInt(btn.dataset.holdStart, 10);
+      if (!(start > 0) || !pending.sets[i]) return;
+      const sec = Math.max(1, Math.round((Date.now() - start) / 1000)); // at least 1s
+      commitSetField(i, 'r', sec);  // Seconds → stamps ts (set done) + fires the set-end cue (feat 207)
+      renderModal();                // re-render: the now-completed set drops its timer button
+    });
+  });
   // feat 88 — per-set sub-variation selection
   document.querySelectorAll('#trk-sets-container [data-set-sub]').forEach(sel => {
     sel.addEventListener('change', () => { const i = parseInt(sel.dataset.setSub); if (pending.sets[i]) { pending.sets[i].subUuid = sel.value; savePending(); } });
@@ -17076,6 +17132,7 @@ function bindSetsForm() {
 
   document.getElementById('trk-save-btn').onclick = () => saveSets(); // feat 114 — no event arg (it would read as endingWorkout)
   document.getElementById('trk-delete-ex-btn')?.addEventListener('click', deleteExercise);
+  ensureHoldTimers(); // feat 257 — start the 1 s count-up if a timed hold is currently open
 }
 
 /* ----- Cardio form (feat 6) ----- */
@@ -17588,7 +17645,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 205 · 2026-06-14 07:20';
+const APP_BUILD = 'build 206 · 2026-06-14 07:32';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

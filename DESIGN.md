@@ -897,6 +897,14 @@ They share variation **UUIDs**.
   `.modal` overlay now sits **above** the bar (10041, backdrop 10040 — matching the glossary/wizard/data-page
   full-screen overlays; still below the OSK numpad at 10060 and the confirm/choice dialog at 10070), and `.modal-header`
   gains an `env(safe-area-inset-top)` pad so it also clears a phone's notch. `test/notes.spec.mjs`.
+- **Live hold timer for timed sets (feat 257):** isometric holds (planks, dead hangs, wall sits, L-sits — anything
+  `exMode` tracks as `time`, logging **Seconds**) no longer need a separate stopwatch. Once the set has **started**
+  (weight/0 entered → `wTs` stamped) but isn't done, its row shows a **count-up button** (`.hold-timer-btn`) that ticks
+  every second from the start stamp; a tap drops the **current elapsed seconds** straight into the Seconds field
+  (`commitSetField(i,'r',sec)` → stamps `ts`, fires the set-end cue). Logging-only (hidden while editing a past
+  session, where `wTs` may be days old). `tickHoldTimers`/`ensureHoldTimers`/`stopHoldTimers` run one shared 1 s
+  interval, self-terminating when no button remains and re-armed by `bindSetsForm`; `renderModal` + `closeLogModal`
+  clear it. `test/holdtimer.spec.mjs`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
