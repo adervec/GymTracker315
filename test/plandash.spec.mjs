@@ -26,6 +26,26 @@ async function seedPlan(page) {
   });
 }
 
+test('feat 246 — the workout tab shows a compact plan strip; the full card lives on the Plan page', async ({ page }) => {
+  await seedPlan(page);
+  const r = await page.evaluate(() => {
+    state.readonly = false;
+    state.sessions = [{ id: 'cur', date: new Date().toISOString(), updatedAt: new Date().toISOString(), planId: 'P', planRev: 1, exercises: [] }];
+    navTo('workout');
+    const dash = { strip: !!document.querySelector('#trk-main .plan-strip'), card: !!document.querySelector('#trk-main .plan-card'), steps: document.querySelectorAll('#trk-main .plan-step').length };
+    document.querySelector('#trk-main .plan-strip')?.click(); // → Plan Detail
+    const plan = { page: currentPage, card: !!document.querySelector('#trk-main .plan-card'), steps: document.querySelectorAll('#trk-main .plan-step').length };
+    state.sessions = [];
+    return { dash, plan };
+  });
+  expect(r.dash.strip).toBe(true);   // compact strip on the workout tab
+  expect(r.dash.card).toBe(false);   // …not the verbose card (relocated)
+  expect(r.dash.steps).toBe(0);
+  expect(r.plan.page).toBe('plan-detail');
+  expect(r.plan.card).toBe(true);    // the full interactive card on the Plan page
+  expect(r.plan.steps).toBe(2);
+});
+
 test('planExecutionSummary rolls up steps + sets + completion', async ({ page }) => {
   const { a } = await seedPlan(page);
   const r = await page.evaluate((a) => {

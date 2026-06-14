@@ -853,6 +853,36 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
+  was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
+  HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
+  now-absent elements.
+- **Set-start cue on a copied weight (feat 243):** the short-press **Copy** (`copyWeightToNextSet`) wrote the
+  copied weight and stamped `wTs` *directly*, bypassing `commitSetField`, so the **set-start annunciation**
+  (feat 206) never spoke when you started a set with Copy. It now routes through `commitSetField` like the
+  long-press copy paths (`copyRepsToOpenSet` / `duplicateLastSet`), so both branches stamp `wTs` **and** speak
+  the new set's position. Covered by an `annunce.spec` case.
+- **Live HR + elapsed by the brand (feat 244):** a `#topbar-live` status next to the centered brand shows
+  **💓 bpm + a sparkline** of recent samples whenever a monitor is connected, and **⏱ elapsed** (mm:ss → h:mm:ss)
+  whenever a workout is active. `refreshTopbarLive()` is driven by the 1 s rest tick (elapsed) and each HR sample
+  (`hrOnSample` fills a capped `_hrSpark` ring buffer). On narrow screens a `has-topbar-live` body class
+  de-centers the brand (drops the 315 badge, shrinks it, brand-left / stats-right) so both fit; desktop keeps the
+  centered brand with the stats pinned right. Covered by `test/topbarlive.spec.mjs`.
+- **Current gym on the active workout (feat 245):** the active dashboard opens with a gym strip (`workoutGymHtml`)
+  — 📍 the active gym, a *located* badge when it has GPS coordinates, a 📡 re-locate button, and Change → the Gyms
+  page; "No gym set · Pick a gym" when gyms exist but none is active, hidden entirely when no gyms are defined.
+  Workout start already GPS-auto-selects the nearest saved gym within 2 km (feat 38, `startWorkout` →
+  `pingLocationSelectGym`); this surfaces the result. Covered by `test/workoutgym.spec.mjs`.
+- **End slot → Plan Detail; plan card off the workout tab (feat 246):** the contextual shortcut row's third slot
+  changed from **🏁 End** to **🗺️ Plan** (`openPlanLive` → Plan Detail; ending a workout lives on the Workout page's
+  ⏹ End Workout, tap-confirm / hold-skip). The workout tab now shows only a **compact plan strip** (`renderPlanStrip`:
+  name · sets/steps · ETC · "Details ›") instead of the verbose step card; tapping it opens the Plan Detail page.
+  That page now hosts the **interactive plan guide** (`renderPlanGuide` + the extracted `bindPlanGuide`: step-pick,
+  ⏭ skip, option buttons) for the **live** session — a plain visit (🗺️ / strip / breadcrumb) shows the guide, while a
+  pinned execution (the step-bar deep-link, the guide's 📊 Execution button, or a past session) shows the read-only
+  recap (`renderPlanExecutionView`). `openPlanLive()` clears the pin so a stale recap can't shadow the live guide.
+  Covered by repointed `dupsteps`/`skipstep` cases + new `plandash` (strip-vs-card) and `workoutshortcuts` (🗺️ Plan)
+  cases.
 - **Refresh always lands on Workout (feat 241):** a refresh / PWA restart used to sometimes open to a blank or
   wrong screen — you had to tap the brand to get to your workout. Cause: the legacy `restorePanel()` boot step
   re-surfaced the last-visited *panel* from `gt_panel` (e.g. `panel-reference`) on **top** of the router, which had

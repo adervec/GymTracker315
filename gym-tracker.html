@@ -1056,6 +1056,13 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; padding: 8px 11px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; }
   .plan-bar-none { font-size: 12px; color: var(--text3); }
   .plan-pick-btn { font-size: 12px; font-weight: 700; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 6px 11px; border-radius: 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  /* feat 246 — compact plan strip on the workout tab (full detail lives on the Plan page) */
+  .plan-strip { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin: 0 0 12px; padding: 9px 12px; background: linear-gradient(135deg, var(--accent-bg), var(--bg2)); border: 1px solid var(--accent-border); border-radius: 11px; cursor: pointer; font-size: 12.5px; }
+  .plan-strip.complete { border-color: var(--good); }
+  .plan-strip .ps-name { font-weight: 800; color: var(--text); }
+  .plan-strip .ps-prog { color: var(--text2); font-variant-numeric: tabular-nums; }
+  .plan-strip .ps-prog b { color: var(--text); }
+  .plan-strip .ps-go { margin-left: auto; color: var(--accent); font-weight: 700; white-space: nowrap; }
   .plan-card { margin: 0 0 10px; padding: 10px 12px; background: var(--bg2); border: 1px solid var(--border2); border-left: 3px solid var(--accent); border-radius: 10px; }
   .plan-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; cursor: pointer; user-select: none; }
   .plan-card-head:hover .plan-card-name { color: var(--accent); }
@@ -2576,7 +2583,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
   <div class="topbar-shortcut-row">
     <button id="wbar-workout-btn" class="wbar-btn" onclick="navTo('workout')" title="Workout" aria-label="Workout">🔥 <span class="wbar-lbl">Workout</span></button>
     <button id="wbar-exercise-btn" class="wbar-btn" onclick="navTo('exercise')" title="Log a set" aria-label="Log a set">✍️ <span class="wbar-lbl">Exercise</span></button>
-    <button id="wbar-end-btn" class="wbar-btn wbar-end" title="End workout — hold to skip the confirm" aria-label="End workout">🏁 <span class="wbar-lbl">End</span></button>
+    <button id="wbar-plan-btn" class="wbar-btn" onclick="openPlanLive()" title="Plan details" aria-label="Plan details">🗺️ <span class="wbar-lbl">Plan</span></button>
   </div>
 </div>
 
@@ -4122,9 +4129,8 @@ function initTopbarShortcuts() {
   attachTopbarLongPress(document.getElementById('app-settings-btn'), openDataPage, 'Data'); // feat 134 — long-press Settings → Data Management page
   attachTopbarLongPress(document.querySelector('.nav-tab[data-panel="panel-coaching"]'), topbarCoachingRelevant, 'Relevant');
   // ❓ Help: long-press is intentionally the same as a tap — no separate shortcut attached.
-  // feat 188 — 🏁 End on the contextual workout shortcut row: a tap confirms, a hold skips the confirm (feat 108).
-  const wbarEnd = document.getElementById('wbar-end-btn');
-  if (wbarEnd && typeof attachTrackerPress === 'function') attachTrackerPress(wbarEnd, () => endWorkout(false), () => endWorkout(true), 'Hold to end');
+  // feat 246 — the contextual row's third slot is now 🗺️ Plan (→ Plan Detail). Ending a workout lives on the
+  // Workout page (⏹ End Workout, tap-confirms / hold-skips), so the bar no longer carries an End button.
 }
 
 // Resolve true when the user confirms. When hold-to-confirm is ON and a button is
@@ -10300,14 +10306,25 @@ function openPlanExecution(planId, sessionDate) {
   _plansExecId = planId || null; _plansExecSessionDate = sessionDate || null; // feat 183 — render the execution view as a page
   navTo('plan-detail');
 }
-// feat 183 — Plan Detail page: the detailed execution view hosted in #trk-main (was the #plans-panel overlay).
+// feat 246 — open the LIVE plan guide on the Plan Detail page (clears any pinned execution so a stale recap
+// from a prior openPlanExecution / past-session view doesn't shadow the live guide).
+function openPlanLive() { _plansExecId = null; _plansExecSessionDate = null; navTo('plan-detail'); }
+// feat 183/246 — Plan Detail page, hosted in #trk-main. A PLAIN visit (🗺️ shortcut · dashboard strip ·
+// breadcrumb) shows the LIVE interactive plan guide (steps · pick · skip · opts), relocated here off the
+// workout tab. A deep-link that pins a specific execution (_plansExecId / a past session date — e.g. the
+// step-bar or the guide's 📊 Execution button) shows the read-only execution recap.
 function renderPlanDetailPage(main) {
+  const pinned = !!(_plansExecId || _plansExecSessionDate);
+  if (!pinned) {
+    const live = getActiveSession();
+    if (live && !live.endedAt) { main.innerHTML = renderPlanGuide(live); bindPlanGuide(main); return; } // feat 246 — interactive guide (or the "Use a plan" bar when freestyle)
+  }
   let plan = _plansExecId ? getPlan(_plansExecId) : null;
   let sess = _plansExecSessionDate ? (state.sessions || []).find(s => s.date === _plansExecSessionDate) : null;
   if (!plan) plan = getActivePlan();
   if (!sess) sess = getActiveSession();
   if (plan && sess) { renderPlanExecutionView(main, planAtRevision(plan, sess.planRev), sess); return; }
-  main.innerHTML = `<div class="card"><div class="card-title">No plan execution to show</div><div style="color:var(--text3);font-size:13px;line-height:1.5;">Start a workout with a plan (Train › Execute › Workout, then “Use a plan”), then open <b>Plan Detail</b> for the step-by-step breakdown.</div></div>`;
+  main.innerHTML = `<div class="card"><div class="card-title">No plan to show</div><div style="color:var(--text3);font-size:13px;line-height:1.5;">Start a workout and pick a plan (Train › Execute › Workout, then “Use a plan”) — the live plan guide appears here, and the workout tab keeps a compact summary strip.</div></div>`;
 }
 function closePlansOverlay() { _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; if (currentPage === 'plan-creator' || currentPage === 'plan-detail') navBack(); } // feat 184 — overlay retired; Back leaves the page
 function planUseForWorkout(id) {
@@ -10689,6 +10706,21 @@ function renderOptionPicker(body, plan) {
   body.querySelectorAll('[data-pick-vr]').forEach(b => b.addEventListener('click', () => addOpt(_vrOpt(b.dataset.pickVr))));
 }
 // Active-workout plan guide (or a "use a plan" prompt when none).
+// feat 246 — the workout tab shows only a COMPACT plan strip (name · progress · ETC) that taps through to the
+// full Plan Detail page; the verbose step-by-step card was relocated there to reclaim space on the dashboard.
+// With no plan attached it falls back to the small "Use a plan / Today" bar (renderPlanGuide's no-plan branch).
+function renderPlanStrip(session) {
+  const plan = getActivePlan();
+  if (!plan) return renderPlanGuide(session);
+  const sum = planExecutionSummary(session, plan);
+  const eta = computePlanETA(session, plan);
+  const etc = sum.complete ? 'complete 🎉' : (eta.remainingMin > 0 ? `ETC ~${eta.remainingMin}m` : 'almost done');
+  return `<div class="plan-strip${sum.complete ? ' complete' : ''}" id="plan-strip" role="button" tabindex="0" title="Open the full plan detail">
+    <span class="ps-name">📋 ${escapeHtml(plan.name)}</span>
+    <span class="ps-prog"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · <b>${sum.stepsDone}/${sum.stepsTotal}</b> steps · ${etc}</span>
+    <span class="ps-go">🗺️ Details ›</span>
+  </div>`;
+}
 function renderPlanGuide(session) {
   const plan = getActivePlan();
   if (!plan) {
@@ -10921,6 +10953,39 @@ function sparklineSvg(series, opts) {
   const col = opts.color || (last >= pts[0] ? 'var(--good)' : 'var(--warn)');
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${X(pts.length - 1).toFixed(1)}" cy="${Y(last).toFixed(1)}" r="2.2" fill="${col}"/></svg>`;
 }
+// feat 246 — interactive plan-guide bindings (steps · pick · skip · opts · footer), shared by the workout
+// dashboard (when it still rendered the card) and now the Plan Detail page, which hosts the card for the live
+// session. All selectors are guarded, so calling this on a container without a plan card is a harmless no-op.
+function bindPlanGuide(main) {
+  if (!main) return;
+  main.querySelector('#plan-collapse-toggle')?.addEventListener('click', togglePlanCollapsed); // feat 127
+  main.querySelector('#plan-collapse-toggle')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePlanCollapsed(); } });
+  main.querySelector('#plan-progress-open')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanFull(p.id); }); // feat 138 — tap the progress line → full plan editor
+  main.querySelector('#plan-progress-open')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
+  main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
+  main.querySelector('#plan-today-btn')?.addEventListener('click', e => planUseForWorkout(e.currentTarget.dataset.todayPlan)); // feat 230 — start today's scheduled session
+  main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
+  main.querySelector('#plan-exec-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); }); // feat 145 — detailed execution view
+  main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
+  main.querySelector('#plan-abandon-btn')?.addEventListener('click', () => { const s = getActiveSession(); if (s) { s.planId = undefined; saveState(); toast('Plan abandoned'); render(); } });
+  main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt], st.load); }));
+  // feat 214 — ⏭ skip / ↩ un-skip a step for this session (back of the next-exercise queue, not removed)
+  main.querySelectorAll('.plan-step-skip[data-plan-skip]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const plan = getActivePlan(), s = getActiveSession();
+    if (!plan || !s) return;
+    const st = plan.steps[+el.dataset.planSkip];
+    const nowSkipped = toggleStepSkip(s, st);
+    toast(nowSkipped ? '⏭ Step sent to the back of the queue' : '↩ Step back in its place');
+    render();
+    if (typeof refreshPlanStepBar === 'function') refreshPlanStepBar();
+  }));
+  // feat 112 — tapping a step (not its specific option buttons) opens the picker filtered to that step's full exercise list
+  main.querySelectorAll('.plan-step[data-plan-step-idx]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('.plan-opt') || e.target.closest('.plan-step-skip')) return; openStepPicker(+el.dataset.planStepIdx); }));
+  // feat 113 — plan-complete banner actions
+  main.querySelector('#plan-complete-end')?.addEventListener('click', () => endWorkout(false));
+  main.querySelector('#plan-complete-summary')?.addEventListener('click', showPlanCompleteDialog);
+}
 // feat 245 — the active workout shows which gym you're at (GPS auto-selects the nearest saved gym on workout
 // start, within 2 km — see startWorkout → pingLocationSelectGym). Tap Change to switch; 📡 re-locates.
 function workoutGymHtml() {
@@ -11006,7 +11071,7 @@ function renderLog(main) {
     }
 
     // Workout plan guide (feat 70) — shown when active; the auto-suggester below runs only when no plan is attached.
-    if (!today.endedAt) html += renderPlanGuide(today);
+    if (!today.endedAt) html += renderPlanStrip(today); // feat 246 — compact strip on the workout tab; full detail moved to the Plan page
     if (!today.endedAt) html += renderLiveHeatmapCard(); // feat 218 — hit so far / when the plan is done
 
     // Remaining-exercises evaluation (feat 55) — auto PUSH/PULL/LOWER/CORE suggestions only apply with NO plan.
@@ -11106,35 +11171,15 @@ function renderLog(main) {
   main.querySelectorAll('.remaining-chip[data-remvar]').forEach(el => {
     el.addEventListener('click', () => startExerciseFromSuggestion(el.dataset.remvar));
   });
-  // Workout plan (feat 70)
-  main.querySelector('#plan-collapse-toggle')?.addEventListener('click', togglePlanCollapsed); // feat 127
-  main.querySelector('#plan-collapse-toggle')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePlanCollapsed(); } });
-  main.querySelector('#plan-progress-open')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanFull(p.id); }); // feat 138 — tap the progress line → full plan
-  main.querySelector('#plan-progress-open')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
-  main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
-  main.querySelector('#plan-today-btn')?.addEventListener('click', e => planUseForWorkout(e.currentTarget.dataset.todayPlan)); // feat 230 — start today's scheduled session
+  // feat 246 — the interactive plan guide's bindings live in bindPlanGuide so the Plan Detail page can host the
+  // same card (steps · pick · skip · opts) now that the workout tab shows only the compact strip.
+  bindPlanGuide(main);
+  const _planStrip = main.querySelector('#plan-strip'); // feat 246 — compact strip → full Plan Detail
+  if (_planStrip) {
+    _planStrip.addEventListener('click', openPlanLive);
+    _planStrip.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPlanLive(); } });
+  }
   _bindLiveHeatmapCard(main); // feat 218
-  main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
-  main.querySelector('#plan-exec-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); }); // feat 145 — detailed execution view
-  main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
-  main.querySelector('#plan-abandon-btn')?.addEventListener('click', () => { const s = getActiveSession(); if (s) { s.planId = undefined; saveState(); toast('Plan abandoned'); render(); } });
-  main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt], st.load); }));
-  // feat 214 — ⏭ skip / ↩ un-skip a step for this session (back of the next-exercise queue, not removed)
-  main.querySelectorAll('.plan-step-skip[data-plan-skip]').forEach(el => el.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const plan = getActivePlan(), s = getActiveSession();
-    if (!plan || !s) return;
-    const st = plan.steps[+el.dataset.planSkip];
-    const nowSkipped = toggleStepSkip(s, st);
-    toast(nowSkipped ? '⏭ Step sent to the back of the queue' : '↩ Step back in its place');
-    render();
-    if (typeof refreshPlanStepBar === 'function') refreshPlanStepBar();
-  }));
-  // feat 112 — tapping a step (not its specific option buttons) opens the picker filtered to that step's full exercise list
-  main.querySelectorAll('.plan-step[data-plan-step-idx]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('.plan-opt') || e.target.closest('.plan-step-skip')) return; openStepPicker(+el.dataset.planStepIdx); }));
-  // feat 113 — plan-complete banner actions
-  main.querySelector('#plan-complete-end')?.addEventListener('click', () => endWorkout(false));
-  main.querySelector('#plan-complete-summary')?.addEventListener('click', showPlanCompleteDialog);
   main.querySelector('#dash-see-log')?.addEventListener('click', () => switchToTab('sessions')); // feat 146 — jump to the Log tab
   // Workout control buttons
   const startBtn = main.querySelector('#wc-start-btn');
@@ -17370,7 +17415,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 192 · 2026-06-13 20:42';
+const APP_BUILD = 'build 193 · 2026-06-13 21:01';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
