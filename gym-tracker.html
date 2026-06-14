@@ -188,7 +188,23 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   box-shadow: 0 2px 12px var(--shadow);
 }
 /* feat 182 — topmost centered brand row */
-.topbar-brand-row { display: flex; align-items: center; justify-content: center; height: 38px; flex-shrink: 0; border-bottom: 1px solid var(--nav-border); }
+.topbar-brand-row { position: relative; display: flex; align-items: center; justify-content: center; height: 38px; flex-shrink: 0; border-bottom: 1px solid var(--nav-border); }
+/* feat 244 — live HR + elapsed pinned to the right of the centered brand */
+.topbar-live { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums; pointer-events: none; max-width: 46%; overflow: hidden; }
+.topbar-live:empty { display: none; }
+.topbar-live b { font-weight: 800; color: var(--text); margin-left: 2px; }
+.tbl-hr { display: inline-flex; align-items: center; gap: 1px; color: #ff5d6c; white-space: nowrap; }
+.tbl-hr b { color: #ff5d6c; }
+.tbl-hr .spark { width: 46px; height: 16px; display: block; margin-left: 4px; }
+.tbl-elapsed { display: inline-flex; align-items: center; gap: 1px; white-space: nowrap; }
+/* feat 244 — on narrow screens the centered brand + live stats collide; de-center the brand (drop the 315 badge,
+   shrink it) and lay the row out as brand-left / stats-right so both fit. Desktop keeps the centered brand. */
+@media (max-width: 560px) {
+  body.has-topbar-live .topbar-brand-row { justify-content: space-between; padding: 0 10px; }
+  body.has-topbar-live .topbar-live { position: static; transform: none; margin-left: auto; max-width: 64%; }
+  body.has-topbar-live .gt-brand { font-size: 15px; }
+  body.has-topbar-live .gt-brand-num { display: none; }
+}
 body.brand-hidden .topbar-brand-row { display: none; }
 body.brand-hidden { --topbar-h: 44px; } /* brand hidden → just the controls row; offsets shrink with it */
 /* feat 188 — a contextual shortcut row appears only while a workout is active; it grows --topbar-h by 40px so
@@ -2528,6 +2544,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
     <button id="app-brand-btn" class="topbar-brand-btn" onclick="navTo('home')" title="Home — GymTracker315" aria-label="Home">
       <h1 id="app-brand" class="gt-brand" title="GymTracker315"><span class="gt-brand-mark">🏋️</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num">315</sup></span></h1>
     </button>
+    <!-- feat 244 — live HR (💓 bpm + sparkline) + workout elapsed (⏱), next to the brand; hidden when empty -->
+    <div id="topbar-live" class="topbar-live" aria-live="off"></div>
   </div>
   <div class="topbar-ctrl-row">
     <button id="nav-back" class="topbar-navbtn" onclick="topbarBack()" title="Back" aria-label="Back" disabled>◀</button>
@@ -17321,7 +17339,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 190 · 2026-06-13 20:32';
+const APP_BUILD = 'build 191 · 2026-06-13 20:38';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -17813,7 +17831,7 @@ function changeMetroBpm(delta) {
    device and auto-reconnects; records a detailed per-session BPM time series so the trend
    (and the HR effect of each set vs. rest) is visible in history. Android Chrome / Edge only.
    ============================================================ */
-let _hrDevice = null, _hrChar = null, _hrConnected = false, _hrLastBpm = null, _hrReconnectTimer = null, _hrSampleN = 0;
+let _hrDevice = null, _hrChar = null, _hrConnected = false, _hrLastBpm = null, _hrReconnectTimer = null, _hrSampleN = 0, _hrSpark = []; // feat 244 — _hrSpark: recent bpm for the topbar sparkline
 function hrSupported() { return typeof navigator !== 'undefined' && !!navigator.bluetooth; }
 // Parse a Heart Rate Measurement value (flags byte then 8- or 16-bit BPM; optional energy).
 function parseHrValue(value) {
@@ -17826,6 +17844,7 @@ function parseHrValue(value) {
 function _hrNotify(e) { const r = parseHrValue(e.target.value); if (r && r.bpm > 0 && r.bpm < 300) hrOnSample(r.bpm); }
 function hrOnSample(bpm) {
   _hrLastBpm = bpm;
+  _hrSpark.push(bpm); if (_hrSpark.length > 60) _hrSpark.shift(); // feat 244 — topbar sparkline ring buffer
   const s = getActiveSession();
   if (s && !s.endedAt) {
     if (!Array.isArray(s.hrSamples)) s.hrSamples = [];
@@ -17837,6 +17856,7 @@ function hrOnSample(bpm) {
     }
   }
   const el = document.getElementById('hr-live-bpm'); if (el) el.textContent = bpm;
+  if (typeof refreshTopbarLive === 'function') refreshTopbarLive(); // feat 244
 }
 async function hrConnectDevice(dev) {
   const server = await dev.gatt.connect();
@@ -18194,11 +18214,34 @@ function restCueTick() {
 let _restTickId = null;
 function restTick() {
   try {
+    if (typeof refreshTopbarLive === 'function') refreshTopbarLive(); // feat 244 — tick the topbar HR/elapsed every second
     if (!getActiveSession()) { refreshRestBar(); _lastRestCueSec = -1; return; }
     reapAbandonedSet();
     refreshRestBar();
     restCueTick();                                  // feat 104 — configurable audible rest cues
   } catch(e) { if (typeof logError === 'function') logError('restTick failed', e && e.message); }
+}
+// feat 244 — live HR (💓 bpm + sparkline, while a monitor is connected) + workout elapsed (⏱, while active),
+// shown next to the centered brand. Cheap text/DOM update driven by the 1 s rest tick + each HR sample.
+function _fmtElapsedClock(ms) {
+  const t = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  const p = n => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
+}
+function refreshTopbarLive() {
+  const el = document.getElementById('topbar-live'); if (!el) return;
+  let html = '';
+  if (_hrConnected && _hrLastBpm != null) {
+    const spark = _hrSpark.length >= 2 ? sparklineSvg(_hrSpark.slice(-40), { w: 46, h: 16, color: '#ff5d6c' }) : '';
+    html += `<span class="tbl-hr" title="Live heart rate">💓<b>${_hrLastBpm}</b>${spark}</span>`;
+  }
+  const sess = getActiveSession();
+  if (sess && !sess.endedAt) {
+    const ms = Date.now() - new Date(sess.date).getTime();
+    if (isFinite(ms)) html += `<span class="tbl-elapsed" title="Workout elapsed">⏱<b>${_fmtElapsedClock(ms)}</b></span>`;
+  }
+  if (el.innerHTML !== html) el.innerHTML = html;
+  document.body.classList.toggle('has-topbar-live', !!html); // feat 244 — narrow screens de-center the brand so the live stats fit
 }
 function ensureRestTick() {
   if (typeof setInterval === 'undefined' || _restTickId != null) return;
