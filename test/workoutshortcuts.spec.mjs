@@ -1,6 +1,7 @@
 // feat 188 — contextual workout shortcuts: while a workout is active, the top bar grows a third row with
-// 🔥 Workout · ✍️ Exercise · 🏁 End. It hides when no workout is active, and --topbar-h grows with it so the
-// rest/step bars + log sheet stay clear. The rest-bar deep-link now opens the Workout page.
+// 🔥 Workout · ✍️ Exercise · 🗺️ Plan (feat 246 — the End slot became Plan Detail; End lives on the Workout
+// page). It hides when no workout is active, and --topbar-h grows with it so the rest/step bars + log sheet
+// stay clear. The rest-bar deep-link now opens the Workout page.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -30,7 +31,7 @@ test('the shortcut row is hidden with no workout, then appears (taller bar) once
       shownAfter: getComputedStyle(row).display !== 'none',
       hAfter: getComputedStyle(document.body).getPropertyValue('--topbar-h').trim(),
       active: document.body.classList.contains('workout-active'),
-      hasBtns: !!document.getElementById('wbar-workout-btn') && !!document.getElementById('wbar-exercise-btn') && !!document.getElementById('wbar-end-btn'),
+      hasBtns: !!document.getElementById('wbar-workout-btn') && !!document.getElementById('wbar-exercise-btn') && !!document.getElementById('wbar-plan-btn'),
     };
   });
   expect(r.hiddenBefore).toBe(true);
@@ -54,6 +55,21 @@ test('🔥 opens the Workout page (and is highlighted there); ✍️ opens the l
   expect(r.onWorkout).toBe('workout');
   expect(r.wHi).toBe(true);            // 🔥 highlighted while on the Workout page
   expect(r.modalOpen).toBe(true);      // ✍️ opened the log sheet
+});
+
+test('feat 246 — 🗺️ Plan opens the Plan Detail page (live interactive guide)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const fam = FAMILIES.find(f => f.id === 'bicep-curl');
+    state.plans = [{ id: 'pX', name: 'Curl Day', steps: [{ id: 's1', sets: 3, options: [{ type: 'movement', familyId: 'bicep-curl' }] }] }];
+    startWorkout();
+    const s = getActiveSession(); s.planId = 'pX'; s.planRev = 1; saveState();
+    navTo('history'); // wander off
+    document.getElementById('wbar-plan-btn').click();
+    return { page: currentPage, hasGuide: !!document.querySelector('#trk-main .plan-card'), steps: document.querySelectorAll('#trk-main .plan-step').length };
+  });
+  expect(r.page).toBe('plan-detail');
+  expect(r.hasGuide).toBe(true);   // the interactive plan card (relocated off the workout tab)
+  expect(r.steps).toBe(1);
 });
 
 test('ending the workout hides the row and restores the bar height', async ({ page }) => {

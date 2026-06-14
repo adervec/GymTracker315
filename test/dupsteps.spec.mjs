@@ -37,7 +37,7 @@ test('planDuplicateSteps maps overlapping steps (movement×movement and movement
   expect(r.single).toEqual({});                 // a 1-step plan can't duplicate
 });
 
-test('the dashboard plan card badges the duplicate steps and names their partners', async ({ page }) => {
+test('the plan card badges the duplicate steps and names their partners (feat 246 — on the Plan page)', async ({ page }) => {
   const r = await page.evaluate(() => {
     normalizeState();
     state.plans = [{ id: 'p-dup', name: 'Dup', steps: [
@@ -47,7 +47,7 @@ test('the dashboard plan card badges the duplicate steps and names their partner
     ] }];
     state.sessions = [{ id: 'sess', date: new Date().toISOString(), updatedAt: new Date().toISOString(), planId: 'p-dup',
       exercises: [] }];
-    navTo('workout');
+    openPlanLive(); // feat 246 — the interactive plan card lives on the Plan Detail page now
     const flagged = [...document.querySelectorAll('#trk-main .plan-step')].map(el => {
       const b = el.querySelector('.plan-step-dup');
       return b ? b.textContent.trim() : null;

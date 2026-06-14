@@ -67,10 +67,12 @@ test('the plan list shows a ★ per row, a Favorites chip, and a favorites-only 
     const body = document.createElement('div'); renderPlansList(body);
     const hasStar = !!body.querySelector('[data-fav-plan]');
     const hasChip = !!body.querySelector('[data-plan-fav]');
-    const favStarOn = !!body.querySelector('.fav-star.on');
-    // favorites-only filter → only favorited plans render
+    // favorites-only filter → only favorited plans render (and the star shows "on").
+    // feat 240 — the full list is paginated, so check the on-star on the fav-only view where the
+    // single favourite is guaranteed visible rather than relying on it landing on page 1 of the library.
     _plansFavOnly = true;
     const body2 = document.createElement('div'); renderPlansList(body2);
+    const favStarOn = !!body2.querySelector('.fav-star.on');
     const rows = [...body2.querySelectorAll('.plan-row')];
     const names = rows.map(r => r.querySelector('.plan-row-name').textContent);
     return { hasStar, hasChip, favStarOn, favCount: rows.length, names };

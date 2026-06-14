@@ -188,7 +188,23 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   box-shadow: 0 2px 12px var(--shadow);
 }
 /* feat 182 — topmost centered brand row */
-.topbar-brand-row { display: flex; align-items: center; justify-content: center; height: 38px; flex-shrink: 0; border-bottom: 1px solid var(--nav-border); }
+.topbar-brand-row { position: relative; display: flex; align-items: center; justify-content: center; height: 38px; flex-shrink: 0; border-bottom: 1px solid var(--nav-border); }
+/* feat 244 — live HR + elapsed pinned to the right of the centered brand */
+.topbar-live { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums; pointer-events: none; max-width: 46%; overflow: hidden; }
+.topbar-live:empty { display: none; }
+.topbar-live b { font-weight: 800; color: var(--text); margin-left: 2px; }
+.tbl-hr { display: inline-flex; align-items: center; gap: 1px; color: #ff5d6c; white-space: nowrap; }
+.tbl-hr b { color: #ff5d6c; }
+.tbl-hr .spark { width: 46px; height: 16px; display: block; margin-left: 4px; }
+.tbl-elapsed { display: inline-flex; align-items: center; gap: 1px; white-space: nowrap; }
+/* feat 244 — on narrow screens the centered brand + live stats collide; de-center the brand (drop the 315 badge,
+   shrink it) and lay the row out as brand-left / stats-right so both fit. Desktop keeps the centered brand. */
+@media (max-width: 560px) {
+  body.has-topbar-live .topbar-brand-row { justify-content: space-between; padding: 0 10px; }
+  body.has-topbar-live .topbar-live { position: static; transform: none; margin-left: auto; max-width: 64%; }
+  body.has-topbar-live .gt-brand { font-size: 15px; }
+  body.has-topbar-live .gt-brand-num { display: none; }
+}
 body.brand-hidden .topbar-brand-row { display: none; }
 body.brand-hidden { --topbar-h: 44px; } /* brand hidden → just the controls row; offsets shrink with it */
 /* feat 188 — a contextual shortcut row appears only while a workout is active; it grows --topbar-h by 40px so
@@ -388,9 +404,13 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .ref-media-btn { background: transparent; border: 1px solid var(--border2); color: var(--text3); border-radius: 6px; font-size: 11px; padding: 3px 8px; cursor: pointer; margin-left: 6px; font-family: inherit; }
 .ref-media-btn:hover { color: var(--accent); border-color: var(--accent); }
 /* Log-Sets header media button */
-.ex-media-row { margin-top: 8px; }
-.ex-media-btn { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 8px; font-size: 12px; font-weight: 700; padding: 7px 12px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 4px; }
+.ex-media-row { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+.ex-media-btn { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 8px; font-size: 12px; font-weight: 700; padding: 7px 12px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ex-media-btn.no-media { color: var(--text2); background: var(--bg3); border-color: var(--border2); } /* feat 251 — nothing to watch yet → "Configure Media" reads as a setup action */
 .ex-media-btn:active { filter: brightness(0.92); }
+/* feat 251 — total time + % active for the exercise in the log sheet */
+.ex-time-stat { font-size: 11.5px; color: var(--text3); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.ex-time-stat b { color: var(--text2); font-weight: 700; }
 .media-src-tag { display: inline-block; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 4px; padding: 1px 5px; margin-left: 5px; vertical-align: middle; }
 .media-sec-label { font-size: 10.5px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin: 4px 2px 7px; }
 .media-sec-label + .media-add-row { margin-top: 0; }
@@ -798,10 +818,10 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   #trk-numpad-backdrop.open { opacity: 1; pointer-events: auto; }
   .numpad-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10060; background: var(--bg2); border-top: 1px solid var(--border2); border-radius: 16px 16px 0 0; transform: translateY(110%); transition: transform 0.28s cubic-bezier(.32,.72,0,1); box-shadow: 0 -8px 32px var(--shadow); padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)); user-select: none; }
   .numpad-sheet.open { transform: translateY(0); }
-  .np-rep-hint { font-size: 11px; color: var(--text3); text-align: center; padding: 5px 0 1px; letter-spacing: 0.2px; } /* feat 97 */
+  .np-rep-hint { font-size: 13px; color: var(--text3); text-align: center; padding: 6px 0 1px; letter-spacing: 0.2px; } /* feat 97; feat 249 — was 11px, too small for the room it has */
   .np-rep-hint b { color: var(--accent); font-weight: 700; }
-  .np-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-  .np-title { font-size: 12px; font-weight: 700; color: var(--text2); }
+  .np-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .np-title { font-size: 16px; font-weight: 800; color: var(--text); } /* feat 249 — the Set N · Weight/Reps label was a tiny 12px in a full-width header */
   .np-display { font-size: 30px; font-weight: 800; text-align: center; color: var(--text); font-variant-numeric: tabular-nums; padding: 4px 0 10px; min-height: 40px; }
   .np-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .np-key { font-size: 20px; font-weight: 700; padding: 14px 0; background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px; color: var(--text); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
@@ -850,6 +870,14 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .sp-chip { min-width: 38px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
   .sp-chip.active { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
   .sp-note { font-size: 11.5px; color: var(--warn); margin-top: 8px; line-height: 1.4; }
+  /* feat 255 — themed split picker */
+  .sp-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .sp-theme { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); cursor: pointer; font-family: inherit; }
+  .sp-theme.active { border-color: var(--accent); background: var(--accent-bg); }
+  .sp-theme-emoji { font-size: 17px; line-height: 1; }
+  .sp-theme-name { font-size: 12.5px; font-weight: 800; }
+  .sp-theme-tag { font-size: 10px; color: var(--text3); }
+  .sp-theme.active .sp-theme-tag { color: var(--accent); }
   .sp-days { display: flex; flex-direction: column; gap: 7px; }
   .sp-day { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
   .sp-day-slot { flex-shrink: 0; width: 64px; }
@@ -978,6 +1006,12 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-cat-tag { color: var(--accent); font-weight: 700; }
   .plan-list-empty { font-size: 12.5px; color: var(--text3); padding: 18px 0; text-align: center; }
   .plan-clear-filters { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 7px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; margin-left: 4px; }
+  /* feat 240 — plan-list pager */
+  .plan-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; }
+  .plan-page-btn { background: var(--bg3); border: 1px solid var(--border2); color: var(--text); border-radius: 8px; padding: 6px 13px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .plan-page-btn:disabled { opacity: 0.4; cursor: default; }
+  .plan-page-btn:not(:disabled):hover { border-color: var(--accent-border); color: var(--accent); }
+  .plan-page-ind { font-size: 11px; font-weight: 700; color: var(--text3); white-space: nowrap; }
   .plan-new-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; } /* feat 155 */
   .plan-new-row .drawer-btn { flex: 1; min-width: 130px; }
   .plan-edit-step { background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; padding: 9px 10px; margin-bottom: 8px; }
@@ -1034,6 +1068,13 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; padding: 8px 11px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; }
   .plan-bar-none { font-size: 12px; color: var(--text3); }
   .plan-pick-btn { font-size: 12px; font-weight: 700; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 6px 11px; border-radius: 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  /* feat 246 — compact plan strip on the workout tab (full detail lives on the Plan page) */
+  .plan-strip { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin: 0 0 12px; padding: 9px 12px; background: linear-gradient(135deg, var(--accent-bg), var(--bg2)); border: 1px solid var(--accent-border); border-radius: 11px; cursor: pointer; font-size: 12.5px; }
+  .plan-strip.complete { border-color: var(--good); }
+  .plan-strip .ps-name { font-weight: 800; color: var(--text); }
+  .plan-strip .ps-prog { color: var(--text2); font-variant-numeric: tabular-nums; }
+  .plan-strip .ps-prog b { color: var(--text); }
+  .plan-strip .ps-go { margin-left: auto; color: var(--accent); font-weight: 700; white-space: nowrap; }
   .plan-card { margin: 0 0 10px; padding: 10px 12px; background: var(--bg2); border: 1px solid var(--border2); border-left: 3px solid var(--accent); border-radius: 10px; }
   .plan-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; cursor: pointer; user-select: none; }
   .plan-card-head:hover .plan-card-name { color: var(--accent); }
@@ -1082,6 +1123,8 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-effort.hit { color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); }
   .plan-effort.miss { color: var(--text3); background: var(--bg3); }
   .plan-progress-line { font-size: 11.5px; color: var(--text2); margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+  /* feat 252 — "X/Y steps" underlined with a subtle progress bar at that fraction (--sf) */
+  .steps-frac { background-image: linear-gradient(var(--accent), var(--accent)); background-repeat: no-repeat; background-position: 0 100%; background-size: calc(var(--sf, 0) * 100%) 2px; padding-bottom: 3px; border-radius: 1px; }
   .plan-progress-line b { color: var(--text); }
   .plan-progress-line.plan-progress-open { cursor: pointer; display: inline-flex; align-items: center; }
   .plan-progress-line.plan-progress-open:hover b { color: var(--accent); }
@@ -1456,6 +1499,18 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .gt-brand-word { color: var(--text); }
   .gt-brand-word b { color: var(--accent); font-weight: 800; }
   .gt-brand-num { font-size: 0.52em; font-weight: 800; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 5px; padding: 1px 4px; margin-left: 3px; vertical-align: super; letter-spacing: 0.5px; }
+  /* feat 250 — the 315-club easter egg: a digit sparkles once you've put 315 on the bar for that lift */
+  .gt-brand-d { display: inline-block; }
+  @keyframes gt-sparkle { 0%, 86%, 100% { color: var(--accent); text-shadow: none; transform: none; } 91% { color: #ffe9a8; text-shadow: 0 0 5px #ffd86b, 0 0 10px #ffcf4d; transform: translateY(-0.5px) scale(1.12); } 96% { color: #fff; text-shadow: 0 0 9px #ffe08a, 0 0 16px #ffd24d; transform: none; } }
+  .gt-brand-d.sparkle { animation: gt-sparkle 5s ease-in-out infinite; }
+  .gt-brand-num .gt-brand-d:nth-child(2).sparkle { animation-delay: 1.6s; }
+  .gt-brand-num .gt-brand-d:nth-child(3).sparkle { animation-delay: 3.2s; }
+  @media (prefers-reduced-motion: reduce) { .gt-brand-d.sparkle { animation: none; color: #ffe09a; text-shadow: 0 0 5px #ffd86b; } }
+  /* feat 250 — brand emoji picker in Cosmetic settings */
+  .brand-emoji-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+  .brand-emoji { font-size: 20px; width: 40px; height: 40px; line-height: 1; background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; cursor: pointer; }
+  .brand-emoji.active { border-color: var(--accent); background: var(--accent-bg); }
+  .brand-emoji-input { width: 100%; box-sizing: border-box; background: var(--input-bg, var(--bg3)); border: 1px solid var(--border2); border-radius: 8px; padding: 7px 10px; color: var(--text); font-size: 16px; font-family: inherit; }
   body.brand-hidden #app-brand { display: none; }
   /* print/export variant */
   .gt-brand.gt-brand-print { font-size: 16px; }
@@ -1581,13 +1636,22 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .tip-uuid-label { font-size: 8.5px; color: #2a2a2a; text-transform: uppercase; letter-spacing: 0.4px; margin-right: 4px; }
 
   .set-row:last-child { border-bottom: none; }
-  .set-num { font-size: 11px; color: #666; text-align: center; font-weight: 700; }
-  .set-input { padding: 9px 10px; font-size: 15px; text-align: center; }
+  .set-num { font-size: 12px; color: #666; text-align: center; font-weight: 700; }
+  .set-input { padding: 9px 10px; font-size: 16.5px; text-align: center; } /* feat 249 — bump the weight/reps figures (was 15px) for legibility while logging */
   /* feat 149 — brief border flash when a set/reps value changes (box-shadow ring; .set-input border-color is
      !important elsewhere, which would beat an animated border-color, so we animate the ring instead). */
   .set-input.field-flash { animation: field-flash 0.5s ease-out; }
   @keyframes field-flash { 0% { box-shadow: 0 0 0 2.5px var(--accent); } 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); } }
   .set-remove { background: transparent; color: #555; border: none; font-size: 18px; padding: 4px; cursor: pointer; }
+  /* feat 257 — live hold timer for timed sets (planks / dead hangs / wall sits / L-sits). Once the set has
+     started (weight entered → wTs) the open row shows a count-up button; a tap drops the elapsed seconds into
+     the Seconds field. Pulses subtly so it reads as live. */
+  .hold-timer-btn { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin: 3px 0 7px; padding: 9px 10px; border: 1px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-family: inherit; font-weight: 800; font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; animation: hold-timer-pulse 1.8s ease-in-out infinite; }
+  .hold-timer-btn:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  .hold-timer-btn .ht-time { font-size: 17px; letter-spacing: 0.3px; }
+  .hold-timer-btn .ht-tap { font-size: 11px; font-weight: 600; opacity: 0.82; }
+  @keyframes hold-timer-pulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); } 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); } }
+  @media (prefers-reduced-motion: reduce) { .hold-timer-btn { animation: none; } }
   .set-remove:active { color: #ff9090; }
   .set-header { display: grid; grid-template-columns: 30px 1fr 1fr 30px; gap: 8px; font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.4px; padding-bottom: 4px; }
   /* feat 88 — per-set sub-variation selector */
@@ -1670,6 +1734,15 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 
   /* Workout controls — start/end buttons, score, pace */
   .workout-controls { display: flex; gap: 8px; margin-bottom: 10px; }
+  /* feat 245 — current-gym context strip on the active workout */
+  .workout-gym { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text2); background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 7px 11px; margin-bottom: 10px; }
+  .workout-gym .wg-pin { flex-shrink: 0; }
+  .workout-gym .wg-name { font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .workout-gym.none .wg-name { color: var(--text3); font-weight: 600; }
+  .workout-gym .wg-geo { color: var(--good); font-size: 10px; font-weight: 700; background: color-mix(in srgb, var(--good) 14%, transparent); border-radius: 5px; padding: 1px 6px; flex-shrink: 0; }
+  .workout-gym .wg-actions { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; }
+  .workout-gym .wg-btn { background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); border-radius: 7px; padding: 4px 9px; font-size: 11.5px; cursor: pointer; font-family: inherit; }
+  .workout-gym .wg-btn:hover { color: var(--text); border-color: var(--border); }
   .wc-btn { flex: 1; background: #141414; border: 1px solid #2a2a2a; color: #ddd; padding: 9px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; letter-spacing: 0.3px; }
   .wc-btn.start { background: linear-gradient(135deg, #2a4a2a, #1a3a1a); border-color: #3a5a3a; color: #b8e8b8; }
   .wc-btn.start:active { transform: scale(0.98); }
@@ -1790,6 +1863,8 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   /* Tracking modes (feat 26/27) */
   .ex-mode-tag { display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 4px; padding: 0 5px; margin-left: 8px; vertical-align: middle; }
   .ex-mode-hint { font-size: 11px; color: var(--text2); line-height: 1.5; margin-top: 6px; padding: 6px 9px; background: var(--bg3); border-radius: 7px; border: 1px solid var(--border2); }
+  /* feat 254 — what-weight-to-record convention hint (dumbbell / kettlebell / freemotion) */
+  .weight-record-hint { font-size: 11px; color: var(--text2); line-height: 1.45; margin-top: 6px; padding: 6px 9px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 7px; }
   .ex-mode-hint b { color: var(--text); }
 
   /* Cardio form (feat 6) */
@@ -1924,6 +1999,10 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .notes-row-label { font-size: 9.5px; color: #80a0ff; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; margin-right: 5px; }
   .notes-empty-btn { background: transparent; color: #80a0ff; border: 1px dashed #2e3a5a; border-radius: 6px; padding: 7px 10px; font-size: 11px; font-weight: 600; cursor: pointer; width: 100%; }
   .notes-empty-btn:active { background: #181c2a; }
+  /* feat 259 — the gym/location is its own line, distinct from the subjective Session Notes card. */
+  .session-gym-line { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #d8d8e8; background: rgba(128,160,255,0.08); border: 1px solid rgba(128,160,255,0.22); border-radius: 7px; padding: 6px 10px; margin: 8px 0; }
+  .notes-loc-hint { font-size: 12px; color: var(--text2); background: rgba(128,160,255,0.07); border: 1px solid rgba(128,160,255,0.2); border-radius: 7px; padding: 7px 10px; margin-bottom: 12px; }
+  .notes-loc-hint b { color: var(--text); }
   .notes-edit-btn { background: transparent; color: #80a0ff; border: none; padding: 2px 6px; font-size: 10px; cursor: pointer; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
   .notes-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   .notes-header-title { font-size: 9.5px; color: #80a0ff; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
@@ -2134,12 +2213,16 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .fab-status { font-size: 11.5px; opacity: 0.85; font-weight: 600; }
   .fab:active { transform: scale(0.98); }
 
-  /* Modal */
-  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  /* Modal — feat 256: a full-screen overlay must sit ABOVE the fixed top bar (z-index 9999), otherwise the bar
+     paints over the modal's sticky header and clips its top (the "Session Notes" title + Close were hidden behind
+     the breadcrumb). Mirrors the glossary/help/wizard/data-page overlays, which already clear the bar. Stays below
+     the OSK numpad (10060) and the confirm/choice dialog (10070) so those still layer on top of the modal. */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10040; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
   .modal-backdrop.open { opacity: 1; pointer-events: auto; }
-  .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 210; transform: translateY(100%); transition: transform 0.3s ease-out; background: #0a0a0a; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 10041; transform: translateY(100%); transition: transform 0.3s ease-out; background: #0a0a0a; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .modal.open { transform: translateY(0); }
-  .modal-header { padding: 12px 14px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: #0a0a0a; z-index: 10; }
+  /* feat 256: pad the sticky header past the status-bar/notch on a phone, matching #data-page-header / #mw-header. */
+  .modal-header { padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 12px 14px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: #0a0a0a; z-index: 10; }
   .modal-title { font-size: 15px; font-weight: 700; }
   .modal-actions { display: flex; gap: 6px; }
   .modal-btn { background: #1a1a1a; border: 1px solid #2a2a2a; color: #aaa; padding: 6px 12px; border-radius: 7px; font-size: 13px; cursor: pointer; font-family: inherit; }
@@ -2520,8 +2603,10 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <div id="app-topbar">
   <div class="topbar-brand-row">
     <button id="app-brand-btn" class="topbar-brand-btn" onclick="navTo('home')" title="Home — GymTracker315" aria-label="Home">
-      <h1 id="app-brand" class="gt-brand" title="GymTracker315"><span class="gt-brand-mark">🏋️</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num">315</sup></span></h1>
+      <h1 id="app-brand" class="gt-brand" title="GymTracker315"><span class="gt-brand-mark">🏋️</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num"><span class="gt-brand-d" data-lift="bench">3</span><span class="gt-brand-d" data-lift="dead">1</span><span class="gt-brand-d" data-lift="squat">5</span></sup></span></h1>
     </button>
+    <!-- feat 244 — live HR (💓 bpm + sparkline) + workout elapsed (⏱), next to the brand; hidden when empty -->
+    <div id="topbar-live" class="topbar-live" aria-live="off"></div>
   </div>
   <div class="topbar-ctrl-row">
     <button id="nav-back" class="topbar-navbtn" onclick="topbarBack()" title="Back" aria-label="Back" disabled>◀</button>
@@ -2543,7 +2628,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
   <div class="topbar-shortcut-row">
     <button id="wbar-workout-btn" class="wbar-btn" onclick="navTo('workout')" title="Workout" aria-label="Workout">🔥 <span class="wbar-lbl">Workout</span></button>
     <button id="wbar-exercise-btn" class="wbar-btn" onclick="navTo('exercise')" title="Log a set" aria-label="Log a set">✍️ <span class="wbar-lbl">Exercise</span></button>
-    <button id="wbar-end-btn" class="wbar-btn wbar-end" title="End workout — hold to skip the confirm" aria-label="End workout">🏁 <span class="wbar-lbl">End</span></button>
+    <button id="wbar-plan-btn" class="wbar-btn" onclick="openPlanLive()" title="Plan details" aria-label="Plan details">🗺️ <span class="wbar-lbl">Plan</span></button>
   </div>
 </div>
 
@@ -3204,7 +3289,15 @@ function isSuppressedVar(uuid) { return _VAR_SUPPRESS.has(uuid); }
    A gym declares which equipment categories it has, plus per-variation
    force-show / force-hide overrides that take precedence over global hiding. */
 function getActiveGym() { return state.activeGymId ? (state.gyms || []).find(g => g.id === state.activeGymId) : null; }
-function setActiveGym(id) { state.activeGymId = id || null; saveState(); logInfo('Active gym set', id || '(none)'); }
+function setActiveGym(id) { state.activeGymId = id || null; stampActiveSessionGym(); saveState(); logInfo('Active gym set', id || '(none)'); }
+// feat 259 — the active gym IS the session's location. Stamp it onto the in-progress session so history records
+// where you trained, sourced from the gym (not a freeform notes field). No-op when not currently training.
+function stampActiveSessionGym() {
+  const s = (typeof getActiveSession === 'function') ? getActiveSession() : null;
+  if (!s) return;
+  const g = getActiveGym();
+  if (g) { s.notes = s.notes || {}; s.notes.location = g.name; if (typeof touchSession === 'function') touchSession(s); } // feat 95
+}
 function gymForcesShow(uuid) { const g = getActiveGym(); return !!(g && g.show && g.show[uuid]); }
 function gymForcesHideVar(uuid) { const g = getActiveGym(); return !!(g && g.hide && g.hide[uuid]); }
 // A family is gym-unavailable when none of its known equipment categories are present.
@@ -3535,7 +3628,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -4089,9 +4182,8 @@ function initTopbarShortcuts() {
   attachTopbarLongPress(document.getElementById('app-settings-btn'), openDataPage, 'Data'); // feat 134 — long-press Settings → Data Management page
   attachTopbarLongPress(document.querySelector('.nav-tab[data-panel="panel-coaching"]'), topbarCoachingRelevant, 'Relevant');
   // ❓ Help: long-press is intentionally the same as a tap — no separate shortcut attached.
-  // feat 188 — 🏁 End on the contextual workout shortcut row: a tap confirms, a hold skips the confirm (feat 108).
-  const wbarEnd = document.getElementById('wbar-end-btn');
-  if (wbarEnd && typeof attachTrackerPress === 'function') attachTrackerPress(wbarEnd, () => endWorkout(false), () => endWorkout(true), 'Hold to end');
+  // feat 246 — the contextual row's third slot is now 🗺️ Plan (→ Plan Detail). Ending a workout lives on the
+  // Workout page (⏹ End Workout, tap-confirms / hold-skips), so the bar no longer carries an End button.
 }
 
 // Resolve true when the user confirms. When hold-to-confirm is ON and a button is
@@ -5978,6 +6070,16 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${state.hideBranding ? 'active' : ''}" data-pref-brand="hide">Off</button>
       </div>
     </div>
+    <div class="drawer-setting-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+      <div>
+        <div class="drawer-setting-label">Brand emoji</div>
+        <div class="drawer-setting-sub">The little lifter beside the wordmark — make it yours. (The “315” digits quietly sparkle once you’ve put 315 lb on the bar in bench · deadlift · squat.)</div>
+      </div>
+      <div class="brand-emoji-pick">
+        ${['🏋️','💪','🦍','🐉','🔥','⚡','🏆','🦾','🧗','🤼','🥇','🤘'].map(e => `<button type="button" class="brand-emoji ${brandMark() === e ? 'active' : ''}" data-brand-emoji="${escapeAttr(e)}">${e}</button>`).join('')}
+      </div>
+      <input type="text" id="brand-emoji-custom" class="brand-emoji-input" maxlength="8" placeholder="…or paste any emoji" value="${escapeAttr(brandMark() === '🏋️' ? '' : brandMark())}">
+    </div>
 
     <div class="drawer-section-title">Preferences</div>
     <div class="drawer-setting-row">
@@ -6819,6 +6921,16 @@ function renderSettingsDrawer() {
       saveState();
       renderSettingsDrawer(); // re-render to update active state
     });
+  });
+
+  // feat 250 — brand emoji picker
+  body.querySelectorAll('[data-brand-emoji]').forEach(b => b.addEventListener('click', () => {
+    state.brandMark = b.dataset.brandEmoji; saveState(); applyBranding(); renderSettingsDrawer();
+  }));
+  const beInput = body.querySelector('#brand-emoji-custom');
+  if (beInput) beInput.addEventListener('input', () => {
+    state.brandMark = beInput.value.trim(); saveState(); applyBranding();
+    body.querySelectorAll('[data-brand-emoji]').forEach(b => b.classList.toggle('active', b.dataset.brandEmoji === brandMark())); // live, without stealing focus
   });
 
   // Language picker (feat 61)
@@ -8037,6 +8149,50 @@ function _mediaCombinedCount(uuid, mov) {
   if (mov && mov !== uuid) { const seen = new Set(getExerciseMedia(uuid).map(m => m.embedUrl || m.url)); getExerciseMedia(mov).forEach(m => { if (!seen.has(m.embedUrl || m.url)) n++; }); }
   return n;
 }
+// feat 251 — the combined clip list (variation's media first, then the parent movement's, deduped).
+function _mediaCombinedList(uuid, mov) {
+  const out = getExerciseMedia(uuid).slice();
+  if (mov && mov !== uuid) { const seen = new Set(out.map(m => m.embedUrl || m.url)); getExerciseMedia(mov).forEach(m => { if (!seen.has(m.embedUrl || m.url)) out.push(m); }); }
+  return out;
+}
+// feat 251 — a short human format type for a clip: Short / Reel / TikTok / video.
+function mediaTypeLabel(m) {
+  if (!m) return 'clip';
+  if (m.platform === 'tiktok') return 'TikTok';
+  if (m.platform === 'instagram') return 'Reel';
+  if (m.platform === 'youtube') return /\/shorts\//i.test(m.watchUrl || m.url || '') ? 'Short' : 'video';
+  return 'clip';
+}
+// feat 251 — the exercise-screen media button label: "Configure Media" when empty, else "Watch <type> from <creator>".
+function exMediaBtnLabel(uuid, mov) {
+  const list = _mediaCombinedList(uuid, mov);
+  if (!list.length) return '⚙ Configure Media';
+  const m = list[0], cr = (typeof mediaCreator === 'function') ? mediaCreator(m) : null;
+  return `▶ Watch ${mediaTypeLabel(m)}${cr ? ' from ' + cr : ''}${list.length > 1 ? ` (+${list.length - 1})` : ''}`;
+}
+// feat 251 — total time + %-active for the exercise currently in the log sheet. Spans from the first set's
+// start (wTs) to the last set's done-stamp (ts); active = summed under-tension per set. Logging combines the
+// already-saved batches for this exercise with the open draft; editing uses just the loaded sets.
+function exerciseTiming(varUuid, subUuid) {
+  if (!varUuid) return null;
+  let sets = [];
+  if (!(typeof modalState !== 'undefined' && modalState.isEditing)) {
+    const sess = (typeof getActiveSession === 'function') ? getActiveSession() : null;
+    if (sess) (sess.exercises || []).forEach(ex => { if (trackingKey(ex.varUuid, ex.subUuid) === trackingKey(varUuid, subUuid)) sets = sets.concat(ex.sets || []); });
+  }
+  if (typeof pending !== 'undefined' && pending) sets = sets.concat(pending.sets || []);
+  let firstStart = Infinity, lastDone = -Infinity, activeMs = 0;
+  sets.forEach(s => {
+    const ws = s && s.wTs ? new Date(s.wTs).getTime() : null;
+    const ds = s && s.ts ? new Date(s.ts).getTime() : null;
+    if (ws != null && !isNaN(ws)) firstStart = Math.min(firstStart, ws);
+    if (ds != null && !isNaN(ds)) lastDone = Math.max(lastDone, ds);
+    if (ws != null && ds != null && ds > ws) activeMs += (ds - ws);
+  });
+  if (!isFinite(firstStart) || lastDone < 0 || lastDone <= firstStart) return null;
+  const totalMs = lastDone - firstStart;
+  return { totalMs, activeMs, pctActive: totalMs > 0 ? Math.round(activeMs / totalMs * 100) : null };
+}
 // Keep every 🎬 count badge (Reference + Log-Sets) fresh without a full re-render.
 function refreshMediaCounts() {
   document.querySelectorAll('[data-media-label]').forEach(btn => {
@@ -8825,9 +8981,9 @@ function pageTitle(id) {
 function _surfacePanelForPage() {
   const want = (currentPage === 'reference') ? 'panel-reference' : 'panel-tracker';
   const ap = document.querySelector('.panel.active');
-  if (!ap || ap.id === want) return;
+  if (ap && ap.id === want) return; // feat 241 — if NO panel is active (stale state), fall through and surface `want` rather than leaving a blank screen
   const btn = document.querySelector('.nav-tab[data-panel="' + want + '"]');
-  if (btn && typeof switchPanel === 'function') switchPanel(want, btn); // switchPanel directly — goPanel('panel-reference') would recurse via the navTo shim
+  if (typeof switchPanel === 'function') switchPanel(want, btn); // switchPanel directly (null btn ok); goPanel() would recurse via the navTo shim
 }
 function _surfaceTracker() { _surfacePanelForPage(); } // feat 191 — back-compat alias (panel surfacing now keys off currentPage)
 function renderReferencePage(main) { if (main) main.innerHTML = ''; if (typeof renderRef === 'function') renderRef(); } // feat 191 — Reference is a router page hosted in #panel-reference
@@ -8996,9 +9152,27 @@ function currentViewLabel() {
 // feat 170 — GymTracker315 placeholder wordmark (stylized text; not trademarked/copyrighted). The in-app
 // header copy hides when state.hideBranding is on, but image/PDF exports ALWAYS carry the brand at the top.
 function brandLogoHtml(forExport) {
-  return `<span class="gt-brand${forExport ? ' gt-brand-print' : ''}"><span class="gt-brand-mark">🏋️</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num">315</sup></span></span>`;
+  // feat 250 — carry the custom emoji into image / PDF exports too
+  return `<span class="gt-brand${forExport ? ' gt-brand-print' : ''}"><span class="gt-brand-mark">${escapeHtml(brandMark())}</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num">315</sup></span></span>`;
 }
-function applyBranding() { try { document.body.classList.toggle('brand-hidden', !!state.hideBranding); } catch (_) {} }
+// feat 250 — custom brand mark + the 315-club sparkle easter egg.
+function brandMark() { return (state.brandMark && /\S/.test(state.brandMark)) ? state.brandMark.trim() : '🏋️'; }
+// Has the user put 315 lb (≈142.9 kg) on the bar for any variation of this movement, for at least 1 rep?
+function lift315(familyId) {
+  if (!familyId) return false;
+  const fam = FAMILIES.find(f => f.id === familyId); if (!fam) return false;
+  const thr = state.unit === 'kg' ? (315 / 2.205) : 315;
+  const uuids = new Set((fam.variations || []).map(v => v.uuid).filter(Boolean));
+  return (state.sessions || []).some(s => (s.exercises || []).some(ex =>
+    uuids.has(ex.varUuid) && (ex.sets || []).some(set => { const w = parseFloat(set.w), r = parseFloat(set.r); return w >= thr && r >= 1; })));
+}
+const _BRAND_DIGIT_LIFT = { bench: 'flat-bench-press', dead: 'deadlift', squat: 'squat' }; // 3 · 1 · 5 → bench · deadlift · squat
+function applyBranding() {
+  try { document.body.classList.toggle('brand-hidden', !!state.hideBranding); } catch (_) {}
+  try { const m = document.querySelector('#app-brand .gt-brand-mark'); if (m && m.textContent !== brandMark()) m.textContent = brandMark(); } catch (_) {} // feat 250 — custom emoji
+  // feat 250 — each digit of "315" sparkles once you've hit 315 in the matching lift (3=bench, 1=deadlift, 5=squat)
+  try { document.querySelectorAll('#app-brand .gt-brand-d').forEach(el => el.classList.toggle('sparkle', lift315(_BRAND_DIGIT_LIFT[el.dataset.lift]))); } catch (_) {}
+}
 function exportCurrentViewPdf() {
   const main = document.getElementById('trk-main'); if (!main) return;
   let pr = document.getElementById('print-root');
@@ -9201,6 +9375,31 @@ const SEED_PLANS = [
     _pstep(4,[_mvOpt('abs-dynamic')],'Crunch / leg-raise variations.','light'), _pstep(3,[_mvOpt('core-stability')],'Planks / hollow holds.','light'), _pstep(3,[_mvOpt('obliques')],'Rotation and side flexion.','light'), _pstep(2,[_mvOpt('back-extension')],'Balance the front.','light') ] },
   { id:'seed-emom-30', name:'EMOM Full Body 30', intensity:4, desc:'Every minute on the minute — a compound each minute rotating push, pull and legs. Work fast, rest in what is left of the minute. A metabolic full-body hit.', steps:[
     _pstep(5,[_mvOpt('squat'),_mvOpt('leg-press')],'Legs — minute one of the cycle.','heavy'), _pstep(5,[_mvOpt('flat-bench-press'),_mvOpt('push-ups')],'Push — minute two.'), _pstep(5,[_mvOpt('row'),_mvOpt('pull-up')],'Pull — minute three.'), _pstep(4,[_mvOpt('shoulder-press')],'Shoulders — keep moving.'), _pstep(3,[_mvOpt('abs-dynamic')],'Core flush.','light') ] },
+  // —— Tranche 8 (feat 258) — prison / cell bodyweight: zero equipment, a few square feet, make-do anywhere.
+  // Several lean on timed holds (wall sit, plank) — running them surfaces the feat-257 live hold timer.
+  { id:'seed-cell-circuit', name:'Cellblock Circuit', intensity:3, desc:'No bar, no bench, a few square feet of floor — and a full-body sweat. Push, squat, a hard burpee, a plank hold and core, run back to back as a circuit. The only-equipment-is-you template for the tightest of spaces.', steps:[
+    _pstep(4,[_mvOpt('push-ups')],'Any push-up you own — knees, standard or feet elevated.'), _pstep(4,[_mvOpt('squat')],'Bodyweight air squats — full depth, steady tempo.','light'), _pstep(3,[_vrOpt('7483a88e-9369-4751-a0d2-97727a6c6c97'),_mvOpt('conditioning')],'Burpees — the whole body in one rep.'), _pstep(3,[_vrOpt('517329c7-0df5-4eb7-b254-73741773ffac')],'Plank — hold for time; the live timer counts you up.','light'), _pstep(3,[_mvOpt('abs-dynamic')],'Sit-ups or leg raises to finish.','light') ] },
+  { id:'seed-yard-strength', name:'The Yard (Bodyweight Strength)', intensity:4, desc:'Bodyweight built for strength, not just sweat — harder variations, lower reps, longer rests. Press, pull, hinge and hold using only your own weight and whatever sturdy ledge or overhead bar you can find.', steps:[
+    _pstep(4,[_mvOpt('push-ups'),_vrOpt('12786277-f0b5-45c7-844b-28a16bbc154a')],'The hardest push-up you can manage for the reps.','moderate'), _pstep(4,[_mvOpt('pull-up')],'Strict pull-ups on any solid overhead bar.','moderate'), _pstep(3,[_mvOpt('lunge')],'Split squats — progress toward a pistol.'), _pstep(3,[_vrOpt('8604f483-0910-4763-a719-8650d357271a'),_mvOpt('dips')],'Dips off a bunk edge or a sturdy chair.'), _pstep(3,[_vrOpt('aa85bca9-8e58-40bb-9b83-72d148856c3c')],'Inverted rows under a solid table or low bar.'), _pstep(3,[_mvOpt('core-stability')],'A long anti-movement hold to finish.','light') ] },
+  { id:'seed-quiet-cell', name:'Quiet Cell (Zero-Impact)', intensity:2, desc:'Zero impact, zero noise — nothing to wake the neighbours or rattle the floor. Isometric holds and slow grinds: wall sit, plank, slow push-ups, bridges and calves. Time under tension does the work, no jumping required.', steps:[
+    _pstep(3,[_vrOpt('78a38860-d0d6-480b-8ca5-f78ed72f0647')],'Wall sit — hold for time against the wall; watch the live timer.','light'), _pstep(3,[_vrOpt('517329c7-0df5-4eb7-b254-73741773ffac')],'Plank — brace and breathe, hold for time.','light'), _pstep(4,[_mvOpt('push-ups')],'Slow push-ups — three seconds down, no bouncing.'), _pstep(3,[_mvOpt('glute-accessories')],'Glute bridges — squeeze and hold at the top.','light'), _pstep(3,[_mvOpt('obliques')],'Side planks — hold each side for time.','light'), _pstep(3,[_mvOpt('calf-raise')],'Slow bodyweight calf raises.','light') ] },
+  { id:'seed-burpee-ladder', name:'Burpee Ladder', intensity:4, desc:'A heart-pounding conditioning blast in one square metre — burpees, jump squats, climbers and push-ups, back to back. Short, savage, and done before the kettle boils. Climb the reps each round, then walk them back down.', steps:[
+    _pstep(5,[_vrOpt('7483a88e-9369-4751-a0d2-97727a6c6c97'),_mvOpt('conditioning')],'Burpees — the backbone of the ladder.','moderate'), _pstep(4,[_vrOpt('10488c9f-5742-4952-94b6-78eeae06571b'),_mvOpt('plyometrics')],'Jump squats — explode up, land soft and quiet.','light'), _pstep(4,[_mvOpt('conditioning')],'Mountain climbers or fast feet — keep the rate high.','light'), _pstep(4,[_mvOpt('push-ups')],'Push-ups — press when the legs are toast.'), _pstep(3,[_mvOpt('abs-dynamic')],'Core flush to close.','light') ] },
+  // —— Tranche 9 (feat 260) — round out the catalogue so the split recommender has a well-fitting plan for every
+  // PPL/upper-lower slot at BOTH ends of the clock: express (~30 min) push/pull/legs/upper, and 2-hour push/pull
+  // marathons (legs/upper/full-body already have 90 min–3 h options; push and pull did not).
+  { id:'seed-express-push', name:'Express Push', intensity:3, desc:'Chest, shoulders and triceps in a brisk half hour — one heavy press, one overhead, one finisher. The push day for when the clock is tight.', steps:[
+    _pstep(3,[_mvOpt('flat-bench-press'),_mvOpt('push-ups')],'Main press — heavy and clean.','heavy'), _pstep(3,[_mvOpt('shoulder-press')],'Overhead for the delts.'), _pstep(3,[_mvOpt('tricep-extension'),_mvOpt('dips')],'Triceps finisher.','light') ] },
+  { id:'seed-express-pull', name:'Express Pull', intensity:3, desc:'Back and biceps in thirty minutes flat — a vertical pull, a row, and curls. The express counterpart to the quick push day so an upper/lower or PPL week never stalls for time.', steps:[
+    _pstep(3,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'Vertical pull for width.','heavy'), _pstep(3,[_mvOpt('row')],'Row for thickness.','heavy'), _pstep(3,[_mvOpt('bicep-curl'),_mvOpt('hammer-curl')],'Curls to finish.','light') ] },
+  { id:'seed-express-legs', name:'Express Legs', intensity:4, desc:'A complete lower body in half an hour — squat, a hinge or curl, and calves. Short, heavy, and no excuses on a busy day.', steps:[
+    _pstep(3,[_mvOpt('squat'),_mvOpt('leg-press')],'Squat heavy while fresh.','heavy'), _pstep(3,[_mvOpt('leg-curl'),_mvOpt('lunge')],'Hit the hamstrings.'), _pstep(3,[_mvOpt('hip-thrust'),_mvOpt('glute-accessories')],'Glute drive — squeeze at the top.','light'), _pstep(3,[_mvOpt('calf-raise')],'Calves to close.','light') ] },
+  { id:'seed-express-upper', name:'Express Upper', intensity:3, desc:'A balanced upper body in thirty minutes — push, pull and a little arm work, nothing wasted. The quick option for an upper/lower week.', steps:[
+    _pstep(3,[_mvOpt('flat-bench-press'),_mvOpt('incline-bench-press')],'Press.','heavy'), _pstep(3,[_mvOpt('row'),_mvOpt('lat-pulldown')],'Pull.','heavy'), _pstep(2,[_mvOpt('shoulder-press')],'Shoulders.'), _pstep(2,[_mvOpt('bicep-curl'),_mvOpt('tricep-extension')],'Arms.','light') ] },
+  { id:'seed-push-marathon', name:'Push Marathon (2h)', intensity:5, desc:'Two hours of pure pressing — every chest, shoulder and triceps angle. Heavy compounds while fresh, then flyes, raises and burnouts until the push is fully cooked. A weekly specialization for a big upper half.', steps:[
+    _pstep(5,[_mvOpt('flat-bench-press')],'Heavy flat press to open.','heavy'), _pstep(4,[_mvOpt('incline-bench-press')],'Upper-chest shelf.','heavy'), _pstep(4,[_mvOpt('shoulder-press')],'Overhead press for the delts.'), _pstep(4,[_mvOpt('dips')],'Deep dips for lower chest and triceps.'), _pstep(4,[_mvOpt('chest-fly')],'Flyes for the stretch.','light'), _pstep(4,[_mvOpt('lateral-raise')],'Side-delt width — strict and light.','light'), _pstep(4,[_mvOpt('tricep-extension')],'Triceps volume.','light'), _pstep(3,[_mvOpt('rear-delt')],'Rear delts to balance the pressing.','light'), _pstep(3,[_mvOpt('shrugs')],'Upper-trap thickness.'), _pstep(3,[_mvOpt('push-ups')],'Push-up burnout to finish the chest.','light'), _pstep(3,[_mvOpt('abs-dynamic')],'Core to close.','light') ] },
+  { id:'seed-pull-marathon', name:'Pull Marathon (2h)', intensity:5, desc:'Two hours devoted to the back — width, thickness, rear delts, traps, biceps and grip. Heavy pulls first, then every rowing and curling angle until there is nothing left to pull. A weekly back-builder.', steps:[
+    _pstep(5,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'Heavy vertical pull for width.','heavy'), _pstep(5,[_mvOpt('row')],'Heavy rows for thickness.','heavy'), _pstep(4,[_mvOpt('lat-pulldown')],'A second vertical angle.'), _pstep(4,[_mvOpt('row')],'A second rowing angle.'), _pstep(4,[_mvOpt('rear-delt')],'Rear delts and face pulls.','light'), _pstep(4,[_mvOpt('shrugs')],'Traps — hold the squeeze at the top.'), _pstep(4,[_mvOpt('bicep-curl')],'Biceps volume.','light'), _pstep(3,[_mvOpt('hammer-curl')],'Brachialis and forearm thickness.','light'), _pstep(3,[_mvOpt('reverse-curl'),_mvOpt('wrist-curl')],'Direct grip and forearm work.','light'), _pstep(3,[_mvOpt('row')],'One more rowing angle — chase the squeeze.','light'), _pstep(3,[_mvOpt('abs-dynamic')],'Core to close.','light') ] },
 ];
 function cloneSeedPlan(sp) {
   return { id:sp.id, name:sp.name, desc:sp.desc||'', intensity:sp.intensity||3, steps:sp.steps.map(s => ({ id:newUuid(), sets:s.sets, desc:s.desc||'', load:s.load||'moderate', options:s.options.map(o => ({ ...o })) })) };
@@ -9684,7 +9883,7 @@ function planLengthBucket(plan) { const m = estimatePlanMinutes(plan); return m 
    plans that hit muscle groups you HAVEN'T hammered in the last few days (recovery-aware variety). Pure
    functions over state.plans + state.sessions so they're unit-testable.
    ============================================================ */
-const PLAN_PICK_TIMES = [15, 30, 45, 60, 90, 120]; // the minute chips
+const PLAN_PICK_TIMES = [15, 30, 45, 60, 90, 120, 150, 180]; // the minute chips (feat 240 — up to 3h)
 function planPickMinutes() { const m = state && state.planPickMinutes; return (m >= 5 && m <= 240) ? m : 45; }
 // Per-mega LOGGED-set load over the last `days` days of sessions (cardio excluded). Mirrors sessionSplitLabel's
 // mega bucketing so "recent activity" lines up with how a session is labelled.
@@ -9949,6 +10148,19 @@ const SPLIT_TEMPLATES = {
   6: ['Push', 'Pull', 'Legs', 'Push', 'Pull', 'Legs'],
 };
 function splitTemplateFor(sessions) { return SPLIT_TEMPLATES[Math.max(2, Math.min(6, sessions | 0))] || SPLIT_TEMPLATES[3]; }
+// feat 255 — curated "themed" splits that group complementary plans into a coherent week. The names are coy,
+// euphemistic allusions to famous on-screen physiques — we don't name anyone or reproduce any copyrighted
+// routine; the programming is our own generic archetype (PPL / upper-lower / full-body), and the recommender
+// fills each slot from YOUR plan library. Purely a fun starting point.
+const THEMED_SPLITS = [
+  { id:'steel',   name:'Man of Lifting Steel',     emoji:'🦸', tag:'4-day · caped strength',      blurb:'Heavy presses and a back built to fill a cape — upper/lower, then a pull and a push to finish.', slots:['Upper','Legs','Pull','Push'] },
+  { id:'oak',     name:'The Golden-Era Oak',       emoji:'🌳', tag:'6-day · mirror muscles',      blurb:'A high-volume, sun-soaked beach classic — chest & back paired, legs honoured, arms never skipped.', slots:['Push','Pull','Legs','Push','Pull','Legs'] },
+  { id:'spartan', name:'Three Hundred Reasons',    emoji:'🛡️', tag:'3-day · lean & conditioned',  blurb:'A lean warrior look: full-body strength three times a week, every session earns its sweat.', slots:['Full Body','Full Body','Full Body'] },
+  { id:'thunder', name:'God of Thunder',           emoji:'⚡', tag:'4-day · overhead power',       blurb:'Shoulder-forward and powerful — press overhead like a worthy hammer depends on it.', slots:['Push','Pull','Legs','Upper'] },
+  { id:'people',  name:'The People’s Pump',        emoji:'🌋', tag:'5-day · boulder shoulders',    blurb:'Big chest and bigger delts, five days, maximum effort — no day wasted, my friends.', slots:['Push','Pull','Legs','Push','Pull'] },
+  { id:'cowl',    name:'The Caped Crusader’s Cut',  emoji:'🦇', tag:'4-day · athletic minimalism', blurb:'Dense and athletic — an upper/lower you could run out of a cave anywhere in the city.', slots:['Upper','Legs','Upper','Legs'] },
+];
+function themedSplit(id) { return THEMED_SPLITS.find(t => t.id === id) || null; }
 // The muscle GROUPS a slot is meant to cover — so a "Pull" day is judged on back+biceps volume, not just
 // on fitting the clock (which would otherwise pick a tiny Arm Day over a proper rowing session).
 const SLOT_GROUPS = {
@@ -9973,7 +10185,7 @@ function buildRecommendedSplit(opts) {
   opts = opts || {};
   const sessions = Math.max(2, Math.min(6, opts.sessions | 0 || 3));
   const minutes = (opts.minutes >= 15 && opts.minutes <= 240) ? opts.minutes : 60;
-  const slots = splitTemplateFor(sessions);
+  const slots = (Array.isArray(opts.slots) && opts.slots.length) ? opts.slots : splitTemplateFor(sessions); // feat 255 — themed splits pass an explicit slot sequence
   const plans = state.plans || [];
   const used = {};
   return slots.map((cat, i) => {
@@ -10015,8 +10227,11 @@ function buildProgramFromSplit(split, sessions, minutes) {
 }
 function saveProgramFromSplit() {
   const cfg = splitPlanCfg();
-  const split = buildRecommendedSplit({ sessions: cfg.sessions, minutes: cfg.minutes });
-  state.program = buildProgramFromSplit(split, cfg.sessions, cfg.minutes);
+  const t = cfg.theme ? themedSplit(cfg.theme) : null; // feat 255 — honour the chosen themed split
+  const sessions = t ? t.slots.length : cfg.sessions;
+  const split = buildRecommendedSplit({ sessions, minutes: cfg.minutes, slots: t ? t.slots : null });
+  state.program = buildProgramFromSplit(split, sessions, cfg.minutes);
+  if (t) state.program.name = t.name;
   saveState();
 }
 function clearProgram() { state.program = null; saveState(); }
@@ -10106,7 +10321,8 @@ function programAdherenceTrend(n) {
 function renderSplitPlannerPage(main) {
   if (!main) return;
   const cfg = splitPlanCfg();
-  const split = buildRecommendedSplit({ sessions: cfg.sessions, minutes: cfg.minutes });
+  const theme = cfg.theme ? themedSplit(cfg.theme) : null; // feat 255
+  const split = buildRecommendedSplit({ sessions: theme ? theme.slots.length : cfg.sessions, minutes: cfg.minutes, slots: theme ? theme.slots : null });
   const meso = mesoCurrentWeek(); // feat 232 — periodization scales the coverage projection by the current week's volume
   const analysis = splitAnalysis(split.map(s => s.plan).filter(Boolean), meso ? meso.vol : 1);
   const chip = (attr, val, cur, label) => `<button class="sp-chip ${cur === val ? 'active' : ''}" data-${attr}="${val}">${label}</button>`;
@@ -10184,7 +10400,12 @@ function renderSplitPlannerPage(main) {
       ${doubles ? `<div class="sp-note">⚠️ ${cfg.sessions} sessions across ${cfg.days} days means some days double up — make sure you can recover.</div>` : ''}
     </div>
     <div class="card">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>Recommended split</span><button class="sp-save" id="pg-save">${prog ? '↻ Reschedule' : '📅 Save as program'}</button></div>
+      <div class="card-title">✨ Themed splits</div>
+      <div class="sp-intro">Curated splits that group complementary plans into one coherent week — pick a vibe to shape the recommendation below (tap again to clear). ${theme ? `<b>${escapeHtml(theme.name)}</b> — ${escapeHtml(theme.blurb)}` : 'The recommender fills each day from your own plan library.'}</div>
+      <div class="sp-themes">${THEMED_SPLITS.map(t => `<button class="sp-theme ${cfg.theme === t.id ? 'active' : ''}" data-sp-theme="${escapeAttr(t.id)}" title="${escapeAttr(t.blurb)}"><span class="sp-theme-emoji">${t.emoji}</span><span class="sp-theme-name">${escapeHtml(t.name)}</span><span class="sp-theme-tag">${escapeHtml(t.tag)}</span></button>`).join('')}</div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>${theme ? '🎬 ' + escapeHtml(theme.name) : 'Recommended split'}</span><button class="sp-save" id="pg-save">${prog ? '↻ Reschedule' : '📅 Save as program'}</button></div>
       <div class="sp-days">${splitRows}</div>
     </div>
     ${programCard}
@@ -10195,7 +10416,13 @@ function renderSplitPlannerPage(main) {
       <div class="sp-grps">${barRows}</div>
       <div class="sp-legend">Bar = your weekly sets · green band = the productive MEV–MRV window · marker colour = status.${meso ? ` Volumes shown for <b>${meso.phase}</b> week (${Math.round(meso.vol * 100)}% of base).` : ''}</div>
     </div>`;
-  main.querySelectorAll('[data-sp-sessions]').forEach(b => b.addEventListener('click', () => { cfg.sessions = +b.dataset.spSessions; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; saveState(); renderSplitPlannerPage(main); }));
+  main.querySelectorAll('[data-sp-sessions]').forEach(b => b.addEventListener('click', () => { cfg.sessions = +b.dataset.spSessions; cfg.theme = null; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; saveState(); renderSplitPlannerPage(main); })); // feat 255 — a manual session count clears the themed slot sequence
+  main.querySelectorAll('[data-sp-theme]').forEach(b => b.addEventListener('click', () => { // feat 255 — pick / clear a themed split
+    const id = b.dataset.spTheme; cfg.theme = (cfg.theme === id) ? null : id;
+    const t = cfg.theme ? themedSplit(cfg.theme) : null;
+    if (t) { cfg.sessions = t.slots.length; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; }
+    saveState(); renderSplitPlannerPage(main);
+  }));
   main.querySelectorAll('[data-sp-days]').forEach(b => b.addEventListener('click', () => { cfg.days = +b.dataset.spDays; saveState(); renderSplitPlannerPage(main); }));
   main.querySelectorAll('[data-sp-min]').forEach(b => b.addEventListener('click', () => { cfg.minutes = +b.dataset.spMin; saveState(); renderSplitPlannerPage(main); }));
   main.querySelector('#pg-save')?.addEventListener('click', () => { saveProgramFromSplit(); renderSplitPlannerPage(main); }); // feat 230
@@ -10247,6 +10474,7 @@ let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Exec
 let _plansRevView = false; // feat 162 — when editing a plan, show its revision history instead of the form
 let _plansSearch = '', _plansCatFilter = 'all', _plansLenFilter = 'all'; // feat 147 — plan picker search + filters
 let _plansFavOnly = false; // feat 178 — show only favorited plans
+let _plansPage = 0; // feat 240 — paginate the (filtered) plan list
 let _plansDeepLink = false; // feat 184 — openPlanFull sets this so the page render opens straight to the editor
 // feat 184 — the Plan Creator is a router page rendered into #trk-main (the #plans-panel overlay is retired).
 // openPlansOverlay opens the list; openPlanFull deep-links to one plan's editor. Both navTo the page; in-page
@@ -10256,7 +10484,7 @@ function renderPlanCreatorPage(main) {
   _plansDeepLink = false;
   renderPlansOverlay();
 }
-function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansDeepLink = false; navTo('plan-creator'); }
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; _plansDeepLink = false; navTo('plan-creator'); }
 function openPlanPicker() { openPlansOverlay(); }
 function openPlanFull(id) { // feat 138/184 — open the plan editor as a page, focused on one plan's steps
   _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansDeepLink = true; navTo('plan-creator');
@@ -10266,14 +10494,25 @@ function openPlanExecution(planId, sessionDate) {
   _plansExecId = planId || null; _plansExecSessionDate = sessionDate || null; // feat 183 — render the execution view as a page
   navTo('plan-detail');
 }
-// feat 183 — Plan Detail page: the detailed execution view hosted in #trk-main (was the #plans-panel overlay).
+// feat 246 — open the LIVE plan guide on the Plan Detail page (clears any pinned execution so a stale recap
+// from a prior openPlanExecution / past-session view doesn't shadow the live guide).
+function openPlanLive() { _plansExecId = null; _plansExecSessionDate = null; navTo('plan-detail'); }
+// feat 183/246 — Plan Detail page, hosted in #trk-main. A PLAIN visit (🗺️ shortcut · dashboard strip ·
+// breadcrumb) shows the LIVE interactive plan guide (steps · pick · skip · opts), relocated here off the
+// workout tab. A deep-link that pins a specific execution (_plansExecId / a past session date — e.g. the
+// step-bar or the guide's 📊 Execution button) shows the read-only execution recap.
 function renderPlanDetailPage(main) {
+  const pinned = !!(_plansExecId || _plansExecSessionDate);
+  if (!pinned) {
+    const live = getActiveSession();
+    if (live && !live.endedAt) { main.innerHTML = renderPlanGuide(live); bindPlanGuide(main); return; } // feat 246 — interactive guide (or the "Use a plan" bar when freestyle)
+  }
   let plan = _plansExecId ? getPlan(_plansExecId) : null;
   let sess = _plansExecSessionDate ? (state.sessions || []).find(s => s.date === _plansExecSessionDate) : null;
   if (!plan) plan = getActivePlan();
   if (!sess) sess = getActiveSession();
   if (plan && sess) { renderPlanExecutionView(main, planAtRevision(plan, sess.planRev), sess); return; }
-  main.innerHTML = `<div class="card"><div class="card-title">No plan execution to show</div><div style="color:var(--text3);font-size:13px;line-height:1.5;">Start a workout with a plan (Train › Execute › Workout, then “Use a plan”), then open <b>Plan Detail</b> for the step-by-step breakdown.</div></div>`;
+  main.innerHTML = `<div class="card"><div class="card-title">No plan to show</div><div style="color:var(--text3);font-size:13px;line-height:1.5;">Start a workout and pick a plan (Train › Execute › Workout, then “Use a plan”) — the live plan guide appears here, and the workout tab keeps a compact summary strip.</div></div>`;
 }
 function closePlansOverlay() { _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; if (currentPage === 'plan-creator' || currentPage === 'plan-detail') navBack(); } // feat 184 — overlay retired; Back leaves the page
 function planUseForWorkout(id) {
@@ -10349,11 +10588,24 @@ function renderPlansList(body) {
   const catChip = (val, label, n) => `<button class="plan-chip ${_plansCatFilter===val?'active':''}" data-plan-cat="${escapeAttr(val)}">${escapeHtml(label)}${n!=null?` <span class="plan-chip-n">${n}</span>`:''}</button>`;
   const lenChip = (val, label) => `<button class="plan-chip ${_plansLenFilter===val?'active':''}" data-plan-len="${val}">${label}</button>`;
   const favN = favPlanCount(); // feat 178
+  // feat 240 — paginate the (filtered) list so a big plan library stays scannable. Page over the
+  // category-rank-ordered, favourites-first flat list; re-emit a category head whenever it changes on a page.
+  const PLANS_PER_PAGE = 12;
+  const ordered = groupCats.flatMap(c => groups[c]);
+  const pageCount = Math.max(1, Math.ceil(ordered.length / PLANS_PER_PAGE));
+  if (_plansPage >= pageCount) _plansPage = pageCount - 1;
+  if (_plansPage < 0) _plansPage = 0;
+  const pageItems = ordered.slice(_plansPage * PLANS_PER_PAGE, _plansPage * PLANS_PER_PAGE + PLANS_PER_PAGE);
+  let pageRows = '', _lastCat = null;
+  pageItems.forEach(p => { const c = planCategory(p); if (c !== _lastCat) { pageRows += `<div class="plan-cat-head">${escapeHtml(c)} <span class="plan-cat-count">${groups[c].length}</span></div>`; _lastCat = c; } pageRows += _planRowHtml(p); });
+  const pagerHtml = pageCount > 1
+    ? `<div class="plan-pager"><button class="plan-page-btn" data-plan-page="prev" ${_plansPage === 0 ? 'disabled' : ''}>‹ Prev</button><span class="plan-page-ind">Page ${_plansPage + 1} / ${pageCount} · ${ordered.length} plans</span><button class="plan-page-btn" data-plan-page="next" ${_plansPage >= pageCount - 1 ? 'disabled' : ''}>Next ›</button></div>`
+    : '';
   const listHtml = plans.length === 0
     ? '<div class="plan-list-intro">No plans yet — tap “＋ New plan”.</div>'
     : (filtered.length === 0
       ? '<div class="plan-list-empty">No plans match. <button class="plan-clear-filters" id="plan-clear-filters">Clear filters</button></div>'
-      : groupCats.map(c => `<div class="plan-cat-head">${escapeHtml(c)} <span class="plan-cat-count">${groups[c].length}</span></div>${groups[c].map(_planRowHtml).join('')}`).join(''));
+      : `${pagerHtml}${pageRows}${pagerHtml}`);
   // feat 226 — Quick Pick only on the unfiltered landing view (hidden once you search/filter/favourite-only).
   const showQuickPick = plans.length > 0 && !q && _plansCatFilter === 'all' && _plansLenFilter === 'all' && !_plansFavOnly;
   body.innerHTML = `${showQuickPick ? quickPickHtml() : ''}<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
@@ -10367,13 +10619,14 @@ function renderPlansList(body) {
 }
 function bindPlansList(body) {
   const search = body.querySelector('#plans-search');
-  if (search) search.addEventListener('input', () => { _plansSearch = search.value; const pos = search.selectionStart; renderPlansOverlay(); const s2 = document.getElementById('plans-search'); if (s2) { s2.focus(); try { s2.setSelectionRange(pos, pos); } catch (_) {} } });
+  if (search) search.addEventListener('input', () => { _plansSearch = search.value; _plansPage = 0; const pos = search.selectionStart; renderPlansOverlay(); const s2 = document.getElementById('plans-search'); if (s2) { s2.focus(); try { s2.setSelectionRange(pos, pos); } catch (_) {} } });
   body.querySelectorAll('[data-pick-min]').forEach(b => b.addEventListener('click', () => { state.planPickMinutes = +b.dataset.pickMin; saveState(); renderPlansOverlay(); })); // feat 226 — quick-pick time budget
-  body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { _plansCatFilter = b.dataset.planCat; renderPlansOverlay(); }));
-  body.querySelectorAll('[data-plan-len]').forEach(b => b.addEventListener('click', () => { _plansLenFilter = b.dataset.planLen; renderPlansOverlay(); }));
-  body.querySelector('[data-plan-fav]')?.addEventListener('click', () => { _plansFavOnly = !_plansFavOnly; renderPlansOverlay(); }); // feat 178
+  body.querySelectorAll('[data-plan-page]').forEach(b => b.addEventListener('click', () => { _plansPage += (b.dataset.planPage === 'next' ? 1 : -1); renderPlansOverlay(); })); // feat 240 — paginate (render re-clamps)
+  body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { _plansCatFilter = b.dataset.planCat; _plansPage = 0; renderPlansOverlay(); }));
+  body.querySelectorAll('[data-plan-len]').forEach(b => b.addEventListener('click', () => { _plansLenFilter = b.dataset.planLen; _plansPage = 0; renderPlansOverlay(); }));
+  body.querySelector('[data-plan-fav]')?.addEventListener('click', () => { _plansFavOnly = !_plansFavOnly; _plansPage = 0; renderPlansOverlay(); }); // feat 178
   body.querySelectorAll('[data-fav-plan]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); toggleFavPlan(b.dataset.favPlan); renderPlansOverlay(); })); // feat 178
-  body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; renderPlansOverlay(); });
+  body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; renderPlansOverlay(); });
   body.querySelectorAll('[data-plan-media]').forEach(b => b.addEventListener('click', () => openPlanMedia(b.dataset.planMedia)));
   body.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
   body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; renderPlansOverlay(); }));
@@ -10640,7 +10893,27 @@ function renderOptionPicker(body, plan) {
   body.querySelectorAll('[data-pick-mv]').forEach(b => b.addEventListener('click', () => addOpt(_mvOpt(b.dataset.pickMv))));
   body.querySelectorAll('[data-pick-vr]').forEach(b => b.addEventListener('click', () => addOpt(_vrOpt(b.dataset.pickVr))));
 }
+// feat 252 — "X/Y steps" with a subtle underline progress bar at that fraction (a CSS background draws the bar).
+function stepsFracHtml(done, total) {
+  const frac = total > 0 ? Math.max(0, Math.min(1, done / total)) : 0;
+  return `<span class="steps-frac" style="--sf:${frac.toFixed(4)}"><b>${done}/${total}</b> steps</span>`;
+}
 // Active-workout plan guide (or a "use a plan" prompt when none).
+// feat 246 — the workout tab shows only a COMPACT plan strip (name · progress · ETC) that taps through to the
+// full Plan Detail page; the verbose step-by-step card was relocated there to reclaim space on the dashboard.
+// With no plan attached it falls back to the small "Use a plan / Today" bar (renderPlanGuide's no-plan branch).
+function renderPlanStrip(session) {
+  const plan = getActivePlan();
+  if (!plan) return renderPlanGuide(session);
+  const sum = planExecutionSummary(session, plan);
+  const eta = computePlanETA(session, plan);
+  const etc = sum.complete ? 'complete 🎉' : (eta.remainingMin > 0 ? `ETC ~${eta.remainingMin}m` : 'almost done');
+  return `<div class="plan-strip${sum.complete ? ' complete' : ''}" id="plan-strip" role="button" tabindex="0" title="Open the full plan detail">
+    <span class="ps-name">📋 ${escapeHtml(plan.name)}</span>
+    <span class="ps-prog"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · ${stepsFracHtml(sum.stepsDone, sum.stepsTotal)} · ${etc}</span>
+    <span class="ps-go">🗺️ Details ›</span>
+  </div>`;
+}
 function renderPlanGuide(session) {
   const plan = getActivePlan();
   if (!plan) {
@@ -10695,7 +10968,7 @@ function renderPlanGuide(session) {
     : 'plan complete 🎉';
   // feat 144 — steps "done" = min-% satisfied; show "(N full)" when fewer were taken all the way to target.
   const fullHint = (sum.stepsFull < sum.stepsDone) ? ` <span class="plan-progress-full">(${sum.stepsFull} full)</span>` : '';
-  const progLine = `<div class="plan-progress-line plan-progress-open" id="plan-progress-open" role="button" tabindex="0" title="Open the full plan"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · <b>${sum.stepsDone}/${sum.stepsTotal}</b> steps${fullHint}${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}<span class="plan-progress-chev">›</span></div>`;
+  const progLine = `<div class="plan-progress-line plan-progress-open" id="plan-progress-open" role="button" tabindex="0" title="Open the full plan"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · ${stepsFracHtml(sum.stepsDone, sum.stepsTotal)}${fullHint}${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}<span class="plan-progress-chev">›</span></div>`;
   // feat 127 — collapsible: tap the header to fold the plan card down to just its name + progress line.
   const collapsed = !!(state.dashboard && state.dashboard.planCollapsed);
   return `<div class="plan-card${sum.complete ? ' complete' : ''}${collapsed ? ' collapsed' : ''}">
@@ -10873,6 +11146,58 @@ function sparklineSvg(series, opts) {
   const col = opts.color || (last >= pts[0] ? 'var(--good)' : 'var(--warn)');
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${X(pts.length - 1).toFixed(1)}" cy="${Y(last).toFixed(1)}" r="2.2" fill="${col}"/></svg>`;
 }
+// feat 246 — interactive plan-guide bindings (steps · pick · skip · opts · footer), shared by the workout
+// dashboard (when it still rendered the card) and now the Plan Detail page, which hosts the card for the live
+// session. All selectors are guarded, so calling this on a container without a plan card is a harmless no-op.
+function bindPlanGuide(main) {
+  if (!main) return;
+  main.querySelector('#plan-collapse-toggle')?.addEventListener('click', togglePlanCollapsed); // feat 127
+  main.querySelector('#plan-collapse-toggle')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePlanCollapsed(); } });
+  main.querySelector('#plan-progress-open')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanFull(p.id); }); // feat 138 — tap the progress line → full plan editor
+  main.querySelector('#plan-progress-open')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
+  main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
+  main.querySelector('#plan-today-btn')?.addEventListener('click', e => planUseForWorkout(e.currentTarget.dataset.todayPlan)); // feat 230 — start today's scheduled session
+  main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
+  main.querySelector('#plan-exec-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); }); // feat 145 — detailed execution view
+  main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
+  main.querySelector('#plan-abandon-btn')?.addEventListener('click', () => { const s = getActiveSession(); if (s) { s.planId = undefined; saveState(); toast('Plan abandoned'); render(); } });
+  main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt], st.load); }));
+  // feat 214 — ⏭ skip / ↩ un-skip a step for this session (back of the next-exercise queue, not removed)
+  main.querySelectorAll('.plan-step-skip[data-plan-skip]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const plan = getActivePlan(), s = getActiveSession();
+    if (!plan || !s) return;
+    const st = plan.steps[+el.dataset.planSkip];
+    const nowSkipped = toggleStepSkip(s, st);
+    toast(nowSkipped ? '⏭ Step sent to the back of the queue' : '↩ Step back in its place');
+    render();
+    if (typeof refreshPlanStepBar === 'function') refreshPlanStepBar();
+  }));
+  // feat 112 — tapping a step (not its specific option buttons) opens the picker filtered to that step's full exercise list
+  main.querySelectorAll('.plan-step[data-plan-step-idx]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('.plan-opt') || e.target.closest('.plan-step-skip')) return; openStepPicker(+el.dataset.planStepIdx); }));
+  // feat 113 — plan-complete banner actions
+  main.querySelector('#plan-complete-end')?.addEventListener('click', () => endWorkout(false));
+  main.querySelector('#plan-complete-summary')?.addEventListener('click', showPlanCompleteDialog);
+}
+// feat 245 — the active workout shows which gym you're at (GPS auto-selects the nearest saved gym on workout
+// start, within 2 km — see startWorkout → pingLocationSelectGym). Tap Change to switch; 📡 re-locates.
+function workoutGymHtml() {
+  const g = (typeof getActiveGym === 'function') ? getActiveGym() : null;
+  const gyms = state.gyms || [];
+  if (!g && !gyms.length) return ''; // no gyms defined → don't clutter the active workout
+  const canGps = gyms.some(x => x.lat != null);
+  const relocate = canGps ? `<button class="wg-btn" id="wg-relocate" title="Find the nearest saved gym by GPS">📡</button>` : '';
+  if (g) {
+    return `<div class="workout-gym" id="workout-gym">
+      <span class="wg-pin">📍</span><span class="wg-name">${escapeHtml(g.name)}</span>${g.lat != null ? '<span class="wg-geo" title="GPS coordinates saved for this gym">located</span>' : ''}
+      <span class="wg-actions">${relocate}<button class="wg-btn" id="wg-change">Change</button></span>
+    </div>`;
+  }
+  return `<div class="workout-gym none" id="workout-gym">
+    <span class="wg-pin">📍</span><span class="wg-name">No gym set</span>
+    <span class="wg-actions">${relocate}<button class="wg-btn" id="wg-change">Pick a gym</button></span>
+  </div>`;
+}
 function renderLog(main) {
   // Check whether the today session should be auto-ended due to inactivity
   maybeAutoEndActive();
@@ -10883,21 +11208,17 @@ function renderLog(main) {
 
   let html = '';
 
+  // feat 245/259 — the current gym shows at the top of the workout page in EVERY state (before, during and after
+  // a workout), so you can see and set where you are training; self-hides when no gyms are defined.
+  html += workoutGymHtml();
+
   // Workout control buttons — always show on the Log tab
   if (active) {
     html += `<div class="workout-controls">
       <button class="wc-btn end" id="wc-end-btn">⏹ End Workout</button>
       <button class="wc-btn discard" id="wc-discard-btn" title="Discard this workout — remove all of today's sets as if it never happened">🗑 Discard</button>
-    </div>
-    <div class="metronome-bar">
-      <button class="metro-toggle ${metronomeRunning() ? 'on' : ''}" id="metro-toggle-btn">${metronomeRunning() ? '⏸' : '▶'} Metronome</button>
-      <div class="metro-bpm-ctl">
-        <button class="metro-bpm-btn" id="metro-bpm-down" aria-label="Slower">−</button>
-        <span class="metro-bpm" id="metro-bpm-val">${metroCfg().bpm} bpm</span>
-        <button class="metro-bpm-btn" id="metro-bpm-up" aria-label="Faster">+</button>
-      </div>
-      <button class="metro-cfg" id="metro-cfg-btn" title="Metronome settings">⚙</button>
     </div>` + renderHrBar();
+    // feat 242 — the dashboard metronome bar was redundant: the Mantranome lives in the 🔊 sound menu (feat 205).
   } else {
     html += `<div class="workout-controls">
       <button class="wc-btn start" id="wc-start-btn">▶ Start Workout</button>
@@ -10946,7 +11267,7 @@ function renderLog(main) {
     }
 
     // Workout plan guide (feat 70) — shown when active; the auto-suggester below runs only when no plan is attached.
-    if (!today.endedAt) html += renderPlanGuide(today);
+    if (!today.endedAt) html += renderPlanStrip(today); // feat 246 — compact strip on the workout tab; full detail moved to the Plan page
     if (!today.endedAt) html += renderLiveHeatmapCard(); // feat 218 — hit so far / when the plan is done
 
     // Remaining-exercises evaluation (feat 55) — auto PUSH/PULL/LOWER/CORE suggestions only apply with NO plan.
@@ -11046,35 +11367,15 @@ function renderLog(main) {
   main.querySelectorAll('.remaining-chip[data-remvar]').forEach(el => {
     el.addEventListener('click', () => startExerciseFromSuggestion(el.dataset.remvar));
   });
-  // Workout plan (feat 70)
-  main.querySelector('#plan-collapse-toggle')?.addEventListener('click', togglePlanCollapsed); // feat 127
-  main.querySelector('#plan-collapse-toggle')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePlanCollapsed(); } });
-  main.querySelector('#plan-progress-open')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanFull(p.id); }); // feat 138 — tap the progress line → full plan
-  main.querySelector('#plan-progress-open')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
-  main.querySelector('#plan-pick-btn')?.addEventListener('click', openPlanPicker);
-  main.querySelector('#plan-today-btn')?.addEventListener('click', e => planUseForWorkout(e.currentTarget.dataset.todayPlan)); // feat 230 — start today's scheduled session
+  // feat 246 — the interactive plan guide's bindings live in bindPlanGuide so the Plan Detail page can host the
+  // same card (steps · pick · skip · opts) now that the workout tab shows only the compact strip.
+  bindPlanGuide(main);
+  const _planStrip = main.querySelector('#plan-strip'); // feat 246 — compact strip → full Plan Detail
+  if (_planStrip) {
+    _planStrip.addEventListener('click', openPlanLive);
+    _planStrip.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPlanLive(); } });
+  }
   _bindLiveHeatmapCard(main); // feat 218
-  main.querySelector('#plan-watch-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanMedia(p.id); });
-  main.querySelector('#plan-exec-btn')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanExecution(p.id); }); // feat 145 — detailed execution view
-  main.querySelector('#plan-change-btn')?.addEventListener('click', openPlanPicker);
-  main.querySelector('#plan-abandon-btn')?.addEventListener('click', () => { const s = getActiveSession(); if (s) { s.planId = undefined; saveState(); toast('Plan abandoned'); render(); } });
-  main.querySelectorAll('.plan-opt[data-plan-step]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const plan = getActivePlan(); if (!plan) return; const st = plan.steps[+el.dataset.planStep]; if (st && st.options[+el.dataset.planOpt]) startExerciseFromPlanOption(st.options[+el.dataset.planOpt], st.load); }));
-  // feat 214 — ⏭ skip / ↩ un-skip a step for this session (back of the next-exercise queue, not removed)
-  main.querySelectorAll('.plan-step-skip[data-plan-skip]').forEach(el => el.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const plan = getActivePlan(), s = getActiveSession();
-    if (!plan || !s) return;
-    const st = plan.steps[+el.dataset.planSkip];
-    const nowSkipped = toggleStepSkip(s, st);
-    toast(nowSkipped ? '⏭ Step sent to the back of the queue' : '↩ Step back in its place');
-    render();
-    if (typeof refreshPlanStepBar === 'function') refreshPlanStepBar();
-  }));
-  // feat 112 — tapping a step (not its specific option buttons) opens the picker filtered to that step's full exercise list
-  main.querySelectorAll('.plan-step[data-plan-step-idx]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('.plan-opt') || e.target.closest('.plan-step-skip')) return; openStepPicker(+el.dataset.planStepIdx); }));
-  // feat 113 — plan-complete banner actions
-  main.querySelector('#plan-complete-end')?.addEventListener('click', () => endWorkout(false));
-  main.querySelector('#plan-complete-summary')?.addEventListener('click', showPlanCompleteDialog);
   main.querySelector('#dash-see-log')?.addEventListener('click', () => switchToTab('sessions')); // feat 146 — jump to the Log tab
   // Workout control buttons
   const startBtn = main.querySelector('#wc-start-btn');
@@ -11086,6 +11387,8 @@ function renderLog(main) {
   const endBtn = main.querySelector('#wc-end-btn');
   if (endBtn) attachTrackerPress(endBtn, () => endWorkout(false), () => endWorkout(true), 'Hold to end');
   main.querySelector('#wc-discard-btn')?.addEventListener('click', discardActiveWorkout); // feat 154
+  main.querySelector('#wg-change')?.addEventListener('click', () => navTo('gyms')); // feat 245 — change the active gym
+  main.querySelector('#wg-relocate')?.addEventListener('click', () => pingLocationSelectGym(false)); // feat 245 — GPS re-locate (non-silent)
   // Metronome controls (feat 69)
   main.querySelector('#metro-toggle-btn')?.addEventListener('click', toggleMetronome);
   main.querySelector('#metro-bpm-down')?.addEventListener('click', () => changeMetroBpm(-5));
@@ -11430,6 +11733,7 @@ function startWorkout() {
   if (existing) { toast('Workout already in progress'); return; }
   const session = newSession({ startedManually: true });
   state.sessions.push(session);
+  stampActiveSessionGym(); // feat 259 — record the currently-active gym as this session's location (GPS ping below may refine it)
   modalState.setup = {}; modalState.setupOpen = false; // feat 85 — equipment setup persists *within* a workout; fresh at begin
   saveState();
   render();
@@ -13504,20 +13808,23 @@ function renderSessionTrends() {
 
 /* ============================================================
    feat 169 — ACHIEVEMENT PATHS: ladders of classic, challenging-but-realistic milestones (plate-count
-   pressing/pulling, CoC grip ladder, cardio distances). Progress is read from your own logged best — not
-   strict on variation or powerlifting aids (any bench counts toward "X plates"). Every path carries a
-   safety note; the view opens with a prominent disclaimer discouraging dangerous behaviour.
+   pressing/pulling, CoC grip ladder, cardio distances). Progress is read from your own logged best. The
+   "plates on the bar" lifts are BARBELL milestones (feat 253): each carries an `exclude` regex so the
+   mechanically easier machine / Smith / assisted variations (hack squat, leg press, RDL, …) don't inflate
+   the number. Every path carries a safety note; the view opens with a prominent disclaimer.
    ============================================================ */
 const ACHIEVEMENT_PATHS = [
-  { id:'bench-plates', name:'Bench Press — plates on the bar', icon:'🏋️', type:'strength', kw:/bench|chest press/i,
+  // feat 253 — the "plates on the bar" milestones are BARBELL lifts; an `exclude` regex drops the mechanically
+  // easier machine / Smith / assisted variations (e.g. hack squat, leg press) so they don't inflate the number.
+  { id:'bench-plates', name:'Barbell Bench Press — plates on the bar', icon:'🏋️', type:'strength', kw:/bench|chest press/i, exclude:/smith|machine|hammer|pec.?deck|cable|svend|landmine|push.?up|floor press|band|dip/i,
     tiers:[ {label:'1 plate · 135 lb', lb:135}, {label:'2 plates · 225 lb', lb:225}, {label:'3 plates · 315 lb', lb:315}, {label:'4 plates · 405 lb', lb:405} ],
-    note:'Any bench/chest-press variation counts. ALWAYS bench with a spotter or safety arms — a missed heavy bench can pin you against the bar. Never test a max alone.' },
-  { id:'squat-plates', name:'Squat — plates on the bar', icon:'🦵', type:'strength', kw:/squat/i,
+    note:'Barbell bench only — machine / Smith / cable presses don\'t count toward this barbell milestone (a dumbbell press is logged per-dumbbell, so it won\'t either). ALWAYS bench with a spotter or safety arms — a missed heavy bench can pin you against the bar. Never test a max alone.' },
+  { id:'squat-plates', name:'Barbell Squat — plates on the bar', icon:'🦵', type:'strength', kw:/squat/i, exclude:/hack|smith|machine|goblet|sissy|belt|pendulum|landmine|leg ?press|split|bulgarian|wall|jump|box|zercher|sit/i,
     tiers:[ {label:'1 plate · 135 lb', lb:135}, {label:'2 plates · 225 lb', lb:225}, {label:'3 plates · 315 lb', lb:315}, {label:'4 plates · 405 lb', lb:405}, {label:'5 plates · 495 lb', lb:495} ],
-    note:'Any squat variation counts. Squat in a rack with the safety pins set just below depth, and know how to bail backward off the bar.' },
-  { id:'deadlift-plates', name:'Deadlift — plates on the bar', icon:'🏋️', type:'strength', kw:/deadlift/i,
+    note:'Barbell back/front squat only — hack, Smith, pendulum, belt and leg-press variations are easier and don\'t count toward this barbell milestone. Squat in a rack with the safety pins set just below depth, and know how to bail backward off the bar.' },
+  { id:'deadlift-plates', name:'Barbell Deadlift — plates on the bar', icon:'🏋️', type:'strength', kw:/deadlift/i, exclude:/smith|machine|romanian|stiff|rdl|single|dumbbell|kettlebell|cable|band|jefferson/i,
     tiers:[ {label:'2 plates · 225 lb', lb:225}, {label:'3 plates · 315 lb', lb:315}, {label:'4 plates · 405 lb', lb:405}, {label:'5 plates · 495 lb', lb:495}, {label:'6 plates · 585 lb', lb:585} ],
-    note:'Any deadlift variation counts. Brace hard and keep the bar close. Round-back grinders are how backs get hurt — leave a rep in the tank rather than chasing an ugly single.' },
+    note:'Barbell conventional / sumo deadlift only — Romanian / stiff-leg and machine / Smith variations are a different (lighter) movement and don\'t count toward this barbell milestone. Brace hard and keep the bar close. Round-back grinders are how backs get hurt — leave a rep in the tank rather than chasing an ugly single.' },
   { id:'coc-grippers', name:'Captains of Crush grip ladder', icon:'✊', type:'manual',
     tiers:[ {label:'CoC Trainer (~100 lb)'}, {label:'CoC No. 1 (~140 lb)'}, {label:'CoC No. 2 (~195 lb)'}, {label:'CoC No. 3 (~280 lb)'} ],
     note:'A classic crushing-grip ladder. Closes are self-assessed — the app can\'t measure them, so treat this as an aspirational checklist. Warm the wrists, build slowly: grip tendons adapt slowly and respond badly to ego.' },
@@ -13528,12 +13835,13 @@ const ACHIEVEMENT_PATHS = [
     tiers:[ {label:'2K', km:2}, {label:'5K', km:5}, {label:'10K', km:10}, {label:'Half-marathon row · 21.1K', km:21.1} ],
     note:'Pace it from the start. Long rows fatigue the lower back — keep the stroke crisp and stop if your form breaks down.' },
 ];
-function _achKwBestLb(kw) {
+function _achKwBestLb(kw, exclude) {
   let best = 0;
   (state.sessions || []).forEach(s => (s.exercises || []).forEach(ex => {
     if (ex.cardio) return;
     const info = VAR_INDEX.get(ex.varUuid); const name = info ? (info.variation.title + ' ' + info.family.title) : '';
     if (!kw.test(name)) return;
+    if (exclude && exclude.test(name)) return; // feat 253 — easier machine/assisted variations don't count toward the barbell milestone
     (ex.sets || []).forEach(st => { const w = parseFloat(st.w) || 0; if (w > best) best = w; });
   }));
   return state.unit === 'kg' ? best * 2.205 : best; // plate milestones are imperial
@@ -13553,7 +13861,7 @@ function _achKwBestKm(kwSport) {
 function computeAchievement(p) {
   if (p.type === 'manual') return { reachedIdx: -1, nextIdx: 0, curTxt: 'Self-tracked', toGo: '' };
   let cur = 0, curTxt = 'No data yet';
-  if (p.type === 'strength') { cur = Math.round(_achKwBestLb(p.kw)); curTxt = cur > 0 ? `Your best: ${cur} lb` : 'No matching lifts logged yet'; }
+  if (p.type === 'strength') { cur = Math.round(_achKwBestLb(p.kw, p.exclude)); curTxt = cur > 0 ? `Your best: ${cur} lb` : 'No matching lifts logged yet'; }
   else { cur = _achKwBestKm(p.kwSport); curTxt = cur > 0 ? `Your best: ${cur.toFixed(1)} km` : 'No matching cardio logged yet'; }
   let reachedIdx = -1;
   p.tiers.forEach((t, i) => { const v = p.type === 'strength' ? t.lb : t.km; if (cur >= v - 1e-6) reachedIdx = i; });
@@ -15217,6 +15525,7 @@ function editExisting(sessionDate, varUuid, subUuid) {
 function closeLogModal() {
   modalState.open = false;
   modalState.planStepFilter = null; // feat 112/115
+  if (typeof stopHoldTimers === 'function') stopHoldTimers(); // feat 257 — kill the hold-timer interval on close
   if (typeof closeNumpad === 'function') closeNumpad(); // feat 57 — don't leave the numpad sheet open
   document.getElementById('trk-modal').classList.remove('open');
   document.getElementById('trk-modal-backdrop').classList.remove('open');
@@ -15261,10 +15570,7 @@ function openNotesModal(sessionDate, onSaved) {
   if (!session) { _notesOnSaved = null; return; }
   const notes = session.notes || {};
   document.getElementById('trk-notes-body').innerHTML = `
-    <label>Location</label>
-    <input id="trk-notes-location" type="text" list="trk-gym-datalist" placeholder="e.g. GoodLife Yonge, home gym..." value="${escapeAttr(notes.location || '')}">
-    <datalist id="trk-gym-datalist">${(state.gyms || []).map(g => (g && g.name) ? `<option value="${escapeAttr(g.name)}"></option>` : '').join('')}</datalist>
-    <div style="height:10px;"></div>
+    ${notes.location ? `<div class="notes-loc-hint">📍 <b>${escapeHtml(notes.location)}</b> — set the gym on the Workout page</div>` : ''}
     <label>Supplements / Pre-workout</label>
     <input id="trk-notes-supps" type="text" placeholder="e.g. caffeine 200mg, creatine, citrulline 8g" value="${escapeAttr(notes.supps || '')}">
     <div style="height:10px;"></div>
@@ -15333,7 +15639,7 @@ function saveNotes() {
   const session = state.sessions.find(s => s.date === notesEditingSession);
   if (!session) return;
   const notes = {
-    location: document.getElementById('trk-notes-location').value.trim(),
+    location: (session.notes && session.notes.location) || '', // feat 259 — location is the gym now (set on the Workout page); preserve it, don't edit it here
     supps: document.getElementById('trk-notes-supps').value.trim(),
     injuries: document.getElementById('trk-notes-injuries').value.trim(),
     general: document.getElementById('trk-notes-general').value.trim()
@@ -15359,7 +15665,8 @@ function clearNotes() {
     if (!ok) return;
     const session = state.sessions.find(s => s.date === notesEditingSession);
     if (!session) return;
-    delete session.notes;
+    const loc = session.notes && session.notes.location; // feat 259 — keep the gym/location; only the subjective notes are cleared
+    if (loc) session.notes = { location: loc }; else delete session.notes;
     touchSession(session); // feat 95
     saveState();
     closeNotesModal();
@@ -15369,14 +15676,17 @@ function clearNotes() {
 }
 
 function renderNotesCard(session) {
-  const notes = session.notes;
-  if (!notes || Object.keys(notes).length === 0) {
-    return `<button class="notes-empty-btn" data-add-notes="${session.date}">+ Add session notes (location, supps, injuries, etc.)</button>`;
+  const notes = session.notes || {};
+  // feat 259 — the gym/location is its own line, distinct from the subjective Session Notes (supps/injuries/general).
+  const gymLine = notes.location ? `<div class="session-gym-line"><span class="notes-icon">📍</span><span class="notes-row-label">Trained at</span>${escapeHtml(notes.location)}</div>` : '';
+  const labels = { supps: '💊', injuries: '🩹', general: '📝' };
+  const labelNames = { supps: 'Supps', injuries: 'Injuries', general: 'Notes' };
+  const order = ['supps', 'injuries', 'general'];
+  const hasNotes = order.some(k => notes[k]);
+  if (!hasNotes) {
+    return gymLine + `<button class="notes-empty-btn" data-add-notes="${session.date}">+ Add session notes (supps, injuries, etc.)</button>`;
   }
-  const labels = { location: '📍', supps: '💊', injuries: '🩹', general: '📝' };
-  const labelNames = { location: 'Location', supps: 'Supps', injuries: 'Injuries', general: 'Notes' };
-  const order = ['location', 'supps', 'injuries', 'general'];
-  let html = `<div class="notes-card">
+  let html = gymLine + `<div class="notes-card">
     <div class="notes-header">
       <span class="notes-header-title">Session Notes</span>
       <button class="notes-edit-btn" data-edit-notes="${session.date}">Edit</button>
@@ -15394,6 +15704,7 @@ function renderNotesCard(session) {
 
 function renderModal() {
   const body = document.getElementById('trk-modal-body');
+  stopHoldTimers(); // feat 257 — drop any prior hold-timer interval; bindSetsForm re-arms it if a timed set is open
   let isSets = false; // feat 58 — track whether the strength sets form is showing (for the footer Add button)
   if (modalState.supersetMode && modalState.supersetPick === 'done') {
     body.innerHTML = renderSupersetForm();
@@ -15837,6 +16148,21 @@ function setupKindFor(varUuid) {
   if (ov) return ov === 'none' ? null : ov;
   return autoSetupKind(varUuid);
 }
+// feat 254 — clarify WHAT number to record, so logging stays consistent (and e1RM/tonnage comparisons stay valid).
+// Convention: per-hand implements that load the working muscle each side (DB curl/press/row) → log ONE implement's
+// number (45, not 90). Dual-independent-arm machines (Freemotion) → write the number you read. A weight HELD for a
+// leg movement (goblet / KB squat, DB lunge/RDL) → log the TOTAL held, since the arms only carry it. Returns null
+// for barbell / plate / pin / bodyweight, where the loaded number is unambiguous.
+function weightRecordHint(varUuid) {
+  const info = VAR_INDEX.get(varUuid); if (!info) return null;
+  const kind = setupKindFor(varUuid);
+  const t = ((info.variation.title || '') + ' ' + (info.family.title || '') + ' ' + (info.variation.id || '')).toLowerCase();
+  if (/freemotion|free.?motion|iso.?lateral|independent.?(arm|stack)|dual.?(arm|stack)/.test(t)) return '💡 Independent arms — log the number you read on the stack, don’t double it.';
+  const heldForLegs = info.family.mega === 'lower';
+  if (kind === 'dumbbell') return heldForLegs ? '💡 Held for legs — log the TOTAL weight held (both bells), not one.' : '💡 Two-dumbbell lift — log ONE dumbbell’s number (e.g. 45, not 90). Keep it consistent.';
+  if (kind === 'kettlebell') return heldForLegs ? '💡 Held for legs — log the TOTAL kettlebell weight held.' : '💡 Log one kettlebell’s number (the single-bell weight, not the pair).';
+  return null;
+}
 function setSetupOverride(varUuid, val) {
   state.exerciseSetup = state.exerciseSetup || {};
   if (!val || val === 'auto') delete state.exerciseSetup[varUuid]; else state.exerciseSetup[varUuid] = val;
@@ -16257,6 +16583,15 @@ function renderSetsForm() {
     const wAttrs = np ? 'type="text" inputmode="none" readonly' : 'type="number" inputmode="decimal" step="any"';
     const rAttrs = np ? 'type="text" inputmode="none" readonly' : `type="number" inputmode="${repsIm}" step="${M.mode==='standard'||M.mode==='bodyweight'?'1':'any'}"`;
     const npCls = np ? ' numpad-mode' : '';
+    // feat 257 — live hold timer: for a TIMED hold (plank / dead hang / wall sit / L-sit) once the set has
+    // STARTED (weight entered → wTs) but isn't DONE yet, surface a count-up button. Tapping it records the
+    // current elapsed seconds straight into the Seconds field — no manual stopwatch. Logging only (skipped
+    // while editing a past session, where wTs may be days old).
+    const holdStartMs = (M.mode === 'time' && !modalState.isEditing && s.wTs && !s.ts && (s.r === '' || s.r == null))
+      ? new Date(s.wTs).getTime() : null;
+    const holdTimerHtml = (holdStartMs && holdStartMs > 0)
+      ? `<button type="button" class="hold-timer-btn" data-hold-idx="${i}" data-hold-start="${holdStartMs}" title="Tap to log the current hold time as this set's seconds">⏱ <span class="ht-time">${formatDuration((Date.now() - holdStartMs) / 1000)}</span> <span class="ht-tap">— tap to log</span></button>`
+      : '';
     return `
       <div class="${rowClass}">
         <div class="set-num">${i + 1}</div>
@@ -16266,6 +16601,7 @@ function renderSetsForm() {
         ${overloadTagHtml}
         ${recordHintHtml}
       </div>
+      ${holdTimerHtml}
       ${mixSub ? `<div class="set-sub-row"><span class="set-sub-lbl">${escapeHtml(sub.label)}</span><select class="set-sub-select" data-set-sub="${i}">${sub.options.map(o => `<option value="${o.uuid}" ${((s.subUuid || pending.subUuid) === o.uuid) ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select></div>` : ''}
     `;
   }).join('');
@@ -16295,13 +16631,15 @@ function renderSetsForm() {
       <div class="selected-ex-label">${modalState.isEditing ? 'Editing' : 'Logging'}</div>
       <div class="selected-ex-name">${escapeHtml(info.variation.title)}${M.mode!=='standard'?`<span class="ex-mode-tag">${M.mode==='bodyweight'?'BW+':M.mode==='distance'?'dist':'time'}</span>`:''}</div>
       <div class="selected-ex-family">${escapeHtml(info.family.title)} · ${BP_LABELS[info.bp] || info.bp}</div>
+      ${(() => { const t = exerciseTiming(pending.varUuid, pending.subUuid); return t ? `<div class="ex-time-stat">⏱ <b>${formatDuration(t.totalMs / 1000)}</b> on this exercise${t.pctActive != null ? ` · <b>${t.pctActive}%</b> active` : ''}</div>` : ''; })()}
       ${M.mode !== 'standard' ? `<div class="ex-mode-hint">${
         M.mode==='bodyweight' ? `Bodyweight baseline — log <b>added load</b> in the weight field (use a negative number for assistance, 0 for pure bodyweight).${(() => { const bw = getCurrentBodyweightKg(); return bw ? ` Effective ≈ bodyweight ${bodyDispW(bw)}${state.bodyCompUnit} + added.` : ''; })()}` :
         M.mode==='distance' ? `Carry — log <b>weight × distance</b> instead of reps (distance in your preferred unit).` :
         `Hold — log <b>weight × seconds</b> instead of reps.`
       }</div>` : ''}
+      ${(() => { const h = weightRecordHint(pending.varUuid); return h ? `<div class="weight-record-hint">${escapeHtml(h)}</div>` : ''; })()}
       <div class="ex-note-row">${exNoteHtml}</div>
-      <div class="ex-media-row"><button class="ex-media-btn" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}" data-media-label="🎬 Reference videos">🎬 Reference videos${(() => { const n = _mediaCombinedCount(pending.varUuid, info.family && info.family.id); return n ? ` (${n})` : ''; })()}</button><button class="ex-media-btn" id="trk-ex-trends-btn" type="button">📈 Trends</button></div>
+      <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-ex-trends-btn" type="button">📈 Trends</button></div>
       ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
     </div>
 
@@ -16492,6 +16830,30 @@ function commitSetField(i, f, val) {
   if (typeof refreshRestBar === 'function') refreshRestBar();
   if (s[f] !== prev) flashSetField(i, f); // feat 149 — visual confirmation the field changed
 }
+
+// feat 257 — live "hold timer" ticker. While a timed hold is open (started, not done) its set row shows a
+// count-up button; this repaints every second from each button's data-hold-start. Self-terminating once no
+// button remains in the DOM (a re-render or modal close clears them), and re-armed by bindSetsForm.
+let _holdTimerInt = null;
+function tickHoldTimers() {
+  const btns = document.querySelectorAll('.hold-timer-btn[data-hold-start]');
+  if (!btns.length) { stopHoldTimers(); return; }
+  const now = Date.now();
+  btns.forEach(btn => {
+    const start = parseInt(btn.dataset.holdStart, 10);
+    if (!(start > 0)) return;
+    const span = btn.querySelector('.ht-time');
+    if (span) span.textContent = formatDuration((now - start) / 1000);
+  });
+}
+function ensureHoldTimers() {
+  stopHoldTimers();
+  if (document.querySelector('.hold-timer-btn[data-hold-start]')) {
+    tickHoldTimers();                              // paint once immediately so it never shows a stale frame
+    _holdTimerInt = setInterval(tickHoldTimers, 1000);
+  }
+}
+function stopHoldTimers() { if (_holdTimerInt) { clearInterval(_holdTimerInt); _holdTimerInt = null; } }
 
 /* feat 57 — optional in-app numpad (avoids the native mobile keyboard reflowing the form) */
 /* ---- OSK calculator (feat 65) ---- safe BEDMAS evaluator for the numpad.
@@ -16690,7 +17052,9 @@ function bindSetsForm() {
   // log the reps you actually do), and pre-seed the plate/loader picker for it.
   document.getElementById('trk-prog-prefill')?.addEventListener('click', (e) => {
     const w = parseFloat(e.currentTarget.dataset.w); if (!(w > 0)) return;
-    let i = (pending.sets || []).findIndex(s => s && (s.w === '' || s.w == null));
+    // feat 247 — target the first INCOMPLETE set (an open set, or a blank one), not the first weight-less set.
+    // The old test (empty weight) skipped a set we'd already filled, so repeated taps stacked extra open sets.
+    let i = (pending.sets || []).findIndex(s => s && !isSetValid(s, pending.varUuid));
     if (i < 0) { pending.sets.push({ w: '', r: '' }); i = pending.sets.length - 1; }
     pending.sets[i].w = w; savePending();                          // direct prefill (matches feat-58/82) — no premature set-start stamp
     if (typeof seedSetupForWeight === 'function') seedSetupForWeight(pending.varUuid, w); // pre-seed the loader picker
@@ -16769,6 +17133,17 @@ function bindSetsForm() {
   document.querySelectorAll('#trk-sets-container input').forEach(input => {
     input.addEventListener('input', () => commitSetField(parseInt(input.dataset.i), input.dataset.field, input.value));
   });
+  // feat 257 — tap the live hold timer to record the current elapsed seconds as this timed set's value.
+  document.querySelectorAll('.hold-timer-btn[data-hold-idx]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.holdIdx, 10);
+      const start = parseInt(btn.dataset.holdStart, 10);
+      if (!(start > 0) || !pending.sets[i]) return;
+      const sec = Math.max(1, Math.round((Date.now() - start) / 1000)); // at least 1s
+      commitSetField(i, 'r', sec);  // Seconds → stamps ts (set done) + fires the set-end cue (feat 207)
+      renderModal();                // re-render: the now-completed set drops its timer button
+    });
+  });
   // feat 88 — per-set sub-variation selection
   document.querySelectorAll('#trk-sets-container [data-set-sub]').forEach(sel => {
     sel.addEventListener('change', () => { const i = parseInt(sel.dataset.setSub); if (pending.sets[i]) { pending.sets[i].subUuid = sel.value; savePending(); } });
@@ -16799,6 +17174,7 @@ function bindSetsForm() {
 
   document.getElementById('trk-save-btn').onclick = () => saveSets(); // feat 114 — no event arg (it would read as endingWorkout)
   document.getElementById('trk-delete-ex-btn')?.addEventListener('click', deleteExercise);
+  ensureHoldTimers(); // feat 257 — start the 1 s count-up if a timed hold is currently open
 }
 
 /* ----- Cardio form (feat 6) ----- */
@@ -16997,17 +17373,18 @@ function copyWeightToNextSet() {
   const lastIdx = sets.length - 1;
   const bottom = sets[lastIdx];
   const hasW = v => v !== '' && v != null;
+  // feat 243 — route through commitSetField (like copyRepsToOpenSet / duplicateLastSet) so copying a weight
+  // stamps wTs AND fires the set-start annunciation; the old direct-write path stamped wTs but stayed silent.
   if (hasW(bottom.w)) {
-    sets.push({ w: bottom.w, r: '', wTs: new Date().toISOString() });
+    sets.push({ w: '', r: '' });
+    commitSetField(sets.length - 1, 'w', bottom.w);
   } else {
     let src = null;
     for (let i = lastIdx - 1; i >= 0; i--) { if (hasW(sets[i].w)) { src = sets[i].w; break; } }
     if (src == null) { const h = getLastSetForExercise(pending.varUuid, pending.subUuid); if (h && hasW(h.w)) src = h.w; }
     if (src == null) { toast('No previous weight to copy'); return; }
-    bottom.w = src;
-    if (!bottom.wTs) bottom.wTs = new Date().toISOString();
+    commitSetField(lastIdx, 'w', src);
   }
-  savePending();
   renderModal();
   updateFAB();
   updateSaveBtn();
@@ -17286,6 +17663,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   try { refreshWakeLock(); } catch (_) {}
   try { if (typeof hrTryReconnect === 'function' && !_hrConnected && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {}
+  // feat 248 — browsers freeze/throttle setInterval while the tab is hidden, so the rest timer can show a stale
+  // value when you return. Restart the tick (defensive) and repaint immediately so it snaps to the real time.
+  try { ensureRestTick(); restTick(); } catch (_) {}
 });
 window.addEventListener('focus', () => { try { if (typeof hrTryReconnect === 'function' && !_hrConnected && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {} });
 try { refreshWakeLock(); } catch (_) {}
@@ -17307,7 +17687,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 186 · 2026-06-13 14:48';
+const APP_BUILD = 'build 209 · 2026-06-14 08:39';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -17799,7 +18179,7 @@ function changeMetroBpm(delta) {
    device and auto-reconnects; records a detailed per-session BPM time series so the trend
    (and the HR effect of each set vs. rest) is visible in history. Android Chrome / Edge only.
    ============================================================ */
-let _hrDevice = null, _hrChar = null, _hrConnected = false, _hrLastBpm = null, _hrReconnectTimer = null, _hrSampleN = 0;
+let _hrDevice = null, _hrChar = null, _hrConnected = false, _hrLastBpm = null, _hrReconnectTimer = null, _hrSampleN = 0, _hrSpark = []; // feat 244 — _hrSpark: recent bpm for the topbar sparkline
 function hrSupported() { return typeof navigator !== 'undefined' && !!navigator.bluetooth; }
 // Parse a Heart Rate Measurement value (flags byte then 8- or 16-bit BPM; optional energy).
 function parseHrValue(value) {
@@ -17812,6 +18192,7 @@ function parseHrValue(value) {
 function _hrNotify(e) { const r = parseHrValue(e.target.value); if (r && r.bpm > 0 && r.bpm < 300) hrOnSample(r.bpm); }
 function hrOnSample(bpm) {
   _hrLastBpm = bpm;
+  _hrSpark.push(bpm); if (_hrSpark.length > 60) _hrSpark.shift(); // feat 244 — topbar sparkline ring buffer
   const s = getActiveSession();
   if (s && !s.endedAt) {
     if (!Array.isArray(s.hrSamples)) s.hrSamples = [];
@@ -17823,6 +18204,7 @@ function hrOnSample(bpm) {
     }
   }
   const el = document.getElementById('hr-live-bpm'); if (el) el.textContent = bpm;
+  if (typeof refreshTopbarLive === 'function') refreshTopbarLive(); // feat 244
 }
 async function hrConnectDevice(dev) {
   const server = await dev.gatt.connect();
@@ -18180,11 +18562,34 @@ function restCueTick() {
 let _restTickId = null;
 function restTick() {
   try {
+    if (typeof refreshTopbarLive === 'function') refreshTopbarLive(); // feat 244 — tick the topbar HR/elapsed every second
     if (!getActiveSession()) { refreshRestBar(); _lastRestCueSec = -1; return; }
     reapAbandonedSet();
     refreshRestBar();
     restCueTick();                                  // feat 104 — configurable audible rest cues
   } catch(e) { if (typeof logError === 'function') logError('restTick failed', e && e.message); }
+}
+// feat 244 — live HR (💓 bpm + sparkline, while a monitor is connected) + workout elapsed (⏱, while active),
+// shown next to the centered brand. Cheap text/DOM update driven by the 1 s rest tick + each HR sample.
+function _fmtElapsedClock(ms) {
+  const t = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  const p = n => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
+}
+function refreshTopbarLive() {
+  const el = document.getElementById('topbar-live'); if (!el) return;
+  let html = '';
+  if (_hrConnected && _hrLastBpm != null) {
+    const spark = _hrSpark.length >= 2 ? sparklineSvg(_hrSpark.slice(-40), { w: 46, h: 16, color: '#ff5d6c' }) : '';
+    html += `<span class="tbl-hr" title="Live heart rate">💓<b>${_hrLastBpm}</b>${spark}</span>`;
+  }
+  const sess = getActiveSession();
+  if (sess && !sess.endedAt) {
+    const ms = Date.now() - new Date(sess.date).getTime();
+    if (isFinite(ms)) html += `<span class="tbl-elapsed" title="Workout elapsed">⏱<b>${_fmtElapsedClock(ms)}</b></span>`;
+  }
+  if (el.innerHTML !== html) el.innerHTML = html;
+  document.body.classList.toggle('has-topbar-live', !!html); // feat 244 — narrow screens de-center the brand so the live stats fit
 }
 function ensureRestTick() {
   if (typeof setInterval === 'undefined' || _restTickId != null) return;
@@ -18204,16 +18609,11 @@ render();
 ensureRestTick(); // feat 51 — start the global rest-timer tick
 refreshSoundIcon(); // feat 74 — reflect saved audio/haptics state in the top-bar icon
 initTopbarShortcuts(); // feat 99 — long-press shortcuts on the top-bar icons
-// Restore the last-visited panel across refreshes / PWA restarts.
-(function restorePanel() {
-  try {
-    const saved = localStorage.getItem('gt_panel');
-    if (saved && saved !== 'panel-tracker') {
-      const btn = document.querySelector(`.nav-tab[data-panel="${saved}"]`);
-      if (btn && document.getElementById(saved)) switchPanel(saved, btn);
-    }
-  } catch (_) {}
-})();
+// feat 241 — always land on the Workout page on boot / refresh / PWA restart. The router (currentPage) is the
+// source of truth post nav-rework; the legacy gt_panel restore used to re-surface a stale non-tracker panel
+// (e.g. the Reference) on TOP of the router, leaving a blank / wrong screen until you tapped the brand. Land on
+// Workout explicitly so a refresh always opens there — panel-tracker surfaced and #trk-main populated.
+try { navTo('workout', { replace: true }); } catch (_) { try { render(); } catch (_2) {} }
 // feat 105 — probe audio output now and whenever devices change, for the headphone-only gate
 try { probeAudioOutput(); if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', probeAudioOutput); } catch (_) {}
 try { loadAnatomyImage(); } catch (_) {} // feat 118 — warm-load the custom anatomy chart from IndexedDB
@@ -25792,7 +26192,7 @@ function switchPanel(panelId, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(panelId).classList.add('active');
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active'); // feat 241 — the nav-tabs are retired; surfacing a panel via the router passes no btn (don't throw)
   window.scrollTo(0, 0);
   try { localStorage.setItem('gt_panel', panelId); } catch (_) {}
 }
