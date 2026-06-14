@@ -9,17 +9,43 @@ test.beforeEach(async ({ page }) => {
   await page.waitForFunction(() => typeof window.openNotesModal === 'function' && typeof window.renderInjurySuggest === 'function', null, { timeout: 15000 });
 });
 
-test('Location suggests saved gyms via a datalist', async ({ page }) => {
-  const opts = await page.evaluate(() => {
+// feat 259 — location is no longer a freeform notes field; it is the gym (set on the Workout page). The notes
+// modal shows it read-only and preserves it through a save; the subjective notes are supps/injuries/general.
+test('feat 259 — location left the notes modal: shown read-only, preserved on save', async ({ page }) => {
+  const r = await page.evaluate(() => {
     state.readonly = false;
-    state.gyms = [{ id: 'g1', name: 'GoodLife Yonge' }, { id: 'g2', name: 'Home Gym' }];
     const date = new Date().toISOString();
-    state.sessions = [{ id: 's', date, exercises: [] }];
+    state.sessions = [{ id: 's', date, exercises: [], notes: { location: 'GoodLife Yonge' } }];
     openNotesModal(date);
-    return [...document.querySelectorAll('#trk-gym-datalist option')].map(o => o.value);
+    const hasLocInput = !!document.getElementById('trk-notes-location'); // the freeform field is gone
+    const hint = document.querySelector('#trk-notes-body .notes-loc-hint')?.textContent || '';
+    document.getElementById('trk-notes-supps').value = 'caffeine 200mg';
+    saveNotes();
+    const n = state.sessions[0].notes;
+    return { hasLocInput, hint, location: n.location, supps: n.supps };
   });
-  expect(opts).toContain('GoodLife Yonge');
-  expect(opts).toContain('Home Gym');
+  expect(r.hasLocInput).toBe(false);
+  expect(r.hint).toContain('GoodLife Yonge'); // surfaced read-only
+  expect(r.location).toBe('GoodLife Yonge');  // preserved across a notes save
+  expect(r.supps).toBe('caffeine 200mg');
+});
+
+test('feat 259 — the history card shows the gym as a separate "Trained at" line, not inside Session Notes', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const date = new Date().toISOString();
+    const session = { id: 's', date, exercises: [], notes: { location: 'Iron Temple', supps: 'creatine' } };
+    const card = renderNotesCard(session);
+    return {
+      hasGymLine: /session-gym-line/.test(card),
+      trainedAt: /Trained at/.test(card),
+      gymBeforeNotes: card.indexOf('session-gym-line') < card.indexOf('notes-card'),
+      noLocationRowInNotes: !/notes-row-label">Location/.test(card),
+    };
+  });
+  expect(r.hasGymLine).toBe(true);
+  expect(r.trainedAt).toBe(true);
+  expect(r.gymBeforeNotes).toBe(true);
+  expect(r.noLocationRowInNotes).toBe(true);
 });
 
 test('Injuries autocompletes common niggles and appends on click (keeping prior entries)', async ({ page }) => {

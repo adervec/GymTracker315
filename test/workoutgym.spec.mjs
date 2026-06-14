@@ -73,3 +73,45 @@ test('feat 245 — startWorkout GPS-locates only when a saved gym has coordinate
   expect(r.withoutCoords).toBe(0);
   expect(r.withCoords).toBe(1);
 });
+
+// feat 259 — the gym IS the session location. It shows on the workout page in every state, and the active gym is
+// stamped onto the in-progress session (so history records where you trained) on start and on any gym change.
+test('feat 259 — the gym chip shows on the workout page even before a workout starts', async ({ page }) => {
+  const present = await page.evaluate(() => {
+    state.readonly = false; state.sessions = [];                 // no active workout
+    state.gyms = [{ id: 'g1', name: 'Iron Temple', lat: null, lng: null, equip: {}, show: {}, hide: {} }];
+    state.activeGymId = 'g1';
+    navTo('workout');
+    return !!document.querySelector('#trk-main .workout-gym');
+  });
+  expect(present).toBe(true); // visible while idle, not just during an active session
+});
+
+test('feat 259 — startWorkout stamps the active gym as the session location; changing the gym updates it', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.readonly = false;
+    state.workoutControls = { ...(state.workoutControls || {}), hrAutoConnect: false };
+    window.pingLocationSelectGym = () => {}; // no GPS in test
+    state.sessions = [];
+    state.gyms = [{ id: 'g1', name: 'Iron Temple', lat: null, lng: null, equip: {}, show: {}, hide: {} },
+                  { id: 'g2', name: 'Annex Barbell', lat: null, lng: null, equip: {}, show: {}, hide: {} }];
+    state.activeGymId = 'g1';
+    startWorkout();
+    const onStart = getActiveSession().notes && getActiveSession().notes.location;
+    setActiveGym('g2');                       // correct the gym mid-session
+    const afterChange = getActiveSession().notes.location;
+    endWorkout(true);
+    return { onStart, afterChange };
+  });
+  expect(r.onStart).toBe('Iron Temple');     // recorded automatically at start
+  expect(r.afterChange).toBe('Annex Barbell'); // follows the active gym
+});
+
+test('feat 259 — stampActiveSessionGym is a no-op when not training', async ({ page }) => {
+  const threw = await page.evaluate(() => {
+    state.sessions = []; state.activeGymId = null;
+    state.gyms = [{ id: 'g1', name: 'Iron Temple', lat: null, lng: null, equip: {}, show: {}, hide: {} }];
+    try { setActiveGym('g1'); return false; } catch (e) { return true; } // must not throw with no active session
+  });
+  expect(threw).toBe(false);
+});

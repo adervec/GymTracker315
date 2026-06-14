@@ -1999,6 +1999,10 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .notes-row-label { font-size: 9.5px; color: #80a0ff; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; margin-right: 5px; }
   .notes-empty-btn { background: transparent; color: #80a0ff; border: 1px dashed #2e3a5a; border-radius: 6px; padding: 7px 10px; font-size: 11px; font-weight: 600; cursor: pointer; width: 100%; }
   .notes-empty-btn:active { background: #181c2a; }
+  /* feat 259 — the gym/location is its own line, distinct from the subjective Session Notes card. */
+  .session-gym-line { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #d8d8e8; background: rgba(128,160,255,0.08); border: 1px solid rgba(128,160,255,0.22); border-radius: 7px; padding: 6px 10px; margin: 8px 0; }
+  .notes-loc-hint { font-size: 12px; color: var(--text2); background: rgba(128,160,255,0.07); border: 1px solid rgba(128,160,255,0.2); border-radius: 7px; padding: 7px 10px; margin-bottom: 12px; }
+  .notes-loc-hint b { color: var(--text); }
   .notes-edit-btn { background: transparent; color: #80a0ff; border: none; padding: 2px 6px; font-size: 10px; cursor: pointer; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
   .notes-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   .notes-header-title { font-size: 9.5px; color: #80a0ff; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
@@ -3285,7 +3289,15 @@ function isSuppressedVar(uuid) { return _VAR_SUPPRESS.has(uuid); }
    A gym declares which equipment categories it has, plus per-variation
    force-show / force-hide overrides that take precedence over global hiding. */
 function getActiveGym() { return state.activeGymId ? (state.gyms || []).find(g => g.id === state.activeGymId) : null; }
-function setActiveGym(id) { state.activeGymId = id || null; saveState(); logInfo('Active gym set', id || '(none)'); }
+function setActiveGym(id) { state.activeGymId = id || null; stampActiveSessionGym(); saveState(); logInfo('Active gym set', id || '(none)'); }
+// feat 259 — the active gym IS the session's location. Stamp it onto the in-progress session so history records
+// where you trained, sourced from the gym (not a freeform notes field). No-op when not currently training.
+function stampActiveSessionGym() {
+  const s = (typeof getActiveSession === 'function') ? getActiveSession() : null;
+  if (!s) return;
+  const g = getActiveGym();
+  if (g) { s.notes = s.notes || {}; s.notes.location = g.name; if (typeof touchSession === 'function') touchSession(s); } // feat 95
+}
 function gymForcesShow(uuid) { const g = getActiveGym(); return !!(g && g.show && g.show[uuid]); }
 function gymForcesHideVar(uuid) { const g = getActiveGym(); return !!(g && g.hide && g.hide[uuid]); }
 // A family is gym-unavailable when none of its known equipment categories are present.
@@ -11181,9 +11193,12 @@ function renderLog(main) {
 
   let html = '';
 
+  // feat 245/259 — the current gym shows at the top of the workout page in EVERY state (before, during and after
+  // a workout), so you can see and set where you are training; self-hides when no gyms are defined.
+  html += workoutGymHtml();
+
   // Workout control buttons — always show on the Log tab
   if (active) {
-    html += workoutGymHtml(); // feat 245 — current gym context at the top of the active workout
     html += `<div class="workout-controls">
       <button class="wc-btn end" id="wc-end-btn">⏹ End Workout</button>
       <button class="wc-btn discard" id="wc-discard-btn" title="Discard this workout — remove all of today's sets as if it never happened">🗑 Discard</button>
@@ -11703,6 +11718,7 @@ function startWorkout() {
   if (existing) { toast('Workout already in progress'); return; }
   const session = newSession({ startedManually: true });
   state.sessions.push(session);
+  stampActiveSessionGym(); // feat 259 — record the currently-active gym as this session's location (GPS ping below may refine it)
   modalState.setup = {}; modalState.setupOpen = false; // feat 85 — equipment setup persists *within* a workout; fresh at begin
   saveState();
   render();
@@ -15539,10 +15555,7 @@ function openNotesModal(sessionDate, onSaved) {
   if (!session) { _notesOnSaved = null; return; }
   const notes = session.notes || {};
   document.getElementById('trk-notes-body').innerHTML = `
-    <label>Location</label>
-    <input id="trk-notes-location" type="text" list="trk-gym-datalist" placeholder="e.g. GoodLife Yonge, home gym..." value="${escapeAttr(notes.location || '')}">
-    <datalist id="trk-gym-datalist">${(state.gyms || []).map(g => (g && g.name) ? `<option value="${escapeAttr(g.name)}"></option>` : '').join('')}</datalist>
-    <div style="height:10px;"></div>
+    ${notes.location ? `<div class="notes-loc-hint">📍 <b>${escapeHtml(notes.location)}</b> — set the gym on the Workout page</div>` : ''}
     <label>Supplements / Pre-workout</label>
     <input id="trk-notes-supps" type="text" placeholder="e.g. caffeine 200mg, creatine, citrulline 8g" value="${escapeAttr(notes.supps || '')}">
     <div style="height:10px;"></div>
@@ -15611,7 +15624,7 @@ function saveNotes() {
   const session = state.sessions.find(s => s.date === notesEditingSession);
   if (!session) return;
   const notes = {
-    location: document.getElementById('trk-notes-location').value.trim(),
+    location: (session.notes && session.notes.location) || '', // feat 259 — location is the gym now (set on the Workout page); preserve it, don't edit it here
     supps: document.getElementById('trk-notes-supps').value.trim(),
     injuries: document.getElementById('trk-notes-injuries').value.trim(),
     general: document.getElementById('trk-notes-general').value.trim()
@@ -15637,7 +15650,8 @@ function clearNotes() {
     if (!ok) return;
     const session = state.sessions.find(s => s.date === notesEditingSession);
     if (!session) return;
-    delete session.notes;
+    const loc = session.notes && session.notes.location; // feat 259 — keep the gym/location; only the subjective notes are cleared
+    if (loc) session.notes = { location: loc }; else delete session.notes;
     touchSession(session); // feat 95
     saveState();
     closeNotesModal();
@@ -15647,14 +15661,17 @@ function clearNotes() {
 }
 
 function renderNotesCard(session) {
-  const notes = session.notes;
-  if (!notes || Object.keys(notes).length === 0) {
-    return `<button class="notes-empty-btn" data-add-notes="${session.date}">+ Add session notes (location, supps, injuries, etc.)</button>`;
+  const notes = session.notes || {};
+  // feat 259 — the gym/location is its own line, distinct from the subjective Session Notes (supps/injuries/general).
+  const gymLine = notes.location ? `<div class="session-gym-line"><span class="notes-icon">📍</span><span class="notes-row-label">Trained at</span>${escapeHtml(notes.location)}</div>` : '';
+  const labels = { supps: '💊', injuries: '🩹', general: '📝' };
+  const labelNames = { supps: 'Supps', injuries: 'Injuries', general: 'Notes' };
+  const order = ['supps', 'injuries', 'general'];
+  const hasNotes = order.some(k => notes[k]);
+  if (!hasNotes) {
+    return gymLine + `<button class="notes-empty-btn" data-add-notes="${session.date}">+ Add session notes (supps, injuries, etc.)</button>`;
   }
-  const labels = { location: '📍', supps: '💊', injuries: '🩹', general: '📝' };
-  const labelNames = { location: 'Location', supps: 'Supps', injuries: 'Injuries', general: 'Notes' };
-  const order = ['location', 'supps', 'injuries', 'general'];
-  let html = `<div class="notes-card">
+  let html = gymLine + `<div class="notes-card">
     <div class="notes-header">
       <span class="notes-header-title">Session Notes</span>
       <button class="notes-edit-btn" data-edit-notes="${session.date}">Edit</button>
@@ -17655,7 +17672,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 207 · 2026-06-14 07:43';
+const APP_BUILD = 'build 208 · 2026-06-14 08:03';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -914,6 +914,16 @@ They share variation **UUIDs**.
   **timed holds** (wall sit, plank) so they naturally surface the feat-257 hold timer. They seed additively via the
   `seededPlanIds` ledger; every step verified satisfiable (resolves to ≥1 qualifying variation).
   `test/prisonplans.spec.mjs`.
+- **Gym is the session location, separated from notes (feat 259):** "where you trained" lived in two disconnected
+  places — the structured **active gym** (feat 245, shown on the active-workout dashboard) and a freeform **Location**
+  text field bundled into the session-notes modal with supps/injuries/general. Unified: the **gym is the location**.
+  (1) The gym chip now shows on the **workout page in every state** (before/during/after a workout — `workoutGymHtml`
+  moved out of the active-only branch; self-hides when no gyms). (2) `stampActiveSessionGym()` records the active gym
+  as `session.notes.location` on **workout start** and on **any gym change** (`setActiveGym`), so history captures
+  where you trained automatically. (3) The **Location field is gone from the notes modal** (now Supps / Injuries /
+  General only); it shows the gym **read-only** with a "set it on the Workout page" hint, and `saveNotes`/`clearNotes`
+  **preserve** the gym-sourced location. (4) In history the gym renders as its **own "📍 Trained at" line**
+  (`.session-gym-line`), distinct from the Session Notes card. `test/notes.spec.mjs`, `test/workoutgym.spec.mjs`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
