@@ -16797,7 +16797,9 @@ function bindSetsForm() {
   // log the reps you actually do), and pre-seed the plate/loader picker for it.
   document.getElementById('trk-prog-prefill')?.addEventListener('click', (e) => {
     const w = parseFloat(e.currentTarget.dataset.w); if (!(w > 0)) return;
-    let i = (pending.sets || []).findIndex(s => s && (s.w === '' || s.w == null));
+    // feat 247 — target the first INCOMPLETE set (an open set, or a blank one), not the first weight-less set.
+    // The old test (empty weight) skipped a set we'd already filled, so repeated taps stacked extra open sets.
+    let i = (pending.sets || []).findIndex(s => s && !isSetValid(s, pending.varUuid));
     if (i < 0) { pending.sets.push({ w: '', r: '' }); i = pending.sets.length - 1; }
     pending.sets[i].w = w; savePending();                          // direct prefill (matches feat-58/82) — no premature set-start stamp
     if (typeof seedSetupForWeight === 'function') seedSetupForWeight(pending.varUuid, w); // pre-seed the loader picker
@@ -17415,7 +17417,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 193 · 2026-06-13 21:01';
+const APP_BUILD = 'build 194 · 2026-06-13 21:06';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
