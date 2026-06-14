@@ -1692,6 +1692,15 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 
   /* Workout controls — start/end buttons, score, pace */
   .workout-controls { display: flex; gap: 8px; margin-bottom: 10px; }
+  /* feat 245 — current-gym context strip on the active workout */
+  .workout-gym { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text2); background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 7px 11px; margin-bottom: 10px; }
+  .workout-gym .wg-pin { flex-shrink: 0; }
+  .workout-gym .wg-name { font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .workout-gym.none .wg-name { color: var(--text3); font-weight: 600; }
+  .workout-gym .wg-geo { color: var(--good); font-size: 10px; font-weight: 700; background: color-mix(in srgb, var(--good) 14%, transparent); border-radius: 5px; padding: 1px 6px; flex-shrink: 0; }
+  .workout-gym .wg-actions { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; }
+  .workout-gym .wg-btn { background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); border-radius: 7px; padding: 4px 9px; font-size: 11.5px; cursor: pointer; font-family: inherit; }
+  .workout-gym .wg-btn:hover { color: var(--text); border-color: var(--border); }
   .wc-btn { flex: 1; background: #141414; border: 1px solid #2a2a2a; color: #ddd; padding: 9px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; letter-spacing: 0.3px; }
   .wc-btn.start { background: linear-gradient(135deg, #2a4a2a, #1a3a1a); border-color: #3a5a3a; color: #b8e8b8; }
   .wc-btn.start:active { transform: scale(0.98); }
@@ -10912,6 +10921,25 @@ function sparklineSvg(series, opts) {
   const col = opts.color || (last >= pts[0] ? 'var(--good)' : 'var(--warn)');
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${X(pts.length - 1).toFixed(1)}" cy="${Y(last).toFixed(1)}" r="2.2" fill="${col}"/></svg>`;
 }
+// feat 245 — the active workout shows which gym you're at (GPS auto-selects the nearest saved gym on workout
+// start, within 2 km — see startWorkout → pingLocationSelectGym). Tap Change to switch; 📡 re-locates.
+function workoutGymHtml() {
+  const g = (typeof getActiveGym === 'function') ? getActiveGym() : null;
+  const gyms = state.gyms || [];
+  if (!g && !gyms.length) return ''; // no gyms defined → don't clutter the active workout
+  const canGps = gyms.some(x => x.lat != null);
+  const relocate = canGps ? `<button class="wg-btn" id="wg-relocate" title="Find the nearest saved gym by GPS">📡</button>` : '';
+  if (g) {
+    return `<div class="workout-gym" id="workout-gym">
+      <span class="wg-pin">📍</span><span class="wg-name">${escapeHtml(g.name)}</span>${g.lat != null ? '<span class="wg-geo" title="GPS coordinates saved for this gym">located</span>' : ''}
+      <span class="wg-actions">${relocate}<button class="wg-btn" id="wg-change">Change</button></span>
+    </div>`;
+  }
+  return `<div class="workout-gym none" id="workout-gym">
+    <span class="wg-pin">📍</span><span class="wg-name">No gym set</span>
+    <span class="wg-actions">${relocate}<button class="wg-btn" id="wg-change">Pick a gym</button></span>
+  </div>`;
+}
 function renderLog(main) {
   // Check whether the today session should be auto-ended due to inactivity
   maybeAutoEndActive();
@@ -10924,6 +10952,7 @@ function renderLog(main) {
 
   // Workout control buttons — always show on the Log tab
   if (active) {
+    html += workoutGymHtml(); // feat 245 — current gym context at the top of the active workout
     html += `<div class="workout-controls">
       <button class="wc-btn end" id="wc-end-btn">⏹ End Workout</button>
       <button class="wc-btn discard" id="wc-discard-btn" title="Discard this workout — remove all of today's sets as if it never happened">🗑 Discard</button>
@@ -11117,6 +11146,8 @@ function renderLog(main) {
   const endBtn = main.querySelector('#wc-end-btn');
   if (endBtn) attachTrackerPress(endBtn, () => endWorkout(false), () => endWorkout(true), 'Hold to end');
   main.querySelector('#wc-discard-btn')?.addEventListener('click', discardActiveWorkout); // feat 154
+  main.querySelector('#wg-change')?.addEventListener('click', () => navTo('gyms')); // feat 245 — change the active gym
+  main.querySelector('#wg-relocate')?.addEventListener('click', () => pingLocationSelectGym(false)); // feat 245 — GPS re-locate (non-silent)
   // Metronome controls (feat 69)
   main.querySelector('#metro-toggle-btn')?.addEventListener('click', toggleMetronome);
   main.querySelector('#metro-bpm-down')?.addEventListener('click', () => changeMetroBpm(-5));
@@ -17339,7 +17370,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 191 · 2026-06-13 20:38';
+const APP_BUILD = 'build 192 · 2026-06-13 20:42';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
