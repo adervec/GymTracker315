@@ -905,6 +905,15 @@ They share variation **UUIDs**.
   session, where `wTs` may be days old). `tickHoldTimers`/`ensureHoldTimers`/`stopHoldTimers` run one shared 1 s
   interval, self-terminating when no button remains and re-armed by `bindSetsForm`; `renderModal` + `closeLogModal`
   clear it. `test/holdtimer.spec.mjs`.
+- **Prison / cell bodyweight plans (feat 258):** four zero-equipment, tiny-footprint templates seeded into
+  `SEED_PLANS` (tranche 8) — **Cellblock Circuit** (full-body circuit), **The Yard** (bodyweight strength — harder
+  push-up/dip/inverted-row variations), **Quiet Cell** (zero-impact isometrics: wall sit, plank, slow grinds — no
+  jumping/noise), and **Burpee Ladder** (conditioning blast). Built from the bodyweight families (`push-ups`,
+  `squat`, `lunge`, `dips`, `pull-up`, core/obliques/calves/glutes, `conditioning`, `plyometrics`) plus pinned
+  variations (burpee, jump squat, plank, wall sit, inverted row, diamond push-up, bench dip). Several lean on the
+  **timed holds** (wall sit, plank) so they naturally surface the feat-257 hold timer. They seed additively via the
+  `seededPlanIds` ledger; every step verified satisfiable (resolves to ≥1 qualifying variation).
+  `test/prisonplans.spec.mjs`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
