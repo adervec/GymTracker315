@@ -13716,20 +13716,23 @@ function renderSessionTrends() {
 
 /* ============================================================
    feat 169 — ACHIEVEMENT PATHS: ladders of classic, challenging-but-realistic milestones (plate-count
-   pressing/pulling, CoC grip ladder, cardio distances). Progress is read from your own logged best — not
-   strict on variation or powerlifting aids (any bench counts toward "X plates"). Every path carries a
-   safety note; the view opens with a prominent disclaimer discouraging dangerous behaviour.
+   pressing/pulling, CoC grip ladder, cardio distances). Progress is read from your own logged best. The
+   "plates on the bar" lifts are BARBELL milestones (feat 253): each carries an `exclude` regex so the
+   mechanically easier machine / Smith / assisted variations (hack squat, leg press, RDL, …) don't inflate
+   the number. Every path carries a safety note; the view opens with a prominent disclaimer.
    ============================================================ */
 const ACHIEVEMENT_PATHS = [
-  { id:'bench-plates', name:'Bench Press — plates on the bar', icon:'🏋️', type:'strength', kw:/bench|chest press/i,
+  // feat 253 — the "plates on the bar" milestones are BARBELL lifts; an `exclude` regex drops the mechanically
+  // easier machine / Smith / assisted variations (e.g. hack squat, leg press) so they don't inflate the number.
+  { id:'bench-plates', name:'Barbell Bench Press — plates on the bar', icon:'🏋️', type:'strength', kw:/bench|chest press/i, exclude:/smith|machine|hammer|pec.?deck|cable|svend|landmine|push.?up|floor press|band|dip/i,
     tiers:[ {label:'1 plate · 135 lb', lb:135}, {label:'2 plates · 225 lb', lb:225}, {label:'3 plates · 315 lb', lb:315}, {label:'4 plates · 405 lb', lb:405} ],
-    note:'Any bench/chest-press variation counts. ALWAYS bench with a spotter or safety arms — a missed heavy bench can pin you against the bar. Never test a max alone.' },
-  { id:'squat-plates', name:'Squat — plates on the bar', icon:'🦵', type:'strength', kw:/squat/i,
+    note:'Barbell bench only — machine / Smith / cable presses don\'t count toward this barbell milestone (a dumbbell press is logged per-dumbbell, so it won\'t either). ALWAYS bench with a spotter or safety arms — a missed heavy bench can pin you against the bar. Never test a max alone.' },
+  { id:'squat-plates', name:'Barbell Squat — plates on the bar', icon:'🦵', type:'strength', kw:/squat/i, exclude:/hack|smith|machine|goblet|sissy|belt|pendulum|landmine|leg ?press|split|bulgarian|wall|jump|box|zercher|sit/i,
     tiers:[ {label:'1 plate · 135 lb', lb:135}, {label:'2 plates · 225 lb', lb:225}, {label:'3 plates · 315 lb', lb:315}, {label:'4 plates · 405 lb', lb:405}, {label:'5 plates · 495 lb', lb:495} ],
-    note:'Any squat variation counts. Squat in a rack with the safety pins set just below depth, and know how to bail backward off the bar.' },
-  { id:'deadlift-plates', name:'Deadlift — plates on the bar', icon:'🏋️', type:'strength', kw:/deadlift/i,
+    note:'Barbell back/front squat only — hack, Smith, pendulum, belt and leg-press variations are easier and don\'t count toward this barbell milestone. Squat in a rack with the safety pins set just below depth, and know how to bail backward off the bar.' },
+  { id:'deadlift-plates', name:'Barbell Deadlift — plates on the bar', icon:'🏋️', type:'strength', kw:/deadlift/i, exclude:/smith|machine|romanian|stiff|rdl|single|dumbbell|kettlebell|cable|band|jefferson/i,
     tiers:[ {label:'2 plates · 225 lb', lb:225}, {label:'3 plates · 315 lb', lb:315}, {label:'4 plates · 405 lb', lb:405}, {label:'5 plates · 495 lb', lb:495}, {label:'6 plates · 585 lb', lb:585} ],
-    note:'Any deadlift variation counts. Brace hard and keep the bar close. Round-back grinders are how backs get hurt — leave a rep in the tank rather than chasing an ugly single.' },
+    note:'Barbell conventional / sumo deadlift only — Romanian / stiff-leg and machine / Smith variations are a different (lighter) movement and don\'t count toward this barbell milestone. Brace hard and keep the bar close. Round-back grinders are how backs get hurt — leave a rep in the tank rather than chasing an ugly single.' },
   { id:'coc-grippers', name:'Captains of Crush grip ladder', icon:'✊', type:'manual',
     tiers:[ {label:'CoC Trainer (~100 lb)'}, {label:'CoC No. 1 (~140 lb)'}, {label:'CoC No. 2 (~195 lb)'}, {label:'CoC No. 3 (~280 lb)'} ],
     note:'A classic crushing-grip ladder. Closes are self-assessed — the app can\'t measure them, so treat this as an aspirational checklist. Warm the wrists, build slowly: grip tendons adapt slowly and respond badly to ego.' },
@@ -13740,12 +13743,13 @@ const ACHIEVEMENT_PATHS = [
     tiers:[ {label:'2K', km:2}, {label:'5K', km:5}, {label:'10K', km:10}, {label:'Half-marathon row · 21.1K', km:21.1} ],
     note:'Pace it from the start. Long rows fatigue the lower back — keep the stroke crisp and stop if your form breaks down.' },
 ];
-function _achKwBestLb(kw) {
+function _achKwBestLb(kw, exclude) {
   let best = 0;
   (state.sessions || []).forEach(s => (s.exercises || []).forEach(ex => {
     if (ex.cardio) return;
     const info = VAR_INDEX.get(ex.varUuid); const name = info ? (info.variation.title + ' ' + info.family.title) : '';
     if (!kw.test(name)) return;
+    if (exclude && exclude.test(name)) return; // feat 253 — easier machine/assisted variations don't count toward the barbell milestone
     (ex.sets || []).forEach(st => { const w = parseFloat(st.w) || 0; if (w > best) best = w; });
   }));
   return state.unit === 'kg' ? best * 2.205 : best; // plate milestones are imperial
@@ -13765,7 +13769,7 @@ function _achKwBestKm(kwSport) {
 function computeAchievement(p) {
   if (p.type === 'manual') return { reachedIdx: -1, nextIdx: 0, curTxt: 'Self-tracked', toGo: '' };
   let cur = 0, curTxt = 'No data yet';
-  if (p.type === 'strength') { cur = Math.round(_achKwBestLb(p.kw)); curTxt = cur > 0 ? `Your best: ${cur} lb` : 'No matching lifts logged yet'; }
+  if (p.type === 'strength') { cur = Math.round(_achKwBestLb(p.kw, p.exclude)); curTxt = cur > 0 ? `Your best: ${cur} lb` : 'No matching lifts logged yet'; }
   else { cur = _achKwBestKm(p.kwSport); curTxt = cur > 0 ? `Your best: ${cur.toFixed(1)} km` : 'No matching cardio logged yet'; }
   let reachedIdx = -1;
   p.tiers.forEach((t, i) => { const v = p.type === 'strength' ? t.lb : t.km; if (cur >= v - 1e-6) reachedIdx = i; });
@@ -17526,7 +17530,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 199 · 2026-06-13 21:28';
+const APP_BUILD = 'build 200 · 2026-06-13 21:36';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
