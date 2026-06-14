@@ -924,6 +924,16 @@ They share variation **UUIDs**.
   General only); it shows the gym **read-only** with a "set it on the Workout page" hint, and `saveNotes`/`clearNotes`
   **preserve** the gym-sourced location. (4) In history the gym renders as its **own "📍 Trained at" line**
   (`.session-gym-line`), distinct from the Session Notes card. `test/notes.spec.mjs`, `test/workoutgym.spec.mjs`.
+- **Plan/split coverage pass (feat 260):** an audit of the catalogue (category × length matrix + a recommender
+  simulation) found the **PPL/upper-lower slots were not covered at both ends of the clock**: Pull had no quick and
+  no long option, Push had no long, Upper had no quick — so the split recommender filled those slots at 50–78 % time
+  fit at the budget extremes. Added a "tranche 9" of six plans that close every hole: **Express Push / Pull / Legs /
+  Upper** (~30 min) and **Push Marathon / Pull Marathon** (2 h, to sit alongside the existing 90 min–3 h legs/upper/
+  full-body marathons). Now every Push/Pull/Legs/Upper category spans quick→standard→long, and the recommender fills
+  the express (30 min) and marathon (120 min) slots at ~100 % fit. Two categorisation fixes fell out of the audit: the
+  Pull Marathon's lower-back step tripped the "balanced compound mix → Full Body" rule (swapped for a third row so it
+  reads as **Pull**), and Express Legs needed a glute step to clear the slot-coverage bar and win the 30 min Legs slot.
+  A catalogue-wide guard asserts **every** seed step is satisfiable. `test/plancoverage.spec.mjs`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
