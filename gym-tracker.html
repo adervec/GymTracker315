@@ -17396,6 +17396,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   try { refreshWakeLock(); } catch (_) {}
   try { if (typeof hrTryReconnect === 'function' && !_hrConnected && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {}
+  // feat 248 — browsers freeze/throttle setInterval while the tab is hidden, so the rest timer can show a stale
+  // value when you return. Restart the tick (defensive) and repaint immediately so it snaps to the real time.
+  try { ensureRestTick(); restTick(); } catch (_) {}
 });
 window.addEventListener('focus', () => { try { if (typeof hrTryReconnect === 'function' && !_hrConnected && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {} });
 try { refreshWakeLock(); } catch (_) {}
@@ -17417,7 +17420,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 194 · 2026-06-13 21:06';
+const APP_BUILD = 'build 195 · 2026-06-13 21:09';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
