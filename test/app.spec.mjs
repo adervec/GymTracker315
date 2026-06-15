@@ -36,6 +36,7 @@ test('critical functions are exposed', async ({ page }) => {
       'lbToKg', 'kgToLb', 'autoLoadSupported', 'solveSetupState', 'autoSetupKind', 'setupTotal',
       'estimatePlanMinutes', 'intensityDots', 'importStravaActivities', 'stravaLoadNow',
       'bioLoadNow', 'choiceDialog', 'confirmDialog', 'promptDialog', 'switchPanel',
+      'rpeMode', 'rpeEnabled', 'estimated1RMSet', 'rpeSelectHtml', 'commitSetRPE',
     ];
     return names.filter((n) => typeof window[n] !== 'function');
   });
@@ -55,6 +56,149 @@ test('estimated1RM (Epley) matches the formula', async ({ page }) => {
   expect(r.neg).toBe(0);     // negative reps -> guard
   expect(r.ten).toBe(133);   // round(100 * (1 + 10/30))
   expect(r.five).toBe(70);   // round(60 * (1 + 5/30))
+});
+
+test('feat 261 — RPE/RIR is off by default and maps scales + adjusts e1RM when on', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const prev = state.workoutControls.rpeMode;
+    const out = {};
+    // Default: the feature is fully hidden — no enablement, no per-set <select>.
+    out.defaultMode = rpeMode();
+    out.defaultEnabled = rpeEnabled();
+    out.hiddenSelect = rpeSelectHtml({ w: 100, r: 5 }, 0);     // '' when off
+    out.adjNoRpe = estimated1RMSet({ w: 100, r: 5 });          // == raw Epley when no rpe present
+    out.epley5 = estimated1RM(100, 5);
+    // RPE mode on.
+    state.workoutControls.rpeMode = 'rpe';
+    out.rpeEnabled = rpeEnabled();
+    out.toRir = [rpeToRir(10), rpeToRir(8), rpeToRir(6)];      // 0, 2, 4
+    out.adjRpe8 = estimated1RMSet({ w: 100, r: 5, rpe: 8 });   // reps-to-failure 7 → Epley(100,7)
+    out.epley7 = estimated1RM(100, 7);
+    out.selectIsSelect = /^<select class="set-rpe"/.test(rpeSelectHtml({ w: 100, r: 5 }, 0));
+    // RIR mode round-trips the canonical RPE store.
+    state.workoutControls.rpeMode = 'rir';
+    out.toRpe = [rirToRpe(0), rirToRpe(2), rirToRpe(4)];       // 10, 8, 6
+    state.workoutControls.rpeMode = prev;
+    return out;
+  });
+  expect(r.defaultMode).toBe('off');
+  expect(r.defaultEnabled).toBe(false);
+  expect(r.hiddenSelect).toBe('');
+  expect(r.adjNoRpe).toBe(r.epley5);          // untagged sets keep the original 1RM estimate
+  expect(r.rpeEnabled).toBe(true);
+  expect(r.toRir).toEqual([0, 2, 4]);
+  expect(r.adjRpe8).toBe(r.epley7);           // RPE 8 ⇒ 2 in reserve ⇒ sharper e1RM
+  expect(r.selectIsSelect).toBe(true);
+  expect(r.toRpe).toEqual([10, 8, 6]);
+});
+
+test('feat 262 — recovery readiness: recent hard work reads fatigued, rested groups read fresh', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const findVar = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const now = Date.now(), day = 86400000;
+    const bench = findVar('flat-bench-press'), squat = findVar('squat');
+    state.sessions = [
+      { date: new Date(now - 6 * 3600000).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{w:100,r:5},{w:100,r:5},{w:100,r:5},{w:100,r:5},{w:100,r:5}] }] }, // chest, 6h ago, hard
+      { date: new Date(now - 9 * day).toISOString(), exercises: [{ varUuid: squat, subUuid: null, sets: [{w:140,r:5},{w:140,r:5},{w:140,r:5}] }] },                          // quads, 9 days ago
+      { date: new Date(now - 20 * day).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{w:95,r:5}] }] },                                                  // gives a chest reference load
+    ];
+    const rec = recoveryReadiness(now);
+    return { bench: !!bench, squat: !!squat, chest: rec.chest.readiness, quads: rec.quads.readiness, card: renderRecoveryCard() };
+  });
+  expect(r.bench).toBe(true);
+  expect(r.squat).toBe(true);
+  expect(r.chest).toBeLessThan(0.4);     // trained hard 6h ago → fatigued
+  expect(r.quads).toBeGreaterThan(0.8);  // 9 days of rest → fresh
+  expect(r.card).toContain('Recovery');
+});
+
+test('feat 263 — plateau detection flags a flat lift but not a climbing one', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const findVar = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const now = Date.now(), day = 86400000, bench = findVar('flat-bench-press');
+    const mk = (d, w, rr) => ({ date: new Date(now - d * day).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w, r: rr }] }] });
+    state.sessions = [ mk(28,100,5), mk(21,98,5), mk(14,99,5), mk(7,98,5), mk(1,99,5) ]; // best e1RM is the oldest → flat since
+    const stalled = detectPlateau(bench, null);
+    const stallList = findPlateaus().length;
+    const card = renderPlateauCard();
+    state.sessions = [ mk(28,90,5), mk(21,92,5), mk(14,94,5), mk(7,96,5), mk(1,100,5) ]; // climbing → newest is best
+    const climbing = detectPlateau(bench, null);
+    return { stalled, stallList, card, climbing };
+  });
+  expect(r.stalled && r.stalled.stalled).toBe(true);
+  expect(r.stalled.sessions).toBe(4);
+  expect(r.stallList).toBeGreaterThanOrEqual(1);
+  expect(r.card).toContain('plateau');
+  expect(r.climbing).toBeNull();         // a progressing lift must not be flagged
+});
+
+test('feat 264 — RPE autoregulates the next-load target, and a stall proposes a deload', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const findVar = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const now = Date.now(), day = 86400000, bench = findVar('flat-bench-press');
+    const one = (daysAgo, w, rr, rpe) => ({ date: new Date(now - daysAgo * day).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w, r: rr, rpe }] }] });
+    const out = {};
+    state.workoutControls.rpeMode = 'rpe';
+    // Easy top set (RPE 6) mid-range → push 2 reps.
+    state.sessions = [ one(2, 100, 8, 6) ];
+    out.easy = suggestProgression(bench);
+    // All-out top set (RPE 10) → hold and consolidate.
+    state.sessions = [ one(2, 100, 8, 10) ];
+    out.maxed = suggestProgression(bench);
+    // No RPE → unchanged standard double progression (add a rep at mid-range).
+    state.sessions = [ one(2, 100, 8) ];
+    out.plain = suggestProgression(bench);
+    // A flat-for-weeks lift → deload suggestion (overrides progression).
+    state.sessions = [ one(26, 100, 5), one(19, 99, 5), one(12, 99, 5), one(6, 99, 5) ];
+    out.stalled = suggestProgression(bench);
+    out.varStall = !!detectPlateauVar(bench);
+    return out;
+  });
+  expect(r.easy.action).toBe('add-reps');
+  expect(r.easy.next.r).toBe(10);          // 8 → +2 reps when there's plenty in reserve
+  expect(r.maxed.action).toBe('hold');     // RPE 10 → consolidate, don't add
+  expect(r.maxed.next.r).toBe(8);
+  expect(r.plain.action).toBe('add-reps'); // no RPE → original behavior preserved
+  expect(r.plain.next.r).toBe(9);
+  expect(r.stalled.action).toBe('deload'); // stall → back off ~10%
+  expect(r.stalled.next.w).toBeLessThan(100);
+  expect(r.varStall).toBe(true);
+});
+
+test('feat 265 — recovery hint shows for a just-trained group, hides for a rested one', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const findVar = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const now = Date.now(), day = 86400000, bench = findVar('flat-bench-press'), curl = findVar('bicep-curl');
+    state.sessions = [
+      { date: new Date(now - 4 * 3600000).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{w:100,r:5},{w:100,r:5},{w:100,r:5},{w:100,r:5},{w:100,r:5}] }] }, // chest 4h ago, hard
+      { date: new Date(now - 18 * day).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{w:95,r:5}] }] }, // chest reference load
+    ];
+    const benchGroup = exerciseDominantGroup(bench);
+    const benchHint = exerciseRecoveryHint(bench);  // chest fatigued → present
+    const curlHint = curl ? exerciseRecoveryHint(curl) : 'skip'; // biceps never trained here → null
+    return { benchGroup, benchHint, curlHint };
+  });
+  expect(r.benchGroup).toBe('chest');
+  expect(r.benchHint).not.toBeNull();
+  expect(r.benchHint.pct).toBeLessThan(60);          // recently hammered
+  expect(r.curlHint === null || r.curlHint === 'skip').toBe(true); // fresh/untrained → no hint
+});
+
+test('feat 262/263 — Volume and Trends panels render the new cards with no console errors', async ({ page }) => {
+  await page.evaluate(() => {
+    const findVar = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const now = Date.now(), day = 86400000, bench = findVar('flat-bench-press'), squat = findVar('squat');
+    const mk = (d, w, rr) => ({ date: new Date(now - d * day).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w, r: rr }] }] });
+    state.sessions = [ mk(28,100,5), mk(21,98,5), mk(14,99,5), mk(7,98,5), mk(0.2,99,5),
+      { date: new Date(now - 0.5 * day).toISOString(), exercises: [{ varUuid: squat, subUuid: null, sets: [{w:140,r:5},{w:140,r:5}] }] } ];
+    state.workoutControls.rpeMode = 'rpe'; // also exercise the RPE-on render path
+    saveState();
+  });
+  await page.evaluate(() => { currentTab = 'volume'; render(); });
+  expect(await page.locator('.rec-card').count()).toBeGreaterThan(0);
+  await page.evaluate(() => { currentTab = 'trends'; render(); });
+  expect(await page.locator('.plateau-card').count()).toBeGreaterThan(0);
+  expect(consoleErrors, 'console/page errors:\n' + consoleErrors.join('\n')).toEqual([]);
 });
 
 test('kg/lb conversion is exact and round-trips', async ({ page }) => {

@@ -975,6 +975,7 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .prog-target { display: flex; align-items: center; gap: 10px; margin-top: 10px; background: var(--bg2); border: 1px solid var(--border2); border-left: 3px solid var(--accent); border-radius: 8px; padding: 9px 12px; }
   .prog-target.prog-add-load { border-left-color: var(--good); }
   .prog-target.prog-deload { border-left-color: #d8a83a; }
+  .prog-target.prog-hold { border-left-color: #c06ad8; } /* feat 264 — RPE-autoregulated "consolidate" target */
   .prog-target-main { flex: 1; min-width: 0; }
   .prog-target-aim { display: block; font-size: 13px; color: var(--text); }
   .prog-target-aim b { color: var(--accent); }
@@ -1654,6 +1655,10 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   @media (prefers-reduced-motion: reduce) { .hold-timer-btn { animation: none; } }
   .set-remove:active { color: #ff9090; }
   .set-header { display: grid; grid-template-columns: 30px 1fr 1fr 30px; gap: 8px; font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.4px; padding-bottom: 4px; }
+  /* feat 261 — RPE/RIR adds one column; only when the feature is on (else the original 4-col layout is untouched) */
+  .sets-section.rpe-on .set-row, .sets-section.rpe-on .set-header { grid-template-columns: 26px 1fr 1fr 58px 28px; }
+  .set-rpe { padding: 8px 4px; font-size: 13px; text-align: center; text-align-last: center; background: var(--input-bg, #14141c); color: var(--text, #ddd); border: 1px solid var(--border2, #333); border-radius: 6px; font-family: inherit; -webkit-appearance: none; appearance: none; cursor: pointer; }
+  .set-rpe:focus { outline: none; border-color: var(--accent, #6cf); }
   /* feat 88 — per-set sub-variation selector */
   .set-sub-row { display: flex; align-items: center; gap: 8px; margin: -1px 0 7px 30px; }
   .set-sub-lbl { font-size: 9.5px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
@@ -1699,6 +1704,33 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .set-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
   .set-pill { font-size: 10.5px; padding: 2px 7px; border-radius: 4px; font-variant-numeric: tabular-nums; font-weight: 700; line-height: 1.5; display: inline-flex; align-items: center; gap: 4px; }
   .set-pill .set-pill-delta { font-size: 9px; opacity: 0.85; font-weight: 600; letter-spacing: 0.2px; }
+  .set-pill .set-pill-rpe { font-size: 9px; opacity: 0.7; font-weight: 600; letter-spacing: 0.2px; } /* feat 261 — effort badge on a history set pill */
+  /* feat 262 — recovery readiness card */
+  .rec-card .rec-head { display: flex; align-items: center; justify-content: space-between; }
+  .rec-info-btn { background: transparent; border: none; color: var(--text3); font-size: 14px; cursor: pointer; padding: 0 4px; line-height: 1; }
+  .rec-lead { font-size: 12px; color: var(--text2); margin: 7px 0 11px; }
+  .rec-list { display: flex; flex-direction: column; gap: 9px; }
+  .rec-row { display: grid; grid-template-columns: 78px 1fr 36px; grid-template-areas: "name bar pct" "meta meta meta"; gap: 3px 8px; align-items: center; }
+  .rec-name { grid-area: name; font-size: 12px; font-weight: 700; color: var(--text); }
+  .rec-bar-track { grid-area: bar; height: 8px; background: var(--bg3, #1a1a1a); border-radius: 5px; overflow: hidden; }
+  .rec-bar-fill { height: 100%; border-radius: 5px; transition: width 0.3s; }
+  .rec-fresh { background: #3fb950; } .rec-ready { background: #d2bd2a; } .rec-recovering { background: #e0883a; } .rec-fatigued { background: #e5534b; }
+  .rec-pct { grid-area: pct; font-size: 11px; font-weight: 700; text-align: right; color: var(--text2); font-variant-numeric: tabular-nums; }
+  .rec-meta { grid-area: meta; font-size: 10px; color: var(--text3); }
+  .rec-allclear { font-size: 12px; color: var(--text2); padding: 4px 0; }
+  .rec-note { font-size: 10px; color: var(--text3); margin-top: 11px; font-style: italic; }
+  /* feat 265 — recovery hint in the log-sets header */
+  .ex-recovery-hint { font-size: 11px; color: var(--text2); margin-top: 4px; padding: 3px 8px; border-radius: 6px; display: inline-block; background: var(--bg3, #1a1a1a); border-left: 3px solid var(--text3); }
+  .ex-recovery-hint.rec-fatigued { border-left-color: #e5534b; } .ex-recovery-hint.rec-recovering { border-left-color: #e0883a; } .ex-recovery-hint.rec-ready { border-left-color: #d2bd2a; }
+  /* feat 263 — plateau / stall surfaces */
+  .plateau-note { margin: 8px 0 2px; padding: 9px 11px; border-radius: 8px; background: rgba(229,136,58,0.12); border: 1px solid rgba(229,136,58,0.4); color: var(--text2); font-size: 11.5px; line-height: 1.45; }
+  .plateau-note b { color: #e0883a; }
+  .plateau-card .plateau-sub { font-size: 11px; color: var(--text3); margin: 0 0 10px; line-height: 1.4; }
+  .plateau-list { display: flex; flex-direction: column; gap: 7px; }
+  .plateau-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .plateau-ex { font-size: 12.5px; font-weight: 700; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .plateau-detail { font-size: 10.5px; color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .plateau-more { font-size: 10.5px; color: var(--text3); font-style: italic; margin-top: 2px; }
   .set-pill.pr { background: linear-gradient(135deg, #2e6f3a 0%, #4e9050 100%); color: #fff; box-shadow: 0 0 8px rgba(80, 200, 100, 0.4); }
   .set-pill.progress { background: #1d3a25; color: #80e090; border: 1px solid #2e6f3a; }
   .set-pill.mild { background: #213024; color: #a0d4a0; border: 1px solid #2a4a30; }
@@ -3615,6 +3647,92 @@ function applyMuscleWeightPreset(id) {
   logInfo('Muscle weighting preset applied', id);
 }
 
+// feat 262 — Muscle-group RECOVERY / READINESS model. Pure compute over the training log (stores
+// nothing new): each group accrues fatigue from recent sessions that decays exponentially toward zero;
+// readiness = 1 − fatigue / the user's own typical per-session load for that group. RPE (feat 261), when
+// logged, nudges a session's contribution up or down. Directional, not lab-accurate — a "what's fresh to
+// train today" guide in the same spirit as the per-muscle distribution.
+const RECOVERY_BPS = ['chest','back','shoulders','biceps','triceps','quads','hamstrings','glutes','calves','core'];
+// Recovery half-life (hours) — bigger, compound-heavy groups take longer to bounce back than small ones.
+const RECOVERY_HALFLIFE_H = { chest:34, back:36, shoulders:28, biceps:24, triceps:24, quads:40, hamstrings:38, glutes:36, calves:24, core:22 };
+function _recMedian(a) { if (!a.length) return null; const b = a.slice().sort((x,y) => x - y); const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m-1] + b[m]) / 2; }
+// Fractional sets a session applied to one group (muscle contributions rolled up to the group).
+function bpSessionLoad(session, bp) {
+  let v = 0;
+  (session.exercises || []).forEach(ex => {
+    if (ex.cardio || !ex.sets || !ex.sets.length) return;
+    const contrib = muscleContribForVar(ex.varUuid); if (!contrib) return;
+    let hit = 0;
+    for (const mid in contrib) { const mu = MUSCLE_INDEX[mid]; if (mu && mu.group === bp) hit += contrib[mid]; }
+    if (hit > 0) v += hit * ex.sets.length;
+  });
+  return v;
+}
+// Average RPE over a session's sets that hit this group → a gentle intensity multiplier (≈1 by default).
+function _bpSessionIntensity(session, bp) {
+  let sum = 0, n = 0;
+  (session.exercises || []).forEach(ex => {
+    if (ex.cardio) return;
+    const contrib = muscleContribForVar(ex.varUuid); if (!contrib) return;
+    let hits = false; for (const mid in contrib) { const mu = MUSCLE_INDEX[mid]; if (mu && mu.group === bp) { hits = true; break; } }
+    if (!hits) return;
+    (ex.sets || []).forEach(st => { const rp = setRpe(st); if (rp != null) { sum += rp; n++; } });
+  });
+  return n ? (0.6 + 0.05 * (sum / n)) : 1; // RPE 8 → 1.0, RPE 10 → 1.1, RPE 6 → 0.9
+}
+// The user's typical hard-session load for a group: median over sessions that trained it (last ~8 weeks),
+// clamped so one giant or tiny day can't skew the readiness scale.
+function bpReferenceLoad(bp, nowMs) {
+  nowMs = nowMs || Date.now();
+  const since = nowMs - 56 * 86400000;
+  const loads = [];
+  (state.sessions || []).forEach(s => { const t = new Date(s.date).getTime(); if (t < since || t > nowMs) return; const v = bpSessionLoad(s, bp); if (v > 0.5) loads.push(v); });
+  return Math.max(3, Math.min(20, _recMedian(loads) || 6));
+}
+// Readiness 0..1 per group + when it was last trained and the decaying fatigue figure.
+function recoveryReadiness(nowMs) {
+  nowMs = nowMs || Date.now();
+  const out = {};
+  RECOVERY_BPS.forEach(bp => {
+    const hl = RECOVERY_HALFLIFE_H[bp] || 30;
+    let fatigue = 0, lastMs = null, lastLoad = 0;
+    (state.sessions || []).forEach(s => {
+      const t = new Date(s.date).getTime();
+      const hours = (nowMs - t) / 3600000;
+      if (hours < 0 || hours > hl * 4) return; // skip the future and the fully-decayed (>4 half-lives → <7%)
+      const v = bpSessionLoad(s, bp); if (v <= 0) return;
+      fatigue += v * _bpSessionIntensity(s, bp) * Math.pow(0.5, hours / hl);
+      if (lastMs == null || t > lastMs) { lastMs = t; lastLoad = v; }
+    });
+    out[bp] = { bp, readiness: Math.max(0, Math.min(1, 1 - fatigue / bpReferenceLoad(bp, nowMs))), fatigue, lastMs, lastLoad };
+  });
+  return out;
+}
+function recoveryStatus(r) {
+  if (r == null || r >= 0.8) return { key:'fresh', label:'Fresh', emoji:'🟢' };
+  if (r >= 0.55) return { key:'ready', label:'Ready', emoji:'🟡' };
+  if (r >= 0.3) return { key:'recovering', label:'Recovering', emoji:'🟠' };
+  return { key:'fatigued', label:'Fatigued', emoji:'🔴' };
+}
+// feat 265 — the body-part group an exercise mostly trains (largest rolled-up muscle contribution).
+function exerciseDominantGroup(varUuid) {
+  const contrib = muscleContribForVar(varUuid); if (!contrib) return null;
+  const byGroup = {};
+  for (const mid in contrib) { const mu = MUSCLE_INDEX[mid]; if (mu) byGroup[mu.group] = (byGroup[mu.group] || 0) + contrib[mid]; }
+  let best = null;
+  for (const g in byGroup) if (RECOVERY_BPS.indexOf(g) !== -1 && (!best || byGroup[g] > best.w)) best = { group: g, w: byGroup[g] };
+  return best ? best.group : null;
+}
+// A readiness hint for the exercise you're about to log — null when there's nothing useful to say
+// (too little history, the group is fresh, or it wasn't trained in the last week).
+function exerciseRecoveryHint(varUuid) {
+  if ((state.sessions || []).length < 2) return null;
+  const g = exerciseDominantGroup(varUuid); if (!g) return null;
+  const r = recoveryReadiness()[g]; if (!r || r.lastMs == null) return null;
+  if ((Date.now() - r.lastMs) / 3600000 > 168 || r.readiness >= 0.85) return null;
+  return { group: g, label: BP_LABELS[g] || g, readiness: r.readiness, pct: Math.round(r.readiness * 100), status: recoveryStatus(r.readiness) };
+}
+
 /* ============================================================
    STATE & STORAGE
    ============================================================ */
@@ -3712,6 +3830,7 @@ let state = {
     onScreenNumpad: true,      // feat 57/150 — in-app numpad for set entry (default ON; strongly recommended)
     prefillFromHistory: false, // feat 58 — copy last session's set into the first set on exercise start
     mixSubvariations: false,   // feat 88 — per-set sub-variation selection in one log (default off)
+    rpeMode: 'off',            // feat 261 — RPE/RIR per-set logging: 'off' | 'rpe' | 'rir' (default off = fully hidden)
   },
   // ---- Profile (feat 34) — fed into BMI / age / relative-strength calcs ----
   profile: {
@@ -3790,7 +3909,7 @@ function normalizeState() {
     dashboard: { stats:true, timeline:true, liveScore:true, pace:true, physique:true, planCollapsed:false },
     longPressConfirm: { enabled:false, ms:1500 },
     workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
-      restTimer:true, abandonMinutes:15, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true },
+      restTimer:true, abandonMinutes:15, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true, rpeMode:'off' },
     bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
     stravaAutoLoad: { enabled:false, mode:'folder' }, // feat 89
     planDefaults: { minPct:1 }, // feat 144 — default min % of a step's sets that counts the step as "done" (overridable per plan / per step)
@@ -3800,6 +3919,8 @@ function normalizeState() {
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   // feat 197 — the old 5-min abandon default proved ~3x too quick; migrate stored old-default values to 15.
   if (state.workoutControls.abandonMinutes === 5) state.workoutControls.abandonMinutes = 15;
+  // feat 261 — coerce the RPE/RIR mode to a known value; anything unset/legacy falls back to fully-off.
+  if (['off','rpe','rir'].indexOf(state.workoutControls.rpeMode) === -1) state.workoutControls.rpeMode = 'off';
   if (!Array.isArray(state.bodyComp)) state.bodyComp = [];
   if (!Array.isArray(state.trendExclude)) state.trendExclude = []; // feat 165 — muscle groups excluded from the overall trend
   if (!state.favoritePlans || typeof state.favoritePlans !== 'object') state.favoritePlans = {}; // feat 178 — { planId: true }
@@ -6353,6 +6474,17 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">RPE / RIR per set</div>
+        <div class="drawer-setting-sub">Off by default. <b>RPE</b> (Rate of Perceived Exertion, 6–10) or <b>RIR</b> (Reps In Reserve, 0–5) adds an optional effort field to every set — used for a sharper estimated 1RM and stall detection. Off hides it completely.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${rpeMode() === 'off' ? 'active' : ''}" data-rpemode="off">Off</button>
+        <button class="drawer-pill ${rpeMode() === 'rpe' ? 'active' : ''}" data-rpemode="rpe">RPE</button>
+        <button class="drawer-pill ${rpeMode() === 'rir' ? 'active' : ''}" data-rpemode="rir">RIR</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">Mix sub-variations in one log</div>
         <div class="drawer-setting-sub">For exercises with grip/bar/angle options, pick a sub-variation per set; on save they split into separate tracked entries</div>
       </div>
@@ -6961,6 +7093,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.dash) { state.dashboard[btn.dataset.dash] = btn.dataset.dashVal === 'on'; saveState(); }
       else if (btn.dataset.catVis) { state.hiddenCategories[btn.dataset.catVis] = btn.dataset.catVal === 'hide'; saveState(); render(); }
       else if (btn.dataset.wc) { ensureWC(); state.workoutControls[btn.dataset.wc] = btn.dataset.wcVal === 'on'; saveState(); if (typeof refreshRestBar === 'function') refreshRestBar(); if (typeof refreshWakeLock === 'function') refreshWakeLock(); if (typeof modalState !== 'undefined' && modalState.open) renderModal(); }
+      else if (btn.dataset.rpemode) { ensureWC(); state.workoutControls.rpeMode = ['off','rpe','rir'].indexOf(btn.dataset.rpemode) === -1 ? 'off' : btn.dataset.rpemode; saveState(); if (typeof modalState !== 'undefined' && modalState.open) renderModal(); if (typeof render === 'function') render(); toast('RPE / RIR: ' + (rpeMode() === 'off' ? 'hidden' : rpeMode().toUpperCase())); } // feat 261
       renderSettingsDrawer();
     });
   });
@@ -7018,7 +7151,7 @@ function renderSettingsDrawer() {
   });
 
   // Workout controls
-  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:15, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true }; };
+  const ensureWC = () => { if (!state.workoutControls) state.workoutControls = { autoEndMinutes: 40, showLiveScoreAfterMin: 45, paceAnalysisStartMin: 20, restTimer:true, abandonMinutes:15, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true, rpeMode:'off' }; };
   const aeInput = body.querySelector('#drawer-auto-end');
   if (aeInput) aeInput.addEventListener('change', () => {
     const v = parseInt(aeInput.value);
@@ -7268,6 +7401,56 @@ function estimated1RM(weight, reps) {
 }
 function setVolume(set) { return set.w * set.r; }
 function exerciseVolume(ex) { return ex.sets.reduce((s, set) => s + setVolume(set), 0); }
+
+// feat 261 — RPE / RIR (opt-in, fully hideable). Canonical store is a single RPE number on the set
+// (`set.rpe`, 5–10 in .5 steps); RIR is just a display/entry lens (RIR = 10 − RPE). Default mode is
+// 'off' → no column, no badges, no migration: a workout looks exactly as it did before. When a set
+// carries an RPE we can model proximity-to-failure for a sharper e1RM and for plateau detection.
+function rpeMode() { const m = state.workoutControls && state.workoutControls.rpeMode; return (m === 'rpe' || m === 'rir') ? m : 'off'; }
+function rpeEnabled() { return rpeMode() !== 'off'; }
+function rpeToRir(rpe) { const n = parseFloat(rpe); return isNaN(n) ? null : Math.max(0, Math.min(5, Math.round((10 - n) * 2) / 2)); }
+function rirToRpe(rir) { const n = parseFloat(rir); return isNaN(n) ? null : Math.max(5, Math.min(10, Math.round((10 - n) * 2) / 2)); }
+function setRpe(set) { const n = set && set.rpe != null && set.rpe !== '' ? parseFloat(set.rpe) : NaN; return isNaN(n) ? null : n; }
+// A logged set's implied reps-to-failure = actual reps + reps-in-reserve (from RPE). Falls back to the
+// raw reps when no RPE is present, so e1RM is unchanged for untagged sets.
+function setRepsToFailure(set) { const rpe = setRpe(set); const reps = parseFloat(set && set.r); if (isNaN(reps)) return null; const rir = rpe == null ? 0 : rpeToRir(rpe); return reps + (rir || 0); }
+// RPE-adjusted e1RM: same Epley curve, but using reps-to-failure when the set isn't taken to RPE 10.
+// Additive — the core overload/PR engine (getOverloadScore) still uses raw-rep Epley for back-compat.
+function estimated1RMSet(set) {
+  if (!set || !set.w || !set.r) return 0;
+  const rpe = setRpe(set);
+  if (rpe != null && parseFloat(set.r) >= 1) return estimated1RM(set.w, setRepsToFailure(set));
+  return estimated1RM(set.w, set.r);
+}
+// Compact history badge, e.g. "@8" (RPE) or "1 RIR". Empty unless the feature is on AND the set has one.
+function rpeBadge(set) {
+  if (!rpeEnabled()) return '';
+  const rpe = setRpe(set); if (rpe == null) return '';
+  return rpeMode() === 'rir' ? (rpeToRir(rpe) + ' RIR') : ('@' + rpe);
+}
+// The per-mode option grid: RPE 6–10 (.5 steps) or RIR 0–5.
+function rpeOptionValues() { return rpeMode() === 'rir' ? [0,1,2,3,4,5] : [6,6.5,7,7.5,8,8.5,9,9.5,10]; }
+// The optional per-set effort <select> (a select, so it never fires the mobile keyboard and works in
+// numpad mode). Empty string when the feature is off → the row keeps its original 4-column layout.
+function rpeSelectHtml(s, i) {
+  if (!rpeEnabled()) return '';
+  const isRir = rpeMode() === 'rir';
+  const curRpe = setRpe(s);
+  const curVal = curRpe == null ? '' : (isRir ? rpeToRir(curRpe) : curRpe);
+  const opts = rpeOptionValues().slice();
+  if (curVal !== '' && curVal != null && opts.indexOf(curVal) === -1) { opts.push(curVal); opts.sort((a, b) => a - b); } // keep an off-grid stored value visible
+  const label = isRir ? 'RIR' : 'RPE';
+  return `<select class="set-rpe" data-set-rpe="${i}" title="${label} for set ${i + 1}" aria-label="${label} for set ${i + 1}"><option value="">${label}</option>` +
+    opts.map(o => `<option value="${o}" ${curVal === o ? 'selected' : ''}>${o}</option>`).join('') + `</select>`;
+}
+// Commit an effort selection (RIR is converted to the canonical RPE on the way in). Clearing removes it.
+function commitSetRPE(i, val) {
+  const s = pending.sets[i]; if (!s) return;
+  if (val === '' || val == null) { s.rpe = ''; }
+  else { const n = parseFloat(val); s.rpe = isNaN(n) ? '' : (rpeMode() === 'rir' ? rirToRpe(n) : n); }
+  savePending();
+  if (typeof updateSaveBtn === 'function') updateSaveBtn();
+}
 
 function fmtDate(d) {
   const dt = new Date(d);
@@ -7647,6 +7830,63 @@ function getHistoryByKey(varUuid, subUuid) {
     });
   });
   return history.sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+// feat 263 — PLATEAU / STALL detection. A lift's per-session best estimated 1RM (RPE-adjusted via
+// feat 261 when present, else raw Epley) is tracked over the recent window; a stall is flagged when it
+// hasn't set a new high for several sessions and is essentially flat. Pure read over the log.
+function sessionBestE1RM(h) { return (h.sets || []).reduce((m, s) => Math.max(m, estimated1RMSet(s)), 0); }
+// Shared stall test over a recent-first [{date, e}] e1RM series. Stalled when the high is 3+ sessions
+// old AND the recent window is roughly flat (±2%) AND it spans ≥ ~2 weeks (so a single off day or two
+// close sessions never trip it).
+function _plateauFromSeries(rows) {
+  const now = Date.now();
+  const recent = (rows || []).filter(h => (now - new Date(h.date).getTime()) <= 84 * 86400000).slice(0, 8); // ≤8 sessions, last ~12 wk
+  if (recent.length < 4) return null;
+  const e = recent.map(h => h.e); // [latest … oldest]
+  if (e.some(x => !(x > 0))) return null;
+  const latest = e[0], best = Math.max.apply(null, e), oldest = e[e.length - 1];
+  const bestIdx = e.indexOf(best);                         // 0 = the newest session holds the high → progressing
+  const netPct = ((latest - oldest) / oldest) * 100;
+  const spanDays = Math.round((new Date(recent[0].date).getTime() - new Date(recent[recent.length - 1].date).getTime()) / 86400000);
+  if (bestIdx >= 3 && Math.abs(netPct) < 2 && spanDays >= 12) {
+    return { stalled: true, sessions: bestIdx, spanDays, netPct: Math.round(netPct * 10) / 10, bestE1RM: Math.round(best), latestE1RM: Math.round(latest) };
+  }
+  return null;
+}
+function detectPlateau(varUuid, subUuid) {
+  const hist = getHistoryByKey(varUuid, subUuid); // recent-first
+  if (!hist || hist.length < 4) return null;
+  return _plateauFromSeries(hist.map(h => ({ date: h.date, e: sessionBestE1RM(h) })));
+}
+// feat 264 — plateau at the VARIATION level (any sub-option), to align with the var-keyed progression engine.
+function detectPlateauVar(varUuid) {
+  const rows = [];
+  (state.sessions || []).forEach(s => {
+    let best = 0;
+    (s.exercises || []).forEach(ex => { if (ex.cardio || ex.varUuid !== varUuid || !ex.sets) return; ex.sets.forEach(st => { const e = estimated1RMSet(st); if (e > best) best = e; }); });
+    if (best > 0) rows.push({ date: s.date, e: best });
+  });
+  rows.sort((a, b) => new Date(b.date) - new Date(a.date)); // recent-first
+  return _plateauFromSeries(rows);
+}
+// A plateau wrapped with display copy (deload / variation-swap nudge). Null when not stalled.
+function plateauAdvice(varUuid, subUuid) {
+  const p = detectPlateau(varUuid, subUuid); if (!p) return null;
+  return { ...p, title: 'Possible plateau', text: `top e1RM has held near ${p.bestE1RM}${state.unit} for ${p.sessions} session${p.sessions === 1 ? '' : 's'} (~${p.spanDays}d). Try a deload (−10% next time) or swap a variation for a few weeks to restart progress.` };
+}
+// Every distinct tracked lift in the log → used to roll up all current stalls.
+function allTrackedKeys() {
+  const seen = new Set(), out = [];
+  (state.sessions || []).forEach(s => (s.exercises || []).forEach(ex => {
+    if (ex.cardio || !ex.sets || !ex.sets.length) return;
+    const k = trackingKey(ex.varUuid, ex.subUuid);
+    if (!seen.has(k)) { seen.add(k); out.push({ varUuid: ex.varUuid, subUuid: ex.subUuid || null }); }
+  }));
+  return out;
+}
+function findPlateaus() {
+  return allTrackedKeys().map(k => { const p = detectPlateau(k.varUuid, k.subUuid); return p ? Object.assign({}, k, p) : null; }).filter(Boolean).sort((a, b) => b.sessions - a.sessions);
 }
 
 function getLastSetForExercise(varUuid, subUuid) {
@@ -10057,10 +10297,10 @@ function recentTopSet(varUuid) {
       if (ex.varUuid !== varUuid || ex.cardio) return;
       (ex.sets || []).forEach(set => {
         const w = parseFloat(set.w), r = parseInt(set.r, 10);
-        if (w > 0 && r > 0) { const e = estimated1RM(w, r); if (!top || e > top.e) top = { w, r, e }; }
+        if (w > 0 && r > 0) { const e = estimated1RM(w, r); if (!top || e > top.e) top = { w, r, e, rpe: (typeof setRpe === 'function') ? setRpe(set) : null }; } // feat 264 — carry RPE for autoregulation
       });
     });
-    if (top) return { w: top.w, r: top.r, date: s.date };
+    if (top) return { w: top.w, r: top.r, date: s.date, rpe: top.rpe };
   }
   return null;
 }
@@ -10097,6 +10337,27 @@ function suggestProgression(varUuid) {
   const { lo, hi } = progRepRange(top.r), meso = (typeof mesoCurrentWeek === 'function') ? mesoCurrentWeek() : null;
   if (meso && meso.phase === 'Deload') {
     return { current: top, next: { w: progRound(varUuid, Math.round(top.w * 0.9)), r: lo }, action: 'deload', note: `Deload week — back off ~10% and keep it crisp` };
+  }
+  // feat 264 — plateau-aware: a stalled lift gets a deload-to-resensitize target (overrides normal progression).
+  const stall = (typeof detectPlateauVar === 'function') ? detectPlateauVar(varUuid) : null;
+  if (stall) {
+    return { current: top, next: { w: progRound(varUuid, Math.round(top.w * 0.9)), r: top.r }, action: 'deload', note: `Stalled ${stall.sessions} sessions — deload ~10% for a week, then rebuild` };
+  }
+  // feat 264 — RPE autoregulation: when the top set carries an effort rating, let proximity-to-failure steer
+  // the next target. No RPE logged → falls straight through to the standard double-progression below.
+  const rpe = (typeof setRpe === 'function') ? setRpe(top) : null;
+  if (rpe != null) {
+    if (rpe >= 9.5) { // ~0 reps in reserve — at the limit; consolidate before pushing
+      return { current: top, next: { w: top.w, r: top.r }, action: 'hold', note: `Last set was all-out (RPE ${rpe}) — repeat ${top.w}×${top.r} and own it before adding` };
+    }
+    if (rpe <= 6.5) { // ≥3.5 in reserve — plenty left, push harder than usual
+      if (top.r >= hi) { const step = progLoadStep(varUuid, top.w); return { current: top, next: { w: Math.round((top.w + step) * 10) / 10, r: lo }, action: 'add-load', note: `Easy at ${hi} reps (RPE ${rpe}) — add load, reset to ${lo}` }; }
+      return { current: top, next: { w: top.w, r: Math.min(hi, top.r + 2) }, action: 'add-reps', note: `Plenty left (RPE ${rpe}) — jump to ${Math.min(hi, top.r + 2)} reps` };
+    }
+    if (rpe >= 9 && top.r < hi) { // hard but not maxed, mid-range — one cautious rep, no load jump
+      return { current: top, next: { w: top.w, r: top.r + 1 }, action: 'add-reps', note: `Tough (RPE ${rpe}) — just one more rep next time` };
+    }
+    // RPE 7–8.5 (or 9+ at the top of the range) → standard double progression below.
   }
   if (top.r >= hi) {
     const step = progLoadStep(varUuid, top.w);
@@ -12287,7 +12548,8 @@ function renderSession(session, isToday) {
       const score = getOverloadScore(ex.varUuid, ex.subUuid, set, session.date);
       const cls = score ? score.level : 'baseline';
       const deltaText = score && score.level !== 'baseline' ? `<span class="set-pill-delta">${score.label}</span>` : '';
-      return `<span class="set-pill ${cls}">${set.w}×${set.r}${deltaText}</span>`;
+      const rpeText = (() => { const b = rpeBadge(set); return b ? `<span class="set-pill-rpe">${b}</span>` : ''; })(); // feat 261 — gated by the toggle
+      return `<span class="set-pill ${cls}">${set.w}×${set.r}${rpeText}${deltaText}</span>`;
     }).join('');
     // Superset linkage (feat 39) — adjacent exercises sharing a supersetId
     const prevEx = session.exercises[exIdx - 1];
@@ -13174,6 +13436,41 @@ function _replayRefresh() {
   renderReplayPage(host.parentElement);
 }
 
+// feat 262 — the Recovery card: which groups are still recovering vs fresh to train today.
+function renderRecoveryCard() {
+  const sessions = state.sessions || [];
+  if (sessions.length < 2) return ''; // need a little history before this means anything
+  const rec = recoveryReadiness();
+  const now = Date.now();
+  const recovering = [], readyNames = [];
+  RECOVERY_BPS.forEach(bp => {
+    const r = rec[bp];
+    const hrs = r.lastMs != null ? (now - r.lastMs) / 3600000 : Infinity;
+    if (hrs <= 168 && r.readiness < 0.8) recovering.push(r); // trained in the last week and not yet recovered
+    else readyNames.push(BP_LABELS[bp] || bp);
+  });
+  recovering.sort((a, b) => a.readiness - b.readiness); // most fatigued first
+  const sinceTxt = ms => { const h = (now - ms) / 3600000; if (h < 1) return 'just now'; if (h < 24) return Math.round(h) + 'h ago'; const d = h / 24; return (d < 1.5 ? '1d' : Math.round(d) + 'd') + ' ago'; };
+  const list = recovering.length ? recovering.map(r => {
+    const st = recoveryStatus(r.readiness), pct = Math.round(r.readiness * 100);
+    return `<div class="rec-row">
+      <div class="rec-name">${escapeHtml(BP_LABELS[r.bp] || r.bp)}</div>
+      <div class="rec-bar-track"><div class="rec-bar-fill rec-${st.key}" style="width:${pct}%"></div></div>
+      <div class="rec-pct">${pct}%</div>
+      <div class="rec-meta">${st.emoji} ${st.label} · trained ${sinceTxt(r.lastMs)}</div>
+    </div>`;
+  }).join('') : `<div class="rec-allclear">✅ Everything recently trained has recovered.</div>`;
+  const lead = readyNames.length
+    ? `🟢 Good to train: <b>${readyNames.slice(0, 6).map(escapeHtml).join(', ')}</b>`
+    : `Everything trained recently is still recovering — consider a lighter day.`;
+  return `<div class="card rec-card">
+    <div class="rec-head"><div class="card-title" style="margin:0;">🔄 Recovery</div><button class="rec-info-btn" id="rec-info-btn" type="button" title="How this is estimated" aria-label="How recovery is estimated">ⓘ</button></div>
+    <div class="rec-lead">${lead}</div>
+    <div class="rec-list">${list}</div>
+    <div class="rec-note">Estimated from recent training volume${rpeEnabled() ? ' + RPE' : ''}, decaying over a few days. Directional — listen to your body.</div>
+  </div>`;
+}
+
 function renderVolume(main) {
   const weekDate = new Date(startOfWeek(new Date()) - volWeekOffset * 7 * 86400000);
   let html = `<div class="sub-tabs">
@@ -13188,6 +13485,7 @@ function renderVolume(main) {
     <div class="sub-tab ${volLevel==='head'?'active':''}" data-vollevel="head">Heads</div>
   </div>`;
   html += renderVolumeHeatmapCard(); // feat 217 — the anatomy heatmap rides above the bars
+  html += renderRecoveryCard();      // feat 262 — recovery readiness per muscle group
 
   if (!categoryHidden('cardio')) html += renderCardioGoals(volWeekOffset); // feat 7
 
@@ -13201,6 +13499,11 @@ function renderVolume(main) {
 
   main.innerHTML = html;
   _bindHeatmapCard(main); // feat 217
+  main.querySelector('#rec-info-btn')?.addEventListener('click', () => choiceDialog({ // feat 262
+    title: 'How recovery is estimated',
+    message: 'Each muscle group builds up fatigue from how much volume it absorbed in recent sessions, then recovers as that fatigue decays over a few days (bigger groups take longer). Readiness is that fatigue measured against your own typical session for the group. Logging RPE/RIR makes it sharper. It is a directional guide, not medical advice — always listen to your body.',
+    choices: [{ label: 'Got it', value: true, style: 'primary' }],
+  }));
   // Cardio goals (feat 7)
   main.querySelector('#cardio-goals-edit')?.addEventListener('click', () => { cardioGoalsEditOpen = !cardioGoalsEditOpen; render(); });
   main.querySelectorAll('[data-cg]').forEach(inp => inp.addEventListener('change', () => {
@@ -13887,6 +14190,22 @@ function renderAchievements() {
   });
   return html;
 }
+// feat 263 — roll-up of every lift currently flagged as a plateau, shown atop the Overall trend view.
+function renderPlateauCard() {
+  const stalls = findPlateaus();
+  if (!stalls.length) return '';
+  const rows = stalls.slice(0, 8).map(p => `<div class="plateau-row">
+    <div class="plateau-ex">${escapeHtml(displayName(p.varUuid, p.subUuid))}</div>
+    <div class="plateau-detail">~${p.bestE1RM}${state.unit} e1RM · flat ${p.sessions} sess (~${p.spanDays}d)</div>
+  </div>`).join('');
+  const more = stalls.length > 8 ? `<div class="plateau-more">+${stalls.length - 8} more</div>` : '';
+  return `<div class="card plateau-card">
+    <div class="card-title" style="margin:0 0 4px;">🧱 Possible plateaus</div>
+    <div class="plateau-sub">These lifts' estimated 1RM hasn't set a new high lately. A deload (−10% for a session or two) or a variation swap often restarts progress.</div>
+    <div class="plateau-list">${rows}${more}</div>
+  </div>`;
+}
+
 function renderTrends(main) {
   if (trendFocus && trendFocus.varUuid) { renderFocusedTrends(main); return; } // feat 117 — focused exercise view
   if (state.sessions.length === 0) {
@@ -13910,6 +14229,7 @@ function renderTrends(main) {
   } else if (trendView === 'milestones') {
     html += renderAchievements(); // feat 169
   } else if (trendView === 'overall') {
+    html += renderPlateauCard(); // feat 263 — stalled lifts roll-up
     const overall = computeOverallProgress();
     const overallTrend = overall && overall.composite.length >= 2
       ? computeTrend(overall.composite.map(d => ({ date: d.date, oneRM: d.val })))
@@ -16597,6 +16917,7 @@ function renderSetsForm() {
         <div class="set-num">${i + 1}</div>
         <input class="set-input${npCls}" ${wAttrs} placeholder="${M.wLabel}" value="${s.w}" data-i="${i}" data-field="w" style="${wOver ? 'color:#ff4444;font-weight:700;' : ''}">
         <input class="set-input${npCls}" ${rAttrs} placeholder="${M.rLabel}" value="${s.r}" data-i="${i}" data-field="r" ${(s.w !== '' && s.w != null) ? '' : 'disabled title="Enter weight first"'}>
+        ${rpeSelectHtml(s, i)}
         <button class="set-remove" data-remove="${i}">×</button>
         ${overloadTagHtml}
         ${recordHintHtml}
@@ -16631,6 +16952,7 @@ function renderSetsForm() {
       <div class="selected-ex-label">${modalState.isEditing ? 'Editing' : 'Logging'}</div>
       <div class="selected-ex-name">${escapeHtml(info.variation.title)}${M.mode!=='standard'?`<span class="ex-mode-tag">${M.mode==='bodyweight'?'BW+':M.mode==='distance'?'dist':'time'}</span>`:''}</div>
       <div class="selected-ex-family">${escapeHtml(info.family.title)} · ${BP_LABELS[info.bp] || info.bp}</div>
+      ${(() => { const h = exerciseRecoveryHint(pending.varUuid); return h ? `<div class="ex-recovery-hint rec-${h.status.key}">${h.status.emoji} ${escapeHtml(h.label)} <b>${h.pct}%</b> recovered · ${h.status.label}</div>` : ''; })()}
       ${(() => { const t = exerciseTiming(pending.varUuid, pending.subUuid); return t ? `<div class="ex-time-stat">⏱ <b>${formatDuration(t.totalMs / 1000)}</b> on this exercise${t.pctActive != null ? ` · <b>${t.pctActive}%</b> active` : ''}</div>` : ''; })()}
       ${M.mode !== 'standard' ? `<div class="ex-mode-hint">${
         M.mode==='bodyweight' ? `Bodyweight baseline — log <b>added load</b> in the weight field (use a negative number for assistance, 0 for pure bodyweight).${(() => { const bw = getCurrentBodyweightKg(); return bw ? ` Effective ≈ bodyweight ${bodyDispW(bw)}${state.bodyCompUnit} + added.` : ''; })()}` :
@@ -16660,12 +16982,13 @@ function renderSetsForm() {
       <div class="prog-target-main"><span class="prog-target-aim">🎯 Aim for <b>${progTarget.next.w} × ${progTarget.next.r}</b></span><span class="prog-target-note">${escapeHtml(progTarget.note)}</span></div>
       <button type="button" class="prog-prefill" id="trk-prog-prefill" data-w="${progTarget.next.w}" title="Load the suggested weight into the next set">↪ Load ${progTarget.next.w}</button>
     </div>` : ''}
+    ${(() => { if (modalState.isEditing) return ''; const pl = plateauAdvice(pending.varUuid, pending.subUuid); return pl ? `<div class="plateau-note">🧱 <b>${escapeHtml(pl.title)}:</b> ${escapeHtml(pl.text)}</div>` : ''; })()}
     ${renderSetupInline()}
 
     <div class="card-title" style="margin-top:14px;">Sets</div>
-    <div class="sets-section">
+    <div class="sets-section${rpeEnabled() ? ' rpe-on' : ''}">
       <div class="set-header">
-        <div>#</div><div>WEIGHT</div><div>REPS</div><div></div>
+        <div>#</div><div>WEIGHT</div><div>REPS</div>${rpeEnabled() ? `<div>${rpeMode() === 'rir' ? 'RIR' : 'RPE'}</div>` : ''}<div></div>
       </div>
       <div id="trk-sets-container" class="sets-scroll">${setsHtml}</div>
     </div>
@@ -17148,6 +17471,10 @@ function bindSetsForm() {
   document.querySelectorAll('#trk-sets-container [data-set-sub]').forEach(sel => {
     sel.addEventListener('change', () => { const i = parseInt(sel.dataset.setSub); if (pending.sets[i]) { pending.sets[i].subUuid = sel.value; savePending(); } });
   });
+  // feat 261 — per-set RPE/RIR effort selection (only present when the feature is enabled)
+  document.querySelectorAll('#trk-sets-container [data-set-rpe]').forEach(sel => {
+    sel.addEventListener('change', () => commitSetRPE(parseInt(sel.dataset.setRpe), sel.value));
+  });
   // feat 57 — in on-screen-numpad mode, tapping a set input opens the in-app numpad instead of the native keyboard
   if (state.workoutControls && state.workoutControls.onScreenNumpad) {
     document.querySelectorAll('#trk-sets-container .set-input.numpad-mode').forEach(input => {
@@ -17481,13 +17808,13 @@ function saveSets(endingWorkout) {
   // Filter to valid sets, preserving each set's last-edit timestamp (fallback to save time)
   const validSets = pending.sets
     .filter(s => isSetValid(s))
-    .map(s => ({ w: s.w, r: s.r, wTs: s.wTs || undefined, ts: s.ts || nowIso, _sub: (mix ? (s.subUuid || pending.subUuid) : pending.subUuid) || null }));
+    .map(s => ({ w: s.w, r: s.r, wTs: s.wTs || undefined, ts: s.ts || nowIso, rpe: (s.rpe === '' || s.rpe == null) ? undefined : s.rpe, _sub: (mix ? (s.subUuid || pending.subUuid) : pending.subUuid) || null }));
   if (validSets.length === 0) { toast('Enter at least one set'); return Promise.resolve(false); }
   // feat 63 — a bodyweight exercise needs a recorded bodyweight to be meaningful; block until one exists.
   if (exMode(pending.varUuid).mode === 'bodyweight' && getCurrentBodyweightKg() == null) {
     toast('⚖️ Log your bodyweight first (Body tab) to save bodyweight exercises'); return Promise.resolve(false);
   }
-  const clean = s => ({ w: s.w, r: s.r, wTs: s.wTs, ts: s.ts }); // drop the temp _sub before storing
+  const clean = s => { const o = { w: s.w, r: s.r, wTs: s.wTs, ts: s.ts }; if (s.rpe != null && s.rpe !== '') o.rpe = s.rpe; return o; }; // drop the temp _sub; keep rpe only when set (feat 261)
   const commit = () => {
     const editing = modalState.isEditing;
     // feat 114 — capture whether the active plan was already complete BEFORE this save
@@ -17687,7 +18014,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 209 · 2026-06-14 08:39';
+const APP_BUILD = 'build 210 · 2026-06-14 23:22';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
