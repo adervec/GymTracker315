@@ -980,6 +980,14 @@ They share variation **UUIDs**.
   self-suppresses when there's nothing useful to say (too little history, the group is fresh ≥85%, or it wasn't
   trained in the last week), so it only appears when it's actionable. Read-only, no settings. `test/app.spec.mjs`
   (present for a just-trained group, absent for a rested/untrained one).
+- **Recovery-aware plan recommender (feat 266):** the quick-pick recommender (`recommendPlans`) now factors **muscle-group
+  recovery** alongside time-fit and the coarse push/pull/lower freshness. `planRecoveryScore` is the volume-weighted
+  readiness (feat 262) of the groups a plan trains; the score became `time·0.65 + fresh·0.2 + recov·0.15` (+fav) — time-fit
+  stays dominant, so the existing budget-sensitivity ordering is preserved, while recovery breaks ties the mega-level
+  freshness can't see (e.g. a chest-heavy vs a delts-heavy push day when chest is fried but delts are fresh). The
+  recommendation reason gains a **"⚠ <group> still recovering"** heads-up (`planFatiguedGroup`, groups <40% recovered).
+  `recoveryReadiness()` is computed once per call and reused. `test/quickpick.spec.mjs` (fresh-group plan outranks the
+  fatigued-group one + warning note; all prior ordering assertions still hold).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

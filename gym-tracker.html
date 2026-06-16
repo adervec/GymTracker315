@@ -10157,7 +10157,7 @@ function planFreshnessScore(plan, recentMega) {
   return s;
 }
 // A short human reason for why a plan is recommended (time fit + freshness angle).
-function planRecReason(plan, minutes, recentMega) {
+function planRecReason(plan, minutes, recentMega, rec) {
   const est = estimatePlanMinutes(plan), cat = planCategory(plan);
   const timeBit = est <= minutes ? `≈${est} min, fits your ${minutes}` : `≈${est} min (a touch over ${minutes})`;
   const topMega = Object.entries(planMegaDist(plan).mega).sort((a, b) => b[1] - a[1])[0];
@@ -10167,19 +10167,43 @@ function planRecReason(plan, minutes, recentMega) {
     const label = NAME[topMega[0]] || cat.toLowerCase();
     freshBit = (recentMega[topMega[0]] || 0) < 4 ? ` · ${label} is well-rested` : ` · more ${label}`;
   }
-  return `${timeBit} min${freshBit}`;
+  // feat 266 — heads-up when a recommended plan leans on a group that's still recovering.
+  let recBit = '';
+  if (rec) { const f = planFatiguedGroup(plan, rec); if (f) recBit = ` · ⚠ ${BP_LABELS[f.group] || f.group} still recovering`; }
+  return `${timeBit} min${freshBit}${recBit}`;
 }
-// Rank plans for the available time + recent activity. Returns [{ plan, score, time, fresh, reason }] best-first.
+// feat 266 — how recovered the muscle groups a plan trains are right now (volume-weighted readiness, 0..1).
+// Neutral (≈0.7) for a plan that maps to no tracked group, and ≈1 when there's no training history at all,
+// so it only differentiates plans once recent fatigue actually exists.
+function planRecoveryScore(plan, rec) {
+  rec = rec || recoveryReadiness();
+  const vol = splitGroupVolume([plan]);
+  let wsum = 0, w = 0;
+  for (const g in vol) { const r = rec[g]; if (!r) continue; const s = vol[g]; w += s; wsum += s * r.readiness; }
+  return w > 0 ? wsum / w : 0.7;
+}
+// The group a plan leans on most that is currently fatigued (<40% recovered) — for the reason note.
+function planFatiguedGroup(plan, rec) {
+  rec = rec || recoveryReadiness();
+  const vol = splitGroupVolume([plan]);
+  let worst = null;
+  for (const g in vol) { const r = rec[g]; if (!r || vol[g] < 2) continue; if (r.readiness < 0.4 && (!worst || r.readiness < worst.readiness)) worst = { group: g, readiness: r.readiness }; }
+  return worst;
+}
+// Rank plans for the available time + recent activity + muscle-group recovery. Returns
+// [{ plan, score, time, fresh, recov, reason }] best-first.
 function recommendPlans(minutes, limit) {
   minutes = (minutes >= 5 && minutes <= 240) ? minutes : planPickMinutes();
   const recent = recentMegaLoad(4);
+  const rec = recoveryReadiness(); // feat 266 — compute once, reuse across plans
   const scored = (state.plans || []).map(plan => {
-    const time = planTimeScore(plan, minutes), fresh = planFreshnessScore(plan, recent);
+    const time = planTimeScore(plan, minutes), fresh = planFreshnessScore(plan, recent), recov = planRecoveryScore(plan, rec);
     const favBump = (typeof isFavPlan === 'function' && isFavPlan(plan.id)) ? 0.05 : 0;
-    return { plan, time, fresh, score: time * 0.6 + fresh * 0.4 + favBump };
+    // Time-fit stays dominant; freshness (coarse push/pull/lower) + recovery (per muscle group) split the rest.
+    return { plan, time, fresh, recov, score: time * 0.65 + fresh * 0.2 + recov * 0.15 + favBump };
   });
   scored.sort((a, b) => b.score - a.score || estimatePlanMinutes(a.plan) - estimatePlanMinutes(b.plan));
-  return scored.slice(0, limit || 3).map(x => ({ ...x, reason: planRecReason(x.plan, minutes, recent) }));
+  return scored.slice(0, limit || 3).map(x => ({ ...x, reason: planRecReason(x.plan, minutes, recent, rec) }));
 }
 const PLAN_CAT_ORDER = ['Full Body','Upper','Push','Pull','Legs','Core','Mixed','Mobility','Recovery','Other'];
 /* ============================================================
@@ -18014,7 +18038,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 210 · 2026-06-14 23:22';
+const APP_BUILD = 'build 211 · 2026-06-15 21:22';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
