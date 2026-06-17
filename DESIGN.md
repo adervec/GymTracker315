@@ -1025,6 +1025,19 @@ They share variation **UUIDs**.
   (`promptDialog` → `addExerciseMedia(ANATOMY_MEDIA_KEY, …)`, image-only). Fulfils part of the ONHOLD #49
   externally-attached-chart idea via the existing media plumbing. `test/app.spec.mjs` (import-by-id/title, attach,
   display source, gallery owner, sheet round-trip).
+- **Sync-on-workout-end + per-device AI-ready auto-export (feat 272):** two wrap-up automations fired from
+  `finalizeEndWorkout`. **(1) Cloud sync on end** — `state.cloudSync.syncOnEnd` (default on, device-local) does an
+  immediate `cloudPushNow()` when a workout ends, guaranteeing the session is pushed even if you close the app before
+  the 1.2 s debounced auto-sync fires; a toggle sits in the connected Cloud Sync card. **(2) AI brief export** —
+  writes the **Claude-ready digest** (`buildClaudeDigest`, feat 171) into a chosen folder so a desktop can drop the
+  latest brief into e.g. a Claude cowork folder for a morning strength-progress analysis. **Device-local by design**:
+  the readwrite folder handle lives in IndexedDB (`aiExportDir`) and the config (`state.aiExport`
+  `{enabled,onWorkoutEnd,daily,scope,filename,lastWriteDay}`) is preserved-on-merge (in `SETTINGS_KEYS`), so only the
+  device you set up exports. Triggers: **on workout end** and **once per calendar day** (on load + on tab refocus,
+  guarded by `lastWriteDay`). Mirrors the bio-auto-load handle plumbing (`bioIdbGet/Set`, permission query/request)
+  but with a `createWritable()` write. Scope picker (30 days / month / all) feeds `selectSessionsForExport`. Settings
+  UI is in the Data Management page under the File-System-Access gate. `test/app.spec.mjs` (defaults, scope labels,
+  no-op without a folder, and a mock-handle folder write of the digest).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

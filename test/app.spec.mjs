@@ -37,6 +37,7 @@ test('critical functions are exposed', async ({ page }) => {
       'estimatePlanMinutes', 'intensityDots', 'importStravaActivities', 'stravaLoadNow',
       'bioLoadNow', 'choiceDialog', 'confirmDialog', 'promptDialog', 'switchPanel',
       'rpeMode', 'rpeEnabled', 'estimated1RMSet', 'rpeSelectHtml', 'commitSetRPE',
+      'aiExportWriteNow', 'aiExportPickFolder', 'aiExportMaybeDaily', 'aiExportOnWorkoutEnd', 'aiExportScopeLabel',
     ];
     return names.filter((n) => typeof window[n] !== 'function');
   });
@@ -333,6 +334,44 @@ test('feat 271 — anatomy chart is a media owner: import attaches it, the detai
   expect(r.inGallery).toBe(true);                         // shows up in the media gallery
   expect(r.sheetHasSection).toBe(true);                   // present in the Claude-fillable sheet…
   expect(r.reparsed).toBe(true);                          // …and round-trips back on import
+});
+
+test('feat 272 — sync-on-end + AI export: defaults, scope labels, and a folder write of the digest', async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    const out = {};
+    out.scopeDefault = state.aiExport.scope;
+    out.onEndDefault = state.aiExport.onWorkoutEnd;
+    out.syncOnEnd = state.cloudSync.syncOnEnd; // feat 272 — guaranteed push on workout end (default on)
+    out.labels = [aiExportScopeLabel('all'), aiExportScopeLabel('month'), aiExportScopeLabel('last30')];
+    // disabled → the triggers are silent no-ops (must not throw); a write with no handle returns false
+    state.aiExport.enabled = false;
+    aiExportOnWorkoutEnd(); aiExportMaybeDaily();
+    out.noHandle = await aiExportWriteNow(true, false);
+    // stub File System Access so the picker returns a capturing mock directory
+    let written = null, wroteName = null;
+    const mockFile = { createWritable: async () => ({ write: async (b) => { written = await b.text(); }, close: async () => {} }) };
+    const mockDir = { name: 'cowork', kind: 'directory', queryPermission: async () => 'granted', requestPermission: async () => 'granted', getFileHandle: async (n) => { wroteName = n; return mockFile; } };
+    window.showOpenFilePicker = window.showOpenFilePicker || (async () => []); // keep autoLoadSupported() true
+    window.showDirectoryPicker = async () => mockDir;
+    const fv = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const bench = fv('flat-bench-press'), now = Date.now();
+    state.sessions = [{ date: new Date(now - 86400000).toISOString(), endedAt: new Date(now - 86400000).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w: 100, r: 5 }] }] }];
+    await aiExportPickFolder(); // picks the mock folder, enables, and writes once
+    out.enabledAfter = state.aiExport.enabled;
+    out.wroteName = wroteName;
+    out.wroteDigest = typeof written === 'string' && /Training progress/.test(written);
+    out.lastDay = state.aiExport.lastWriteDay;
+    return out;
+  });
+  expect(r.scopeDefault).toBe('last30');
+  expect(r.onEndDefault).toBe(true);
+  expect(r.syncOnEnd).toBe(true);
+  expect(r.labels).toEqual(['All time', 'This month', 'Last 30 days']);
+  expect(r.noHandle).toBe(false);            // no folder yet → no-op
+  expect(r.enabledAfter).toBe(true);
+  expect(r.wroteName).toBe('gymtracker-brief.md');
+  expect(r.wroteDigest).toBe(true);          // the AI-ready digest was written to the folder
+  expect(r.lastDay).toBeTruthy();
 });
 
 test('plan estimates are sane', async ({ page }) => {

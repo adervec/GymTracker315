@@ -3767,7 +3767,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -3933,9 +3933,10 @@ function normalizeState() {
       restTimer:true, abandonMinutes:15, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true, rpeMode:'off' },
     bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
     stravaAutoLoad: { enabled:false, mode:'folder' }, // feat 89
+    aiExport: { enabled:false, onWorkoutEnd:true, daily:true, scope:'last30', filename:'gymtracker-brief.md', lastWriteDay:null, lastWriteAt:null }, // feat 272 — per-device AI-ready digest auto-export to a folder
     planDefaults: { minPct:1 }, // feat 144 — default min % of a step's sets that counts the step as "done" (overridable per plan / per step)
     historyFilter: { range:'all', bp:'', family:'', varKey:'', q:'' }, // feat 102 — device-local view filter
-    cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{} }, // feat 124 — DEVICE-LOCAL (not synced)
+    cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{}, syncOnEnd:true }, // feat 124 — DEVICE-LOCAL (not synced); feat 272 — guaranteed push on workout end
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   // feat 197 — the old 5-min abandon default proved ~3x too quick; migrate stored old-default values to 15.
@@ -4956,6 +4957,88 @@ function bioLoadDisable() {
   toast('Biometrics auto-load disabled');
 }
 
+/* ============================================================
+   feat 272 — AI-READY AUTO-EXPORT (per device). Writes the Claude-ready training digest (feat 171,
+   buildClaudeDigest) into a chosen folder — e.g. a Claude cowork folder a desktop watches — so a morning
+   brief can analyze strength progress. Device-local: the write-folder handle lives in IndexedDB and the
+   config is preserved-on-merge (SETTINGS_KEYS), so ONLY the device you set it up on exports. Triggers: on
+   workout end and once per calendar day (on load / when the tab is refocused). Mirrors the bio-auto-load
+   handle plumbing, but with readwrite permission and a WRITE.
+   ============================================================ */
+let _aiExportDirHandle = null;
+function aiExportDayKey() { return new Date().toDateString(); } // local calendar day, for the once-a-day guard
+function aiExportScopeLabel(s) { return s === 'all' ? 'All time' : s === 'month' ? 'This month' : 'Last 30 days'; }
+async function aiExportResolveHandle(interactive) {
+  if (_aiExportDirHandle) return _aiExportDirHandle;
+  const saved = await bioIdbGet('aiExportDir');
+  if (!saved) return null;
+  let perm = 'granted';
+  try { if (saved.queryPermission) perm = await (interactive && saved.requestPermission ? saved.requestPermission({ mode: 'readwrite' }) : saved.queryPermission({ mode: 'readwrite' })); } catch (_) { perm = 'denied'; }
+  if (perm === 'granted') { _aiExportDirHandle = saved; return saved; }
+  return null;
+}
+// Build + write the digest. silent: no toast/status; interactive: may prompt for permission (user gesture only).
+async function aiExportWriteNow(silent, interactive) {
+  const cfg = state.aiExport;
+  if (!cfg || !cfg.enabled) { if (!silent) toast('Pick an export folder first'); return false; }
+  if (typeof roBlocked === 'function' && roBlocked('AI export')) return false;
+  try {
+    const handle = await aiExportResolveHandle(interactive);
+    if (!handle) { if (!silent) autoSaveSetStatus('⚠ AI export: tap “Write now” to allow folder access'); return false; }
+    const scope = cfg.scope || 'last30';
+    const sessions = selectSessionsForExport({ preset: scope });
+    const text = buildClaudeDigest(sessions, { preset: scope });
+    const fname = String(cfg.filename || 'gymtracker-brief.md').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80) || 'gymtracker-brief.md';
+    const fileHandle = await handle.getFileHandle(fname, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(new Blob([text], { type: 'text/markdown' }));
+    await writable.close();
+    state.aiExport.lastWriteDay = aiExportDayKey();
+    state.aiExport.lastWriteAt = new Date().toISOString();
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+    if (!silent) { autoSaveSetStatus('✓ AI brief written'); toast(`📤 AI brief → ${handle.name}/${fname}`); renderSettingsDrawer(); }
+    logInfo('AI brief exported', `${sessions.length} sessions · ${scope} · ${fname}`);
+    return true;
+  } catch (err) {
+    if (!silent) autoSaveSetStatus('⚠ AI export failed');
+    logWarn('AI export failed', err && err.message);
+    return false;
+  }
+}
+async function aiExportPickFolder() {
+  if (!autoLoadSupported() || !('showDirectoryPicker' in window)) { toast('Folder export needs Chrome/Edge on desktop'); return; }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'gymtracker-ai-export' });
+    _aiExportDirHandle = handle;
+    await bioIdbSet('aiExportDir', handle);
+    state.aiExport = { ...state.aiExport, enabled: true };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+    renderSettingsDrawer();
+    const ok = await aiExportWriteNow(false, true);
+    if (!ok) toast(`Export folder set: ${handle.name}`);
+  } catch (e) { if (e && e.name !== 'AbortError') toast('Could not pick folder'); }
+}
+function aiExportDisable() {
+  _aiExportDirHandle = null; bioIdbDel('aiExportDir');
+  state.aiExport = { ...state.aiExport, enabled: false };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+  renderSettingsDrawer();
+  toast('AI export disabled');
+}
+// Once-per-calendar-day write (the "EOD" path) — fired on load and when the tab is refocused. Silent.
+function aiExportMaybeDaily() {
+  const cfg = state.aiExport;
+  if (!cfg || !cfg.enabled || !cfg.daily) return;
+  if (cfg.lastWriteDay === aiExportDayKey()) return;
+  aiExportWriteNow(true, false).catch(() => {});
+}
+// Workout-end write. Silent (no gesture available). Skips when the on-end trigger is off.
+function aiExportOnWorkoutEnd() {
+  const cfg = state.aiExport;
+  if (!cfg || !cfg.enabled || cfg.onWorkoutEnd === false) return;
+  aiExportWriteNow(true, false).catch(() => {});
+}
+
 /* ---- feat 89 — Strava activities auto-load (mirrors biometrics auto-load; reuses the bioIdb* handle store) ---- */
 let _stravaLoadFileHandle = null, _stravaLoadDirHandle = null;
 async function stravaLoadNewestInDir(dirHandle) {
@@ -5478,6 +5561,13 @@ function cloudSyncCardHtml() {
       <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
         <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">☁ ${escapeHtml(pLabel)} connected</div>
         <div style="color:var(--text2);">${cs.lastSync ? 'Last synced ' + escapeHtml(cloudShortTime(cs.lastSync)) : 'Not synced yet'}${cs.lastError ? ' · <span style="color:var(--warn);">' + escapeHtml(String(cs.lastError)) + '</span>' : ''}</div>
+      </div>
+      <div class="drawer-setting-row">
+        <div><div class="drawer-setting-label">Sync after each workout</div><div class="drawer-setting-sub">Push immediately when a workout ends (in addition to the live auto-sync)</div></div>
+        <div class="drawer-pill-group">
+          <button class="drawer-pill ${cs.syncOnEnd !== false ? 'active' : ''}" data-cloudtog="syncOnEnd" data-cloudtog-val="on">On</button>
+          <button class="drawer-pill ${cs.syncOnEnd === false ? 'active' : ''}" data-cloudtog="syncOnEnd" data-cloudtog-val="off">Off</button>
+        </div>
       </div>
       <div class="drawer-data-row" style="flex-wrap:wrap;">
         <button class="drawer-btn" id="cloud-sync-now-btn">⟳ Sync Now</button>
@@ -6973,6 +7063,48 @@ function renderSettingsDrawer() {
         <button class="drawer-btn" id="bio-pick-file-btn">📄 Pick File</button>
       </div>
     `}
+
+    <div class="drawer-section-title" style="margin-top:18px;">AI Brief Export (this device)</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+      Writes the <b>AI-ready training digest</b> (the same content as “Copy for Claude”) to a folder on <b>this device</b> —
+      so a desktop can drop the latest brief into e.g. a Claude cowork folder for a morning strength-progress analysis.
+      Fires on <b>workout end</b> and <b>once a day</b>. The folder is remembered across reloads; set it up only on the device(s) you want exporting.
+    </div>
+    ${state.aiExport && state.aiExport.enabled ? `
+      <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">📤 Exporting to a folder${_aiExportDirHandle ? '' : ' <span style="color:var(--warn);font-size:10px;">(tap Write now to allow access)</span>'}</div>
+        <div style="color:var(--text2);">${escapeHtml(state.aiExport.filename || 'gymtracker-brief.md')} · ${aiExportScopeLabel(state.aiExport.scope)}${state.aiExport.lastWriteAt ? ' · last ' + escapeHtml(cloudShortTime(state.aiExport.lastWriteAt)) : ' · not written yet'}</div>
+      </div>
+      <div class="drawer-setting-row">
+        <div><div class="drawer-setting-label">After each workout</div><div class="drawer-setting-sub">Write the brief when a workout ends</div></div>
+        <div class="drawer-pill-group">
+          <button class="drawer-pill ${state.aiExport.onWorkoutEnd !== false ? 'active' : ''}" data-ai="onWorkoutEnd" data-ai-val="on">On</button>
+          <button class="drawer-pill ${state.aiExport.onWorkoutEnd === false ? 'active' : ''}" data-ai="onWorkoutEnd" data-ai-val="off">Off</button>
+        </div>
+      </div>
+      <div class="drawer-setting-row">
+        <div><div class="drawer-setting-label">Once a day</div><div class="drawer-setting-sub">Refresh on the first app open each day</div></div>
+        <div class="drawer-pill-group">
+          <button class="drawer-pill ${state.aiExport.daily !== false ? 'active' : ''}" data-ai="daily" data-ai-val="on">On</button>
+          <button class="drawer-pill ${state.aiExport.daily === false ? 'active' : ''}" data-ai="daily" data-ai-val="off">Off</button>
+        </div>
+      </div>
+      <div class="drawer-setting-row">
+        <div><div class="drawer-setting-label">Scope</div><div class="drawer-setting-sub">How much history the brief covers</div></div>
+        <div class="drawer-pill-group">
+          ${[['last30','30 days'],['month','This month'],['all','All time']].map(([v,l]) => `<button class="drawer-pill ${(state.aiExport.scope||'last30')===v?'active':''}" data-aiscope="${v}">${l}</button>`).join('')}
+        </div>
+      </div>
+      <div class="drawer-data-row" style="flex-wrap:wrap;">
+        <button class="drawer-btn" id="ai-write-now-btn">📤 Write now</button>
+        <button class="drawer-btn" id="ai-repick-btn">📁 Change folder</button>
+        <button class="drawer-btn danger" id="ai-disable-btn">✕ Disable</button>
+      </div>
+    ` : `
+      <div class="drawer-data-row" style="flex-wrap:wrap;">
+        <button class="drawer-btn" id="ai-pick-folder-btn">📁 Pick export folder</button>
+      </div>
+    `}
     ` : `
     <div class="drawer-section-title" style="margin-top:18px;">Auto-Save / Auto-Load</div>
     <div style="font-size:11px;color:var(--text3);line-height:1.5;">
@@ -7307,6 +7439,14 @@ function renderSettingsDrawer() {
   body.querySelector('#bio-sync-now-btn')?.addEventListener('click', () => { bioLoadNow(false, true).catch(() => {}); });
   body.querySelector('#bio-disable-btn')?.addEventListener('click', bioLoadDisable);
 
+  // feat 272 — AI brief export (per-device folder)
+  body.querySelector('#ai-pick-folder-btn')?.addEventListener('click', aiExportPickFolder);
+  body.querySelector('#ai-repick-btn')?.addEventListener('click', aiExportPickFolder);
+  body.querySelector('#ai-write-now-btn')?.addEventListener('click', () => { aiExportWriteNow(false, true).catch(() => {}); });
+  body.querySelector('#ai-disable-btn')?.addEventListener('click', aiExportDisable);
+  body.querySelectorAll('[data-ai]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, [b.dataset.ai]: b.dataset.aiVal === 'on' }; saveState(); renderSettingsDrawer(); }));
+  body.querySelectorAll('[data-aiscope]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, scope: b.dataset.aiscope }; saveState(); renderSettingsDrawer(); }));
+
   // feat 77 — Strava reconciliation
   body.querySelector('#strava-import-btn')?.addEventListener('click', () => body.querySelector('#strava-import-file').click());
   body.querySelector('#strava-import-file')?.addEventListener('change', e => {
@@ -7330,6 +7470,7 @@ function renderSettingsDrawer() {
   body.querySelector('#cloud-custom-save-btn')?.addEventListener('click', () => { cloudCustomSave(); toast('Endpoint saved'); });
   body.querySelector('#cloud-sync-now-btn')?.addEventListener('click', () => { cloudSyncNow(); });
   body.querySelector('#cloud-disconnect-btn')?.addEventListener('click', cloudDisconnect);
+  body.querySelectorAll('[data-cloudtog]').forEach(b => b.addEventListener('click', () => { state.cloudSync = { ...state.cloudSync, [b.dataset.cloudtog]: b.dataset.cloudtogVal === 'on' }; saveState(); renderSettingsDrawer(); })); // feat 272 — sync-on-end toggle
 
   // feat 84 — bulk exercise-media export/import
   body.querySelector('#exmedia-export-btn')?.addEventListener('click', exportExerciseList);
@@ -12229,6 +12370,9 @@ function finalizeEndWorkout(active, skipConfirm) {
     finalizePlanExecution(active); // feat 164 — historize the plan execution + incomplete/skipped stats
     saveState();
     render();
+    // feat 272 — wrap-up side effects: a guaranteed (immediate) cloud push, and the AI-ready brief export
+    if (typeof cloudActive === 'function' && cloudActive() && !(state.cloudSync && state.cloudSync.syncOnEnd === false)) { try { cloudPushNow().catch(() => {}); } catch (_) {} }
+    if (typeof aiExportOnWorkoutEnd === 'function') aiExportOnWorkoutEnd();
     logInfo('Workout ended', (score ? score.grade + ' ' + score.points : '') + ' · ' + stats.totalSets + ' sets');
     toast(score ? `🏁 Workout ended · ${score.grade}` : '🏁 Workout ended');
   };
@@ -18145,6 +18289,7 @@ document.addEventListener('visibilitychange', () => {
   // feat 248 — browsers freeze/throttle setInterval while the tab is hidden, so the rest timer can show a stale
   // value when you return. Restart the tick (defensive) and repaint immediately so it snaps to the real time.
   try { ensureRestTick(); restTick(); } catch (_) {}
+  try { if (typeof aiExportMaybeDaily === 'function') aiExportMaybeDaily(); } catch (_) {} // feat 272 — a new day may have started while away
 });
 window.addEventListener('focus', () => { try { if (typeof hrTryReconnect === 'function' && !_hrConnected && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {} });
 try { refreshWakeLock(); } catch (_) {}
@@ -18166,7 +18311,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 216 · 2026-06-17 08:10';
+const APP_BUILD = 'build 217 · 2026-06-17 08:25';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -19113,6 +19258,8 @@ setTimeout(() => {
   if (state.stravaAutoLoad && state.stravaAutoLoad.enabled) {
     stravaLoadNow(true, false).catch(() => {});
   }
+  // feat 272 — AI-ready digest export: once-a-day write on load (the "EOD" path); silent, no prompt on boot
+  if (typeof aiExportMaybeDaily === 'function') aiExportMaybeDaily();
   // feat 124/125 — cloud sync: first finish any pending OAuth redirect (Dropbox/OneDrive land back here
   // with ?code=…); otherwise silent-pull if a provider is already connected. OAuth providers can refresh
   // silently from the IndexedDB refresh token; Google falls back to a silent GIS token when its session lives.
