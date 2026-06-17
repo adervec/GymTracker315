@@ -8303,6 +8303,10 @@ function isImageMedia(m) { return !!m && (m.platform === 'image' || m.platform =
 function mediaImg(m) { return m ? (m.img || (isImageMedia(m) ? (m.url || m.watchUrl) : null)) : null; }
 // "Can this clip show inline?" — a video embed OR an image/GIF.
 function mediaPlayable(m) { return !!(m && (m.embedUrl || isImageMedia(m))); }
+// feat 271 — the anatomy chart is a first-class media "owner": attach a detailed chart image to this
+// reserved key (via the gallery / import / the chart's own Import-URL button) and the Detailed Chart View
+// shows it. Bridges the feat-118 chart to the feat-269 image media system.
+const ANATOMY_MEDIA_KEY = 'anatomy-chart';
 function parseMediaUrl(raw) {
   let url = String(raw || '').trim();
   if (!url) return null;
@@ -8424,6 +8428,7 @@ function removeExerciseMedia(uuid, idx) {
   saveState();
 }
 function mediaTitleFor(id, fallback) {
+  if (id === ANATOMY_MEDIA_KEY) return 'Anatomy Chart'; // feat 271
   try { const i = VAR_INDEX.get(id); if (i && i.variation) return i.variation.title; } catch (e) {}
   try { const f = FAMILIES.find(x => x.id === id); if (f) return f.title; } catch (e) {} // movement/family id
   return fallback || 'Exercise';
@@ -8637,8 +8642,10 @@ function _normExTitle(s) { return String(s || '').toLowerCase().replace(/[^a-z0-
 function resolveExerciseKey(entry) {
   if (!entry) return null;
   if (entry.uuid && VAR_INDEX.has(entry.uuid)) return entry.uuid;
+  if (entry.id === ANATOMY_MEDIA_KEY) return ANATOMY_MEDIA_KEY; // feat 271 — import can target the anatomy chart
   if (entry.id && FAMILIES.some(f => f.id === entry.id)) return entry.id;
   const m = _normExTitle(entry.match || entry.title); if (!m) return null;
+  if (m === 'anatomy chart' || m === 'anatomy') return ANATOMY_MEDIA_KEY; // feat 271 — …or match it by title
   for (const [uuid, info] of VAR_INDEX) { if (_normExTitle(info.variation.title) === m) return uuid; }   // exact variation
   const fam = FAMILIES.find(f => _normExTitle(f.title) === m); if (fam) return fam.id;                    // exact movement
   for (const [uuid, info] of VAR_INDEX) { const t = _normExTitle(info.variation.title); if (t && (t.includes(m) || m.includes(t))) return uuid; } // contains
@@ -8719,6 +8726,7 @@ function closeMediaWizard() {
 let mediaGalleryState = { search: '', watch: 'all', kind: 'all', preview: null }; // preview = `${key}|${idx}` of the open embed
 // Resolve a media key (variation uuid OR movement/family id) to a human label + kind for the gallery tile.
 function mediaOwnerInfo(key) {
+  if (key === ANATOMY_MEDIA_KEY) return { kind: 'movement', title: 'Anatomy Chart', sub: 'Reference', famId: ANATOMY_MEDIA_KEY }; // feat 271 — a gallery owner
   if (VAR_INDEX.has(key)) { const info = VAR_INDEX.get(key); return { kind: 'variation', title: info.variation.title || '', sub: info.family.title || '', famId: info.family.id }; }
   const f = FAMILIES.find(x => x.id === key);
   if (f) return { kind: 'movement', title: f.title || '', sub: MEGA_LABELS[f.mega] || f.mega || '', famId: f.id };
@@ -9030,6 +9038,13 @@ function buildMediaSheet(scope) { // scope: 'all' (default) | 'missing'
   const missingOnly = scope === 'missing';
   let movTotal = 0, movWith = 0, varTotal = 0, varWith = 0;
   const body = [];
+  // feat 271 — the Anatomy Chart rides at the top as an importable reference (a detailed, labelled chart image).
+  { const aMedia = getExerciseMedia(ANATOMY_MEDIA_KEY); if (!missingOnly || !aMedia.length) {
+    body.push('## Reference · Anatomy Chart');
+    body.push(`- ANATOMY CHART — a detailed, labelled anatomy image (a direct image/GIF URL)  {mid: ${ANATOMY_MEDIA_KEY}}`);
+    body.push(`  media: ${aMedia.map(m => m.watchUrl || m.url).filter(Boolean).join(', ')}`);
+    body.push('');
+  } }
   FAMILIES.forEach(f => {
     const rows = (f.variations || [])
       .filter(v => v.uuid && !isSuppressedVar(v.uuid)) // feat 167 — skip cross-listed duplicate copies
@@ -18151,7 +18166,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 215 · 2026-06-17 07:19';
+const APP_BUILD = 'build 216 · 2026-06-17 08:10';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -26238,7 +26253,11 @@ function anatomyOutline(cx, p) {
 let _anatomyImg = null;        // dataURL of the uploaded hi-res chart (loaded from IndexedDB)
 let _anatomyImgTried = false;
 function anatomyCfg() { return state.anatomyChart || (state.anatomyChart = { view:'detailed', map:[] }); }
-function anatomyHasImage() { return !!_anatomyImg; }
+// feat 271 — a detailed chart can come from an uploaded file (IndexedDB dataURL) OR an image attached to the
+// anatomy media key (gallery / import / Import-URL button). The explicit upload wins when both are present.
+function anatomyMediaImg() { const list = (typeof getExerciseMedia === 'function') ? getExerciseMedia(ANATOMY_MEDIA_KEY) : []; const m = (list || []).find(isImageMedia); return m ? mediaImg(m) : null; }
+function anatomyImageSrc() { return _anatomyImg || anatomyMediaImg(); }
+function anatomyHasImage() { return !!anatomyImageSrc(); }
 function anatomyView() { return (anatomyHasImage() && anatomyCfg().view !== 'simple') ? 'detailed' : 'simple'; }
 async function loadAnatomyImage() {
   _anatomyImgTried = true;
@@ -26280,9 +26299,10 @@ function anatomyToolbarHtml() {
       <button class="anat-vbtn ${view === 'simple' ? 'active' : ''}" data-anat-view="simple">Simple</button>
       <button class="anat-vbtn ${view === 'detailed' ? 'active' : ''}" data-anat-view="detailed" ${has ? '' : 'disabled title="Upload a chart to unlock"'}>Detailed</button>
     </div>
-    <label class="anat-upload">${has ? 'Replace' : '🖼️ Upload chart'}<input type="file" accept="image/*" id="anat-img-input" hidden></label>
+    <label class="anat-upload">${_anatomyImg ? 'Replace' : '🖼️ Upload file'}<input type="file" accept="image/*" id="anat-img-input" hidden></label>
+    <button class="anat-upload" id="anat-media-btn" type="button">📥 Import URL</button>
     <label class="anat-upload">Import map<input type="file" accept=".json,.txt" id="anat-map-input" hidden></label>
-    ${has ? `<button class="anat-upload danger" id="anat-remove-btn">Remove</button>` : ''}
+    ${_anatomyImg ? `<button class="anat-upload danger" id="anat-remove-btn">Remove file</button>` : ''}
   </div>`;
 }
 function renderAnatomyChart(activeTerm) {
@@ -26290,7 +26310,7 @@ function renderAnatomyChart(activeTerm) {
   if (!chart) return;
   if (!_anatomyImgTried) loadAnatomyImage(); // lazily load the stored image; re-renders when ready
   const toolbar = anatomyToolbarHtml();
-  if (anatomyView() === 'detailed' && _anatomyImg) {
+  if (anatomyView() === 'detailed' && anatomyImageSrc()) {
     const map = anatomyCfg().map || [];
     const hotspots = map.map(m => {
       const box = (m.w != null && m.h != null);
@@ -26298,7 +26318,7 @@ function renderAnatomyChart(activeTerm) {
       return `<button class="anat-hotspot ${box ? 'box' : 'dot'} ${activeTerm === m.term ? 'active' : ''}" data-term="${escapeAttr(m.term)}" style="${style}" title="${escapeHtml(m.term)}"></button>`;
     }).join('');
     chart.innerHTML = toolbar + `<div class="gloss-chart-hint">Detailed chart — tap a labelled muscle to open its glossary entry.${map.length ? '' : ' (import a label map to add tap targets)'}</div>
-      <div class="anat-detailed"><img class="anat-img" src="${_anatomyImg}" alt="Anatomy chart">${hotspots}</div>`;
+      <div class="anat-detailed"><img class="anat-img" src="${escapeAttr(anatomyImageSrc())}" alt="Anatomy chart">${hotspots}</div>`;
     chart.querySelectorAll('.anat-hotspot').forEach(el => el.addEventListener('click', () => openGlossaryTo(el.dataset.term)));
   } else {
     const region = r => r.e.map(([cx, cy, rx, ry]) =>
@@ -26320,6 +26340,16 @@ function renderAnatomyChart(activeTerm) {
   const imgIn = chart.querySelector('#anat-img-input'); if (imgIn) imgIn.addEventListener('change', e => { anatomyUploadImage(e.target.files[0]); e.target.value = ''; });
   const mapIn = chart.querySelector('#anat-map-input'); if (mapIn) mapIn.addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const rd = new FileReader(); rd.onload = () => anatomyImportMap(String(rd.result || '')); rd.readAsText(f); });
   chart.querySelector('#anat-remove-btn')?.addEventListener('click', anatomyRemoveImage);
+  // feat 271 — import a detailed chart by URL straight into the anatomy media key (same system as exercise clips)
+  chart.querySelector('#anat-media-btn')?.addEventListener('click', async () => {
+    const url = await promptDialog({ title: 'Import anatomy chart', message: 'Paste a direct image or GIF URL (same media system as exercise clips). It attaches to the Anatomy Chart in your media gallery.', placeholder: 'https://…/anatomy.png', okLabel: 'Import', maxLength: 2000 });
+    if (!url) return;
+    const parsed = parseMediaUrl(url);
+    if (!parsed || !isImageMedia(parsed)) { toast('Use a direct image / GIF link (.png/.jpg/.gif/.webp)'); return; }
+    const res = addExerciseMedia(ANATOMY_MEDIA_KEY, url);
+    if (res && res.ok) { anatomyCfg().view = 'detailed'; saveState(); renderAnatomyChart(activeTerm); toast('🖼️ Detailed chart imported'); }
+    else toast((res && res.err) || 'Could not import that link');
+  });
 }
 function toggleGlossChart() {
   glossChartOpen = !glossChartOpen;

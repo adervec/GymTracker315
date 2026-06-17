@@ -1015,6 +1015,16 @@ They share variation **UUIDs**.
   chronological), with `<latest> e1RM · best <best> · ±%` and an up/down/flat colour; tapping opens the full focused
   Trends (`openTrendsFor`). Self-hides with fewer than 2 prior sessions for the lift. `test/app.spec.mjs` (sparkline +
   stats present, up-trend on climbing e1RM, hidden with one session).
+- **Anatomy chart as a media owner (feat 271):** bridges the feat-118 detailed anatomy chart to the feat-269 image
+  media system, so a labelled chart imports the same way as exercise clips. A reserved key `ANATOMY_MEDIA_KEY =
+  'anatomy-chart'` is a first-class media owner: `mediaOwnerInfo`/`mediaTitleFor` name it "Anatomy Chart" (so it shows
+  in the **gallery**), `resolveExerciseKey` accepts it by id or by the title "anatomy"/"anatomy chart" (so **JSON/sheet
+  import** can target it), and `buildMediaSheet` lists it at the top (`{mid: anatomy-chart}`) so the Claude-fillable
+  sheet round-trips it. The chart's Detailed View now sources its image from `anatomyImageSrc()` = the uploaded
+  IndexedDB file **or** a media-attached image URL (upload wins), and the toolbar gains a **📥 Import URL** button
+  (`promptDialog` → `addExerciseMedia(ANATOMY_MEDIA_KEY, …)`, image-only). Fulfils part of the ONHOLD #49
+  externally-attached-chart idea via the existing media plumbing. `test/app.spec.mjs` (import-by-id/title, attach,
+  display source, gallery owner, sheet round-trip).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

@@ -311,6 +311,30 @@ test('feat 270 — trend peek renders a sparkline + e1RM stats, hidden without e
   expect(r.oneSession).toBe('');  // a single session → no peek
 });
 
+test('feat 271 — anatomy chart is a media owner: import attaches it, the detailed view + gallery + sheet use it', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.exerciseMedia = {};
+    state.anatomyChart = { view: 'detailed', map: [] };
+    const keyById = resolveExerciseKey({ id: 'anatomy-chart' });   // import targets it by id
+    const keyByTitle = resolveExerciseKey({ title: 'Anatomy Chart' }); // …or by title
+    const res = applyMediaEntries([{ id: 'anatomy-chart', url: 'https://example.com/anatomy.png' }]); // attach via the shared importer
+    const owner = mediaOwnerInfo('anatomy-chart');
+    const inGallery = allMediaClips().some(c => c.key === 'anatomy-chart' && c.owner.title === 'Anatomy Chart');
+    const sheet = buildMediaSheet('all');
+    const reparsed = parseMediaSheet(sheet).some(e => e.id === 'anatomy-chart' && /anatomy\.png/.test(e.url));
+    return { keyById, keyByTitle, added: res.added, owner, src: anatomyImageSrc(), has: anatomyHasImage(), inGallery, sheetHasSection: /Anatomy Chart/.test(sheet), reparsed };
+  });
+  expect(r.keyById).toBe('anatomy-chart');
+  expect(r.keyByTitle).toBe('anatomy-chart');
+  expect(r.added).toBe(1);
+  expect(r.owner).toMatchObject({ title: 'Anatomy Chart', kind: 'movement' });
+  expect(r.src).toBe('https://example.com/anatomy.png'); // the Detailed Chart View renders this image
+  expect(r.has).toBe(true);
+  expect(r.inGallery).toBe(true);                         // shows up in the media gallery
+  expect(r.sheetHasSection).toBe(true);                   // present in the Claude-fillable sheet…
+  expect(r.reparsed).toBe(true);                          // …and round-trips back on import
+});
+
 test('plan estimates are sane', async ({ page }) => {
   const r = await page.evaluate(() => ({
     empty: estimatePlanMinutes({ steps: [] }),
