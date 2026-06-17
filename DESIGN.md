@@ -1052,6 +1052,20 @@ They share variation **UUIDs**.
   themed splits** (Way of the Dragon, The Crane & The Tiger, The Shaolin Path, The Contender, The Shield-Bearer) whose
   "Core" slots can surface the new core/conditioning plans. `test/coaching.spec.mjs` (families inject + classify, holds
   are timed, boxing routes to cardio, every new plan step resolves, 11 plans + 5 splits present).
+- **Study read/unread + listen-as-podcast (feat 274):** the **Glossary** (the Study area's entry list) gains per-entry
+  **read/unread** tracking and a **"🎧 Listen"** mode that reads the whole unread pile as a continuous, conversational
+  podcast. State is `state.glossaryRead = { term: { at, src } }` (in `SETTINGS_KEYS`, so progress syncs across devices);
+  the read flag records the **date** and whether it was set **manually** (a tap) or **earned by listening** to the whole
+  entry (`src:'manual'|'listen'`). The glossary panel gets a sticky study toolbar — unread count, an All/Unread/Read
+  filter, a Listen button, a logical↔shuffle order toggle, and Mark-all — and every entry shows a ✓/○ toggle plus a
+  "🎧 listened / ✓ read · <date>" badge. The player (`startGlossPodcast` → a segment state machine: intro · entries ·
+  outro) speaks via the existing coach voice (`coachify`); `_speechClean` expands acronyms and symbols (×→"by", %→
+  "percent", "1RM"→"one-rep max", ranges→"6 to 12") and `glossNarration` adds varied openers + category transitions so
+  it's a coach talking, not a table read. A **generation counter** makes a *skip* never mis-mark the skipped entry, and
+  natural utterance-end is what marks an entry read (`src:'listen'`); a periodic `resume()` defeats Chrome's long-speech
+  cutoff, and the other speakers (tips/annunciations) yield while the podcast plays. A fixed bottom **player bar**
+  (⏸/⏭/⏹, now-playing, n/m) drives it. Logical order = category then term; shuffle = Fisher–Yates. `test/app.spec.mjs`
+  (read state + symbol-free narration; a mock-speech drive proving full-listen marks read and skip does not).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

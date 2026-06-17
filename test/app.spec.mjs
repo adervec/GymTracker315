@@ -38,6 +38,7 @@ test('critical functions are exposed', async ({ page }) => {
       'bioLoadNow', 'choiceDialog', 'confirmDialog', 'promptDialog', 'switchPanel',
       'rpeMode', 'rpeEnabled', 'estimated1RMSet', 'rpeSelectHtml', 'commitSetRPE',
       'aiExportWriteNow', 'aiExportPickFolder', 'aiExportMaybeDaily', 'aiExportOnWorkoutEnd', 'aiExportScopeLabel',
+      'markGlossRead', 'isGlossRead', 'toggleGlossRead', 'glossPodcastQueue', 'glossNarration', 'startGlossPodcast',
     ];
     return names.filter((n) => typeof window[n] !== 'function');
   });
@@ -372,6 +373,63 @@ test('feat 272 — sync-on-end + AI export: defaults, scope labels, and a folder
   expect(r.wroteName).toBe('gymtracker-brief.md');
   expect(r.wroteDigest).toBe(true);          // the AI-ready digest was written to the folder
   expect(r.lastDay).toBeTruthy();
+});
+
+test('feat 274 — glossary read/unread state + an engaging, symbol-free narration', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.glossaryRead = {};
+    markGlossRead('1RM', 'manual');
+    const info = glossReadInfo('1RM');
+    const wasRead = isGlossRead('1RM');
+    toggleGlossRead('1RM'); // → unread
+    const afterToggle = isGlossRead('1RM');
+    const narr = glossNarration({ term: 'Volume', def: 'sets × reps × weight, e.g. 70% load, 6-12 reps' });
+    // queue is unread-only, logical order
+    glossSearch = ''; glossCat = 'all'; glossPodOrder = 'logical'; state.glossaryRead = {};
+    const qAll = glossPodcastQueue().length;
+    markGlossRead(glossPodcastQueue()[0].term, 'manual');
+    const qAfter = glossPodcastQueue().length;
+    return { wasRead, src: info && info.src, hasDate: !!(info && info.at), afterToggle, narr, qAll, qAfter, total: glossary.length };
+  });
+  expect(r.wasRead).toBe(true);
+  expect(r.src).toBe('manual');
+  expect(r.hasDate).toBe(true);
+  expect(r.afterToggle).toBe(false);          // toggle off works
+  expect(r.narr).toContain('Volume');         // names the term
+  expect(r.narr).not.toMatch(/×|%|e\.g\./);   // symbols spoken out, not recited raw
+  expect(r.narr).toMatch(/by/); expect(r.narr).toMatch(/percent/);
+  expect(r.qAll).toBe(r.total);               // nothing read → whole glossary queued
+  expect(r.qAfter).toBe(r.total - 1);         // marking one read drops it from the queue
+});
+
+test('feat 274 — listen-podcast marks an entry read ONLY after the whole entry is heard; skip does not', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const spoken = []; let lastU = null;
+    window.SpeechSynthesisUtterance = function (text) { this.text = text; this.onend = null; this.onerror = null; };
+    // speechSynthesis is a getter-only window prop — replace it via defineProperty
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { speaking: true, getVoices: () => [], cancel() {}, pause() {}, resume() {}, speak(u) { spoken.push(u.text); lastU = u; } } });
+    state.sound = { ...(state.sound || {}), audio: true };
+    glossSearch = ''; glossCat = 'all'; glossReadFilter = 'all'; glossPodOrder = 'logical';
+    // everything read except two known programming terms → queue = ['1RM','AMRAP'] (alpha, logical)
+    state.glossaryRead = {}; glossary.forEach(g => { state.glossaryRead[g.term] = { at: new Date().toISOString(), src: 'manual' }; });
+    delete state.glossaryRead['1RM']; delete state.glossaryRead['AMRAP'];
+    const q = glossPodcastQueue(); const term1 = q[0].term, term2 = q[1].term;
+    startGlossPodcast();
+    const fire = () => { const u = lastU; if (u && u.onend) u.onend(); };
+    fire();          // intro → first entry now speaking
+    _podSkip();      // skip the first entry (must NOT mark it read)
+    const skippedRead = isGlossRead(term1);
+    fire();          // second entry heard in full → marks read by 'listen'
+    const t2 = glossReadInfo(term2);
+    fire();          // outro → finish
+    return { term1, term2, skippedRead, t2Src: t2 && t2.src, podGone: _glossPod === null, spoke: spoken.length };
+  });
+  expect(r.term1).toBe('1RM');
+  expect(r.term2).toBe('AMRAP');
+  expect(r.skippedRead).toBe(false);   // skipping leaves it unread
+  expect(r.t2Src).toBe('listen');      // listened-through → src 'listen'
+  expect(r.podGone).toBe(true);        // finished → player cleared
+  expect(r.spoke).toBeGreaterThanOrEqual(4); // intro + 2 entries + outro
 });
 
 test('plan estimates are sane', async ({ page }) => {

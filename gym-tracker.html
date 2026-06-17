@@ -1356,6 +1356,34 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .gloss-cat-pill.active { background: #3a2a4d; color: #fff; border-color: #5a3a7d; }
   .gloss-body { flex: 1; overflow-y: auto; padding: 8px 14px 30px 14px; -webkit-overflow-scrolling: touch; }
   .gloss-count { font-size: 10.5px; color: #6a5a8a; text-transform: uppercase; letter-spacing: 0.6px; margin: 8px 0; }
+  /* feat 274 — study read/unread + listen */
+  .gloss-study-bar { display: flex; flex-direction: column; gap: 7px; padding: 9px 0 11px; border-bottom: 1px solid #251c38; margin-bottom: 4px; position: sticky; top: 0; background: var(--bg2, #14101e); z-index: 2; }
+  .gloss-study-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .gloss-unread-count { font-size: 11px; font-weight: 700; color: var(--accent, #b48aff); white-space: nowrap; }
+  .gloss-read-filter { display: flex; gap: 4px; margin-left: auto; }
+  .gloss-read-pill { padding: 3px 9px; background: #1a1626; border: 1px solid #2e2640; border-radius: 10px; color: #9a8ab8; font-size: 10.5px; cursor: pointer; font-family: inherit; }
+  .gloss-read-pill.active { background: var(--accent, #b48aff); color: #0a0a0a; border-color: var(--accent, #b48aff); font-weight: 700; }
+  .gloss-listen-btn { padding: 7px 13px; background: var(--accent, #b48aff); border: none; border-radius: 8px; color: #0a0a0a; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: inherit; }
+  .gloss-listen-btn:disabled { opacity: 0.45; cursor: default; }
+  .gloss-order-toggle, .gloss-markall { padding: 6px 10px; background: #1a1626; border: 1px solid #2e2640; border-radius: 8px; color: #c4b4e0; font-size: 11.5px; cursor: pointer; font-family: inherit; }
+  .gloss-markall { margin-left: auto; }
+  .gloss-entry.is-read { opacity: 0.62; }
+  .gloss-read-toggle { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #4a3a6a; background: transparent; color: #6a5a8a; font-size: 12px; line-height: 1; cursor: pointer; padding: 0; align-self: center; }
+  .gloss-read-toggle.on { background: #3fb950; border-color: #3fb950; color: #0a0a0a; font-weight: 800; }
+  .gloss-entry-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .gloss-read-note { font-size: 10px; color: var(--text3, #6a5a8a); white-space: nowrap; margin-left: auto; }
+  /* the listen-podcast player bar */
+  #gloss-pod-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9000; background: linear-gradient(180deg, rgba(20,15,30,0.96), rgba(14,10,22,0.99)); border-top: 1px solid var(--accent, #b48aff); box-shadow: 0 -4px 18px rgba(0,0,0,0.5); padding: 9px 12px; padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)); backdrop-filter: blur(6px); }
+  .pod-bar-inner { display: flex; align-items: center; gap: 12px; max-width: 720px; margin: 0 auto; }
+  .pod-now { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+  .pod-eq { font-size: 20px; } .pod-eq.on { animation: podpulse 1.1s ease-in-out infinite; }
+  @keyframes podpulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.86); } }
+  .pod-now-txt { min-width: 0; }
+  .pod-now-term { font-size: 14px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pod-now-sub { font-size: 10.5px; color: #b4a0e0; }
+  .pod-ctrls { display: flex; gap: 6px; flex-shrink: 0; }
+  .pod-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #3a2e5a; background: #1d1730; color: #e8def8; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .pod-btn.pod-stop { background: #3a1d24; border-color: #5a2e38; color: #ffb0b8; }
   .gloss-letter-header { font-size: 22px; font-weight: 700; color: #b48aff; padding: 10px 0 4px 0; border-bottom: 1px solid #2a1f3a; margin-top: 12px; letter-spacing: 1px; }
   .gloss-letter-header:first-child { margin-top: 0; }
   .gloss-entry { padding: 10px 0; border-bottom: 1px solid #1a1426; }
@@ -4012,7 +4040,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -4198,6 +4226,7 @@ function normalizeState() {
   if (!state.hiddenMovements || typeof state.hiddenMovements !== 'object') state.hiddenMovements = {};
   if (state.glossaryHighlight === undefined) state.glossaryHighlight = true;
   if (state.glossaryAsPage === undefined) state.glossaryAsPage = true;
+  if (!state.glossaryRead || typeof state.glossaryRead !== 'object') state.glossaryRead = {}; // feat 274 — { term: { at, src:'manual'|'listen' } }
   if (!state.settingsCollapse || typeof state.settingsCollapse !== 'object') state.settingsCollapse = { theme: true };
   if (!state.lang || typeof state.lang !== 'string') state.lang = 'en';
   if (typeof state.readonly !== 'boolean') state.readonly = false;
@@ -8629,6 +8658,7 @@ function collectExerciseTips(varUuid) {
   return out;
 }
 function speakRandomTip(varUuid) {
+  if (typeof _glossPod !== 'undefined' && _glossPod) return; // feat 274 — don't talk over the study podcast
   if (state.ttsTips === false) return;
   if (typeof sndAudioOn === 'function' && !sndAudioOn()) return;   // feat 74 — master audio gate
   if (typeof headphoneGatePasses === 'function' && !headphoneGatePasses()) return; // feat 105 — headphone-only gate
@@ -18587,7 +18617,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 218 · 2026-06-17 17:04';
+const APP_BUILD = 'build 219 · 2026-06-17 17:26';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -18847,6 +18877,7 @@ function _annDuckOff() { _annDuckActive = false; _setAudioSessionType('auto'); c
 function annunce(text) {
   try {
     if (!text) return;
+    if (typeof _glossPod !== 'undefined' && _glossPod) return; // feat 274 — don't interrupt the study podcast
     if (!sndAudioOn() || !headphoneGatePasses()) return;
     if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
     const u = new SpeechSynthesisUtterance(String(text).slice(0, 120));
@@ -26429,6 +26460,140 @@ const glossaryCategories = [
 
 let glossSearch = '';
 let glossCat = 'all';
+// feat 274 — study read/unread + listen-as-podcast
+let glossReadFilter = 'all';   // 'all' | 'unread' | 'read'
+let glossPodOrder = 'logical'; // 'logical' (category order) | 'random'
+
+/* ============================================================
+   feat 274 — STUDY: mark glossary entries read/unread, and LISTEN to the unread pile as an engaging,
+   continuous "podcast" (logical or shuffled). The read flag records the date + whether it was set
+   MANUALLY (a tap) or earned by LISTENING to the whole entry. state.glossaryRead = { term: {at, src} }.
+   ============================================================ */
+function glossRead() { return state.glossaryRead || (state.glossaryRead = {}); }
+function isGlossRead(term) { return !!glossRead()[term]; }
+function glossReadInfo(term) { return glossRead()[term] || null; }
+function markGlossRead(term, src) { if (!term) return; if (typeof roBlocked === 'function' && roBlocked('mark read')) return; glossRead()[term] = { at: new Date().toISOString(), src: src === 'listen' ? 'listen' : 'manual' }; saveState(); }
+function markGlossUnread(term) { if (!term) return; if (typeof roBlocked === 'function' && roBlocked('mark unread')) return; delete glossRead()[term]; saveState(); }
+function toggleGlossRead(term) { if (isGlossRead(term)) markGlossUnread(term); else markGlossRead(term, 'manual'); }
+function glossUnreadCount() { return glossary.reduce((n, g) => n + (isGlossRead(g.term) ? 0 : 1), 0); }
+// The current filtered-by-search/category glossary list, in display order (alpha), used for read counts.
+function glossVisibleList() {
+  const q = glossSearch.toLowerCase();
+  return glossary.filter(g => {
+    if (glossCat !== 'all' && g.cat !== glossCat) return false;
+    if (!q) return true;
+    return g.term.toLowerCase().includes(q) || (g.aka && g.aka.toLowerCase().includes(q)) || g.def.toLowerCase().includes(q);
+  });
+}
+// The unread queue for the podcast: respects the current search/category filter, ordered logically
+// (by category then term) or shuffled. (Ignores the read-filter toggle — "unread" is the whole point.)
+function glossPodcastQueue() {
+  const unread = glossVisibleList().filter(g => !isGlossRead(g.term));
+  if (glossPodOrder === 'random') {
+    const a = unread.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  const order = glossaryCategories.map(c => c.id);
+  return unread.slice().sort((x, y) => { const cx = order.indexOf(x.cat), cy = order.indexOf(y.cat); return (cx - cy) || x.term.toLowerCase().localeCompare(y.term.toLowerCase()); });
+}
+
+// ---- speech shaping: make the definitions read like a coach talking, not a table dump ----
+const _GLOSS_CAT_SPOKEN = { programming:'programming', anatomy:'anatomy', equipment:'equipment', technique:'technique', form:'form', nutrition:'nutrition', recovery:'recovery', slang:'gym slang', injury:'injury', lore:'lifting lore' };
+function _speechClean(s) {
+  return String(s || '')
+    .replace(/\b1RM\b/gi, 'one-rep max').replace(/\be1RM\b/gi, 'estimated one-rep max')
+    .replace(/\bRIR\b/g, 'reps in reserve').replace(/\bRPE\b/g, 'R P E').replace(/\bROM\b/g, 'range of motion')
+    .replace(/\bMEV\b/g, 'M E V').replace(/\bMAV\b/g, 'M A V').replace(/\bMRV\b/g, 'M R V').replace(/\bTDEE\b/g, 'T D E E').replace(/\bBMR\b/g, 'B M R')
+    .replace(/\be\.?g\.?,?/gi, 'for example').replace(/\bi\.?e\.?,?/gi, 'that is').replace(/\bvs\.?\b/gi, 'versus')
+    .replace(/(\d)\s*[-–—]\s*(\d)/g, '$1 to $2')
+    .replace(/×/g, ' by ').replace(/%/g, ' percent').replace(/&/g, ' and ').replace(/~/g, 'about ').replace(/→/g, ' leads to ').replace(/°/g, ' degrees')
+    .replace(/[“”"]/g, '').replace(/[()]/g, ', ')
+    .replace(/\s+/g, ' ').replace(/\s+([.,;:])/g, '$1').trim();
+}
+const _POD_OPENERS = ['Alright. ', 'Next up: ', "Here's one. ", 'Now, ', 'Okay — ', "Let's get into ", 'Moving on. ', "Here's a good one. ", 'Quick one. '];
+// Conversational narration for one entry.
+function glossNarration(g) {
+  const opener = _POD_OPENERS[Math.floor(Math.random() * _POD_OPENERS.length)];
+  const aka = g.aka ? `, also known as ${_speechClean(g.aka)},` : '';
+  return `${opener}${g.term}${aka}. ${_speechClean(g.def)}`;
+}
+
+// ---- the player: a small state machine over a list of spoken "segments" (intro · entries · outro) ----
+let _glossPod = null;        // { segs:[{kind,text,term?}], idx, gen, paused }
+let _podResumeTimer = null;
+function _podSupported() { return typeof window !== 'undefined' && window.speechSynthesis && typeof SpeechSynthesisUtterance !== 'undefined'; }
+function _refreshGlossIfOpen() { if (document.getElementById('ref-gloss-body')) { try { renderGlossCats(); renderGlossary(); } catch (_) {} } }
+function startGlossPodcast() {
+  if (!_podSupported()) { toast('Speech is not available in this browser'); return; }
+  if (typeof sndAudioOn === 'function' && !sndAudioOn()) { toast('🔇 Unmute audio to listen'); return; }
+  const queue = glossPodcastQueue();
+  if (!queue.length) { toast('🎧 Nothing unread — you\'re all caught up!'); return; }
+  const total = queue.length, segs = [];
+  segs.push({ kind: 'intro', text: `Welcome back. You've got ${total} term${total === 1 ? '' : 's'} to get through. Let's run them — I'll keep it tight.` });
+  let lastCat = null;
+  queue.forEach(g => {
+    let pre = '';
+    if (glossPodOrder === 'logical' && g.cat !== lastCat) { pre = lastCat === null ? '' : `Switching to ${_GLOSS_CAT_SPOKEN[g.cat] || g.cat}. `; lastCat = g.cat; }
+    segs.push({ kind: 'entry', term: g.term, text: pre + glossNarration(g) });
+  });
+  segs.push({ kind: 'outro', text: `That's the unread pile cleared — ${total} term${total === 1 ? '' : 's'} done. Solid work. Come back any time for more.` });
+  _glossPod = { segs, idx: 0, gen: 0, paused: false };
+  _podStartResumeHack();
+  _podPlay(0);
+}
+function _podEntryProgress() {
+  if (!_glossPod) return { n: 0, total: 0 };
+  const total = _glossPod.segs.filter(s => s.kind === 'entry').length;
+  const n = _glossPod.segs.slice(0, _glossPod.idx + 1).filter(s => s.kind === 'entry').length;
+  return { n: Math.min(n, total), total };
+}
+function _podPlay(i) {
+  if (!_glossPod) return;
+  if (i >= _glossPod.segs.length) { _podFinish(); return; }
+  _glossPod.idx = i;
+  _glossPod.gen++;
+  const myGen = _glossPod.gen, seg = _glossPod.segs[i];
+  const u = new SpeechSynthesisUtterance(seg.text);
+  u.rate = 0.98; u.lang = 'en-US'; u.volume = (typeof sndVol === 'function') ? sndVol() : 1;
+  if (typeof coachify === 'function') coachify(u);
+  u.onend = () => { // a skip/stop/new-play bumps gen, so a superseded utterance's end is ignored
+    if (!_glossPod || myGen !== _glossPod.gen) return;
+    if (seg.kind === 'entry') markGlossRead(seg.term, 'listen'); // earned by hearing the whole entry
+    _podPlay(i + 1);
+  };
+  u.onerror = () => { if (_glossPod && myGen === _glossPod.gen) _podPlay(i + 1); };
+  try { window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); } catch (_) {}
+  renderPodBar();
+}
+function _podSkip() { if (!_glossPod) return; const i = _glossPod.idx; _glossPod.gen++; try { window.speechSynthesis.cancel(); } catch (_) {} _glossPod.paused = false; _podPlay(i + 1); } // never marks the skipped entry read
+function _podTogglePause() {
+  if (!_glossPod) return;
+  try { if (_glossPod.paused) { window.speechSynthesis.resume(); _glossPod.paused = false; } else { window.speechSynthesis.pause(); _glossPod.paused = true; } } catch (_) {}
+  renderPodBar();
+}
+function _podStop() { if (!_glossPod) return; _glossPod.gen++; _podStopResumeHack(); try { window.speechSynthesis.cancel(); } catch (_) {} _glossPod = null; renderPodBar(); _refreshGlossIfOpen(); }
+function _podFinish() { _podStopResumeHack(); _glossPod = null; renderPodBar(); _refreshGlossIfOpen(); toast('🎧 Caught up — unread pile cleared'); }
+function _podStartResumeHack() { _podStopResumeHack(); _podResumeTimer = setInterval(() => { try { if (_glossPod && !_glossPod.paused && window.speechSynthesis.speaking) window.speechSynthesis.resume(); } catch (_) {} }, 9000); }
+function _podStopResumeHack() { if (_podResumeTimer) { clearInterval(_podResumeTimer); _podResumeTimer = null; } }
+function renderPodBar() {
+  let bar = document.getElementById('gloss-pod-bar');
+  if (!_glossPod) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'gloss-pod-bar'; document.body.appendChild(bar); }
+  const seg = _glossPod.segs[_glossPod.idx] || {}, prog = _podEntryProgress();
+  const nowLabel = seg.kind === 'entry' ? escapeHtml(seg.term) : (seg.kind === 'intro' ? 'Intro' : 'Wrapping up');
+  bar.innerHTML = `<div class="pod-bar-inner">
+    <div class="pod-now"><span class="pod-eq ${_glossPod.paused ? '' : 'on'}">🎧</span><div class="pod-now-txt"><div class="pod-now-term">${nowLabel}</div><div class="pod-now-sub">${prog.n} / ${prog.total} · ${glossPodOrder === 'random' ? 'shuffled' : 'in order'}${_glossPod.paused ? ' · paused' : ''}</div></div></div>
+    <div class="pod-ctrls">
+      <button class="pod-btn" id="pod-pause" title="${_glossPod.paused ? 'Resume' : 'Pause'}">${_glossPod.paused ? '▶' : '⏸'}</button>
+      <button class="pod-btn" id="pod-skip" title="Skip — don't mark read">⏭</button>
+      <button class="pod-btn pod-stop" id="pod-stop" title="Stop">⏹</button>
+    </div>
+  </div>`;
+  bar.querySelector('#pod-pause').onclick = _podTogglePause;
+  bar.querySelector('#pod-skip').onclick = _podSkip;
+  bar.querySelector('#pod-stop').onclick = _podStop;
+}
 
 function renderGlossCats() {
   const el = document.getElementById('ref-gloss-cat-filter');
@@ -26444,11 +26609,30 @@ function renderGlossCats() {
   });
 }
 
+// feat 274 — the study toolbar: unread count, read-status filter, Listen-as-podcast + order, mark-all.
+function glossStudyBarHtml() {
+  const unread = glossVisibleList().filter(g => !isGlossRead(g.term)).length;
+  const pill = (id, label) => `<button class="gloss-read-pill ${glossReadFilter === id ? 'active' : ''}" data-gloss-readfilter="${id}">${label}</button>`;
+  return `<div class="gloss-study-bar">
+    <div class="gloss-study-row">
+      <span class="gloss-unread-count">${unread} unread</span>
+      <div class="gloss-read-filter">${pill('all', 'All')}${pill('unread', 'Unread')}${pill('read', 'Read')}</div>
+    </div>
+    <div class="gloss-study-row">
+      <button class="gloss-listen-btn" id="gloss-listen-btn" ${unread ? '' : 'disabled'} title="Listen to every unread term as a continuous, conversational podcast">🎧 Listen${unread ? ` (${unread})` : ''}</button>
+      <button class="gloss-order-toggle" id="gloss-order-toggle" title="Playback order">${glossPodOrder === 'random' ? '🔀 Shuffle' : '↕ In order'}</button>
+      <button class="gloss-markall" id="gloss-markall" title="Mark every shown term ${unread ? 'read' : 'unread'}">${unread ? '✓ Mark all read' : '↺ Mark all unread'}</button>
+    </div>
+  </div>`;
+}
 function renderGlossary() {
   const body = document.getElementById('ref-gloss-body');
+  if (!body) return;
   const q = glossSearch.toLowerCase();
   const filtered = glossary.filter(g => {
     if (glossCat !== 'all' && g.cat !== glossCat) return false;
+    if (glossReadFilter === 'unread' && isGlossRead(g.term)) return false; // feat 274
+    if (glossReadFilter === 'read' && !isGlossRead(g.term)) return false;
     if (!q) return true;
     return g.term.toLowerCase().includes(q) ||
            (g.aka && g.aka.toLowerCase().includes(q)) ||
@@ -26457,8 +26641,21 @@ function renderGlossary() {
   // Sort alphabetically by term
   filtered.sort((a,b) => a.term.toLowerCase().localeCompare(b.term.toLowerCase()));
 
+  const studyBar = glossStudyBarHtml();
+  const bindStudyBar = () => {
+    body.querySelectorAll('[data-gloss-readfilter]').forEach(el => el.addEventListener('click', () => { glossReadFilter = el.dataset.glossReadfilter; renderGlossary(); }));
+    body.querySelector('#gloss-listen-btn')?.addEventListener('click', startGlossPodcast);
+    body.querySelector('#gloss-order-toggle')?.addEventListener('click', () => { glossPodOrder = glossPodOrder === 'random' ? 'logical' : 'random'; renderGlossary(); });
+    body.querySelector('#gloss-markall')?.addEventListener('click', () => {
+      const list = glossVisibleList(); const anyUnread = list.some(g => !isGlossRead(g.term));
+      list.forEach(g => { if (anyUnread) { if (!isGlossRead(g.term)) markGlossRead(g.term, 'manual'); } else markGlossUnread(g.term); });
+      renderGlossCats(); renderGlossary();
+    });
+  };
+
   if (filtered.length === 0) {
-    body.innerHTML = '<div class="gloss-no-results">No terms match. Try a different search or category.</div>';
+    body.innerHTML = studyBar + `<div class="gloss-no-results">${glossReadFilter === 'unread' ? '🎉 Nothing unread in this view — all caught up.' : 'No terms match. Try a different search, category or filter.'}</div>`;
+    bindStudyBar();
     return;
   }
 
@@ -26476,23 +26673,33 @@ function renderGlossary() {
   });
 
   const catLabels = { programming:'Program', anatomy:'Anatomy', equipment:'Equipment', technique:'Technique', form:'Form', nutrition:'Nutrition', recovery:'Recovery', slang:'Slang', injury:'Injury', lore:'Lore' };
+  const readBadge = (g) => { // feat 274 — read indicator: date + how it was marked
+    const r = glossReadInfo(g.term);
+    if (!r) return '';
+    const icon = r.src === 'listen' ? '🎧' : '✓';
+    const how = r.src === 'listen' ? 'listened' : 'read';
+    return `<span class="gloss-read-note" title="${how} ${escapeAttr(new Date(r.at).toLocaleString())}">${icon} ${how} ${escapeHtml(fmtDate(r.at))}</span>`;
+  };
 
-  body.innerHTML = `<div class="gloss-count">${filtered.length} term${filtered.length === 1 ? '' : 's'}</div>` +
+  body.innerHTML = studyBar + `<div class="gloss-count">${filtered.length} term${filtered.length === 1 ? '' : 's'}</div>` +
     letters.map(L => `
       <div class="gloss-letter-header">${L}</div>
       ${groups[L].map(g => `
-        <div class="gloss-entry">
+        <div class="gloss-entry ${isGlossRead(g.term) ? 'is-read' : ''}">
           <div class="gloss-term-row">
+            <button class="gloss-read-toggle ${isGlossRead(g.term) ? 'on' : ''}" data-gloss-toggle="${escapeAttr(g.term)}" title="${isGlossRead(g.term) ? 'Mark unread' : 'Mark read'}" aria-pressed="${isGlossRead(g.term) ? 'true' : 'false'}">${isGlossRead(g.term) ? '✓' : '○'}</button>
             <span class="gloss-term">${g.term}</span>
             ${g.aka ? `<span class="gloss-aka">${g.aka}</span>` : ''}
             <span class="gloss-cat-badge ${g.cat}">${catLabels[g.cat] || g.cat}</span>
           </div>
           <div class="gloss-def">${g.def}</div>
-          ${ANATOMY_TERMS.has(g.term) ? `<span class="gloss-chart-link" data-chart-term="${escapeAttr(g.term)}">📍 Show on chart</span>` : ''}
+          <div class="gloss-entry-foot">${ANATOMY_TERMS.has(g.term) ? `<span class="gloss-chart-link" data-chart-term="${escapeAttr(g.term)}">📍 Show on chart</span>` : ''}${readBadge(g)}</div>
         </div>
       `).join('')}
     `).join('');
+  bindStudyBar();
   body.querySelectorAll('.gloss-chart-link').forEach(el => el.addEventListener('click', () => showOnChart(el.dataset.chartTerm)));
+  body.querySelectorAll('[data-gloss-toggle]').forEach(el => el.addEventListener('click', () => { toggleGlossRead(el.dataset.glossToggle); renderGlossCats(); renderGlossary(); }));
 }
 
 // feat 190 — Glossary + Anatomy are Study router pages. The glossary panel shows full-page (the slide-in mode
