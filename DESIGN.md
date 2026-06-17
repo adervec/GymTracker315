@@ -1038,6 +1038,20 @@ They share variation **UUIDs**.
   but with a `createWritable()` write. Scope picker (30 days / month / all) feeds `selectSessionsForExport`. Settings
   UI is in the Data Management page under the File-System-Access gate. `test/app.spec.mjs` (defaults, scope labels,
   no-op without a folder, and a mock-handle folder write of the digest).
+- **New movement disciplines + more plans & themed splits (feat 273):** four whole **disciplines** added via the
+  runtime `EXTRA_FAMILIES` injection (so they land in both the tracker and the reference, like neck/jaw/climbing):
+  **Pilates Mat** (`pilates-mat`, `mega:'core'` → counts as core volume; `MUSCLE_CONTRIB` added; the Hundred,
+  roll-up, series-of-five, teaser, swan, saw, side-plank hold), **Tai Chi** (`tai-chi`, `mega:'mobility'`; standing-post
+  and horse-stance **holds** become time-mode via the "hold" keyword, plus cloud hands, brush knee, grasp-sparrow's-tail,
+  golden-rooster balance), **Systema** (`systema`, `mega:'mobility'`; breathing push-ups/squats, breath-hold walk,
+  rolling, tension–relaxation), and **Boxing & Bag Work** (`boxing-bag`, `mega:'cardio'` → logs through the cardio form;
+  heavy bag, shadow boxing, speed/double-end bag, boxer's jump rope, mitt work, combinations). All `mega::sub` combos
+  map through `BP_MAP`. **11 new seed plans** (Pilates Core Flow, Tai Chi Morning Flow, Systema Breath & Movement,
+  Mind-Body Flow, Heavy Bag Conditioning, Fighter's Circuit, plus strength variety — Powerbuilding Upper, Posterior
+  Chain, Athletic Full Body, Chest & Arms, Back & Biceps) append via the additive `seededPlanIds` ledger, and **5 new
+  themed splits** (Way of the Dragon, The Crane & The Tiger, The Shaolin Path, The Contender, The Shield-Bearer) whose
+  "Core" slots can surface the new core/conditioning plans. `test/coaching.spec.mjs` (families inject + classify, holds
+  are timed, boxing routes to cardio, every new plan step resolves, 11 plans + 5 splits present).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
