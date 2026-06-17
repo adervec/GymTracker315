@@ -139,6 +139,39 @@ test('a recommended Use button starts/attaches that plan to the workout', async 
   expect(planId).toBe('legs');
 });
 
+test('feat 266 — recovery ranks a fresh-group plan above a fatigued-group one and warns about it', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const fv = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const bench = fv('flat-bench-press'), lat = fv('lateral-raise');
+    const step = (u) => ({ id: 's' + Math.random(), sets: 3, options: [{ type: 'variation', uuid: u }] });
+    state.plans = [
+      { id: 'chestday', name: 'Chest Focus', intensity: 4, steps: [step(bench), step(bench), step(bench)] },
+      { id: 'deltday', name: 'Delt Focus', intensity: 4, steps: [step(lat), step(lat), step(lat)] },
+    ];
+    state.seededPlanIds = ['chestday', 'deltday'];
+    const now = Date.now();
+    state.sessions = [
+      { id: 'r1', date: new Date(now - 5 * 3600000).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w: 100, r: 5 }, { w: 100, r: 5 }, { w: 100, r: 5 }, { w: 100, r: 5 }, { w: 100, r: 5 }] }] }, // chest fried 5h ago
+      { id: 'r2', date: new Date(now - 21 * 86400000).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w: 95, r: 5 }] }] }, // reference load
+    ];
+    state.planPickMinutes = 30;
+    const rec = recoveryReadiness();
+    const recs = recommendPlans(30, 2);
+    return {
+      bench: !!bench, lat: !!lat,
+      order: recs.map(x => x.plan.id),
+      chestRecov: planRecoveryScore(getPlan('chestday'), rec),
+      deltRecov: planRecoveryScore(getPlan('deltday'), rec),
+      chestReason: recs.find(x => x.plan.id === 'chestday').reason,
+    };
+  });
+  expect(r.bench).toBe(true);
+  expect(r.lat).toBe(true);
+  expect(r.deltRecov).toBeGreaterThan(r.chestRecov); // shoulders rested, chest hammered — the group model sees it
+  expect(r.order[0]).toBe('deltday');                // …so the fresh-group plan is recommended first
+  expect(r.chestReason).toContain('recovering');     // and the chest plan carries a "still recovering" heads-up
+});
+
 test('Quick Pick shows on the landing list but hides once you filter', async ({ page }) => {
   await seed(page);
   const r = await page.evaluate(() => {

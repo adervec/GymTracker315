@@ -34,19 +34,23 @@ test('programForDow / programToday resolve the scheduled plan; rest days are nul
   const r = await page.evaluate(() => {
     const split = buildRecommendedSplit({ sessions: 3, minutes: 60 });
     state.program = buildProgramFromSplit(split, 3, 60);
-    const monId = state.program.week[1];
-    // force TODAY to a known scheduled plan so programToday is deterministic
     const todayDow = new Date().getDay();
-    state.program.week[todayDow] = monId;
+    const planId = state.program.week[1] || (state.program.pool && state.program.pool[0]);
+    state.program.week[1] = planId;                 // Monday: a known scheduled plan
+    // Pick a rest day that can't collide with the forced "today" slot below — keeps this
+    // deterministic on any weekday (forcing week[todayDow] used to clobber a hardcoded rest day).
+    let restDow = -1;
+    for (let d = 0; d < 7; d++) { if (d !== todayDow && d !== 1) { state.program.week[d] = null; restDow = d; break; } }
+    state.program.week[todayDow] = planId;          // force TODAY to a known scheduled plan
     return {
       mon: programForDow(1)?.planId,
-      tue: programForDow(2), // rest
+      rest: programForDow(restDow), // a guaranteed rest day, never == today
       today: programToday()?.planId,
       todayPlanIsReal: !!(programToday() && programToday().plan && programToday().plan.name),
     };
   });
   expect(r.mon).toBeTruthy();
-  expect(r.tue).toBeNull();
+  expect(r.rest).toBeNull();
   expect(r.today).toBe(r.mon);
   expect(r.todayPlanIsReal).toBe(true);
 });
