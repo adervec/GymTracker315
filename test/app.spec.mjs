@@ -295,6 +295,22 @@ test('feat 269 — parseMediaUrl recognizes images, GIFs, and giphy links; rende
   expect(r.helpers).toEqual({ isImg: true, img: 'https://i.imgur.com/abc123.gif', playable: true, name: 'GIF' });
 });
 
+test('feat 270 — trend peek renders a sparkline + e1RM stats, hidden without enough history', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const fv = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const now = Date.now(), day = 86400000, bench = fv('flat-bench-press');
+    const s = (d, w, rr) => ({ date: new Date(now - d * day).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w, r: rr }] }] });
+    state.sessions = [ s(21, 90, 5), s(14, 95, 5), s(7, 98, 5), s(1, 100, 5) ]; // climbing e1RM
+    const peek = renderTrendPeek(bench, null);
+    const oneSession = (() => { const saved = state.sessions; state.sessions = [s(1, 100, 5)]; const h = renderTrendPeek(bench, null); state.sessions = saved; return h; })();
+    return { peek, oneSession, hasSpark: /class="spark"/.test(peek), hasE1RM: /e1RM/.test(peek), up: /tp-delta tp-up/.test(peek) };
+  });
+  expect(r.hasSpark).toBe(true);
+  expect(r.hasE1RM).toBe(true);
+  expect(r.up).toBe(true);        // climbing e1RM reads as an up trend
+  expect(r.oneSession).toBe('');  // a single session → no peek
+});
+
 test('plan estimates are sane', async ({ page }) => {
   const r = await page.evaluate(() => ({
     empty: estimatePlanMinutes({ steps: [] }),

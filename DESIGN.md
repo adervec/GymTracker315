@@ -1009,6 +1009,12 @@ They share variation **UUIDs**.
   badge, counted as displayable not link-only). The **media sheet** round-trips with no change (URL → `parseMediaUrl`
   re-classifies); the exercise-screen button reads "🖼 View image/GIF". `test/app.spec.mjs` (image/gif/giphy/format
   detection + helpers).
+- **Inline trend peek in the log sheet (feat 270):** `renderTrendPeek(varUuid, subUuid)` shows a glanceable **e1RM
+  sparkline** for the exercise you're logging, right under the media/Trends row — so you can read the trajectory
+  without leaving for the Trends page. RPE-aware (`sessionBestE1RM` over `getHistoryByKey`, last ~12 sessions
+  chronological), with `<latest> e1RM · best <best> · ±%` and an up/down/flat colour; tapping opens the full focused
+  Trends (`openTrendsFor`). Self-hides with fewer than 2 prior sessions for the lift. `test/app.spec.mjs` (sparkline +
+  stats present, up-trend on climbing e1RM, hidden with one session).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
