@@ -999,6 +999,16 @@ They share variation **UUIDs**.
   add. Shares the feat-262 model; tapping opens **Volume → Recovery**. Gated by a new **Dashboard → Recovery strip**
   toggle (`state.dashboard.recovery`, default on) and self-hides without history. `test/app.spec.mjs` (chips render,
   gated by history + the toggle).
+- **Images & animated GIFs in reference media (feat 269):** the media system (feat 75) now accepts **images and GIFs**
+  alongside embeddable videos. `parseMediaUrl` detects direct files (`.gif/.png/.jpe?g/.webp/.avif/.bmp`, a `?format=`
+  hint) and **giphy** share/embed links (→ the direct `media.giphy.com/.../giphy.gif`), returning `platform:'image'|'gif'`
+  with an `img` field (the displayable URL; `watchUrl`/`url` keep the original link for "Open original" + sheet
+  round-trip). New helpers `isImageMedia` / `mediaImg` / `mediaPlayable`. Every surface renders them inline via `<img>`
+  instead of an iframe: the **carousel** (contained, natural aspect), the **gallery** (the image is its own thumbnail; a
+  GIF animates; IMG/GIF badge), the **manage list** + **bulk wizard** (a preview that mounts an `<img>`, "image"/"gif"
+  badge, counted as displayable not link-only). The **media sheet** round-trips with no change (URL → `parseMediaUrl`
+  re-classifies); the exercise-screen button reads "🖼 View image/GIF". `test/app.spec.mjs` (image/gif/giphy/format
+  detection + helpers).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

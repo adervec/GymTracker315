@@ -377,6 +377,11 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .media-frame-wrap { position: relative; width: 100%; aspect-ratio: 9 / 16; max-height: 64vh; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border2); }
 .media-frame-wrap.land { aspect-ratio: 16 / 9; }
 .media-frame-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+/* feat 269 — inline images / animated GIFs: natural aspect, contained, never cropped */
+.media-frame-wrap.media-img-wrap { aspect-ratio: auto; min-height: 180px; display: flex; align-items: center; justify-content: center; }
+.media-img { width: 100%; max-height: 64vh; object-fit: contain; display: block; }
+.mw-preview .media-img { max-height: 320px; border-radius: 8px; }
+.mg-kindbadge { position: absolute; top: 6px; right: 6px; font-size: 9px; font-weight: 800; letter-spacing: 0.4px; padding: 2px 5px; border-radius: 4px; background: rgba(0,0,0,0.62); color: #fff; }
 .media-fallback { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 18px; color: var(--text2); font-size: 12.5px; }
 .media-fallback .mf-ico { font-size: 38px; }
 .media-fallback a { color: var(--accent); font-weight: 700; text-decoration: none; font-size: 14px; }
@@ -8281,8 +8286,14 @@ function _refRevealVariation(famId, varUuid) {
    Nothing is cached: each clip is a live iframe embed. Unembeddable links fall back to
    an "Open ↗" card. Keyed by variation uuid (shared between Reference and Log Sets).
    ============================================================ */
-function mediaPlatformIcon(p) { return p === 'youtube' ? '▶️' : p === 'tiktok' ? '🎵' : p === 'instagram' ? '📷' : '🔗'; }
-function mediaPlatformName(p) { return p === 'youtube' ? 'YouTube' : p === 'tiktok' ? 'TikTok' : p === 'instagram' ? 'Instagram' : 'Link'; }
+function mediaPlatformIcon(p) { return p === 'youtube' ? '▶️' : p === 'tiktok' ? '🎵' : p === 'instagram' ? '📷' : p === 'gif' ? '🎞️' : p === 'image' ? '🖼️' : '🔗'; }
+function mediaPlatformName(p) { return p === 'youtube' ? 'YouTube' : p === 'tiktok' ? 'TikTok' : p === 'instagram' ? 'Instagram' : p === 'gif' ? 'GIF' : p === 'image' ? 'Image' : 'Link'; }
+// feat 269 — images & animated GIFs: shown inline via <img> (not a video iframe). `img` is the direct,
+// displayable URL; `watchUrl`/`url` stay the original pasted link (for "Open original" + sheet round-trip).
+function isImageMedia(m) { return !!m && (m.platform === 'image' || m.platform === 'gif' || !!m.img); }
+function mediaImg(m) { return m ? (m.img || (isImageMedia(m) ? (m.url || m.watchUrl) : null)) : null; }
+// "Can this clip show inline?" — a video embed OR an image/GIF.
+function mediaPlayable(m) { return !!(m && (m.embedUrl || isImageMedia(m))); }
 function parseMediaUrl(raw) {
   let url = String(raw || '').trim();
   if (!url) return null;
@@ -8310,6 +8321,17 @@ function parseMediaUrl(raw) {
     return mk('instagram', null, null);
   }
   if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(host)) return null; // reject non-domains (typos / pasted noise)
+  // feat 269 — images & animated GIFs (display inline). `img` = the direct displayable URL; the original
+  // pasted link stays as watchUrl/url. Handles direct files, a `?format=` hint, and giphy share/embed pages.
+  const mkImg = (directUrl, animated) => ({ platform: animated ? 'gif' : 'image', vid: null, embedUrl: null, watchUrl: url, url, img: directUrl });
+  if (/(^|\.)giphy\.com$/.test(host)) {
+    const gm = u.pathname.match(/\/(?:gifs|clips|stickers)\/(?:.*-)?([A-Za-z0-9]+)\/?$/) || u.pathname.match(/\/(?:embed|media)\/([A-Za-z0-9]+)/);
+    if (gm) return mkImg('https://media.giphy.com/media/' + gm[1] + '/giphy.gif', true);
+  }
+  const extM = u.pathname.toLowerCase().match(/\.(gif|png|jpe?g|webp|avif|bmp)$/);
+  if (extM) return mkImg(url, extM[1] === 'gif');
+  const fmt = (u.searchParams.get('format') || u.searchParams.get('fm') || '').toLowerCase();
+  if (/^(gif|png|jpe?g|webp|avif|bmp)$/.test(fmt)) return mkImg(url, fmt === 'gif');
   return mk('link', null, null);
 }
 // feat 237 — the creator/channel behind a media entry, read from the link where the platform exposes it:
@@ -8414,6 +8436,8 @@ function mediaTypeLabel(m) {
   if (!m) return 'clip';
   if (m.platform === 'tiktok') return 'TikTok';
   if (m.platform === 'instagram') return 'Reel';
+  if (m.platform === 'gif') return 'GIF';            // feat 269
+  if (m.platform === 'image') return 'image';        // feat 269
   if (m.platform === 'youtube') return /\/shorts\//i.test(m.watchUrl || m.url || '') ? 'Short' : 'video';
   return 'clip';
 }
@@ -8422,7 +8446,8 @@ function exMediaBtnLabel(uuid, mov) {
   const list = _mediaCombinedList(uuid, mov);
   if (!list.length) return '⚙ Configure Media';
   const m = list[0], cr = (typeof mediaCreator === 'function') ? mediaCreator(m) : null;
-  return `▶ Watch ${mediaTypeLabel(m)}${cr ? ' from ' + cr : ''}${list.length > 1 ? ` (+${list.length - 1})` : ''}`;
+  const verb = isImageMedia(m) ? '🖼 View' : '▶ Watch'; // feat 269
+  return `${verb} ${mediaTypeLabel(m)}${cr ? ' from ' + cr : ''}${list.length > 1 ? ` (+${list.length - 1})` : ''}`;
 }
 // feat 251 — total time + %-active for the exercise currently in the log sheet. Spans from the first set's
 // start (wTs) to the last set's done-stamp (ts); active = summed under-tension per set. Logging combines the
@@ -8514,7 +8539,9 @@ function renderMediaModal() {
     const slides = items.map((m, i) => {
       const land = m.platform === 'youtube';
       const tag = (multi && m._klabel) ? `<span class="media-src-tag">${escapeHtml(m._klabel.replace(/:.*$/, ''))}</span>` : '';
-      const inner = m.embedUrl
+      const inner = isImageMedia(m)
+        ? `<div class="media-frame-wrap media-img-wrap"><img class="media-img" src="${escapeAttr(mediaImg(m))}" alt="${escapeAttr(mediaPlatformName(m.platform) + ' reference')}" loading="lazy"></div>` // feat 269 — inline image / GIF
+        : m.embedUrl
         ? `<div class="media-frame-wrap ${land ? 'land' : ''}"><iframe data-src="${escapeAttr(m.embedUrl)}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`
         : `<div class="media-frame-wrap ${land ? 'land' : ''}"><div class="media-fallback"><div class="mf-ico">${mediaPlatformIcon(m.platform)}</div><div>This ${mediaPlatformName(m.platform)} link can't be embedded.</div><a href="${escapeAttr(m.watchUrl)}" target="_blank" rel="noopener noreferrer">Open ↗</a></div></div>`;
       return `<div class="media-slide" data-idx="${i}">${inner}
@@ -8533,12 +8560,12 @@ function renderMediaModal() {
       const list = getExerciseMedia(k.id);
       const rows = list.length ? list.map((m, i) => `<div class="media-list-item">
         <span class="mli-ico">${mediaPlatformIcon(m.platform)}</span>
-        <div class="mli-main"><div class="mli-plat">${mediaPlatformName(m.platform)}${m.embedUrl ? '' : ' · link only'}</div><div class="mli-url">${escapeHtml(m.watchUrl)}</div></div>
+        <div class="mli-main"><div class="mli-plat">${mediaPlatformName(m.platform)}${mediaPlayable(m) ? '' : ' · link only'}</div><div class="mli-url">${escapeHtml(m.watchUrl)}</div></div>
         <a class="mli-open" href="${escapeAttr(m.watchUrl)}" target="_blank" rel="noopener noreferrer" title="Open">↗</a>
         <button class="mli-del" data-key="${escapeAttr(k.id)}" data-del="${i}" aria-label="Remove">🗑</button>
       </div>`).join('') : `<div class="media-empty">None yet.</div>`;
       return `${multi ? `<div class="media-sec-label">${escapeHtml(k.label)}</div>` : ''}
-        <div class="media-add-row"><input class="media-url-input" data-key="${escapeAttr(k.id)}" type="url" inputmode="url" placeholder="Paste YouTube / Shorts / TikTok / Reel link" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="media-add-btn" data-key="${escapeAttr(k.id)}">Add</button></div>
+        <div class="media-add-row"><input class="media-url-input" data-key="${escapeAttr(k.id)}" type="url" inputmode="url" placeholder="Paste a YouTube / TikTok / Reel / image / GIF link" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="media-add-btn" data-key="${escapeAttr(k.id)}">Add</button></div>
         ${rows}`;
     }).join('');
     bodyHtml = `<div class="media-body">
@@ -8688,7 +8715,7 @@ function mediaOwnerInfo(key) {
   if (f) return { kind: 'movement', title: f.title || '', sub: MEGA_LABELS[f.mega] || f.mega || '', famId: f.id };
   return null;
 }
-function mediaThumb(m) { return (m && m.platform === 'youtube' && m.vid) ? ('https://i.ytimg.com/vi/' + m.vid + '/hqdefault.jpg') : null; }
+function mediaThumb(m) { if (isImageMedia(m)) return mediaImg(m); return (m && m.platform === 'youtube' && m.vid) ? ('https://i.ytimg.com/vi/' + m.vid + '/hqdefault.jpg') : null; } // feat 269 — images thumbnail to themselves
 // Flatten every stored clip into { key, idx, m, owner, watchedAt, creator } records, skipping orphaned keys.
 function allMediaClips() {
   const out = [], mm = state.exerciseMedia || {};
@@ -8716,12 +8743,13 @@ function mediaGalleryClips() {
 function mediaGalleryCardHtml(c) {
   const m = c.m, pk = c.key + '|' + c.idx, isPrev = mediaGalleryState.preview === pk;
   const thumb = mediaThumb(m), seen = c.watchedAt;
+  const isImg = isImageMedia(m); // feat 269
   const face = isPrev && m.embedUrl
     ? `<iframe data-mg-frame="${escapeAttr(pk)}" src="${escapeAttr(m.embedUrl)}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`
-    : (thumb ? `<img src="${escapeAttr(thumb)}" alt="" loading="lazy"><span class="mg-play">${m.embedUrl ? '▶' : '↗'}</span>`
+    : (thumb ? `<img src="${escapeAttr(thumb)}" alt="" loading="lazy">${isImg ? `<span class="mg-kindbadge">${m.platform === 'gif' ? 'GIF' : 'IMG'}</span>` : `<span class="mg-play">${m.embedUrl ? '▶' : '↗'}</span>`}`
              : `<div class="mg-ph">${mediaPlatformIcon(m.platform)}</div>${m.embedUrl ? '<span class="mg-play">▶</span>' : ''}`);
   return `<div class="mg-card ${seen ? 'seen' : ''}">
-    <div class="mg-thumb ${m.embedUrl ? 'playable' : 'linkonly'}" ${m.embedUrl ? `data-mg-preview="${escapeAttr(pk)}"` : `data-mg-open="${escapeAttr(m.watchUrl || m.url)}"`} title="${escapeAttr(m.embedUrl ? (isPrev ? 'Close preview' : 'Play inline') : 'Open link ↗')}">
+    <div class="mg-thumb ${m.embedUrl ? 'playable' : 'linkonly'}" ${m.embedUrl ? `data-mg-preview="${escapeAttr(pk)}"` : `data-mg-open="${escapeAttr(m.watchUrl || m.url)}"`} title="${escapeAttr(m.embedUrl ? (isPrev ? 'Close preview' : 'Play inline') : isImg ? 'Open original ↗' : 'Open link ↗')}">
       ${face}
       ${seen ? '<span class="mg-seen-badge" title="Watched">👁</span>' : ''}
       <span class="mg-kind ${c.owner.kind === 'movement' ? 'mov' : ''}">${c.owner.kind === 'movement' ? 'MOVEMENT' : 'variation'}</span>
@@ -8800,8 +8828,8 @@ function mediaWizardRetestAll() {
       total++;
       const p = parseMediaUrl(m.watchUrl || m.url);
       if (!p) { notEmbed++; return; }
-      if (m.embedUrl !== p.embedUrl || m.platform !== p.platform) { m.embedUrl = p.embedUrl; m.platform = p.platform; m.vid = p.vid; updated++; }
-      if (!p.embedUrl) notEmbed++;
+      if (m.embedUrl !== p.embedUrl || m.platform !== p.platform || m.img !== p.img) { m.embedUrl = p.embedUrl; m.platform = p.platform; m.vid = p.vid; m.img = p.img; updated++; } // feat 269 — sync image kind too
+      if (!mediaPlayable(p)) notEmbed++;
     });
   });
   saveState(); renderMediaWizard();
@@ -8845,7 +8873,7 @@ function renderMediaWizard() {
   Object.keys(state.exerciseMedia || {}).forEach(k => {
     const l = state.exerciseMedia[k] || []; if (!l.length) return;
     if (FAMILIES.some(f => f.id === k)) movWith++; else varWith++; // feat 236 — split movement vs variation coverage
-    l.forEach(m => { totalLinks++; if (!m.embedUrl) notEmbed++; });
+    l.forEach(m => { totalLinks++; if (!mediaPlayable(m)) notEmbed++; }); // feat 269 — images count as displayable
   });
   const kindBtn = (val, label) => `<button class="mw-kind ${(mediaWizardState.kind || 'all') === val ? 'active' : ''}" data-mw-kind="${val}">${label}</button>`;
   tb.innerHTML = `
@@ -8887,14 +8915,15 @@ function mediaWizardRowHtml(r) {
       <span>${mediaPlatformIcon(m.platform)}</span>
       <span class="mw-link-url" title="${escapeAttr(m.watchUrl || m.url)}">${escapeHtml(m.watchUrl || m.url)}</span>
       ${cr ? `<span class="mw-link-creator" title="Creator: ${escapeAttr(cr)}">${escapeHtml(cr)}</span>` : '<span class="mw-link-creator untag">untagged</span>'}
-      <span class="mw-badge ${m.embedUrl ? 'ok' : 'no'}">${m.embedUrl ? 'embeddable' : 'link-only'}</span>
+      <span class="mw-badge ${mediaPlayable(m) ? 'ok' : 'no'}">${m.embedUrl ? 'embeddable' : isImageMedia(m) ? (m.platform === 'gif' ? 'gif' : 'image') : 'link-only'}</span>
       ${wAt ? `<span class="mw-link-watched" title="Last watched ${escapeAttr(new Date(wAt).toLocaleString())}">👁 ${escapeHtml(fmtDate(wAt))}</span>` : '<span class="mw-link-watched none">never watched</span>'}
-      ${m.embedUrl ? `<button class="mw-prev-btn ${isPrev ? 'on' : ''}" data-mw-preview="${escapeAttr(key)}" data-mw-pidx="${i}">${isPrev ? '▼ hide' : '▶ preview'}</button>` : ''}
+      ${mediaPlayable(m) ? `<button class="mw-prev-btn ${isPrev ? 'on' : ''}" data-mw-preview="${escapeAttr(key)}" data-mw-pidx="${i}">${isPrev ? '▼ hide' : '▶ preview'}</button>` : ''}
       <button data-mw-open="${escapeAttr(m.watchUrl || m.url)}">↗ open</button>
       <button data-mw-reassign="${escapeAttr(key)}" data-mw-idx="${i}">→ move</button>
       <button class="del" data-mw-del="${escapeAttr(key)}" data-mw-idx="${i}">✕</button>
     </div>
     ${isPrev && m.embedUrl ? `<div class="mw-preview"><iframe data-mw-frame="${escapeAttr(key)}" data-mw-fidx="${i}" src="${escapeAttr(m.embedUrl)}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>` : ''}
+    ${isPrev && isImageMedia(m) ? `<div class="mw-preview"><img class="media-img" src="${escapeAttr(mediaImg(m))}" alt="" loading="lazy"></div>` : ''}
     ${(mediaWizardState.reassign && mediaWizardState.reassign.uuid === key && mediaWizardState.reassign.idx === i) ? mediaWizardReassignHtml() : ''}`; }).join('');
   if (r.type === 'movement') { // feat 236 — a MOVEMENT row: its own demo + how many child variations are covered
     const cov = r.childTotal ? `${r.childWith}/${r.childTotal} variations have video` : 'no variations';
@@ -18093,7 +18122,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 213 · 2026-06-16 22:00';
+const APP_BUILD = 'build 214 · 2026-06-17 07:15';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

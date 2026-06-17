@@ -267,6 +267,34 @@ test('parseMediaUrl extracts platform + id (or rejects junk)', async ({ page }) 
   expect(r.junk).toBeNull();
 });
 
+test('feat 269 — parseMediaUrl recognizes images, GIFs, and giphy links; renders them inline', async ({ page }) => {
+  const r = await page.evaluate(() => ({
+    png: parseMediaUrl('https://example.com/anatomy-chart.png'),
+    jpg: parseMediaUrl('cdn.site.com/form/squat.JPG?w=800'),
+    gif: parseMediaUrl('https://i.imgur.com/abc123.gif'),
+    fmt: parseMediaUrl('https://images.site.com/x?format=webp'),
+    giphy: parseMediaUrl('https://giphy.com/gifs/deadlift-form-aBcD1234'),
+    giphyDirect: parseMediaUrl('https://media.giphy.com/media/aBcD1234/giphy.gif'),
+    notImg: parseMediaUrl('example.com/guide.html'),
+    helpers: (() => {
+      const m = parseMediaUrl('https://i.imgur.com/abc123.gif');
+      return { isImg: isImageMedia(m), img: mediaImg(m), playable: mediaPlayable(m), name: mediaPlatformName(m.platform) };
+    })(),
+  }));
+  expect(r.png.platform).toBe('image');
+  expect(r.png.img).toBe('https://example.com/anatomy-chart.png');
+  expect(r.png.embedUrl).toBeNull();                 // not a video iframe
+  expect(r.jpg.platform).toBe('image');              // extension survives a query string
+  expect(r.gif.platform).toBe('gif');                // .gif → animated kind
+  expect(r.fmt.platform).toBe('image');              // ?format=webp hint
+  expect(r.giphy.platform).toBe('gif');
+  expect(r.giphy.img).toBe('https://media.giphy.com/media/aBcD1234/giphy.gif'); // share link → direct gif
+  expect(r.giphy.watchUrl).toContain('giphy.com/gifs');                          // original preserved
+  expect(r.giphyDirect.platform).toBe('gif');
+  expect(r.notImg.platform).toBe('link');            // a plain .html page is still a link
+  expect(r.helpers).toEqual({ isImg: true, img: 'https://i.imgur.com/abc123.gif', playable: true, name: 'GIF' });
+});
+
 test('plan estimates are sane', async ({ page }) => {
   const r = await page.evaluate(() => ({
     empty: estimatePlanMinutes({ steps: [] }),
