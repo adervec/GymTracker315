@@ -184,6 +184,41 @@ test('feat 265 — recovery hint shows for a just-trained group, hides for a res
   expect(r.curlHint === null || r.curlHint === 'skip').toBe(true); // fresh/untrained → no hint
 });
 
+test('feat 267 — workout export tags sets with effort when enabled, omits it when off', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const fv = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const bench = fv('flat-bench-press');
+    const session = { id: 'x', date: new Date().toISOString(), endedAt: new Date().toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w: 100, r: 5, rpe: 8 }, { w: 100, r: 5 }] }] };
+    state.sessions = [session];
+    state.workoutControls.rpeMode = 'off'; const off = buildWorkoutText([session], { preset: 'session' });
+    state.workoutControls.rpeMode = 'rpe'; const on = buildWorkoutText([session], { preset: 'session' });
+    state.workoutControls.rpeMode = 'rir'; const rir = buildWorkoutText([session], { preset: 'session' });
+    return { off, on, rir };
+  });
+  expect(r.off).not.toContain('@8');         // fully hidden when off
+  expect(r.on).toContain('100×5 @8');        // RPE tag on the tagged set
+  expect(r.on).toContain('100×5 @8, 100×5'); // the untagged second set stays bare
+  expect(r.rir).toContain('(2 RIR)');        // same value via the RIR lens
+});
+
+test('feat 268 — active-workout recovery strip renders chips, gated by history + the dashboard toggle', async ({ page }) => {
+  await page.evaluate(() => {
+    const fv = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const now = Date.now(), day = 86400000, bench = fv('flat-bench-press'), squat = fv('squat');
+    state.sessions = [
+      { id: 'today', date: new Date(now - 1800000).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w: 100, r: 5 }, { w: 100, r: 5 }] }] }, // active (no endedAt)
+      { id: 'old', date: new Date(now - 2 * day).toISOString(), exercises: [{ varUuid: squat, subUuid: null, sets: [{ w: 140, r: 5 }] }] },
+    ];
+    saveState(); currentTab = 'log'; render();
+  });
+  expect(await page.locator('#rstrip-card').count()).toBeGreaterThan(0);   // shows on the live dashboard
+  expect(await page.locator('#rstrip-card .rstrip-chip').count()).toBeGreaterThan(0);
+  const empty = await page.evaluate(() => { const s = state.sessions; state.sessions = []; const h = renderRecoveryStrip(); state.sessions = s; return h; });
+  expect(empty).toBe('');                                                  // no history → no strip
+  await page.evaluate(() => { state.dashboard.recovery = false; saveState(); render(); });
+  expect(await page.locator('#rstrip-card').count()).toBe(0);              // dashboard toggle hides it
+});
+
 test('feat 262/263 — Volume and Trends panels render the new cards with no console errors', async ({ page }) => {
   await page.evaluate(() => {
     const findVar = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };

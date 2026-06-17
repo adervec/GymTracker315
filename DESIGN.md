@@ -988,6 +988,17 @@ They share variation **UUIDs**.
   recommendation reason gains a **"⚠ <group> still recovering"** heads-up (`planFatiguedGroup`, groups <40% recovered).
   `recoveryReadiness()` is computed once per call and reused. `test/quickpick.spec.mjs` (fresh-group plan outranks the
   fatigued-group one + warning note; all prior ordering assertions still hold).
+- **RPE/RIR in workout exports (feat 267):** when the feature is on (feat 261), the per-set strings in the **text** and
+  **image** exports carry the effort tag — `100×5 @8` (RPE) or `100×5 (2 RIR)` (RIR). One change in `summarizeSession`
+  via `rpeExportTag(set)` flows to both, since the Canvas image reuses the same `e.detail` line. Gated and per-set:
+  untagged sets stay bare, and with the feature off the exports are byte-identical to before. `test/app.spec.mjs`
+  (tagged when on across both lenses, absent when off).
+- **Recovery strip on the active workout (feat 268):** a compact, glanceable strip on the live dashboard
+  (`renderRecoveryStrip`, above the session card) showing each recently-trained group as a colour-coded chip
+  (freshest→most-fatigued, e.g. "🟢 Hams 99% … 🔴 Shoulders 0%"), so mid-workout you can see what's recovered enough to
+  add. Shares the feat-262 model; tapping opens **Volume → Recovery**. Gated by a new **Dashboard → Recovery strip**
+  toggle (`state.dashboard.recovery`, default on) and self-hides without history. `test/app.spec.mjs` (chips render,
+  gated by history + the toggle).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
