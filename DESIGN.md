@@ -853,6 +853,138 @@ They share variation **UUIDs**.
   with the sheet path, so matching/merging/reporting stay identical. The export also lands on the clipboard for an
   immediate paste into Claude. Covered by `test/mediasheet.spec.mjs` (sheet shape, export→wipe→import round-trip,
   parser tolerance + title fallback, JSON-or-sheet dispatch, missing-only scope, graceful unmatched handling).
+- **Target-weight Load reuses the open set (feat 247):** the feat-234 "Load `<weight>`" prefill found the first
+  *weight-less* set, so a second tap (the open set now has a weight) appended a fresh set — repeated taps stacked
+  open sets. It now targets the first **incomplete** set (`!isSetValid` — an open or blank set), so taps re-load
+  the same open set. `test/progsheet.spec.mjs`.
+- **Rest timer snaps live on foreground return (feat 248):** browsers freeze/throttle `setInterval` while a tab is
+  hidden, so the 1 s rest tick stalled (phone screen off / app switch) and the bar showed a stale time on return.
+  The `visibilitychange` handler now also `ensureRestTick()` + `restTick()` on becoming visible, repainting at once.
+  `test/resttickvis.spec.mjs`.
+- **Bigger OSK weight/reps text (feat 249):** the numpad's "Set N · Weight/Reps" label was a tiny 12px in a
+  full-width header → 16px/800; the rep-range hint 11→13px; the set-row figures 15→16.5px.
+- **Brand personalization (feat 250):** a **custom brand emoji** (`state.brandMark`, Cosmetic-settings picker +
+  free-text, exports too) replaces the 🏋️; and the **315 easter egg** — the wordmark's "315" is split into digits
+  that quietly sparkle once you've put 315 lb (≈142.9 kg, ≥1 rep) on the bar for the matching lift (3=bench,
+  1=deadlift, 5=squat via `lift315`). `test/branding.spec.mjs`.
+- **Exercise screen — time + media (feat 251):** the log sheet shows a **total-time + %-active** readout
+  (`exerciseTiming`: first set start → last done, active = summed under-tension ÷ span), and a context-aware media
+  button — "Configure Media" when empty, else "Watch `<type>` from `<creator>`" (`exMediaBtnLabel` /
+  `mediaTypeLabel`). `test/exscreen.spec.mjs`.
+- **Plan-progress steps underline (feat 252):** wherever the plan progress shows "X/Y steps" (the dashboard strip +
+  the card progress line) the text is underlined with a thin accent bar sized to the fraction (`stepsFracHtml`
+  → `--sf`).
+- **Powerlifting milestones are barbell-only (feat 253):** the bench/squat/deadlift "plates on the bar" achievement
+  paths matched any variation, so hack squat / leg press / Smith / RDL inflated the number. Each path now carries an
+  `exclude` regex; `_achKwBestLb` skips matching variations, so only the genuine barbell lift counts (names became
+  "Barbell …"). `test/achievements.spec.mjs`.
+- **What-weight-to-record clarity (feat 254):** a `weightRecordHint` on the exercise screen states the convention
+  so logging stays consistent — two-dumbbell upper lifts log **one** dumbbell's number (45, not 90); independent-arm
+  machines (Freemotion) **write the number you read**; a weight **held for a leg movement** (goblet/KB squat,
+  DB lunge) logs the **total** held; barbell/plate/pin/bodyweight get no hint. Per-muscle volume is set-count based,
+  so the convention doesn't change group-hit math — it keeps per-exercise weight comparisons honest.
+  `test/exscreen.spec.mjs`.
+- **Themed split picker (feat 255):** `THEMED_SPLITS` — curated complementary-plan weeks with coy, euphemistic names
+  alluding to famous on-screen physiques ("Man of Lifting Steel", "The Golden-Era Oak", "Three Hundred Reasons", "God
+  of Thunder", "The People's Pump", "The Caped Crusader's Cut"). No source is named and no copyrighted routine is
+  reproduced — the programming is our own PPL/upper-lower/full-body archetype and the recommender fills each slot
+  from your library. `buildRecommendedSplit` takes an explicit `opts.slots`; the planner page gains the picker (sets
+  slots + session count, tap again to clear) and a themed save names the program after the theme.
+  `test/splitplanner.spec.mjs`.
+- **Notes modal clears the top bar (feat 256):** the full-screen Session-Notes modal layered at `z-index: 210`, but
+  the fixed top bar (the feat-227 breadcrumb) is `z-index: 9999` and ~83 px tall — so the bar painted over the modal's
+  sticky header, hiding the "Session Notes" title + Close (and the first form field): "top of notes gets clipped". The
+  `.modal` overlay now sits **above** the bar (10041, backdrop 10040 — matching the glossary/wizard/data-page
+  full-screen overlays; still below the OSK numpad at 10060 and the confirm/choice dialog at 10070), and `.modal-header`
+  gains an `env(safe-area-inset-top)` pad so it also clears a phone's notch. `test/notes.spec.mjs`.
+- **Live hold timer for timed sets (feat 257):** isometric holds (planks, dead hangs, wall sits, L-sits — anything
+  `exMode` tracks as `time`, logging **Seconds**) no longer need a separate stopwatch. Once the set has **started**
+  (weight/0 entered → `wTs` stamped) but isn't done, its row shows a **count-up button** (`.hold-timer-btn`) that ticks
+  every second from the start stamp; a tap drops the **current elapsed seconds** straight into the Seconds field
+  (`commitSetField(i,'r',sec)` → stamps `ts`, fires the set-end cue). Logging-only (hidden while editing a past
+  session, where `wTs` may be days old). `tickHoldTimers`/`ensureHoldTimers`/`stopHoldTimers` run one shared 1 s
+  interval, self-terminating when no button remains and re-armed by `bindSetsForm`; `renderModal` + `closeLogModal`
+  clear it. `test/holdtimer.spec.mjs`.
+- **Prison / cell bodyweight plans (feat 258):** four zero-equipment, tiny-footprint templates seeded into
+  `SEED_PLANS` (tranche 8) — **Cellblock Circuit** (full-body circuit), **The Yard** (bodyweight strength — harder
+  push-up/dip/inverted-row variations), **Quiet Cell** (zero-impact isometrics: wall sit, plank, slow grinds — no
+  jumping/noise), and **Burpee Ladder** (conditioning blast). Built from the bodyweight families (`push-ups`,
+  `squat`, `lunge`, `dips`, `pull-up`, core/obliques/calves/glutes, `conditioning`, `plyometrics`) plus pinned
+  variations (burpee, jump squat, plank, wall sit, inverted row, diamond push-up, bench dip). Several lean on the
+  **timed holds** (wall sit, plank) so they naturally surface the feat-257 hold timer. They seed additively via the
+  `seededPlanIds` ledger; every step verified satisfiable (resolves to ≥1 qualifying variation).
+  `test/prisonplans.spec.mjs`.
+- **Gym is the session location, separated from notes (feat 259):** "where you trained" lived in two disconnected
+  places — the structured **active gym** (feat 245, shown on the active-workout dashboard) and a freeform **Location**
+  text field bundled into the session-notes modal with supps/injuries/general. Unified: the **gym is the location**.
+  (1) The gym chip now shows on the **workout page in every state** (before/during/after a workout — `workoutGymHtml`
+  moved out of the active-only branch; self-hides when no gyms). (2) `stampActiveSessionGym()` records the active gym
+  as `session.notes.location` on **workout start** and on **any gym change** (`setActiveGym`), so history captures
+  where you trained automatically. (3) The **Location field is gone from the notes modal** (now Supps / Injuries /
+  General only); it shows the gym **read-only** with a "set it on the Workout page" hint, and `saveNotes`/`clearNotes`
+  **preserve** the gym-sourced location. (4) In history the gym renders as its **own "📍 Trained at" line**
+  (`.session-gym-line`), distinct from the Session Notes card. `test/notes.spec.mjs`, `test/workoutgym.spec.mjs`.
+- **Plan/split coverage pass (feat 260):** an audit of the catalogue (category × length matrix + a recommender
+  simulation) found the **PPL/upper-lower slots were not covered at both ends of the clock**: Pull had no quick and
+  no long option, Push had no long, Upper had no quick — so the split recommender filled those slots at 50–78 % time
+  fit at the budget extremes. Added a "tranche 9" of six plans that close every hole: **Express Push / Pull / Legs /
+  Upper** (~30 min) and **Push Marathon / Pull Marathon** (2 h, to sit alongside the existing 90 min–3 h legs/upper/
+  full-body marathons). Now every Push/Pull/Legs/Upper category spans quick→standard→long, and the recommender fills
+  the express (30 min) and marathon (120 min) slots at ~100 % fit. Two categorisation fixes fell out of the audit: the
+  Pull Marathon's lower-back step tripped the "balanced compound mix → Full Body" rule (swapped for a third row so it
+  reads as **Pull**), and Express Legs needed a glute step to clear the slot-coverage bar and win the 30 min Legs slot.
+  A catalogue-wide guard asserts **every** seed step is satisfiable. `test/plancoverage.spec.mjs`.
+- **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
+  was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
+  HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
+  now-absent elements.
+- **Set-start cue on a copied weight (feat 243):** the short-press **Copy** (`copyWeightToNextSet`) wrote the
+  copied weight and stamped `wTs` *directly*, bypassing `commitSetField`, so the **set-start annunciation**
+  (feat 206) never spoke when you started a set with Copy. It now routes through `commitSetField` like the
+  long-press copy paths (`copyRepsToOpenSet` / `duplicateLastSet`), so both branches stamp `wTs` **and** speak
+  the new set's position. Covered by an `annunce.spec` case.
+- **Live HR + elapsed by the brand (feat 244):** a `#topbar-live` status next to the centered brand shows
+  **💓 bpm + a sparkline** of recent samples whenever a monitor is connected, and **⏱ elapsed** (mm:ss → h:mm:ss)
+  whenever a workout is active. `refreshTopbarLive()` is driven by the 1 s rest tick (elapsed) and each HR sample
+  (`hrOnSample` fills a capped `_hrSpark` ring buffer). On narrow screens a `has-topbar-live` body class
+  de-centers the brand (drops the 315 badge, shrinks it, brand-left / stats-right) so both fit; desktop keeps the
+  centered brand with the stats pinned right. Covered by `test/topbarlive.spec.mjs`.
+- **Current gym on the active workout (feat 245):** the active dashboard opens with a gym strip (`workoutGymHtml`)
+  — 📍 the active gym, a *located* badge when it has GPS coordinates, a 📡 re-locate button, and Change → the Gyms
+  page; "No gym set · Pick a gym" when gyms exist but none is active, hidden entirely when no gyms are defined.
+  Workout start already GPS-auto-selects the nearest saved gym within 2 km (feat 38, `startWorkout` →
+  `pingLocationSelectGym`); this surfaces the result. Covered by `test/workoutgym.spec.mjs`.
+- **End slot → Plan Detail; plan card off the workout tab (feat 246):** the contextual shortcut row's third slot
+  changed from **🏁 End** to **🗺️ Plan** (`openPlanLive` → Plan Detail; ending a workout lives on the Workout page's
+  ⏹ End Workout, tap-confirm / hold-skip). The workout tab now shows only a **compact plan strip** (`renderPlanStrip`:
+  name · sets/steps · ETC · "Details ›") instead of the verbose step card; tapping it opens the Plan Detail page.
+  That page now hosts the **interactive plan guide** (`renderPlanGuide` + the extracted `bindPlanGuide`: step-pick,
+  ⏭ skip, option buttons) for the **live** session — a plain visit (🗺️ / strip / breadcrumb) shows the guide, while a
+  pinned execution (the step-bar deep-link, the guide's 📊 Execution button, or a past session) shows the read-only
+  recap (`renderPlanExecutionView`). `openPlanLive()` clears the pin so a stale recap can't shadow the live guide.
+  Covered by repointed `dupsteps`/`skipstep` cases + new `plandash` (strip-vs-card) and `workoutshortcuts` (🗺️ Plan)
+  cases.
+- **Refresh always lands on Workout (feat 241):** a refresh / PWA restart used to sometimes open to a blank or
+  wrong screen — you had to tap the brand to get to your workout. Cause: the legacy `restorePanel()` boot step
+  re-surfaced the last-visited *panel* from `gt_panel` (e.g. `panel-reference`) on **top** of the router, which had
+  already rendered Workout into `#panel-tracker`; with the nav-tabs retired this left a stale non-tracker panel
+  showing (blank if it hadn't been populated) until a later re-render — or a brand tap — flipped it back. The
+  router (`currentPage`) is the source of truth now, so boot simply `navTo('workout', { replace:true })` and the
+  panel restore is gone. Two defensive hardenings ride along: `switchPanel` no longer throws on a null `btn` (the
+  router surfaces panels without one), and `_surfacePanelForPage` activates the wanted panel even when *no* panel
+  is currently active instead of bailing out (which would leave a black screen). Covered by
+  `test/boottoworkout.spec.mjs` (browse to the Reference → refresh → lands on Workout with `#trk-main` populated;
+  `switchPanel(panel, null)` surfaces without throwing).
+- **Plan picker — 3h Quick Pick budget + paginated list (feat 240):** two refinements to the plan picker.
+  `PLAN_PICK_TIMES` gains **150** and **180** chips, so Quick Pick now spans **15 min → 3 h** (the budget cap
+  was already 240, and the recommender's time-fit scoring + reason text handle the longer budgets unchanged —
+  a ≈90-min plan that sank on a half-hour now "fits your 180"). The plan **list paginates at 12/page**
+  (`_plansPage`): it pages over the category-rank-ordered, favourites-first flat list and re-emits a category
+  head whenever it changes on a page, with a **‹ Prev / Page X / Y · N plans / Next ›** pager top and bottom
+  (disabled at the ends). Any search/category/length/favourite change resets to page 1. Covered by
+  `test/quickpick.spec.mjs` (the 180 chip is offered, selectable, and lifts a long plan's rank) and
+  `test/planlist.spec.mjs` (12/page, prev/next + end-disabling, filter-resets-page); the favourites test now
+  reads the on-star from the favourites-only view since a deep favourite may sit past page 1.
 - **Media Gallery page (feat 239):** a dedicated **Study › 🎞️ Media Gallery** page that shows *every* reference
   clip — movement demos and variation links alike — in one searchable, filterable, scrollable grid, reachable
   from the **Reference** header (a 🎞️ button) and the **bulk wizard** toolbar (🎞️ Gallery), plus the breadcrumb

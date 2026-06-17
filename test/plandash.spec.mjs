@@ -26,6 +26,26 @@ async function seedPlan(page) {
   });
 }
 
+test('feat 246 — the workout tab shows a compact plan strip; the full card lives on the Plan page', async ({ page }) => {
+  await seedPlan(page);
+  const r = await page.evaluate(() => {
+    state.readonly = false;
+    state.sessions = [{ id: 'cur', date: new Date().toISOString(), updatedAt: new Date().toISOString(), planId: 'P', planRev: 1, exercises: [] }];
+    navTo('workout');
+    const dash = { strip: !!document.querySelector('#trk-main .plan-strip'), card: !!document.querySelector('#trk-main .plan-card'), steps: document.querySelectorAll('#trk-main .plan-step').length };
+    document.querySelector('#trk-main .plan-strip')?.click(); // → Plan Detail
+    const plan = { page: currentPage, card: !!document.querySelector('#trk-main .plan-card'), steps: document.querySelectorAll('#trk-main .plan-step').length };
+    state.sessions = [];
+    return { dash, plan };
+  });
+  expect(r.dash.strip).toBe(true);   // compact strip on the workout tab
+  expect(r.dash.card).toBe(false);   // …not the verbose card (relocated)
+  expect(r.dash.steps).toBe(0);
+  expect(r.plan.page).toBe('plan-detail');
+  expect(r.plan.card).toBe(true);    // the full interactive card on the Plan page
+  expect(r.plan.steps).toBe(2);
+});
+
 test('planExecutionSummary rolls up steps + sets + completion', async ({ page }) => {
   const { a } = await seedPlan(page);
   const r = await page.evaluate((a) => {
@@ -155,4 +175,35 @@ test('clicking the plan progress line opens the full plan view (feat 138)', asyn
   expect(r.hasClickable).toBe(true);
   expect(r.panelOpen).toBe(true);
   expect(r.showsFullPlan).toBe(true);
+});
+
+test('feat 252 — stepsFracHtml underlines "X/Y steps" with a bar sized to the fraction', async ({ page }) => {
+  const r = await page.evaluate(() => ({
+    half: stepsFracHtml(2, 4), none: stepsFracHtml(0, 3), full: stepsFracHtml(5, 5), zero: stepsFracHtml(0, 0),
+  }));
+  expect(r.half).toContain('--sf:0.5000');
+  expect(r.half).toContain('2/4</b> steps');
+  expect(r.none).toContain('--sf:0.0000');
+  expect(r.full).toContain('--sf:1.0000');
+  expect(r.zero).toContain('--sf:0.0000');   // no divide-by-zero
+});
+
+test('feat 252 — the plan strip + the plan-progress line carry the .steps-frac underline', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const fams = ['squat', 'flat-bench-press', 'row', 'bicep-curl'].map(id => FAMILIES.find(f => f.id === id));
+    const vs = fams.map(f => f.variations.find(x => x.uuid).uuid);
+    state.readonly = false;
+    state.plans = [{ id: 'pf', name: 'Frac', steps: vs.map((u, i) => ({ id: 's' + i, sets: 2, options: [{ type: 'variation', uuid: u }] })) }];
+    state.sessions = [{ id: 'sf', date: new Date().toISOString(), updatedAt: new Date().toISOString(), planId: 'pf', planRev: 1,
+      exercises: [{ varUuid: vs[0], subUuid: null, sets: [{ w: 135, r: 5 }, { w: 135, r: 5 }] }] }]; // 1 of 4 steps done
+    navTo('workout');
+    const strip = document.querySelector('#trk-main .plan-strip .steps-frac');
+    openPlanLive(); // the interactive guide carries the progress line
+    const line = document.querySelector('#trk-main .plan-progress-line .steps-frac');
+    state.sessions = []; state.plans = [];
+    return { stripSf: strip?.style.getPropertyValue('--sf'), stripText: strip?.textContent, lineSf: line?.style.getPropertyValue('--sf') };
+  });
+  expect(r.stripText).toBe('1/4 steps');
+  expect(r.stripSf).toBe('0.2500');
+  expect(r.lineSf).toBe('0.2500');
 });

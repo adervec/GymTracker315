@@ -108,6 +108,59 @@ test('a category chip filters to that category only', async ({ page }) => {
   expect(r.note).toContain('2 of 4');
 });
 
+async function seedManyPlans(page, n) {
+  const { push } = await megaVars(page);
+  await page.evaluate(({ push, n }) => {
+    const step = (u) => ({ id: 's' + Math.random(), sets: 3, options: [{ type: 'variation', uuid: u }] });
+    state.plans = [];
+    for (let i = 1; i <= n; i++) state.plans.push({ id: 'mp' + i, name: 'Plan ' + String(i).padStart(2, '0'), desc: 'pressing', steps: [step(push), step(push)] });
+    state.seededPlanIds = state.plans.map(p => p.id); // suppress seed injection so only ours show
+  }, { push, n });
+}
+
+test('feat 240 — a long plan list paginates at 12/page with working prev/next', async ({ page }) => {
+  await seedManyPlans(page, 30);
+  const r = await page.evaluate(() => {
+    openPlansOverlay();
+    const body = document.getElementById('trk-main');
+    const page1 = body.querySelectorAll('.plan-row').length;
+    const ind1 = body.querySelector('.plan-page-ind')?.textContent || '';
+    const prevDisabled1 = body.querySelector('[data-plan-page="prev"]')?.disabled;
+    body.querySelector('[data-plan-page="next"]').click();            // → page 2
+    const b2 = document.getElementById('trk-main');
+    const page2 = b2.querySelectorAll('.plan-row').length;
+    const ind2 = b2.querySelector('.plan-page-ind')?.textContent || '';
+    b2.querySelector('[data-plan-page="next"]').click();              // → page 3 (last)
+    const b3 = document.getElementById('trk-main');
+    const page3 = b3.querySelectorAll('.plan-row').length;
+    const nextDisabled3 = b3.querySelector('[data-plan-page="next"]')?.disabled;
+    return { page1, ind1, prevDisabled1, page2, ind2, page3, nextDisabled3 };
+  });
+  expect(r.page1).toBe(12);
+  expect(r.ind1).toContain('Page 1 / 3');
+  expect(r.ind1).toContain('30 plans');
+  expect(r.prevDisabled1).toBe(true);   // can't page back from the first page
+  expect(r.page2).toBe(12);
+  expect(r.ind2).toContain('Page 2 / 3');
+  expect(r.page3).toBe(6);              // 30 = 12 + 12 + 6
+  expect(r.nextDisabled3).toBe(true);   // …and can't page past the last
+});
+
+test('feat 240 — changing the search/filter resets to page 1', async ({ page }) => {
+  await seedManyPlans(page, 30);
+  const r = await page.evaluate(() => {
+    openPlansOverlay();
+    document.getElementById('trk-main').querySelector('[data-plan-page="next"]').click(); // go to page 2
+    const onPage2 = (document.getElementById('trk-main').querySelector('.plan-page-ind')?.textContent || '').includes('Page 2');
+    const inp = document.getElementById('trk-main').querySelector('#plans-search');
+    inp.value = 'Plan'; inp.dispatchEvent(new Event('input', { bubbles: true })); // still matches all → 3 pages, but resets
+    const ind = document.getElementById('trk-main').querySelector('.plan-page-ind')?.textContent || '';
+    return { onPage2, ind };
+  });
+  expect(r.onPage2).toBe(true);
+  expect(r.ind).toContain('Page 1 / 3'); // the search reset the page index
+});
+
 test('the length filter selects by duration bucket, and Clear resets everything', async ({ page }) => {
   await seedPlans(page);
   const r = await page.evaluate(() => {

@@ -10,12 +10,13 @@ test.beforeEach(async ({ page }) => {
   await page.waitForFunction(() => typeof window.computeAchievement === 'function' && typeof window.renderAchievements === 'function' && typeof ACHIEVEMENT_PATHS !== 'undefined', null, { timeout: 15000 });
 });
 
-test('a strength path reaches the right tier from your best lift (any variation)', async ({ page }) => {
+test('a strength path reaches the right tier from your best barbell lift', async ({ page }) => {
   const r = await page.evaluate(() => {
     state.unit = 'lb';
-    let bench = null; for (const [u, info] of VAR_INDEX) { if (/bench/i.test(info.variation.title + ' ' + info.family.title)) { bench = u; break; } }
+    const path = ACHIEVEMENT_PATHS.find(p => p.id === 'bench-plates');
+    let bench = null; for (const [u, info] of VAR_INDEX) { const n = info.variation.title + ' ' + info.family.title; if (path.kw.test(n) && !path.exclude.test(n)) { bench = u; break; } }
     state.sessions = [{ id: '1', date: '2026-01-01T00:00:00Z', exercises: [{ varUuid: bench, sets: [{ w: 230, r: 3 }] }] }];
-    const prog = computeAchievement(ACHIEVEMENT_PATHS.find(p => p.id === 'bench-plates'));
+    const prog = computeAchievement(path);
     return { reachedIdx: prog.reachedIdx, toGo: prog.toGo, cur: prog.curTxt, foundBench: !!bench };
   });
   expect(r.foundBench).toBe(true);
@@ -23,6 +24,52 @@ test('a strength path reaches the right tier from your best lift (any variation)
   expect(r.toGo).toContain('3 plates'); // next milestone
   expect(r.toGo).toContain('85 lb');    // 315 − 230 = 85 to go
   expect(r.cur).toContain('230');
+});
+
+test('feat 253 — the barbell exclude regexes drop hack/Smith/leg-press/RDL but keep the barbell lift', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const sq = ACHIEVEMENT_PATHS.find(p => p.id === 'squat-plates');
+    const counts = (s) => sq.kw.test(s) && !sq.exclude.test(s); // counts toward the barbell squat milestone?
+    return {
+      back: counts('Barbell Back Squat'), front: counts('Barbell Front Squat'),
+      hack: counts('Hack Squat'), smith: counts('Smith Machine Squat'), goblet: counts('Goblet Squat'), split: counts('Bulgarian Split Squat'),
+      benchSmith: ACHIEVEMENT_PATHS.find(p => p.id === 'bench-plates').exclude.test('Smith Machine Bench Press'),
+      deadRdl: ACHIEVEMENT_PATHS.find(p => p.id === 'deadlift-plates').exclude.test('Romanian Deadlift'),
+    };
+  });
+  expect(r.back).toBe(true);
+  expect(r.front).toBe(true);
+  expect(r.hack).toBe(false);     // the user's example — hack squat no longer counts
+  expect(r.smith).toBe(false);
+  expect(r.goblet).toBe(false);
+  expect(r.split).toBe(false);
+  expect(r.benchSmith).toBe(true);
+  expect(r.deadRdl).toBe(true);
+});
+
+test('feat 253 — an easier variation logged heavier does NOT inflate the barbell milestone', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.unit = 'lb';
+    const path = ACHIEVEMENT_PATHS.find(p => p.id === 'squat-plates');
+    let bb = null, easy = null;
+    for (const [u, info] of VAR_INDEX) {
+      const n = info.variation.title + ' ' + info.family.title;
+      if (!path.kw.test(n)) continue;
+      if (path.exclude.test(n)) { if (!easy) easy = u; } else if (!bb) bb = u;
+      if (bb && easy) break;
+    }
+    if (!bb || !easy) return { skip: true };
+    state.sessions = [{ id: '1', date: '2026-01-01T00:00:00Z', exercises: [
+      { varUuid: easy, sets: [{ w: 600, r: 5 }] },  // excluded → must not count
+      { varUuid: bb, sets: [{ w: 315, r: 3 }] },    // barbell → counts
+    ] }];
+    const prog = computeAchievement(path);
+    return { cur: prog.curTxt, reachedIdx: prog.reachedIdx };
+  });
+  if (r.skip) return; // catalogue lacks both variation kinds — the regex test above still guards the behaviour
+  expect(r.cur).toContain('315');     // the barbell best…
+  expect(r.cur).not.toContain('600'); // …not the easier variation
+  expect(r.reachedIdx).toBe(2);       // 315 = 3 plates
 });
 
 test('a cardio path reads the longest logged distance', async ({ page }) => {

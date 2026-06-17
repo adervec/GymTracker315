@@ -46,6 +46,20 @@ test('one-tap Load prefills the next empty set WEIGHT only — reps stay blank',
   expect(r.rep).toBe('');  // …but you still log the reps you actually do
 });
 
+test('feat 247 — repeated Load taps reuse the open set, not stack extra open sets', async ({ page }) => {
+  await openWithHistory(page, { w: 135, r: 12 }); // target 140
+  const r = await page.evaluate(() => {
+    const tap = () => document.querySelector('#trk-modal-body #trk-prog-prefill').click();
+    tap(); tap(); tap();                                  // three taps
+    const sets = pending.sets;
+    return { len: sets.length, open: sets.filter(s => isSetOpen(s)).length, w: sets[0].w, rep: sets[0].r };
+  });
+  expect(r.len).toBe(1);     // still ONE set…
+  expect(r.open).toBe(1);    // …one open set, not three (the bug stacked a new one each tap)
+  expect(r.w).toBe(140);
+  expect(r.rep).toBe('');
+});
+
 test('mid-range history suggests add-a-rep (same load, +1 rep)', async ({ page }) => {
   await openWithHistory(page, { w: 135, r: 9 });
   const r = await page.evaluate(() => {

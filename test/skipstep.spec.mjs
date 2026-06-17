@@ -64,10 +64,10 @@ test('a completed skipped step stays done; skip state never blocks completion', 
   expect(r.idx).toBe(1);
 });
 
-test('the dashboard step rows carry the ⏭ control; clicking it skips and restyles', async ({ page }) => {
+test('the plan step rows carry the ⏭ control; clicking it skips and restyles (feat 246 — Plan page)', async ({ page }) => {
   await armPlan(page);
   const r = await page.evaluate(() => {
-    navTo('workout');
+    openPlanLive(); // feat 246 — the interactive plan card lives on the Plan Detail page now
     const btn = document.querySelector('#trk-main .plan-step-skip[data-plan-skip="0"]');
     if (btn) btn.click();        // skip step 1 (re-renders)
     const row = document.querySelector('#trk-main .plan-step[data-plan-step-idx="0"]');

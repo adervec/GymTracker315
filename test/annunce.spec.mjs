@@ -94,6 +94,35 @@ test('entering a weight speaks ONCE per set start; edits do not re-announce; off
   expect(said).toEqual(['First set']);
 });
 
+test('feat 243 — copying a weight to start the next set fires the set-start cue (was silent)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    normalizeState();
+    state.sessions = []; state.plans = [];
+    window._said = [];
+    window.annunce = (t) => { window._said.push(t); };          // spy the speaker
+    const fam = FAMILIES.find(f => f.id === 'bicep-curl');
+    pending.varUuid = fam.variations.find(v => exMode(v.uuid).mode === 'standard').uuid;
+    pending.subUuid = null;
+    modalState.isEditing = false;
+    state.annunciation = { ...annunciationCfg(), start: true, end: false };
+    pending.sets = [{ w: '', r: '' }];
+    commitSetField(0, 'w', '100');     // first set opens → "First set"
+    commitSetField(0, 'r', '8');       // set 1 done (end cue off → silent)
+    const beforeCopy = window._said.slice();
+    window._said = [];                 // isolate what the Copy produces
+    copyWeightToNextSet();             // ← the short-press Copy: build set 2 from the same weight
+    const afterCopy = window._said.slice();
+    const newW = pending.sets[1] && pending.sets[1].w;
+    pending.sets = [{ w: '', r: '' }]; pending.varUuid = null;
+    state.annunciation = { ...annunciationCfg(), start: false };
+    return { beforeCopy, afterCopy, newW, count: 2 };
+  });
+  expect(r.beforeCopy).toEqual(['First set']); // typing the first weight already spoke
+  expect(r.newW).toBe(100);                    // Copy populated set 2's weight
+  expect(r.afterCopy.length).toBe(1);          // …and it was NOT silent (the bug)
+  expect(r.afterCopy[0]).toMatch(/set/i);      // it spoke the new set's start position
+});
+
 test('the Preferences drawer has the toggle and it works', async ({ page }) => {
   const r = await page.evaluate(() => {
     renderSettingsDrawer();
