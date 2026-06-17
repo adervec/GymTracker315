@@ -199,3 +199,39 @@ test('mobility content: new dynamic/static moves + the Isometric Holds family ar
   expect(r.indexed).toBe(true);                                // every new move is searchable / loggable
   expect(r.wellFormed).toBe(true);                             // required fields present
 });
+
+test('feat 273 — Pilates / Tai Chi / Systema / Boxing families inject, classify, and seed plans + splits', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const fams = ['pilates-mat', 'tai-chi', 'systema', 'boxing-bag'];
+    const newPlans = ['seed-pilates-mat', 'seed-taichi-flow', 'seed-systema-movement', 'seed-mind-body-flow', 'seed-boxing-conditioning', 'seed-fighter-circuit', 'seed-powerbuilding-upper', 'seed-posterior-chain', 'seed-athletic-fullbody', 'seed-chest-arms', 'seed-back-bis'];
+    const newSplits = ['dragon', 'crane', 'shaolin', 'contender', 'aegis'];
+    return {
+      inFamilies: fams.filter(id => FAMILIES.some(f => f.id === id)).sort(),
+      inReference: fams.filter(id => exercises.some(e => e.id === id)).sort(),
+      pilatesBP: getBP(FAMILIES.find(f => f.id === 'pilates-mat')),
+      taichiBP: getBP(FAMILIES.find(f => f.id === 'tai-chi')),
+      boxingBP: getBP(FAMILIES.find(f => f.id === 'boxing-bag')),
+      boxingIsCardio: isCardioVar('c0ac0401-0401-4401-8401-000000000401'),       // heavy bag → cardio form
+      standingPostMode: exMode('c0ac0201-0201-4201-8201-000000000201').mode,     // "Hold" → time mode
+      horseStanceMode: exMode('c0ac0202-0202-4202-8202-000000000202').mode,
+      pilatesContrib: !!muscleContribForVar('c0ac0101-0101-4101-8101-000000000101'),
+      indexed: fams.every(id => (FAMILIES.find(f => f.id === id) || { variations: [] }).variations.every(v => VAR_INDEX.has(v.uuid))),
+      plans: newPlans.filter(id => SEED_PLANS.some(p => p.id === id)).length,
+      splits: newSplits.filter(id => THEMED_SPLITS.some(t => t.id === id)).length,
+      planStepsOk: SEED_PLANS.filter(p => newPlans.includes(p.id)).every(p => (p.steps || []).every(st => stepQualifyingVarSet(st).size > 0)),
+    };
+  });
+  expect(r.inFamilies).toEqual(['boxing-bag', 'pilates-mat', 'systema', 'tai-chi']);
+  expect(r.inReference).toEqual(['boxing-bag', 'pilates-mat', 'systema', 'tai-chi']);
+  expect(r.pilatesBP).toBe('core');           // counts as core volume
+  expect(r.taichiBP).toBe('mobility');
+  expect(r.boxingBP).toBe('conditioning');
+  expect(r.boxingIsCardio).toBe(true);        // bag work logs via the cardio form
+  expect(r.standingPostMode).toBe('time');    // standing/horse-stance holds are timed
+  expect(r.horseStanceMode).toBe('time');
+  expect(r.pilatesContrib).toBe(true);
+  expect(r.indexed).toBe(true);               // every new move is loggable/searchable
+  expect(r.plans).toBe(11);                   // all new seed plans present
+  expect(r.splits).toBe(5);                   // all new themed splits present
+  expect(r.planStepsOk).toBe(true);           // every new plan step resolves to a real variation
+});

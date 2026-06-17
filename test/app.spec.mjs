@@ -37,6 +37,8 @@ test('critical functions are exposed', async ({ page }) => {
       'estimatePlanMinutes', 'intensityDots', 'importStravaActivities', 'stravaLoadNow',
       'bioLoadNow', 'choiceDialog', 'confirmDialog', 'promptDialog', 'switchPanel',
       'rpeMode', 'rpeEnabled', 'estimated1RMSet', 'rpeSelectHtml', 'commitSetRPE',
+      'aiExportWriteNow', 'aiExportPickFolder', 'aiExportMaybeDaily', 'aiExportOnWorkoutEnd', 'aiExportScopeLabel',
+      'markGlossRead', 'isGlossRead', 'toggleGlossRead', 'glossPodcastQueue', 'glossNarration', 'startGlossPodcast',
     ];
     return names.filter((n) => typeof window[n] !== 'function');
   });
@@ -265,6 +267,217 @@ test('parseMediaUrl extracts platform + id (or rejects junk)', async ({ page }) 
   expect(r.link.platform).toBe('link');
   expect(r.empty).toBeNull();
   expect(r.junk).toBeNull();
+});
+
+test('feat 269 — parseMediaUrl recognizes images, GIFs, and giphy links; renders them inline', async ({ page }) => {
+  const r = await page.evaluate(() => ({
+    png: parseMediaUrl('https://example.com/anatomy-chart.png'),
+    jpg: parseMediaUrl('cdn.site.com/form/squat.JPG?w=800'),
+    gif: parseMediaUrl('https://i.imgur.com/abc123.gif'),
+    fmt: parseMediaUrl('https://images.site.com/x?format=webp'),
+    giphy: parseMediaUrl('https://giphy.com/gifs/deadlift-form-aBcD1234'),
+    giphyDirect: parseMediaUrl('https://media.giphy.com/media/aBcD1234/giphy.gif'),
+    notImg: parseMediaUrl('example.com/guide.html'),
+    helpers: (() => {
+      const m = parseMediaUrl('https://i.imgur.com/abc123.gif');
+      return { isImg: isImageMedia(m), img: mediaImg(m), playable: mediaPlayable(m), name: mediaPlatformName(m.platform) };
+    })(),
+  }));
+  expect(r.png.platform).toBe('image');
+  expect(r.png.img).toBe('https://example.com/anatomy-chart.png');
+  expect(r.png.embedUrl).toBeNull();                 // not a video iframe
+  expect(r.jpg.platform).toBe('image');              // extension survives a query string
+  expect(r.gif.platform).toBe('gif');                // .gif → animated kind
+  expect(r.fmt.platform).toBe('image');              // ?format=webp hint
+  expect(r.giphy.platform).toBe('gif');
+  expect(r.giphy.img).toBe('https://media.giphy.com/media/aBcD1234/giphy.gif'); // share link → direct gif
+  expect(r.giphy.watchUrl).toContain('giphy.com/gifs');                          // original preserved
+  expect(r.giphyDirect.platform).toBe('gif');
+  expect(r.notImg.platform).toBe('link');            // a plain .html page is still a link
+  expect(r.helpers).toEqual({ isImg: true, img: 'https://i.imgur.com/abc123.gif', playable: true, name: 'GIF' });
+});
+
+test('feat 270 — trend peek renders a sparkline + e1RM stats, hidden without enough history', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const fv = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const now = Date.now(), day = 86400000, bench = fv('flat-bench-press');
+    const s = (d, w, rr) => ({ date: new Date(now - d * day).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w, r: rr }] }] });
+    state.sessions = [ s(21, 90, 5), s(14, 95, 5), s(7, 98, 5), s(1, 100, 5) ]; // climbing e1RM
+    const peek = renderTrendPeek(bench, null);
+    const oneSession = (() => { const saved = state.sessions; state.sessions = [s(1, 100, 5)]; const h = renderTrendPeek(bench, null); state.sessions = saved; return h; })();
+    return { peek, oneSession, hasSpark: /class="spark"/.test(peek), hasE1RM: /e1RM/.test(peek), up: /tp-delta tp-up/.test(peek) };
+  });
+  expect(r.hasSpark).toBe(true);
+  expect(r.hasE1RM).toBe(true);
+  expect(r.up).toBe(true);        // climbing e1RM reads as an up trend
+  expect(r.oneSession).toBe('');  // a single session → no peek
+});
+
+test('feat 271 — anatomy chart is a media owner: import attaches it, the detailed view + gallery + sheet use it', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.exerciseMedia = {};
+    state.anatomyChart = { view: 'detailed', map: [] };
+    const keyById = resolveExerciseKey({ id: 'anatomy-chart' });   // import targets it by id
+    const keyByTitle = resolveExerciseKey({ title: 'Anatomy Chart' }); // …or by title
+    const res = applyMediaEntries([{ id: 'anatomy-chart', url: 'https://example.com/anatomy.png' }]); // attach via the shared importer
+    const owner = mediaOwnerInfo('anatomy-chart');
+    const inGallery = allMediaClips().some(c => c.key === 'anatomy-chart' && c.owner.title === 'Anatomy Chart');
+    const sheet = buildMediaSheet('all');
+    const reparsed = parseMediaSheet(sheet).some(e => e.id === 'anatomy-chart' && /anatomy\.png/.test(e.url));
+    return { keyById, keyByTitle, added: res.added, owner, src: anatomyImageSrc(), has: anatomyHasImage(), inGallery, sheetHasSection: /Anatomy Chart/.test(sheet), reparsed };
+  });
+  expect(r.keyById).toBe('anatomy-chart');
+  expect(r.keyByTitle).toBe('anatomy-chart');
+  expect(r.added).toBe(1);
+  expect(r.owner).toMatchObject({ title: 'Anatomy Chart', kind: 'movement' });
+  expect(r.src).toBe('https://example.com/anatomy.png'); // the Detailed Chart View renders this image
+  expect(r.has).toBe(true);
+  expect(r.inGallery).toBe(true);                         // shows up in the media gallery
+  expect(r.sheetHasSection).toBe(true);                   // present in the Claude-fillable sheet…
+  expect(r.reparsed).toBe(true);                          // …and round-trips back on import
+});
+
+test('feat 272 — sync-on-end + AI export: defaults, scope labels, and a folder write of the digest', async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    const out = {};
+    out.scopeDefault = state.aiExport.scope;
+    out.onEndDefault = state.aiExport.onWorkoutEnd;
+    out.syncOnEnd = state.cloudSync.syncOnEnd; // feat 272 — guaranteed push on workout end (default on)
+    out.labels = [aiExportScopeLabel('all'), aiExportScopeLabel('month'), aiExportScopeLabel('last30')];
+    // disabled → the triggers are silent no-ops (must not throw); a write with no handle returns false
+    state.aiExport.enabled = false;
+    aiExportOnWorkoutEnd(); aiExportMaybeDaily();
+    out.noHandle = await aiExportWriteNow(true, false);
+    // stub File System Access so the picker returns a capturing mock directory
+    let written = null, wroteName = null;
+    const mockFile = { createWritable: async () => ({ write: async (b) => { written = await b.text(); }, close: async () => {} }) };
+    const mockDir = { name: 'cowork', kind: 'directory', queryPermission: async () => 'granted', requestPermission: async () => 'granted', getFileHandle: async (n) => { wroteName = n; return mockFile; } };
+    window.showOpenFilePicker = window.showOpenFilePicker || (async () => []); // keep autoLoadSupported() true
+    window.showDirectoryPicker = async () => mockDir;
+    const fv = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
+    const bench = fv('flat-bench-press'), now = Date.now();
+    state.sessions = [{ date: new Date(now - 86400000).toISOString(), endedAt: new Date(now - 86400000).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w: 100, r: 5 }] }] }];
+    await aiExportPickFolder(); // picks the mock folder, enables, and writes once
+    out.enabledAfter = state.aiExport.enabled;
+    out.wroteName = wroteName;
+    out.wroteDigest = typeof written === 'string' && /Training progress/.test(written);
+    out.lastDay = state.aiExport.lastWriteDay;
+    return out;
+  });
+  expect(r.scopeDefault).toBe('last30');
+  expect(r.onEndDefault).toBe(true);
+  expect(r.syncOnEnd).toBe(true);
+  expect(r.labels).toEqual(['All time', 'This month', 'Last 30 days']);
+  expect(r.noHandle).toBe(false);            // no folder yet → no-op
+  expect(r.enabledAfter).toBe(true);
+  expect(r.wroteName).toBe('gymtracker-brief.md');
+  expect(r.wroteDigest).toBe(true);          // the AI-ready digest was written to the folder
+  expect(r.lastDay).toBeTruthy();
+});
+
+test('feat 274 — glossary read/unread state + an engaging, symbol-free narration', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.glossaryRead = {};
+    markGlossRead('1RM', 'manual');
+    const info = glossReadInfo('1RM');
+    const wasRead = isGlossRead('1RM');
+    toggleGlossRead('1RM'); // → unread
+    const afterToggle = isGlossRead('1RM');
+    const narr = glossNarration({ term: 'Volume', def: 'sets × reps × weight, e.g. 70% load, 6-12 reps' });
+    // queue is unread-only, logical order
+    glossSearch = ''; glossCat = 'all'; glossPodOrder = 'logical'; state.glossaryRead = {};
+    const qAll = glossPodcastQueue().length;
+    markGlossRead(glossPodcastQueue()[0].term, 'manual');
+    const qAfter = glossPodcastQueue().length;
+    return { wasRead, src: info && info.src, hasDate: !!(info && info.at), afterToggle, narr, qAll, qAfter, total: glossary.length };
+  });
+  expect(r.wasRead).toBe(true);
+  expect(r.src).toBe('manual');
+  expect(r.hasDate).toBe(true);
+  expect(r.afterToggle).toBe(false);          // toggle off works
+  expect(r.narr).toContain('Volume');         // names the term
+  expect(r.narr).not.toMatch(/×|%|e\.g\./);   // symbols spoken out, not recited raw
+  expect(r.narr).toMatch(/by/); expect(r.narr).toMatch(/percent/);
+  expect(r.qAll).toBe(r.total);               // nothing read → whole glossary queued
+  expect(r.qAfter).toBe(r.total - 1);         // marking one read drops it from the queue
+});
+
+test('feat 274 — listen-podcast marks an entry read ONLY after the whole entry is heard; skip does not', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const spoken = []; let lastU = null;
+    window.SpeechSynthesisUtterance = function (text) { this.text = text; this.onend = null; this.onerror = null; };
+    // speechSynthesis is a getter-only window prop — replace it via defineProperty
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { speaking: true, getVoices: () => [], cancel() {}, pause() {}, resume() {}, speak(u) { spoken.push(u.text); lastU = u; } } });
+    state.sound = { ...(state.sound || {}), audio: true };
+    glossSearch = ''; glossCat = 'all'; glossReadFilter = 'all'; glossPodOrder = 'logical';
+    // everything read except two known programming terms → queue = ['1RM','AMRAP'] (alpha, logical)
+    state.studyRead = {}; glossary.forEach(g => { state.studyRead['glossary:' + g.term] = { at: new Date().toISOString(), src: 'manual' }; });
+    delete state.studyRead['glossary:1RM']; delete state.studyRead['glossary:AMRAP'];
+    const q = glossPodcastQueue(); const term1 = q[0].term, term2 = q[1].term;
+    startGlossPodcast();
+    const fire = () => { const u = lastU; if (u && u.onend) u.onend(); };
+    fire();          // intro → first entry now speaking
+    _podSkip();      // skip the first entry (must NOT mark it read)
+    const skippedRead = isGlossRead(term1);
+    fire();          // second entry heard in full → marks read by 'listen'
+    const t2 = glossReadInfo(term2);
+    fire();          // outro → finish
+    return { term1, term2, skippedRead, t2Src: t2 && t2.src, podGone: _glossPod === null, spoke: spoken.length };
+  });
+  expect(r.term1).toBe('1RM');
+  expect(r.term2).toBe('AMRAP');
+  expect(r.skippedRead).toBe(false);   // skipping leaves it unread
+  expect(r.t2Src).toBe('listen');      // listened-through → src 'listen'
+  expect(r.podGone).toBe(true);        // finished → player cleared
+  expect(r.spoke).toBeGreaterThanOrEqual(4); // intro + 2 entries + outro
+});
+
+test('feat 275 — unified study read-state across advice + guides, totals, nudge, and resume', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.studyRead = {}; state.studyPod = { resumeKey: null, lastListenDay: null, nudgeDay: null }; state.studyNudge = true;
+    const out = {};
+    // ADVICE read-state via the unified, namespaced store
+    const aId = COACHING[0].id;
+    out.adviceUnread0 = adviceUnreadCount();
+    markStudyRead(studyKey('advice', aId), 'listen');
+    out.adviceRead = isStudyRead(studyKey('advice', aId));
+    out.adviceSrc = studyReadInfo(studyKey('advice', aId)).src;
+    out.adviceUnread1 = adviceUnreadCount();
+    // GUIDES are discovered from the embedded templates
+    const guides = studyGuides();
+    out.hasGuides = guides.length > 0;
+    out.guideKeyOk = guides.length ? studyKey('guide', guides[0].gid).startsWith('guide:') : true;
+    // total unread = glossary + advice + guides
+    out.totalMatches = studyUnreadTotal() === glossUnreadCount() + adviceUnreadCount() + guideUnreadCount();
+    // advice narration strips HTML tags and reads conversationally
+    out.advNarr = adviceNarration(COACHING[0]);
+    // DAILY NUDGE: fires once, marks the day, then is a no-op the same day
+    studyDailyNudge();
+    const d1 = state.studyPod.nudgeDay;
+    studyDailyNudge();
+    out.nudgeOnce = !!d1 && d1 === state.studyPod.nudgeDay;
+    // RESUME: a stored resumeKey rotates the queue so that entry leads
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { speaking: true, getVoices: () => [], cancel() {}, pause() {}, resume() {}, speak() {} } });
+    window.SpeechSynthesisUtterance = function (t) { this.text = t; };
+    state.studyRead = {}; glossSearch = ''; glossCat = 'all'; glossPodOrder = 'logical';
+    const q = glossPodcastQueue();
+    state.studyPod.resumeKey = studyKey('glossary', q[2].term); // pretend we stopped on the 3rd
+    startGlossPodcast();
+    const firstEntry = _glossPod.segs.find(s => s.kind === 'entry');
+    out.resumeLeads = firstEntry.readKey === studyKey('glossary', q[2].term);
+    _podStop();
+    return out;
+  });
+  expect(r.adviceUnread0).toBeGreaterThan(0);
+  expect(r.adviceRead).toBe(true);
+  expect(r.adviceSrc).toBe('listen');
+  expect(r.adviceUnread1).toBe(r.adviceUnread0 - 1);
+  expect(r.hasGuides).toBe(true);              // the embedded guides are found
+  expect(r.guideKeyOk).toBe(true);
+  expect(r.totalMatches).toBe(true);           // the badge total sums the three surfaces
+  expect(r.advNarr).not.toMatch(/<[^>]+>/);    // section HTML stripped for speech
+  expect(r.nudgeOnce).toBe(true);              // the daily nudge fires at most once a day
+  expect(r.resumeLeads).toBe(true);            // resume rotates the queue to where you left off
 });
 
 test('plan estimates are sane', async ({ page }) => {

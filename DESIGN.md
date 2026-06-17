@@ -999,6 +999,86 @@ They share variation **UUIDs**.
   add. Shares the feat-262 model; tapping opens **Volume → Recovery**. Gated by a new **Dashboard → Recovery strip**
   toggle (`state.dashboard.recovery`, default on) and self-hides without history. `test/app.spec.mjs` (chips render,
   gated by history + the toggle).
+- **Images & animated GIFs in reference media (feat 269):** the media system (feat 75) now accepts **images and GIFs**
+  alongside embeddable videos. `parseMediaUrl` detects direct files (`.gif/.png/.jpe?g/.webp/.avif/.bmp`, a `?format=`
+  hint) and **giphy** share/embed links (→ the direct `media.giphy.com/.../giphy.gif`), returning `platform:'image'|'gif'`
+  with an `img` field (the displayable URL; `watchUrl`/`url` keep the original link for "Open original" + sheet
+  round-trip). New helpers `isImageMedia` / `mediaImg` / `mediaPlayable`. Every surface renders them inline via `<img>`
+  instead of an iframe: the **carousel** (contained, natural aspect), the **gallery** (the image is its own thumbnail; a
+  GIF animates; IMG/GIF badge), the **manage list** + **bulk wizard** (a preview that mounts an `<img>`, "image"/"gif"
+  badge, counted as displayable not link-only). The **media sheet** round-trips with no change (URL → `parseMediaUrl`
+  re-classifies); the exercise-screen button reads "🖼 View image/GIF". `test/app.spec.mjs` (image/gif/giphy/format
+  detection + helpers).
+- **Inline trend peek in the log sheet (feat 270):** `renderTrendPeek(varUuid, subUuid)` shows a glanceable **e1RM
+  sparkline** for the exercise you're logging, right under the media/Trends row — so you can read the trajectory
+  without leaving for the Trends page. RPE-aware (`sessionBestE1RM` over `getHistoryByKey`, last ~12 sessions
+  chronological), with `<latest> e1RM · best <best> · ±%` and an up/down/flat colour; tapping opens the full focused
+  Trends (`openTrendsFor`). Self-hides with fewer than 2 prior sessions for the lift. `test/app.spec.mjs` (sparkline +
+  stats present, up-trend on climbing e1RM, hidden with one session).
+- **Anatomy chart as a media owner (feat 271):** bridges the feat-118 detailed anatomy chart to the feat-269 image
+  media system, so a labelled chart imports the same way as exercise clips. A reserved key `ANATOMY_MEDIA_KEY =
+  'anatomy-chart'` is a first-class media owner: `mediaOwnerInfo`/`mediaTitleFor` name it "Anatomy Chart" (so it shows
+  in the **gallery**), `resolveExerciseKey` accepts it by id or by the title "anatomy"/"anatomy chart" (so **JSON/sheet
+  import** can target it), and `buildMediaSheet` lists it at the top (`{mid: anatomy-chart}`) so the Claude-fillable
+  sheet round-trips it. The chart's Detailed View now sources its image from `anatomyImageSrc()` = the uploaded
+  IndexedDB file **or** a media-attached image URL (upload wins), and the toolbar gains a **📥 Import URL** button
+  (`promptDialog` → `addExerciseMedia(ANATOMY_MEDIA_KEY, …)`, image-only). Fulfils part of the ONHOLD #49
+  externally-attached-chart idea via the existing media plumbing. `test/app.spec.mjs` (import-by-id/title, attach,
+  display source, gallery owner, sheet round-trip).
+- **Sync-on-workout-end + per-device AI-ready auto-export (feat 272):** two wrap-up automations fired from
+  `finalizeEndWorkout`. **(1) Cloud sync on end** — `state.cloudSync.syncOnEnd` (default on, device-local) does an
+  immediate `cloudPushNow()` when a workout ends, guaranteeing the session is pushed even if you close the app before
+  the 1.2 s debounced auto-sync fires; a toggle sits in the connected Cloud Sync card. **(2) AI brief export** —
+  writes the **Claude-ready digest** (`buildClaudeDigest`, feat 171) into a chosen folder so a desktop can drop the
+  latest brief into e.g. a Claude cowork folder for a morning strength-progress analysis. **Device-local by design**:
+  the readwrite folder handle lives in IndexedDB (`aiExportDir`) and the config (`state.aiExport`
+  `{enabled,onWorkoutEnd,daily,scope,filename,lastWriteDay}`) is preserved-on-merge (in `SETTINGS_KEYS`), so only the
+  device you set up exports. Triggers: **on workout end** and **once per calendar day** (on load + on tab refocus,
+  guarded by `lastWriteDay`). Mirrors the bio-auto-load handle plumbing (`bioIdbGet/Set`, permission query/request)
+  but with a `createWritable()` write. Scope picker (30 days / month / all) feeds `selectSessionsForExport`. Settings
+  UI is in the Data Management page under the File-System-Access gate. `test/app.spec.mjs` (defaults, scope labels,
+  no-op without a folder, and a mock-handle folder write of the digest).
+- **New movement disciplines + more plans & themed splits (feat 273):** four whole **disciplines** added via the
+  runtime `EXTRA_FAMILIES` injection (so they land in both the tracker and the reference, like neck/jaw/climbing):
+  **Pilates Mat** (`pilates-mat`, `mega:'core'` → counts as core volume; `MUSCLE_CONTRIB` added; the Hundred,
+  roll-up, series-of-five, teaser, swan, saw, side-plank hold), **Tai Chi** (`tai-chi`, `mega:'mobility'`; standing-post
+  and horse-stance **holds** become time-mode via the "hold" keyword, plus cloud hands, brush knee, grasp-sparrow's-tail,
+  golden-rooster balance), **Systema** (`systema`, `mega:'mobility'`; breathing push-ups/squats, breath-hold walk,
+  rolling, tension–relaxation), and **Boxing & Bag Work** (`boxing-bag`, `mega:'cardio'` → logs through the cardio form;
+  heavy bag, shadow boxing, speed/double-end bag, boxer's jump rope, mitt work, combinations). All `mega::sub` combos
+  map through `BP_MAP`. **11 new seed plans** (Pilates Core Flow, Tai Chi Morning Flow, Systema Breath & Movement,
+  Mind-Body Flow, Heavy Bag Conditioning, Fighter's Circuit, plus strength variety — Powerbuilding Upper, Posterior
+  Chain, Athletic Full Body, Chest & Arms, Back & Biceps) append via the additive `seededPlanIds` ledger, and **5 new
+  themed splits** (Way of the Dragon, The Crane & The Tiger, The Shaolin Path, The Contender, The Shield-Bearer) whose
+  "Core" slots can surface the new core/conditioning plans. `test/coaching.spec.mjs` (families inject + classify, holds
+  are timed, boxing routes to cardio, every new plan step resolves, 11 plans + 5 splits present).
+- **Study read/unread + listen-as-podcast (feat 274):** the **Glossary** (the Study area's entry list) gains per-entry
+  **read/unread** tracking and a **"🎧 Listen"** mode that reads the whole unread pile as a continuous, conversational
+  podcast. State is `state.glossaryRead = { term: { at, src } }` (in `SETTINGS_KEYS`, so progress syncs across devices);
+  the read flag records the **date** and whether it was set **manually** (a tap) or **earned by listening** to the whole
+  entry (`src:'manual'|'listen'`). The glossary panel gets a sticky study toolbar — unread count, an All/Unread/Read
+  filter, a Listen button, a logical↔shuffle order toggle, and Mark-all — and every entry shows a ✓/○ toggle plus a
+  "🎧 listened / ✓ read · <date>" badge. The player (`startGlossPodcast` → a segment state machine: intro · entries ·
+  outro) speaks via the existing coach voice (`coachify`); `_speechClean` expands acronyms and symbols (×→"by", %→
+  "percent", "1RM"→"one-rep max", ranges→"6 to 12") and `glossNarration` adds varied openers + category transitions so
+  it's a coach talking, not a table read. A **generation counter** makes a *skip* never mis-mark the skipped entry, and
+  natural utterance-end is what marks an entry read (`src:'listen'`); a periodic `resume()` defeats Chrome's long-speech
+  cutoff, and the other speakers (tips/annunciations) yield while the podcast plays. A fixed bottom **player bar**
+  (⏸/⏭/⏹, now-playing, n/m) drives it. Logical order = category then term; shuffle = Fisher–Yates. `test/app.spec.mjs`
+  (read state + symbol-free narration; a mock-speech drive proving full-listen marks read and skip does not).
+- **Study generalized to Advice + Guides, resume & daily nudge (feat 275):** lifts feat 274 from glossary-only to the
+  whole Study area. Read-state is now **unified + namespaced**: `state.studyRead = { 'type:id': {at,src} }`
+  (`glossary:<term>` · `advice:<coach-id>` · `guide:<gid>`), with the feat-274 `glossaryRead` migrated in once and the
+  glossary helpers kept as thin wrappers. The podcast engine became **content-agnostic** (segments carry a `readKey` +
+  `label`; a natural utterance-end marks that key read). **Advice** (the `COACHING` topics) gains per-card read toggles,
+  a "🎧 Listen to unread" study bar, and `adviceNarration` (blurb + sections, tags stripped). **Guides** get
+  read-on-open + a manual toggle + a "🎧 Listen" button in the reader that speaks the guide text (`guideText` strips the
+  template HTML; `_chunkText` splits it into sentence groups so only the final chunk marks it read). **Resume**:
+  stopping persists the in-progress entry (`state.studyPod.resumeKey`); the next listen rotates the queue to lead with
+  it. **Daily nudge**: a once-a-day "you have N unread study items" toast (`studyDailyNudge`, gated by `state.studyNudge`,
+  skipped if you already listened today) plus an unread-count **badge** on the Study/Glossary/Advice nav-menu items
+  (`renderMenu` + `refreshStudyBadge`). `studyUnreadTotal` sums all three surfaces. `test/app.spec.mjs` (advice/guide
+  read-state + counts, tag-stripped narration, once-a-day nudge, resume rotation).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

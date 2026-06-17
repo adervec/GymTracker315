@@ -377,6 +377,11 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .media-frame-wrap { position: relative; width: 100%; aspect-ratio: 9 / 16; max-height: 64vh; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border2); }
 .media-frame-wrap.land { aspect-ratio: 16 / 9; }
 .media-frame-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+/* feat 269 — inline images / animated GIFs: natural aspect, contained, never cropped */
+.media-frame-wrap.media-img-wrap { aspect-ratio: auto; min-height: 180px; display: flex; align-items: center; justify-content: center; }
+.media-img { width: 100%; max-height: 64vh; object-fit: contain; display: block; }
+.mw-preview .media-img { max-height: 320px; border-radius: 8px; }
+.mg-kindbadge { position: absolute; top: 6px; right: 6px; font-size: 9px; font-weight: 800; letter-spacing: 0.4px; padding: 2px 5px; border-radius: 4px; background: rgba(0,0,0,0.62); color: #fff; }
 .media-fallback { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 18px; color: var(--text2); font-size: 12.5px; }
 .media-fallback .mf-ico { font-size: 38px; }
 .media-fallback a { color: var(--accent); font-weight: 700; text-decoration: none; font-size: 14px; }
@@ -976,6 +981,15 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .prog-target.prog-add-load { border-left-color: var(--good); }
   .prog-target.prog-deload { border-left-color: #d8a83a; }
   .prog-target.prog-hold { border-left-color: #c06ad8; } /* feat 264 — RPE-autoregulated "consolidate" target */
+  /* feat 270 — inline trend peek in the log sheet */
+  .trend-peek { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 8px; padding: 7px 11px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; cursor: pointer; font-family: inherit; text-align: left; }
+  .trend-peek .tp-spark { flex: 0 0 auto; display: flex; }
+  .trend-peek .tp-spark .spark { width: 116px; height: 26px; }
+  .trend-peek .tp-stats { flex: 1; min-width: 0; font-size: 11.5px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trend-peek .tp-cur { color: var(--text); font-size: 13px; }
+  .trend-peek .tp-unit { font-size: 10px; color: var(--text3); }
+  .trend-peek .tp-delta.tp-up { color: var(--good); } .trend-peek .tp-delta.tp-down { color: var(--warn); } .trend-peek .tp-delta.tp-flat { color: var(--text3); }
+  .trend-peek .tp-arrow { flex: 0 0 auto; color: var(--text3); font-weight: 700; }
   .prog-target-main { flex: 1; min-width: 0; }
   .prog-target-aim { display: block; font-size: 13px; color: var(--text); }
   .prog-target-aim b { color: var(--accent); }
@@ -1342,6 +1356,43 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .gloss-cat-pill.active { background: #3a2a4d; color: #fff; border-color: #5a3a7d; }
   .gloss-body { flex: 1; overflow-y: auto; padding: 8px 14px 30px 14px; -webkit-overflow-scrolling: touch; }
   .gloss-count { font-size: 10.5px; color: #6a5a8a; text-transform: uppercase; letter-spacing: 0.6px; margin: 8px 0; }
+  /* feat 274 — study read/unread + listen */
+  .gloss-study-bar { display: flex; flex-direction: column; gap: 7px; padding: 9px 0 11px; border-bottom: 1px solid #251c38; margin-bottom: 4px; position: sticky; top: 0; background: var(--bg2, #14101e); z-index: 2; }
+  .gloss-study-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .gloss-unread-count { font-size: 11px; font-weight: 700; color: var(--accent, #b48aff); white-space: nowrap; }
+  .gloss-read-filter { display: flex; gap: 4px; margin-left: auto; }
+  .gloss-read-pill { padding: 3px 9px; background: #1a1626; border: 1px solid #2e2640; border-radius: 10px; color: #9a8ab8; font-size: 10.5px; cursor: pointer; font-family: inherit; }
+  .gloss-read-pill.active { background: var(--accent, #b48aff); color: #0a0a0a; border-color: var(--accent, #b48aff); font-weight: 700; }
+  .gloss-listen-btn { padding: 7px 13px; background: var(--accent, #b48aff); border: none; border-radius: 8px; color: #0a0a0a; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: inherit; }
+  .gloss-listen-btn:disabled { opacity: 0.45; cursor: default; }
+  .gloss-order-toggle, .gloss-markall { padding: 6px 10px; background: #1a1626; border: 1px solid #2e2640; border-radius: 8px; color: #c4b4e0; font-size: 11.5px; cursor: pointer; font-family: inherit; }
+  .gloss-markall { margin-left: auto; }
+  .gloss-entry.is-read { opacity: 0.62; }
+  .gloss-read-toggle { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #4a3a6a; background: transparent; color: #6a5a8a; font-size: 12px; line-height: 1; cursor: pointer; padding: 0; align-self: center; }
+  .gloss-read-toggle.on { background: #3fb950; border-color: #3fb950; color: #0a0a0a; font-weight: 800; }
+  .gloss-entry-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .gloss-read-note { font-size: 10px; color: var(--text3, #6a5a8a); white-space: nowrap; margin-left: auto; }
+  /* the listen-podcast player bar */
+  #gloss-pod-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9000; background: linear-gradient(180deg, rgba(20,15,30,0.96), rgba(14,10,22,0.99)); border-top: 1px solid var(--accent, #b48aff); box-shadow: 0 -4px 18px rgba(0,0,0,0.5); padding: 9px 12px; padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)); backdrop-filter: blur(6px); }
+  .pod-bar-inner { display: flex; align-items: center; gap: 12px; max-width: 720px; margin: 0 auto; }
+  .pod-now { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+  .pod-eq { font-size: 20px; } .pod-eq.on { animation: podpulse 1.1s ease-in-out infinite; }
+  @keyframes podpulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.86); } }
+  .pod-now-txt { min-width: 0; }
+  .pod-now-term { font-size: 14px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pod-now-sub { font-size: 10.5px; color: #b4a0e0; }
+  .pod-ctrls { display: flex; gap: 6px; flex-shrink: 0; }
+  .pod-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #3a2e5a; background: #1d1730; color: #e8def8; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .pod-btn.pod-stop { background: #3a1d24; border-color: #5a2e38; color: #ffb0b8; }
+  /* feat 275 — study generalization: nav badge, advice bar, guide listen, read toggle on coach cards */
+  .nav-menu-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent, #b48aff); color: #0a0a0a; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+  .nav-menu-item .nav-menu-chev { margin-left: 8px; }
+  .advice-study-bar { position: static; margin-bottom: 12px; }
+  .coach-card-head { display: flex; align-items: center; gap: 9px; }
+  .coach-card.is-read { opacity: 0.66; }
+  .coach-card-head .gloss-read-toggle { align-self: center; }
+  .coach-card-head .gloss-read-note { margin-left: auto; align-self: center; }
+  .guide-reader-listen { margin-left: auto; padding: 6px 12px; background: var(--accent, #b48aff); border: none; border-radius: 8px; color: #0a0a0a; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: inherit; }
   .gloss-letter-header { font-size: 22px; font-weight: 700; color: #b48aff; padding: 10px 0 4px 0; border-bottom: 1px solid #2a1f3a; margin-top: 12px; letter-spacing: 1px; }
   .gloss-letter-header:first-child { margin-top: 0; }
   .gloss-entry { padding: 10px 0; border-bottom: 1px solid #1a1426; }
@@ -3194,6 +3245,250 @@ const EXTRA_FAMILIES = [
         programming:{'Volume':'As conditions/skin allow'},
         tip:'Skin and conditions limit outdoor volume more than fitness — log it and note the rock/grade.' },
     ] },
+  // feat 273 — PILATES MAT. Core control, spinal articulation and breathing. Logged as core work (counts toward
+  // core volume); the planks/holds switch to time mode via the "hold" keyword.
+  { id:'pilates-mat', title:'Pilates Mat', tag:'Core • Control + Breath', mega:'core', sub:'stability',
+    equip:['bodyweight'], icon:'mobility',
+    keywords:'pilates mat core control breathing powerhouse hundred roll up teaser criss cross swan saw spine articulation stability',
+    quickCue:'Move from the "powerhouse" (deep core). Breathe laterally into the ribs, exhale on effort, articulate the spine one vertebra at a time.',
+    general:{
+      setup:['Lie or sit tall with a neutral-to-imprinted spine as the move dictates','Ribs knitted down, deep core gently drawn in','Shoulders away from the ears, neck long'],
+      movement:['Initiate every move from the deep core, not momentum','Exhale on the effort; breathe laterally into the ribs','Move slowly and precisely through the full range','Keep the movement smooth and flowing, never jerky'],
+      mistakes:['Yanking with the hip flexors or neck','Holding the breath','Rushing — Pilates is control, not reps for speed','Letting the low back pop off the mat when it should stay imprinted'] },
+    variations:[
+      { id:'pilates-hundred', uuid:'c0ac0101-0101-4101-8101-000000000101', title:'The Hundred', best:'Core Warm-Up',
+        cue:'Curl up, legs at a height you can control, pump the arms — inhale 5 counts, exhale 5, for 100 counts.',
+        setup:['Lie supine, knees in tabletop or legs extended to a manageable height','Curl the head and shoulders off the mat','Arms long by the hips, hovering'],
+        movement:['Pump the straight arms up and down briskly','Inhale for 5 pumps, exhale for 5','Hold the curl-up the whole time — eyes to the navel'],
+        mistakes:['Straining the neck (let the core hold the curl)','Dropping legs so low the back arches','Holding the breath instead of the 5-5 rhythm'],
+        programming:{'Warm-up':'1-2 × 100 counts','Scale':'Knees bent / higher legs are easier'},
+        tip:'Log reps as breath-cycles (a set of 100 counts = 10 reps) or just sets. Raise the legs to make it easier, lower for more challenge.' },
+      { id:'pilates-roll-up', uuid:'c0ac0102-0102-4102-8102-000000000102', title:'Roll-Up', best:'Spinal Articulation',
+        cue:'Roll up one vertebra at a time to reach past the toes, then roll down the same way. No momentum.',
+        setup:['Lie supine, arms overhead, legs long and together','Ribs down, core engaged'],
+        movement:['Float the arms up, nod the chin, peel the spine off the mat','Reach over the legs','Reverse — roll down one vertebra at a time'],
+        mistakes:['Throwing the arms to gain momentum','Coming up in one rigid block','Feet popping off the floor'],
+        programming:{'Control':'2-3 × 5-8 slow reps'},
+        tip:'If you can\'t roll up smoothly, bend the knees or anchor the feet at first — then chase the segmental roll.' },
+      { id:'pilates-single-leg-stretch', uuid:'c0ac0103-0103-4103-8103-000000000103', title:'Single-Leg Stretch', best:'Core Coordination',
+        cue:'Curled up, hug one knee while the other leg extends long — switch with control, deep core stays braced.',
+        setup:['Supine, curled up, one knee to the chest','Other leg extended at a controllable height'],
+        movement:['Switch legs with smooth coordination','Keep the pelvis still and the curl-up steady','Exhale on each pull-in'],
+        mistakes:['Rocking the pelvis side to side','Dropping the chest','Extending the straight leg so low the back arches'],
+        programming:{'Core':'2-3 × 8-12 per side'},
+        tip:'A staple of the Pilates "series of five" — keep the torso dead still while only the legs move.' },
+      { id:'pilates-criss-cross', uuid:'c0ac0104-0104-4104-8104-000000000104', title:'Criss-Cross', best:'Obliques',
+        cue:'Curled up, rotate the opposite elbow toward the bent knee while the other leg extends — slow and twisting.',
+        setup:['Supine, hands behind the head, curled up','Legs in tabletop'],
+        movement:['Rotate the ribcage to bring one shoulder toward the opposite knee','Extend the other leg long','Switch slowly with control'],
+        mistakes:['Yanking the head with the hands','Just touching elbow to knee (rotate the ribs, not the arms)','Speeding through'],
+        programming:{'Obliques':'2-3 × 8-12 per side'},
+        tip:'Rotation comes from the waist, not the arms — keep the elbows wide and turn the whole torso.' },
+      { id:'pilates-teaser', uuid:'c0ac0105-0105-4105-8105-000000000105', title:'Teaser', best:'Advanced Control',
+        cue:'Balance in a V — torso and legs lifted, reaching for the toes, deep core holding it all together.',
+        setup:['Start supine or seated, legs extended at an angle','Arms reaching toward the toes'],
+        movement:['Roll up to balance on the sit bones in a V-shape','Hold the balance, then roll down with control','Move slowly — no flopping'],
+        mistakes:['Using momentum to fling up','Collapsing the chest','Holding the breath'],
+        programming:{'Control':'2-3 × 3-6 reps','Scale':'Bend the knees / one leg at a time'},
+        tip:'One of the hardest mat moves — bend the knees or do one leg at a time until the deep core is strong enough.' },
+      { id:'pilates-swan', uuid:'c0ac0106-0106-4106-8106-000000000106', title:'Swan', best:'Back Extension',
+        cue:'Prone, lengthen and lift the chest into a smooth back extension — glutes and back, not just the arms.',
+        setup:['Lie prone, hands under the shoulders','Legs long, glutes gently engaged'],
+        movement:['Lengthen the spine and lift the chest','Keep the back of the neck long','Lower with control, articulating down'],
+        mistakes:['Cranking the low back','Throwing the head back','Pushing only with the arms'],
+        programming:{'Posterior':'2-3 × 6-10'},
+        tip:'Balances all the flexion work — extend through the whole spine, not just the lumbar.' },
+      { id:'pilates-saw', uuid:'c0ac0107-0107-4107-8107-000000000107', title:'Saw', best:'Rotation + Stretch',
+        cue:'Seated, legs wide — rotate and reach the opposite hand past the little toe, "sawing" off the toe.',
+        setup:['Sit tall, legs extended wide','Arms out to a T'],
+        movement:['Rotate from the waist, reach the opposite hand toward the outside of the foot','Exhale and lengthen over the leg','Roll up and switch sides'],
+        mistakes:['Hiking the opposite hip off the floor','Rounding from the shoulders instead of rotating the waist','Bouncing into the stretch'],
+        programming:{'Mobility':'2-3 × 5-6 per side'},
+        tip:'Rotation + forward reach — a great spinal mobiliser that also wrings out a breath at the bottom.' },
+      { id:'pilates-side-plank-hold', uuid:'c0ac0108-0108-4108-8108-000000000108', title:'Side Plank Hold (Pilates)', best:'Lateral Core',
+        cue:'Stack the body in one line on the forearm, lift the hips, hold tall — breathe.',
+        setup:['Forearm under the shoulder, legs stacked or staggered','Hips lifted, body in one long line'],
+        movement:['Hold the line, top arm reaching up or on the hip','Keep the bottom shoulder packed, ribs in','Breathe steadily for the hold'],
+        mistakes:['Hips sagging','Shoulder collapsing','Holding the breath'],
+        programming:{'Endurance':'2-3 × 20-45s per side'},
+        tip:'Logged in seconds (a timed hold). Stagger the feet for more stability, stack them for more challenge.' },
+    ] },
+  // feat 273 — TAI CHI. Slow, flowing movement, rooted stances and standing holds. Mobility/recovery work;
+  // the stances/posts are time-mode holds, the forms are logged as repetitions or rounds.
+  { id:'tai-chi', title:'Tai Chi', tag:'Mobility • Flow + Stance', mega:'mobility', sub:'dynamic',
+    equip:['bodyweight'], icon:'mobility',
+    keywords:'tai chi taiji qigong cloud hands horse stance zhan zhuang standing post brush knee grasp sparrows tail single whip rooted breathing flow internal',
+    quickCue:'Move slowly and continuously from a rooted base. Sink the weight, relax the upper body, breathe into the belly, and let the waist lead the limbs.',
+    general:{
+      setup:['Stand rooted — feet grounded, knees soft, weight sinking','Spine long, crown lifted as if suspended by a thread','Shoulders and chest relaxed, breath low and slow'],
+      movement:['Move continuously and evenly — no stops or jerks','Lead from the waist/dantian; the limbs follow','Keep one foot "full" and one "empty" — clear weight shifts','Stay relaxed (song) even while precise'],
+      mistakes:['Tensing the shoulders or holding the breath','Locking the knees or bouncing','Rushing the form','Letting the knees travel past or inside the toes in stances'] },
+    variations:[
+      { id:'taichi-standing-post', uuid:'c0ac0201-0201-4201-8201-000000000201', title:'Standing Post Hold (Zhan Zhuang)', best:'Rooted Stillness',
+        cue:'Stand as if holding a large ball at chest height — soft knees, relaxed arms, just breathe and hold.',
+        setup:['Feet shoulder-width, knees slightly bent','Arms rounded in front as if embracing a tree','Crown lifted, shoulders dropped'],
+        movement:['Hold the posture still','Relax into it — release tension on each exhale','Keep breathing slow and low'],
+        mistakes:['Tensing the shoulders','Locking the knees','Leaning forward or back'],
+        programming:{'Endurance':'1-3 × 1-5 min'},
+        tip:'Logged in seconds — the foundational "standing meditation". Start with 1-2 minutes and build the hold over weeks.' },
+      { id:'taichi-horse-stance', uuid:'c0ac0202-0202-4202-8202-000000000202', title:'Horse Stance Hold (Mabu)', best:'Leg Endurance',
+        cue:'Wide stance, sink the hips like sitting on a horse — thighs toward parallel, back upright, hold.',
+        setup:['Feet wide, toes forward','Sink the hips, knees tracking over the toes','Torso upright, weight centred'],
+        movement:['Hold the sink — thighs working toward parallel','Keep the back tall and the breath steady','Stay rooted through the whole foot'],
+        mistakes:['Knees caving in or past the toes','Rounding or leaning the torso','Sinking deeper than the legs can hold'],
+        programming:{'Endurance':'2-4 × 30-90s'},
+        tip:'A demanding isometric for the legs (logged in seconds). Rise higher to make it easier, lower for more burn.' },
+      { id:'taichi-commencement', uuid:'c0ac0203-0203-4203-8203-000000000203', title:'Commencement (Opening Form)', best:'Beginner Flow',
+        cue:'Float the arms up to shoulder height and gently press them down — the slow, breathing "opening" move.',
+        setup:['Stand rooted, weight even, arms relaxed at the sides'],
+        movement:['Slowly raise both arms to shoulder height on an inhale','Soften the elbows and press the palms down on the exhale','Move continuously and breathe with the motion'],
+        mistakes:['Lifting the shoulders with the arms','Rushing','Disconnecting the breath from the movement'],
+        programming:{'Flow':'2-3 × 8-10 slow cycles'},
+        tip:'The simplest entry to Tai Chi flow — grooves rooted posture, relaxed arms and breath-led movement.' },
+      { id:'taichi-cloud-hands', uuid:'c0ac0204-0204-4204-8204-000000000204', title:'Cloud Hands (Wave Hands)', best:'Waist + Coordination',
+        cue:'Shift side to side, the waist turning the arms in slow overlapping circles like passing clouds.',
+        setup:['Feet shoulder-width, knees soft','Hands floating in front, one high one low'],
+        movement:['Turn from the waist to shift weight side to side','Let the arms circle and pass continuously','Keep the eyes following the upper hand'],
+        mistakes:['Moving the arms without turning the waist','Stiff, robotic transitions','Losing the rooted weight shift'],
+        programming:{'Coordination':'2-3 × 1-2 min'},
+        tip:'The classic waist-led movement — the arms are passengers; the turn comes from the centre.' },
+      { id:'taichi-brush-knee', uuid:'c0ac0205-0205-4205-8205-000000000205', title:'Brush Knee and Push', best:'Stepping Form',
+        cue:'Step forward, one hand brushes past the knee while the other slowly pushes — coordinated step, turn and press.',
+        setup:['Start in a rooted stance, weight back','Hands set for the push and brush'],
+        movement:['Step forward and shift the weight','One hand brushes past the knee, the other presses forward','Turn the waist to power the push, slow and even'],
+        mistakes:['Pushing with the arm instead of the waist/legs','Stepping then collapsing the knee','Losing balance on the weight shift'],
+        programming:{'Form':'2-3 × 6-10 per side'},
+        tip:'A signature stepping posture — coordinates the step, the waist turn and the relaxed push.' },
+      { id:'taichi-grasp-sparrows-tail', uuid:'c0ac0206-0206-4206-8206-000000000206', title:'Grasp the Sparrow\'s Tail', best:'Core Sequence',
+        cue:'The four energies — ward-off, roll-back, press, push — flowed slowly as one continuous sequence.',
+        setup:['Rooted stance, hands set for ward-off'],
+        movement:['Ward-off (peng), roll-back (lu), press (ji), push (an) in one flow','Keep the weight shifts clear and the waist leading','Breathe through the whole sequence'],
+        mistakes:['Breaking the flow between the four parts','Using arm strength instead of whole-body','Unclear weight transfer'],
+        programming:{'Form':'2-3 × 4-6 sequences per side'},
+        tip:'The heart of many forms — a complete sequence that teaches the four primary energies.' },
+      { id:'taichi-golden-rooster', uuid:'c0ac0207-0207-4207-8207-000000000207', title:'Golden Rooster Stands on One Leg', best:'Balance Hold',
+        cue:'Rise onto one leg, the opposite knee and hand lifting — find a still, rooted one-leg balance and hold.',
+        setup:['Shift fully onto one rooted leg','Lift the opposite knee, same-side hand rising'],
+        movement:['Find the still balance on one leg','Keep the standing knee soft and the foot rooted','Hold, breathe, then switch sides'],
+        mistakes:['Locking the standing knee','Gripping the toes / wobbling','Holding the breath'],
+        programming:{'Balance':'2-3 × 15-40s per leg'},
+        tip:'A balance hold (logged in seconds) — builds the rooted single-leg stability Tai Chi is known for.' },
+    ] },
+  // feat 273 — SYSTEMA. Russian movement art: breathing, slow strength, tension–relaxation and ground movement.
+  // Mobility/recovery flavour; the breath-holds are time mode, the push-ups stay bodyweight.
+  { id:'systema', title:'Systema', tag:'Mobility • Breath + Movement', mega:'mobility', sub:'dynamic',
+    equip:['bodyweight'], icon:'recovery',
+    keywords:'systema russian martial breathing burst slow push up squat tension relaxation rolling ground movement fluid relaxed',
+    quickCue:'Breathe continuously and never hold tension. Move slowly under control, keep the body relaxed, and let the breath lead — tension only where and when it is needed.',
+    general:{
+      setup:['Stand or lie relaxed, breathing through the nose','Scan for and release unnecessary tension','Keep the spine free and the joints soft'],
+      movement:['Lead with continuous breathing — never hold the breath','Move slowly and deliberately, staying relaxed','Add tension only at the point of effort, then release it','Stay fluid through transitions and on the ground'],
+      mistakes:['Holding the breath under effort','Carrying global tension','Moving fast and losing control','Forcing range instead of breathing into it'] },
+    variations:[
+      { id:'systema-breathing-pushup', uuid:'c0ac0301-0301-4301-8301-000000000301', title:'Breathing Push-Ups', best:'Slow Strength',
+        cue:'Very slow push-ups synced to the breath — exhale down, inhale up (or vice versa), staying relaxed throughout.',
+        setup:['Standard push-up position, body in one line','Relaxed shoulders, even breath'],
+        movement:['Lower very slowly on a continuous exhale','Press up on the inhale','Never hold the breath; stay relaxed where you are not working'],
+        mistakes:['Holding the breath at the bottom','Rushing the tempo','Global tension instead of working only the press'],
+        programming:{'Strength':'3-5 × slow reps to breath'},
+        tip:'Bodyweight, breath-led — quality and relaxation over count. Drop to the knees to keep the tempo slow.' },
+      { id:'systema-breathing-squat', uuid:'c0ac0302-0302-4302-8302-000000000302', title:'Breathing Squats', best:'Relaxed Legs',
+        cue:'Slow bodyweight squats tied to the breath — sink on the exhale, rise on the inhale, stay loose.',
+        setup:['Feet about shoulder-width, relaxed posture'],
+        movement:['Sink slowly on a continuous exhale','Rise on the inhale','Keep the upper body relaxed and the breath unbroken'],
+        mistakes:['Holding the breath','Tensing the shoulders/face','Bouncing out of the bottom'],
+        programming:{'Endurance':'3-4 × 10-20 slow reps'},
+        tip:'A staple Systema conditioner — the breath sets the pace, not the legs.' },
+      { id:'systema-breath-hold', uuid:'c0ac0303-0303-4303-8303-000000000303', title:'Breath Hold Walk', best:'Breath Control',
+        cue:'Walk while holding the breath for a set count, then recover with calm breathing — build CO₂ tolerance gently.',
+        setup:['Stand or walk relaxed, calm baseline breathing'],
+        movement:['Exhale, then walk while holding the breath comfortably','Stop well before panic and recover with slow breaths','Stay relaxed throughout — never strain'],
+        mistakes:['Pushing to the point of panic','Tensing up during the hold','Gasping on recovery instead of calm breaths'],
+        programming:{'Control':'4-6 × comfortable holds'},
+        tip:'Logged in seconds (a timed hold). Build CO₂ tolerance slowly and never push into distress.' },
+      { id:'systema-slow-rolling', uuid:'c0ac0304-0304-4304-8304-000000000304', title:'Slow Ground Rolling', best:'Ground Movement',
+        cue:'Roll slowly and softly across the floor, distributing contact and breathing — smooth, quiet, relaxed.',
+        setup:['On a mat, body relaxed'],
+        movement:['Roll slowly across the back/shoulders/hips','Distribute the contact so no part slams','Keep breathing and stay soft'],
+        mistakes:['Crashing onto bony points','Holding the breath','Rushing the roll'],
+        programming:{'Mobility':'2-3 × 1-2 min'},
+        tip:'Teaches soft, distributed ground contact and relaxed movement — great spinal mobility too.' },
+      { id:'systema-tension-wave', uuid:'c0ac0305-0305-4305-8305-000000000305', title:'Tension–Relaxation Wave', best:'Body Awareness',
+        cue:'Send a slow wave of tension through the body and release it the same way — learn to tense only on demand.',
+        setup:['Lie or stand relaxed, breathing easily'],
+        movement:['Slowly build tension from the feet up through the body','Then release it the same way, head to toe','Keep the breath flowing the whole time'],
+        mistakes:['Tensing everything at once','Holding the breath','Carrying leftover tension after the release'],
+        programming:{'Awareness':'3-5 × slow waves'},
+        tip:'Trains the on-demand tension/relaxation that underpins all of Systema — calm the nervous system too.' },
+      { id:'systema-fluid-flow', uuid:'c0ac0306-0306-4306-8306-000000000306', title:'Fluid Movement Flow', best:'Free Movement',
+        cue:'Move continuously and freely — slow, relaxed, exploring ranges, breathing without pause.',
+        setup:['Open space, relaxed stance'],
+        movement:['Flow between standing, crouching and ground positions','Keep it continuous and unforced','Breathe steadily and stay loose'],
+        mistakes:['Stiff, segmented movement','Holding the breath','Forcing shapes instead of flowing'],
+        programming:{'Mobility':'2-3 × 2-3 min'},
+        tip:'Unstructured, breath-led movement to free up the body — a moving meditation.' },
+    ] },
+  // feat 273 — BOXING / BAG WORK. Striking and martial conditioning. Logged as cardio sessions (duration +
+  // effort + notes) like the other cardio modalities.
+  { id:'boxing-bag', title:'Boxing & Bag Work', tag:'Cardio • Striking Conditioning', mega:'cardio', sub:'conditioning',
+    equip:['bodyweight','machine'], icon:'cardio',
+    keywords:'boxing bag work heavy bag shadow boxing speed bag double end mitts pads combinations footwork jump rope martial arts striking rounds conditioning',
+    quickCue:'Logged like a cardio session — rounds/duration, effort and notes. Hands up, chin down, rotate from the hips, and breathe out on every strike. Wrap your hands.',
+    general:{
+      setup:['Wrap the hands and use proper gloves for bag work','Stand in a balanced stance, hands up, chin tucked','Warm up the shoulders, wrists and neck first'],
+      movement:['Rotate the hips and pivot the feet to generate power','Snap punches and return the hand straight to guard','Exhale sharply on each strike','Stay light on the feet and keep moving'],
+      mistakes:['Dropping the hands between strikes','Arm-punching without hip rotation','Bending the wrist on impact','Holding the breath / gassing out — pace the rounds'] },
+    variations:[
+      { id:'boxing-heavy-bag', uuid:'c0ac0401-0401-4401-8401-000000000401', title:'Heavy Bag Rounds', best:'Power + Conditioning',
+        cue:'Timed rounds on the heavy bag — combinations, power and footwork. Rest between rounds.',
+        setup:['Wrap hands, bag gloves on','Set a round timer (e.g. 3 min work / 1 min rest)','Balanced stance, hands up'],
+        movement:['Throw varied combinations with full hip rotation','Move around the bag — never stand square','Exhale on each shot, hands back to guard'],
+        mistakes:['Winging power shots with no technique','Standing flat-footed','Gassing in round one — pace it'],
+        programming:{'Conditioning':'3-8 rounds × 2-3 min'},
+        tip:'Logged as a cardio session — record total time/rounds, effort and notes. Keep the wrists straight and hands wrapped.' },
+      { id:'boxing-shadow', uuid:'c0ac0402-0402-4402-8402-000000000402', title:'Shadow Boxing', best:'Form + Warm-Up',
+        cue:'No bag — throw clean combinations in the air, focusing on technique, footwork and breathing.',
+        setup:['Open space, mirror if available','Balanced stance, hands up'],
+        movement:['Flow through combinations with crisp technique','Move and pivot — visualise an opponent','Stay relaxed and snap each punch back to guard'],
+        mistakes:['Over-extending and losing balance','Dropping the guard','Just flailing instead of clean technique'],
+        programming:{'Skill':'3-5 rounds × 2-3 min'},
+        tip:'The best warm-up and technique tool — zero equipment, logged as a light cardio session.' },
+      { id:'boxing-speed-bag', uuid:'c0ac0403-0403-4403-8403-000000000403', title:'Speed Bag', best:'Rhythm + Shoulders',
+        cue:'Small bag, steady rhythm — circular strikes building timing, shoulder endurance and hand speed.',
+        setup:['Set the bag to about eye level','Loose fists, elbows up'],
+        movement:['Strike in a steady rhythm, letting the bag rebound three times','Keep the elbows up and the motion circular','Build speed only once the rhythm is steady'],
+        mistakes:['Trying to go fast before the rhythm is grooved','Dropping the elbows','Death-gripping the fists'],
+        programming:{'Timing':'3-5 rounds × 2 min'},
+        tip:'Great shoulder-endurance and timing work — logged as cardio. Patience first, speed later.' },
+      { id:'boxing-double-end', uuid:'c0ac0404-0404-4404-8404-000000000404', title:'Double-End Bag', best:'Accuracy + Timing',
+        cue:'The bouncing double-end bag trains accuracy, timing and head movement — hit, recover, slip.',
+        setup:['Adjust tension so the bag returns at a workable speed','Hands up, light on the feet'],
+        movement:['Throw accurate single shots and short combos','Slip and recover as the bag rebounds','Reset your guard every time'],
+        mistakes:['Swinging hard and losing the bag','Standing still and getting "hit" back','Forgetting head movement'],
+        programming:{'Skill':'3-5 rounds × 2-3 min'},
+        tip:'The closest bag to a live target — sharpens timing and defensive reactions. Logged as cardio.' },
+      { id:'boxing-jump-rope', uuid:'c0ac0405-0405-4405-8405-000000000405', title:'Boxer\'s Jump Rope', best:'Footwork + Engine',
+        cue:'The classic boxer\'s conditioner — light bounces, relaxed wrists, build to varied footwork.',
+        setup:['Rope length: handles reach the armpits when stood on','Stay on the balls of the feet'],
+        movement:['Turn the rope from the wrists, small relaxed bounces','Add steps: boxer skip, side-to-side, high knees','Keep a steady rhythm and breathe'],
+        mistakes:['Jumping too high','Turning from the shoulders','Tensing up and gassing'],
+        programming:{'Conditioning':'3-6 rounds × 2-3 min'},
+        tip:'Footwork, coordination and an engine in one — a boxing staple. Logged as a cardio session.' },
+      { id:'boxing-pad-work', uuid:'c0ac0406-0406-4406-8406-000000000406', title:'Mitt / Pad Work', best:'Sharpness (Partner)',
+        cue:'A partner calls and holds pads — crisp combinations, defence and footwork with live feedback.',
+        setup:['Partner with focus mitts or Thai pads','Wraps and bag gloves on','Agree on the combinations/flow'],
+        movement:['Throw the called combinations crisply','Reset to guard and move between calls','Add slips and rolls as the holder feeds them'],
+        mistakes:['Pushing punches instead of snapping','Standing still between combos','Telegraphing'],
+        programming:{'Skill':'3-6 rounds × 2-3 min'},
+        tip:'The sharpest skill work if you have a partner — logged as a cardio session by total time/rounds.' },
+      { id:'boxing-combo-drills', uuid:'c0ac0407-0407-4407-8407-000000000407', title:'Combination Drills', best:'Combinations',
+        cue:'Drill set combinations (e.g. 1-2, 1-2-3, jab-cross-hook) on the bag or in the air until they flow.',
+        setup:['Pick 2-4 combinations to drill','Bag or open space, hands up'],
+        movement:['Repeat each combination with clean technique','Add footwork and angles as it flows','Exhale on each shot, hands back to guard'],
+        mistakes:['Sloppy reps to chase speed','Forgetting the defence/return','Always the same combo — vary them'],
+        programming:{'Skill':'3-5 rounds × 2-3 min'},
+        tip:'Grooves the punches into automatic combinations — logged as a cardio/skill session.' },
+    ] },
 ];
 
 const _normFamTitle = s => (s || '').trim().toLowerCase();
@@ -3569,6 +3864,7 @@ const MUSCLE_CONTRIB = {
   'core-stability':     { 'rectus-abdominis':0.6, 'obliques':0.4 },
   'obliques':           { 'obliques':0.85, 'rectus-abdominis':0.15 },
   'gymnastics-core':    { 'rectus-abdominis':0.7, 'obliques':0.3 },
+  'pilates-mat':        { 'rectus-abdominis':0.55, 'obliques':0.35, 'erectors':0.1 }, // feat 273
 };
 // Even-split fallback per body-part group.
 function defaultGroupContrib(bp) {
@@ -3753,7 +4049,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -3919,9 +4215,10 @@ function normalizeState() {
       restTimer:true, abandonMinutes:15, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true, rpeMode:'off' },
     bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
     stravaAutoLoad: { enabled:false, mode:'folder' }, // feat 89
+    aiExport: { enabled:false, onWorkoutEnd:true, daily:true, scope:'last30', filename:'gymtracker-brief.md', lastWriteDay:null, lastWriteAt:null }, // feat 272 — per-device AI-ready digest auto-export to a folder
     planDefaults: { minPct:1 }, // feat 144 — default min % of a step's sets that counts the step as "done" (overridable per plan / per step)
     historyFilter: { range:'all', bp:'', family:'', varKey:'', q:'' }, // feat 102 — device-local view filter
-    cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{} }, // feat 124 — DEVICE-LOCAL (not synced)
+    cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{}, syncOnEnd:true }, // feat 124 — DEVICE-LOCAL (not synced); feat 272 — guaranteed push on workout end
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   // feat 197 — the old 5-min abandon default proved ~3x too quick; migrate stored old-default values to 15.
@@ -3938,6 +4235,12 @@ function normalizeState() {
   if (!state.hiddenMovements || typeof state.hiddenMovements !== 'object') state.hiddenMovements = {};
   if (state.glossaryHighlight === undefined) state.glossaryHighlight = true;
   if (state.glossaryAsPage === undefined) state.glossaryAsPage = true;
+  if (!state.glossaryRead || typeof state.glossaryRead !== 'object') state.glossaryRead = {}; // feat 274 — { term: { at, src:'manual'|'listen' } }
+  // feat 275 — unified, namespaced study read-state; migrate the feat-274 glossary reads into it once.
+  if (!state.studyRead || typeof state.studyRead !== 'object') state.studyRead = {};
+  for (const t in state.glossaryRead) { const k = 'glossary:' + t; if (!state.studyRead[k]) state.studyRead[k] = state.glossaryRead[t]; }
+  if (!state.studyPod || typeof state.studyPod !== 'object') state.studyPod = { resumeKey: null, lastListenDay: null, nudgeDay: null }; // feat 275 — resume + daily nudge
+  if (typeof state.studyNudge !== 'boolean') state.studyNudge = true; // feat 275 — daily "X unread" nudge toggle
   if (!state.settingsCollapse || typeof state.settingsCollapse !== 'object') state.settingsCollapse = { theme: true };
   if (!state.lang || typeof state.lang !== 'string') state.lang = 'en';
   if (typeof state.readonly !== 'boolean') state.readonly = false;
@@ -4942,6 +5245,88 @@ function bioLoadDisable() {
   toast('Biometrics auto-load disabled');
 }
 
+/* ============================================================
+   feat 272 — AI-READY AUTO-EXPORT (per device). Writes the Claude-ready training digest (feat 171,
+   buildClaudeDigest) into a chosen folder — e.g. a Claude cowork folder a desktop watches — so a morning
+   brief can analyze strength progress. Device-local: the write-folder handle lives in IndexedDB and the
+   config is preserved-on-merge (SETTINGS_KEYS), so ONLY the device you set it up on exports. Triggers: on
+   workout end and once per calendar day (on load / when the tab is refocused). Mirrors the bio-auto-load
+   handle plumbing, but with readwrite permission and a WRITE.
+   ============================================================ */
+let _aiExportDirHandle = null;
+function aiExportDayKey() { return new Date().toDateString(); } // local calendar day, for the once-a-day guard
+function aiExportScopeLabel(s) { return s === 'all' ? 'All time' : s === 'month' ? 'This month' : 'Last 30 days'; }
+async function aiExportResolveHandle(interactive) {
+  if (_aiExportDirHandle) return _aiExportDirHandle;
+  const saved = await bioIdbGet('aiExportDir');
+  if (!saved) return null;
+  let perm = 'granted';
+  try { if (saved.queryPermission) perm = await (interactive && saved.requestPermission ? saved.requestPermission({ mode: 'readwrite' }) : saved.queryPermission({ mode: 'readwrite' })); } catch (_) { perm = 'denied'; }
+  if (perm === 'granted') { _aiExportDirHandle = saved; return saved; }
+  return null;
+}
+// Build + write the digest. silent: no toast/status; interactive: may prompt for permission (user gesture only).
+async function aiExportWriteNow(silent, interactive) {
+  const cfg = state.aiExport;
+  if (!cfg || !cfg.enabled) { if (!silent) toast('Pick an export folder first'); return false; }
+  if (typeof roBlocked === 'function' && roBlocked('AI export')) return false;
+  try {
+    const handle = await aiExportResolveHandle(interactive);
+    if (!handle) { if (!silent) autoSaveSetStatus('⚠ AI export: tap “Write now” to allow folder access'); return false; }
+    const scope = cfg.scope || 'last30';
+    const sessions = selectSessionsForExport({ preset: scope });
+    const text = buildClaudeDigest(sessions, { preset: scope });
+    const fname = String(cfg.filename || 'gymtracker-brief.md').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80) || 'gymtracker-brief.md';
+    const fileHandle = await handle.getFileHandle(fname, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(new Blob([text], { type: 'text/markdown' }));
+    await writable.close();
+    state.aiExport.lastWriteDay = aiExportDayKey();
+    state.aiExport.lastWriteAt = new Date().toISOString();
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+    if (!silent) { autoSaveSetStatus('✓ AI brief written'); toast(`📤 AI brief → ${handle.name}/${fname}`); renderSettingsDrawer(); }
+    logInfo('AI brief exported', `${sessions.length} sessions · ${scope} · ${fname}`);
+    return true;
+  } catch (err) {
+    if (!silent) autoSaveSetStatus('⚠ AI export failed');
+    logWarn('AI export failed', err && err.message);
+    return false;
+  }
+}
+async function aiExportPickFolder() {
+  if (!autoLoadSupported() || !('showDirectoryPicker' in window)) { toast('Folder export needs Chrome/Edge on desktop'); return; }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'gymtracker-ai-export' });
+    _aiExportDirHandle = handle;
+    await bioIdbSet('aiExportDir', handle);
+    state.aiExport = { ...state.aiExport, enabled: true };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+    renderSettingsDrawer();
+    const ok = await aiExportWriteNow(false, true);
+    if (!ok) toast(`Export folder set: ${handle.name}`);
+  } catch (e) { if (e && e.name !== 'AbortError') toast('Could not pick folder'); }
+}
+function aiExportDisable() {
+  _aiExportDirHandle = null; bioIdbDel('aiExportDir');
+  state.aiExport = { ...state.aiExport, enabled: false };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+  renderSettingsDrawer();
+  toast('AI export disabled');
+}
+// Once-per-calendar-day write (the "EOD" path) — fired on load and when the tab is refocused. Silent.
+function aiExportMaybeDaily() {
+  const cfg = state.aiExport;
+  if (!cfg || !cfg.enabled || !cfg.daily) return;
+  if (cfg.lastWriteDay === aiExportDayKey()) return;
+  aiExportWriteNow(true, false).catch(() => {});
+}
+// Workout-end write. Silent (no gesture available). Skips when the on-end trigger is off.
+function aiExportOnWorkoutEnd() {
+  const cfg = state.aiExport;
+  if (!cfg || !cfg.enabled || cfg.onWorkoutEnd === false) return;
+  aiExportWriteNow(true, false).catch(() => {});
+}
+
 /* ---- feat 89 — Strava activities auto-load (mirrors biometrics auto-load; reuses the bioIdb* handle store) ---- */
 let _stravaLoadFileHandle = null, _stravaLoadDirHandle = null;
 async function stravaLoadNewestInDir(dirHandle) {
@@ -5464,6 +5849,13 @@ function cloudSyncCardHtml() {
       <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
         <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">☁ ${escapeHtml(pLabel)} connected</div>
         <div style="color:var(--text2);">${cs.lastSync ? 'Last synced ' + escapeHtml(cloudShortTime(cs.lastSync)) : 'Not synced yet'}${cs.lastError ? ' · <span style="color:var(--warn);">' + escapeHtml(String(cs.lastError)) + '</span>' : ''}</div>
+      </div>
+      <div class="drawer-setting-row">
+        <div><div class="drawer-setting-label">Sync after each workout</div><div class="drawer-setting-sub">Push immediately when a workout ends (in addition to the live auto-sync)</div></div>
+        <div class="drawer-pill-group">
+          <button class="drawer-pill ${cs.syncOnEnd !== false ? 'active' : ''}" data-cloudtog="syncOnEnd" data-cloudtog-val="on">On</button>
+          <button class="drawer-pill ${cs.syncOnEnd === false ? 'active' : ''}" data-cloudtog="syncOnEnd" data-cloudtog-val="off">Off</button>
+        </div>
       </div>
       <div class="drawer-data-row" style="flex-wrap:wrap;">
         <button class="drawer-btn" id="cloud-sync-now-btn">⟳ Sync Now</button>
@@ -6959,6 +7351,48 @@ function renderSettingsDrawer() {
         <button class="drawer-btn" id="bio-pick-file-btn">📄 Pick File</button>
       </div>
     `}
+
+    <div class="drawer-section-title" style="margin-top:18px;">AI Brief Export (this device)</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+      Writes the <b>AI-ready training digest</b> (the same content as “Copy for Claude”) to a folder on <b>this device</b> —
+      so a desktop can drop the latest brief into e.g. a Claude cowork folder for a morning strength-progress analysis.
+      Fires on <b>workout end</b> and <b>once a day</b>. The folder is remembered across reloads; set it up only on the device(s) you want exporting.
+    </div>
+    ${state.aiExport && state.aiExport.enabled ? `
+      <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
+        <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">📤 Exporting to a folder${_aiExportDirHandle ? '' : ' <span style="color:var(--warn);font-size:10px;">(tap Write now to allow access)</span>'}</div>
+        <div style="color:var(--text2);">${escapeHtml(state.aiExport.filename || 'gymtracker-brief.md')} · ${aiExportScopeLabel(state.aiExport.scope)}${state.aiExport.lastWriteAt ? ' · last ' + escapeHtml(cloudShortTime(state.aiExport.lastWriteAt)) : ' · not written yet'}</div>
+      </div>
+      <div class="drawer-setting-row">
+        <div><div class="drawer-setting-label">After each workout</div><div class="drawer-setting-sub">Write the brief when a workout ends</div></div>
+        <div class="drawer-pill-group">
+          <button class="drawer-pill ${state.aiExport.onWorkoutEnd !== false ? 'active' : ''}" data-ai="onWorkoutEnd" data-ai-val="on">On</button>
+          <button class="drawer-pill ${state.aiExport.onWorkoutEnd === false ? 'active' : ''}" data-ai="onWorkoutEnd" data-ai-val="off">Off</button>
+        </div>
+      </div>
+      <div class="drawer-setting-row">
+        <div><div class="drawer-setting-label">Once a day</div><div class="drawer-setting-sub">Refresh on the first app open each day</div></div>
+        <div class="drawer-pill-group">
+          <button class="drawer-pill ${state.aiExport.daily !== false ? 'active' : ''}" data-ai="daily" data-ai-val="on">On</button>
+          <button class="drawer-pill ${state.aiExport.daily === false ? 'active' : ''}" data-ai="daily" data-ai-val="off">Off</button>
+        </div>
+      </div>
+      <div class="drawer-setting-row">
+        <div><div class="drawer-setting-label">Scope</div><div class="drawer-setting-sub">How much history the brief covers</div></div>
+        <div class="drawer-pill-group">
+          ${[['last30','30 days'],['month','This month'],['all','All time']].map(([v,l]) => `<button class="drawer-pill ${(state.aiExport.scope||'last30')===v?'active':''}" data-aiscope="${v}">${l}</button>`).join('')}
+        </div>
+      </div>
+      <div class="drawer-data-row" style="flex-wrap:wrap;">
+        <button class="drawer-btn" id="ai-write-now-btn">📤 Write now</button>
+        <button class="drawer-btn" id="ai-repick-btn">📁 Change folder</button>
+        <button class="drawer-btn danger" id="ai-disable-btn">✕ Disable</button>
+      </div>
+    ` : `
+      <div class="drawer-data-row" style="flex-wrap:wrap;">
+        <button class="drawer-btn" id="ai-pick-folder-btn">📁 Pick export folder</button>
+      </div>
+    `}
     ` : `
     <div class="drawer-section-title" style="margin-top:18px;">Auto-Save / Auto-Load</div>
     <div style="font-size:11px;color:var(--text3);line-height:1.5;">
@@ -7293,6 +7727,14 @@ function renderSettingsDrawer() {
   body.querySelector('#bio-sync-now-btn')?.addEventListener('click', () => { bioLoadNow(false, true).catch(() => {}); });
   body.querySelector('#bio-disable-btn')?.addEventListener('click', bioLoadDisable);
 
+  // feat 272 — AI brief export (per-device folder)
+  body.querySelector('#ai-pick-folder-btn')?.addEventListener('click', aiExportPickFolder);
+  body.querySelector('#ai-repick-btn')?.addEventListener('click', aiExportPickFolder);
+  body.querySelector('#ai-write-now-btn')?.addEventListener('click', () => { aiExportWriteNow(false, true).catch(() => {}); });
+  body.querySelector('#ai-disable-btn')?.addEventListener('click', aiExportDisable);
+  body.querySelectorAll('[data-ai]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, [b.dataset.ai]: b.dataset.aiVal === 'on' }; saveState(); renderSettingsDrawer(); }));
+  body.querySelectorAll('[data-aiscope]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, scope: b.dataset.aiscope }; saveState(); renderSettingsDrawer(); }));
+
   // feat 77 — Strava reconciliation
   body.querySelector('#strava-import-btn')?.addEventListener('click', () => body.querySelector('#strava-import-file').click());
   body.querySelector('#strava-import-file')?.addEventListener('change', e => {
@@ -7316,6 +7758,7 @@ function renderSettingsDrawer() {
   body.querySelector('#cloud-custom-save-btn')?.addEventListener('click', () => { cloudCustomSave(); toast('Endpoint saved'); });
   body.querySelector('#cloud-sync-now-btn')?.addEventListener('click', () => { cloudSyncNow(); });
   body.querySelector('#cloud-disconnect-btn')?.addEventListener('click', cloudDisconnect);
+  body.querySelectorAll('[data-cloudtog]').forEach(b => b.addEventListener('click', () => { state.cloudSync = { ...state.cloudSync, [b.dataset.cloudtog]: b.dataset.cloudtogVal === 'on' }; saveState(); renderSettingsDrawer(); })); // feat 272 — sync-on-end toggle
 
   // feat 84 — bulk exercise-media export/import
   body.querySelector('#exmedia-export-btn')?.addEventListener('click', exportExerciseList);
@@ -8229,6 +8672,7 @@ function collectExerciseTips(varUuid) {
   return out;
 }
 function speakRandomTip(varUuid) {
+  if (typeof _glossPod !== 'undefined' && _glossPod) return; // feat 274 — don't talk over the study podcast
   if (state.ttsTips === false) return;
   if (typeof sndAudioOn === 'function' && !sndAudioOn()) return;   // feat 74 — master audio gate
   if (typeof headphoneGatePasses === 'function' && !headphoneGatePasses()) return; // feat 105 — headphone-only gate
@@ -8281,8 +8725,18 @@ function _refRevealVariation(famId, varUuid) {
    Nothing is cached: each clip is a live iframe embed. Unembeddable links fall back to
    an "Open ↗" card. Keyed by variation uuid (shared between Reference and Log Sets).
    ============================================================ */
-function mediaPlatformIcon(p) { return p === 'youtube' ? '▶️' : p === 'tiktok' ? '🎵' : p === 'instagram' ? '📷' : '🔗'; }
-function mediaPlatformName(p) { return p === 'youtube' ? 'YouTube' : p === 'tiktok' ? 'TikTok' : p === 'instagram' ? 'Instagram' : 'Link'; }
+function mediaPlatformIcon(p) { return p === 'youtube' ? '▶️' : p === 'tiktok' ? '🎵' : p === 'instagram' ? '📷' : p === 'gif' ? '🎞️' : p === 'image' ? '🖼️' : '🔗'; }
+function mediaPlatformName(p) { return p === 'youtube' ? 'YouTube' : p === 'tiktok' ? 'TikTok' : p === 'instagram' ? 'Instagram' : p === 'gif' ? 'GIF' : p === 'image' ? 'Image' : 'Link'; }
+// feat 269 — images & animated GIFs: shown inline via <img> (not a video iframe). `img` is the direct,
+// displayable URL; `watchUrl`/`url` stay the original pasted link (for "Open original" + sheet round-trip).
+function isImageMedia(m) { return !!m && (m.platform === 'image' || m.platform === 'gif' || !!m.img); }
+function mediaImg(m) { return m ? (m.img || (isImageMedia(m) ? (m.url || m.watchUrl) : null)) : null; }
+// "Can this clip show inline?" — a video embed OR an image/GIF.
+function mediaPlayable(m) { return !!(m && (m.embedUrl || isImageMedia(m))); }
+// feat 271 — the anatomy chart is a first-class media "owner": attach a detailed chart image to this
+// reserved key (via the gallery / import / the chart's own Import-URL button) and the Detailed Chart View
+// shows it. Bridges the feat-118 chart to the feat-269 image media system.
+const ANATOMY_MEDIA_KEY = 'anatomy-chart';
 function parseMediaUrl(raw) {
   let url = String(raw || '').trim();
   if (!url) return null;
@@ -8310,6 +8764,17 @@ function parseMediaUrl(raw) {
     return mk('instagram', null, null);
   }
   if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(host)) return null; // reject non-domains (typos / pasted noise)
+  // feat 269 — images & animated GIFs (display inline). `img` = the direct displayable URL; the original
+  // pasted link stays as watchUrl/url. Handles direct files, a `?format=` hint, and giphy share/embed pages.
+  const mkImg = (directUrl, animated) => ({ platform: animated ? 'gif' : 'image', vid: null, embedUrl: null, watchUrl: url, url, img: directUrl });
+  if (/(^|\.)giphy\.com$/.test(host)) {
+    const gm = u.pathname.match(/\/(?:gifs|clips|stickers)\/(?:.*-)?([A-Za-z0-9]+)\/?$/) || u.pathname.match(/\/(?:embed|media)\/([A-Za-z0-9]+)/);
+    if (gm) return mkImg('https://media.giphy.com/media/' + gm[1] + '/giphy.gif', true);
+  }
+  const extM = u.pathname.toLowerCase().match(/\.(gif|png|jpe?g|webp|avif|bmp)$/);
+  if (extM) return mkImg(url, extM[1] === 'gif');
+  const fmt = (u.searchParams.get('format') || u.searchParams.get('fm') || '').toLowerCase();
+  if (/^(gif|png|jpe?g|webp|avif|bmp)$/.test(fmt)) return mkImg(url, fmt === 'gif');
   return mk('link', null, null);
 }
 // feat 237 — the creator/channel behind a media entry, read from the link where the platform exposes it:
@@ -8393,6 +8858,7 @@ function removeExerciseMedia(uuid, idx) {
   saveState();
 }
 function mediaTitleFor(id, fallback) {
+  if (id === ANATOMY_MEDIA_KEY) return 'Anatomy Chart'; // feat 271
   try { const i = VAR_INDEX.get(id); if (i && i.variation) return i.variation.title; } catch (e) {}
   try { const f = FAMILIES.find(x => x.id === id); if (f) return f.title; } catch (e) {} // movement/family id
   return fallback || 'Exercise';
@@ -8414,6 +8880,8 @@ function mediaTypeLabel(m) {
   if (!m) return 'clip';
   if (m.platform === 'tiktok') return 'TikTok';
   if (m.platform === 'instagram') return 'Reel';
+  if (m.platform === 'gif') return 'GIF';            // feat 269
+  if (m.platform === 'image') return 'image';        // feat 269
   if (m.platform === 'youtube') return /\/shorts\//i.test(m.watchUrl || m.url || '') ? 'Short' : 'video';
   return 'clip';
 }
@@ -8422,7 +8890,8 @@ function exMediaBtnLabel(uuid, mov) {
   const list = _mediaCombinedList(uuid, mov);
   if (!list.length) return '⚙ Configure Media';
   const m = list[0], cr = (typeof mediaCreator === 'function') ? mediaCreator(m) : null;
-  return `▶ Watch ${mediaTypeLabel(m)}${cr ? ' from ' + cr : ''}${list.length > 1 ? ` (+${list.length - 1})` : ''}`;
+  const verb = isImageMedia(m) ? '🖼 View' : '▶ Watch'; // feat 269
+  return `${verb} ${mediaTypeLabel(m)}${cr ? ' from ' + cr : ''}${list.length > 1 ? ` (+${list.length - 1})` : ''}`;
 }
 // feat 251 — total time + %-active for the exercise currently in the log sheet. Spans from the first set's
 // start (wTs) to the last set's done-stamp (ts); active = summed under-tension per set. Logging combines the
@@ -8514,7 +8983,9 @@ function renderMediaModal() {
     const slides = items.map((m, i) => {
       const land = m.platform === 'youtube';
       const tag = (multi && m._klabel) ? `<span class="media-src-tag">${escapeHtml(m._klabel.replace(/:.*$/, ''))}</span>` : '';
-      const inner = m.embedUrl
+      const inner = isImageMedia(m)
+        ? `<div class="media-frame-wrap media-img-wrap"><img class="media-img" src="${escapeAttr(mediaImg(m))}" alt="${escapeAttr(mediaPlatformName(m.platform) + ' reference')}" loading="lazy"></div>` // feat 269 — inline image / GIF
+        : m.embedUrl
         ? `<div class="media-frame-wrap ${land ? 'land' : ''}"><iframe data-src="${escapeAttr(m.embedUrl)}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`
         : `<div class="media-frame-wrap ${land ? 'land' : ''}"><div class="media-fallback"><div class="mf-ico">${mediaPlatformIcon(m.platform)}</div><div>This ${mediaPlatformName(m.platform)} link can't be embedded.</div><a href="${escapeAttr(m.watchUrl)}" target="_blank" rel="noopener noreferrer">Open ↗</a></div></div>`;
       return `<div class="media-slide" data-idx="${i}">${inner}
@@ -8533,12 +9004,12 @@ function renderMediaModal() {
       const list = getExerciseMedia(k.id);
       const rows = list.length ? list.map((m, i) => `<div class="media-list-item">
         <span class="mli-ico">${mediaPlatformIcon(m.platform)}</span>
-        <div class="mli-main"><div class="mli-plat">${mediaPlatformName(m.platform)}${m.embedUrl ? '' : ' · link only'}</div><div class="mli-url">${escapeHtml(m.watchUrl)}</div></div>
+        <div class="mli-main"><div class="mli-plat">${mediaPlatformName(m.platform)}${mediaPlayable(m) ? '' : ' · link only'}</div><div class="mli-url">${escapeHtml(m.watchUrl)}</div></div>
         <a class="mli-open" href="${escapeAttr(m.watchUrl)}" target="_blank" rel="noopener noreferrer" title="Open">↗</a>
         <button class="mli-del" data-key="${escapeAttr(k.id)}" data-del="${i}" aria-label="Remove">🗑</button>
       </div>`).join('') : `<div class="media-empty">None yet.</div>`;
       return `${multi ? `<div class="media-sec-label">${escapeHtml(k.label)}</div>` : ''}
-        <div class="media-add-row"><input class="media-url-input" data-key="${escapeAttr(k.id)}" type="url" inputmode="url" placeholder="Paste YouTube / Shorts / TikTok / Reel link" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="media-add-btn" data-key="${escapeAttr(k.id)}">Add</button></div>
+        <div class="media-add-row"><input class="media-url-input" data-key="${escapeAttr(k.id)}" type="url" inputmode="url" placeholder="Paste a YouTube / TikTok / Reel / image / GIF link" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="media-add-btn" data-key="${escapeAttr(k.id)}">Add</button></div>
         ${rows}`;
     }).join('');
     bodyHtml = `<div class="media-body">
@@ -8601,8 +9072,10 @@ function _normExTitle(s) { return String(s || '').toLowerCase().replace(/[^a-z0-
 function resolveExerciseKey(entry) {
   if (!entry) return null;
   if (entry.uuid && VAR_INDEX.has(entry.uuid)) return entry.uuid;
+  if (entry.id === ANATOMY_MEDIA_KEY) return ANATOMY_MEDIA_KEY; // feat 271 — import can target the anatomy chart
   if (entry.id && FAMILIES.some(f => f.id === entry.id)) return entry.id;
   const m = _normExTitle(entry.match || entry.title); if (!m) return null;
+  if (m === 'anatomy chart' || m === 'anatomy') return ANATOMY_MEDIA_KEY; // feat 271 — …or match it by title
   for (const [uuid, info] of VAR_INDEX) { if (_normExTitle(info.variation.title) === m) return uuid; }   // exact variation
   const fam = FAMILIES.find(f => _normExTitle(f.title) === m); if (fam) return fam.id;                    // exact movement
   for (const [uuid, info] of VAR_INDEX) { const t = _normExTitle(info.variation.title); if (t && (t.includes(m) || m.includes(t))) return uuid; } // contains
@@ -8683,12 +9156,13 @@ function closeMediaWizard() {
 let mediaGalleryState = { search: '', watch: 'all', kind: 'all', preview: null }; // preview = `${key}|${idx}` of the open embed
 // Resolve a media key (variation uuid OR movement/family id) to a human label + kind for the gallery tile.
 function mediaOwnerInfo(key) {
+  if (key === ANATOMY_MEDIA_KEY) return { kind: 'movement', title: 'Anatomy Chart', sub: 'Reference', famId: ANATOMY_MEDIA_KEY }; // feat 271 — a gallery owner
   if (VAR_INDEX.has(key)) { const info = VAR_INDEX.get(key); return { kind: 'variation', title: info.variation.title || '', sub: info.family.title || '', famId: info.family.id }; }
   const f = FAMILIES.find(x => x.id === key);
   if (f) return { kind: 'movement', title: f.title || '', sub: MEGA_LABELS[f.mega] || f.mega || '', famId: f.id };
   return null;
 }
-function mediaThumb(m) { return (m && m.platform === 'youtube' && m.vid) ? ('https://i.ytimg.com/vi/' + m.vid + '/hqdefault.jpg') : null; }
+function mediaThumb(m) { if (isImageMedia(m)) return mediaImg(m); return (m && m.platform === 'youtube' && m.vid) ? ('https://i.ytimg.com/vi/' + m.vid + '/hqdefault.jpg') : null; } // feat 269 — images thumbnail to themselves
 // Flatten every stored clip into { key, idx, m, owner, watchedAt, creator } records, skipping orphaned keys.
 function allMediaClips() {
   const out = [], mm = state.exerciseMedia || {};
@@ -8716,12 +9190,13 @@ function mediaGalleryClips() {
 function mediaGalleryCardHtml(c) {
   const m = c.m, pk = c.key + '|' + c.idx, isPrev = mediaGalleryState.preview === pk;
   const thumb = mediaThumb(m), seen = c.watchedAt;
+  const isImg = isImageMedia(m); // feat 269
   const face = isPrev && m.embedUrl
     ? `<iframe data-mg-frame="${escapeAttr(pk)}" src="${escapeAttr(m.embedUrl)}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`
-    : (thumb ? `<img src="${escapeAttr(thumb)}" alt="" loading="lazy"><span class="mg-play">${m.embedUrl ? '▶' : '↗'}</span>`
+    : (thumb ? `<img src="${escapeAttr(thumb)}" alt="" loading="lazy">${isImg ? `<span class="mg-kindbadge">${m.platform === 'gif' ? 'GIF' : 'IMG'}</span>` : `<span class="mg-play">${m.embedUrl ? '▶' : '↗'}</span>`}`
              : `<div class="mg-ph">${mediaPlatformIcon(m.platform)}</div>${m.embedUrl ? '<span class="mg-play">▶</span>' : ''}`);
   return `<div class="mg-card ${seen ? 'seen' : ''}">
-    <div class="mg-thumb ${m.embedUrl ? 'playable' : 'linkonly'}" ${m.embedUrl ? `data-mg-preview="${escapeAttr(pk)}"` : `data-mg-open="${escapeAttr(m.watchUrl || m.url)}"`} title="${escapeAttr(m.embedUrl ? (isPrev ? 'Close preview' : 'Play inline') : 'Open link ↗')}">
+    <div class="mg-thumb ${m.embedUrl ? 'playable' : 'linkonly'}" ${m.embedUrl ? `data-mg-preview="${escapeAttr(pk)}"` : `data-mg-open="${escapeAttr(m.watchUrl || m.url)}"`} title="${escapeAttr(m.embedUrl ? (isPrev ? 'Close preview' : 'Play inline') : isImg ? 'Open original ↗' : 'Open link ↗')}">
       ${face}
       ${seen ? '<span class="mg-seen-badge" title="Watched">👁</span>' : ''}
       <span class="mg-kind ${c.owner.kind === 'movement' ? 'mov' : ''}">${c.owner.kind === 'movement' ? 'MOVEMENT' : 'variation'}</span>
@@ -8800,8 +9275,8 @@ function mediaWizardRetestAll() {
       total++;
       const p = parseMediaUrl(m.watchUrl || m.url);
       if (!p) { notEmbed++; return; }
-      if (m.embedUrl !== p.embedUrl || m.platform !== p.platform) { m.embedUrl = p.embedUrl; m.platform = p.platform; m.vid = p.vid; updated++; }
-      if (!p.embedUrl) notEmbed++;
+      if (m.embedUrl !== p.embedUrl || m.platform !== p.platform || m.img !== p.img) { m.embedUrl = p.embedUrl; m.platform = p.platform; m.vid = p.vid; m.img = p.img; updated++; } // feat 269 — sync image kind too
+      if (!mediaPlayable(p)) notEmbed++;
     });
   });
   saveState(); renderMediaWizard();
@@ -8845,7 +9320,7 @@ function renderMediaWizard() {
   Object.keys(state.exerciseMedia || {}).forEach(k => {
     const l = state.exerciseMedia[k] || []; if (!l.length) return;
     if (FAMILIES.some(f => f.id === k)) movWith++; else varWith++; // feat 236 — split movement vs variation coverage
-    l.forEach(m => { totalLinks++; if (!m.embedUrl) notEmbed++; });
+    l.forEach(m => { totalLinks++; if (!mediaPlayable(m)) notEmbed++; }); // feat 269 — images count as displayable
   });
   const kindBtn = (val, label) => `<button class="mw-kind ${(mediaWizardState.kind || 'all') === val ? 'active' : ''}" data-mw-kind="${val}">${label}</button>`;
   tb.innerHTML = `
@@ -8887,14 +9362,15 @@ function mediaWizardRowHtml(r) {
       <span>${mediaPlatformIcon(m.platform)}</span>
       <span class="mw-link-url" title="${escapeAttr(m.watchUrl || m.url)}">${escapeHtml(m.watchUrl || m.url)}</span>
       ${cr ? `<span class="mw-link-creator" title="Creator: ${escapeAttr(cr)}">${escapeHtml(cr)}</span>` : '<span class="mw-link-creator untag">untagged</span>'}
-      <span class="mw-badge ${m.embedUrl ? 'ok' : 'no'}">${m.embedUrl ? 'embeddable' : 'link-only'}</span>
+      <span class="mw-badge ${mediaPlayable(m) ? 'ok' : 'no'}">${m.embedUrl ? 'embeddable' : isImageMedia(m) ? (m.platform === 'gif' ? 'gif' : 'image') : 'link-only'}</span>
       ${wAt ? `<span class="mw-link-watched" title="Last watched ${escapeAttr(new Date(wAt).toLocaleString())}">👁 ${escapeHtml(fmtDate(wAt))}</span>` : '<span class="mw-link-watched none">never watched</span>'}
-      ${m.embedUrl ? `<button class="mw-prev-btn ${isPrev ? 'on' : ''}" data-mw-preview="${escapeAttr(key)}" data-mw-pidx="${i}">${isPrev ? '▼ hide' : '▶ preview'}</button>` : ''}
+      ${mediaPlayable(m) ? `<button class="mw-prev-btn ${isPrev ? 'on' : ''}" data-mw-preview="${escapeAttr(key)}" data-mw-pidx="${i}">${isPrev ? '▼ hide' : '▶ preview'}</button>` : ''}
       <button data-mw-open="${escapeAttr(m.watchUrl || m.url)}">↗ open</button>
       <button data-mw-reassign="${escapeAttr(key)}" data-mw-idx="${i}">→ move</button>
       <button class="del" data-mw-del="${escapeAttr(key)}" data-mw-idx="${i}">✕</button>
     </div>
     ${isPrev && m.embedUrl ? `<div class="mw-preview"><iframe data-mw-frame="${escapeAttr(key)}" data-mw-fidx="${i}" src="${escapeAttr(m.embedUrl)}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>` : ''}
+    ${isPrev && isImageMedia(m) ? `<div class="mw-preview"><img class="media-img" src="${escapeAttr(mediaImg(m))}" alt="" loading="lazy"></div>` : ''}
     ${(mediaWizardState.reassign && mediaWizardState.reassign.uuid === key && mediaWizardState.reassign.idx === i) ? mediaWizardReassignHtml() : ''}`; }).join('');
   if (r.type === 'movement') { // feat 236 — a MOVEMENT row: its own demo + how many child variations are covered
     const cov = r.childTotal ? `${r.childWith}/${r.childTotal} variations have video` : 'no variations';
@@ -8992,6 +9468,13 @@ function buildMediaSheet(scope) { // scope: 'all' (default) | 'missing'
   const missingOnly = scope === 'missing';
   let movTotal = 0, movWith = 0, varTotal = 0, varWith = 0;
   const body = [];
+  // feat 271 — the Anatomy Chart rides at the top as an importable reference (a detailed, labelled chart image).
+  { const aMedia = getExerciseMedia(ANATOMY_MEDIA_KEY); if (!missingOnly || !aMedia.length) {
+    body.push('## Reference · Anatomy Chart');
+    body.push(`- ANATOMY CHART — a detailed, labelled anatomy image (a direct image/GIF URL)  {mid: ${ANATOMY_MEDIA_KEY}}`);
+    body.push(`  media: ${aMedia.map(m => m.watchUrl || m.url).filter(Boolean).join(', ')}`);
+    body.push('');
+  } }
   FAMILIES.forEach(f => {
     const rows = (f.variations || [])
       .filter(v => v.uuid && !isSuppressedVar(v.uuid)) // feat 167 — skip cross-listed duplicate copies
@@ -9348,7 +9831,7 @@ function closeNavTree() {
 function _persistPage() { try { localStorage.setItem('gt_page', currentPage); } catch (_) {} }
 function _syncLegacyTabClasses() { const tab = pageDef(currentPage).tab; document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', !!tab && x.dataset.tab === tab)); }
 function renderMenu(main, ids) {
-  main.innerHTML = `<div class="nav-menu">${(ids || []).map(id => { const d = PAGES[id]; return d ? `<button class="nav-menu-item" data-nav="${id}"><span class="nav-menu-emoji">${d.emoji}</span><span class="nav-menu-title">${escapeHtml(d.title)}</span><span class="nav-menu-chev">›</span></button>` : ''; }).join('')}</div>`;
+  main.innerHTML = `<div class="nav-menu">${(ids || []).map(id => { const d = PAGES[id]; if (!d) return ''; const n = (typeof _navUnreadCount === 'function') ? _navUnreadCount(id) : 0; const badge = n > 0 ? `<span class="nav-menu-badge" data-study-badge="${id}">${n}</span>` : ''; return `<button class="nav-menu-item" data-nav="${id}"><span class="nav-menu-emoji">${d.emoji}</span><span class="nav-menu-title">${escapeHtml(d.title)}</span>${badge}<span class="nav-menu-chev">›</span></button>`; }).join('')}</div>`;
   main.querySelectorAll('[data-nav]').forEach(b => b.addEventListener('click', () => navTo(b.dataset.nav)));
 }
 function renderCurrentPage() {
@@ -9654,6 +10137,30 @@ const SEED_PLANS = [
     _pstep(5,[_mvOpt('flat-bench-press')],'Heavy flat press to open.','heavy'), _pstep(4,[_mvOpt('incline-bench-press')],'Upper-chest shelf.','heavy'), _pstep(4,[_mvOpt('shoulder-press')],'Overhead press for the delts.'), _pstep(4,[_mvOpt('dips')],'Deep dips for lower chest and triceps.'), _pstep(4,[_mvOpt('chest-fly')],'Flyes for the stretch.','light'), _pstep(4,[_mvOpt('lateral-raise')],'Side-delt width — strict and light.','light'), _pstep(4,[_mvOpt('tricep-extension')],'Triceps volume.','light'), _pstep(3,[_mvOpt('rear-delt')],'Rear delts to balance the pressing.','light'), _pstep(3,[_mvOpt('shrugs')],'Upper-trap thickness.'), _pstep(3,[_mvOpt('push-ups')],'Push-up burnout to finish the chest.','light'), _pstep(3,[_mvOpt('abs-dynamic')],'Core to close.','light') ] },
   { id:'seed-pull-marathon', name:'Pull Marathon (2h)', intensity:5, desc:'Two hours devoted to the back — width, thickness, rear delts, traps, biceps and grip. Heavy pulls first, then every rowing and curling angle until there is nothing left to pull. A weekly back-builder.', steps:[
     _pstep(5,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'Heavy vertical pull for width.','heavy'), _pstep(5,[_mvOpt('row')],'Heavy rows for thickness.','heavy'), _pstep(4,[_mvOpt('lat-pulldown')],'A second vertical angle.'), _pstep(4,[_mvOpt('row')],'A second rowing angle.'), _pstep(4,[_mvOpt('rear-delt')],'Rear delts and face pulls.','light'), _pstep(4,[_mvOpt('shrugs')],'Traps — hold the squeeze at the top.'), _pstep(4,[_mvOpt('bicep-curl')],'Biceps volume.','light'), _pstep(3,[_mvOpt('hammer-curl')],'Brachialis and forearm thickness.','light'), _pstep(3,[_mvOpt('reverse-curl'),_mvOpt('wrist-curl')],'Direct grip and forearm work.','light'), _pstep(3,[_mvOpt('row')],'One more rowing angle — chase the squeeze.','light'), _pstep(3,[_mvOpt('abs-dynamic')],'Core to close.','light') ] },
+  // —— Tranche 10 (feat 273) — mind-body & martial-arts disciplines ——
+  { id:'seed-pilates-mat', name:'Pilates Core Flow', intensity:2, desc:'A mat-Pilates session for deep-core control, spinal articulation and breath. Flow through the classic series — the Hundred, roll-ups, the series of five, obliques and balance work — all from one mat, no equipment.', steps:[
+    _pstep(2,[_mvOpt('pilates-mat')],'Warm the core — the Hundred and roll-ups.','light'), _pstep(3,[_mvOpt('pilates-mat')],'The series of five — single-leg stretch and control work.','light'), _pstep(2,[_mvOpt('pilates-mat')],'Obliques and rotation — criss-cross and saw.','light'), _pstep(2,[_mvOpt('pilates-mat')],'Advanced control — the teaser.','light'), _pstep(2,[_mvOpt('pilates-mat')],'Balance it out — swan and side-plank holds.','light') ] },
+  { id:'seed-taichi-flow', name:'Tai Chi Morning Flow', intensity:1, desc:'A gentle, rooted Tai Chi practice to start the day — standing posts, flowing forms and a balance hold. Builds calm, leg endurance, balance and joint mobility with no equipment and no impact.', steps:[
+    _pstep(1,[_mvOpt('tai-chi')],'Root and centre — the Standing Post hold.','light'), _pstep(2,[_mvOpt('tai-chi')],'Open and flow — commencement and cloud hands.','light'), _pstep(2,[_mvOpt('tai-chi')],'Stepping forms — brush knee and grasp the sparrow\'s tail.','light'), _pstep(1,[_mvOpt('tai-chi')],'Leg endurance — the horse-stance hold.','moderate'), _pstep(1,[_mvOpt('tai-chi')],'Balance — golden rooster on one leg.','light') ] },
+  { id:'seed-systema-movement', name:'Systema Breath & Movement', intensity:2, desc:'A Systema-style session built on continuous breathing, slow strength and relaxation. Breathing push-ups and squats, breath-control work, ground rolling and tension-release — calm the nervous system while you move.', steps:[
+    _pstep(3,[_mvOpt('systema')],'Slow strength on the breath — breathing push-ups.','moderate'), _pstep(3,[_mvOpt('systema')],'Breathing squats — sink on the exhale.','moderate'), _pstep(2,[_mvOpt('systema')],'Breath control — comfortable breath holds.','light'), _pstep(2,[_mvOpt('systema')],'Ground movement — slow rolling.','light'), _pstep(2,[_mvOpt('systema')],'Tension–relaxation waves to finish.','light') ] },
+  { id:'seed-mind-body-flow', name:'Mind-Body Flow', intensity:1, desc:'A restorative blend of Tai Chi, Systema breathing and Pilates control — low-impact movement, breath and mobility. Perfect as an active-recovery day between hard sessions.', steps:[
+    _pstep(2,[_mvOpt('tai-chi')],'Centre and flow — Tai Chi opening.','light'), _pstep(2,[_mvOpt('systema')],'Breathe and release — Systema breathing + tension waves.','light'), _pstep(3,[_mvOpt('pilates-mat')],'Core control — a short Pilates series.','light'), _pstep(1,[_mvOpt('tai-chi')],'Close with a standing post hold.','light') ] },
+  { id:'seed-boxing-conditioning', name:'Heavy Bag Conditioning', intensity:4, desc:'A striking-conditioning session — rounds of bag work, shadow boxing and rope. Logged as cardio rounds: build the engine, sharpen technique and torch calories. Wrap your hands.', steps:[
+    _pstep(2,[_mvOpt('boxing-bag')],'Loosen up — shadow boxing rounds.','light'), _pstep(3,[_mvOpt('boxing-bag')],'Power and combinations — heavy bag rounds.','heavy'), _pstep(2,[_mvOpt('boxing-bag')],'Timing and rhythm — speed or double-end bag.','moderate'), _pstep(3,[_mvOpt('boxing-bag')],'Engine — jump-rope rounds.','moderate') ] },
+  { id:'seed-fighter-circuit', name:'Fighter\'s Circuit', intensity:4, desc:'A fighter-style conditioning circuit — bag rounds paired with core and bodyweight work. Striking conditioning plus the trunk strength and stability that powers it. A tough, fun mixed session.', steps:[
+    _pstep(2,[_mvOpt('boxing-bag')],'Shadow boxing to warm up.','light'), _pstep(3,[_mvOpt('boxing-bag')],'Heavy bag — power rounds.','heavy'), _pstep(3,[_mvOpt('abs-dynamic'),_mvOpt('pilates-mat')],'Core between rounds.','moderate'), _pstep(2,[_mvOpt('core-stability'),_mvOpt('pilates-mat')],'Anti-rotation and stability.','moderate'), _pstep(2,[_mvOpt('boxing-bag')],'Finisher — rope or combinations.','moderate') ] },
+  // —— Tranche 11 (feat 273) — more strength variety ——
+  { id:'seed-powerbuilding-upper', name:'Powerbuilding Upper', intensity:4, desc:'Strength meets size for the upper body — heavy compound presses and pulls up front, then hypertrophy back-off work. Build a strong AND big upper half.', steps:[
+    _pstep(5,[_mvOpt('flat-bench-press')],'Heavy bench — top-end strength.','heavy'), _pstep(5,[_mvOpt('row'),_mvOpt('pull-up')],'Heavy pull to balance the press.','heavy'), _pstep(4,[_mvOpt('incline-bench-press')],'Hypertrophy back-off — upper chest.'), _pstep(3,[_mvOpt('shoulder-press')],'Overhead for the delts.'), _pstep(3,[_mvOpt('lat-pulldown')],'Lat width.'), _pstep(3,[_mvOpt('lateral-raise')],'','light'), _pstep(3,[_mvOpt('bicep-curl'),_mvOpt('tricep-extension')],'Arms superset to finish.','light') ] },
+  { id:'seed-posterior-chain', name:'Posterior Chain', intensity:5, desc:'Everything on the back side of the body — hinge, hamstrings, glutes, lower back and upper-back pulls. The chain that keeps you strong, athletic and injury-resistant.', steps:[
+    _pstep(5,[_mvOpt('deadlift')],'The hinge — heavy pulls.','heavy'), _pstep(4,[_mvOpt('hip-thrust')],'Glute power.','heavy'), _pstep(3,[_mvOpt('leg-curl')],'Direct hamstrings.'), _pstep(3,[_mvOpt('back-extension')],'Lower back and glutes.'), _pstep(3,[_mvOpt('row')],'Upper-back thickness.'), _pstep(3,[_mvOpt('calf-raise')],'','light') ] },
+  { id:'seed-athletic-fullbody', name:'Athletic Full Body', intensity:4, desc:'A power-and-strength full-body session for athleticism — an explosive movement, the big compounds, and core. Train to be strong, fast and resilient, not just big.', steps:[
+    _pstep(4,[_mvOpt('squat')],'Strength base — squat.','heavy'), _pstep(4,[_mvOpt('flat-bench-press')],'Upper-body press.','heavy'), _pstep(3,[_mvOpt('deadlift'),_mvOpt('row')],'Pull — hinge or row.','heavy'), _pstep(3,[_mvOpt('shoulder-press')],'Overhead strength.'), _pstep(3,[_mvOpt('core-stability')],'Trunk stability — anti-movement.'), _pstep(3,[_mvOpt('calf-raise'),_mvOpt('abs-dynamic')],'','light') ] },
+  { id:'seed-chest-arms', name:'Chest & Arms', intensity:3, desc:'A classic "beach" pairing — chest pressed from every angle, then biceps and triceps supersets for the pump. Big, fun and great for a packed bench-and-dumbbell corner.', steps:[
+    _pstep(4,[_mvOpt('flat-bench-press')],'','heavy'), _pstep(3,[_mvOpt('incline-bench-press')],'Upper chest.'), _pstep(3,[_mvOpt('chest-fly'),_mvOpt('dips')],'Stretch and squeeze.','light'), _pstep(3,[_mvOpt('tricep-extension')],'Triceps.','light'), _pstep(3,[_mvOpt('bicep-curl')],'Biceps.','light'), _pstep(2,[_mvOpt('hammer-curl')],'Brachialis to finish.','light') ] },
+  { id:'seed-back-bis', name:'Back & Biceps', intensity:4, desc:'A focused back-and-biceps builder — vertical and horizontal pulls for width and thickness, rear delts and traps, then a thorough biceps finish. Pull from every angle.', steps:[
+    _pstep(4,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'Width — vertical pull.','heavy'), _pstep(4,[_mvOpt('row')],'Thickness — heavy row.','heavy'), _pstep(3,[_mvOpt('lat-pulldown')],'A second vertical angle.'), _pstep(3,[_mvOpt('rear-delt')],'Rear delts and face pulls.','light'), _pstep(2,[_mvOpt('shrugs')],'Traps.'), _pstep(3,[_mvOpt('bicep-curl')],'Biceps.','light'), _pstep(2,[_mvOpt('hammer-curl')],'','light') ] },
 ];
 function cloneSeedPlan(sp) {
   return { id:sp.id, name:sp.name, desc:sp.desc||'', intensity:sp.intensity||3, steps:sp.steps.map(s => ({ id:newUuid(), sets:s.sets, desc:s.desc||'', load:s.load||'moderate', options:s.options.map(o => ({ ...o })) })) };
@@ -10458,6 +10965,13 @@ const THEMED_SPLITS = [
   { id:'thunder', name:'God of Thunder',           emoji:'⚡', tag:'4-day · overhead power',       blurb:'Shoulder-forward and powerful — press overhead like a worthy hammer depends on it.', slots:['Push','Pull','Legs','Upper'] },
   { id:'people',  name:'The People’s Pump',        emoji:'🌋', tag:'5-day · boulder shoulders',    blurb:'Big chest and bigger delts, five days, maximum effort — no day wasted, my friends.', slots:['Push','Pull','Legs','Push','Pull'] },
   { id:'cowl',    name:'The Caped Crusader’s Cut',  emoji:'🦇', tag:'4-day · athletic minimalism', blurb:'Dense and athletic — an upper/lower you could run out of a cave anywhere in the city.', slots:['Upper','Legs','Upper','Legs'] },
+  // feat 273 — martial-arts & mind-body themed splits. A "Core" slot will surface the new core/conditioning
+  // plans (Pilates, Fighter\'s Circuit) when they cover it best.
+  { id:'dragon',    name:'Way of the Dragon',        emoji:'🐉', tag:'4-day · martial athleticism',     blurb:'A fighter build — push, pull and legs for power, then a core-and-conditioning day to tie it all together.', slots:['Push','Pull','Legs','Core'] },
+  { id:'crane',     name:'The Crane & The Tiger',    emoji:'🦢', tag:'4-day · strength meets stillness', blurb:'Hard and soft in balance — two big strength days, a pull day, and a core / mind-body day to reset.', slots:['Upper','Legs','Pull','Core'] },
+  { id:'shaolin',   name:'The Shaolin Path',         emoji:'🧘', tag:'3-day · full-body discipline',     blurb:'Lean, capable and unhurried — full-body strength bookending a core-and-control day. Move with intent.', slots:['Full Body','Core','Full Body'] },
+  { id:'contender', name:'The Contender',            emoji:'🥊', tag:'5-day · a fighter engine',         blurb:'Train like you have a fight coming — upper and lower power, a pull day, and a core-conditioning finisher.', slots:['Push','Legs','Pull','Upper','Core'] },
+  { id:'aegis',     name:'The Shield-Bearer',        emoji:'🛡️', tag:'4-day · armoured all-rounder',     blurb:'Balanced, durable and strong from every angle — an upper / lower base with a posterior and core focus.', slots:['Upper','Legs','Pull','Core'] },
 ];
 function themedSplit(id) { return THEMED_SPLITS.find(t => t.id === id) || null; }
 // The muscle GROUPS a slot is meant to cover — so a "Pull" day is judged on back+biceps volume, not just
@@ -11445,6 +11959,24 @@ function sparklineSvg(series, opts) {
   const col = opts.color || (last >= pts[0] ? 'var(--good)' : 'var(--warn)');
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${X(pts.length - 1).toFixed(1)}" cy="${Y(last).toFixed(1)}" r="2.2" fill="${col}"/></svg>`;
 }
+// feat 270 — inline "trend peek": a glanceable e1RM sparkline for the exercise you're logging, right in the
+// sheet, so you don't have to leave for the Trends page. RPE-aware (sessionBestE1RM); tapping opens the full view.
+function renderTrendPeek(varUuid, subUuid) {
+  if (!varUuid) return '';
+  const hist = getHistoryByKey(varUuid, subUuid); // recent-first
+  if (!hist || hist.length < 2) return '';
+  const series = hist.slice().reverse().map(h => Math.round(sessionBestE1RM(h))).filter(v => v > 0); // chronological
+  if (series.length < 2) return '';
+  const recent = series.slice(-12);
+  const latest = recent[recent.length - 1], firstShown = recent[0], best = Math.max.apply(null, series);
+  const pct = firstShown > 0 ? Math.round((latest - firstShown) / firstShown * 100) : 0;
+  const dir = pct > 1 ? 'up' : pct < -1 ? 'down' : 'flat';
+  return `<button type="button" class="trend-peek tp-${dir}" id="trk-trend-peek" title="Open full trends for this exercise">
+    <span class="tp-spark">${sparklineSvg(recent, { w: 116, h: 26 })}</span>
+    <span class="tp-stats"><b class="tp-cur">${latest}</b> <span class="tp-unit">${state.unit} e1RM</span> · best ${best} · <span class="tp-delta tp-${dir}">${pct >= 0 ? '+' : ''}${pct}%</span></span>
+    <span class="tp-arrow">›</span>
+  </button>`;
+}
 // feat 246 — interactive plan-guide bindings (steps · pick · skip · opts · footer), shared by the workout
 // dashboard (when it still rendered the card) and now the Plan Detail page, which hosts the card for the live
 // session. All selectors are guarded, so calling this on a container without a plan card is a harmless no-op.
@@ -12158,6 +12690,9 @@ function finalizeEndWorkout(active, skipConfirm) {
     finalizePlanExecution(active); // feat 164 — historize the plan execution + incomplete/skipped stats
     saveState();
     render();
+    // feat 272 — wrap-up side effects: a guaranteed (immediate) cloud push, and the AI-ready brief export
+    if (typeof cloudActive === 'function' && cloudActive() && !(state.cloudSync && state.cloudSync.syncOnEnd === false)) { try { cloudPushNow().catch(() => {}); } catch (_) {} }
+    if (typeof aiExportOnWorkoutEnd === 'function') aiExportOnWorkoutEnd();
     logInfo('Workout ended', (score ? score.grade + ' ' + score.points : '') + ' · ' + stats.totalSets + ' sets');
     toast(score ? `🏁 Workout ended · ${score.grade}` : '🏁 Workout ended');
   };
@@ -17041,6 +17576,7 @@ function renderSetsForm() {
       ${(() => { const h = weightRecordHint(pending.varUuid); return h ? `<div class="weight-record-hint">${escapeHtml(h)}</div>` : ''; })()}
       <div class="ex-note-row">${exNoteHtml}</div>
       <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-ex-trends-btn" type="button">📈 Trends</button></div>
+      ${renderTrendPeek(pending.varUuid, pending.subUuid)}
       ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
     </div>
 
@@ -17487,6 +18023,7 @@ function bindSetsForm() {
   // feat 75 — reference videos for this exercise (carousel / manager); includes whole-movement clips
   document.getElementById('trk-ex-media-btn')?.addEventListener('click', () => { const fi = VAR_INDEX.get(pending.varUuid); openExerciseMedia(pending.varUuid, null, fi && fi.family ? fi.family.id : null); });
   document.getElementById('trk-ex-trends-btn')?.addEventListener('click', () => openTrendsFor(pending.varUuid, pending.subUuid)); // feat 117
+  document.getElementById('trk-trend-peek')?.addEventListener('click', () => openTrendsFor(pending.varUuid, pending.subUuid)); // feat 270 — peek → full trends
 
   // feat 54 — per-exercise custom note: add / edit / view / clear from the header
   document.getElementById('trk-ex-note-edit')?.addEventListener('click', () => {
@@ -18072,6 +18609,7 @@ document.addEventListener('visibilitychange', () => {
   // feat 248 — browsers freeze/throttle setInterval while the tab is hidden, so the rest timer can show a stale
   // value when you return. Restart the tick (defensive) and repaint immediately so it snaps to the real time.
   try { ensureRestTick(); restTick(); } catch (_) {}
+  try { if (typeof aiExportMaybeDaily === 'function') aiExportMaybeDaily(); } catch (_) {} // feat 272 — a new day may have started while away
 });
 window.addEventListener('focus', () => { try { if (typeof hrTryReconnect === 'function' && !_hrConnected && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {} });
 try { refreshWakeLock(); } catch (_) {}
@@ -18093,7 +18631,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 213 · 2026-06-16 22:00';
+const APP_BUILD = 'build 220 · 2026-06-17 17:59';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -18353,6 +18891,7 @@ function _annDuckOff() { _annDuckActive = false; _setAudioSessionType('auto'); c
 function annunce(text) {
   try {
     if (!text) return;
+    if (typeof _glossPod !== 'undefined' && _glossPod) return; // feat 274 — don't interrupt the study podcast
     if (!sndAudioOn() || !headphoneGatePasses()) return;
     if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
     const u = new SpeechSynthesisUtterance(String(text).slice(0, 120));
@@ -19040,6 +19579,10 @@ setTimeout(() => {
   if (state.stravaAutoLoad && state.stravaAutoLoad.enabled) {
     stravaLoadNow(true, false).catch(() => {});
   }
+  // feat 272 — AI-ready digest export: once-a-day write on load (the "EOD" path); silent, no prompt on boot
+  if (typeof aiExportMaybeDaily === 'function') aiExportMaybeDaily();
+  // feat 275 — once-a-day "you have N unread study items" nudge
+  if (typeof studyDailyNudge === 'function') studyDailyNudge();
   // feat 124/125 — cloud sync: first finish any pending OAuth redirect (Dropbox/OneDrive land back here
   // with ?code=…); otherwise silent-pull if a provider is already connected. OAuth providers can refresh
   // silently from the IndexedDB refresh token; Google falls back to a silent GIS token when its session lives.
@@ -25933,6 +26476,223 @@ const glossaryCategories = [
 
 let glossSearch = '';
 let glossCat = 'all';
+// feat 274 — study read/unread + listen-as-podcast
+let glossReadFilter = 'all';   // 'all' | 'unread' | 'read'
+let glossPodOrder = 'logical'; // 'logical' (category order) | 'random'
+
+/* ============================================================
+   feat 274 — STUDY: mark glossary entries read/unread, and LISTEN to the unread pile as an engaging,
+   continuous "podcast" (logical or shuffled). The read flag records the date + whether it was set
+   MANUALLY (a tap) or earned by LISTENING to the whole entry. state.glossaryRead = { term: {at, src} }.
+   ============================================================ */
+// feat 275 — generalized, namespaced read-state across ALL study content (glossary · advice · guides).
+// Key = `${type}:${id}` (e.g. 'glossary:RPE', 'advice:coach-endurance', 'guide:bouldering').
+function studyRead() { return state.studyRead || (state.studyRead = {}); }
+function studyKey(type, id) { return type + ':' + id; }
+function isStudyRead(k) { return !!studyRead()[k]; }
+function studyReadInfo(k) { return studyRead()[k] || null; }
+function markStudyRead(k, src) { if (!k) return; if (typeof roBlocked === 'function' && roBlocked('mark read')) return; studyRead()[k] = { at: new Date().toISOString(), src: src === 'listen' ? 'listen' : 'manual' }; saveState(); }
+function markStudyUnread(k) { if (!k) return; if (typeof roBlocked === 'function' && roBlocked('mark unread')) return; delete studyRead()[k]; saveState(); }
+function toggleStudyRead(k) { if (isStudyRead(k)) markStudyUnread(k); else markStudyRead(k, 'manual'); }
+// Glossary wrappers keep the feat-274 public API, now delegating to the unified store.
+function isGlossRead(term) { return isStudyRead(studyKey('glossary', term)); }
+function glossReadInfo(term) { return studyReadInfo(studyKey('glossary', term)); }
+function markGlossRead(term, src) { markStudyRead(studyKey('glossary', term), src); }
+function markGlossUnread(term) { markStudyUnread(studyKey('glossary', term)); }
+function toggleGlossRead(term) { toggleStudyRead(studyKey('glossary', term)); }
+function glossUnreadCount() { return glossary.reduce((n, g) => n + (isGlossRead(g.term) ? 0 : 1), 0); }
+// Total unread across every study surface — for the badge + daily nudge.
+function adviceUnreadCount() { return (typeof COACHING !== 'undefined' ? COACHING : []).reduce((n, c) => n + (isStudyRead(studyKey('advice', c.id)) ? 0 : 1), 0); }
+function guideUnreadCount() { return studyGuides().reduce((n, g) => n + (isStudyRead(studyKey('guide', g.gid)) ? 0 : 1), 0); }
+function studyUnreadTotal() { return glossUnreadCount() + adviceUnreadCount() + guideUnreadCount(); }
+// Every embedded guide as { gid, title } (read from the <template id="guide-*"> nodes).
+function studyGuides() {
+  if (typeof document === 'undefined') return [];
+  return Array.from(document.querySelectorAll('template[id^="guide-"]')).map(t => ({ gid: t.id.replace(/^guide-/, ''), title: t.getAttribute('data-title') || t.id.replace(/^guide-/, '') }));
+}
+// Plain-text narration for one guide (its template HTML, tags stripped, trimmed for a listen).
+function guideText(gid) {
+  const t = document.getElementById('guide-' + gid); if (!t) return '';
+  let html = t.innerHTML.replace(/<!DOCTYPE[^>]*>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<script[\s\S]*?<\/script>/gi, ' ');
+  const tmp = document.createElement('div'); tmp.innerHTML = html;
+  return (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+}
+// feat 275 — unread count for a nav node + a badge refresher + a once-a-day "you have N unread" nudge.
+function _navUnreadCount(id) { return id === 'study' ? studyUnreadTotal() : id === 'glossary' ? glossUnreadCount() : id === 'advice' ? adviceUnreadCount() : 0; }
+function refreshStudyBadge() { try { document.querySelectorAll('[data-study-badge]').forEach(el => { const n = _navUnreadCount(el.dataset.studyBadge); el.textContent = n > 0 ? String(n) : ''; el.style.display = n > 0 ? '' : 'none'; }); } catch (_) {} }
+function studyDailyNudge() {
+  if (!state.studyNudge) return;
+  const today = new Date().toDateString(), sp = state.studyPod || {};
+  if (sp.nudgeDay === today || sp.lastListenDay === today) return; // not twice a day, and not if you already listened
+  const n = studyUnreadTotal(); if (n <= 0) return;
+  state.studyPod = { ...sp, nudgeDay: today }; saveState();
+  setTimeout(() => { try { toast(`📚 ${n} unread study item${n === 1 ? '' : 's'} — open Study to read or 🎧 listen`); } catch (_) {} }, 1800);
+}
+// The current filtered-by-search/category glossary list, in display order (alpha), used for read counts.
+function glossVisibleList() {
+  const q = glossSearch.toLowerCase();
+  return glossary.filter(g => {
+    if (glossCat !== 'all' && g.cat !== glossCat) return false;
+    if (!q) return true;
+    return g.term.toLowerCase().includes(q) || (g.aka && g.aka.toLowerCase().includes(q)) || g.def.toLowerCase().includes(q);
+  });
+}
+// The unread queue for the podcast: respects the current search/category filter, ordered logically
+// (by category then term) or shuffled. (Ignores the read-filter toggle — "unread" is the whole point.)
+function glossPodcastQueue() {
+  const unread = glossVisibleList().filter(g => !isGlossRead(g.term));
+  if (glossPodOrder === 'random') {
+    const a = unread.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  const order = glossaryCategories.map(c => c.id);
+  return unread.slice().sort((x, y) => { const cx = order.indexOf(x.cat), cy = order.indexOf(y.cat); return (cx - cy) || x.term.toLowerCase().localeCompare(y.term.toLowerCase()); });
+}
+
+// ---- speech shaping: make the definitions read like a coach talking, not a table dump ----
+const _GLOSS_CAT_SPOKEN = { programming:'programming', anatomy:'anatomy', equipment:'equipment', technique:'technique', form:'form', nutrition:'nutrition', recovery:'recovery', slang:'gym slang', injury:'injury', lore:'lifting lore' };
+function _speechClean(s) {
+  return String(s || '')
+    .replace(/\b1RM\b/gi, 'one-rep max').replace(/\be1RM\b/gi, 'estimated one-rep max')
+    .replace(/\bRIR\b/g, 'reps in reserve').replace(/\bRPE\b/g, 'R P E').replace(/\bROM\b/g, 'range of motion')
+    .replace(/\bMEV\b/g, 'M E V').replace(/\bMAV\b/g, 'M A V').replace(/\bMRV\b/g, 'M R V').replace(/\bTDEE\b/g, 'T D E E').replace(/\bBMR\b/g, 'B M R')
+    .replace(/\be\.?g\.?,?/gi, 'for example').replace(/\bi\.?e\.?,?/gi, 'that is').replace(/\bvs\.?\b/gi, 'versus')
+    .replace(/(\d)\s*[-–—]\s*(\d)/g, '$1 to $2')
+    .replace(/×/g, ' by ').replace(/%/g, ' percent').replace(/&/g, ' and ').replace(/~/g, 'about ').replace(/→/g, ' leads to ').replace(/°/g, ' degrees')
+    .replace(/[“”"]/g, '').replace(/[()]/g, ', ')
+    .replace(/\s+/g, ' ').replace(/\s+([.,;:])/g, '$1').trim();
+}
+const _POD_OPENERS = ['Alright. ', 'Next up: ', "Here's one. ", 'Now, ', 'Okay — ', "Let's get into ", 'Moving on. ', "Here's a good one. ", 'Quick one. '];
+// Conversational narration for one entry.
+function glossNarration(g) {
+  const opener = _POD_OPENERS[Math.floor(Math.random() * _POD_OPENERS.length)];
+  const aka = g.aka ? `, also known as ${_speechClean(g.aka)},` : '';
+  return `${opener}${g.term}${aka}. ${_speechClean(g.def)}`;
+}
+
+// ---- the player: a small state machine over a list of spoken "segments" (intro · entries · outro) ----
+let _glossPod = null;        // { segs:[{kind,text,term?}], idx, gen, paused }
+let _podResumeTimer = null;
+function _podSupported() { return typeof window !== 'undefined' && window.speechSynthesis && typeof SpeechSynthesisUtterance !== 'undefined'; }
+function _refreshStudyUI() { // feat 275 — refresh whichever study surface(s) are visible + the nav badge
+  if (document.getElementById('ref-gloss-body')) { try { renderGlossCats(); renderGlossary(); } catch (_) {} }
+  if (document.getElementById('coaching-content')) { try { renderCoaching(); } catch (_) {} }
+  try { if (typeof refreshStudyBadge === 'function') refreshStudyBadge(); } catch (_) {}
+}
+const _refreshGlossIfOpen = _refreshStudyUI; // back-compat alias
+// feat 275 — generic listener. items: [{ readKey, label, cat?, narration }]. Builds intro · entries · outro,
+// supports resume (rotate so the last in-progress entry leads), and marks each entry read when fully heard.
+function _startStudyPodcast(items, unitLabel, ordered) {
+  if (!_podSupported()) { toast('Speech is not available in this browser'); return; }
+  if (typeof sndAudioOn === 'function' && !sndAudioOn()) { toast('🔇 Unmute audio to listen'); return; }
+  if (!items || !items.length) { toast(`🎧 Nothing unread — you're all caught up!`); return; }
+  const rk = state.studyPod && state.studyPod.resumeKey; // feat 275 — resume where you left off
+  let resumed = false;
+  if (rk) { const i = items.findIndex(it => it.readKey === rk); if (i > 0) { items = items.slice(i).concat(items.slice(0, i)); resumed = true; } }
+  const total = items.length, segs = [];
+  segs.push({ kind: 'intro', text: `${resumed ? 'Picking up where we left off. ' : 'Welcome back. '}${total} ${unitLabel || 'item'}${total === 1 ? '' : 's'} to get through. Let's run them — I'll keep it tight.` });
+  let lastCat = null;
+  items.forEach(it => {
+    let pre = '';
+    if (it.cat && it.cat !== lastCat) { pre = lastCat === null ? '' : `Switching to ${_GLOSS_CAT_SPOKEN[it.cat] || it.cat}. `; lastCat = it.cat; }
+    segs.push({ kind: 'entry', readKey: it.readKey, label: it.label, text: pre + it.narration });
+  });
+  segs.push({ kind: 'outro', text: `That's it — ${total} ${unitLabel || 'item'}${total === 1 ? '' : 's'} done. Solid work. Come back any time for more.` });
+  _glossPod = { segs, idx: 0, gen: 0, paused: false, order: ordered ? 'logical' : 'random' };
+  if (state.studyPod) { state.studyPod.lastListenDay = new Date().toDateString(); saveState(); }
+  _podStartResumeHack();
+  _podPlay(0);
+}
+function startGlossPodcast() {
+  const items = glossPodcastQueue().map(g => ({ readKey: studyKey('glossary', g.term), label: g.term, cat: glossPodOrder === 'logical' ? g.cat : null, narration: glossNarration(g) }));
+  _startStudyPodcast(items, 'term', glossPodOrder === 'logical');
+}
+// feat 275 — conversational narration for an Advice/coaching topic (blurb + its sections, tags stripped).
+function adviceNarration(c) {
+  const opener = _POD_OPENERS[Math.floor(Math.random() * _POD_OPENERS.length)];
+  let body = _speechClean(c.blurb) + ' ';
+  (c.sections || []).forEach(s => { body += `${_speechClean(s.h)}. ` + (s.items || []).map(it => _speechClean(String(it).replace(/<[^>]+>/g, ''))).join('. ') + '. '; });
+  return `${opener}${c.title}. ${body}`.replace(/\s+/g, ' ').trim();
+}
+function startAdvicePodcast() {
+  const items = (typeof COACHING !== 'undefined' ? COACHING : []).filter(c => !isStudyRead(studyKey('advice', c.id)))
+    .map(c => ({ readKey: studyKey('advice', c.id), label: c.title, cat: null, narration: adviceNarration(c) }));
+  _startStudyPodcast(items, 'topic', true);
+}
+// Split a long passage into ~maxChar sentence groups so the speech engine handles it cleanly.
+function _chunkText(s, max) {
+  const sentences = String(s || '').match(/[^.!?]+[.!?]*\s*/g) || [String(s || '')];
+  const out = []; let buf = '';
+  sentences.forEach(snt => { if ((buf + snt).length > (max || 600) && buf) { out.push(buf.trim()); buf = snt; } else buf += snt; });
+  if (buf.trim()) out.push(buf.trim());
+  return out.length ? out : [String(s || '')];
+}
+// feat 275 — listen to a single (long-form) guide: chunked so it flows; only the FINAL chunk marks it read.
+function startGuidePodcast(gid) {
+  const text = guideText(gid); if (!text) { toast('Nothing to read in that guide'); return; }
+  const g = studyGuides().find(x => x.gid === gid), title = g ? g.title : gid;
+  const chunks = _chunkText(_speechClean(text), 600);
+  const items = chunks.map((c, i) => ({ readKey: i === chunks.length - 1 ? studyKey('guide', gid) : null, label: title + (chunks.length > 1 ? ` (${i + 1}/${chunks.length})` : ''), cat: null, narration: c }));
+  _startStudyPodcast(items, 'part', true);
+}
+function _podEntryProgress() {
+  if (!_glossPod) return { n: 0, total: 0 };
+  const total = _glossPod.segs.filter(s => s.kind === 'entry').length;
+  const n = _glossPod.segs.slice(0, _glossPod.idx + 1).filter(s => s.kind === 'entry').length;
+  return { n: Math.min(n, total), total };
+}
+function _podPlay(i) {
+  if (!_glossPod) return;
+  if (i >= _glossPod.segs.length) { _podFinish(); return; }
+  _glossPod.idx = i;
+  _glossPod.gen++;
+  const myGen = _glossPod.gen, seg = _glossPod.segs[i];
+  const u = new SpeechSynthesisUtterance(seg.text);
+  u.rate = 0.98; u.lang = 'en-US'; u.volume = (typeof sndVol === 'function') ? sndVol() : 1;
+  if (typeof coachify === 'function') coachify(u);
+  u.onend = () => { // a skip/stop/new-play bumps gen, so a superseded utterance's end is ignored
+    if (!_glossPod || myGen !== _glossPod.gen) return;
+    if (seg.readKey) markStudyRead(seg.readKey, 'listen'); // earned by hearing the whole entry
+    _podPlay(i + 1);
+  };
+  u.onerror = () => { if (_glossPod && myGen === _glossPod.gen) _podPlay(i + 1); };
+  try { window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); } catch (_) {}
+  renderPodBar();
+}
+function _podSkip() { if (!_glossPod) return; const i = _glossPod.idx; _glossPod.gen++; try { window.speechSynthesis.cancel(); } catch (_) {} _glossPod.paused = false; _podPlay(i + 1); } // never marks the skipped entry read
+function _podTogglePause() {
+  if (!_glossPod) return;
+  try { if (_glossPod.paused) { window.speechSynthesis.resume(); _glossPod.paused = false; } else { window.speechSynthesis.pause(); _glossPod.paused = true; } } catch (_) {}
+  renderPodBar();
+}
+function _podStop() {
+  if (!_glossPod) return;
+  const seg = _glossPod.segs[_glossPod.idx]; // feat 275 — remember the in-progress entry to resume from
+  if (state.studyPod) { state.studyPod.resumeKey = (seg && seg.readKey) || null; saveState(); }
+  _glossPod.gen++; _podStopResumeHack(); try { window.speechSynthesis.cancel(); } catch (_) {} _glossPod = null; renderPodBar(); _refreshStudyUI();
+}
+function _podFinish() { _podStopResumeHack(); _glossPod = null; if (state.studyPod) { state.studyPod.resumeKey = null; saveState(); } renderPodBar(); _refreshStudyUI(); toast('🎧 Caught up — unread pile cleared'); }
+function _podStartResumeHack() { _podStopResumeHack(); _podResumeTimer = setInterval(() => { try { if (_glossPod && !_glossPod.paused && window.speechSynthesis.speaking) window.speechSynthesis.resume(); } catch (_) {} }, 9000); }
+function _podStopResumeHack() { if (_podResumeTimer) { clearInterval(_podResumeTimer); _podResumeTimer = null; } }
+function renderPodBar() {
+  let bar = document.getElementById('gloss-pod-bar');
+  if (!_glossPod) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'gloss-pod-bar'; document.body.appendChild(bar); }
+  const seg = _glossPod.segs[_glossPod.idx] || {}, prog = _podEntryProgress();
+  const nowLabel = seg.kind === 'entry' ? escapeHtml(seg.label || '') : (seg.kind === 'intro' ? 'Intro' : 'Wrapping up');
+  bar.innerHTML = `<div class="pod-bar-inner">
+    <div class="pod-now"><span class="pod-eq ${_glossPod.paused ? '' : 'on'}">🎧</span><div class="pod-now-txt"><div class="pod-now-term">${nowLabel}</div><div class="pod-now-sub">${prog.n} / ${prog.total} · ${(_glossPod.order || 'logical') === 'random' ? 'shuffled' : 'in order'}${_glossPod.paused ? ' · paused' : ''}</div></div></div>
+    <div class="pod-ctrls">
+      <button class="pod-btn" id="pod-pause" title="${_glossPod.paused ? 'Resume' : 'Pause'}">${_glossPod.paused ? '▶' : '⏸'}</button>
+      <button class="pod-btn" id="pod-skip" title="Skip — don't mark read">⏭</button>
+      <button class="pod-btn pod-stop" id="pod-stop" title="Stop">⏹</button>
+    </div>
+  </div>`;
+  bar.querySelector('#pod-pause').onclick = _podTogglePause;
+  bar.querySelector('#pod-skip').onclick = _podSkip;
+  bar.querySelector('#pod-stop').onclick = _podStop;
+}
 
 function renderGlossCats() {
   const el = document.getElementById('ref-gloss-cat-filter');
@@ -25948,11 +26708,30 @@ function renderGlossCats() {
   });
 }
 
+// feat 274 — the study toolbar: unread count, read-status filter, Listen-as-podcast + order, mark-all.
+function glossStudyBarHtml() {
+  const unread = glossVisibleList().filter(g => !isGlossRead(g.term)).length;
+  const pill = (id, label) => `<button class="gloss-read-pill ${glossReadFilter === id ? 'active' : ''}" data-gloss-readfilter="${id}">${label}</button>`;
+  return `<div class="gloss-study-bar">
+    <div class="gloss-study-row">
+      <span class="gloss-unread-count">${unread} unread</span>
+      <div class="gloss-read-filter">${pill('all', 'All')}${pill('unread', 'Unread')}${pill('read', 'Read')}</div>
+    </div>
+    <div class="gloss-study-row">
+      <button class="gloss-listen-btn" id="gloss-listen-btn" ${unread ? '' : 'disabled'} title="Listen to every unread term as a continuous, conversational podcast">🎧 Listen${unread ? ` (${unread})` : ''}</button>
+      <button class="gloss-order-toggle" id="gloss-order-toggle" title="Playback order">${glossPodOrder === 'random' ? '🔀 Shuffle' : '↕ In order'}</button>
+      <button class="gloss-markall" id="gloss-markall" title="Mark every shown term ${unread ? 'read' : 'unread'}">${unread ? '✓ Mark all read' : '↺ Mark all unread'}</button>
+    </div>
+  </div>`;
+}
 function renderGlossary() {
   const body = document.getElementById('ref-gloss-body');
+  if (!body) return;
   const q = glossSearch.toLowerCase();
   const filtered = glossary.filter(g => {
     if (glossCat !== 'all' && g.cat !== glossCat) return false;
+    if (glossReadFilter === 'unread' && isGlossRead(g.term)) return false; // feat 274
+    if (glossReadFilter === 'read' && !isGlossRead(g.term)) return false;
     if (!q) return true;
     return g.term.toLowerCase().includes(q) ||
            (g.aka && g.aka.toLowerCase().includes(q)) ||
@@ -25961,8 +26740,21 @@ function renderGlossary() {
   // Sort alphabetically by term
   filtered.sort((a,b) => a.term.toLowerCase().localeCompare(b.term.toLowerCase()));
 
+  const studyBar = glossStudyBarHtml();
+  const bindStudyBar = () => {
+    body.querySelectorAll('[data-gloss-readfilter]').forEach(el => el.addEventListener('click', () => { glossReadFilter = el.dataset.glossReadfilter; renderGlossary(); }));
+    body.querySelector('#gloss-listen-btn')?.addEventListener('click', startGlossPodcast);
+    body.querySelector('#gloss-order-toggle')?.addEventListener('click', () => { glossPodOrder = glossPodOrder === 'random' ? 'logical' : 'random'; renderGlossary(); });
+    body.querySelector('#gloss-markall')?.addEventListener('click', () => {
+      const list = glossVisibleList(); const anyUnread = list.some(g => !isGlossRead(g.term));
+      list.forEach(g => { if (anyUnread) { if (!isGlossRead(g.term)) markGlossRead(g.term, 'manual'); } else markGlossUnread(g.term); });
+      renderGlossCats(); renderGlossary();
+    });
+  };
+
   if (filtered.length === 0) {
-    body.innerHTML = '<div class="gloss-no-results">No terms match. Try a different search or category.</div>';
+    body.innerHTML = studyBar + `<div class="gloss-no-results">${glossReadFilter === 'unread' ? '🎉 Nothing unread in this view — all caught up.' : 'No terms match. Try a different search, category or filter.'}</div>`;
+    bindStudyBar();
     return;
   }
 
@@ -25980,23 +26772,33 @@ function renderGlossary() {
   });
 
   const catLabels = { programming:'Program', anatomy:'Anatomy', equipment:'Equipment', technique:'Technique', form:'Form', nutrition:'Nutrition', recovery:'Recovery', slang:'Slang', injury:'Injury', lore:'Lore' };
+  const readBadge = (g) => { // feat 274 — read indicator: date + how it was marked
+    const r = glossReadInfo(g.term);
+    if (!r) return '';
+    const icon = r.src === 'listen' ? '🎧' : '✓';
+    const how = r.src === 'listen' ? 'listened' : 'read';
+    return `<span class="gloss-read-note" title="${how} ${escapeAttr(new Date(r.at).toLocaleString())}">${icon} ${how} ${escapeHtml(fmtDate(r.at))}</span>`;
+  };
 
-  body.innerHTML = `<div class="gloss-count">${filtered.length} term${filtered.length === 1 ? '' : 's'}</div>` +
+  body.innerHTML = studyBar + `<div class="gloss-count">${filtered.length} term${filtered.length === 1 ? '' : 's'}</div>` +
     letters.map(L => `
       <div class="gloss-letter-header">${L}</div>
       ${groups[L].map(g => `
-        <div class="gloss-entry">
+        <div class="gloss-entry ${isGlossRead(g.term) ? 'is-read' : ''}">
           <div class="gloss-term-row">
+            <button class="gloss-read-toggle ${isGlossRead(g.term) ? 'on' : ''}" data-gloss-toggle="${escapeAttr(g.term)}" title="${isGlossRead(g.term) ? 'Mark unread' : 'Mark read'}" aria-pressed="${isGlossRead(g.term) ? 'true' : 'false'}">${isGlossRead(g.term) ? '✓' : '○'}</button>
             <span class="gloss-term">${g.term}</span>
             ${g.aka ? `<span class="gloss-aka">${g.aka}</span>` : ''}
             <span class="gloss-cat-badge ${g.cat}">${catLabels[g.cat] || g.cat}</span>
           </div>
           <div class="gloss-def">${g.def}</div>
-          ${ANATOMY_TERMS.has(g.term) ? `<span class="gloss-chart-link" data-chart-term="${escapeAttr(g.term)}">📍 Show on chart</span>` : ''}
+          <div class="gloss-entry-foot">${ANATOMY_TERMS.has(g.term) ? `<span class="gloss-chart-link" data-chart-term="${escapeAttr(g.term)}">📍 Show on chart</span>` : ''}${readBadge(g)}</div>
         </div>
       `).join('')}
     `).join('');
+  bindStudyBar();
   body.querySelectorAll('.gloss-chart-link').forEach(el => el.addEventListener('click', () => showOnChart(el.dataset.chartTerm)));
+  body.querySelectorAll('[data-gloss-toggle]').forEach(el => el.addEventListener('click', () => { toggleGlossRead(el.dataset.glossToggle); renderGlossCats(); renderGlossary(); }));
 }
 
 // feat 190 — Glossary + Anatomy are Study router pages. The glossary panel shows full-page (the slide-in mode
@@ -26180,7 +26982,11 @@ function anatomyOutline(cx, p) {
 let _anatomyImg = null;        // dataURL of the uploaded hi-res chart (loaded from IndexedDB)
 let _anatomyImgTried = false;
 function anatomyCfg() { return state.anatomyChart || (state.anatomyChart = { view:'detailed', map:[] }); }
-function anatomyHasImage() { return !!_anatomyImg; }
+// feat 271 — a detailed chart can come from an uploaded file (IndexedDB dataURL) OR an image attached to the
+// anatomy media key (gallery / import / Import-URL button). The explicit upload wins when both are present.
+function anatomyMediaImg() { const list = (typeof getExerciseMedia === 'function') ? getExerciseMedia(ANATOMY_MEDIA_KEY) : []; const m = (list || []).find(isImageMedia); return m ? mediaImg(m) : null; }
+function anatomyImageSrc() { return _anatomyImg || anatomyMediaImg(); }
+function anatomyHasImage() { return !!anatomyImageSrc(); }
 function anatomyView() { return (anatomyHasImage() && anatomyCfg().view !== 'simple') ? 'detailed' : 'simple'; }
 async function loadAnatomyImage() {
   _anatomyImgTried = true;
@@ -26222,9 +27028,10 @@ function anatomyToolbarHtml() {
       <button class="anat-vbtn ${view === 'simple' ? 'active' : ''}" data-anat-view="simple">Simple</button>
       <button class="anat-vbtn ${view === 'detailed' ? 'active' : ''}" data-anat-view="detailed" ${has ? '' : 'disabled title="Upload a chart to unlock"'}>Detailed</button>
     </div>
-    <label class="anat-upload">${has ? 'Replace' : '🖼️ Upload chart'}<input type="file" accept="image/*" id="anat-img-input" hidden></label>
+    <label class="anat-upload">${_anatomyImg ? 'Replace' : '🖼️ Upload file'}<input type="file" accept="image/*" id="anat-img-input" hidden></label>
+    <button class="anat-upload" id="anat-media-btn" type="button">📥 Import URL</button>
     <label class="anat-upload">Import map<input type="file" accept=".json,.txt" id="anat-map-input" hidden></label>
-    ${has ? `<button class="anat-upload danger" id="anat-remove-btn">Remove</button>` : ''}
+    ${_anatomyImg ? `<button class="anat-upload danger" id="anat-remove-btn">Remove file</button>` : ''}
   </div>`;
 }
 function renderAnatomyChart(activeTerm) {
@@ -26232,7 +27039,7 @@ function renderAnatomyChart(activeTerm) {
   if (!chart) return;
   if (!_anatomyImgTried) loadAnatomyImage(); // lazily load the stored image; re-renders when ready
   const toolbar = anatomyToolbarHtml();
-  if (anatomyView() === 'detailed' && _anatomyImg) {
+  if (anatomyView() === 'detailed' && anatomyImageSrc()) {
     const map = anatomyCfg().map || [];
     const hotspots = map.map(m => {
       const box = (m.w != null && m.h != null);
@@ -26240,7 +27047,7 @@ function renderAnatomyChart(activeTerm) {
       return `<button class="anat-hotspot ${box ? 'box' : 'dot'} ${activeTerm === m.term ? 'active' : ''}" data-term="${escapeAttr(m.term)}" style="${style}" title="${escapeHtml(m.term)}"></button>`;
     }).join('');
     chart.innerHTML = toolbar + `<div class="gloss-chart-hint">Detailed chart — tap a labelled muscle to open its glossary entry.${map.length ? '' : ' (import a label map to add tap targets)'}</div>
-      <div class="anat-detailed"><img class="anat-img" src="${_anatomyImg}" alt="Anatomy chart">${hotspots}</div>`;
+      <div class="anat-detailed"><img class="anat-img" src="${escapeAttr(anatomyImageSrc())}" alt="Anatomy chart">${hotspots}</div>`;
     chart.querySelectorAll('.anat-hotspot').forEach(el => el.addEventListener('click', () => openGlossaryTo(el.dataset.term)));
   } else {
     const region = r => r.e.map(([cx, cy, rx, ry]) =>
@@ -26262,6 +27069,16 @@ function renderAnatomyChart(activeTerm) {
   const imgIn = chart.querySelector('#anat-img-input'); if (imgIn) imgIn.addEventListener('change', e => { anatomyUploadImage(e.target.files[0]); e.target.value = ''; });
   const mapIn = chart.querySelector('#anat-map-input'); if (mapIn) mapIn.addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const rd = new FileReader(); rd.onload = () => anatomyImportMap(String(rd.result || '')); rd.readAsText(f); });
   chart.querySelector('#anat-remove-btn')?.addEventListener('click', anatomyRemoveImage);
+  // feat 271 — import a detailed chart by URL straight into the anatomy media key (same system as exercise clips)
+  chart.querySelector('#anat-media-btn')?.addEventListener('click', async () => {
+    const url = await promptDialog({ title: 'Import anatomy chart', message: 'Paste a direct image or GIF URL (same media system as exercise clips). It attaches to the Anatomy Chart in your media gallery.', placeholder: 'https://…/anatomy.png', okLabel: 'Import', maxLength: 2000 });
+    if (!url) return;
+    const parsed = parseMediaUrl(url);
+    if (!parsed || !isImageMedia(parsed)) { toast('Use a direct image / GIF link (.png/.jpg/.gif/.webp)'); return; }
+    const res = addExerciseMedia(ANATOMY_MEDIA_KEY, url);
+    if (res && res.ok) { anatomyCfg().view = 'detailed'; saveState(); renderAnatomyChart(activeTerm); toast('🖼️ Detailed chart imported'); }
+    else toast((res && res.err) || 'Could not import that link');
+  });
 }
 function toggleGlossChart() {
   glossChartOpen = !glossChartOpen;
@@ -26481,13 +27298,25 @@ function openInReference(search, mega) {
   if (input) { input.value = search || ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
   window.scrollTo(0, 0);
 }
+// feat 275 — the Advice study bar: unread-topic count, listen-to-unread, mark-all.
+function _adviceStudyBarHtml() {
+  const unread = adviceUnreadCount();
+  return '<div class="gloss-study-bar advice-study-bar"><div class="gloss-study-row">' +
+    '<span class="gloss-unread-count">' + unread + ' unread topic' + (unread === 1 ? '' : 's') + '</span>' +
+    '<button class="gloss-listen-btn" id="advice-listen" ' + (unread ? '' : 'disabled') + ' title="Listen to every unread coaching topic as a podcast">🎧 Listen' + (unread ? ' (' + unread + ')' : '') + '</button>' +
+    '<button class="gloss-markall" id="advice-markall">' + (unread ? '✓ Mark all read' : '↺ Mark all unread') + '</button>' +
+    '</div></div>';
+}
 function renderCoaching() {
   const wrap = document.getElementById('coaching-content');
   if (!wrap || typeof escapeHtml !== 'function') return;
-  wrap.innerHTML = COACHING.map(function (c) {
-    const head = '<div class="coach-card-head"><div class="coach-card-icon">' + c.icon + '</div>' +
-      '<div><div class="coach-card-title">' + escapeHtml(c.title) + '</div>' +
-      '<div class="coach-card-sub">' + escapeHtml(c.sub) + '</div></div></div>';
+  wrap.innerHTML = _adviceStudyBarHtml() + COACHING.map(function (c) {
+    const k = studyKey('advice', c.id), read = isStudyRead(k), info = studyReadInfo(k); // feat 275
+    const toggle = '<button class="gloss-read-toggle ' + (read ? 'on' : '') + '" data-advice-toggle="' + escapeAttr(c.id) + '" title="' + (read ? 'Mark unread' : 'Mark read') + '">' + (read ? '✓' : '○') + '</button>';
+    const note = info ? '<span class="gloss-read-note">' + (info.src === 'listen' ? '🎧 listened ' : '✓ read ') + escapeHtml(fmtDate(info.at)) + '</span>' : '';
+    const head = '<div class="coach-card-head">' + toggle + '<div class="coach-card-icon">' + c.icon + '</div>' +
+      '<div style="flex:1;min-width:0;"><div class="coach-card-title">' + escapeHtml(c.title) + '</div>' +
+      '<div class="coach-card-sub">' + escapeHtml(c.sub) + '</div></div>' + note + '</div>';
     const secs = c.sections.map(function (s) {
       return '<div class="coach-sec"><div class="coach-sec-h">' + escapeHtml(s.h) + '</div><ul>' +
         s.items.map(function (it) { return '<li>' + it + '</li>'; }).join('') + '</ul></div>';
@@ -26497,8 +27326,8 @@ function renderCoaching() {
         '" data-coach-mega="' + escapeAttr(ch.mega || '') + '">' + escapeHtml(ch.label) + ' ›</button>';
     }).join('') +
       (c.guide ? '<button type="button" class="coach-chip guide" data-guide="' + escapeAttr(c.guide.gid) + '">📖 ' +
-      escapeHtml(c.guide.label) + '</button>' : ''); // feat 194 — the deep-dive bundled-guide chip is optional
-    return '<div class="coach-card" id="' + c.id + '">' + head +
+      escapeHtml(c.guide.label) + (isStudyRead(studyKey('guide', c.guide.gid)) ? ' ✓' : '') + '</button>' : ''); // feat 194/275 — bundled-guide chip + read tick
+    return '<div class="coach-card ' + (read ? 'is-read' : '') + '" id="' + c.id + '">' + head +
       '<div class="coach-blurb">' + escapeHtml(c.blurb) + '</div>' + secs +
       '<div class="coach-xref"><div class="coach-xref-label">' + escapeHtml(c.xref.label) +
       '</div><div class="coach-chips">' + chips + '</div></div></div>';
@@ -26506,11 +27335,17 @@ function renderCoaching() {
 }
 function bindCoaching() {
   const wrap = document.getElementById('coaching-content');
-  if (!wrap) return;
+  if (!wrap || wrap._coachBound) return; // delegation survives renderCoaching() innerHTML swaps; bind once
+  wrap._coachBound = true;
   wrap.addEventListener('click', function (e) {
+    // feat 275 — study read/unread + listen for Advice topics
+    const tgl = e.target.closest('[data-advice-toggle]');
+    if (tgl) { toggleStudyRead(studyKey('advice', tgl.dataset.adviceToggle)); renderCoaching(); refreshStudyBadge(); return; }
+    if (e.target.closest('#advice-listen')) { startAdvicePodcast(); return; }
+    if (e.target.closest('#advice-markall')) { const any = adviceUnreadCount() > 0; COACHING.forEach(function (c) { const k = studyKey('advice', c.id); if (any) { if (!isStudyRead(k)) markStudyRead(k, 'manual'); } else markStudyUnread(k); }); renderCoaching(); refreshStudyBadge(); return; }
     const chip = e.target.closest('.coach-chip');
     if (!chip) return;
-    if (chip.classList.contains('guide')) { openGuide(chip.dataset.guide); return; }
+    if (chip.classList.contains('guide')) { markStudyRead(studyKey('guide', chip.dataset.guide), 'manual'); openGuide(chip.dataset.guide); renderCoaching(); refreshStudyBadge(); return; } // feat 275 — opening a guide marks it read
     openInReference(chip.dataset.coachSearch, chip.dataset.coachMega);
   });
 }
@@ -26567,7 +27402,8 @@ function openGuide(gid) {
     ov = document.createElement('div');
     ov.id = 'guide-reader';
     ov.innerHTML = '<div class="guide-reader-bar"><button type="button" class="guide-reader-close" id="guide-reader-back" aria-label="Close guide">✕ Close</button>'
-      + '<span class="guide-reader-title" id="guide-reader-title"></span></div>'
+      + '<span class="guide-reader-title" id="guide-reader-title"></span>'
+      + '<button type="button" class="guide-reader-listen" id="guide-reader-listen" title="Listen to this guide">🎧 Listen</button></div>' // feat 275
       + '<iframe class="guide-reader-frame" id="guide-reader-frame" title="Guide" referrerpolicy="no-referrer"></iframe>';
     document.body.appendChild(ov);
     ov.querySelector('#guide-reader-back').addEventListener('click', closeGuide);
@@ -26576,6 +27412,7 @@ function openGuide(gid) {
     window.addEventListener('popstate', function () { if (isGuideOpen()) { _guidePushedState = false; _guideHide(); } });
   }
   ov.querySelector('#guide-reader-title').textContent = tpl.getAttribute('data-title') || 'Guide';
+  const lb = ov.querySelector('#guide-reader-listen'); if (lb) lb.onclick = function () { startGuidePodcast(gid); }; // feat 275 — listen to this guide
   ov.querySelector('#guide-reader-frame').srcdoc = '<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' + tpl.innerHTML + buildGuideTheme();
   ov.classList.add('open');
   document.body.style.overflow = 'hidden';
