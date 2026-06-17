@@ -934,6 +934,71 @@ They share variation **UUIDs**.
   Pull Marathon's lower-back step tripped the "balanced compound mix → Full Body" rule (swapped for a third row so it
   reads as **Pull**), and Express Legs needed a glute step to clear the slot-coverage bar and win the 30 min Legs slot.
   A catalogue-wide guard asserts **every** seed step is satisfiable. `test/plancoverage.spec.mjs`.
+- **RPE / RIR per-set logging — fully hideable (feat 261):** an optional effort field per set. Mode lives in
+  `state.workoutControls.rpeMode` = `'off'` (default) | `'rpe'` (Rate of Perceived Exertion 6–10, .5 steps) |
+  `'rir'` (Reps In Reserve 0–5); **off hides it completely** — no column, no header, no badges, no migration, so a
+  workout looks exactly as before. Canonical store is a single **`set.rpe`** number (RIR is just a display/entry lens,
+  `RIR = 10 − RPE`, via `rpeToRir`/`rirToRpe`); it's persisted only when present (the `saveSets` `clean()` adds `rpe`
+  conditionally, keeping existing JSON byte-identical). Entry is a compact **`<select>`** (`rpeSelectHtml` → never
+  fires the mobile keyboard, works in numpad mode), added as a 5th set-row column only when `rpeEnabled()`; the grid
+  switches via a `.sets-section.rpe-on` class. `estimated1RMSet(set)` sharpens e1RM by mapping a tagged set to its
+  reps-to-failure (`reps + RIR`) before Epley — **additive**, so the core overload/PR engine (`getOverloadScore`,
+  raw-rep Epley) is untouched and untagged sets are unchanged. History pills show a gated `@8` / `2 RIR` badge. The
+  3-way toggle sits in Settings → Preferences (`data-rpemode`). `test/app.spec.mjs` (off-by-default, scale mapping,
+  adjusted e1RM, select gating).
+- **Muscle-group recovery / readiness model (feat 262):** a Fitbod-style "what's fresh to train today" card atop the
+  **Volume** tab. Pure compute over the log (stores nothing new): each group accrues fatigue from recent sessions that
+  **decays exponentially** (per-group half-lives in `RECOVERY_HALFLIFE_H` — big compounds recover slower), and
+  `readiness = 1 − fatigue / the user's own median per-session load` for that group (`bpReferenceLoad`, last ~8 wk,
+  clamped). Muscle contributions roll up to body-parts via `MUSCLE_INDEX[id].group`; logged **RPE** nudges a session's
+  contribution (`_bpSessionIntensity`). `recoveryReadiness()` returns per-group readiness + last-trained; the card
+  (`renderRecoveryCard`) lists still-recovering groups (most-fatigued first, coloured bar + "trained Xh/Xd ago") and
+  names the fresh ones as "Good to train", with an ⓘ explainer. Directional, not lab-accurate (same spirit as the
+  per-muscle distribution). `test/app.spec.mjs` (fatigued-vs-fresh, card render).
+- **Plateau / stall detection + deload nudge (feat 263):** flags a lift whose per-session best **e1RM** (RPE-adjusted
+  when tagged, via `sessionBestE1RM` → `estimated1RMSet`) hasn't set a new high for several sessions and is essentially
+  flat. `detectPlateau(varUuid, subUuid)` needs ≥4 sessions in the last ~12 wk and fires when the high is **3+
+  sessions old**, the window is **flat (±2 %)**, and it spans **≥ ~2 weeks** (so a single off day or two close sessions
+  never trip it). Surfaced two ways: an advisory in the **log-sets sheet** when you start a stalled exercise
+  (`plateauAdvice` → deload −10 % / variation-swap nudge), and a **🧱 Possible plateaus** roll-up atop the Trends →
+  Overall view (`findPlateaus`/`renderPlateauCard` over `allTrackedKeys`). `test/app.spec.mjs` (flat flagged, climbing
+  not, roll-up + card).
+- **RPE autoregulation + plateau-aware progression (feat 264):** makes feat 261/263 *actionable* inside the existing
+  next-load engine (`suggestProgression` — the "🎯 Aim for w×r" target in the log sheet and the Progression page), so
+  the logged effort and detected stalls change the recommendation instead of just being displayed. `recentTopSet` now
+  carries the top set's **RPE**; when present it steers the next target — **RPE ≥ 9.5** (≈0 in reserve) → `hold`
+  (repeat and consolidate), **RPE ≤ 6.5** (plenty left) → push harder (jump +2 reps, or add load if already at the top
+  of the rep range), **RPE ≥ 9** mid-range → a single cautious rep; **RPE 7–8.5** and **no RPE** fall through to the
+  unchanged double progression (zero behaviour change for users who don't log it). A **stall** (`detectPlateauVar`, a
+  new variation-level sibling of `detectPlateau` aligned to the var-keyed engine) overrides progression with a
+  **−10% deload** target. The plateau core was refactored to a shared `_plateauFromSeries(rows)` used by both the
+  key-level and var-level detectors. `test/app.spec.mjs` (RPE-easy pushes reps, RPE-10 holds, no-RPE unchanged, stall
+  → deload).
+- **Recovery hint at the point of logging (feat 265):** brings the feat-262 model into the daily flow — opening an
+  exercise in the log sheet shows a one-line readiness chip for the **group it mostly trains** (`exerciseDominantGroup`
+  = the largest rolled-up muscle contribution), e.g. "🔴 Chest **18%** recovered · Fatigued". `exerciseRecoveryHint`
+  self-suppresses when there's nothing useful to say (too little history, the group is fresh ≥85%, or it wasn't
+  trained in the last week), so it only appears when it's actionable. Read-only, no settings. `test/app.spec.mjs`
+  (present for a just-trained group, absent for a rested/untrained one).
+- **Recovery-aware plan recommender (feat 266):** the quick-pick recommender (`recommendPlans`) now factors **muscle-group
+  recovery** alongside time-fit and the coarse push/pull/lower freshness. `planRecoveryScore` is the volume-weighted
+  readiness (feat 262) of the groups a plan trains; the score became `time·0.65 + fresh·0.2 + recov·0.15` (+fav) — time-fit
+  stays dominant, so the existing budget-sensitivity ordering is preserved, while recovery breaks ties the mega-level
+  freshness can't see (e.g. a chest-heavy vs a delts-heavy push day when chest is fried but delts are fresh). The
+  recommendation reason gains a **"⚠ <group> still recovering"** heads-up (`planFatiguedGroup`, groups <40% recovered).
+  `recoveryReadiness()` is computed once per call and reused. `test/quickpick.spec.mjs` (fresh-group plan outranks the
+  fatigued-group one + warning note; all prior ordering assertions still hold).
+- **RPE/RIR in workout exports (feat 267):** when the feature is on (feat 261), the per-set strings in the **text** and
+  **image** exports carry the effort tag — `100×5 @8` (RPE) or `100×5 (2 RIR)` (RIR). One change in `summarizeSession`
+  via `rpeExportTag(set)` flows to both, since the Canvas image reuses the same `e.detail` line. Gated and per-set:
+  untagged sets stay bare, and with the feature off the exports are byte-identical to before. `test/app.spec.mjs`
+  (tagged when on across both lenses, absent when off).
+- **Recovery strip on the active workout (feat 268):** a compact, glanceable strip on the live dashboard
+  (`renderRecoveryStrip`, above the session card) showing each recently-trained group as a colour-coded chip
+  (freshest→most-fatigued, e.g. "🟢 Hams 99% … 🔴 Shoulders 0%"), so mid-workout you can see what's recovered enough to
+  add. Shares the feat-262 model; tapping opens **Volume → Recovery**. Gated by a new **Dashboard → Recovery strip**
+  toggle (`state.dashboard.recovery`, default on) and self-hides without history. `test/app.spec.mjs` (chips render,
+  gated by history + the toggle).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
