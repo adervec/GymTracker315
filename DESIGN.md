@@ -1066,6 +1066,19 @@ They share variation **UUIDs**.
   cutoff, and the other speakers (tips/annunciations) yield while the podcast plays. A fixed bottom **player bar**
   (⏸/⏭/⏹, now-playing, n/m) drives it. Logical order = category then term; shuffle = Fisher–Yates. `test/app.spec.mjs`
   (read state + symbol-free narration; a mock-speech drive proving full-listen marks read and skip does not).
+- **Study generalized to Advice + Guides, resume & daily nudge (feat 275):** lifts feat 274 from glossary-only to the
+  whole Study area. Read-state is now **unified + namespaced**: `state.studyRead = { 'type:id': {at,src} }`
+  (`glossary:<term>` · `advice:<coach-id>` · `guide:<gid>`), with the feat-274 `glossaryRead` migrated in once and the
+  glossary helpers kept as thin wrappers. The podcast engine became **content-agnostic** (segments carry a `readKey` +
+  `label`; a natural utterance-end marks that key read). **Advice** (the `COACHING` topics) gains per-card read toggles,
+  a "🎧 Listen to unread" study bar, and `adviceNarration` (blurb + sections, tags stripped). **Guides** get
+  read-on-open + a manual toggle + a "🎧 Listen" button in the reader that speaks the guide text (`guideText` strips the
+  template HTML; `_chunkText` splits it into sentence groups so only the final chunk marks it read). **Resume**:
+  stopping persists the in-progress entry (`state.studyPod.resumeKey`); the next listen rotates the queue to lead with
+  it. **Daily nudge**: a once-a-day "you have N unread study items" toast (`studyDailyNudge`, gated by `state.studyNudge`,
+  skipped if you already listened today) plus an unread-count **badge** on the Study/Glossary/Advice nav-menu items
+  (`renderMenu` + `refreshStudyBadge`). `studyUnreadTotal` sums all three surfaces. `test/app.spec.mjs` (advice/guide
+  read-state + counts, tag-stripped narration, once-a-day nudge, resume rotation).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

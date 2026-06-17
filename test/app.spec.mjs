@@ -411,8 +411,8 @@ test('feat 274 — listen-podcast marks an entry read ONLY after the whole entry
     state.sound = { ...(state.sound || {}), audio: true };
     glossSearch = ''; glossCat = 'all'; glossReadFilter = 'all'; glossPodOrder = 'logical';
     // everything read except two known programming terms → queue = ['1RM','AMRAP'] (alpha, logical)
-    state.glossaryRead = {}; glossary.forEach(g => { state.glossaryRead[g.term] = { at: new Date().toISOString(), src: 'manual' }; });
-    delete state.glossaryRead['1RM']; delete state.glossaryRead['AMRAP'];
+    state.studyRead = {}; glossary.forEach(g => { state.studyRead['glossary:' + g.term] = { at: new Date().toISOString(), src: 'manual' }; });
+    delete state.studyRead['glossary:1RM']; delete state.studyRead['glossary:AMRAP'];
     const q = glossPodcastQueue(); const term1 = q[0].term, term2 = q[1].term;
     startGlossPodcast();
     const fire = () => { const u = lastU; if (u && u.onend) u.onend(); };
@@ -430,6 +430,54 @@ test('feat 274 — listen-podcast marks an entry read ONLY after the whole entry
   expect(r.t2Src).toBe('listen');      // listened-through → src 'listen'
   expect(r.podGone).toBe(true);        // finished → player cleared
   expect(r.spoke).toBeGreaterThanOrEqual(4); // intro + 2 entries + outro
+});
+
+test('feat 275 — unified study read-state across advice + guides, totals, nudge, and resume', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.studyRead = {}; state.studyPod = { resumeKey: null, lastListenDay: null, nudgeDay: null }; state.studyNudge = true;
+    const out = {};
+    // ADVICE read-state via the unified, namespaced store
+    const aId = COACHING[0].id;
+    out.adviceUnread0 = adviceUnreadCount();
+    markStudyRead(studyKey('advice', aId), 'listen');
+    out.adviceRead = isStudyRead(studyKey('advice', aId));
+    out.adviceSrc = studyReadInfo(studyKey('advice', aId)).src;
+    out.adviceUnread1 = adviceUnreadCount();
+    // GUIDES are discovered from the embedded templates
+    const guides = studyGuides();
+    out.hasGuides = guides.length > 0;
+    out.guideKeyOk = guides.length ? studyKey('guide', guides[0].gid).startsWith('guide:') : true;
+    // total unread = glossary + advice + guides
+    out.totalMatches = studyUnreadTotal() === glossUnreadCount() + adviceUnreadCount() + guideUnreadCount();
+    // advice narration strips HTML tags and reads conversationally
+    out.advNarr = adviceNarration(COACHING[0]);
+    // DAILY NUDGE: fires once, marks the day, then is a no-op the same day
+    studyDailyNudge();
+    const d1 = state.studyPod.nudgeDay;
+    studyDailyNudge();
+    out.nudgeOnce = !!d1 && d1 === state.studyPod.nudgeDay;
+    // RESUME: a stored resumeKey rotates the queue so that entry leads
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { speaking: true, getVoices: () => [], cancel() {}, pause() {}, resume() {}, speak() {} } });
+    window.SpeechSynthesisUtterance = function (t) { this.text = t; };
+    state.studyRead = {}; glossSearch = ''; glossCat = 'all'; glossPodOrder = 'logical';
+    const q = glossPodcastQueue();
+    state.studyPod.resumeKey = studyKey('glossary', q[2].term); // pretend we stopped on the 3rd
+    startGlossPodcast();
+    const firstEntry = _glossPod.segs.find(s => s.kind === 'entry');
+    out.resumeLeads = firstEntry.readKey === studyKey('glossary', q[2].term);
+    _podStop();
+    return out;
+  });
+  expect(r.adviceUnread0).toBeGreaterThan(0);
+  expect(r.adviceRead).toBe(true);
+  expect(r.adviceSrc).toBe('listen');
+  expect(r.adviceUnread1).toBe(r.adviceUnread0 - 1);
+  expect(r.hasGuides).toBe(true);              // the embedded guides are found
+  expect(r.guideKeyOk).toBe(true);
+  expect(r.totalMatches).toBe(true);           // the badge total sums the three surfaces
+  expect(r.advNarr).not.toMatch(/<[^>]+>/);    // section HTML stripped for speech
+  expect(r.nudgeOnce).toBe(true);              // the daily nudge fires at most once a day
+  expect(r.resumeLeads).toBe(true);            // resume rotates the queue to where you left off
 });
 
 test('plan estimates are sane', async ({ page }) => {

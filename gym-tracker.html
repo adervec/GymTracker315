@@ -1384,6 +1384,15 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .pod-ctrls { display: flex; gap: 6px; flex-shrink: 0; }
   .pod-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #3a2e5a; background: #1d1730; color: #e8def8; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
   .pod-btn.pod-stop { background: #3a1d24; border-color: #5a2e38; color: #ffb0b8; }
+  /* feat 275 — study generalization: nav badge, advice bar, guide listen, read toggle on coach cards */
+  .nav-menu-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent, #b48aff); color: #0a0a0a; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+  .nav-menu-item .nav-menu-chev { margin-left: 8px; }
+  .advice-study-bar { position: static; margin-bottom: 12px; }
+  .coach-card-head { display: flex; align-items: center; gap: 9px; }
+  .coach-card.is-read { opacity: 0.66; }
+  .coach-card-head .gloss-read-toggle { align-self: center; }
+  .coach-card-head .gloss-read-note { margin-left: auto; align-self: center; }
+  .guide-reader-listen { margin-left: auto; padding: 6px 12px; background: var(--accent, #b48aff); border: none; border-radius: 8px; color: #0a0a0a; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: inherit; }
   .gloss-letter-header { font-size: 22px; font-weight: 700; color: #b48aff; padding: 10px 0 4px 0; border-bottom: 1px solid #2a1f3a; margin-top: 12px; letter-spacing: 1px; }
   .gloss-letter-header:first-child { margin-top: 0; }
   .gloss-entry { padding: 10px 0; border-bottom: 1px solid #1a1426; }
@@ -4040,7 +4049,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -4227,6 +4236,11 @@ function normalizeState() {
   if (state.glossaryHighlight === undefined) state.glossaryHighlight = true;
   if (state.glossaryAsPage === undefined) state.glossaryAsPage = true;
   if (!state.glossaryRead || typeof state.glossaryRead !== 'object') state.glossaryRead = {}; // feat 274 — { term: { at, src:'manual'|'listen' } }
+  // feat 275 — unified, namespaced study read-state; migrate the feat-274 glossary reads into it once.
+  if (!state.studyRead || typeof state.studyRead !== 'object') state.studyRead = {};
+  for (const t in state.glossaryRead) { const k = 'glossary:' + t; if (!state.studyRead[k]) state.studyRead[k] = state.glossaryRead[t]; }
+  if (!state.studyPod || typeof state.studyPod !== 'object') state.studyPod = { resumeKey: null, lastListenDay: null, nudgeDay: null }; // feat 275 — resume + daily nudge
+  if (typeof state.studyNudge !== 'boolean') state.studyNudge = true; // feat 275 — daily "X unread" nudge toggle
   if (!state.settingsCollapse || typeof state.settingsCollapse !== 'object') state.settingsCollapse = { theme: true };
   if (!state.lang || typeof state.lang !== 'string') state.lang = 'en';
   if (typeof state.readonly !== 'boolean') state.readonly = false;
@@ -9817,7 +9831,7 @@ function closeNavTree() {
 function _persistPage() { try { localStorage.setItem('gt_page', currentPage); } catch (_) {} }
 function _syncLegacyTabClasses() { const tab = pageDef(currentPage).tab; document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.toggle('active', !!tab && x.dataset.tab === tab)); }
 function renderMenu(main, ids) {
-  main.innerHTML = `<div class="nav-menu">${(ids || []).map(id => { const d = PAGES[id]; return d ? `<button class="nav-menu-item" data-nav="${id}"><span class="nav-menu-emoji">${d.emoji}</span><span class="nav-menu-title">${escapeHtml(d.title)}</span><span class="nav-menu-chev">›</span></button>` : ''; }).join('')}</div>`;
+  main.innerHTML = `<div class="nav-menu">${(ids || []).map(id => { const d = PAGES[id]; if (!d) return ''; const n = (typeof _navUnreadCount === 'function') ? _navUnreadCount(id) : 0; const badge = n > 0 ? `<span class="nav-menu-badge" data-study-badge="${id}">${n}</span>` : ''; return `<button class="nav-menu-item" data-nav="${id}"><span class="nav-menu-emoji">${d.emoji}</span><span class="nav-menu-title">${escapeHtml(d.title)}</span>${badge}<span class="nav-menu-chev">›</span></button>`; }).join('')}</div>`;
   main.querySelectorAll('[data-nav]').forEach(b => b.addEventListener('click', () => navTo(b.dataset.nav)));
 }
 function renderCurrentPage() {
@@ -18617,7 +18631,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 219 · 2026-06-17 17:26';
+const APP_BUILD = 'build 220 · 2026-06-17 17:59';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -19567,6 +19581,8 @@ setTimeout(() => {
   }
   // feat 272 — AI-ready digest export: once-a-day write on load (the "EOD" path); silent, no prompt on boot
   if (typeof aiExportMaybeDaily === 'function') aiExportMaybeDaily();
+  // feat 275 — once-a-day "you have N unread study items" nudge
+  if (typeof studyDailyNudge === 'function') studyDailyNudge();
   // feat 124/125 — cloud sync: first finish any pending OAuth redirect (Dropbox/OneDrive land back here
   // with ?code=…); otherwise silent-pull if a provider is already connected. OAuth providers can refresh
   // silently from the IndexedDB refresh token; Google falls back to a silent GIS token when its session lives.
@@ -26469,13 +26485,49 @@ let glossPodOrder = 'logical'; // 'logical' (category order) | 'random'
    continuous "podcast" (logical or shuffled). The read flag records the date + whether it was set
    MANUALLY (a tap) or earned by LISTENING to the whole entry. state.glossaryRead = { term: {at, src} }.
    ============================================================ */
-function glossRead() { return state.glossaryRead || (state.glossaryRead = {}); }
-function isGlossRead(term) { return !!glossRead()[term]; }
-function glossReadInfo(term) { return glossRead()[term] || null; }
-function markGlossRead(term, src) { if (!term) return; if (typeof roBlocked === 'function' && roBlocked('mark read')) return; glossRead()[term] = { at: new Date().toISOString(), src: src === 'listen' ? 'listen' : 'manual' }; saveState(); }
-function markGlossUnread(term) { if (!term) return; if (typeof roBlocked === 'function' && roBlocked('mark unread')) return; delete glossRead()[term]; saveState(); }
-function toggleGlossRead(term) { if (isGlossRead(term)) markGlossUnread(term); else markGlossRead(term, 'manual'); }
+// feat 275 — generalized, namespaced read-state across ALL study content (glossary · advice · guides).
+// Key = `${type}:${id}` (e.g. 'glossary:RPE', 'advice:coach-endurance', 'guide:bouldering').
+function studyRead() { return state.studyRead || (state.studyRead = {}); }
+function studyKey(type, id) { return type + ':' + id; }
+function isStudyRead(k) { return !!studyRead()[k]; }
+function studyReadInfo(k) { return studyRead()[k] || null; }
+function markStudyRead(k, src) { if (!k) return; if (typeof roBlocked === 'function' && roBlocked('mark read')) return; studyRead()[k] = { at: new Date().toISOString(), src: src === 'listen' ? 'listen' : 'manual' }; saveState(); }
+function markStudyUnread(k) { if (!k) return; if (typeof roBlocked === 'function' && roBlocked('mark unread')) return; delete studyRead()[k]; saveState(); }
+function toggleStudyRead(k) { if (isStudyRead(k)) markStudyUnread(k); else markStudyRead(k, 'manual'); }
+// Glossary wrappers keep the feat-274 public API, now delegating to the unified store.
+function isGlossRead(term) { return isStudyRead(studyKey('glossary', term)); }
+function glossReadInfo(term) { return studyReadInfo(studyKey('glossary', term)); }
+function markGlossRead(term, src) { markStudyRead(studyKey('glossary', term), src); }
+function markGlossUnread(term) { markStudyUnread(studyKey('glossary', term)); }
+function toggleGlossRead(term) { toggleStudyRead(studyKey('glossary', term)); }
 function glossUnreadCount() { return glossary.reduce((n, g) => n + (isGlossRead(g.term) ? 0 : 1), 0); }
+// Total unread across every study surface — for the badge + daily nudge.
+function adviceUnreadCount() { return (typeof COACHING !== 'undefined' ? COACHING : []).reduce((n, c) => n + (isStudyRead(studyKey('advice', c.id)) ? 0 : 1), 0); }
+function guideUnreadCount() { return studyGuides().reduce((n, g) => n + (isStudyRead(studyKey('guide', g.gid)) ? 0 : 1), 0); }
+function studyUnreadTotal() { return glossUnreadCount() + adviceUnreadCount() + guideUnreadCount(); }
+// Every embedded guide as { gid, title } (read from the <template id="guide-*"> nodes).
+function studyGuides() {
+  if (typeof document === 'undefined') return [];
+  return Array.from(document.querySelectorAll('template[id^="guide-"]')).map(t => ({ gid: t.id.replace(/^guide-/, ''), title: t.getAttribute('data-title') || t.id.replace(/^guide-/, '') }));
+}
+// Plain-text narration for one guide (its template HTML, tags stripped, trimmed for a listen).
+function guideText(gid) {
+  const t = document.getElementById('guide-' + gid); if (!t) return '';
+  let html = t.innerHTML.replace(/<!DOCTYPE[^>]*>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<script[\s\S]*?<\/script>/gi, ' ');
+  const tmp = document.createElement('div'); tmp.innerHTML = html;
+  return (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+}
+// feat 275 — unread count for a nav node + a badge refresher + a once-a-day "you have N unread" nudge.
+function _navUnreadCount(id) { return id === 'study' ? studyUnreadTotal() : id === 'glossary' ? glossUnreadCount() : id === 'advice' ? adviceUnreadCount() : 0; }
+function refreshStudyBadge() { try { document.querySelectorAll('[data-study-badge]').forEach(el => { const n = _navUnreadCount(el.dataset.studyBadge); el.textContent = n > 0 ? String(n) : ''; el.style.display = n > 0 ? '' : 'none'; }); } catch (_) {} }
+function studyDailyNudge() {
+  if (!state.studyNudge) return;
+  const today = new Date().toDateString(), sp = state.studyPod || {};
+  if (sp.nudgeDay === today || sp.lastListenDay === today) return; // not twice a day, and not if you already listened
+  const n = studyUnreadTotal(); if (n <= 0) return;
+  state.studyPod = { ...sp, nudgeDay: today }; saveState();
+  setTimeout(() => { try { toast(`📚 ${n} unread study item${n === 1 ? '' : 's'} — open Study to read or 🎧 listen`); } catch (_) {} }, 1800);
+}
 // The current filtered-by-search/category glossary list, in display order (alpha), used for read counts.
 function glossVisibleList() {
   const q = glossSearch.toLowerCase();
@@ -26523,24 +26575,66 @@ function glossNarration(g) {
 let _glossPod = null;        // { segs:[{kind,text,term?}], idx, gen, paused }
 let _podResumeTimer = null;
 function _podSupported() { return typeof window !== 'undefined' && window.speechSynthesis && typeof SpeechSynthesisUtterance !== 'undefined'; }
-function _refreshGlossIfOpen() { if (document.getElementById('ref-gloss-body')) { try { renderGlossCats(); renderGlossary(); } catch (_) {} } }
-function startGlossPodcast() {
+function _refreshStudyUI() { // feat 275 — refresh whichever study surface(s) are visible + the nav badge
+  if (document.getElementById('ref-gloss-body')) { try { renderGlossCats(); renderGlossary(); } catch (_) {} }
+  if (document.getElementById('coaching-content')) { try { renderCoaching(); } catch (_) {} }
+  try { if (typeof refreshStudyBadge === 'function') refreshStudyBadge(); } catch (_) {}
+}
+const _refreshGlossIfOpen = _refreshStudyUI; // back-compat alias
+// feat 275 — generic listener. items: [{ readKey, label, cat?, narration }]. Builds intro · entries · outro,
+// supports resume (rotate so the last in-progress entry leads), and marks each entry read when fully heard.
+function _startStudyPodcast(items, unitLabel, ordered) {
   if (!_podSupported()) { toast('Speech is not available in this browser'); return; }
   if (typeof sndAudioOn === 'function' && !sndAudioOn()) { toast('🔇 Unmute audio to listen'); return; }
-  const queue = glossPodcastQueue();
-  if (!queue.length) { toast('🎧 Nothing unread — you\'re all caught up!'); return; }
-  const total = queue.length, segs = [];
-  segs.push({ kind: 'intro', text: `Welcome back. You've got ${total} term${total === 1 ? '' : 's'} to get through. Let's run them — I'll keep it tight.` });
+  if (!items || !items.length) { toast(`🎧 Nothing unread — you're all caught up!`); return; }
+  const rk = state.studyPod && state.studyPod.resumeKey; // feat 275 — resume where you left off
+  let resumed = false;
+  if (rk) { const i = items.findIndex(it => it.readKey === rk); if (i > 0) { items = items.slice(i).concat(items.slice(0, i)); resumed = true; } }
+  const total = items.length, segs = [];
+  segs.push({ kind: 'intro', text: `${resumed ? 'Picking up where we left off. ' : 'Welcome back. '}${total} ${unitLabel || 'item'}${total === 1 ? '' : 's'} to get through. Let's run them — I'll keep it tight.` });
   let lastCat = null;
-  queue.forEach(g => {
+  items.forEach(it => {
     let pre = '';
-    if (glossPodOrder === 'logical' && g.cat !== lastCat) { pre = lastCat === null ? '' : `Switching to ${_GLOSS_CAT_SPOKEN[g.cat] || g.cat}. `; lastCat = g.cat; }
-    segs.push({ kind: 'entry', term: g.term, text: pre + glossNarration(g) });
+    if (it.cat && it.cat !== lastCat) { pre = lastCat === null ? '' : `Switching to ${_GLOSS_CAT_SPOKEN[it.cat] || it.cat}. `; lastCat = it.cat; }
+    segs.push({ kind: 'entry', readKey: it.readKey, label: it.label, text: pre + it.narration });
   });
-  segs.push({ kind: 'outro', text: `That's the unread pile cleared — ${total} term${total === 1 ? '' : 's'} done. Solid work. Come back any time for more.` });
-  _glossPod = { segs, idx: 0, gen: 0, paused: false };
+  segs.push({ kind: 'outro', text: `That's it — ${total} ${unitLabel || 'item'}${total === 1 ? '' : 's'} done. Solid work. Come back any time for more.` });
+  _glossPod = { segs, idx: 0, gen: 0, paused: false, order: ordered ? 'logical' : 'random' };
+  if (state.studyPod) { state.studyPod.lastListenDay = new Date().toDateString(); saveState(); }
   _podStartResumeHack();
   _podPlay(0);
+}
+function startGlossPodcast() {
+  const items = glossPodcastQueue().map(g => ({ readKey: studyKey('glossary', g.term), label: g.term, cat: glossPodOrder === 'logical' ? g.cat : null, narration: glossNarration(g) }));
+  _startStudyPodcast(items, 'term', glossPodOrder === 'logical');
+}
+// feat 275 — conversational narration for an Advice/coaching topic (blurb + its sections, tags stripped).
+function adviceNarration(c) {
+  const opener = _POD_OPENERS[Math.floor(Math.random() * _POD_OPENERS.length)];
+  let body = _speechClean(c.blurb) + ' ';
+  (c.sections || []).forEach(s => { body += `${_speechClean(s.h)}. ` + (s.items || []).map(it => _speechClean(String(it).replace(/<[^>]+>/g, ''))).join('. ') + '. '; });
+  return `${opener}${c.title}. ${body}`.replace(/\s+/g, ' ').trim();
+}
+function startAdvicePodcast() {
+  const items = (typeof COACHING !== 'undefined' ? COACHING : []).filter(c => !isStudyRead(studyKey('advice', c.id)))
+    .map(c => ({ readKey: studyKey('advice', c.id), label: c.title, cat: null, narration: adviceNarration(c) }));
+  _startStudyPodcast(items, 'topic', true);
+}
+// Split a long passage into ~maxChar sentence groups so the speech engine handles it cleanly.
+function _chunkText(s, max) {
+  const sentences = String(s || '').match(/[^.!?]+[.!?]*\s*/g) || [String(s || '')];
+  const out = []; let buf = '';
+  sentences.forEach(snt => { if ((buf + snt).length > (max || 600) && buf) { out.push(buf.trim()); buf = snt; } else buf += snt; });
+  if (buf.trim()) out.push(buf.trim());
+  return out.length ? out : [String(s || '')];
+}
+// feat 275 — listen to a single (long-form) guide: chunked so it flows; only the FINAL chunk marks it read.
+function startGuidePodcast(gid) {
+  const text = guideText(gid); if (!text) { toast('Nothing to read in that guide'); return; }
+  const g = studyGuides().find(x => x.gid === gid), title = g ? g.title : gid;
+  const chunks = _chunkText(_speechClean(text), 600);
+  const items = chunks.map((c, i) => ({ readKey: i === chunks.length - 1 ? studyKey('guide', gid) : null, label: title + (chunks.length > 1 ? ` (${i + 1}/${chunks.length})` : ''), cat: null, narration: c }));
+  _startStudyPodcast(items, 'part', true);
 }
 function _podEntryProgress() {
   if (!_glossPod) return { n: 0, total: 0 };
@@ -26559,7 +26653,7 @@ function _podPlay(i) {
   if (typeof coachify === 'function') coachify(u);
   u.onend = () => { // a skip/stop/new-play bumps gen, so a superseded utterance's end is ignored
     if (!_glossPod || myGen !== _glossPod.gen) return;
-    if (seg.kind === 'entry') markGlossRead(seg.term, 'listen'); // earned by hearing the whole entry
+    if (seg.readKey) markStudyRead(seg.readKey, 'listen'); // earned by hearing the whole entry
     _podPlay(i + 1);
   };
   u.onerror = () => { if (_glossPod && myGen === _glossPod.gen) _podPlay(i + 1); };
@@ -26572,8 +26666,13 @@ function _podTogglePause() {
   try { if (_glossPod.paused) { window.speechSynthesis.resume(); _glossPod.paused = false; } else { window.speechSynthesis.pause(); _glossPod.paused = true; } } catch (_) {}
   renderPodBar();
 }
-function _podStop() { if (!_glossPod) return; _glossPod.gen++; _podStopResumeHack(); try { window.speechSynthesis.cancel(); } catch (_) {} _glossPod = null; renderPodBar(); _refreshGlossIfOpen(); }
-function _podFinish() { _podStopResumeHack(); _glossPod = null; renderPodBar(); _refreshGlossIfOpen(); toast('🎧 Caught up — unread pile cleared'); }
+function _podStop() {
+  if (!_glossPod) return;
+  const seg = _glossPod.segs[_glossPod.idx]; // feat 275 — remember the in-progress entry to resume from
+  if (state.studyPod) { state.studyPod.resumeKey = (seg && seg.readKey) || null; saveState(); }
+  _glossPod.gen++; _podStopResumeHack(); try { window.speechSynthesis.cancel(); } catch (_) {} _glossPod = null; renderPodBar(); _refreshStudyUI();
+}
+function _podFinish() { _podStopResumeHack(); _glossPod = null; if (state.studyPod) { state.studyPod.resumeKey = null; saveState(); } renderPodBar(); _refreshStudyUI(); toast('🎧 Caught up — unread pile cleared'); }
 function _podStartResumeHack() { _podStopResumeHack(); _podResumeTimer = setInterval(() => { try { if (_glossPod && !_glossPod.paused && window.speechSynthesis.speaking) window.speechSynthesis.resume(); } catch (_) {} }, 9000); }
 function _podStopResumeHack() { if (_podResumeTimer) { clearInterval(_podResumeTimer); _podResumeTimer = null; } }
 function renderPodBar() {
@@ -26581,9 +26680,9 @@ function renderPodBar() {
   if (!_glossPod) { if (bar) bar.remove(); return; }
   if (!bar) { bar = document.createElement('div'); bar.id = 'gloss-pod-bar'; document.body.appendChild(bar); }
   const seg = _glossPod.segs[_glossPod.idx] || {}, prog = _podEntryProgress();
-  const nowLabel = seg.kind === 'entry' ? escapeHtml(seg.term) : (seg.kind === 'intro' ? 'Intro' : 'Wrapping up');
+  const nowLabel = seg.kind === 'entry' ? escapeHtml(seg.label || '') : (seg.kind === 'intro' ? 'Intro' : 'Wrapping up');
   bar.innerHTML = `<div class="pod-bar-inner">
-    <div class="pod-now"><span class="pod-eq ${_glossPod.paused ? '' : 'on'}">🎧</span><div class="pod-now-txt"><div class="pod-now-term">${nowLabel}</div><div class="pod-now-sub">${prog.n} / ${prog.total} · ${glossPodOrder === 'random' ? 'shuffled' : 'in order'}${_glossPod.paused ? ' · paused' : ''}</div></div></div>
+    <div class="pod-now"><span class="pod-eq ${_glossPod.paused ? '' : 'on'}">🎧</span><div class="pod-now-txt"><div class="pod-now-term">${nowLabel}</div><div class="pod-now-sub">${prog.n} / ${prog.total} · ${(_glossPod.order || 'logical') === 'random' ? 'shuffled' : 'in order'}${_glossPod.paused ? ' · paused' : ''}</div></div></div>
     <div class="pod-ctrls">
       <button class="pod-btn" id="pod-pause" title="${_glossPod.paused ? 'Resume' : 'Pause'}">${_glossPod.paused ? '▶' : '⏸'}</button>
       <button class="pod-btn" id="pod-skip" title="Skip — don't mark read">⏭</button>
@@ -27199,13 +27298,25 @@ function openInReference(search, mega) {
   if (input) { input.value = search || ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
   window.scrollTo(0, 0);
 }
+// feat 275 — the Advice study bar: unread-topic count, listen-to-unread, mark-all.
+function _adviceStudyBarHtml() {
+  const unread = adviceUnreadCount();
+  return '<div class="gloss-study-bar advice-study-bar"><div class="gloss-study-row">' +
+    '<span class="gloss-unread-count">' + unread + ' unread topic' + (unread === 1 ? '' : 's') + '</span>' +
+    '<button class="gloss-listen-btn" id="advice-listen" ' + (unread ? '' : 'disabled') + ' title="Listen to every unread coaching topic as a podcast">🎧 Listen' + (unread ? ' (' + unread + ')' : '') + '</button>' +
+    '<button class="gloss-markall" id="advice-markall">' + (unread ? '✓ Mark all read' : '↺ Mark all unread') + '</button>' +
+    '</div></div>';
+}
 function renderCoaching() {
   const wrap = document.getElementById('coaching-content');
   if (!wrap || typeof escapeHtml !== 'function') return;
-  wrap.innerHTML = COACHING.map(function (c) {
-    const head = '<div class="coach-card-head"><div class="coach-card-icon">' + c.icon + '</div>' +
-      '<div><div class="coach-card-title">' + escapeHtml(c.title) + '</div>' +
-      '<div class="coach-card-sub">' + escapeHtml(c.sub) + '</div></div></div>';
+  wrap.innerHTML = _adviceStudyBarHtml() + COACHING.map(function (c) {
+    const k = studyKey('advice', c.id), read = isStudyRead(k), info = studyReadInfo(k); // feat 275
+    const toggle = '<button class="gloss-read-toggle ' + (read ? 'on' : '') + '" data-advice-toggle="' + escapeAttr(c.id) + '" title="' + (read ? 'Mark unread' : 'Mark read') + '">' + (read ? '✓' : '○') + '</button>';
+    const note = info ? '<span class="gloss-read-note">' + (info.src === 'listen' ? '🎧 listened ' : '✓ read ') + escapeHtml(fmtDate(info.at)) + '</span>' : '';
+    const head = '<div class="coach-card-head">' + toggle + '<div class="coach-card-icon">' + c.icon + '</div>' +
+      '<div style="flex:1;min-width:0;"><div class="coach-card-title">' + escapeHtml(c.title) + '</div>' +
+      '<div class="coach-card-sub">' + escapeHtml(c.sub) + '</div></div>' + note + '</div>';
     const secs = c.sections.map(function (s) {
       return '<div class="coach-sec"><div class="coach-sec-h">' + escapeHtml(s.h) + '</div><ul>' +
         s.items.map(function (it) { return '<li>' + it + '</li>'; }).join('') + '</ul></div>';
@@ -27215,8 +27326,8 @@ function renderCoaching() {
         '" data-coach-mega="' + escapeAttr(ch.mega || '') + '">' + escapeHtml(ch.label) + ' ›</button>';
     }).join('') +
       (c.guide ? '<button type="button" class="coach-chip guide" data-guide="' + escapeAttr(c.guide.gid) + '">📖 ' +
-      escapeHtml(c.guide.label) + '</button>' : ''); // feat 194 — the deep-dive bundled-guide chip is optional
-    return '<div class="coach-card" id="' + c.id + '">' + head +
+      escapeHtml(c.guide.label) + (isStudyRead(studyKey('guide', c.guide.gid)) ? ' ✓' : '') + '</button>' : ''); // feat 194/275 — bundled-guide chip + read tick
+    return '<div class="coach-card ' + (read ? 'is-read' : '') + '" id="' + c.id + '">' + head +
       '<div class="coach-blurb">' + escapeHtml(c.blurb) + '</div>' + secs +
       '<div class="coach-xref"><div class="coach-xref-label">' + escapeHtml(c.xref.label) +
       '</div><div class="coach-chips">' + chips + '</div></div></div>';
@@ -27224,11 +27335,17 @@ function renderCoaching() {
 }
 function bindCoaching() {
   const wrap = document.getElementById('coaching-content');
-  if (!wrap) return;
+  if (!wrap || wrap._coachBound) return; // delegation survives renderCoaching() innerHTML swaps; bind once
+  wrap._coachBound = true;
   wrap.addEventListener('click', function (e) {
+    // feat 275 — study read/unread + listen for Advice topics
+    const tgl = e.target.closest('[data-advice-toggle]');
+    if (tgl) { toggleStudyRead(studyKey('advice', tgl.dataset.adviceToggle)); renderCoaching(); refreshStudyBadge(); return; }
+    if (e.target.closest('#advice-listen')) { startAdvicePodcast(); return; }
+    if (e.target.closest('#advice-markall')) { const any = adviceUnreadCount() > 0; COACHING.forEach(function (c) { const k = studyKey('advice', c.id); if (any) { if (!isStudyRead(k)) markStudyRead(k, 'manual'); } else markStudyUnread(k); }); renderCoaching(); refreshStudyBadge(); return; }
     const chip = e.target.closest('.coach-chip');
     if (!chip) return;
-    if (chip.classList.contains('guide')) { openGuide(chip.dataset.guide); return; }
+    if (chip.classList.contains('guide')) { markStudyRead(studyKey('guide', chip.dataset.guide), 'manual'); openGuide(chip.dataset.guide); renderCoaching(); refreshStudyBadge(); return; } // feat 275 — opening a guide marks it read
     openInReference(chip.dataset.coachSearch, chip.dataset.coachMega);
   });
 }
@@ -27285,7 +27402,8 @@ function openGuide(gid) {
     ov = document.createElement('div');
     ov.id = 'guide-reader';
     ov.innerHTML = '<div class="guide-reader-bar"><button type="button" class="guide-reader-close" id="guide-reader-back" aria-label="Close guide">✕ Close</button>'
-      + '<span class="guide-reader-title" id="guide-reader-title"></span></div>'
+      + '<span class="guide-reader-title" id="guide-reader-title"></span>'
+      + '<button type="button" class="guide-reader-listen" id="guide-reader-listen" title="Listen to this guide">🎧 Listen</button></div>' // feat 275
       + '<iframe class="guide-reader-frame" id="guide-reader-frame" title="Guide" referrerpolicy="no-referrer"></iframe>';
     document.body.appendChild(ov);
     ov.querySelector('#guide-reader-back').addEventListener('click', closeGuide);
@@ -27294,6 +27412,7 @@ function openGuide(gid) {
     window.addEventListener('popstate', function () { if (isGuideOpen()) { _guidePushedState = false; _guideHide(); } });
   }
   ov.querySelector('#guide-reader-title').textContent = tpl.getAttribute('data-title') || 'Guide';
+  const lb = ov.querySelector('#guide-reader-listen'); if (lb) lb.onclick = function () { startGuidePodcast(gid); }; // feat 275 — listen to this guide
   ov.querySelector('#guide-reader-frame').srcdoc = '<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' + tpl.innerHTML + buildGuideTheme();
   ov.classList.add('open');
   document.body.style.overflow = 'hidden';
