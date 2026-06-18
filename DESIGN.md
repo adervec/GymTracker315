@@ -1087,6 +1087,14 @@ They share variation **UUIDs**.
   `bindPlanEditor` binds only Back / History / media-preview / the Edit toggle then early-returns with inputs frozen.
   History stays browsable (read-only). `openPlanView(id)` deep-links to it. `test/app.spec.mjs` (same data, inputs
   disabled, commit/add-step hidden, ✎ Edit unlocks).
+- **Plan "siblings" (feat 277):** the plan editor/view shows a **🔀 Sibling plans** section — other plans whose steps
+  hold the **same exercises in the same order** (ignoring set counts / intensity / load / notes), i.e. volume/intensity
+  variants of the same template. `planSignature` is the per-step sorted exercise-id list in step order; `planSiblings`
+  finds matches. Each sibling is **colour-coded by relative effort** (`planEffort = total sets × intensity`, mapped to
+  green/amber/red across the group's min–max via `siblingEffortClass`) with a ▲ harder / ▼ easier / ≈ same label vs the
+  current plan, sorted lightest-first. Tapping a sibling opens it in the current mode (view stays read-only). Shown in
+  both the editor and the feat-276 read-only view. `test/app.spec.mjs` (signature match, sibling sets, effort scaling +
+  colour classes).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

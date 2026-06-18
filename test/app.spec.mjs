@@ -514,6 +514,32 @@ test('feat 276 — read-only plan view shows the same data with inputs frozen an
   expect(r.commitShownAfter).toBe(true);
 });
 
+test('feat 277 — plan siblings: same exercise signature, different volume → colour-coded by effort', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let n = 0; const step = (fid, sets) => ({ id: 's' + (n++), sets, options: [{ type: 'movement', familyId: fid }] });
+    state.plans = [
+      { id: 'sib-light', name: 'Push (Light)', intensity: 2, steps: [step('flat-bench-press', 3), step('shoulder-press', 3), step('tricep-extension', 2)] },
+      { id: 'sib-mod', name: 'Push (Moderate)', intensity: 3, steps: [step('flat-bench-press', 4), step('shoulder-press', 4), step('tricep-extension', 3)] },
+      { id: 'sib-heavy', name: 'Push (Heavy)', intensity: 5, steps: [step('flat-bench-press', 5), step('shoulder-press', 5), step('tricep-extension', 4)] },
+      { id: 'other', name: 'Legs', intensity: 3, steps: [step('squat', 4), step('leg-curl', 3)] },
+    ];
+    return {
+      sigSame: planSignature(getPlan('sib-light')) === planSignature(getPlan('sib-heavy')),
+      sibsOfMod: planSiblings(getPlan('sib-mod')).map(p => p.id).sort(),
+      sibsOfOther: planSiblings(getPlan('other')).map(p => p.id),
+      effLight: planEffort(getPlan('sib-light')), effHeavy: planEffort(getPlan('sib-heavy')),
+      html: planSiblingsHtml(getPlan('sib-light')), // from the lightest, the others read as harder
+    };
+  });
+  expect(r.sigSame).toBe(true);                            // same exercises + order → same signature
+  expect(r.sibsOfMod).toEqual(['sib-heavy', 'sib-light']); // both other Push variants are siblings
+  expect(r.sibsOfOther).toEqual([]);                       // the Legs plan has none
+  expect(r.effHeavy).toBeGreaterThan(r.effLight);          // effort = sets × intensity
+  expect(r.html).toContain('eff-high');                    // heaviest sibling coloured high-effort
+  expect(r.html).toContain('eff-low');                     // a lighter one low-effort
+  expect(r.html).toMatch(/harder/);                        // relative-effort labels present
+});
+
 test('plan estimates are sane', async ({ page }) => {
   const r = await page.evaluate(() => ({
     empty: estimatePlanMinutes({ steps: [] }),

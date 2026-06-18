@@ -1055,6 +1055,19 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-ro-wrap .plan-edit-opt { padding-right: 8px; }
   .plan-ro-wrap .pei-pill, .plan-ro-wrap .pel-pill { pointer-events: none; }
   .plan-ro-wrap input:disabled, .plan-ro-wrap textarea:disabled { opacity: 1; color: var(--text); -webkit-text-fill-color: var(--text); }
+  /* feat 277 — sibling plans (same exercises/order, different volume/intensity), colour-coded by effort */
+  .plan-siblings { margin-top: 14px; border-top: 1px solid var(--border2); padding-top: 10px; }
+  .plan-sib-head { font-size: 12.5px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+  .plan-sib-note { display: block; font-size: 10.5px; font-weight: 400; color: var(--text3); margin-top: 2px; }
+  .plan-sib-row { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; background: var(--bg3); border: 1px solid var(--border2); border-left-width: 4px; border-radius: 8px; padding: 8px 11px; margin-bottom: 6px; cursor: pointer; font-family: inherit; }
+  .plan-sib-row .psib-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .plan-sib-row.eff-low { border-left-color: #3fb950; } .plan-sib-row.eff-low .psib-dot { background: #3fb950; }
+  .plan-sib-row.eff-mid { border-left-color: #d2bd2a; } .plan-sib-row.eff-mid .psib-dot { background: #d2bd2a; }
+  .plan-sib-row.eff-high { border-left-color: #e5534b; } .plan-sib-row.eff-high .psib-dot { background: #e5534b; }
+  .psib-main { flex: 1; min-width: 0; }
+  .psib-name { display: block; font-size: 13px; font-weight: 700; color: var(--text); }
+  .psib-sub { display: block; font-size: 10.5px; color: var(--text3); }
+  .psib-rel { font-size: 11px; font-weight: 700; color: var(--text2); white-space: nowrap; }
   .prb-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; }
   .prb-rev { font-weight: 800; color: var(--text); background: var(--bg4); border-radius: 5px; padding: 1px 7px; }
   .prb-author { background: none; border: none; color: var(--accent2); font: inherit; font-size: 11.5px; cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 2px; }
@@ -10180,6 +10193,32 @@ function cloneSeedPlans() { return SEED_PLANS.map(cloneSeedPlan); }
 function getPlan(id) { return (state.plans || []).find(p => p.id === id) || null; }
 function getActivePlan() { const s = getActiveSession(); return (s && s.planId) ? getPlan(s.planId) : null; }
 function planTotalSets(p) { return (p.steps || []).reduce((n, s) => n + (s.sets || 0), 0); }
+// feat 277 — plan "siblings": plans whose steps hold the SAME exercises in the SAME order (ignoring set
+// counts / intensity / load / notes). Signature = per-step sorted exercise ids, in step order.
+function planSignature(plan) {
+  return JSON.stringify((plan && plan.steps || []).map(st => (st.options || []).map(o => o.type === 'variation' ? ('v:' + o.uuid) : ('m:' + (typeof resolveFamilyId === 'function' ? resolveFamilyId(o.familyId) : o.familyId))).sort()));
+}
+function planEffort(p) { return planTotalSets(p) * (planIntensity(p) || 3); } // a "total work" proxy: sets weighted by intensity
+function planSiblings(plan) {
+  if (!plan || !(plan.steps || []).length) return [];
+  const sig = planSignature(plan);
+  return (state.plans || []).filter(p => p.id !== plan.id && (p.steps || []).length && planSignature(p) === sig);
+}
+function siblingEffortClass(effort, min, max) { if (max <= min) return 'eff-mid'; const t = (effort - min) / (max - min); return t < 0.34 ? 'eff-low' : t < 0.67 ? 'eff-mid' : 'eff-high'; }
+function planSiblingsHtml(plan) {
+  const sibs = planSiblings(plan);
+  if (!sibs.length) return '';
+  const efforts = [plan].concat(sibs).map(planEffort), min = Math.min.apply(null, efforts), max = Math.max.apply(null, efforts), cur = planEffort(plan);
+  const rows = sibs.slice().sort((a, b) => planEffort(a) - planEffort(b)).map(s => {
+    const eff = planEffort(s), rel = eff > cur ? '▲ harder' : eff < cur ? '▼ easier' : '≈ same';
+    return `<button type="button" class="plan-sib-row ${siblingEffortClass(eff, min, max)}" data-plan-sib="${escapeAttr(s.id)}" title="Open ${escapeAttr(s.name)}">
+      <span class="psib-dot"></span>
+      <span class="psib-main"><span class="psib-name">${escapeHtml(s.name)}</span><span class="psib-sub">${planTotalSets(s)} sets · intensity ${planIntensity(s)}/5 · ~${estimatePlanMinutes(s)} min</span></span>
+      <span class="psib-rel">${rel}</span>
+    </button>`;
+  }).join('');
+  return `<div class="plan-siblings"><div class="plan-sib-head">🔀 Sibling plans <span class="plan-sib-note">same exercises &amp; order — coloured by effort (green = lighter, red = harder)</span></div>${rows}</div>`;
+}
 
 // feat 178 — favorites for plans + exercise variations (synced personal prefs; harmless, so not read-only-gated).
 function isFavPlan(id) { return !!(id && state.favoritePlans && state.favoritePlans[id]); }
@@ -11638,7 +11677,8 @@ function renderPlanEditor(body, plan) {
       <div class="plan-edit-load"><span>Load vs baseline</span>${['light','moderate','heavy'].map(l => `<button class="pel-pill ${l} ${(st.load||'moderate')===l ? 'active' : ''}" data-step-load="${i}:${l}">${l}</button>`).join('')}</div>
       <input type="text" data-step-desc="${i}" value="${escapeAttr(st.desc||'')}" placeholder="Step note (optional)" style="width:100%;margin-top:6px;padding:5px 8px;font-size:12px;border-radius:6px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);">
     </div>`).join('')}
-    <button class="drawer-btn" id="plan-add-step-btn" style="margin-top:8px;">+ Add step</button>`;
+    <button class="drawer-btn" id="plan-add-step-btn" style="margin-top:8px;">+ Add step</button>
+    ${planSiblingsHtml(plan)}`;
   body.innerHTML = _roBanner + (ro ? `<div class="plan-ro-wrap">${_content}</div>` : _content); // feat 276
   bindPlanEditor(body, plan);
 }
@@ -11649,6 +11689,7 @@ function bindPlanEditor(body, plan) {
   body.querySelector('#plan-history-btn')?.addEventListener('click', () => { _plansRevView = true; renderPlansOverlay(); }); // history is safe to browse read-only
   body.querySelector('#plan-media-view')?.addEventListener('click', () => openPlanMedia(plan.id));
   body.querySelector('#plan-ro-edit')?.addEventListener('click', () => { _plansViewMode = false; renderPlansOverlay(); }); // feat 276 — switch into edit
+  body.querySelectorAll('[data-plan-sib]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planSib; _plansRevView = false; renderPlansOverlay(); })); // feat 277 — open a sibling (keeps view/edit mode)
   if (ro) { body.querySelectorAll('input, textarea').forEach(el => { el.disabled = true; }); return; } // feat 276 — read-only: no edit handlers, inputs frozen, dangerous buttons hidden by CSS
   // feat 162 — revision controls: Commit snapshots the draft, Revert discards uncommitted edits, History lists revisions.
   body.querySelector('#plan-commit-btn')?.addEventListener('click', () => { const r = commitPlanRevision(plan); renderPlansOverlay(); toast(`✔ Committed rev ${r}`); });
@@ -18654,7 +18695,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 223 · 2026-06-17 22:21';
+const APP_BUILD = 'build 224 · 2026-06-17 22:25';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
