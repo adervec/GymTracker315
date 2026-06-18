@@ -1044,6 +1044,17 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-edit-intensity { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
   /* feat 162 — plan revision bar + history */
   .plan-rev-bar { background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; padding: 7px 9px; margin: 8px 0 4px; }
+  /* feat 276 — read-only plan view: banner + hide every mutating control, freeze pills */
+  .plan-ro-banner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--accent-bg, rgba(180,138,255,0.12)); border: 1px solid var(--accent-border, rgba(180,138,255,0.4)); border-radius: 9px; padding: 9px 11px; margin: 6px 0 4px; font-size: 12.5px; color: var(--text2); }
+  .plan-ro-banner b { color: var(--accent, #b48aff); }
+  .plan-ro-banner .drawer-btn { margin-left: auto; }
+  .plan-ro-wrap #plan-commit-btn, .plan-ro-wrap #plan-revert-btn, .plan-ro-wrap #plan-author-btn,
+  .plan-ro-wrap [data-step-up], .plan-ro-wrap [data-step-down], .plan-ro-wrap [data-step-del],
+  .plan-ro-wrap [data-add-opt], .plan-ro-wrap [data-opt-del], .plan-ro-wrap #plan-add-step-btn,
+  .plan-ro-wrap .plan-media-add, .plan-ro-wrap #plan-media-add-btn, .plan-ro-wrap #plan-media-del { display: none !important; }
+  .plan-ro-wrap .plan-edit-opt { padding-right: 8px; }
+  .plan-ro-wrap .pei-pill, .plan-ro-wrap .pel-pill { pointer-events: none; }
+  .plan-ro-wrap input:disabled, .plan-ro-wrap textarea:disabled { opacity: 1; color: var(--text); -webkit-text-fill-color: var(--text); }
   .prb-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; }
   .prb-rev { font-weight: 800; color: var(--text); background: var(--bg4); border-radius: 5px; padding: 1px 7px; }
   .prb-author { background: none; border: none; color: var(--accent2); font: inherit; font-size: 11.5px; cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 2px; }
@@ -11283,6 +11294,7 @@ function startExerciseFromPlanOption(o, load) {
 
 /* ---- Plans overlay (list + builder) ---- */
 let _plansEditId = null, _plansAddOptStep = null, _plansOptSearch = '';
+let _plansViewMode = false; // feat 276 — open the editor read-only (same layout, no inputs/commit) to view a plan safely
 let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Execution View mode (which plan + which session)
 let _plansRevView = false; // feat 162 — when editing a plan, show its revision history instead of the form
 let _plansSearch = '', _plansCatFilter = 'all', _plansLenFilter = 'all'; // feat 147 — plan picker search + filters
@@ -11293,14 +11305,17 @@ let _plansDeepLink = false; // feat 184 — openPlanFull sets this so the page r
 // openPlansOverlay opens the list; openPlanFull deep-links to one plan's editor. Both navTo the page; in-page
 // sub-navigation (Edit / 🕘 History / ← All plans) re-renders within #trk-main via renderPlansOverlay().
 function renderPlanCreatorPage(main) {
-  if (!_plansDeepLink) { _plansEditId = null; _plansRevView = false; _plansAddOptStep = null; } // plain entry → list root
+  if (!_plansDeepLink) { _plansEditId = null; _plansRevView = false; _plansAddOptStep = null; _plansViewMode = false; } // plain entry → list root
   _plansDeepLink = false;
   renderPlansOverlay();
 }
-function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; _plansDeepLink = false; navTo('plan-creator'); }
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; _plansDeepLink = false; navTo('plan-creator'); }
 function openPlanPicker() { openPlansOverlay(); }
 function openPlanFull(id) { // feat 138/184 — open the plan editor as a page, focused on one plan's steps
-  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansDeepLink = true; navTo('plan-creator');
+  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = false; _plansDeepLink = true; navTo('plan-creator');
+}
+function openPlanView(id) { // feat 276 — open a plan in the read-only view
+  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = true; _plansDeepLink = true; navTo('plan-creator');
 }
 // feat 145 — open the detailed Plan Execution View for a plan + a session (defaults to the active session).
 function openPlanExecution(planId, sessionDate) {
@@ -11358,6 +11373,7 @@ const _planRowHtml = (p) => `<div class="plan-row">
       ${favStarHtml(isFavPlan(p.id), `data-fav-plan="${escapeAttr(p.id)}"`)}
       ${p.media ? `<button class="drawer-btn" data-plan-media="${p.id}" title="Watch attached video">🎬</button>` : ''}
       <button class="drawer-btn" data-plan-use="${p.id}">Use</button>
+      <button class="drawer-btn" data-plan-view="${p.id}" title="View read-only">👁</button>
       <button class="drawer-btn" data-plan-edit="${p.id}">Edit</button>
       <button class="drawer-btn danger" data-plan-del="${p.id}">Del</button>
     </div>
@@ -11442,7 +11458,8 @@ function bindPlansList(body) {
   body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; renderPlansOverlay(); });
   body.querySelectorAll('[data-plan-media]').forEach(b => b.addEventListener('click', () => openPlanMedia(b.dataset.planMedia)));
   body.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
-  body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; renderPlansOverlay(); }));
+  body.querySelectorAll('[data-plan-view]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planView; _plansViewMode = true; _plansRevView = false; renderPlansOverlay(); })); // feat 276 — read-only view
+  body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; _plansViewMode = false; renderPlansOverlay(); }));
   body.querySelectorAll('[data-plan-del]').forEach(b => b.addEventListener('click', () => { guardedConfirm('Delete this plan?', b).then(ok => { if (ok) { state.plans = (state.plans || []).filter(p => p.id !== b.dataset.planDel); saveState(); renderPlansOverlay(); } }); }));
   body.querySelector('#plan-new-btn')?.addEventListener('click', () => { const p = { id: newUuid(), name: 'New Plan', steps: [{ id:newUuid(), sets:3, options:[] }] }; state.plans = state.plans || []; state.plans.push(p); saveState(); _plansEditId = p.id; renderPlansOverlay(); });
   body.querySelector('#plan-new-from-workout')?.addEventListener('click', openPlanFromWorkout); // feat 155
@@ -11584,6 +11601,7 @@ function _planExecStatsHtml(detail, plan) {
 }
 function renderPlanEditor(body, plan) {
   if (_plansAddOptStep != null) { renderOptionPicker(body, plan); return; }
+  const ro = !!_plansViewMode; // feat 276 — read-only view: same layout, inputs disabled, no commit/edit controls
   ensurePlanRevisioned(plan); // feat 162 — guarantee author + a revision baseline before drawing the bar
   const dirty = planIsDirty(plan);
   const revBar = `<div class="plan-rev-bar">
@@ -11593,7 +11611,8 @@ function renderPlanEditor(body, plan) {
         <button class="prb-btn" id="plan-revert-btn" ${dirty ? '' : 'disabled'}>↩ Revert</button>
         <button class="prb-btn" id="plan-history-btn">🕘 History (${(plan.revisions || []).length})</button>
       </div></div>`;
-  body.innerHTML = `<button class="drawer-btn" id="plan-back-btn">← All plans</button>
+  const _roBanner = ro ? `<div class="plan-ro-banner">👁 <b>Read-only view</b> — nothing here can be changed. <button class="drawer-btn" id="plan-ro-edit">✎ Edit plan</button></div>` : ''; // feat 276
+  const _content = `<button class="drawer-btn" id="plan-back-btn">← All plans</button>
     ${revBar}
     <input type="text" id="plan-name-input" value="${escapeAttr(plan.name)}" placeholder="Plan name" style="width:100%;margin:10px 0 6px;padding:9px 11px;font-size:15px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     <textarea id="plan-desc-input" placeholder="Plan description — theme & benefits (optional)" rows="2" style="width:100%;margin:0 0 10px;padding:8px 11px;font-size:12.5px;line-height:1.5;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);resize:vertical;">${escapeHtml(plan.desc||'')}</textarea>
@@ -11620,18 +11639,23 @@ function renderPlanEditor(body, plan) {
       <input type="text" data-step-desc="${i}" value="${escapeAttr(st.desc||'')}" placeholder="Step note (optional)" style="width:100%;margin-top:6px;padding:5px 8px;font-size:12px;border-radius:6px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);">
     </div>`).join('')}
     <button class="drawer-btn" id="plan-add-step-btn" style="margin-top:8px;">+ Add step</button>`;
+  body.innerHTML = _roBanner + (ro ? `<div class="plan-ro-wrap">${_content}</div>` : _content); // feat 276
   bindPlanEditor(body, plan);
 }
 function bindPlanEditor(body, plan) {
+  const ro = !!_plansViewMode; // feat 276
   const save = () => saveState();
-  body.querySelector('#plan-back-btn')?.addEventListener('click', () => { _plansEditId = null; _plansRevView = false; renderPlansOverlay(); });
+  body.querySelector('#plan-back-btn')?.addEventListener('click', () => { _plansEditId = null; _plansRevView = false; _plansViewMode = false; renderPlansOverlay(); });
+  body.querySelector('#plan-history-btn')?.addEventListener('click', () => { _plansRevView = true; renderPlansOverlay(); }); // history is safe to browse read-only
+  body.querySelector('#plan-media-view')?.addEventListener('click', () => openPlanMedia(plan.id));
+  body.querySelector('#plan-ro-edit')?.addEventListener('click', () => { _plansViewMode = false; renderPlansOverlay(); }); // feat 276 — switch into edit
+  if (ro) { body.querySelectorAll('input, textarea').forEach(el => { el.disabled = true; }); return; } // feat 276 — read-only: no edit handlers, inputs frozen, dangerous buttons hidden by CSS
   // feat 162 — revision controls: Commit snapshots the draft, Revert discards uncommitted edits, History lists revisions.
   body.querySelector('#plan-commit-btn')?.addEventListener('click', () => { const r = commitPlanRevision(plan); renderPlansOverlay(); toast(`✔ Committed rev ${r}`); });
   body.querySelector('#plan-revert-btn')?.addEventListener('click', () => {
     confirmDialog('Discard uncommitted changes and revert to the last committed revision?', { title: 'Revert plan', okLabel: 'Revert', danger: true })
       .then(ok => { if (ok) { revertPlanToCommitted(plan); renderPlansOverlay(); toast('↩ Reverted to last commit'); } });
   });
-  body.querySelector('#plan-history-btn')?.addEventListener('click', () => { _plansRevView = true; renderPlansOverlay(); });
   body.querySelector('#plan-author-btn')?.addEventListener('click', () => {
     promptDialog({ title: 'Plan author', message: 'Who authored this plan?', value: plan.author || 'You', placeholder: 'Author', maxLength: 40 })
       .then(v => { if (v != null) { plan.author = (v.trim() || 'You'); save(); renderPlansOverlay(); } });
@@ -11647,7 +11671,6 @@ function bindPlanEditor(body, plan) {
   const planMediaAdd = () => { const inp = body.querySelector('#plan-media-input'); if (!inp) return; const parsed = parseMediaUrl(inp.value); if (!parsed) { toast('Could not read that link'); return; } plan.media = parsed; save(); renderPlansOverlay(); toast('Video attached'); };
   body.querySelector('#plan-media-add-btn')?.addEventListener('click', planMediaAdd);
   body.querySelector('#plan-media-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); planMediaAdd(); } });
-  body.querySelector('#plan-media-view')?.addEventListener('click', () => openPlanMedia(plan.id));
   body.querySelector('#plan-media-del')?.addEventListener('click', () => { delete plan.media; save(); renderPlansOverlay(); });
   body.querySelectorAll('[data-step-desc]').forEach(inp => inp.addEventListener('change', () => { const st = plan.steps[+inp.dataset.stepDesc]; if (st) { st.desc = inp.value.trim(); save(); } }));
   body.querySelectorAll('[data-step-up]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.stepUp; if (i > 0) { [plan.steps[i-1], plan.steps[i]] = [plan.steps[i], plan.steps[i-1]]; save(); renderPlansOverlay(); } }));
@@ -18631,7 +18654,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 220 · 2026-06-17 17:59';
+const APP_BUILD = 'build 223 · 2026-06-17 22:21';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

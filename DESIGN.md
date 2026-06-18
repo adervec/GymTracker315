@@ -1079,6 +1079,14 @@ They share variation **UUIDs**.
   skipped if you already listened today) plus an unread-count **badge** on the Study/Glossary/Advice nav-menu items
   (`renderMenu` + `refreshStudyBadge`). `studyUnreadTotal` sums all three surfaces. `test/app.spec.mjs` (advice/guide
   read-state + counts, tag-stripped narration, once-a-day nudge, resume rotation).
+- **Read-only plan view (feat 276):** the Plan Creator list gains a **👁 View** action (beside Use/Edit/Del) that opens
+  the editor in a **read-only mode** — the exact same layout and data, but every input is `disabled` and every mutating
+  control (Commit, Revert, author, step add/move/delete, +exercise, option ✕, add-step, media add/remove) is hidden, so
+  the **Commit button can't be accidentally pressed**. A `_plansViewMode` flag drives it: `renderPlanEditor` wraps the
+  body in `.plan-ro-wrap` (CSS hides the mutators) under a "👁 Read-only view" banner with an **✎ Edit** switch;
+  `bindPlanEditor` binds only Back / History / media-preview / the Edit toggle then early-returns with inputs frozen.
+  History stays browsable (read-only). `openPlanView(id)` deep-links to it. `test/app.spec.mjs` (same data, inputs
+  disabled, commit/add-step hidden, ✎ Edit unlocks).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
