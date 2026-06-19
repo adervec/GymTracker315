@@ -799,7 +799,7 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   /* feat 148 — the Log-Sets sheet (#trk-modal) is a full-screen fixed overlay, so unlike .panel it sat at top:0
      and the fixed top bar + rest/plan-step HUD bars floated OVER its top content (clipping the exercise + sets).
      Push the sheet down to start below whichever bars are showing. Mirrors the .panel offsets above. */
-  #trk-modal { top: var(--topbar-h); }
+  #trk-modal { top: var(--topbar-h); transition: none; } /* feat 278 — Exercise page renders in place (no bottom slide-in); it's a router destination, not a popup */
   body.rest-bar-on #trk-modal { top: calc(var(--topbar-h) + 30px); }
   body.rest-bar-idle #trk-modal { top: calc(var(--topbar-h) + 18px); }
   body.plan-step-bar-on #trk-modal { top: calc(var(--topbar-h) + 24px); }
@@ -10391,9 +10391,87 @@ function stepMinSets(plan, step) {
   if (pct <= 0) return 0;
   return Math.max(1, Math.ceil(target * pct / 100));
 }
+/* feat 281 — UNIQUE set→step allocation. A logged set must count toward exactly ONE plan step. The legacy
+   per-step counters (stepSavedSets/stepLoggedSets) tallied EVERY set whose exercise matched a step, so a set
+   whose variation satisfied several steps (e.g. three "row" steps in Pull Marathon) was counted toward all of
+   them — doing the first row step wrongly completed the later ones. Here each set is assigned to a single step:
+   steps are filled to target in plan order (so the earlier duplicate completes first), then any surplus sets
+   ("extra work on" a step) attach to the LAST step they match. Matching still honors merged-family aliases and
+   secondary parents through optionMatchesVar. */
+function _allocSetsToSteps(steps, units) {
+  const N = steps.length;
+  const assigned = new Array(N).fill(0);
+  if (!N || !units.length) return assigned;
+  const rem = units.map(u => u.count);
+  // Which step indexes each unit could satisfy (and, implicitly, how many — used for least-shared-first).
+  const unitSteps = units.map(u => {
+    const arr = [];
+    for (let i = 0; i < N; i++) if ((steps[i].options || []).some(o => optionMatchesVar(o, u.varUuid))) arr.push(i);
+    return arr;
+  });
+  // Per step, its matching units ordered least-shared-first: a step prefers a set that fewer OTHER steps could
+  // have used, so it doesn't grab a set that the only other step matching it still needs.
+  const stepUnits = steps.map((_, i) => {
+    const arr = [];
+    for (let k = 0; k < units.length; k++) if (unitSteps[k].indexOf(i) >= 0) arr.push(k);
+    arr.sort((a, b) => (unitSteps[a].length - unitSteps[b].length) || (a - b));
+    return arr;
+  });
+  // Pass 1 — fill each step to its target, in plan order (complete earlier duplicate steps first).
+  for (let i = 0; i < N; i++) {
+    const target = steps[i].sets || 0;
+    if (target <= 0) continue;
+    for (const k of stepUnits[i]) {
+      if (assigned[i] >= target) break;
+      const take = Math.min(rem[k], target - assigned[i]);
+      assigned[i] += take; rem[k] -= take;
+    }
+  }
+  // Pass 1b — a target-less step (sets=0, which is "done" on any single set) claims one remaining matching set.
+  for (let i = 0; i < N; i++) {
+    if ((steps[i].sets || 0) > 0) continue;
+    for (const k of stepUnits[i]) { if (rem[k] > 0) { assigned[i]++; rem[k]--; break; } }
+  }
+  // Pass 2 — surplus sets beyond every target ("extra work") attach to the LAST step they match.
+  for (let k = 0; k < units.length; k++) {
+    if (rem[k] <= 0 || !unitSteps[k].length) continue;
+    assigned[unitSteps[k][unitSteps[k].length - 1]] += rem[k];
+    rem[k] = 0;
+  }
+  return assigned;
+}
+let _allocMemo = null; // single-entry cache — callers hit allocation N× per render/summary for one session+plan
+function planStepAllocation(session, plan) {
+  const steps = (plan && plan.steps) || [];
+  const N = steps.length;
+  if (!session || !N) return { saved: new Array(N).fill(0), logged: new Array(N).fill(0) };
+  // Saved units — one entry per session exercise: its variation + how many sets it holds.
+  const savedUnits = [];
+  (session.exercises || []).forEach(ex => { if (ex.varUuid) savedUnits.push({ varUuid: ex.varUuid, count: (ex.sets || []).length }); });
+  // Logged units = saved + the live pending exercise's COMPLETED sets (active session, not editing; feat 137/211,
+  // suppressed for the save-time saved-only snapshot via _planIgnorePending).
+  let pendVar = '', pendCount = 0;
+  if (!_planIgnorePending && pending && pending.varUuid && session === getActiveSession()
+      && !(typeof modalState !== 'undefined' && modalState.isEditing)) {
+    pendVar = pending.varUuid;
+    pendCount = (pending.sets || []).filter(s => s && s.w !== '' && s.w != null && !isNaN(parseFloat(s.w)) && s.r !== '' && s.r != null && parseFloat(s.r) > 0).length;
+  }
+  const key = (plan.id || '') + '@' + (plan._atRev != null ? plan._atRev : (plan.rev != null ? plan.rev : '')) + '#' + N
+    + '|' + (session.id || session.date || '') + '|' + JSON.stringify(savedUnits) + '|' + pendVar + ':' + pendCount;
+  if (_allocMemo && _allocMemo.key === key) return _allocMemo;
+  const saved = _allocSetsToSteps(steps, savedUnits);
+  const logged = pendCount > 0 ? _allocSetsToSteps(steps, savedUnits.concat([{ varUuid: pendVar, count: pendCount }])) : saved.slice();
+  _allocMemo = { key, saved, logged };
+  return _allocMemo;
+}
 function stepStatus(session, step, plan) {
-  const logged = stepLoggedSets(session, step), target = step.sets || 0;
-  const saved = stepSavedSets(session, step), minSets = stepMinSets(plan, step);
+  let logged, saved;
+  if (plan && plan.steps) {
+    const idx = plan.steps.indexOf(step);
+    if (idx >= 0) { const a = planStepAllocation(session, plan); logged = a.logged[idx]; saved = a.saved[idx]; } // feat 281 — unique assignment
+  }
+  if (logged == null) { logged = stepLoggedSets(session, step); saved = stepSavedSets(session, step); } // legacy fallback (plan-less callers)
+  const target = step.sets || 0, minSets = stepMinSets(plan, step);
   // `done` = the FULL target met (live, pending-inclusive) — drives the current-step pointer + the step HUD bar,
   // so following the plan exactly never skips ahead. `satisfied` = the feat 144 min-% threshold met by SAVED
   // sets only (checked after a save, not mid-entry) — drives plan-completion + the execution view.
@@ -10440,7 +10518,7 @@ function stepImpossibleInGym(step) {
 // Rough live ETA: remaining suggested sets × (avg set time + avg inter-set rest), defaults if no timing yet.
 function computePlanETA(session, plan) {
   let remainingSets = 0;
-  (plan.steps || []).forEach(st => { remainingSets += Math.max(0, (st.sets || 0) - stepStatus(session, st).logged); });
+  (plan.steps || []).forEach(st => { remainingSets += Math.max(0, (st.sets || 0) - stepStatus(session, st, plan).logged); });
   const rs = computeRestStats(session, pending, true);
   const perSetSec = (rs.avgSetTimeSec || 35) + (rs.avgInterSetRestSec || 105);
   const remMin = Math.round(remainingSets * perSetSec / 60);
@@ -10590,7 +10668,7 @@ function planStepIndicatorHtml() {
   const session = getActiveSession(); if (!session) return '';
   const idx = planStepForVar(session, plan, pending.varUuid);
   if (idx < 0) return `<div class="logstep off">📋 ${escapeHtml(plan.name)} · not part of any plan step</div>`;
-  const st = plan.steps[idx], ss = stepStatus(session, st), ef = stepEffort(session, st);
+  const st = plan.steps[idx], ss = stepStatus(session, st, plan), ef = stepEffort(session, st);
   const pct = st.sets > 0 ? Math.min(100, (ss.logged / st.sets) * 100) : 0;
   const effortTxt = ef.applicable ? ` · 💪 ${ef.hit ? 'on target' : `${ef.top || 0}/${ef.sug}${state.unit}`}` : '';
   return `<div class="logstep ${ss.done ? 'done' : 'current'}">
@@ -16800,7 +16878,7 @@ function renderPicker() {
   if (plan) {
     const sess = getActiveSession();
     const chips = plan.steps.map((st, i) => {
-      const ss = stepStatus(sess, st);
+      const ss = stepStatus(sess, st, plan);
       if (ss.done) return '';
       const label = (st.options || []).map(optionLabel).join(' / ') || 'step';
       return `<button class="picker-step-chip ${modalState.planStepFilter === i ? 'active' : ''}" data-picker-step="${i}">Step ${i + 1}: ${escapeHtml(label)} <span class="psc-sets">${ss.logged}/${st.sets}</span></button>`;
@@ -17904,9 +17982,22 @@ function numpadApplyKey(buf, key, opts) {
   }
   return buf;
 }
+// feat 279 — the on-screen numpad now defers its write: keystrokes only build the buffer + the numpad's own
+// display; the set field is committed when the user confirms (Next / Done) or the numpad closes / switches
+// fields / a save flushes it. _numpadFlush writes the buffer (or the evaluated calc result) into the field.
+function _numpadFlush(np) {
+  np = np || modalState.numpad;
+  if (!np) return;
+  if (state.calcMode === true) { finalizeCalc(np); return; }
+  const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + np.i + '"][data-field="' + np.field + '"]');
+  if (inp) inp.value = np.buf;
+  commitSetField(np.i, np.field, np.buf);
+}
 function openNumpad(i, field) {
   const s = pending.sets[i];
   if (!s) return;
+  // feat 279 — switching to a different field commits the one you were on (no silent loss)
+  if (modalState.numpad && modalState.numpad.open && (modalState.numpad.i !== i || modalState.numpad.field !== field)) _numpadFlush(modalState.numpad);
   const cur = s[field];
   modalState.numpad = { open: true, i: i, field: field, buf: (cur === '' || cur == null) ? '' : String(cur) };
   renderNumpad();
@@ -17914,6 +18005,7 @@ function openNumpad(i, field) {
   document.getElementById('trk-numpad-backdrop')?.classList.add('open');
 }
 function closeNumpad() {
+  if (modalState.numpad && modalState.numpad.open) _numpadFlush(modalState.numpad); // feat 279 — commit the buffer on any close
   if (modalState.numpad) modalState.numpad.open = false;
   document.getElementById('trk-numpad')?.classList.remove('open');
   document.getElementById('trk-numpad-backdrop')?.classList.remove('open');
@@ -17921,7 +18013,7 @@ function closeNumpad() {
 function numpadNext() {
   const np = modalState.numpad;
   if (!np) return;
-  if (np.field === 'w') openNumpad(np.i, 'r');
+  if (np.field === 'w') openNumpad(np.i, 'r'); // openNumpad flushes the weight field first (feat 279)
   else if (np.i + 1 < pending.sets.length) openNumpad(np.i + 1, 'w');
   else closeNumpad();
 }
@@ -17975,24 +18067,15 @@ function numpadHandleKey(k) {
   if (!np) return;
   if (k === 'calctoggle') { state.calcMode = !state.calcMode; saveState(); renderNumpad(); return; }   // feat 65 — persistent
   const calc = state.calcMode === true;
-  if (k === 'done') { if (calc) finalizeCalc(np); closeNumpad(); return; }
-  if (k === 'next') { if (calc) finalizeCalc(np); numpadNext(); return; }
+  if (k === 'done') { closeNumpad(); return; }   // feat 279 — closeNumpad flushes the buffer into the field
+  if (k === 'next') { numpadNext(); return; }    // feat 279 — Next flushes (via openNumpad/closeNumpad) then advances
   const M = exMode(pending.varUuid), isW = np.field === 'w';
   const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
   const sign = isW && M.mode === 'bodyweight';
   np.buf = numpadApplyKey(np.buf, k, { decimal: decimal, sign: sign, maxLen: 7, calc: calc });
+  // feat 279 — keystrokes only update the numpad's own display; the set field stays put until Next / Done.
   const disp = sheet ? sheet.querySelector('.np-display') : null;
-  const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + np.i + '"][data-field="' + np.field + '"]');
-  if (calc) {
-    if (disp) disp.textContent = formatCalcDisplay(np.buf);
-    const r = evalExpr(np.buf);                 // commit the running result; leave field untouched mid-expression
-    if (r != null) { if (inp) inp.value = String(r); commitSetField(np.i, np.field, String(r)); }
-    else if (np.buf === '') { if (inp) inp.value = ''; commitSetField(np.i, np.field, ''); }
-  } else {
-    if (disp) disp.textContent = np.buf === '' ? '0' : np.buf;
-    if (inp) inp.value = np.buf;
-    commitSetField(np.i, np.field, np.buf);
-  }
+  if (disp) disp.textContent = calc ? formatCalcDisplay(np.buf) : (np.buf === '' ? '0' : np.buf);
 }
 // feat 100 — a digit key taps to its digit, but HELD (from an empty field) enters digit x10 (hold 7 -> 70).
 // With digits already present, or in calculator mode, a hold is just a normal short press of the digit.
@@ -18479,6 +18562,7 @@ function addSetRow(mode) {
 function saveSets(endingWorkout) {
   // feat 86 — returns a Promise<boolean> (themed confirm replaces native confirm()).
   // feat 114 — endingWorkout=true skips the post-save picker routing (the caller is ending the workout).
+  if (typeof modalState !== 'undefined' && modalState.numpad && modalState.numpad.open && typeof _numpadFlush === 'function') _numpadFlush(modalState.numpad); // feat 279 — commit any open numpad buffer before saving
   if (roBlocked('log sets')) return Promise.resolve(false);
   if (!pending.varUuid) { toast('Pick an exercise'); return Promise.resolve(false); }
   const nowIso = new Date().toISOString();
@@ -18695,7 +18779,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 224 · 2026-06-17 22:25';
+const APP_BUILD = 'build 225 · 2026-06-18 20:43';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -18977,8 +19061,11 @@ function setPositionInfo(kind) {
   const session = (typeof getActiveSession === 'function') ? getActiveSession() : null;
   const editing = (typeof modalState !== 'undefined') && modalState.isEditing;
   if (plan && session && pending.varUuid && !editing) {
-    const step = (plan.steps || []).find(st => (st.options || []).some(o => optionMatchesVar(o, pending.varUuid)));
-    if (step && step.sets > 0) return { x: stepSavedSets(session, step) + x0, y: step.sets, onPlan: true };
+    // feat 281 — attribute the position to the step this exercise is actually serving (first incomplete match,
+    // else first match) and use its UNIQUE saved-set allocation, not the raw match count across duplicate steps.
+    const idx = planStepForVar(session, plan, pending.varUuid);
+    const step = idx >= 0 ? plan.steps[idx] : null;
+    if (step && step.sets > 0) return { x: (planStepAllocation(session, plan).saved[idx] || 0) + x0, y: step.sets, onPlan: true };
   }
   return { x: x0, y: null, onPlan: false };
 }
@@ -19504,8 +19591,11 @@ function refreshPlanStepBar() {
     if (idx < 0) idx = currentPlanStepIndex(session, plan);
   }
   if (!session || !plan || idx < 0 || idx >= plan.steps.length) { bar.style.display = 'none'; document.body.classList.remove('plan-step-bar-on'); return; }
-  const st = plan.steps[idx], total = stepStatus(session, st).logged, target = st.sets || 0;
-  _planIgnorePending = true; const saved = stepStatus(session, st).logged; _planIgnorePending = false; // saved-only, to split solid vs dimmed notches
+  const st = plan.steps[idx], target = st.sets || 0;
+  // feat 281 — read this step's UNIQUE allocation: logged (incl. pending) for the total, saved-only to split
+  // solid vs dimmed notches (no per-step double-count across duplicate steps).
+  const _alloc = planStepAllocation(session, plan);
+  const total = _alloc.logged[idx] || 0, saved = _alloc.saved[idx] || 0;
   const inprog = pendingStepOpenSets(st); // feat 211 — weight in, reps pending → checkered, never counted
   const pend = Math.max(0, total - saved), done = target > 0 ? total >= target : total > 0;
   // feat 212 — sets BEYOND the step target get their own glowing notches instead of vanishing

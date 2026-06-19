@@ -1095,6 +1095,26 @@ They share variation **UUIDs**.
   current plan, sorted lightest-first. Tapping a sibling opens it in the current mode (view stays read-only). Shown in
   both the editor and the feat-276 read-only view. `test/app.spec.mjs` (signature match, sibling sets, effort scaling +
   colour classes).
+- **Exercise log renders on the tab, not a slide-in (feat 278):** the Log-Sets surface (`#trk-modal`) used to animate
+  **up from the bottom** like a sheet even though it fills the Exercise tab — a leftover sheet transition. It now sits
+  in place directly under the topbar (`top: var(--topbar-h); transition: none`), so opening the Exercise tab shows the
+  set-entry content **immediately, on the tab**, with no slide. No behavioural change to the form itself.
+- **On-screen numpad commits on Next/Done, not mid-keystroke (feat 279):** typing on the OSK used to write each
+  keystroke straight into the set field (live), so a half-typed value (e.g. "9" before "90") momentarily *was* the
+  field. The numpad now buffers: `numpadHandleKey` only updates `np.buf` + the `.np-display`, and the value is
+  **flushed into the field once** via `_numpadFlush(np)` — invoked by **Next** (`numpadNext`), **Done** (`closeNumpad`),
+  and `saveSets` (so an open buffer isn't lost on save). Calculator mode flushes through `finalizeCalc`. The field no
+  longer changes until you commit. `test/numpad.spec.mjs` (buffer not committed before Done; committed after).
+- **A set counts toward exactly ONE plan step (feat 281):** plan progress matched sets to steps **independently per
+  step**, so a set whose variation satisfied several steps (e.g. the three `row` steps in *Pull Marathon*) was counted
+  toward **every** matching step — doing the first row step wrongly completed the later ones. New `planStepAllocation`
+  distributes a session's sets **uniquely**: steps are filled to target **in plan order** (so the earlier duplicate
+  completes first via `_allocSetsToSteps`, least-shared set first to avoid starving a step), and any **surplus** beyond
+  every target ("extra work") attaches to the **last** step it matches. `stepStatus` reads `logged`/`saved` from this
+  allocation (legacy per-step counters kept only as a plan-less fallback); the step HUD bar, picker chips, log-sets
+  banner, `setPositionInfo` and ETA all route through it. Single-entry memo keyed on session+plan+set fingerprint.
+  `test/dupsteps.spec.mjs` (3 row sets complete only step 1; 9 sets give each step exactly 3; surplus lands on the last;
+  every set allocated exactly once).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
