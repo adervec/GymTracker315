@@ -1204,6 +1204,16 @@ They share variation **UUIDs**.
   identity.spec.mjs` (no-cloud uses manual name; synced account locks name + supplies avatar; top-bar render; Profile
   input disabled + lock note; Data card shows account). `branding.spec` / `settingspages.spec` / `navtopbar.spec`
   updated: branding is mandatory and the hide toggle is gone.
+- **Timed-hold "Ready · Set · Go" count cue (feat 291):** an opt-in voice cue for holds & hangs. On a timed set's
+  start the coach voice says **"Ready… Set… Go"** (fixed lead-in: 0 s / 0.9 s / 1.8 s) and the **set timer (`wTs`)
+  only starts on "Go"** — `commitSetField`'s weight path defers the timestamp and runs `startHoldCue(i)` instead of
+  stamping immediately. From "Go" it **counts the seconds aloud** (1, 2, 3…) on a `setInterval`, at a **configurable**
+  step (`state.holdCue = {enabled, every}`; every=1 → every second, every=5 → 5,10,15…). While active it **overrides**
+  the metronome / Mantranome (`metroTick` early-returns) and the rest cues (`restCueTick`), via `holdCueActive()`. The
+  cue cancels when the set completes (reps/seconds land), the weight is cleared before "Go", or the log is cleared.
+  Config lives in **Settings › Metronome** (toggle + interval). Reuses the feat-257 live hold timer (which keys off
+  `wTs`, so it appears on "Go") and the feat-206 `annunce` speaker. `test/holdcue.spec.mjs` (cfg defaults/clamp,
+  deferred-then-stamped `wTs` on "Go", abort on weight-clear, completion cancels, metronome suppression, settings UI).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

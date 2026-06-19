@@ -4102,7 +4102,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -4403,6 +4403,7 @@ function savePending() {
   try { localStorage.setItem(PENDING_KEY, JSON.stringify(pending)); } catch(e) {}
 }
 function clearPending() {
+  if (typeof cancelHoldCue === 'function') cancelHoldCue(); // feat 291 — stop any running hold count cue
   pending = { varUuid: null, subUuid: null, sets: [], cardio: null, defaultWeight: null, superset: null };
   localStorage.removeItem(PENDING_KEY);
 }
@@ -7123,6 +7124,24 @@ function renderSettingsDrawer() {
     <div class="drawer-data-row">
       <button class="drawer-btn" id="drawer-metro-test">▶ Test beat</button>
     </div>
+    <div class="drawer-setting-row" style="margin-top:6px;">
+      <div>
+        <div class="drawer-setting-label">⏱ Timed-hold count cue</div>
+        <div class="drawer-setting-sub">For holds &amp; hangs: on set start the voice says “Ready… Set… Go”, then counts the seconds aloud (1, 2, 3…). The hold timer starts on <b>“Go”</b>. Overrides the metronome &amp; rest cues while it runs.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${holdCueCfg().enabled ? 'active' : ''}" data-holdcue="enabled" data-holdcue-val="on">On</button>
+        <button class="drawer-pill ${!holdCueCfg().enabled ? 'active' : ''}" data-holdcue="enabled" data-holdcue-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Count every (seconds)</div>
+        <div class="drawer-setting-sub">1 = say every second (Go, 1, 2, 3…). Higher = count in steps (e.g. 5 → 5, 10, 15…).</div>
+      </div>
+      <input type="number" id="drawer-holdcue-every" value="${holdCueCfg().every}" min="1" max="60" step="1"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
 
     <div class="drawer-section-title">Rest timer cues</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">A separate audible rest timer (independent of the recommended-rest band). Counts up or down during rest between sets of the same exercise, with configurable interval beeps + an end cue.</div>
@@ -7732,6 +7751,12 @@ function renderSettingsDrawer() {
   const mAccent = body.querySelector('#drawer-metro-accent');
   if (mAccent) mAccent.addEventListener('change', () => { const v = parseInt(mAccent.value); if (!isNaN(v) && v >= 0 && v <= 16) setMetro({ accentEvery: v }); });
   body.querySelector('#drawer-metro-test')?.addEventListener('click', () => { const c = metroCfg(); metroBeep(c.freq || 880, c.vol); if (c.haptic) safeVibrate([30]); });
+  // feat 291 — timed-hold count cue
+  body.querySelectorAll('[data-holdcue]').forEach(b => b.addEventListener('click', () => {
+    state.holdCue = { ...holdCueCfg(), [b.dataset.holdcue]: b.dataset.holdcueVal === 'on' }; saveState(); renderSettingsDrawer();
+  }));
+  const hcEvery = body.querySelector('#drawer-holdcue-every');
+  if (hcEvery) hcEvery.addEventListener('change', () => { const v = parseInt(hcEvery.value); if (!isNaN(v)) { state.holdCue = { ...holdCueCfg(), every: Math.max(1, Math.min(60, v)) }; saveState(); } });
   // Rest cue timer settings (feat 104)
   const setRC = (patch) => { state.restCues = { ...restCueCfg(), ...patch }; saveState(); _lastRestCueSec = -1; };
   const rcTarget = body.querySelector('#drawer-rc-target');
@@ -18315,12 +18340,20 @@ function commitSetField(i, f, val) {
   }
   const wFilled = s.w !== '' && s.w != null;
   if (f === 'w') {
-    if (wFilled && !s.wTs) { s.wTs = new Date().toISOString(); if (typeof annunceSetStart === 'function') annunceSetStart(); } // weight entered → set starts (feat 206 — speak the position)
-    else if (!wFilled) { s.wTs = undefined; s.ts = undefined; }     // weight cleared → reset both
+    if (wFilled && !s.wTs) {
+      // feat 291 — on a TIMED hold with the count cue on, don't start the timer yet: run "ready/set/go" first
+      // and stamp wTs on "go". Otherwise stamp now + speak the set-start position (feat 206).
+      if (pendingIsTimeMode() && holdCueCfg().enabled && !(typeof modalState !== 'undefined' && modalState.isEditing)) {
+        if (!holdCueActive()) startHoldCue(i);
+      } else {
+        s.wTs = new Date().toISOString(); if (typeof annunceSetStart === 'function') annunceSetStart();
+      }
+    } else if (!wFilled) { s.wTs = undefined; s.ts = undefined; if (holdCueActive()) cancelHoldCue(); } // weight cleared → reset
   } else if (f === 'r') {
     const rFilled = s.r !== '' && s.r != null;
     const wasDone = !!s.ts; // feat 207 — annunce only on the rising edge, not on rep edits
     s.ts = rFilled ? new Date().toISOString() : undefined;          // reps entered → set done
+    if (s.ts && holdCueActive()) cancelHoldCue();                   // feat 291 — the hold finished → stop counting
     if (s.ts && !wasDone && parseFloat(s.r) > 0 && typeof annunceSetEnd === 'function') annunceSetEnd(); // feat 207
   }
   savePending();
@@ -19209,7 +19242,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 233 · 2026-06-18 23:08';
+const APP_BUILD = 'build 234 · 2026-06-18 23:20';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -19652,6 +19685,7 @@ function metroSpeakNextTip() {
   } catch (e) { _metroSpeaking = false; }
 }
 function metroTick() {
+  if (holdCueActive()) return; // feat 291 — the timed-hold count cue overrides the metronome / Mantranome
   const c = metroCfg();
   const active = metroSetActive();
   if (active && !_metroWasActive) _metroMantraIdx = 0; // feat 205 — a NEW set restarts the Mantranome cycles
@@ -19690,6 +19724,50 @@ function refreshMetronomeUI() {
   if (btn) { btn.classList.toggle('on', metronomeRunning()); btn.textContent = (metronomeRunning() ? '⏸' : '▶') + ' Metronome'; }
   const bpmEl = document.getElementById('metro-bpm-val');
   if (bpmEl) bpmEl.textContent = metroCfg().bpm + ' bpm';
+}
+/* ---- feat 291 — TIMED-HOLD count cue. On a hold's set-start the coach voice says "Ready… Set… Go", and only
+   on "Go" does the SET TIMER start (wTs is stamped). It then counts the elapsed seconds aloud (Go, 1, 2, 3…) at
+   a configurable interval. While active it OVERRIDES the metronome / Mantranome / rest cues. Opt-in (state.holdCue,
+   default off). The lead-in is fixed (Ready 0s · Set 0.9s · Go 1.8s); only the count interval is configurable. ---- */
+function holdCueCfg() { const d = { enabled: false, every: 1 }; const c = { ...d, ...(state.holdCue || {}) }; c.enabled = !!c.enabled; c.every = Math.max(1, Math.min(60, (c.every | 0) || 1)); return c; }
+let _holdCue = null, _holdCueGen = 0;
+function holdCueActive() { return !!_holdCue; }
+function cancelHoldCue() {
+  if (!_holdCue) return;
+  try { clearTimeout(_holdCue.t1); } catch (_) {}
+  try { clearTimeout(_holdCue.t2); } catch (_) {}
+  try { clearInterval(_holdCue.iv); } catch (_) {}
+  _holdCue = null;
+  try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
+}
+function startHoldCue(i) {
+  cancelHoldCue();
+  const cfg = holdCueCfg();
+  const gen = ++_holdCueGen;
+  _holdCue = { i, gen, t1: null, t2: null, iv: null };
+  const alive = () => !!_holdCue && _holdCue.gen === gen;
+  const say = (txt) => { try { if (alive() && typeof annunce === 'function') annunce(txt); } catch (_) {} };
+  say('Ready');                                         // t = 0
+  _holdCue.t1 = setTimeout(() => say('Set'), 900);      // t ≈ 0.9 s
+  _holdCue.t2 = setTimeout(() => {                       // t ≈ 1.8 s — "Go": the timer starts here
+    if (!alive()) return;
+    const s = pending.sets[i];
+    if (!s || s.w === '' || s.w == null) { cancelHoldCue(); return; } // weight cleared before "Go" → abort
+    say('Go');
+    s.wTs = new Date().toISOString();                   // feat 291 — set timer starts on "Go", not on weight entry
+    s.ts = undefined;
+    try { savePending(); } catch (_) {}
+    try { if (typeof refreshRestBar === 'function') refreshRestBar(); } catch (_) {}
+    try { if (typeof modalState !== 'undefined' && modalState.open && typeof renderModal === 'function') renderModal(); } catch (_) {} // surface the live hold timer (feat 257)
+    let n = 0;
+    _holdCue.iv = setInterval(() => {                    // count up: 1, 2, 3… every `every` seconds
+      if (!alive()) return;
+      const cur = pending.sets[i];
+      if (!cur || cur.wTs == null || cur.ts != null || cur.w === '' || cur.w == null) { cancelHoldCue(); return; } // set ended / cleared
+      n += cfg.every;
+      say(String(n));
+    }, cfg.every * 1000);
+  }, 1800);
 }
 function changeMetroBpm(delta) {
   const next = Math.max(20, Math.min(300, (metroCfg().bpm || 60) + delta));
@@ -20078,6 +20156,7 @@ function restCueFire(kind) { // kind: 'tick' | 'interval' | 'end'
   }
 }
 function restCueTick() {
+  if (holdCueActive()) { _lastRestCueSec = -1; return; } // feat 291 — the hold count cue overrides rest cues
   const c = restCueCfg();
   if (!c.enabled) { _lastRestCueSec = -1; return; }
   let st; try { st = computeRestState(); } catch (_) { return; }
