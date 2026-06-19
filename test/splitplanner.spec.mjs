@@ -121,7 +121,9 @@ test('a recommended day Use button attaches that plan to the workout', async ({ 
 // feat 255 — curated "themed" splits (coy, allusive names) that drive an explicit slot sequence.
 test('feat 255 — THEMED_SPLITS are well-formed and buildRecommendedSplit honours an explicit slot list', async ({ page }) => {
   const r = await page.evaluate(() => {
-    const ok = THEMED_SPLITS.every(t => t.id && t.name && Array.isArray(t.slots) && t.slots.length >= 2 && t.slots.length <= 6);
+    // feat 283 — a themed split may now span up to a 28-day rotation: 2…28 slots, slots ≤ its day length.
+    const ok = THEMED_SPLITS.every(t => t.id && t.name && Array.isArray(t.slots) && t.slots.length >= 2
+      && t.slots.length <= 28 && (t.days || t.slots.length) <= 28 && t.slots.length <= (t.days || t.slots.length));
     const oak = themedSplit('oak');
     const built = buildRecommendedSplit({ slots: oak.slots, minutes: 60 }).map(s => s.slot);
     return { count: THEMED_SPLITS.length, ok, oakSlots: oak.slots, built, missing: themedSplit('nope') };

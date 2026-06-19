@@ -1140,6 +1140,18 @@ They share variation **UUIDs**.
   `7/days` so "sets/week" stays honest. Old weekday programs are untouched (normalize accepts both shapes).
   `test/splitlength.spec.mjs` (rotation build, date rotation + wrap both directions, slot cycling, normalize
   validation, planner saves a rotation + Day 1…N agenda, the selector exposes lengths up to 28).
+- **Split Planner — collapsible sections + searchable themed splits + many more (feat 283):** with the day range now
+  reaching 28 the themed-split list grew, so every Split Planner card is now **collapsible** (`.sp-sec` + a
+  `data-sp-coll` header chevron; state in `state.spUI.collapse`, persisted via SETTINGS_KEYS). **Themed splits default
+  collapsed** (the other sections expand); the section also gains a **🔎 text search** (client-side, hides non-matching
+  chips without a re-render so typing keeps focus) and a **length filter** (All / ≤1 wk / 8–14d / 15–28d, in
+  `state.spUI.themeFilter`). THEMED_SPLITS expanded from 11 to **27** — each now carries its own `days` (rotation
+  length) via `themeDays`, and the new entries span **8–28 days** (Eight-Day Engine → The Lunar Cycle / Monthlong
+  Odyssey), so picking a long theme sets the split length and saves a **rotating cycle** (feat 282). Coy, non-infringing
+  names continue the feat-255 style; the recommender still fills every slot from your own library. `test/
+  splitplannerui.spec.mjs` (≥25 themes with valid `days`≤28, long theme → rotation, collapse defaults + persistence,
+  search hides-not-removes, length-filter bucket). `test/splitplanner.spec.mjs` updated: a theme may now span up to 28
+  slots/days.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

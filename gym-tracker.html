@@ -876,13 +876,23 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .sp-chip.active { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
   .sp-note { font-size: 11.5px; color: var(--warn); margin-top: 8px; line-height: 1.4; }
   /* feat 255 — themed split picker */
-  .sp-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .sp-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: 360px; overflow-y: auto; }
   .sp-theme { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); cursor: pointer; font-family: inherit; }
   .sp-theme.active { border-color: var(--accent); background: var(--accent-bg); }
   .sp-theme-emoji { font-size: 17px; line-height: 1; }
   .sp-theme-name { font-size: 12.5px; font-weight: 800; }
   .sp-theme-tag { font-size: 10px; color: var(--text3); }
   .sp-theme.active .sp-theme-tag { color: var(--accent); }
+  /* feat 283 — collapsible split-planner sections + themed-split search/filter */
+  .sp-sec-head { cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
+  .sp-sec-chev { display: inline-block; font-size: 11px; color: var(--text3); transition: transform 0.12s; margin-right: 2px; }
+  .sp-sec.collapsed .sp-sec-body { display: none; }
+  .sp-sec-count { font-size: 11px; color: var(--text3); font-weight: 600; }
+  .sp-theme-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .sp-theme-search { flex: 1 1 150px; min-width: 120px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 12.5px; font-family: inherit; }
+  .sp-theme-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sp-theme-days { font-size: 10px; color: var(--accent2, var(--accent)); font-weight: 700; }
+  .sp-theme-none { font-size: 12px; color: var(--text3); padding: 8px 2px; }
   .sp-days { display: flex; flex-direction: column; gap: 7px; }
   .sp-day { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
   .sp-day-slot { flex-shrink: 0; width: 64px; }
@@ -4073,7 +4083,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -11101,21 +11111,42 @@ function splitTemplateFor(sessions) { return SPLIT_TEMPLATES[Math.max(2, Math.mi
 // routine; the programming is our own generic archetype (PPL / upper-lower / full-body), and the recommender
 // fills each slot from YOUR plan library. Purely a fun starting point.
 const THEMED_SPLITS = [
-  { id:'steel',   name:'Man of Lifting Steel',     emoji:'🦸', tag:'4-day · caped strength',      blurb:'Heavy presses and a back built to fill a cape — upper/lower, then a pull and a push to finish.', slots:['Upper','Legs','Pull','Push'] },
-  { id:'oak',     name:'The Golden-Era Oak',       emoji:'🌳', tag:'6-day · mirror muscles',      blurb:'A high-volume, sun-soaked beach classic — chest & back paired, legs honoured, arms never skipped.', slots:['Push','Pull','Legs','Push','Pull','Legs'] },
-  { id:'spartan', name:'Three Hundred Reasons',    emoji:'🛡️', tag:'3-day · lean & conditioned',  blurb:'A lean warrior look: full-body strength three times a week, every session earns its sweat.', slots:['Full Body','Full Body','Full Body'] },
-  { id:'thunder', name:'God of Thunder',           emoji:'⚡', tag:'4-day · overhead power',       blurb:'Shoulder-forward and powerful — press overhead like a worthy hammer depends on it.', slots:['Push','Pull','Legs','Upper'] },
-  { id:'people',  name:'The People’s Pump',        emoji:'🌋', tag:'5-day · boulder shoulders',    blurb:'Big chest and bigger delts, five days, maximum effort — no day wasted, my friends.', slots:['Push','Pull','Legs','Push','Pull'] },
-  { id:'cowl',    name:'The Caped Crusader’s Cut',  emoji:'🦇', tag:'4-day · athletic minimalism', blurb:'Dense and athletic — an upper/lower you could run out of a cave anywhere in the city.', slots:['Upper','Legs','Upper','Legs'] },
+  // —— Within a calendar week (≤7 days → weekday program) ——
+  { id:'steel',   name:'Man of Lifting Steel',     emoji:'🦸', tag:'4-day · caped strength',      blurb:'Heavy presses and a back built to fill a cape — upper/lower, then a pull and a push to finish.', slots:['Upper','Legs','Pull','Push'], days:7 },
+  { id:'oak',     name:'The Golden-Era Oak',       emoji:'🌳', tag:'6-day · mirror muscles',      blurb:'A high-volume, sun-soaked beach classic — chest & back paired, legs honoured, arms never skipped.', slots:['Push','Pull','Legs','Push','Pull','Legs'], days:7 },
+  { id:'spartan', name:'Three Hundred Reasons',    emoji:'🛡️', tag:'3-day · lean & conditioned',  blurb:'A lean warrior look: full-body strength three times a week, every session earns its sweat.', slots:['Full Body','Full Body','Full Body'], days:7 },
+  { id:'thunder', name:'God of Thunder',           emoji:'⚡', tag:'4-day · overhead power',       blurb:'Shoulder-forward and powerful — press overhead like a worthy hammer depends on it.', slots:['Push','Pull','Legs','Upper'], days:7 },
+  { id:'people',  name:'The People’s Pump',        emoji:'🌋', tag:'5-day · boulder shoulders',    blurb:'Big chest and bigger delts, five days, maximum effort — no day wasted, my friends.', slots:['Push','Pull','Legs','Push','Pull'], days:7 },
+  { id:'cowl',    name:'The Caped Crusader’s Cut',  emoji:'🦇', tag:'4-day · athletic minimalism', blurb:'Dense and athletic — an upper/lower you could run out of a cave anywhere in the city.', slots:['Upper','Legs','Upper','Legs'], days:7 },
   // feat 273 — martial-arts & mind-body themed splits. A "Core" slot will surface the new core/conditioning
   // plans (Pilates, Fighter\'s Circuit) when they cover it best.
-  { id:'dragon',    name:'Way of the Dragon',        emoji:'🐉', tag:'4-day · martial athleticism',     blurb:'A fighter build — push, pull and legs for power, then a core-and-conditioning day to tie it all together.', slots:['Push','Pull','Legs','Core'] },
-  { id:'crane',     name:'The Crane & The Tiger',    emoji:'🦢', tag:'4-day · strength meets stillness', blurb:'Hard and soft in balance — two big strength days, a pull day, and a core / mind-body day to reset.', slots:['Upper','Legs','Pull','Core'] },
-  { id:'shaolin',   name:'The Shaolin Path',         emoji:'🧘', tag:'3-day · full-body discipline',     blurb:'Lean, capable and unhurried — full-body strength bookending a core-and-control day. Move with intent.', slots:['Full Body','Core','Full Body'] },
-  { id:'contender', name:'The Contender',            emoji:'🥊', tag:'5-day · a fighter engine',         blurb:'Train like you have a fight coming — upper and lower power, a pull day, and a core-conditioning finisher.', slots:['Push','Legs','Pull','Upper','Core'] },
-  { id:'aegis',     name:'The Shield-Bearer',        emoji:'🛡️', tag:'4-day · armoured all-rounder',     blurb:'Balanced, durable and strong from every angle — an upper / lower base with a posterior and core focus.', slots:['Upper','Legs','Pull','Core'] },
+  { id:'dragon',    name:'Way of the Dragon',        emoji:'🐉', tag:'4-day · martial athleticism',     blurb:'A fighter build — push, pull and legs for power, then a core-and-conditioning day to tie it all together.', slots:['Push','Pull','Legs','Core'], days:7 },
+  { id:'crane',     name:'The Crane & The Tiger',    emoji:'🦢', tag:'4-day · strength meets stillness', blurb:'Hard and soft in balance — two big strength days, a pull day, and a core / mind-body day to reset.', slots:['Upper','Legs','Pull','Core'], days:7 },
+  { id:'shaolin',   name:'The Shaolin Path',         emoji:'🧘', tag:'3-day · full-body discipline',     blurb:'Lean, capable and unhurried — full-body strength bookending a core-and-control day. Move with intent.', slots:['Full Body','Core','Full Body'], days:7 },
+  { id:'contender', name:'The Contender',            emoji:'🥊', tag:'5-day · a fighter engine',         blurb:'Train like you have a fight coming — upper and lower power, a pull day, and a core-conditioning finisher.', slots:['Push','Legs','Pull','Upper','Core'], days:7 },
+  { id:'aegis',     name:'The Shield-Bearer',        emoji:'🛡️', tag:'4-day · armoured all-rounder',     blurb:'Balanced, durable and strong from every angle — an upper / lower base with a posterior and core focus.', slots:['Upper','Legs','Pull','Core'], days:7 },
+  // —— feat 283 — rotations LONGER than a week (>7 days → a rotating cycle anchored to a start date). The
+  //    recommender still fills each slot from your library; more variety in the library = fewer repeats. ——
+  { id:'eight-engine', name:'The Eight-Day Engine',    emoji:'🎼', tag:'8-day · PPL ×2, two rests',     blurb:'Two push/pull/legs blocks across eight days — a touch more recovery than a strict weekly six.', slots:['Push','Pull','Legs','Push','Pull','Legs'], days:8 },
+  { id:'ebb-flow',     name:'Ebb & Flow',               emoji:'🌊', tag:'8-day · upper/lower wave',       blurb:'An upper/lower tide that drifts off the calendar — five sessions paced over eight days.', slots:['Upper','Legs','Push','Pull','Legs'], days:8 },
+  { id:'rule-threes',  name:'Rule of Threes',           emoji:'🔱', tag:'9-day · PPL ×2 + a core day',    blurb:'Push, pull, legs — twice — capped with a dedicated core day, breathing across nine days.', slots:['Push','Pull','Legs','Push','Pull','Legs','Core'], days:9 },
+  { id:'nine-ronin',   name:'The Nine-Day Ronin',       emoji:'🗡️', tag:'9-day · strength + core, paced', blurb:'A masterless rhythm — push/pull/legs and core, then again, set to its own nine-day clock.', slots:['Push','Pull','Legs','Core','Push','Pull','Legs'], days:9 },
+  { id:'decathlete',   name:'The Decathlete',           emoji:'🏅', tag:'10-day · full rotation',         blurb:'Every quality gets a day — push, pull, legs, upper, full-body and core across a ten-day wheel.', slots:['Push','Pull','Legs','Upper','Full Body','Core','Push','Pull'], days:10 },
+  { id:'long-orbit',   name:'Long Orbit',               emoji:'☄️', tag:'10-day · PPL ×2 + two cores',    blurb:'A wide, comfortable orbit — two PPL blocks with a core day after each, ten days end to end.', slots:['Push','Pull','Legs','Core','Push','Pull','Legs','Core'], days:10 },
+  { id:'clockwork',    name:'Clockwork Twelve',         emoji:'⚙️', tag:'12-day · PPL ×3, spaced',        blurb:'Three precise push/pull/legs turns over twelve days — high frequency with engineered rest.', slots:['Push','Pull','Legs','Push','Pull','Legs','Push','Pull','Legs'], days:12 },
+  { id:'long-voyage',  name:'The Long Voyage',          emoji:'🚢', tag:'12-day · upper/lower ×3 + core', blurb:'A steady upper/lower crossing — three laps and a core day, charted over twelve days.', slots:['Upper','Legs','Upper','Legs','Upper','Legs','Core'], days:12 },
+  { id:'fortnight',    name:'The Fortnight Forge',      emoji:'🗓️', tag:'14-day · two-week microcycle',   blurb:'A full two-week block — push, pull, legs, upper and core, twice — your own fourteen-day cycle.', slots:['Push','Pull','Legs','Upper','Core','Push','Pull','Legs','Upper','Core'], days:14 },
+  { id:'base-peak',    name:'Base & Peak',              emoji:'⛰️', tag:'14-day · full-body base + splits', blurb:'Open each week on a full-body base, then split push/pull/legs — a balanced fourteen-day arc.', slots:['Full Body','Push','Pull','Legs','Full Body','Push','Pull','Legs'], days:14 },
+  { id:'two-week-tempo', name:'The Two-Week Tempo',     emoji:'🏃', tag:'14-day · high-frequency PPL',    blurb:'Three PPL turns plus a core day over fourteen days — frequent, but with honest recovery built in.', slots:['Push','Pull','Legs','Push','Pull','Legs','Push','Pull','Legs','Core'], days:14 },
+  { id:'colossus',     name:'The Sixteen-Day Colossus', emoji:'🗿', tag:'16-day · specialization wheel',  blurb:'A long, monumental rotation — every split plus full-body and core, paced across sixteen days.', slots:['Push','Pull','Legs','Upper','Push','Pull','Legs','Core','Full Body','Push','Pull','Legs'], days:16 },
+  { id:'three-week',   name:'The Three-Week Cycle',     emoji:'🌒', tag:'21-day · accumulation block',    blurb:'An accumulation block as one repeating split — twenty-one days of structured push/pull/legs and core.', slots:['Push','Pull','Legs','Upper','Core','Push','Pull','Legs','Upper','Core','Push','Pull','Legs','Full Body'], days:21 },
+  { id:'pilgrimage',   name:'The Long Pilgrimage',      emoji:'🧭', tag:'21-day · sustainable rotation',  blurb:'An unhurried twenty-one-day journey — push, pull, legs, core, on repeat, with room to recover.', slots:['Push','Pull','Legs','Core','Push','Pull','Legs','Core','Push','Pull','Legs','Core'], days:21 },
+  { id:'lunar-cycle',  name:'The Lunar Cycle',          emoji:'🌕', tag:'28-day · a month as one split',  blurb:'A whole month as a single rotation — every quality, three times around, over twenty-eight days.', slots:['Push','Pull','Legs','Upper','Core','Full Body','Push','Pull','Legs','Upper','Core','Full Body','Push','Pull','Legs','Upper','Core','Full Body'], days:28 },
+  { id:'odyssey',      name:'The Monthlong Odyssey',    emoji:'🗺️', tag:'28-day · periodized month',      blurb:'A periodized month — full-body openers feeding into push/pull/legs/upper/core, twenty-eight days long.', slots:['Full Body','Push','Pull','Legs','Upper','Core','Full Body','Push','Pull','Legs','Upper','Core','Push','Pull','Legs','Upper'], days:28 },
 ];
 function themedSplit(id) { return THEMED_SPLITS.find(t => t.id === id) || null; }
+// feat 283 — a themed split's own length (the rotation/cycle length); falls back to its session count.
+function themeDays(t) { return (t && t.days) ? t.days : ((t && t.slots) ? t.slots.length : 7); }
 // The muscle GROUPS a slot is meant to cover — so a "Pull" day is judged on back+biceps volume, not just
 // on fitting the clock (which would otherwise pick a tiny Arm Day over a proper rowing session).
 const SLOT_GROUPS = {
@@ -11159,6 +11190,15 @@ function buildRecommendedSplit(opts) {
 }
 const SPLIT_STATUS_LABEL = { under: 'under', light: 'light', optimal: 'on target', over: 'over' };
 function splitPlanCfg() { return state.splitPlan || (state.splitPlan = { sessions: 3, days: 7, minutes: 60 }); }
+// feat 283 — split-planner UI prefs (per-section collapse + the themed-split length filter). Themed splits
+// default COLLAPSED (the list is long); the other sections default expanded. Persisted via SETTINGS_KEYS.
+function spUICfg() {
+  if (!state.spUI || typeof state.spUI !== 'object') state.spUI = {};
+  if (!state.spUI.collapse || typeof state.spUI.collapse !== 'object') state.spUI.collapse = { themes: true };
+  if (!state.spUI.themeFilter) state.spUI.themeFilter = 'all';
+  return state.spUI;
+}
+let _spThemeSearch = ''; // transient — not persisted across sessions
 /* ============================================================
    feat 230 — SCHEDULED WEEKLY PROGRAM. The future-oriented layer over the split planner: save a recommended
    split as a day-by-day weekly program (state.program), then the app knows what's planned for each day —
@@ -11371,6 +11411,21 @@ function renderSplitPlannerPage(main) {
   const minChips = [30, 45, 60, 90, 120].map(m => chip('sp-min', m, cfg.minutes, m + 'm')).join('');
   const doubles = cfg.sessions > cfg.days;
   const longSplit = cfg.days > 7; // feat 282 — a split longer than a week saves as a rotating cycle
+  // feat 283 — collapsible sections + themed-split search/filter
+  const ui = spUICfg(), coll = ui.collapse;
+  const isColl = k => !!coll[k];
+  const chev = k => `<span class="sp-sec-chev">${isColl(k) ? '▸' : '▾'}</span>`;
+  // themed-split length filter + (client-side) text search
+  const THEME_LEN_FILTERS = [{ id: 'all', label: 'All' }, { id: 'week', label: '≤1 wk' }, { id: 'short', label: '8–14d' }, { id: 'long', label: '15–28d' }];
+  const tf = ui.themeFilter || 'all';
+  const themeInFilter = t => { const d = themeDays(t); return tf === 'all' || (tf === 'week' && d <= 7) || (tf === 'short' && d >= 8 && d <= 14) || (tf === 'long' && d >= 15); };
+  const themesShown = THEMED_SPLITS.filter(themeInFilter);
+  const themeFilterChips = THEME_LEN_FILTERS.map(f => `<button class="sp-chip ${tf === f.id ? 'active' : ''}" data-theme-filter="${f.id}">${f.label}</button>`).join('');
+  const themeChips = themesShown.map(t => {
+    const hay = (t.name + ' ' + t.tag + ' ' + t.blurb + ' ' + themeDays(t) + 'day').toLowerCase();
+    const hidden = _spThemeSearch && !hay.includes(_spThemeSearch.trim().toLowerCase());
+    return `<button class="sp-theme ${cfg.theme === t.id ? 'active' : ''}" data-sp-theme="${escapeAttr(t.id)}" data-theme-search="${escapeAttr(hay)}" title="${escapeAttr(t.blurb)}"${hidden ? ' style="display:none"' : ''}><span class="sp-theme-emoji">${t.emoji}</span><span class="sp-theme-name">${escapeHtml(t.name)}</span><span class="sp-theme-tag">${escapeHtml(t.tag)}</span><span class="sp-theme-days">${themeDays(t)}-day split</span></button>`;
+  }).join('');
   // recommended split rows
   const splitRows = split.map(s => s.plan
     ? `<div class="sp-day"><div class="sp-day-slot"><span class="sp-day-n">Day ${s.day}</span><span class="sp-day-cat">${escapeHtml(s.slot)}</span></div>
@@ -11424,62 +11479,87 @@ function renderSplitPlannerPage(main) {
   const trendDots = trend.map(w => `<span class="pg-dot ${w.scheduled && w.done >= w.scheduled ? 'full' : (w.done ? 'part' : 'none')}" title="${w.done}/${w.scheduled} done"></span>`).join('');
   const adhLine = adh ? `<div class="pg-adh">This week <b>${adh.done}/${adh.scheduled}</b> done${adh.missed ? ` · <span class="pg-missed-txt">${adh.missed} missed</span>` : ''}${streak ? ` · 🔥 ${streak}-session streak` : ''}<span class="pg-trend">${trendDots}<span class="pg-trend-lbl">4 wks</span></span></div>` : '';
   const programCard = prog ? `
-    <div class="card" id="sp-program">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>${progTitle}</span><button class="sp-clear" id="pg-clear">Clear</button></div>
+    <div class="card sp-sec ${isColl('program') ? 'collapsed' : ''}" id="sp-program">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span class="sp-sec-head" data-sp-coll="program">${chev('program')} ${progTitle}</span><button class="sp-clear" id="pg-clear">Clear</button></div>
+      <div class="sp-sec-body">
       ${adhLine}
       ${todayEntry
         ? `<div class="pg-today"><div><div class="pg-today-lbl">Today · ${todayLbl}${todayDone ? ' · done ✓' : ''}</div><div class="pg-today-name">${escapeHtml(todayEntry.plan.name)}</div></div>${todayDone ? '' : `<button class="sp-use" data-plan-use="${escapeAttr(todayEntry.planId)}">▶ Start</button>`}</div>`
         : `<div class="pg-today rest"><div class="pg-today-name">Rest day — nothing scheduled today.</div></div>`}
       <div class="pg-week">${agendaRows}</div>
       <div class="sp-legend">${progIsRot ? `A rotating ${prog.splitLen}-day split — repeats from Day 1 regardless of weekday. ` : ''}✓ done · ✗ missed · today highlighted. Tap any day to reassign it (cycles through your split's sessions and rest).</div>
+      </div>
     </div>` : '';
   // feat 232 — periodization card: enable a mesocycle, see the week ramp, restart the block.
   const mcfg = mesoCfg();
   const mesoStrip = mesoWeekPlan(mcfg.length).map(w => `<div class="ms-wk ms-${w.phase.toLowerCase()} ${meso && meso.week === w.week ? 'cur' : ''}"><span class="ms-wk-n">W${w.week}</span><span class="ms-wk-phase">${w.phase}</span><span class="ms-wk-vol">${Math.round(w.vol * 100)}%</span></div>`).join('');
   const mesoLenChips = [3, 4, 5, 6].map(n => `<button class="sp-chip ${mcfg.length === n ? 'active' : ''}" data-ms-len="${n}">${n} wk</button>`).join('');
   const mesoCard = `
-    <div class="card" id="sp-meso">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>📈 Periodization</span><button class="sp-toggle ${mcfg.enabled ? 'on' : ''}" id="ms-toggle" role="switch" aria-checked="${mcfg.enabled}">${mcfg.enabled ? 'On' : 'Off'}</button></div>
+    <div class="card sp-sec ${isColl('meso') ? 'collapsed' : ''}" id="sp-meso">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span class="sp-sec-head" data-sp-coll="meso">${chev('meso')} 📈 Periodization</span><button class="sp-toggle ${mcfg.enabled ? 'on' : ''}" id="ms-toggle" role="switch" aria-checked="${mcfg.enabled}">${mcfg.enabled ? 'On' : 'Off'}</button></div>
+      <div class="sp-sec-body">
       <div class="sp-intro">Ramp volume across a mesocycle, then deload — accumulation weeks push toward your MRV, the deload backs off. Planning guidance, not auto-applied to your logged sets.</div>
       ${mcfg.enabled ? `${meso ? `<div class="ms-banner ms-${meso.phase.toLowerCase()}"><b>Week ${meso.week} of ${meso.length} · ${meso.phase}</b> · ${Math.round(meso.vol * 100)}% volume · ${meso.effort}</div>` : ''}
       <div class="sp-input"><div class="sp-input-lbl">Cycle length</div><div class="sp-chips">${mesoLenChips}</div></div>
       <div class="ms-strip">${mesoStrip}</div>
       <button class="sp-save" id="ms-restart" style="margin-top:10px;">↻ Restart cycle this week</button>` : ''}
+      </div>
     </div>`;
   main.innerHTML = `
-    <div class="card">
-      <div class="card-title">🗓️ Split Planner</div>
+    <div class="card sp-sec ${isColl('inputs') ? 'collapsed' : ''}">
+      <div class="card-title sp-sec-head" data-sp-coll="inputs">${chev('inputs')} 🗓️ Split Planner</div>
+      <div class="sp-sec-body">
       <div class="sp-intro">Tell us what you've got — we'll recommend a split and show how well it covers each muscle group against its weekly volume target (MEV–MRV). It's a planning aid, not a rule.</div>
       <div class="sp-input"><div class="sp-input-lbl">Training sessions</div><div class="sp-chips">${sessChips}</div></div>
       <div class="sp-input"><div class="sp-input-lbl">Days in the split</div><div class="sp-chips">${dayChips}</div></div>
       <div class="sp-input"><div class="sp-input-lbl">Time / session</div><div class="sp-chips">${minChips}</div></div>
       ${doubles ? `<div class="sp-note">⚠️ ${cfg.sessions} sessions across ${cfg.days} days means some days double up — make sure you can recover.</div>` : ''}
       ${longSplit ? `<div class="sp-note">🔁 A ${cfg.days}-day split is longer than a week, so it saves as a <b>rotating cycle</b> (Day 1…${cfg.days}, repeating from a start date) rather than a fixed Mon–Sun program. ${cfg.sessions} sessions · ${cfg.days - cfg.sessions} rest day${cfg.days - cfg.sessions === 1 ? '' : 's'} per cycle.</div>` : ''}
+      </div>
     </div>
-    <div class="card">
-      <div class="card-title">✨ Themed splits</div>
-      <div class="sp-intro">Curated splits that group complementary plans into one coherent week — pick a vibe to shape the recommendation below (tap again to clear). ${theme ? `<b>${escapeHtml(theme.name)}</b> — ${escapeHtml(theme.blurb)}` : 'The recommender fills each day from your own plan library.'}</div>
-      <div class="sp-themes">${THEMED_SPLITS.map(t => `<button class="sp-theme ${cfg.theme === t.id ? 'active' : ''}" data-sp-theme="${escapeAttr(t.id)}" title="${escapeAttr(t.blurb)}"><span class="sp-theme-emoji">${t.emoji}</span><span class="sp-theme-name">${escapeHtml(t.name)}</span><span class="sp-theme-tag">${escapeHtml(t.tag)}</span></button>`).join('')}</div>
+    <div class="card sp-sec ${isColl('themes') ? 'collapsed' : ''}">
+      <div class="card-title sp-sec-head" data-sp-coll="themes">${chev('themes')} ✨ Themed splits <span class="sp-sec-count">${themesShown.length}${tf !== 'all' ? ` of ${THEMED_SPLITS.length}` : ''}</span></div>
+      <div class="sp-sec-body">
+      <div class="sp-intro">Curated splits that group complementary plans into a coherent rotation — pick a vibe to shape the recommendation below (tap again to clear). ${theme ? `<b>${escapeHtml(theme.name)}</b> — ${escapeHtml(theme.blurb)}` : 'The recommender fills each day from your own plan library.'}</div>
+      <div class="sp-theme-tools">
+        <input type="search" class="sp-theme-search" id="sp-theme-search" placeholder="🔎 Search splits…" value="${escapeAttr(_spThemeSearch)}" autocomplete="off">
+        <div class="sp-theme-filters">${themeFilterChips}</div>
+      </div>
+      <div class="sp-themes">${themeChips || '<div class="sp-theme-none">No splits match this filter.</div>'}</div>
+      </div>
     </div>
-    <div class="card">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>${theme ? '🎬 ' + escapeHtml(theme.name) : 'Recommended split'}</span><button class="sp-save" id="pg-save">${prog ? '↻ Reschedule' : '📅 Save as program'}</button></div>
-      <div class="sp-days">${splitRows}</div>
+    <div class="card sp-sec ${isColl('recommended') ? 'collapsed' : ''}">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span class="sp-sec-head" data-sp-coll="recommended">${chev('recommended')} ${theme ? '🎬 ' + escapeHtml(theme.name) : 'Recommended split'}</span><button class="sp-save" id="pg-save">${prog ? '↻ Reschedule' : '📅 Save as program'}</button></div>
+      <div class="sp-sec-body"><div class="sp-days">${splitRows}</div></div>
     </div>
     ${programCard}
     ${mesoCard}
-    <div class="card">
-      <div class="card-title">Coverage vs targets${meso ? ` <span class="ms-cov-tag ms-${meso.phase.toLowerCase()}">week ${meso.week} · ${Math.round(meso.vol * 100)}%</span>` : ''}</div>
+    <div class="card sp-sec ${isColl('coverage') ? 'collapsed' : ''}">
+      <div class="card-title sp-sec-head" data-sp-coll="coverage">${chev('coverage')} Coverage vs targets${meso ? ` <span class="ms-cov-tag ms-${meso.phase.toLowerCase()}">week ${meso.week} · ${Math.round(meso.vol * 100)}%</span>` : ''}</div>
+      <div class="sp-sec-body">
       <div class="sp-balance">Balance <span class="sp-bal-score sp-${balClass}">${analysis.balance}%</span>${analysis.under ? ` · <span class="sp-under">${analysis.under} under</span>` : ''}${analysis.over ? ` · <span class="sp-over">${analysis.over} over</span>` : ''}${!analysis.under && !analysis.over ? ' · well balanced 💪' : ''}</div>
       <div class="sp-grps">${barRows}</div>
       <div class="sp-legend">Bar = your weekly sets · green band = the productive MEV–MRV window · marker colour = status.${meso ? ` Volumes shown for <b>${meso.phase}</b> week (${Math.round(meso.vol * 100)}% of base).` : ''}</div>
+      </div>
     </div>`;
   main.querySelectorAll('[data-sp-sessions]').forEach(b => b.addEventListener('click', () => { cfg.sessions = +b.dataset.spSessions; cfg.theme = null; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; saveState(); renderSplitPlannerPage(main); })); // feat 255 — a manual session count clears the themed slot sequence
   main.querySelectorAll('[data-sp-theme]').forEach(b => b.addEventListener('click', () => { // feat 255 — pick / clear a themed split
     const id = b.dataset.spTheme; cfg.theme = (cfg.theme === id) ? null : id;
     const t = cfg.theme ? themedSplit(cfg.theme) : null;
-    if (t) { cfg.sessions = t.slots.length; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; }
+    if (t) { cfg.sessions = t.slots.length; cfg.days = Math.min(28, Math.max(t.slots.length, themeDays(t))); } // feat 283 — a theme carries its own split length
     saveState(); renderSplitPlannerPage(main);
   }));
+  // feat 283 — collapse/expand a section (persisted); themed-split length filter; live text search
+  main.querySelectorAll('[data-sp-coll]').forEach(el => el.addEventListener('click', () => {
+    const k = el.dataset.spColl, u = spUICfg(); u.collapse[k] = !u.collapse[k]; saveState(); renderSplitPlannerPage(main);
+  }));
+  main.querySelectorAll('[data-theme-filter]').forEach(b => b.addEventListener('click', () => { spUICfg().themeFilter = b.dataset.themeFilter; _spThemeSearch = ''; saveState(); renderSplitPlannerPage(main); }));
+  const themeSearchEl = main.querySelector('#sp-theme-search');
+  if (themeSearchEl) themeSearchEl.addEventListener('input', () => { // client-side filter (no re-render → keeps focus)
+    _spThemeSearch = themeSearchEl.value;
+    const q = themeSearchEl.value.trim().toLowerCase();
+    main.querySelectorAll('.sp-themes .sp-theme').forEach(el => { el.style.display = (!q || (el.dataset.themeSearch || '').includes(q)) ? '' : 'none'; });
+  });
   main.querySelectorAll('[data-sp-days]').forEach(b => b.addEventListener('click', () => { cfg.days = +b.dataset.spDays; saveState(); renderSplitPlannerPage(main); }));
   main.querySelectorAll('[data-sp-min]').forEach(b => b.addEventListener('click', () => { cfg.minutes = +b.dataset.spMin; saveState(); renderSplitPlannerPage(main); }));
   main.querySelector('#pg-save')?.addEventListener('click', () => { saveProgramFromSplit(); renderSplitPlannerPage(main); }); // feat 230
@@ -18896,7 +18976,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 227 · 2026-06-18 21:31';
+const APP_BUILD = 'build 228 · 2026-06-18 21:51';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
