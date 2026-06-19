@@ -1115,6 +1115,18 @@ They share variation **UUIDs**.
   banner, `setPositionInfo` and ETA all route through it. Single-entry memo keyed on session+plan+set fingerprint.
   `test/dupsteps.spec.mjs` (3 row sets complete only step 1; 9 sets give each step exactly 3; surplus lands on the last;
   every set allocated exactly once).
+- **Limelight for under-used movements (feat 280):** a coverage audit (`_mvOpt` usage across SEED_PLANS) found
+  movements with **zero** plan appearances — **decline bench press, front raise, gymnastics core holds** — and several
+  with only one (pullover, rotator cuff, Olympic lifts, strongman, medicine ball, grip). Three master-crafted plans now
+  feature them: **Complete Chest** (flat→incline→**decline** pressing, flyes/dips and a **pullover**), **Delt Sculpt**
+  (overhead press, **front raises**, lateral + rear raises, traps, **rotator-cuff** balance) and **Power Athlete**
+  (**Olympic lifts**, **medicine-ball** ballistics, **strongman** loading, **gymnastics-core** holds, **grip** finisher).
+  They append to SEED_PLANS (tranche 12) and self-seed via the additive `seededPlanIds` ledger. Also fixed three
+  **pre-existing duplicate display names** from the feat-273 tranche so the library no longer shows two of each:
+  *Posterior Chain → Posterior Chain Power*, *Athletic Full Body → Athletic Strength*, *Back & Biceps → Back & Biceps
+  Builder* (ids unchanged, so existing users' seeded plans are untouched; only fresh seeds get the clean names).
+  `test/limelight.spec.mjs` (new plans seed; every step satisfiable; the once-starved movements now have ≥1 step; the
+  whole catalogue is free of duplicate ids **and** names).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
