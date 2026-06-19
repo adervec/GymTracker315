@@ -6270,7 +6270,9 @@ function decorateSettingsSections(body) {
       const sec = document.createElement('div');
       sec.className = 'drawer-section';
       sec.dataset.sec = id;
-      if ((state.settingsCollapse || {})[id]) sec.classList.add('collapsed');
+      // feat 289 — sections default COLLAPSED; only an explicit `false` (the user expanded it) keeps it open,
+      // and that choice is remembered across navigation + reloads via state.settingsCollapse.
+      if (((state.settingsCollapse || {})[id]) !== false) sec.classList.add('collapsed');
       const header = document.createElement('button');
       header.type = 'button';
       header.className = 'drawer-section-header';
@@ -6309,7 +6311,7 @@ function applySettingsFilter(q) {
     const rows = sec.querySelectorAll('.drawer-setting-row');
     if (!q) {
       sec.style.display = '';
-      sec.classList.toggle('collapsed', !!(state.settingsCollapse || {})[id]);
+      sec.classList.toggle('collapsed', ((state.settingsCollapse || {})[id]) !== false); // feat 289 — default collapsed
       rows.forEach(r => r.style.display = '');
       anyVisible = true;
       return;
@@ -7870,7 +7872,9 @@ function _relocateSettingsPage() {
   const main = document.getElementById('trk-main'), body = document.getElementById('settings-drawer-body');
   if (!main || !body) return;
   main.innerHTML = '';
-  secs.forEach(id => { const sec = body.querySelector('.drawer-section[data-sec="' + id + '"]'); if (sec) { sec.classList.remove('collapsed'); main.appendChild(sec); } });
+  // feat 289 — honour each section's remembered collapse state (default COLLAPSED; the moved header's bound
+  // toggle persists changes to state.settingsCollapse), instead of force-expanding every section.
+  secs.forEach(id => { const sec = body.querySelector('.drawer-section[data-sec="' + id + '"]'); if (sec) { sec.classList.toggle('collapsed', ((state.settingsCollapse || {})[id]) !== false); main.appendChild(sec); } });
   if (!main.children.length) main.innerHTML = '<div class="card"><div class="card-title">No settings here</div></div>';
 }
 function renderSettingsPage(main) {
@@ -19026,7 +19030,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 230 · 2026-06-18 22:23';
+const APP_BUILD = 'build 231 · 2026-06-18 22:34';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -1172,6 +1172,15 @@ They share variation **UUIDs**.
   clock form so editing reads naturally. The feat-257 hold timer still logs straight into it. `test/timeentry.spec.mjs`
   (parse/format round-trip, "TIME" header, commit accepts both forms, numpad ":" buffer); `test/holdtimer.spec.mjs`
   updated for the new label + clock display.
+- **Settings sections default collapsed + remembered everywhere (feat 289):** the per-section collapse state already
+  persisted in `state.settingsCollapse`, but (a) sections defaulted to *expanded* and (b) the Settings sub-pages
+  (Profile / Cosmetic / Preferences) force-**expanded** every section on projection (`_relocateSettingsPage` did
+  `classList.remove('collapsed')`), so the memory never showed on the actual screen. Now every section **defaults
+  collapsed** and an explicit expand is remembered: the store reads "collapsed unless the value is exactly `false`"
+  (a user-expanded section), applied in `decorateSettingsSections`, `applySettingsFilter`, **and**
+  `_relocateSettingsPage` (which now honours the state instead of clearing it). The moved section header keeps its
+  bound toggle, so expanding/collapsing on a Settings page persists and survives leaving + returning. `test/
+  settingscollapse.spec.mjs` (all collapsed by default, expand persists across navigation, re-collapse persists too).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
