@@ -29,21 +29,18 @@ test('the brand is the topmost, centered element inside the top bar', async ({ p
   expect(r.hasNum).toBe(true);       // wordmark intact (branding.spec contract)
 });
 
-test('hiding the brand collapses the brand row + shrinks the top bar offset', async ({ page }) => {
+test('feat 290 — branding is mandatory: the brand row stays visible and the offset is the full bar', async ({ page }) => {
   const r = await page.evaluate(() => {
-    state.hideBranding = true; applyBranding();
+    state.hideBranding = true; applyBranding();   // the retired flag can no longer hide branding
     const rowDisp = getComputedStyle(document.querySelector('.topbar-brand-row')).display;
-    // the override lives on body.brand-hidden, so the offsets (panel/modal/bars are body descendants) inherit it
     const topbarH = getComputedStyle(document.body).getPropertyValue('--topbar-h').trim();
     const panelPad = getComputedStyle(document.querySelector('.panel')).paddingTop;
-    state.hideBranding = false; applyBranding();
-    const topbarH2 = getComputedStyle(document.body).getPropertyValue('--topbar-h').trim();
-    return { rowDisp, topbarH, topbarH2, panelPad };
+    return { rowDisp, topbarH, panelPad, forcedOff: state.hideBranding };
   });
-  expect(r.rowDisp).toBe('none');  // brand row hidden
-  expect(r.topbarH).toBe('44px');  // offsets collapse to the controls row only
-  expect(r.panelPad).toBe('44px'); // ...and the panel actually inherits the shrunk offset
-  expect(r.topbarH2).toBe('82px'); // restored when shown
+  expect(r.rowDisp).not.toBe('none');  // the brand row is always visible
+  expect(r.topbarH).toBe('82px');      // full offset (brand row + controls)
+  expect(r.panelPad).toBe('82px');     // …and the panel inherits it
+  expect(r.forcedOff).toBe(false);     // applyBranding forces the retired flag off
 });
 
 test('Back / Forward buttons reflect the router history (disabled when N/A)', async ({ page }) => {

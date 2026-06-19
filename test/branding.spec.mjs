@@ -19,16 +19,15 @@ test('the app header shows the GymTracker315 wordmark', async ({ page }) => {
   expect(r.text).toContain('GymTracker315');
 });
 
-test('hide-branding toggles the body class; exports keep the brand', async ({ page }) => {
+test('feat 290 — branding is mandatory: applyBranding always shows the wordmark; exports keep the brand', async ({ page }) => {
   const r = await page.evaluate(() => {
-    state.hideBranding = true; applyBranding();
-    const hidden = document.body.classList.contains('brand-hidden');
-    state.hideBranding = false; applyBranding();
-    const shown = !document.body.classList.contains('brand-hidden');
-    return { hidden, shown, logo: brandLogoHtml(true) };
+    state.hideBranding = true; applyBranding();           // even if the retired flag was set…
+    const stillShown = !document.body.classList.contains('brand-hidden');
+    const forcedOff = state.hideBranding === false;        // …applyBranding forces it off
+    return { stillShown, forcedOff, logo: brandLogoHtml(true) };
   });
-  expect(r.hidden).toBe(true);
-  expect(r.shown).toBe(true);
+  expect(r.stillShown).toBe(true);    // branding can no longer be hidden
+  expect(r.forcedOff).toBe(true);
   expect(r.logo).toContain('Tracker');
   expect(r.logo).toContain('315');
   expect(r.logo).toContain('gt-brand-print');
@@ -49,16 +48,19 @@ test('the PDF export header carries the brand even when in-app branding is hidde
   expect(html).toContain('315');
 });
 
-test('the settings drawer offers a branding toggle, persisted', async ({ page }) => {
+test('feat 290 — the Branding section has no hide toggle; the retired flag is forced off', async ({ page }) => {
   const r = await page.evaluate(() => {
     renderSettingsDrawer();
-    const hasToggle = document.getElementById('settings-drawer-body').innerHTML.includes('data-pref-brand');
+    const body = document.getElementById('settings-drawer-body');
+    const hasToggle = body.innerHTML.includes('data-pref-brand');
+    const hasSection = !!body.querySelector('.drawer-section[data-sec="branding"]');
     state.hideBranding = true; normalizeState(); saveState();
-    return { hasToggle, inKeys: SETTINGS_KEYS.includes('hideBranding'), persisted: JSON.parse(localStorage.getItem('overload_tracker_v2')).hideBranding };
+    return { hasToggle, hasSection, forcedOff: state.hideBranding, persisted: JSON.parse(localStorage.getItem('overload_tracker_v2')).hideBranding };
   });
-  expect(r.hasToggle).toBe(true);
-  expect(r.inKeys).toBe(true);
-  expect(r.persisted).toBe(true);
+  expect(r.hasToggle).toBe(false);   // the On/Off toggle is gone (branding is mandatory)
+  expect(r.hasSection).toBe(true);   // …but the Branding section (emoji picker) remains
+  expect(r.forcedOff).toBe(false);   // normalizeState forces the retired flag off
+  expect(r.persisted).toBe(false);
 });
 
 // feat 250 — custom brand emoji + the 315-club sparkle easter egg (3·1·5 = bench·deadlift·squat)

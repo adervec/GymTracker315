@@ -212,6 +212,12 @@ body.brand-hidden { --topbar-h: 44px; } /* brand hidden → just the controls ro
 body.workout-active { --topbar-h: 122px; }              /* 82 + 40 */
 body.brand-hidden.workout-active { --topbar-h: 84px; }  /* 44 + 40 (two-class selector wins by specificity) */
 .topbar-brand-btn { background: none; border: none; cursor: pointer; padding: 3px 12px; display: flex; align-items: center; -webkit-tap-highlight-color: transparent; }
+/* feat 290 — top-bar identity: profile name + synced-account avatar, pinned left (mirrors topbar-live on the right) */
+.topbar-identity { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 5px; background: none; border: none; cursor: pointer; padding: 2px 4px; max-width: 34%; overflow: hidden; -webkit-tap-highlight-color: transparent; }
+.topbar-identity .ti-pfp { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border2); flex-shrink: 0; background: var(--bg3); }
+.topbar-identity .ti-name { font-size: 12px; font-weight: 700; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-identity .ti-lock { font-size: 9px; opacity: 0.65; flex-shrink: 0; }
+body.has-topbar-live .topbar-identity { max-width: 26%; } /* leave room for the live HR/elapsed stats */
 .topbar-ctrl-row { display: flex; align-items: stretch; height: 44px; flex-shrink: 0; }
 .topbar-shortcut-row { display: none; height: 40px; flex-shrink: 0; border-top: 1px solid var(--nav-border); }
 body.workout-active .topbar-shortcut-row { display: flex; }
@@ -2740,6 +2746,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
     <button id="app-brand-btn" class="topbar-brand-btn" onclick="navTo('home')" title="Home — GymTracker315" aria-label="Home">
       <h1 id="app-brand" class="gt-brand" title="GymTracker315"><span class="gt-brand-mark">🏋️</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num"><span class="gt-brand-d" data-lift="bench">3</span><span class="gt-brand-d" data-lift="dead">1</span><span class="gt-brand-d" data-lift="squat">5</span></sup></span></h1>
     </button>
+    <!-- feat 290 — current profile name + synced-account avatar (mandatory branding, consistent layout) -->
+    <button id="app-identity" class="topbar-identity" onclick="navTo('set-profile')" title="Profile" aria-label="Profile" style="display:none;"></button>
     <!-- feat 244 — live HR (💓 bpm + sparkline) + workout elapsed (⏱), next to the brand; hidden when empty -->
     <div id="topbar-live" class="topbar-live" aria-live="off"></div>
   </div>
@@ -4287,6 +4295,7 @@ function normalizeState() {
   if (!state.studyPod || typeof state.studyPod !== 'object') state.studyPod = { resumeKey: null, lastListenDay: null, nudgeDay: null }; // feat 275 — resume + daily nudge
   if (typeof state.studyNudge !== 'boolean') state.studyNudge = true; // feat 275 — daily "X unread" nudge toggle
   if (!state.settingsCollapse || typeof state.settingsCollapse !== 'object') state.settingsCollapse = { theme: true };
+  state.hideBranding = false; // feat 290 — top branding is mandatory (consistent layout); the old hide toggle is retired
   if (!state.lang || typeof state.lang !== 'string') state.lang = 'en';
   if (typeof state.readonly !== 'boolean') state.readonly = false;
   if (typeof state.warnStaleBodyweight !== 'boolean') state.warnStaleBodyweight = true;
@@ -5505,7 +5514,9 @@ function cloudOriginAllowed(origin) {
 }
 
 const GOOGLE_GIS_SRC = 'https://accounts.google.com/gsi/client';
-const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+// feat 290 — request basic profile (name + avatar) alongside drive.appdata so the synced account can be shown.
+// openid + userinfo.profile are non-sensitive scopes; granted incrementally if only drive.appdata was given before.
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata openid https://www.googleapis.com/auth/userinfo.profile';
 const GOOGLE_STATE_FILENAME = 'gymtracker-state.json';
 
 let _cloudPushTimer = null;      // debounce handle for saveState-driven pushes
@@ -5524,6 +5535,28 @@ function cloudPersist() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify
 function cloudProviderActive() { const cs = state.cloudSync; return cs && cs.provider ? (CLOUD_PROVIDERS[cs.provider] || null) : null; }
 function cloudActive() { const cs = state.cloudSync; return !!(cs && cs.enabled && cs.provider && CLOUD_PROVIDERS[cs.provider]); }
 function cloudSetMeta(patch) { state.cloudSync = { ...(state.cloudSync || {}), ...patch }; cloudPersist(); }
+// feat 290 — synced-account identity (name + avatar). Populated best-effort after a cloud connect; drives the
+// mandatory top-bar identity, the Data sync card, and the profile-name lock. DEVICE-LOCAL (rides in cloudSync).
+function cloudAccount() { return cloudActive() ? ((state.cloudSync && state.cloudSync.account) || null) : null; }
+function cloudAccountName() { const a = cloudAccount(); return (a && a.name) ? a.name : null; }
+function cloudAccountPic() { const a = cloudAccount(); return (a && a.picture) ? a.picture : null; }
+function profileNameLocked() { return !!cloudAccountName(); } // an active cloud account force-locks the profile name
+function effectiveProfileName() { return profileNameLocked() ? cloudAccountName() : ((state.profile && state.profile.name) || ''); }
+function _applyProfileLock() { const n = cloudAccountName(); if (n && state.profile && state.profile.name !== n) { state.profile.name = n; saveState(); } }
+async function cloudRefreshAccount(providerId) {
+  try {
+    if (providerId === 'google') {
+      const hdr = await cloudGoogleAuthHeader();
+      const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: hdr });
+      if (r.ok) {
+        const j = await r.json();
+        const account = { provider: 'google', name: j.name || j.given_name || '', email: j.email || '', picture: j.picture || '' };
+        if (account.name || account.picture) { cloudSetMeta({ account }); _applyProfileLock(); try { refreshIdentity(); } catch (_) {} }
+      }
+    }
+    // Dropbox / OneDrive account info — added when those flows surface a profile endpoint (same `account` shape).
+  } catch (_) { /* best-effort: no avatar/name without profile consent — the manual profile name still shows */ }
+}
 
 // Dynamic SDK loader. Resolves immediately if the global is already present — which is also the
 // test seam (a stubbed window.google short-circuits the network load).
@@ -5828,14 +5861,16 @@ async function cloudFinishConnect(providerId) {
   await cloudPullNow(true);   // fold any existing remote state into local
   await cloudPushNow();       // seed/refresh the remote file with the merged result
   cloudSetMeta({ lastSync: new Date().toISOString(), lastError: null });
-  try { renderSettingsDrawer(); } catch (_) {}
+  try { await cloudRefreshAccount(providerId); } catch (_) {} // feat 290 — best-effort: synced account name + avatar
+  try { renderSettingsDrawer(); applyBranding(); } catch (_) {}
   toast('☁ ' + p.label + ' connected');
 }
 function cloudDisconnect() {
   const p = cloudProviderActive();
   try { if (p && p.disconnect) p.disconnect(); } catch (_) {}
-  cloudSetMeta({ enabled: false });
+  cloudSetMeta({ enabled: false, account: null }); // feat 290 — drop the synced identity; profile name unlocks
   renderSettingsDrawer();
+  try { applyBranding(); } catch (_) {}
   toast('Cloud sync disconnected');
 }
 async function cloudPullNow(silent) {
@@ -5896,10 +5931,21 @@ function cloudSyncCardHtml() {
   const connected = cs.enabled && cs.provider && CLOUD_PROVIDERS[cs.provider];
   if (connected) {
     const pLabel = CLOUD_PROVIDERS[cs.provider].label;
+    const acct = cloudAccount(); // feat 290 — synced account name + avatar (same will apply to other providers)
+    const acctRow = acct && (acct.name || acct.picture) ? `
+        <div style="display:flex;align-items:center;gap:9px;margin-top:8px;padding-top:8px;border-top:1px solid var(--accent-border);">
+          ${acct.picture ? `<img src="${escapeAttr(acct.picture)}" alt="" referrerpolicy="no-referrer" loading="lazy" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border2);flex-shrink:0;">` : '<span style="font-size:22px;flex-shrink:0;">👤</span>'}
+          <div style="min-width:0;">
+            <div style="font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(acct.name || 'Synced account')}</div>
+            ${acct.email ? `<div style="color:var(--text3);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(acct.email)}</div>` : ''}
+            <div style="color:var(--text3);font-size:10.5px;">🔒 Your profile name is locked to this account</div>
+          </div>
+        </div>` : '';
     return `
       <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
         <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">☁ ${escapeHtml(pLabel)} connected</div>
         <div style="color:var(--text2);">${cs.lastSync ? 'Last synced ' + escapeHtml(cloudShortTime(cs.lastSync)) : 'Not synced yet'}${cs.lastError ? ' · <span style="color:var(--warn);">' + escapeHtml(String(cs.lastError)) + '</span>' : ''}</div>
+        ${acctRow}
       </div>
       <div class="drawer-setting-row">
         <div><div class="drawer-setting-label">Sync after each workout</div><div class="drawer-setting-sub">Push immediately when a workout ends (in addition to the live auto-sync)</div></div>
@@ -6605,10 +6651,11 @@ function renderSettingsDrawer() {
 
     <div class="drawer-section-title">Profile</div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Name</div>
-      <input type="text" id="prof-name" value="${escapeAttr(state.profile.name||'')}" placeholder="optional"
-        style="width:130px;padding:6px 8px;font-size:13px;border-radius:6px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+      <div class="drawer-setting-label">Name${profileNameLocked() ? ' 🔒' : ''}</div>
+      <input type="text" id="prof-name" value="${escapeAttr(effectiveProfileName())}" placeholder="optional" ${profileNameLocked() ? 'disabled title="Locked to your synced cloud account — disconnect cloud sync to edit"' : ''}
+        style="width:130px;padding:6px 8px;font-size:13px;border-radius:6px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);${profileNameLocked() ? 'opacity:0.7;' : ''}">
     </div>
+    ${profileNameLocked() ? `<div style="font-size:11px;color:var(--text3);margin:-4px 0 10px;">🔒 Locked to your synced cloud account (${escapeHtml(cloudAccountName())}). Disconnect cloud sync in <b>Data</b> to edit it.</div>` : ''}
     <div class="drawer-setting-row">
       <div class="drawer-setting-label">Date of birth</div>
       <input type="date" id="prof-dob" value="${state.profile.dob||''}"
@@ -6635,12 +6682,8 @@ function renderSettingsDrawer() {
     <div class="drawer-section-title" data-sec-id="branding">Branding</div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Show GymTracker315 branding</div>
-        <div class="drawer-setting-sub">The placeholder wordmark at the top of the app. Image / PDF exports always carry it regardless.</div>
-      </div>
-      <div class="drawer-pill-group">
-        <button class="drawer-pill ${!state.hideBranding ? 'active' : ''}" data-pref-brand="show">On</button>
-        <button class="drawer-pill ${state.hideBranding ? 'active' : ''}" data-pref-brand="hide">Off</button>
+        <div class="drawer-setting-label">Top branding &amp; identity</div>
+        <div class="drawer-setting-sub">The GymTracker315 wordmark plus your name${cloudAccount() ? ' and synced-account avatar' : ''} sit at the top for a consistent layout. ${profileNameLocked() ? `Showing <b>${escapeHtml(cloudAccountName())}</b> from your synced cloud account.` : (effectiveProfileName() ? `Showing <b>${escapeHtml(effectiveProfileName())}</b> (set under Profile).` : 'Set your name under Profile to show it here.')}</div>
       </div>
     </div>
     <div class="drawer-setting-row" style="flex-direction:column;align-items:stretch;gap:8px;">
@@ -7595,7 +7638,7 @@ function renderSettingsDrawer() {
 
   // Profile inputs
   const pn = body.querySelector('#prof-name');
-  if (pn) pn.addEventListener('change', () => { state.profile.name = pn.value.trim(); saveState(); });
+  if (pn) pn.addEventListener('change', () => { if (profileNameLocked()) return; state.profile.name = pn.value.trim(); saveState(); applyBranding(); }); // feat 290 — keep the top-bar identity in sync (no-op while cloud-locked)
   const pd = body.querySelector('#prof-dob');
   if (pd) pd.addEventListener('change', () => { state.profile.dob = pd.value; saveState(); renderSettingsDrawer(); });
   const ph = body.querySelector('#prof-height');
@@ -10099,9 +10142,21 @@ function lift315(familyId) {
     uuids.has(ex.varUuid) && (ex.sets || []).some(set => { const w = parseFloat(set.w), r = parseFloat(set.r); return w >= thr && r >= 1; })));
 }
 const _BRAND_DIGIT_LIFT = { bench: 'flat-bench-press', dead: 'deadlift', squat: 'squat' }; // 3 · 1 · 5 → bench · deadlift · squat
+// feat 290 — the top-bar identity: the current (or synced) profile name + the synced-account avatar. Mandatory
+// branding means this row is always present for a consistent layout; the identity shows when a name/avatar exists.
+function refreshIdentity() {
+  const el = document.getElementById('app-identity'); if (!el) return;
+  const name = effectiveProfileName(), pic = cloudAccountPic(), locked = profileNameLocked();
+  let html = '';
+  if (pic) html += `<img class="ti-pfp" src="${escapeAttr(pic)}" alt="" referrerpolicy="no-referrer" loading="lazy">`;
+  if (name) html += `<span class="ti-name"${locked ? ' title="Synced to your cloud account"' : ''}>${escapeHtml(name)}</span>${locked ? '<span class="ti-lock" aria-hidden="true">🔒</span>' : ''}`;
+  if (el.innerHTML !== html) el.innerHTML = html;
+  el.style.display = html ? '' : 'none';
+}
 function applyBranding() {
-  try { document.body.classList.toggle('brand-hidden', !!state.hideBranding); } catch (_) {}
+  try { document.body.classList.remove('brand-hidden'); state.hideBranding = false; } catch (_) {} // feat 290 — branding is mandatory (consistent layout)
   try { const m = document.querySelector('#app-brand .gt-brand-mark'); if (m && m.textContent !== brandMark()) m.textContent = brandMark(); } catch (_) {} // feat 250 — custom emoji
+  try { refreshIdentity(); } catch (_) {} // feat 290
   // feat 250 — each digit of "315" sparkles once you've hit 315 in the matching lift (3=bench, 1=deadlift, 5=squat)
   try { document.querySelectorAll('#app-brand .gt-brand-d').forEach(el => el.classList.toggle('sparkle', lift315(_BRAND_DIGIT_LIFT[el.dataset.lift]))); } catch (_) {}
 }
@@ -19154,7 +19209,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 232 · 2026-06-18 22:44';
+const APP_BUILD = 'build 233 · 2026-06-18 23:08';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

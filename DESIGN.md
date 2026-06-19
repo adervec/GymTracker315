@@ -1191,6 +1191,19 @@ They share variation **UUIDs**.
   an empty week within the span shows a single "no training" lowlight. Pure over `state.sessions` + existing helpers
   (`startOfWeek`, `estimated1RMSet`, `programWeekAdherence`). `test/summary.spec.mjs` (skips current week, most-recent
   first, highlight content + week-over-week deltas, page renders cards, rest-week lowlight).
+- **Mandatory branding + synced-account identity (feat 290):** the top branding is now **always shown** (the feat-170
+  hide toggle is retired and `state.hideBranding` is force-normalized off) so the layout is consistent. A new top-bar
+  **identity** chip (`#app-identity`, pinned left, mirrors the live HR/elapsed on the right) shows the **current profile
+  name** and, when cloud-synced, the **account avatar**. Cloud connect now requests Google's non-sensitive
+  `openid`+`userinfo.profile` scopes and, best-effort, fetches `userinfo` into `state.cloudSync.account =
+  {name,email,picture}` (`cloudRefreshAccount`, wrapped so a denied/absent profile scope just means no avatar). An
+  active cloud account **force-locks the profile name** to the account name: `effectiveProfileName()` returns it, the
+  Profile name input is **disabled** with a 🔒 note, and the Data sync card shows the avatar + name + email. Helpers:
+  `cloudAccount/Name/Pic`, `profileNameLocked`, `effectiveProfileName`, `refreshIdentity` (called from `applyBranding`).
+  The same `account` shape will light up Dropbox/OneDrive once those flows surface a profile endpoint. `test/
+  identity.spec.mjs` (no-cloud uses manual name; synced account locks name + supplies avatar; top-bar render; Profile
+  input disabled + lock note; Data card shows account). `branding.spec` / `settingspages.spec` / `navtopbar.spec`
+  updated: branding is mandatory and the hide toggle is gone.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
