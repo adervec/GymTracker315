@@ -1161,6 +1161,17 @@ They share variation **UUIDs**.
   `discardActiveWorkout` call `refreshTopbarLive()` (and `refreshRestBar()`) immediately so both clear the instant the
   workout ends. `test/endtimer.spec.mjs` (rest bar + elapsed visible mid-workout, both gone the instant it ends and on
   later ticks; the bar stays hidden with no active session despite past logged sets).
+- **Time-mode sets read "Time" and accept hh:mm:ss (feat 288):** timed holds (planks / dead hangs / wall sits / L-sits)
+  record a DURATION, but the set table's column header was hard-coded **"REPS"**. The header now derives from
+  `exMode().wLabel`/`rLabel`, so timed sets read **"TIME"** (and carries read "DISTANCE"). The value can be **entered
+  as raw seconds ("90") OR as a clock string ("1:30", "1:05:05")** and is stored as total seconds: `parseTimeToSeconds`
+  normalizes any form (raw / mm:ss / h:mm:ss / leading-or-trailing colon), `formatSecondsClock` renders it back as
+  m:ss / h:mm:ss for the field. The native input becomes a text field in time mode (so a colon can be typed), and the
+  on-screen numpad swaps its "." key for a **":"** key (no leading/double colon, max two — h:m:s; colons don't count
+  toward the 7-digit cap). `commitSetField` parses time for the time-mode reps field; `openNumpad` seeds the buffer in
+  clock form so editing reads naturally. The feat-257 hold timer still logs straight into it. `test/timeentry.spec.mjs`
+  (parse/format round-trip, "TIME" header, commit accepts both forms, numpad ":" buffer); `test/holdtimer.spec.mjs`
+  updated for the new label + clock display.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

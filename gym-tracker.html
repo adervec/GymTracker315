@@ -8587,13 +8587,40 @@ function exMode(varUuid) {
   const t = info ? (info.variation.title || '').toLowerCase() : '';
   const fid = info ? info.family.id : '';
   if (/\b(dead ?hang|hang|hold|plank|l-?sit|wall sit|isometric|iso hold)\b/.test(t))
-    return { mode:'time', wLabel:'Weight', rLabel:'Seconds' };
+    return { mode:'time', wLabel:'Weight', rLabel:'Time' }; // feat 288 — "Time" (stored as seconds; entered as raw seconds or hh:mm:ss)
   if (fid === 'carries' || /\b(carry|carries|farmer|yoke|suitcase carry|waiter|sled (push|drag|pull))\b/.test(t))
     return { mode:'distance', wLabel:'Weight', rLabel:'Distance' };
   if (/\b(pull-?up|chin-?up|dip|muscle-?up|push-?up|inverted row|pistol|nordic)\b/.test(t) && !/machine|assisted|lat ?pulldown|banded/.test(t))
     return { mode:'bodyweight', wLabel:'Added (− assist)', rLabel:'Reps' };
   return { mode:'standard', wLabel:'Weight', rLabel:'Reps' };
 }
+// feat 288 — time-mode (holds/planks) sets store SECONDS in the reps field, but may be ENTERED as raw seconds
+// ("90") OR as a clock string ("1:30", "1:05:05"). parseTimeToSeconds normalizes any of those to total seconds
+// (null = empty/invalid); formatSecondsClock renders seconds back to m:ss / h:mm:ss for the field + display.
+function parseTimeToSeconds(str) {
+  if (str == null) return null;
+  const t = String(str).trim();
+  if (t === '') return null;
+  if (t.indexOf(':') === -1) { const n = parseFloat(t); return (isNaN(n) || n < 0) ? null : n; } // raw seconds
+  const parts = t.split(':');
+  if (parts.length > 3) return null;
+  let total = 0;
+  for (let k = 0; k < parts.length; k++) {
+    const p = parts[k].trim();
+    const v = p === '' ? 0 : parseFloat(p);
+    if (isNaN(v) || v < 0) return null;
+    total = total * 60 + v;
+  }
+  return total;
+}
+function formatSecondsClock(sec) {
+  const t = Math.max(0, Math.round(parseFloat(sec) || 0));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  const p = n => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
+}
+// Is the active log entry in time mode? (drives the Seconds→Time field + hh:mm:ss entry across the numpad path)
+function pendingIsTimeMode() { return !!(pending && pending.varUuid && exMode(pending.varUuid).mode === 'time'); }
 function getCurrentBodyweightKg() {
   const s = sortedBodyComp();
   return s.length ? s[0].weightKg : null;
@@ -17859,7 +17886,11 @@ function renderSetsForm() {
     const np = !!(state.workoutControls && state.workoutControls.onScreenNumpad);
     const repsIm = (M.mode==='standard'||M.mode==='bodyweight') ? 'numeric' : 'decimal';
     const wAttrs = np ? 'type="text" inputmode="none" readonly' : 'type="number" inputmode="decimal" step="any"';
-    const rAttrs = np ? 'type="text" inputmode="none" readonly' : `type="number" inputmode="${repsIm}" step="${M.mode==='standard'||M.mode==='bodyweight'?'1':'any'}"`;
+    // feat 288 — time mode: a text field so a clock value ("1:30") can be typed (raw seconds still work too).
+    const rAttrs = np ? 'type="text" inputmode="none" readonly'
+      : (M.mode === 'time' ? 'type="text" inputmode="numeric" autocomplete="off"' : `type="number" inputmode="${repsIm}" step="${M.mode==='standard'||M.mode==='bodyweight'?'1':'any'}"`);
+    // feat 288 — show the stored seconds as a clock (m:ss / h:mm:ss); other modes show the raw value.
+    const rVal = (M.mode === 'time' && s.r !== '' && s.r != null && !isNaN(parseFloat(s.r))) ? formatSecondsClock(s.r) : s.r;
     const npCls = np ? ' numpad-mode' : '';
     // feat 257 — live hold timer: for a TIMED hold (plank / dead hang / wall sit / L-sit) once the set has
     // STARTED (weight entered → wTs) but isn't DONE yet, surface a count-up button. Tapping it records the
@@ -17874,7 +17905,7 @@ function renderSetsForm() {
       <div class="${rowClass}">
         <div class="set-num">${i + 1}</div>
         <input class="set-input${npCls}" ${wAttrs} placeholder="${M.wLabel}" value="${s.w}" data-i="${i}" data-field="w" style="${wOver ? 'color:#ff4444;font-weight:700;' : ''}">
-        <input class="set-input${npCls}" ${rAttrs} placeholder="${M.rLabel}" value="${s.r}" data-i="${i}" data-field="r" ${(s.w !== '' && s.w != null) ? '' : 'disabled title="Enter weight first"'}>
+        <input class="set-input${npCls}" ${rAttrs} placeholder="${M.rLabel}" value="${rVal}" data-i="${i}" data-field="r" ${(s.w !== '' && s.w != null) ? '' : 'disabled title="Enter weight first"'}>
         ${rpeSelectHtml(s, i)}
         <button class="set-remove" data-remove="${i}">×</button>
         ${overloadTagHtml}
@@ -17947,7 +17978,7 @@ function renderSetsForm() {
     <div class="card-title" style="margin-top:14px;">Sets</div>
     <div class="sets-section${rpeEnabled() ? ' rpe-on' : ''}">
       <div class="set-header">
-        <div>#</div><div>WEIGHT</div><div>REPS</div>${rpeEnabled() ? `<div>${rpeMode() === 'rir' ? 'RIR' : 'RPE'}</div>` : ''}<div></div>
+        <div>#</div><div>${escapeHtml(M.wLabel)}</div><div>${escapeHtml(M.rLabel)}</div>${rpeEnabled() ? `<div>${rpeMode() === 'rir' ? 'RIR' : 'RPE'}</div>` : ''}<div></div>
       </div>
       <div id="trk-sets-container" class="sets-scroll">${setsHtml}</div>
     </div>
@@ -18092,8 +18123,13 @@ function commitSetField(i, f, val) {
   const s = pending.sets[i];
   if (!s) return;
   const prev = s[f];
-  const n = parseFloat(val);
-  s[f] = (val === '' || val == null || isNaN(n)) ? '' : n;
+  if (f === 'r' && pendingIsTimeMode()) {            // feat 288 — the Time field accepts "90" or "1:30"/"1:05:05"
+    const secs = parseTimeToSeconds(val);
+    s[f] = (secs == null) ? '' : secs;
+  } else {
+    const n = parseFloat(val);
+    s[f] = (val === '' || val == null || isNaN(n)) ? '' : n;
+  }
   const wFilled = s.w !== '' && s.w != null;
   if (f === 'w') {
     if (wFilled && !s.wTs) { s.wTs = new Date().toISOString(); if (typeof annunceSetStart === 'function') annunceSetStart(); } // weight entered → set starts (feat 206 — speak the position)
@@ -18175,8 +18211,12 @@ function numpadApplyKey(buf, key, opts) {
   }
   if (key === 'sign') { if (!opts.sign) return buf; return buf.charAt(0) === '-' ? buf.slice(1) : '-' + buf; }
   if (key === '.') { if (!opts.decimal || buf.indexOf('.') !== -1) return buf; return (buf === '' || buf === '-') ? buf + '0.' : buf + '.'; }
+  if (key === 'colon' || key === ':') { // feat 288 — time separator: no leading/double colon, at most 2 (h:m:s)
+    if (!opts.time || buf === '' || buf.slice(-1) === ':' || (buf.match(/:/g) || []).length >= 2) return buf;
+    return buf + ':';
+  }
   if (/^[0-9]$/.test(key)) {
-    const digits = buf.replace('-', '').replace('.', '');
+    const digits = buf.replace(/[-.:]/g, ''); // feat 288 — colons don't count toward the digit cap
     if (digits.length >= maxLen) return buf;
     if (buf === '0') return key;        // replace a lone leading zero
     if (buf === '-0') return '-' + key;
@@ -18201,7 +18241,10 @@ function openNumpad(i, field) {
   // feat 279 — switching to a different field commits the one you were on (no silent loss)
   if (modalState.numpad && modalState.numpad.open && (modalState.numpad.i !== i || modalState.numpad.field !== field)) _numpadFlush(modalState.numpad);
   const cur = s[field];
-  modalState.numpad = { open: true, i: i, field: field, buf: (cur === '' || cur == null) ? '' : String(cur) };
+  let buf = (cur === '' || cur == null) ? '' : String(cur);
+  // feat 288 — open a time field showing the clock form ("1:30"), so editing reads naturally; flush re-parses it.
+  if (field === 'r' && buf !== '' && !isNaN(parseFloat(buf)) && pendingIsTimeMode()) buf = formatSecondsClock(buf);
+  modalState.numpad = { open: true, i: i, field: field, buf: buf };
   renderNumpad();
   document.getElementById('trk-numpad')?.classList.add('open');
   document.getElementById('trk-numpad-backdrop')?.classList.add('open');
@@ -18226,7 +18269,8 @@ function renderNumpad() {
   if (!np || !np.open || !pending.varUuid) { sheet.innerHTML = ''; return; }
   const M = exMode(pending.varUuid);
   const isW = np.field === 'w';
-  const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
+  const timeR = !isW && M.mode === 'time'; // feat 288 — the Time field gets a ":" key for hh:mm:ss
+  const decimal = isW ? true : (M.mode === 'distance'); // time uses ":" instead of "."
   const sign = isW && M.mode === 'bodyweight';
   const calc = state.calcMode === true;
   // feat 78/202 — the equipment-setup strip renders for any weight field; renderNpSetup derives the tool itself
@@ -18241,7 +18285,7 @@ function renderNumpad() {
     ${calc ? `<div class="np-ops">${key('lparen','(')}${key('rparen',')')}${key('div','÷')}${key('mul','×')}${key('sub','−')}${key('add','+')}</div>` : ''}
     <div class="np-grid">
       ${['1','2','3','4','5','6','7','8','9'].map(d => key(d, d)).join('')}
-      ${(decimal || calc) ? key('.', '.') : '<span class="np-key np-key-empty"></span>'}
+      ${timeR && !calc ? key('colon', ':') : (decimal || calc) ? key('.', '.') : '<span class="np-key np-key-empty"></span>'}
       ${key('0', '0')}
       ${key('back', '⌫')}
     </div>
@@ -18272,9 +18316,10 @@ function numpadHandleKey(k) {
   if (k === 'done') { closeNumpad(); return; }   // feat 279 — closeNumpad flushes the buffer into the field
   if (k === 'next') { numpadNext(); return; }    // feat 279 — Next flushes (via openNumpad/closeNumpad) then advances
   const M = exMode(pending.varUuid), isW = np.field === 'w';
-  const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
+  const timeR = !isW && M.mode === 'time'; // feat 288
+  const decimal = isW ? true : (M.mode === 'distance');
   const sign = isW && M.mode === 'bodyweight';
-  np.buf = numpadApplyKey(np.buf, k, { decimal: decimal, sign: sign, maxLen: 7, calc: calc });
+  np.buf = numpadApplyKey(np.buf, k, { decimal: decimal, sign: sign, maxLen: 7, calc: calc, time: timeR });
   // feat 279 — keystrokes only update the numpad's own display; the set field stays put until Next / Done.
   const disp = sheet ? sheet.querySelector('.np-display') : null;
   if (disp) disp.textContent = calc ? formatCalcDisplay(np.buf) : (np.buf === '' ? '0' : np.buf);
@@ -18981,7 +19026,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 229 · 2026-06-18 22:05';
+const APP_BUILD = 'build 230 · 2026-06-18 22:23';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
