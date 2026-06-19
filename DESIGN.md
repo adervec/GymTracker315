@@ -1127,6 +1127,19 @@ They share variation **UUIDs**.
   Builder* (ids unchanged, so existing users' seeded plans are untouched; only fresh seeds get the clean names).
   `test/limelight.spec.mjs` (new plans seed; every step satisfiable; the once-starved movements now have ≥1 step; the
   whole catalogue is free of duplicate ids **and** names).
+- **Splits longer than a week — hybrid scheduling (feat 282):** the planner's day selector was mislabelled "Days /
+  week" and capped at 7. It's now **"Days in the split"** (a week always has 7 days; a split's rotation needn't) and
+  goes up to **28**. Scheduling is **hybrid**: a split of **≤7 days** still saves as the familiar weekday program
+  (`week[7]`, JS day-of-week — unchanged); a split of **>7 days** saves as a **rotating N-day cycle** anchored to a
+  start date — `{mode:'rotation', splitLen, start, rotation[N]}` — where *today's* session is computed by rotation
+  (`rotationDayIndex`), so a 9-day split repeats from Day 1 every 9 days regardless of weekday. Both modes resolve a
+  date → planId through one helper (`scheduledPlanIdForDate`), so `programToday`, `programNextUp`, `programWeekAdherence`
+  and the streak all work for either without branching. `buildProgramFromSplit` gained a `splitLen` arg and spreads the
+  sessions evenly across the cycle (`_spreadIndices`); the program card renders a **Day 1…N agenda** (tap to reassign,
+  `cycleProgramRotDay`) for rotations and the Mon–Sun agenda for weeks. Coverage math scales a long split's volume by
+  `7/days` so "sets/week" stays honest. Old weekday programs are untouched (normalize accepts both shapes).
+  `test/splitlength.spec.mjs` (rotation build, date rotation + wrap both directions, slot cycling, normalize
+  validation, planner saves a rotation + Day 1…N agenda, the selector exposes lengths up to 28).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

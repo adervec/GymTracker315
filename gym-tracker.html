@@ -4322,7 +4322,13 @@ function normalizeState() {
   state.splitPlan.sessions = Math.max(2, Math.min(6, state.splitPlan.sessions | 0 || 3));
   state.splitPlan.days = Math.max(state.splitPlan.sessions, Math.min(7, state.splitPlan.days | 0 || 7));
   if (!(state.splitPlan.minutes >= 15 && state.splitPlan.minutes <= 240)) state.splitPlan.minutes = 60;
-  if (state.program && (!Array.isArray(state.program.week) || state.program.week.length !== 7 || !Array.isArray(state.program.pool))) state.program = null; // feat 230 — drop a malformed program
+  if (state.program) { // feat 230/282 — drop a malformed program (weekday week[7] OR a >7-day rotation)
+    const p = state.program;
+    const okWeek = Array.isArray(p.week) && p.week.length === 7 && Array.isArray(p.pool);
+    const okRot = p.mode === 'rotation' && Array.isArray(p.rotation) && p.rotation.length >= 8 && p.rotation.length <= 28
+      && Array.isArray(p.pool) && typeof p.start === 'string' && p.splitLen === p.rotation.length;
+    if (!okWeek && !okRot) state.program = null;
+  }
   if (!state.meso || typeof state.meso !== 'object') state.meso = { enabled: false, length: 4, start: null }; // feat 232 — periodization mesocycle
   state.meso.length = Math.max(3, Math.min(6, state.meso.length | 0 || 4));
   state.meso.enabled = !!state.meso.enabled;
@@ -11164,7 +11170,48 @@ const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0]; // display Monday-first (a training wee
 // Sensible default day placements (JS DOW) per session count — spaced for recovery.
 const PROGRAM_DOW_PICKS = { 2: [1, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 5, 6], 6: [1, 2, 3, 4, 5, 6] };
 function getProgram() { return state.program || null; }
-function buildProgramFromSplit(split, sessions, minutes) {
+// feat 282 — a split can be LONGER than a calendar week. ≤7 days → the familiar weekday program (week[7],
+// JS DOW). >7 days → a rotating N-day cycle anchored to a start date: "today" is computed by rotation, so a
+// 9-day split repeats every 9 days regardless of weekday. programMode() discriminates; everything downstream
+// resolves a date → planId through scheduledPlanIdForDate so both modes share one code path.
+function programMode(p) { p = p || getProgram(); return (p && p.mode === 'rotation') ? 'rotation' : 'week'; }
+function _isoToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString().slice(0, 10); }
+// Whole days from an ISO date (anchored at local midnight) to a Date — robust to DST via rounding.
+function _daysFromIso(iso, dateObj) {
+  const a = new Date(iso + 'T00:00:00'); const b = new Date(dateObj); b.setHours(0, 0, 0, 0);
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+// Which rotation slot (0…N-1) a date lands on.
+function rotationDayIndex(p, dateObj) {
+  const n = p.splitLen || (p.rotation || []).length || 1;
+  return (((_daysFromIso(p.start, dateObj) % n) + n) % n);
+}
+// The scheduled plan id for ANY date, in either mode (null = rest / no program).
+function scheduledPlanIdForDate(dateObj) {
+  const p = getProgram(); if (!p) return null;
+  if (programMode(p) === 'rotation') return (p.rotation || [])[rotationDayIndex(p, dateObj)] || null;
+  return (p.week || [])[dateObj.getDay()] || null;
+}
+// Distinct indexes spread evenly across [0, span) — places `count` training days within a longer rotation.
+function _spreadIndices(count, span) {
+  const out = [], used = new Set();
+  for (let i = 0; i < count; i++) {
+    let idx = Math.min(span - 1, Math.round(i * span / count));
+    while (used.has(idx)) idx = (idx + 1) % span;
+    used.add(idx); out.push(idx);
+  }
+  return out;
+}
+function buildProgramFromSplit(split, sessions, minutes, splitLen) {
+  // feat 282 — a >7-day split builds a rotating cycle; ≤7 keeps the weekday week[7] (unchanged).
+  if (splitLen && splitLen > 7) {
+    const len = Math.min(28, Math.max(8, splitLen | 0));
+    const placed = (split || []).filter(s => s && s.plan);
+    const idxs = _spreadIndices(placed.length, len);
+    const rotation = new Array(len).fill(null), pool = [];
+    placed.forEach((s, i) => { rotation[idxs[i]] = s.plan.id; if (!pool.includes(s.plan.id)) pool.push(s.plan.id); });
+    return { name: len + '-day split', createdAt: new Date().toISOString(), sessions, minutes, mode: 'rotation', splitLen: len, start: _isoToday(), pool, rotation };
+  }
   const picks = PROGRAM_DOW_PICKS[Math.max(2, Math.min(6, sessions | 0 || 3))] || PROGRAM_DOW_PICKS[3];
   const week = [null, null, null, null, null, null, null], pool = [];
   (split || []).forEach((s, i) => {
@@ -11178,33 +11225,73 @@ function saveProgramFromSplit() {
   const cfg = splitPlanCfg();
   const t = cfg.theme ? themedSplit(cfg.theme) : null; // feat 255 — honour the chosen themed split
   const sessions = t ? t.slots.length : cfg.sessions;
+  const splitLen = Math.max(sessions, Math.min(28, (cfg.days | 0) || 7)); // feat 282 — the split's own length
   const split = buildRecommendedSplit({ sessions, minutes: cfg.minutes, slots: t ? t.slots : null });
-  state.program = buildProgramFromSplit(split, sessions, cfg.minutes);
+  state.program = buildProgramFromSplit(split, sessions, cfg.minutes, splitLen);
   if (t) state.program.name = t.name;
   saveState();
 }
 function clearProgram() { state.program = null; saveState(); }
-// The planned session for a given JS day-of-week (or null = rest / no program).
+// The planned session for a given JS day-of-week (week mode only — drives the Mon–Sun agenda).
 function programForDow(dow) {
   const p = getProgram(); if (!p || !p.week) return null;
   const id = p.week[dow]; if (!id) return null;
   const plan = getPlan(id); return plan ? { dow, planId: id, plan } : null;
 }
-function programToday() { return programForDow(new Date().getDay()); }
-// The next planned session within the coming 7 days (today first), for the "up next" surfacing.
+// Today's planned session in EITHER mode.
+function programToday() {
+  const id = scheduledPlanIdForDate(new Date()); if (!id) return null;
+  const plan = getPlan(id); return plan ? { planId: id, plan } : null;
+}
+// The next planned session within the coming cycle (today first), for the "up next" surfacing.
 function programNextUp() {
-  if (!getProgram()) return null;
-  const today = new Date().getDay();
-  for (let i = 0; i < 7; i++) { const e = programForDow((today + i) % 7); if (e) return { ...e, inDays: i }; }
+  const p = getProgram(); if (!p) return null;
+  const horizon = Math.max(7, (programMode(p) === 'rotation') ? p.splitLen : 7);
+  const base = new Date(); base.setHours(0, 0, 0, 0);
+  for (let i = 0; i < horizon; i++) {
+    const d = new Date(base); d.setDate(base.getDate() + i);
+    const id = scheduledPlanIdForDate(d); if (!id) continue;
+    const plan = getPlan(id); if (plan) return { planId: id, plan, inDays: i };
+  }
   return null;
 }
-// Tap a day to cycle Rest → each distinct program plan → Rest.
+// Tap a weekday to cycle Rest → each distinct program plan → Rest (week mode).
 function cycleProgramDay(dow) {
-  const p = getProgram(); if (!p) return;
+  const p = getProgram(); if (!p || !p.week) return;
   const opts = [null].concat(p.pool || []);
   let idx = opts.indexOf(p.week[dow] || null); if (idx < 0) idx = 0;
   p.week[dow] = opts[(idx + 1) % opts.length];
   saveState();
+}
+// Tap a rotation day to cycle Rest → each distinct program plan → Rest (rotation mode).
+function cycleProgramRotDay(i) {
+  const p = getProgram(); if (!p || !Array.isArray(p.rotation) || i < 0 || i >= p.rotation.length) return;
+  const opts = [null].concat(p.pool || []);
+  let idx = opts.indexOf(p.rotation[i] || null); if (idx < 0) idx = 0;
+  p.rotation[i] = opts[(idx + 1) % opts.length];
+  saveState();
+}
+// feat 282 — the current rotation cycle's days (Day 1…N) with per-day status, for the rotation agenda.
+function programCycleDays() {
+  const p = getProgram(); if (!p || programMode(p) !== 'rotation') return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayIdx = rotationDayIndex(p, today), N = p.splitLen;
+  const rows = [];
+  for (let k = 0; k < N; k++) {
+    const date = new Date(today); date.setDate(today.getDate() + (k - todayIdx));
+    const planId = p.rotation[k] || null;
+    let status = null;
+    if (planId) {
+      const sess = _realSessionsOnDate(date);
+      if (sess.some(s => s.planId === planId)) status = 'done';
+      else if (sess.length) status = 'off-plan';
+      else if (date < today) status = 'missed';
+      else if (+date === +today) status = 'today';
+      else status = 'upcoming';
+    }
+    rows.push({ idx: k, day: k + 1, date: date.toISOString().slice(0, 10), planId, plan: planId ? getPlan(planId) : null, status, isToday: k === todayIdx });
+  }
+  return { todayIdx, rows };
 }
 /* ============================================================
    feat 231 — PROGRAM ADHERENCE. Match logged sessions back to the scheduled program: what was hit, what was
@@ -11234,7 +11321,7 @@ function programWeekAdherence(weeksBack) {
   const days = [];
   for (let i = 0; i < 7; i++) {
     const date = new Date(monday); date.setDate(monday.getDate() + i);
-    const planId = p.week[date.getDay()]; if (!planId) continue;
+    const planId = scheduledPlanIdForDate(date); if (!planId) continue; // feat 282 — week or rotation
     const sess = _realSessionsOnDate(date);
     let status;
     if (sess.some(s => s.planId === planId)) status = 'done';
@@ -11255,7 +11342,7 @@ function programAdherenceStreak() {
   let streak = 0;
   for (let i = 1; i <= 180; i++) {
     const day = new Date(d); day.setDate(d.getDate() - i);
-    if (!p.week[day.getDay()]) continue;        // not a scheduled day → skip
+    if (!scheduledPlanIdForDate(day)) continue; // feat 282 — not a scheduled day (week or rotation) → skip
     if (_realSessionsOnDate(day).length) streak++; else break;
   }
   return streak;
@@ -11273,12 +11360,17 @@ function renderSplitPlannerPage(main) {
   const theme = cfg.theme ? themedSplit(cfg.theme) : null; // feat 255
   const split = buildRecommendedSplit({ sessions: theme ? theme.slots.length : cfg.sessions, minutes: cfg.minutes, slots: theme ? theme.slots : null });
   const meso = mesoCurrentWeek(); // feat 232 — periodization scales the coverage projection by the current week's volume
-  const analysis = splitAnalysis(split.map(s => s.plan).filter(Boolean), meso ? meso.vol : 1);
+  // feat 282 — a split longer than a week spreads its sessions over >7 days, so its PER-WEEK volume is the
+  // rotation total scaled by 7/days. Keeps "sets/week" coverage honest for long splits.
+  const weekScale = cfg.days > 7 ? 7 / cfg.days : 1;
+  const analysis = splitAnalysis(split.map(s => s.plan).filter(Boolean), (meso ? meso.vol : 1) * weekScale);
   const chip = (attr, val, cur, label) => `<button class="sp-chip ${cur === val ? 'active' : ''}" data-${attr}="${val}">${label}</button>`;
   const sessChips = [2, 3, 4, 5, 6].map(n => chip('sp-sessions', n, cfg.sessions, n)).join('');
-  const dayChips = [3, 4, 5, 6, 7].filter(d => d >= cfg.sessions).map(d => chip('sp-days', d, cfg.days, d)).join('');
+  // feat 282 — "days in the split" (the rotation's own length), not days-in-a-calendar-week; goes up to 28.
+  const dayChips = [3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 21, 28].filter(d => d >= cfg.sessions).map(d => chip('sp-days', d, cfg.days, d)).join('');
   const minChips = [30, 45, 60, 90, 120].map(m => chip('sp-min', m, cfg.minutes, m + 'm')).join('');
   const doubles = cfg.sessions > cfg.days;
+  const longSplit = cfg.days > 7; // feat 282 — a split longer than a week saves as a rotating cycle
   // recommended split rows
   const splitRows = split.map(s => s.plan
     ? `<div class="sp-day"><div class="sp-day-slot"><span class="sp-day-n">Day ${s.day}</span><span class="sp-day-cat">${escapeHtml(s.slot)}</span></div>
@@ -11303,28 +11395,43 @@ function renderSplitPlannerPage(main) {
   const adh = prog ? programWeekAdherence(0) : null, adhByDow = {};
   if (adh) adh.days.forEach(x => { adhByDow[x.dow] = x.status; });
   const PG_ICON = { done: '✓', 'off-plan': '✓', missed: '✗', today: '▸', upcoming: '·' };
-  const agendaRows = DOW_ORDER.map(d => {
-    const entry = programForDow(d), isToday = d === todayDow;
-    const st = entry ? (adhByDow[d] || (isToday ? 'today' : 'upcoming')) : null;
-    return `<button class="pg-day ${isToday ? 'today' : ''} ${entry ? '' : 'rest'}${st ? ' pg-' + st : ''}" data-pg-dow="${d}" title="Tap to change this day">
-      <span class="pg-dow">${DOW_SHORT[d]}${isToday ? ' · today' : ''}</span>
-      <span class="pg-plan">${entry ? escapeHtml(entry.plan.name) : '— rest —'}</span>
-      ${st ? `<span class="pg-status pg-${st}">${PG_ICON[st] || ''}</span>` : ''}
-    </button>`;
-  }).join('');
+  // feat 282 — a >7-day program is a rotating cycle (Day 1…N) rather than a Mon–Sun week.
+  const progIsRot = prog && programMode(prog) === 'rotation';
+  const cycle = progIsRot ? programCycleDays() : null;
+  const agendaRows = progIsRot
+    ? (cycle ? cycle.rows.map(r => {
+        const st = r.status;
+        return `<button class="pg-day ${r.isToday ? 'today' : ''} ${r.planId ? '' : 'rest'}${st ? ' pg-' + st : ''}" data-pg-rot="${r.idx}" title="Tap to change this day">
+          <span class="pg-dow">Day ${r.day}${r.isToday ? ' · today' : ''}</span>
+          <span class="pg-plan">${r.planId && r.plan ? escapeHtml(r.plan.name) : '— rest —'}</span>
+          ${st ? `<span class="pg-status pg-${st}">${PG_ICON[st] || ''}</span>` : ''}
+        </button>`;
+      }).join('') : '')
+    : DOW_ORDER.map(d => {
+        const entry = programForDow(d), isToday = d === todayDow;
+        const st = entry ? (adhByDow[d] || (isToday ? 'today' : 'upcoming')) : null;
+        return `<button class="pg-day ${isToday ? 'today' : ''} ${entry ? '' : 'rest'}${st ? ' pg-' + st : ''}" data-pg-dow="${d}" title="Tap to change this day">
+          <span class="pg-dow">${DOW_SHORT[d]}${isToday ? ' · today' : ''}</span>
+          <span class="pg-plan">${entry ? escapeHtml(entry.plan.name) : '— rest —'}</span>
+          ${st ? `<span class="pg-status pg-${st}">${PG_ICON[st] || ''}</span>` : ''}
+        </button>`;
+      }).join('');
+  const todayDone = progIsRot ? !!(cycle && cycle.rows.some(r => r.isToday && r.status === 'done')) : adhByDow[todayDow] === 'done';
+  const todayLbl = progIsRot ? `Day ${(cycle ? cycle.todayIdx + 1 : 1)}/${prog ? prog.splitLen : ''}` : DOW_SHORT[todayDow];
+  const progTitle = progIsRot ? `📅 Your ${prog.splitLen}-day split` : '📅 Your weekly program';
   const streak = prog ? programAdherenceStreak() : 0;
   const trend = prog ? programAdherenceTrend(4) : [];
   const trendDots = trend.map(w => `<span class="pg-dot ${w.scheduled && w.done >= w.scheduled ? 'full' : (w.done ? 'part' : 'none')}" title="${w.done}/${w.scheduled} done"></span>`).join('');
   const adhLine = adh ? `<div class="pg-adh">This week <b>${adh.done}/${adh.scheduled}</b> done${adh.missed ? ` · <span class="pg-missed-txt">${adh.missed} missed</span>` : ''}${streak ? ` · 🔥 ${streak}-session streak` : ''}<span class="pg-trend">${trendDots}<span class="pg-trend-lbl">4 wks</span></span></div>` : '';
   const programCard = prog ? `
     <div class="card" id="sp-program">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>📅 Your weekly program</span><button class="sp-clear" id="pg-clear">Clear</button></div>
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>${progTitle}</span><button class="sp-clear" id="pg-clear">Clear</button></div>
       ${adhLine}
       ${todayEntry
-        ? `<div class="pg-today"><div><div class="pg-today-lbl">Today · ${DOW_SHORT[todayDow]}${adhByDow[todayDow] === 'done' ? ' · done ✓' : ''}</div><div class="pg-today-name">${escapeHtml(todayEntry.plan.name)}</div></div>${adhByDow[todayDow] === 'done' ? '' : `<button class="sp-use" data-plan-use="${escapeAttr(todayEntry.planId)}">▶ Start</button>`}</div>`
+        ? `<div class="pg-today"><div><div class="pg-today-lbl">Today · ${todayLbl}${todayDone ? ' · done ✓' : ''}</div><div class="pg-today-name">${escapeHtml(todayEntry.plan.name)}</div></div>${todayDone ? '' : `<button class="sp-use" data-plan-use="${escapeAttr(todayEntry.planId)}">▶ Start</button>`}</div>`
         : `<div class="pg-today rest"><div class="pg-today-name">Rest day — nothing scheduled today.</div></div>`}
       <div class="pg-week">${agendaRows}</div>
-      <div class="sp-legend">✓ done · ✗ missed · today highlighted. Tap any day to reassign it (cycles through your split's sessions and rest).</div>
+      <div class="sp-legend">${progIsRot ? `A rotating ${prog.splitLen}-day split — repeats from Day 1 regardless of weekday. ` : ''}✓ done · ✗ missed · today highlighted. Tap any day to reassign it (cycles through your split's sessions and rest).</div>
     </div>` : '';
   // feat 232 — periodization card: enable a mesocycle, see the week ramp, restart the block.
   const mcfg = mesoCfg();
@@ -11342,11 +11449,12 @@ function renderSplitPlannerPage(main) {
   main.innerHTML = `
     <div class="card">
       <div class="card-title">🗓️ Split Planner</div>
-      <div class="sp-intro">Tell us what you've got — we'll recommend a weekly split and show how well it covers each muscle group against its weekly volume target (MEV–MRV). It's a planning aid, not a rule.</div>
-      <div class="sp-input"><div class="sp-input-lbl">Sessions / week</div><div class="sp-chips">${sessChips}</div></div>
-      <div class="sp-input"><div class="sp-input-lbl">Days / week</div><div class="sp-chips">${dayChips}</div></div>
+      <div class="sp-intro">Tell us what you've got — we'll recommend a split and show how well it covers each muscle group against its weekly volume target (MEV–MRV). It's a planning aid, not a rule.</div>
+      <div class="sp-input"><div class="sp-input-lbl">Training sessions</div><div class="sp-chips">${sessChips}</div></div>
+      <div class="sp-input"><div class="sp-input-lbl">Days in the split</div><div class="sp-chips">${dayChips}</div></div>
       <div class="sp-input"><div class="sp-input-lbl">Time / session</div><div class="sp-chips">${minChips}</div></div>
       ${doubles ? `<div class="sp-note">⚠️ ${cfg.sessions} sessions across ${cfg.days} days means some days double up — make sure you can recover.</div>` : ''}
+      ${longSplit ? `<div class="sp-note">🔁 A ${cfg.days}-day split is longer than a week, so it saves as a <b>rotating cycle</b> (Day 1…${cfg.days}, repeating from a start date) rather than a fixed Mon–Sun program. ${cfg.sessions} sessions · ${cfg.days - cfg.sessions} rest day${cfg.days - cfg.sessions === 1 ? '' : 's'} per cycle.</div>` : ''}
     </div>
     <div class="card">
       <div class="card-title">✨ Themed splits</div>
@@ -11377,6 +11485,7 @@ function renderSplitPlannerPage(main) {
   main.querySelector('#pg-save')?.addEventListener('click', () => { saveProgramFromSplit(); renderSplitPlannerPage(main); }); // feat 230
   main.querySelector('#pg-clear')?.addEventListener('click', () => { clearProgram(); renderSplitPlannerPage(main); });
   main.querySelectorAll('[data-pg-dow]').forEach(b => b.addEventListener('click', () => { cycleProgramDay(+b.dataset.pgDow); renderSplitPlannerPage(main); }));
+  main.querySelectorAll('[data-pg-rot]').forEach(b => b.addEventListener('click', () => { cycleProgramRotDay(+b.dataset.pgRot); renderSplitPlannerPage(main); })); // feat 282 — rotation-day reassign
   main.querySelector('#ms-toggle')?.addEventListener('click', () => { const m = mesoCfg(); m.enabled = !m.enabled; if (m.enabled && !m.start) m.start = _weekMonday(0).toISOString().slice(0, 10); saveState(); renderSplitPlannerPage(main); }); // feat 232
   main.querySelectorAll('[data-ms-len]').forEach(b => b.addEventListener('click', () => { mesoCfg().length = +b.dataset.msLen; saveState(); renderSplitPlannerPage(main); }));
   main.querySelector('#ms-restart')?.addEventListener('click', () => { mesoRestart(); renderSplitPlannerPage(main); });
@@ -18787,7 +18896,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 226 · 2026-06-18 20:54';
+const APP_BUILD = 'build 227 · 2026-06-18 21:31';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
