@@ -1214,6 +1214,20 @@ They share variation **UUIDs**.
   Config lives in **Settings › Metronome** (toggle + interval). Reuses the feat-257 live hold timer (which keys off
   `wTs`, so it appears on "Go") and the feat-206 `annunce` speaker. `test/holdcue.spec.mjs` (cfg defaults/clamp,
   deferred-then-stamped `wTs` on "Go", abort on weight-clear, completion cancels, metronome suppression, settings UI).
+- **Fitness Focus & Archetype (feat 292):** a new **Reflect › Fitness Focus** page (🎯) gives a descriptive,
+  personality-type read of *how* you train — **not** a score or judgment (grades/progress already live on
+  Achievements & Trends). Each logged exercise is classified into one of six **athletic dimensions** (Max Strength,
+  Hypertrophy, Strength-Endurance, Power & Agility, Endurance, Flexibility & Mobility) by its family taxonomy
+  (`mega`/keywords), its tracking mode (holds/carries → strength-endurance; cardio → endurance) and — for plain
+  resistance — its **rep range** (≤5 strength · 6–12 hypertrophy · ≥13 strength-endurance). `fitnessFocus` tallies the
+  last ~16 weeks (broadening to all-time if thin) into a normalized profile; `fitnessArchetype` cosine-matches it to
+  the nearest of **16 archetypes** (Powerlifter, Bodybuilder, Powerbuilder, Olympic Weightlifter, Strongman, CrossFit
+  Athlete, Hybrid Athlete, Endurance Athlete, Tactical, Calisthenics, Mobility Specialist, Yoga-Runner, Martial Artist,
+  Explosive Athlete, All-Rounder, Movement Athlete), with a secondary when close. The page shows the archetype headline
+  + blurb, a 6-axis **radar** of the profile shape, and per-dimension bars (% + the top exercise feeding each). Gated
+  behind `FOCUS_MIN_SETS`(30)/`FOCUS_MIN_SESSIONS`(5) with a progress bar until there's enough data; a single-focus
+  athlete (e.g. a pure powerlifter, all low-rep strength) still qualifies. `test/archetype.spec.mjs` (classification by
+  mode/rep-range, the data gate, cosine archetype matching for strength/endurance/flex/balanced profiles, page render).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
