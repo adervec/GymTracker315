@@ -12986,6 +12986,7 @@ function discardActiveWorkout() {
       saveState();
       toast('🗑 Workout discarded');
       if (typeof refreshRestBar === 'function') refreshRestBar();
+      if (typeof refreshTopbarLive === 'function') refreshTopbarLive(); // feat 287 — clear the ⏱ elapsed stat too
       releaseWakeLock(); // feat 160
       render();
     });
@@ -13029,6 +13030,10 @@ function finalizeEndWorkout(active, skipConfirm) {
     finalizePlanExecution(active); // feat 164 — historize the plan execution + incomplete/skipped stats
     saveState();
     render();
+    // feat 287 — clear the live HUD the instant the workout ends (don't wait for the next 1 s rest tick):
+    // the ⏱ workout-elapsed stat and the rest bar both belong to an active session that no longer exists.
+    if (typeof refreshTopbarLive === 'function') refreshTopbarLive();
+    if (typeof refreshRestBar === 'function') refreshRestBar();
     // feat 272 — wrap-up side effects: a guaranteed (immediate) cloud push, and the AI-ready brief export
     if (typeof cloudActive === 'function' && cloudActive() && !(state.cloudSync && state.cloudSync.syncOnEnd === false)) { try { cloudPushNow().catch(() => {}); } catch (_) {} }
     if (typeof aiExportOnWorkoutEnd === 'function') aiExportOnWorkoutEnd();
@@ -18976,7 +18981,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 228 · 2026-06-18 21:51';
+const APP_BUILD = 'build 229 · 2026-06-18 22:05';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -19697,6 +19702,16 @@ function refreshRestBar() {
   updateWorkoutBar(); // feat 188 — keep the contextual shortcut row in sync with the active session
   const bar = document.getElementById('rest-bar');
   if (!bar) return;
+  // feat 287 — the rest bar (the live "Rest"/"Set" timer AND the idle "since last set" strip) belongs to an
+  // IN-PROGRESS workout. Once the workout is ended/discarded there's no active session, so hide it entirely —
+  // it was lingering after a workout because the idle strip keyed off any past set's timestamp.
+  if (!getActiveSession()) {
+    bar.style.display = 'none';
+    document.body.classList.remove('rest-bar-on', 'rest-bar-idle');
+    _lastRestZone = null;
+    refreshPlanStepBar();
+    return;
+  }
   const wc = state.workoutControls || {};
   if (wc.restTimer === false) {
     bar.style.display = 'none';

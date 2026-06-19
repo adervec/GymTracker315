@@ -1152,6 +1152,15 @@ They share variation **UUIDs**.
   splitplannerui.spec.mjs` (≥25 themes with valid `days`≤28, long theme → rotation, collapse defaults + persistence,
   search hides-not-removes, length-filter bucket). `test/splitplanner.spec.mjs` updated: a theme may now span up to 28
   slots/days.
+- **Live HUD lingered after a workout ended (feat 287):** the ⏱ workout-elapsed stat (by the brand) and the rest-timer
+  bar could keep showing after a workout was ended or discarded. Two causes: the **rest bar** computed its idle "since
+  last set" strip from *any* past set's timestamp (`lastExerciseEndedMs` scans all sessions), so it kept showing with
+  no active workout; and the **elapsed stat** only refreshed on the next 1 s rest tick, so it flashed for up to a
+  second after End. Fix: `refreshRestBar` now returns early (hiding the bar + clearing its body classes) whenever
+  `getActiveSession()` is null — the bar belongs to an in-progress workout only — and `finalizeEndWorkout` /
+  `discardActiveWorkout` call `refreshTopbarLive()` (and `refreshRestBar()`) immediately so both clear the instant the
+  workout ends. `test/endtimer.spec.mjs` (rest bar + elapsed visible mid-workout, both gone the instant it ends and on
+  later ticks; the bar stays hidden with no active session despite past logged sets).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
