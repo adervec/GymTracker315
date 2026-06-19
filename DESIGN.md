@@ -1181,6 +1181,16 @@ They share variation **UUIDs**.
   `_relocateSettingsPage` (which now honours the state instead of clearing it). The moved section header keeps its
   bound toggle, so expanding/collapsing on a Settings page persists and survives leaving + returning. `test/
   settingscollapse.spec.mjs` (all collapsed by default, expand persists across navigation, re-collapse persists too).
+- **Weekly Summary digest (feat 284):** the Reflect review pages (Log / History / Trends / Volume …) hold a lot of
+  detail, so a new **Reflect › Summary** page (📋) distils each **complete** calendar week (Mon–Sun) into a few
+  **highlights** (🌟) and **lowlights** (⚠️). The current, in-progress week is intentionally skipped. `weekSummary(off)`
+  aggregates a week's sessions (sets, total volume, top lift by e1RM, best session score, most-trained split) and
+  compares to the prior week (volume ±%, session count, a split trained last week but dropped) plus program adherence
+  (hit-all / missed) when a program exists; `summaryWeeks(max)` returns the complete weeks within the user's training
+  history, most-recent-first (capped at 12). The page renders one compact card per week with green/amber bullet lists;
+  an empty week within the span shows a single "no training" lowlight. Pure over `state.sessions` + existing helpers
+  (`startOfWeek`, `estimated1RMSet`, `programWeekAdherence`). `test/summary.spec.mjs` (skips current week, most-recent
+  first, highlight content + week-over-week deltas, page renders cards, rest-week lowlight).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

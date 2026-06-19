@@ -893,6 +893,17 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .sp-theme-filters { display: flex; gap: 6px; flex-wrap: wrap; }
   .sp-theme-days { font-size: 10px; color: var(--accent2, var(--accent)); font-weight: 700; }
   .sp-theme-none { font-size: 12px; color: var(--text3); padding: 8px 2px; }
+  /* feat 284 — weekly Summary cards */
+  .summary-intro { font-size: 12px; color: var(--text2); line-height: 1.5; }
+  .summary-empty { font-size: 12.5px; color: var(--text3); text-align: center; padding: 6px 2px; }
+  .summary-week.rest { opacity: 0.72; }
+  .summary-week-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .summary-week-when { font-size: 13.5px; font-weight: 800; }
+  .summary-week-meta { font-size: 11px; color: var(--text3); white-space: nowrap; }
+  .summary-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+  .summary-list li { font-size: 12.5px; line-height: 1.4; padding: 5px 9px; border-radius: 8px; border-left: 3px solid var(--border2); background: var(--bg3); }
+  .summary-list li.sm-hi { border-left-color: #3fb950; }
+  .summary-list li.sm-lo { border-left-color: var(--warn); }
   .sp-days { display: flex; flex-direction: column; gap: 7px; }
   .sp-day { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
   .sp-day-slot { flex-shrink: 0; width: 64px; }
@@ -8557,6 +8568,117 @@ function getWeeklySplitVolume(weekOffset = 0) {
 }
 
 /* ============================================================
+   feat 284 — WEEKLY SUMMARY. The review pages (Log / History / Trends / Volume …) hold a LOT of detail; this
+   distils each COMPLETE calendar week (Mon–Sun) into a few highlights (🌟) and lowlights (⚠️). The current,
+   in-progress week is intentionally skipped (weekOffset ≥ 1). Pure over state.sessions + the existing helpers.
+   ============================================================ */
+const _SUMMARY_MEGA = { push:'Push', pull:'Pull', lower:'Legs', core:'Core', full:'Full body', cardio:'Cardio', other:'Other' };
+function _weekRangeMs(weekOffset) {
+  const thisWeekStart = startOfWeek(new Date());
+  const start = thisWeekStart - weekOffset * 7 * 86400000;
+  return { start, end: start + 7 * 86400000 };
+}
+function _weekHasActivity(s) { return (s.exercises || []).some(e => e.cardio || (e.sets || []).length); }
+function _weekSessions(weekOffset) {
+  const { start, end } = _weekRangeMs(weekOffset);
+  return (state.sessions || []).filter(s => { const t = new Date(s.date).getTime(); return t >= start && t < end && _weekHasActivity(s); });
+}
+function _weekStrengthAgg(sessions) {
+  let sets = 0, volume = 0, mega = {}, topLift = null, bestScore = null;
+  sessions.forEach(s => {
+    (s.exercises || []).forEach(ex => {
+      if (ex.cardio) return;
+      const info = VAR_INDEX.get(ex.varUuid), m = (info && info.family) ? (info.family.mega || 'other') : 'other';
+      (ex.sets || []).forEach(set => {
+        sets++; volume += (parseFloat(set.w) || 0) * (parseFloat(set.r) || 0); mega[m] = (mega[m] || 0) + 1;
+        const e = estimated1RMSet(set);
+        if (e > 0 && (!topLift || e > topLift.e1rm)) topLift = { name: displayName(ex.varUuid, ex.subUuid), e1rm: Math.round(e), w: set.w, r: set.r };
+      });
+    });
+    const sc = s.finalScore;
+    if (sc && typeof sc.points === 'number' && (!bestScore || sc.points > bestScore.points)) bestScore = sc;
+  });
+  return { sets, volume: Math.round(volume), mega, topLift, bestScore };
+}
+// Highlights + lowlights for ONE complete week (weekOffset ≥ 1). `inSpan` = within the user's training history
+// (so an empty week between real sessions shows as a rest/no-training lowlight rather than being skipped).
+function weekSummary(weekOffset) {
+  const { start, end } = _weekRangeMs(weekOffset);
+  const sessions = _weekSessions(weekOffset);
+  const prev = _weekSessions(weekOffset + 1);
+  const agg = _weekStrengthAgg(sessions), pAgg = _weekStrengthAgg(prev);
+  const unit = state.unit || 'kg';
+  const fmt = n => n.toLocaleString();
+  const dRange = (() => { const a = new Date(start), b = new Date(end - 86400000);
+    const md = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return md(a) + ' – ' + md(b); })();
+  const highlights = [], lowlights = [];
+  if (sessions.length === 0) {
+    lowlights.push('😴 No training logged this week');
+    return { weekOffset, start, end, label: dRange, sessions: 0, sets: 0, volume: 0, empty: true, highlights, lowlights };
+  }
+  highlights.push(`💪 ${sessions.length} session${sessions.length === 1 ? '' : 's'} · ${agg.sets} sets`);
+  if (agg.topLift) highlights.push(`🏆 Top lift: ${agg.topLift.name} — e1RM ${agg.topLift.e1rm}${unit} (${agg.topLift.w}×${agg.topLift.r})`);
+  if (agg.bestScore) highlights.push(`⭐ Best session score: ${agg.bestScore.grade} (${agg.bestScore.points}/100)`);
+  if (agg.volume > 0) highlights.push(`🏋️ ${fmt(agg.volume)} ${unit} total volume`);
+  // most-trained split
+  const topMega = Object.entries(agg.mega).sort((a, b) => b[1] - a[1])[0];
+  if (topMega && topMega[1] > 0) highlights.push(`🎯 Most work: ${_SUMMARY_MEGA[topMega[0]] || topMega[0]} (${topMega[1]} sets)`);
+  // week-over-week deltas
+  if (pAgg.volume > 0) {
+    const pct = Math.round((agg.volume - pAgg.volume) / pAgg.volume * 100);
+    if (pct >= 5) highlights.push(`📈 Volume up ${pct}% vs the week before`);
+    else if (pct <= -10) lowlights.push(`📉 Volume down ${Math.abs(pct)}% vs the week before`);
+  }
+  if (prev.length > 0 && sessions.length > prev.length) highlights.push(`🔥 ${sessions.length - prev.length} more session${sessions.length - prev.length === 1 ? '' : 's'} than the week before`);
+  if (prev.length > 0 && sessions.length < prev.length) lowlights.push(`🛌 ${prev.length - sessions.length} fewer session${prev.length - sessions.length === 1 ? '' : 's'} than the week before`);
+  // a split trained last week but dropped entirely this week
+  Object.keys(pAgg.mega).forEach(m => { if (pAgg.mega[m] >= 3 && !(agg.mega[m] > 0) && m !== 'cardio' && m !== 'other') lowlights.push(`➖ No ${_SUMMARY_MEGA[m] || m} work this week (trained it last week)`); });
+  // program adherence (Monday-aligned: weekOffset == weeksBack)
+  const adh = (typeof programWeekAdherence === 'function') ? programWeekAdherence(weekOffset) : null;
+  if (adh && adh.scheduled > 0) {
+    if (adh.done >= adh.scheduled) highlights.push(`✅ Hit all ${adh.scheduled} planned sessions`);
+    else if (adh.missed > 0) lowlights.push(`⚠️ Missed ${adh.missed} of ${adh.scheduled} planned session${adh.scheduled === 1 ? '' : 's'}`);
+  }
+  return { weekOffset, start, end, label: dRange, sessions: sessions.length, sets: agg.sets, volume: agg.volume, empty: false, highlights, lowlights };
+}
+// The complete weeks (most recent first) that fall within the user's training history, capped for the page.
+function summaryWeeks(maxWeeks) {
+  const cap = maxWeeks || 12;
+  const sessions = (state.sessions || []).filter(_weekHasActivity);
+  if (!sessions.length) return [];
+  const earliest = Math.min(...sessions.map(s => new Date(s.date).getTime()));
+  const thisWeekStart = startOfWeek(new Date());
+  const out = [];
+  for (let off = 1; off <= 60 && out.length < cap; off++) {
+    const start = thisWeekStart - off * 7 * 86400000;
+    if (start + 7 * 86400000 <= earliest) break; // past the user's first training week
+    out.push(weekSummary(off));
+  }
+  return out;
+}
+// feat 284 — the Summary page (Reflect › Summary): one compact card per complete week.
+function renderSummaryPage(main) {
+  if (!main) return;
+  const weeks = summaryWeeks(12);
+  const intro = `<div class="card"><div class="card-title">📋 Weekly Summary</div>
+    <div class="summary-intro">The highlights and lowlights of each <b>complete</b> calendar week (Mon–Sun). This week is still in progress, so it isn't summarised yet — open the Log, History or Trends pages for the full detail.</div></div>`;
+  if (!weeks.length) {
+    main.innerHTML = intro + `<div class="card"><div class="summary-empty">No complete training weeks yet — log a few sessions and check back next week.</div></div>`;
+    return;
+  }
+  const card = w => {
+    const hi = w.highlights.map(h => `<li class="sm-hi">${escapeHtml(h)}</li>`).join('');
+    const lo = w.lowlights.map(l => `<li class="sm-lo">${escapeHtml(l)}</li>`).join('');
+    return `<div class="card summary-week${w.empty ? ' rest' : ''}">
+      <div class="summary-week-head"><span class="summary-week-when">Week of ${escapeHtml(w.label)}</span><span class="summary-week-meta">${w.empty ? 'rest week' : `${w.sessions} session${w.sessions === 1 ? '' : 's'} · ${w.sets} sets`}</span></div>
+      <ul class="summary-list">${hi}${lo}</ul>
+    </div>`;
+  };
+  main.innerHTML = intro + weeks.map(card).join('')
+    + (weeks.length >= 12 ? `<div class="card"><div class="summary-empty">Showing the last 12 weeks · older detail lives on the History &amp; Trends pages.</div></div>` : '');
+}
+/* ============================================================
    FAB STATE
    ============================================================ */
 function updateFAB() {
@@ -9741,7 +9863,7 @@ const PAGES = {
   // ever just a nav list. Browsing happens in the compact nav-tree popover; the breadcrumb shows where you are.
   home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'], primary:'workout' },
   train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'], primary:'workout' },
-  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','history','trends','volume','achievements','replay','progression'], primary:'log' },
+  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','summary','history','trends','volume','achievements','replay','progression'], primary:'log' },
   execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail'], primary:'workout' },
   prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator','split-planner'], primary:'gyms' },
   study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','media-gallery','glossary','anatomy','advice'], primary:'reference' },
@@ -9749,6 +9871,8 @@ const PAGES = {
   // leaf pages that already render into a container (reused unchanged)
   workout:     { title:'Workout',          emoji:'🔥', kind:'leaf', parent:'execute', tab:'log',      render:m=>renderLog(m) },
   log:         { title:'Log',              emoji:'📅', kind:'leaf', parent:'reflect', tab:'sessions', render:m=>renderSessionsLog(m) },
+  summary:     { title:'Summary',          emoji:'📋', kind:'leaf', parent:'reflect', render:m=>renderSummaryPage(m) }, // feat 284
+
   history:     { title:'History',          emoji:'🕓', kind:'leaf', parent:'reflect', tab:'history',  render:m=>renderHistory(m) },
   trends:      { title:'Trends',           emoji:'📈', kind:'leaf', parent:'reflect', tab:'trends',   render:m=>renderTrends(m) },
   volume:      { title:'Volume',           emoji:'🧮', kind:'leaf', parent:'reflect', tab:'volume',   render:m=>renderVolume(m) },
@@ -19030,7 +19154,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 231 · 2026-06-18 22:34';
+const APP_BUILD = 'build 232 · 2026-06-18 22:44';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
