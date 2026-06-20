@@ -1255,6 +1255,18 @@ They share variation **UUIDs**.
   completed, at}`. Six presets cover **Tabata** (classic + mixed), **battle-rope intervals**, **bodyweight 30/30**,
   **sprint intervals** and an **AMRAP** burner — all time-based conditioning movements. `test/hiit.spec.mjs` (flatten
   shape + rotation, preset validity, full walk → session log, pause accounting recorded, launcher + runner open/close).
+- **Coach personalities (feat 296):** the spoken coach is now a selectable **persona** — a voice profile **and** a
+  phrasing flavour — beyond the old neutral/gruff pair. `COACH_PERSONAS` ships seven: **Neutral** (the device voice,
+  untouched), **Gruff Coach** (the deep default), **Hype Coach**, **Zen Coach**, **Drill Sergeant**, **The Analyst**
+  and **Hype Buddy**. Each carries `pitch`/`rate` (applied in `coachify`) and a `flavor` map that reshapes the key cues
+  via `coachPhrase(kind, base, ctx)` — e.g. the Sergeant shouts (`'Last set'` → `'LAST SET, MOVE!'`), Hype hypes, Zen
+  breathes — wired through set start/end (`annunceSetStart/End`), HIIT work/rest/prep (`hiitCueStep`) and the hold-cue
+  "go". `ttsVoice` stays the master voice toggle (`'system'` = untouched, honouring the legacy contract + explicit
+  voiceURI overrides); the **Settings persona picker** sets `state.coachPersona` and keeps `ttsVoice` in sync
+  (neutral → `system`, else → `auto`), then previews the persona's sample line. `state.coachPersona` is persisted and
+  migrates from the old toggle. The registry is declared before `loadState()` so `normalizeState` reads it without a
+  temporal-dead-zone error. `test/coachpersona.spec.mjs` (registry shape, per-persona pitch/rate, per-persona phrasing,
+  picker persist + voice-sync, legacy migration); `coachvoice.spec` updated for the picker.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

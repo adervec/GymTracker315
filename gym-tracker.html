@@ -926,6 +926,14 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .focus-dim-bar { height: 8px; border-radius: 5px; background: var(--bg3); overflow: hidden; margin-top: 3px; }
   .focus-dim-fill { height: 100%; background: var(--accent); border-radius: 5px; }
   .focus-dim-sub { font-size: 10.5px; color: var(--text3); margin-top: 3px; }
+  /* feat 296 — coach persona picker */
+  .coach-persona-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 7px; }
+  .coach-persona { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .coach-persona.active { border-color: var(--accent); background: var(--accent-bg); }
+  .coach-persona .cp-emoji { font-size: 18px; line-height: 1.1; }
+  .coach-persona .cp-name { font-size: 12.5px; font-weight: 800; }
+  .coach-persona .cp-tag { font-size: 9.5px; color: var(--text3); }
+  .coach-persona.active .cp-tag { color: var(--accent); }
   .sp-days { display: flex; flex-direction: column; gap: 7px; }
   .sp-day { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
   .sp-day-slot { flex-shrink: 0; width: 64px; }
@@ -4150,7 +4158,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
-  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
+  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','metronome','annunciation','plans','seededPlanIds','hrDevice',
   'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
@@ -4353,6 +4361,7 @@ function normalizeState() {
   if (typeof state.calcMode !== 'boolean') state.calcMode = false;
   if (typeof state.ttsTips !== 'boolean') state.ttsTips = true;
   if (typeof state.ttsVoice !== 'string') state.ttsVoice = 'auto'; // feat 210 — 'auto' = the gruff coach pick; 'system' = untouched
+  if (typeof state.coachPersona !== 'string' || !COACH_PERSONAS.some(p => p.id === state.coachPersona)) state.coachPersona = (state.ttsVoice === 'system') ? 'neutral' : 'gruff'; // feat 296 — derive from the legacy voice toggle
   if (typeof state.audioHeadphonesOnly !== 'boolean') state.audioHeadphonesOnly = true; // feat 105 — default on
   // feat 144 — default minimum completion % (0..100). 1% means "even 1 set counts the step as done".
   { const m = Number(state.planDefaults.minPct); state.planDefaults.minPct = isNaN(m) ? 1 : Math.min(100, Math.max(0, m)); }
@@ -6775,14 +6784,13 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${state.ttsTips === false ? 'active' : ''}" data-pref-tts="off">Off</button>
       </div>
     </div>
-    <div class="drawer-setting-row">
+    <div class="drawer-setting-row" style="flex-direction:column;align-items:stretch;gap:8px;">
       <div>
-        <div class="drawer-setting-label">🏋️ Coach voice</div>
-        <div class="drawer-setting-sub">Spoken cues default to a deeper, gruffer coach (deep voice + low pitch, tough but fair). System = leave the device default untouched</div>
+        <div class="drawer-setting-label">🏋️ Coach personality</div>
+        <div class="drawer-setting-sub">Who's in your ear — a voice profile (pitch &amp; pace) plus the wording of every spoken cue. Tap one to switch and hear it.</div>
       </div>
-      <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.ttsVoice !== 'system' ? 'active' : ''}" data-pref-voice="coach">Gruff coach ★</button>
-        <button class="drawer-pill ${state.ttsVoice === 'system' ? 'active' : ''}" data-pref-voice="system">System</button>
+      <div class="coach-persona-pick">
+        ${COACH_PERSONAS.map(p => `<button type="button" class="coach-persona ${(state.coachPersona || 'gruff') === p.id ? 'active' : ''}" data-coach-persona="${escapeAttr(p.id)}" title="${escapeAttr(p.desc)}"><span class="cp-emoji">${p.emoji}</span><span class="cp-name">${escapeHtml(p.name)}</span><span class="cp-tag">${escapeHtml(p.tag)}</span></button>`).join('')}
       </div>
     </div>
     <div class="drawer-setting-row">
@@ -7804,6 +7812,7 @@ function renderSettingsDrawer() {
   body.querySelectorAll('[data-holdcue]').forEach(b => b.addEventListener('click', () => {
     state.holdCue = { ...holdCueCfg(), [b.dataset.holdcue]: b.dataset.holdcueVal === 'on' }; saveState(); renderSettingsDrawer();
   }));
+  body.querySelectorAll('[data-coach-persona]').forEach(b => b.addEventListener('click', () => selectCoachPersona(b.dataset.coachPersona))); // feat 296
   const hcEvery = body.querySelector('#drawer-holdcue-every');
   if (hcEvery) hcEvery.addEventListener('change', () => { const v = parseInt(hcEvery.value); if (!isNaN(v)) { state.holdCue = { ...holdCueCfg(), every: Math.max(1, Math.min(60, v)) }; saveState(); } });
   // Rest cue timer settings (feat 104)
@@ -19397,6 +19406,23 @@ function deleteExercise() {
    ============================================================ */
 loadLog();
 installErrorHandlers();
+/* feat 296 — COACH PERSONAS (declared before loadState so normalizeState can read it). The spoken coach has a
+   PERSONALITY: a voice profile (pitch/rate) + a phrasing flavour over the key cues (set start/end, HIIT
+   work/rest/prep, the hold "go"). 'neutral' = the device's own voice, untouched (ttsVoice 'system'). */
+const COACH_PERSONAS = [
+  { id:'neutral',  name:'Neutral',        emoji:'🎙️', tag:'system voice, untouched', desc:'Clean, calm announcements in your device’s own voice.', pitch:1, rate:1, sys:true, sample:'Neutral coach. Ready when you are.' },
+  { id:'gruff',    name:'Gruff Coach',    emoji:'💪', tag:'deep · tough but fair', desc:'Deep and gruff — the default. Get under the bar.', pitch:0.8, rate:0.95, sample:'Coach voice on. Get under the bar.' },
+  { id:'hype',     name:'Hype Coach',     emoji:'🔥', tag:'high energy · all gas', desc:'Loud, fast and fired up — every set is a moment.', pitch:1.18, rate:1.12, sample:'Let’s GO! Big energy — leave nothing in the tank!',
+    flavor:{ setStart:(b)=>"Let’s go! "+b+"!", setEnd:(b)=>b+" — let’s GO!", hiitWork:(b,c)=>"Go go go! "+(c.ex||'work')+"!", hiitRest:()=>"Breathe — you earned it!", hiitPrep:()=>"Here we go!", go:()=>"GO!" } },
+  { id:'zen',      name:'Zen Coach',      emoji:'🧘', tag:'calm · mindful', desc:'Soft and unhurried — steady breath, controlled tempo.', pitch:0.92, rate:0.84, sample:'Settle in. Steady breath, controlled tempo.',
+    flavor:{ setStart:(b)=>b+". Breathe.", setEnd:(b)=>b+". Nice and easy.", hiitWork:(b,c)=>"Begin. "+(c.ex||''), hiitRest:()=>"Rest. Soften the breath.", hiitPrep:()=>"Settle in.", go:()=>"Begin." } },
+  { id:'sergeant', name:'Drill Sergeant', emoji:'🎖️', tag:'loud · no excuses', desc:'In your face — commands, not suggestions.', pitch:0.78, rate:1.06, sample:'On your feet! No excuses — you move when I say move!',
+    flavor:{ setStart:(b)=>b.toUpperCase()+", MOVE!", setEnd:(b)=>b.toUpperCase()+"!", hiitWork:(b,c)=>(c.ex||'WORK').toUpperCase()+", NOW! GO!", hiitRest:()=>"REST! SHAKE IT OUT!", hiitPrep:()=>"ON YOUR FEET!", go:()=>"GO! GO! GO!" } },
+  { id:'analyst',  name:'The Analyst',    emoji:'🔬', tag:'precise · technical', desc:'Measured and methodical — cues tempo, form and output.', pitch:1, rate:0.98, sample:'Prepare. Control the tempo, own the output.',
+    flavor:{ setStart:(b)=>b+". Control the tempo.", setEnd:(b)=>b+". Log it.", hiitWork:(b,c)=>(c.ex||'work')+". Steady output.", hiitRest:()=>"Rest. Bring the heart rate down.", hiitPrep:()=>"Prepare. Set your position.", go:()=>"Execute." } },
+  { id:'buddy',    name:'Hype Buddy',     emoji:'🤙', tag:'supportive · chill', desc:'Your encouraging gym partner — upbeat and easygoing.', pitch:1.06, rate:1, sample:'Alright, let’s do this — you got this.',
+    flavor:{ setStart:(b)=>b+" — you got this.", setEnd:(b)=>"Nice! "+b, hiitWork:(b,c)=>"You got this — "+(c.ex||'go')+"!", hiitRest:()=>"Good work, breathe it out.", hiitPrep:()=>"Alright, let’s do this.", go:()=>"Let’s go!" } },
+];
 loadState();
 applyExtraFamilies(); // feat 90 — inject the new neck / jaw / climbing families first
 dedupeFamilies(); // feat 166 — reconcile any remaining same-title duplicate movement families
@@ -19493,7 +19519,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 238 · 2026-06-20 12:15';
+const APP_BUILD = 'build 239 · 2026-06-20 12:47';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -19727,6 +19753,35 @@ function pickCoachVoice() {
     return pool.slice().sort((a, b) => score(b) - score(a))[0] || null;
   } catch (_) { return null; }
 }
+/* feat 296 — COACH PERSONAS. The spoken coach now has a PERSONALITY: a voice profile (pitch/rate) plus a phrasing
+   flavour over the key cues (set start/end, HIIT work/rest/prep, the hold "go"). 'neutral' = the device's own
+   voice, untouched (ttsVoice 'system'); every other persona has its own pitch/rate + word choices. coachPhrase()
+   runs the active persona's flavour over the neutral base text, falling back to the base. */
+// COACH_PERSONAS is declared near the INIT block (before loadState) so normalizeState can read it without a TDZ.
+function coachPersona(id) { return COACH_PERSONAS.find(p => p.id === id) || null; }
+function activeCoachPersona() {
+  if (state.coachPersona) { const p = coachPersona(state.coachPersona); if (p) return p; }
+  return coachPersona(state.ttsVoice === 'system' ? 'neutral' : 'gruff') || COACH_PERSONAS[1]; // back-compat fallback
+}
+// Flavour a neutral cue string through the active persona. kind ∈ setStart|setEnd|hiitWork|hiitRest|hiitPrep|go.
+function coachPhrase(kind, base, ctx) {
+  const p = activeCoachPersona();
+  const f = p && p.flavor && p.flavor[kind];
+  if (typeof f === 'function') { try { return f(base, ctx || {}) || base; } catch (_) { return base; } }
+  return (typeof f === 'string') ? f : base;
+}
+// feat 296 — switch persona: store it, keep the legacy ttsVoice toggle in sync (neutral → untouched system voice,
+// otherwise the coach pick), drop the cached voice, then preview the new persona with its sample line.
+function selectCoachPersona(id) {
+  const p = coachPersona(id); if (!p) return;
+  state.coachPersona = id;
+  state.ttsVoice = p.sys ? 'system' : 'auto';
+  _coachVoice = null;
+  saveState();
+  try { renderSettingsDrawer(); } catch (_) {}
+  try { if (typeof annunce === 'function') annunce(p.sample || p.name); } catch (_) {}
+  try { toast('Coach: ' + p.name); } catch (_) {}
+}
 function coachVoice() {
   if (state.ttsVoice === 'system') return null;
   if (state.ttsVoice && state.ttsVoice !== 'auto') {
@@ -19735,11 +19790,14 @@ function coachVoice() {
   if (!_coachVoice) _coachVoice = pickCoachVoice();
   return _coachVoice;
 }
-// Apply the gruff-coach profile to an utterance ('system' mode leaves it untouched).
+// Apply the active persona's voice profile to an utterance. 'system' (neutral) leaves it untouched (feat 210);
+// otherwise the persona sets pitch + rate and the coach voice pick is applied (feat 296).
 function coachify(u) {
   if (state.ttsVoice === 'system') return u;
+  const p = activeCoachPersona();
+  u.pitch = (p.pitch != null) ? p.pitch : 0.8;
+  u.rate = (p.rate != null) ? p.rate : (u.rate || 0.95);
   try { const v = coachVoice(); if (v) u.voice = v; } catch (_) {}
-  u.pitch = 0.8; // deeper
   return u;
 }
 try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.onvoiceschanged = () => { _coachVoice = null; }; } catch (_) {} // voices arrive async — refresh the pick
@@ -19804,7 +19862,7 @@ function annunceSetStart() {
   if (!c.start) return;
   const pos = setPositionInfo();
   if (!annunceWithinLimit(pos, c.startLimit)) return; // feat 208
-  annunce(setStartPhrase(pos));
+  annunce(coachPhrase('setStart', setStartPhrase(pos), { pos })); // feat 296 — persona flavour
 }
 // feat 207 — set-END cues, spoken when a set completes (reps land): "One down — 3 to go",
 // "2 of 4 down", "Half done", "One more, then Squat", "All done — time for Squat".
@@ -19839,7 +19897,7 @@ function annunceSetEnd() {
   if (!pos.x) return;
   if (!annunceWithinLimit(pos, c.endLimit)) return; // feat 208
   const next = (pos.y && pos.x >= pos.y - 1) ? nextStepLabelAfterCurrent() : null;
-  annunce(setEndPhrase(pos, next));
+  annunce(coachPhrase('setEnd', setEndPhrase(pos, next), { pos })); // feat 296 — persona flavour
 }
 
 /* ---- Workout metronome (feat 69) — customizable audio + haptic; on/off is per-workout (runtime only). ---- */
@@ -20004,7 +20062,7 @@ function startHoldCue(i) {
     if (!alive()) return;
     const s = pending.sets[i];
     if (!s || s.w === '' || s.w == null) { cancelHoldCue(); return; } // weight cleared before "Go" → abort
-    say('Go');
+    say(coachPhrase('go', 'Go')); // feat 296 — persona-flavoured "go"
     s.wTs = new Date().toISOString();                   // feat 291 — set timer starts on "Go", not on weight entry
     s.ts = undefined;
     try { savePending(); } catch (_) {}
@@ -20065,8 +20123,10 @@ function startHiitBlock(id) {
 }
 function hiitCueStep(step) {
   if (!step) return;
-  const txt = step.kind === 'prep' ? 'Get ready' : step.kind === 'rest' ? 'Rest' : ('Work — ' + (step.label || 'go'));
-  try { if (typeof annunce === 'function') annunce(txt); } catch (_) {}
+  const ex = step.label || '';
+  const base = step.kind === 'prep' ? 'Get ready' : step.kind === 'rest' ? 'Rest' : ('Work — ' + ex);
+  const kind = step.kind === 'work' ? 'hiitWork' : step.kind === 'rest' ? 'hiitRest' : 'hiitPrep';
+  try { if (typeof annunce === 'function') annunce(coachPhrase(kind, base, { ex })); } catch (_) {} // feat 296 — persona flavour
   try { if (typeof metroBeep === 'function') metroBeep(step.kind === 'work' ? 988 : 660, 0.4); } catch (_) {}
 }
 function hiitTick() {

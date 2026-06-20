@@ -50,7 +50,7 @@ test('pickCoachVoice prefers a deep male English voice and shuns female-named on
   expect(r.cached).toMatch(/David/);  // coachVoice() resolves + caches the same pick
 });
 
-test('an explicit voiceURI override wins; the drawer pills switch coach/system', async ({ page }) => {
+test('an explicit voiceURI override wins; the persona picker switches voice mode (feat 296)', async ({ page }) => {
   const r = await page.evaluate(() => {
     const fake = [
       { name: 'Microsoft David - English (United States)', lang: 'en-US', localService: true, default: false, voiceURI: 'david' },
@@ -59,19 +59,19 @@ test('an explicit voiceURI override wins; the drawer pills switch coach/system',
     window.speechSynthesis.getVoices = () => fake;
     state.ttsVoice = 'zira'; _coachVoice = null;      // explicit override (even a "female" one — user's call)
     const overridden = coachVoice();
-    state.ttsVoice = 'auto'; _coachVoice = null;
+    state.ttsVoice = 'auto'; state.coachPersona = 'gruff'; _coachVoice = null;
     renderSettingsDrawer();
-    const has = document.body.innerHTML.includes('Coach voice');
-    document.querySelector('[data-pref-voice="system"]').click();
-    const sys = state.ttsVoice;
-    document.querySelector('[data-pref-voice="coach"]').click();
-    const coach = state.ttsVoice;
+    const has = document.body.innerHTML.includes('Coach personality');
+    document.querySelector('[data-coach-persona="neutral"]').click();   // neutral → device voice untouched
+    const sys = { persona: state.coachPersona, voice: state.ttsVoice };
+    document.querySelector('[data-coach-persona="gruff"]').click();      // back to the gruff coach
+    const coach = { persona: state.coachPersona, voice: state.ttsVoice };
     return { overridden: overridden && overridden.name, has, sys, coach };
   });
   expect(r.overridden).toMatch(/Zira/);  // explicit user override is honored verbatim
   expect(r.has).toBe(true);
-  expect(r.sys).toBe('system');
-  expect(r.coach).toBe('auto');
+  expect(r.sys).toEqual({ persona: 'neutral', voice: 'system' });   // neutral persona ⇒ system voice untouched
+  expect(r.coach).toEqual({ persona: 'gruff', voice: 'auto' });
 });
 
 test('all three speech paths run through coachify (annunce, Mantranome, tips)', async ({ page }) => {
