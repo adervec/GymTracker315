@@ -2752,6 +2752,37 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .guide-reader-close:active { transform: scale(0.96); }
 .guide-reader-title { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .guide-reader-frame { flex: 1 1 auto; width: 100%; border: 0; background: var(--bg); }
+/* feat 295 — HIIT block runner overlay + launcher cards */
+#hiit-runner { position: fixed; inset: 0; z-index: 10090; display: none; flex-direction: column; color: #fff;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  background: #1d2733; transition: background 0.25s; }
+#hiit-runner.open { display: flex; }
+#hiit-runner.work { background: linear-gradient(160deg, #1b5e20, #2e7d32); }
+#hiit-runner.rest { background: linear-gradient(160deg, #0d3b66, #1565c0); }
+#hiit-runner.prep { background: linear-gradient(160deg, #4a3b12, #8a6d1e); }
+#hiit-runner.paused { filter: saturate(0.6) brightness(0.85); }
+.hiit-top { display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; }
+.hiit-name { font-size: 14px; font-weight: 800; opacity: 0.92; }
+.hiit-x { background: rgba(255,255,255,0.16); border: none; color: #fff; width: 34px; height: 34px; border-radius: 9px; font-size: 16px; cursor: pointer; }
+.hiit-stage { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+.hiit-kind { font-size: 16px; font-weight: 800; letter-spacing: 3px; opacity: 0.85; }
+.hiit-timer { font-size: 84px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.hiit-ex { font-size: 22px; font-weight: 700; max-width: 90%; }
+.hiit-round { font-size: 14px; opacity: 0.85; }
+.hiit-paused-badge { margin-top: 8px; font-size: 14px; font-weight: 800; background: rgba(0,0,0,0.28); padding: 5px 12px; border-radius: 999px; }
+.hiit-controls { display: flex; gap: 10px; flex: 0 0 auto; }
+.hiit-btn { flex: 1; padding: 15px 0; border-radius: 12px; border: none; font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit; background: rgba(255,255,255,0.16); color: #fff; -webkit-tap-highlight-color: transparent; }
+.hiit-btn.primary { background: #fff; color: #16202b; }
+.hiit-btn.danger { background: rgba(180,40,40,0.55); }
+.hiit-btn:active { transform: scale(0.97); }
+.hiit-foot { text-align: center; font-size: 12px; opacity: 0.8; margin-top: 8px; flex: 0 0 auto; }
+.hiit-card-head { display: flex; align-items: center; gap: 11px; margin-bottom: 7px; }
+.hiit-card-emoji { font-size: 30px; line-height: 1; flex-shrink: 0; }
+.hiit-card-name { font-size: 15px; font-weight: 800; }
+.hiit-card-tag { font-size: 11.5px; color: var(--text3); }
+.hiit-card-blurb { font-size: 12.5px; color: var(--text2); line-height: 1.5; margin-bottom: 10px; }
+.hiit-start { width: 100%; padding: 11px 0; border-radius: 10px; border: none; background: var(--accent); color: #fff; font-size: 14px; font-weight: 800; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+.hiit-start:active { transform: scale(0.98); }
 </style>
 </head>
 <body>
@@ -2816,6 +2847,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <!-- feat 57 — optional in-app numpad for set entry (avoids the native mobile keyboard) -->
 <div id="trk-numpad-backdrop"></div>
 <div id="trk-numpad" class="numpad-sheet" role="dialog" aria-label="On-screen numpad"></div>
+<!-- feat 295 — full-screen HIIT block runner overlay -->
+<div id="hiit-runner" role="dialog" aria-label="HIIT block runner"></div>
 
 <!-- ====== SETTINGS DRAWER ====== -->
 <div id="settings-backdrop" onclick="closeSettingsDrawer()"></div>
@@ -10135,7 +10168,7 @@ const PAGES = {
   home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'], primary:'workout' },
   train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'], primary:'workout' },
   reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','summary','focus','history','trends','volume','achievements','replay','progression'], primary:'log' },
-  execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail'], primary:'workout' },
+  execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail','hiit'], primary:'workout' },
   prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator','split-planner'], primary:'gyms' },
   study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','media-gallery','glossary','anatomy','advice'], primary:'reference' },
   settings:{ title:'Settings',emoji:'⚙️', kind:'menu', parent:'home',  children:['set-profile','set-cosmetic','set-prefs','set-data','set-help','set-about'], primary:'set-prefs' },
@@ -10156,6 +10189,7 @@ const PAGES = {
   // leaves still served by their existing overlay/opener (converted to real pages in later phases)
   exercise:      { title:'Exercise',     emoji:'✍️', kind:'leaf', parent:'execute', open:()=>openLogModal() },
   'plan-detail': { title:'Plan Detail',  emoji:'🗺️', kind:'leaf', parent:'execute', render:m=>renderPlanDetailPage(m) }, // feat 183
+  hiit:          { title:'HIIT Blocks',  emoji:'⏱️', kind:'leaf', parent:'execute', render:m=>renderHiitPage(m) }, // feat 295
   equipment:     { title:'Equipment',    emoji:'🏗️', kind:'leaf', parent:'prepare', render:m=>renderEquipmentPage(m) }, // feat 193
   'plan-creator':{ title:'Plan Creator', emoji:'📝', kind:'leaf', parent:'prepare', render:m=>renderPlanCreatorPage(m) }, // feat 184
   'split-planner':{ title:'Split Planner', emoji:'🗓️', kind:'leaf', parent:'prepare', render:m=>renderSplitPlannerPage(m) }, // feat 229
@@ -19459,7 +19493,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 237 · 2026-06-20 11:32';
+const APP_BUILD = 'build 238 · 2026-06-20 12:15';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -19985,6 +20019,155 @@ function startHoldCue(i) {
       say(String(n));
     }, cfg.every * 1000);
   }, 1800);
+}
+/* ============================================================
+   feat 295 — HIIT BLOCKS. Coach-driven interval workouts: a fixed series of TIMED work + rest steps the engine
+   auto-runs while the voice urges you through it (work / rest / countdown). Time-based conditioning only. You can
+   pause any time — the pause is recorded. On finish the block logs to the session (per-exercise time sets + a
+   `hiitBlocks` summary with the pause accounting). Presets cover Tabata / HIIT / sprint / AMRAP shapes.
+   ============================================================ */
+const HIIT_BLOCKS = [
+  { id:'tabata-classic', name:'Tabata Classic', emoji:'🔥', tag:'4 min · 20s on / 10s off × 8', blurb:'The original Tabata protocol — twenty seconds all-out, ten seconds rest, eight rounds. Pick one hard movement and empty the tank.', prep:10, work:20, rest:10, rounds:8, exercises:['7483a88e-9369-4751-a0d2-97727a6c6c97'] },
+  { id:'tabata-mixed', name:'Tabata Mixed', emoji:'♻️', tag:'4 min · alternating × 8', blurb:'Tabata with two alternating movements — burpees and mountain climbers, twenty on / ten off. No two rounds the same.', prep:10, work:20, rest:10, rounds:8, exercises:['7483a88e-9369-4751-a0d2-97727a6c6c97','5b23b98b-5b11-482f-bd98-fffb2f435d44'] },
+  { id:'battle-rope-intervals', name:'Battle Rope Intervals', emoji:'🌊', tag:'10 rounds · 30s on / 30s off', blurb:'Alternating battle-rope patterns — waves, then double slams — thirty seconds hard, thirty to recover, ten rounds. Grip and lungs both get tested.', prep:10, work:30, rest:30, rounds:10, exercises:['77e61934-ec74-4d43-8a5b-143fdf9be6a6'] },
+  { id:'bodyweight-hiit', name:'Bodyweight HIIT 30/30', emoji:'⚡', tag:'9 rounds · 30s on / 30s off', blurb:'No equipment, no excuses — burpees, mountain climbers and jump rope on a thirty/thirty clock, three times through. A full conditioning hit anywhere.', prep:10, work:30, rest:30, rounds:9, exercises:['7483a88e-9369-4751-a0d2-97727a6c6c97','5b23b98b-5b11-482f-bd98-fffb2f435d44','c4ba4621-e379-40a0-871f-f7f672e4273b'] },
+  { id:'sprint-intervals', name:'Sprint Intervals', emoji:'🏃', tag:'6 × 30s sprint / 90s easy', blurb:'Classic sprint conditioning — thirty seconds near-max, ninety seconds easy to recover, six rounds. Treadmill, track or bike. Honest efforts only.', prep:15, work:30, rest:90, rounds:6, exercises:['e0216af0-a278-4299-ad45-817ff88e88a1'] },
+  { id:'amrap-six', name:'AMRAP 6:00 Burner', emoji:'💥', tag:'6 min · as many as possible', blurb:'One clock, six minutes, no rest — as many quality reps as you can hold. Pace it: go out too hot and you will pay. Burpees the whole way.', prep:10, work:360, rest:0, rounds:1, exercises:['7483a88e-9369-4751-a0d2-97727a6c6c97'] },
+];
+function hiitBlock(id) { return HIIT_BLOCKS.find(b => b.id === id) || null; }
+// Expand a block's rounds into a flat step list: [prep?, (work, rest) × rounds] (no rest after the last round).
+function hiitFlatten(block) {
+  const steps = [];
+  if (block.prep > 0) steps.push({ kind:'prep', sec: block.prep, label:'Get ready' });
+  const exs = block.exercises || [];
+  for (let r = 0; r < block.rounds; r++) {
+    const uuid = exs.length ? exs[r % exs.length] : null;
+    steps.push({ kind:'work', sec: block.work, label: uuid ? displayName(uuid) : 'Work', varUuid: uuid || null, round: r + 1 });
+    if (block.rest > 0 && r < block.rounds - 1) steps.push({ kind:'rest', sec: block.rest, label:'Rest', round: r + 1 });
+  }
+  return steps;
+}
+let _hiit = null;
+function hiitActive() { return !!_hiit; }
+function hiitState() { return _hiit; }
+function startHiitBlock(id) {
+  if (typeof roBlocked === 'function' && roBlocked('start a HIIT block')) return;
+  const block = (id && typeof id === 'object') ? id : hiitBlock(id);
+  if (!block) return;
+  if (_hiit) hiitFinish(false);                 // replace any running block
+  if (typeof cancelHoldCue === 'function') cancelHoldCue();
+  const steps = hiitFlatten(block);
+  if (!steps.length) return;
+  _hiit = { block, steps, idx: 0, remMs: steps[0].sec * 1000, lastMs: Date.now(), paused: false, pauseStartMs: 0, pausedMs: 0, pauseCount: 0, log: [], done: false, iv: null };
+  _hiit.iv = setInterval(hiitTick, 200);
+  hiitCueStep(steps[0]);
+  renderHiitRunner();
+}
+function hiitCueStep(step) {
+  if (!step) return;
+  const txt = step.kind === 'prep' ? 'Get ready' : step.kind === 'rest' ? 'Rest' : ('Work — ' + (step.label || 'go'));
+  try { if (typeof annunce === 'function') annunce(txt); } catch (_) {}
+  try { if (typeof metroBeep === 'function') metroBeep(step.kind === 'work' ? 988 : 660, 0.4); } catch (_) {}
+}
+function hiitTick() {
+  const h = _hiit; if (!h || h.paused || h.done) return;
+  const now = Date.now(), dt = now - h.lastMs; h.lastMs = now;
+  const prevSec = Math.ceil(h.remMs / 1000);
+  h.remMs -= dt;
+  const curSec = Math.ceil(h.remMs / 1000);
+  if (curSec !== prevSec && curSec > 0 && curSec <= 3) { try { if (typeof metroBeep === 'function') metroBeep(784, 0.35); } catch (_) {} } // last-3s countdown
+  if (h.remMs <= 0) { _hiitAdvance(false); return; }
+  renderHiitRunner();
+}
+function _hiitAdvance(skipped) {
+  const h = _hiit; if (!h) return;
+  const step = h.steps[h.idx];
+  if (step && step.kind === 'work') {
+    const doneSec = skipped ? Math.max(1, Math.round((step.sec * 1000 - Math.max(0, h.remMs)) / 1000)) : step.sec;
+    h.log.push({ varUuid: step.varUuid, sec: doneSec, round: step.round });
+  }
+  h.idx++;
+  if (h.idx >= h.steps.length) { hiitFinish(true); return; }
+  h.remMs = h.steps[h.idx].sec * 1000; h.lastMs = Date.now();
+  hiitCueStep(h.steps[h.idx]);
+  renderHiitRunner();
+}
+function hiitSkip() { if (_hiit && !_hiit.done) _hiitAdvance(true); }
+function hiitPause() { const h = _hiit; if (!h || h.paused || h.done) return; h.paused = true; h.pauseStartMs = Date.now(); h.pauseCount++; renderHiitRunner(); }
+function hiitResume() { const h = _hiit; if (!h || !h.paused) return; h.pausedMs += Date.now() - h.pauseStartMs; h.paused = false; h.lastMs = Date.now(); renderHiitRunner(); }
+function hiitToggle() { const h = _hiit; if (!h) return; h.paused ? hiitResume() : hiitPause(); }
+function hiitStop() { if (_hiit) hiitFinish(false); }
+function hiitFinish(completed) {
+  const h = _hiit; if (!h) return null;
+  try { clearInterval(h.iv); } catch (_) {}
+  if (h.paused) { h.pausedMs += Date.now() - h.pauseStartMs; h.paused = false; }
+  h.done = true;
+  const session = hiitFinalize(h, completed);
+  _hiit = null;
+  renderHiitRunner();
+  try { if (typeof render === 'function') render(); } catch (_) {}
+  try { toast(completed ? '🔥 HIIT block complete' : 'HIIT block stopped'); } catch (_) {}
+  return session;
+}
+// Record a finished/stopped block onto the session: per-exercise TIME sets (seconds) + a rich hiitBlocks summary
+// (rounds done, recorded pause time). Uses the active session if any, else starts one.
+function hiitFinalize(h, completed) {
+  if (!h || !h.log.length) return null;
+  let session = (typeof getActiveSession === 'function') ? getActiveSession() : null;
+  if (!session) { session = newSession({ startedManually: true }); state.sessions.push(session); }
+  const byVar = {}; h.log.forEach(e => { if (e.varUuid) (byVar[e.varUuid] = byVar[e.varUuid] || []).push(e.sec); });
+  const nowIso = new Date().toISOString();
+  for (const uuid in byVar) {
+    let ex = (session.exercises || []).find(e => e.varUuid === uuid && !e.subUuid);
+    if (!ex) { ex = { varUuid: uuid, subUuid: null, sets: [] }; session.exercises.push(ex); }
+    byVar[uuid].forEach(sec => ex.sets.push({ w: '', r: sec, ts: nowIso, hiit: true }));
+  }
+  session.hiitBlocks = session.hiitBlocks || [];
+  session.hiitBlocks.push({ name: h.block.name, work: h.block.work, rest: h.block.rest, rounds: h.log.length, pausedSec: Math.round(h.pausedMs / 1000), pauses: h.pauseCount, completed: !!completed, at: nowIso });
+  if (typeof touchSession === 'function') touchSession(session);
+  saveState();
+  return session;
+}
+// The full-screen runner overlay (big timer + work/rest colour + controls). Driven live by hiitTick.
+function renderHiitRunner() {
+  const el = document.getElementById('hiit-runner'); if (!el) return;
+  const h = _hiit;
+  if (!h || h.done) { el.classList.remove('open'); el.innerHTML = ''; return; }
+  const step = h.steps[h.idx] || {};
+  const sec = Math.max(0, Math.ceil(h.remMs / 1000));
+  const next = h.steps[h.idx + 1];
+  const workRounds = h.steps.filter(s => s.kind === 'work').length;
+  const kindCls = step.kind === 'work' ? 'work' : (step.kind === 'rest' ? 'rest' : 'prep');
+  el.className = 'open ' + kindCls + (h.paused ? ' paused' : '');
+  el.innerHTML = `
+    <div class="hiit-top"><span class="hiit-name">${escapeHtml(h.block.name)}</span><button class="hiit-x" data-hiit="stop" title="Stop">✕</button></div>
+    <div class="hiit-stage">
+      <div class="hiit-kind">${step.kind === 'work' ? 'WORK' : step.kind === 'rest' ? 'REST' : 'GET READY'}</div>
+      <div class="hiit-timer">${formatSecondsClock(sec)}</div>
+      <div class="hiit-ex">${escapeHtml(step.label || '')}</div>
+      <div class="hiit-round">${step.kind === 'work' ? `Round ${step.round || 0} / ${workRounds}` : (next ? 'Next: ' + escapeHtml(next.label || '') : 'Last one!')}</div>
+      ${h.paused ? '<div class="hiit-paused-badge">⏸ Paused — recorded</div>' : ''}
+    </div>
+    <div class="hiit-controls">
+      <button class="hiit-btn" data-hiit="skip">⏭ Skip</button>
+      <button class="hiit-btn primary" data-hiit="toggle">${h.paused ? '▶ Resume' : '⏸ Pause'}</button>
+      <button class="hiit-btn danger" data-hiit="stop">⏹ Stop</button>
+    </div>
+    ${h.pauseCount ? `<div class="hiit-foot">⏸ ${h.pauseCount} pause${h.pauseCount === 1 ? '' : 's'} · ${Math.round(h.pausedMs / 1000)}s recorded</div>` : ''}`;
+  el.querySelectorAll('[data-hiit]').forEach(b => b.addEventListener('click', () => { const a = b.dataset.hiit; if (a === 'skip') hiitSkip(); else if (a === 'toggle') hiitToggle(); else if (a === 'stop') hiitStop(); }));
+}
+// feat 295 — the HIIT Blocks launcher page (Execute › HIIT Blocks).
+function renderHiitPage(main) {
+  if (!main) return;
+  const cards = HIIT_BLOCKS.map(b => `
+    <div class="card hiit-card">
+      <div class="hiit-card-head"><span class="hiit-card-emoji">${b.emoji}</span><div><div class="hiit-card-name">${escapeHtml(b.name)}</div><div class="hiit-card-tag">${escapeHtml(b.tag)}</div></div></div>
+      <div class="hiit-card-blurb">${escapeHtml(b.blurb)}</div>
+      <button class="hiit-start" data-hiit-start="${escapeAttr(b.id)}">▶ Start block</button>
+    </div>`).join('');
+  main.innerHTML = `<div class="card"><div class="card-title">⏱️ HIIT Blocks</div>
+    <div class="summary-intro">Coach-driven interval workouts — a fixed series of timed work and rest. The voice calls every round; you just move. <b>Pause any time — it's recorded.</b> Time-based conditioning only.</div></div>${cards}`;
+  main.querySelectorAll('[data-hiit-start]').forEach(b => b.addEventListener('click', () => startHiitBlock(b.dataset.hiitStart)));
 }
 function changeMetroBpm(delta) {
   const next = Math.max(20, Math.min(300, (metroCfg().bpm || 60) + delta));

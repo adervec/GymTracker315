@@ -1242,6 +1242,19 @@ They share variation **UUIDs**.
   emptied key; `countNonEmbeddableMedia` powers the button label. Read-only-guarded, save-on-change.
   `test/mediapurge.spec.mjs` (purge keeps embeds/images, removes link-only, drops emptied keys; toolbar button appears
   only with link-only media, carrying the count).
+- **HIIT Blocks — coach-driven interval timer (feat 295):** a new **Execute › HIIT Blocks** page (⏱️) of preset,
+  coach-driven interval workouts — a fixed series of **timed work + rest** the engine auto-runs while the voice urges
+  you through it. `hiitFlatten` expands a block (`{prep, work, rest, rounds, exercises[]}`) into a flat step list —
+  `prep`, then `(work, rest)` per round (rotating the exercises, no rest after the last round). The runtime (`_hiit`)
+  drives a 200 ms tick that counts down each step, **announces** work/rest transitions (`annunce`) with last-3-second
+  countdown beeps, and auto-advances; `_hiitAdvance` logs each completed work interval's seconds. A **full-screen
+  runner overlay** (`#hiit-runner`, work=green / rest=blue / prep=amber) shows the big timer, current exercise, round
+  X/N, and Skip / **Pause** / Stop. **Pausing is recorded** — `pauseCount` + accumulated `pausedMs` — and surfaced live
+  and in the saved summary. On finish/stop, `hiitFinalize` logs to the active-or-new session: per-exercise **time sets**
+  (seconds, `hiit:true`) plus a **`session.hiitBlocks`** entry `{name, work, rest, rounds, pausedSec, pauses,
+  completed, at}`. Six presets cover **Tabata** (classic + mixed), **battle-rope intervals**, **bodyweight 30/30**,
+  **sprint intervals** and an **AMRAP** burner — all time-based conditioning movements. `test/hiit.spec.mjs` (flatten
+  shape + rotation, preset validity, full walk → session log, pause accounting recorded, launcher + runner open/close).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
