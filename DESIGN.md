@@ -1267,6 +1267,18 @@ They share variation **UUIDs**.
   migrates from the old toggle. The registry is declared before `loadState()` so `normalizeState` reads it without a
   temporal-dead-zone error. `test/coachpersona.spec.mjs` (registry shape, per-persona pitch/rate, per-persona phrasing,
   picker persist + voice-sync, legacy migration); `coachvoice.spec` updated for the picker.
+- **Per-coach TTS voice (feat 297):** each persona now has its **own** TTS voice with a **sensible auto-default**.
+  `state.coachVoices` maps `personaId → 'auto' | 'system' | voiceURI`; `coachVoiceFor(persona)` resolves it ('system' →
+  device default, a voiceURI → that voice if present-on-device else fall back to auto). The **auto** pick is
+  persona-aware: `pickCoachVoiceFor` scores `getVoices()` against the persona's **`vbias`** (e.g. Gruff/Sergeant favour
+  a deep male voice, Zen leans softer/female, the Analyst a clear UK voice), so every coach starts on a fitting voice.
+  The Settings persona block gains a **per-coach voice `<select>`** (Auto-for-this-coach / System default / every device
+  voice, EN-first, UK/US tagged) for the *active* persona; choosing one persists to `state.coachVoices[id]` and previews
+  it in that voice. Neutral shows no picker (it uses the device default). The `onvoiceschanged` handler re-renders the
+  open drawer so the list fills once the OS reports its voices, and a legacy explicit `ttsVoice` URI migrates into the
+  active coach. `coachVoice()`/`pickCoachVoice()` stay as active-persona wrappers (back-compat). `test/
+  coachpersona.spec.mjs` (per-persona auto-pick differs by bias, explicit + system per-coach choices win, the settings
+  voice picker renders + persists, neutral has none); `coachvoice.spec` updated to the per-coach override.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

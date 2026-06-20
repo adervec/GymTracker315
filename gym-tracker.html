@@ -934,6 +934,8 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .coach-persona .cp-name { font-size: 12.5px; font-weight: 800; }
   .coach-persona .cp-tag { font-size: 9.5px; color: var(--text3); }
   .coach-persona.active .cp-tag { color: var(--accent); }
+  .coach-voice-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+  .coach-voice-lbl { font-size: 12px; font-weight: 700; color: var(--text2); }
   .sp-days { display: flex; flex-direction: column; gap: 7px; }
   .sp-day { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
   .sp-day-slot { flex-shrink: 0; width: 64px; }
@@ -4158,7 +4160,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
-  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','metronome','annunciation','plans','seededPlanIds','hrDevice',
+  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','metronome','annunciation','plans','seededPlanIds','hrDevice',
   'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
@@ -4362,6 +4364,8 @@ function normalizeState() {
   if (typeof state.ttsTips !== 'boolean') state.ttsTips = true;
   if (typeof state.ttsVoice !== 'string') state.ttsVoice = 'auto'; // feat 210 — 'auto' = the gruff coach pick; 'system' = untouched
   if (typeof state.coachPersona !== 'string' || !COACH_PERSONAS.some(p => p.id === state.coachPersona)) state.coachPersona = (state.ttsVoice === 'system') ? 'neutral' : 'gruff'; // feat 296 — derive from the legacy voice toggle
+  if (!state.coachVoices || typeof state.coachVoices !== 'object') state.coachVoices = {}; // feat 297 — per-persona TTS voice (id → 'auto'|'system'|voiceURI)
+  if (state.ttsVoice && state.ttsVoice !== 'auto' && state.ttsVoice !== 'system' && !state.coachVoices[state.coachPersona]) { state.coachVoices[state.coachPersona] = state.ttsVoice; state.ttsVoice = 'auto'; } // migrate a legacy explicit voiceURI to the active coach
   if (typeof state.audioHeadphonesOnly !== 'boolean') state.audioHeadphonesOnly = true; // feat 105 — default on
   // feat 144 — default minimum completion % (0..100). 1% means "even 1 set counts the step as done".
   { const m = Number(state.planDefaults.minPct); state.planDefaults.minPct = isNaN(m) ? 1 : Math.min(100, Math.max(0, m)); }
@@ -6792,6 +6796,23 @@ function renderSettingsDrawer() {
       <div class="coach-persona-pick">
         ${COACH_PERSONAS.map(p => `<button type="button" class="coach-persona ${(state.coachPersona || 'gruff') === p.id ? 'active' : ''}" data-coach-persona="${escapeAttr(p.id)}" title="${escapeAttr(p.desc)}"><span class="cp-emoji">${p.emoji}</span><span class="cp-name">${escapeHtml(p.name)}</span><span class="cp-tag">${escapeHtml(p.tag)}</span></button>`).join('')}
       </div>
+      ${(() => { // feat 297 — per-coach TTS voice picker for the ACTIVE persona
+        const ap = activeCoachPersona();
+        if (ap.sys) return `<div class="coach-voice-row"><span class="coach-voice-lbl">🔈 ${ap.emoji} ${escapeHtml(ap.name)}</span><span class="drawer-setting-sub" style="margin:0;">uses your device’s default voice</span></div>`;
+        let voices = []; try { voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (_) {}
+        voices = voices.slice().sort((a, b) => (/^en/i.test(b.lang) ? 1 : 0) - (/^en/i.test(a.lang) ? 1 : 0) || (a.name || '').localeCompare(b.name || ''));
+        const cur = coachVoiceChoice(ap.id);
+        const opt = (val, lbl, sel) => `<option value="${escapeAttr(val)}" ${sel ? 'selected' : ''}>${escapeHtml(lbl)}</option>`;
+        const tag = v => /en-gb/i.test(v.lang) ? ' (UK)' : /en-us/i.test(v.lang) ? ' (US)' : /^en/i.test(v.lang) ? ' (EN)' : (v.lang ? ' (' + v.lang + ')' : '');
+        return `<div class="coach-voice-row">
+          <span class="coach-voice-lbl">🔈 ${ap.emoji} ${escapeHtml(ap.name)} voice</span>
+          <select id="coach-voice-select" class="vw-select" style="max-width:170px;">
+            ${opt('auto', 'Auto — best for ' + ap.name, cur === 'auto')}
+            ${opt('system', 'System default', cur === 'system')}
+            ${voices.map(v => opt(v.voiceURI, v.name + tag(v), cur === v.voiceURI)).join('')}
+          </select>
+        </div>${voices.length ? '' : '<div class="drawer-setting-sub">Loading device voices…</div>'}`;
+      })()}
     </div>
     <div class="drawer-setting-row">
       <div>
@@ -7813,6 +7834,8 @@ function renderSettingsDrawer() {
     state.holdCue = { ...holdCueCfg(), [b.dataset.holdcue]: b.dataset.holdcueVal === 'on' }; saveState(); renderSettingsDrawer();
   }));
   body.querySelectorAll('[data-coach-persona]').forEach(b => b.addEventListener('click', () => selectCoachPersona(b.dataset.coachPersona))); // feat 296
+  const cvSel = body.querySelector('#coach-voice-select'); // feat 297 — per-coach TTS voice
+  if (cvSel) cvSel.addEventListener('change', () => setCoachVoice(state.coachPersona, cvSel.value));
   const hcEvery = body.querySelector('#drawer-holdcue-every');
   if (hcEvery) hcEvery.addEventListener('change', () => { const v = parseInt(hcEvery.value); if (!isNaN(v)) { state.holdCue = { ...holdCueCfg(), every: Math.max(1, Math.min(60, v)) }; saveState(); } });
   // Rest cue timer settings (feat 104)
@@ -19411,16 +19434,16 @@ installErrorHandlers();
    work/rest/prep, the hold "go"). 'neutral' = the device's own voice, untouched (ttsVoice 'system'). */
 const COACH_PERSONAS = [
   { id:'neutral',  name:'Neutral',        emoji:'🎙️', tag:'system voice, untouched', desc:'Clean, calm announcements in your device’s own voice.', pitch:1, rate:1, sys:true, sample:'Neutral coach. Ready when you are.' },
-  { id:'gruff',    name:'Gruff Coach',    emoji:'💪', tag:'deep · tough but fair', desc:'Deep and gruff — the default. Get under the bar.', pitch:0.8, rate:0.95, sample:'Coach voice on. Get under the bar.' },
-  { id:'hype',     name:'Hype Coach',     emoji:'🔥', tag:'high energy · all gas', desc:'Loud, fast and fired up — every set is a moment.', pitch:1.18, rate:1.12, sample:'Let’s GO! Big energy — leave nothing in the tank!',
+  { id:'gruff',    name:'Gruff Coach',    emoji:'💪', tag:'deep · tough but fair', desc:'Deep and gruff — the default. Get under the bar.', pitch:0.8, rate:0.95, sample:'Coach voice on. Get under the bar.', vbias:{ male:4, female:-4, gb:1, local:1, default:0.5 } },
+  { id:'hype',     name:'Hype Coach',     emoji:'🔥', tag:'high energy · all gas', desc:'Loud, fast and fired up — every set is a moment.', pitch:1.18, rate:1.12, sample:'Let’s GO! Big energy — leave nothing in the tank!', vbias:{ male:2, female:-1, us:1, local:1, default:1 },
     flavor:{ setStart:(b)=>"Let’s go! "+b+"!", setEnd:(b)=>b+" — let’s GO!", hiitWork:(b,c)=>"Go go go! "+(c.ex||'work')+"!", hiitRest:()=>"Breathe — you earned it!", hiitPrep:()=>"Here we go!", go:()=>"GO!" } },
-  { id:'zen',      name:'Zen Coach',      emoji:'🧘', tag:'calm · mindful', desc:'Soft and unhurried — steady breath, controlled tempo.', pitch:0.92, rate:0.84, sample:'Settle in. Steady breath, controlled tempo.',
+  { id:'zen',      name:'Zen Coach',      emoji:'🧘', tag:'calm · mindful', desc:'Soft and unhurried — steady breath, controlled tempo.', pitch:0.92, rate:0.84, sample:'Settle in. Steady breath, controlled tempo.', vbias:{ female:3, male:-1, gb:1, local:1, default:0.5 },
     flavor:{ setStart:(b)=>b+". Breathe.", setEnd:(b)=>b+". Nice and easy.", hiitWork:(b,c)=>"Begin. "+(c.ex||''), hiitRest:()=>"Rest. Soften the breath.", hiitPrep:()=>"Settle in.", go:()=>"Begin." } },
-  { id:'sergeant', name:'Drill Sergeant', emoji:'🎖️', tag:'loud · no excuses', desc:'In your face — commands, not suggestions.', pitch:0.78, rate:1.06, sample:'On your feet! No excuses — you move when I say move!',
+  { id:'sergeant', name:'Drill Sergeant', emoji:'🎖️', tag:'loud · no excuses', desc:'In your face — commands, not suggestions.', pitch:0.78, rate:1.06, sample:'On your feet! No excuses — you move when I say move!', vbias:{ male:5, female:-4, us:1, local:1 },
     flavor:{ setStart:(b)=>b.toUpperCase()+", MOVE!", setEnd:(b)=>b.toUpperCase()+"!", hiitWork:(b,c)=>(c.ex||'WORK').toUpperCase()+", NOW! GO!", hiitRest:()=>"REST! SHAKE IT OUT!", hiitPrep:()=>"ON YOUR FEET!", go:()=>"GO! GO! GO!" } },
-  { id:'analyst',  name:'The Analyst',    emoji:'🔬', tag:'precise · technical', desc:'Measured and methodical — cues tempo, form and output.', pitch:1, rate:0.98, sample:'Prepare. Control the tempo, own the output.',
+  { id:'analyst',  name:'The Analyst',    emoji:'🔬', tag:'precise · technical', desc:'Measured and methodical — cues tempo, form and output.', pitch:1, rate:0.98, sample:'Prepare. Control the tempo, own the output.', vbias:{ male:1, gb:1, local:1, default:1 },
     flavor:{ setStart:(b)=>b+". Control the tempo.", setEnd:(b)=>b+". Log it.", hiitWork:(b,c)=>(c.ex||'work')+". Steady output.", hiitRest:()=>"Rest. Bring the heart rate down.", hiitPrep:()=>"Prepare. Set your position.", go:()=>"Execute." } },
-  { id:'buddy',    name:'Hype Buddy',     emoji:'🤙', tag:'supportive · chill', desc:'Your encouraging gym partner — upbeat and easygoing.', pitch:1.06, rate:1, sample:'Alright, let’s do this — you got this.',
+  { id:'buddy',    name:'Hype Buddy',     emoji:'🤙', tag:'supportive · chill', desc:'Your encouraging gym partner — upbeat and easygoing.', pitch:1.06, rate:1, sample:'Alright, let’s do this — you got this.', vbias:{ male:2, local:1, default:1 },
     flavor:{ setStart:(b)=>b+" — you got this.", setEnd:(b)=>"Nice! "+b, hiitWork:(b,c)=>"You got this — "+(c.ex||'go')+"!", hiitRest:()=>"Good work, breathe it out.", hiitPrep:()=>"Alright, let’s do this.", go:()=>"Let’s go!" } },
 ];
 loadState();
@@ -19519,7 +19542,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 239 · 2026-06-20 12:47';
+const APP_BUILD = 'build 240 · 2026-06-20 13:04';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -19739,20 +19762,28 @@ function annunciationCfg() { return { start:false, end:false, startLimit:0, endL
    known-voice heuristics, female names score down) and drop pitch to 0.8. state.ttsVoice: 'auto' (the
    coach pick, default) | 'system' (leave everything alone) | an explicit voiceURI/name override. */
 let _coachVoice = null;
-function pickCoachVoice() {
+// feat 297 — per-persona auto-pick: score device voices against the persona's voice bias (vbias). Each coach
+// has a sensible default kind of voice (gruff/sergeant → deep male, zen → softer, analyst → clear, …).
+function pickCoachVoiceFor(persona) {
   try {
     if (typeof window === 'undefined' || !window.speechSynthesis) return null;
     const vs = window.speechSynthesis.getVoices() || [];
     if (!vs.length) return null;
     const en = vs.filter(v => /^en/i.test(v.lang || ''));
     const pool = en.length ? en : vs;
+    const b = (persona && persona.vbias) || { male: 4, female: -4, gb: 1, local: 1, default: 0.5 };
     const MALE = /\b(male|david|mark|daniel|alex|fred|george|james|guy|ryan|aaron|arthur|reed|rocko)\b/i;
     const FEMALE = /\b(female|zira|susan|hazel|samantha|victoria|karen|moira|tessa|fiona|serena|kate|allison|ava|joanna|salli|kimberly|ivy|aria|jenny|sonia|natasha)\b/i;
-    const score = v => (MALE.test(v.name) ? 4 : 0) + (FEMALE.test(v.name) ? -4 : 0)
-      + (/uk english male|en-gb/i.test(v.name + ' ' + v.lang) ? 1 : 0) + (v.localService ? 1 : 0) + (v.default ? 0.5 : 0);
-    return pool.slice().sort((a, b) => score(b) - score(a))[0] || null;
+    const score = v => {
+      const nm = v.name || '', tag = nm + ' ' + (v.lang || '');
+      return (MALE.test(nm) ? (b.male || 0) : 0) + (FEMALE.test(nm) ? (b.female || 0) : 0)
+        + (/en-gb|uk english/i.test(tag) ? (b.gb || 0) : 0) + (/en-us|us english/i.test(tag) ? (b.us || 0) : 0)
+        + (v.localService ? (b.local || 0) : 0) + (v.default ? (b.default || 0) : 0);
+    };
+    return pool.slice().sort((a, b2) => score(b2) - score(a))[0] || null;
   } catch (_) { return null; }
 }
+function pickCoachVoice() { return pickCoachVoiceFor(activeCoachPersona()); } // back-compat (default persona bias)
 /* feat 296 — COACH PERSONAS. The spoken coach now has a PERSONALITY: a voice profile (pitch/rate) plus a phrasing
    flavour over the key cues (set start/end, HIIT work/rest/prep, the hold "go"). 'neutral' = the device's own
    voice, untouched (ttsVoice 'system'); every other persona has its own pitch/rate + word choices. coachPhrase()
@@ -19782,13 +19813,27 @@ function selectCoachPersona(id) {
   try { if (typeof annunce === 'function') annunce(p.sample || p.name); } catch (_) {}
   try { toast('Coach: ' + p.name); } catch (_) {}
 }
-function coachVoice() {
-  if (state.ttsVoice === 'system') return null;
-  if (state.ttsVoice && state.ttsVoice !== 'auto') {
-    try { const vs = window.speechSynthesis.getVoices() || []; const m = vs.find(v => v.voiceURI === state.ttsVoice || v.name === state.ttsVoice); if (m) return m; } catch (_) {}
+// feat 297 — the chosen TTS voice for a persona: state.coachVoices[personaId] ∈ 'auto' (best-fit pick) |
+// 'system' (device default, null) | a voiceURI/name. Falls back to the auto-pick if a saved voice is absent here.
+function coachVoiceChoice(personaId) { return (state.coachVoices && state.coachVoices[personaId]) || (coachPersona(personaId) && coachPersona(personaId).sys ? 'system' : 'auto'); }
+function coachVoiceFor(persona) {
+  persona = persona || activeCoachPersona();
+  const choice = coachVoiceChoice(persona.id);
+  if (choice === 'system') return null;
+  if (choice !== 'auto') {
+    try { const vs = window.speechSynthesis.getVoices() || []; const m = vs.find(v => v.voiceURI === choice || v.name === choice); if (m) return m; } catch (_) {} // saved voice; fall through if missing on this device
   }
-  if (!_coachVoice) _coachVoice = pickCoachVoice();
-  return _coachVoice;
+  return pickCoachVoiceFor(persona);
+}
+function coachVoice() { return coachVoiceFor(activeCoachPersona()); }
+// Set a persona's voice (per coach), persist, then preview it with the persona's sample line.
+function setCoachVoice(personaId, value) {
+  const p = coachPersona(personaId); if (!p) return;
+  if (!state.coachVoices || typeof state.coachVoices !== 'object') state.coachVoices = {};
+  state.coachVoices[personaId] = value;
+  _coachVoice = null; saveState();
+  try { renderSettingsDrawer(); } catch (_) {}
+  if (personaId === state.coachPersona) { try { if (typeof annunce === 'function') annunce(p.sample || p.name); } catch (_) {} }
 }
 // Apply the active persona's voice profile to an utterance. 'system' (neutral) leaves it untouched (feat 210);
 // otherwise the persona sets pitch + rate and the coach voice pick is applied (feat 296).
@@ -19800,7 +19845,7 @@ function coachify(u) {
   try { const v = coachVoice(); if (v) u.voice = v; } catch (_) {}
   return u;
 }
-try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.onvoiceschanged = () => { _coachVoice = null; }; } catch (_) {} // voices arrive async — refresh the pick
+try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.onvoiceschanged = () => { _coachVoice = null; try { if (document.getElementById('coach-voice-select') || document.querySelector('[data-coach-persona]')) renderSettingsDrawer(); } catch (_) {} }; } catch (_) {} // voices arrive async — refresh the pick + the per-coach voice list
 
 let _annDuckActive = false, _annDuckTimer = null;
 function duckedVol() { return sndVol() * (_annDuckActive ? 0.3 : 1); }

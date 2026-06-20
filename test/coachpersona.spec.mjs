@@ -91,6 +91,57 @@ test('feat 296 — the settings persona picker renders pills and selecting one p
   expect(r.inKeys).toBe(true);
 });
 
+test('feat 297 — each persona auto-picks a logical default voice; explicit + system per-coach choices win', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const fake = [
+      { name: 'Microsoft David - English (United States)', lang: 'en-US', localService: true, default: false, voiceURI: 'david' },
+      { name: 'Microsoft Zira - English (United States)', lang: 'en-US', localService: true, default: true, voiceURI: 'zira' },
+      { name: 'Daniel', lang: 'en-GB', localService: true, default: false, voiceURI: 'daniel' },
+    ];
+    window.speechSynthesis.getVoices = () => fake;
+    state.coachVoices = {}; _coachVoice = null;
+    const auto = (id) => { const p = coachPersona(id); const v = coachVoiceFor(p); return v && v.name; };
+    const gruffAuto = auto('gruff');        // deep male bias → David/Daniel (male), never Zira
+    const zenAuto = auto('zen');            // softer bias → leans to the female-named Zira
+    state.coachVoices = { gruff: 'zira' };  // explicit per-coach override
+    const gruffExplicit = coachVoiceFor(coachPersona('gruff')).name;
+    state.coachVoices = { gruff: 'system' }; // per-coach "device default"
+    const gruffSystem = coachVoiceFor(coachPersona('gruff'));
+    return { gruffAuto, zenAuto, gruffExplicit, gruffSystem };
+  });
+  expect(r.gruffAuto).toMatch(/David|Daniel/);   // a male voice for the gruff coach
+  expect(r.gruffAuto).not.toMatch(/Zira/);
+  expect(r.zenAuto).toMatch(/Zira/);             // the softer-biased default differs from gruff
+  expect(r.gruffExplicit).toMatch(/Zira/);       // explicit per-coach voice is honored
+  expect(r.gruffSystem).toBeNull();              // 'system' ⇒ device default (no override)
+});
+
+test('feat 297 — the settings show a per-coach voice picker for the active persona; choosing one persists', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.sound = { ...(state.sound || {}), audio: false };
+    const fake = [{ name: 'Microsoft David', lang: 'en-US', localService: true, default: false, voiceURI: 'david' }];
+    window.speechSynthesis.getVoices = () => fake;
+    state.coachPersona = 'gruff'; state.coachVoices = {};
+    renderSettingsDrawer();
+    const body = document.getElementById('settings-drawer-body');
+    const hasSelect = !!body.querySelector('#coach-voice-select');
+    const optionVals = [...body.querySelectorAll('#coach-voice-select option')].map(o => o.value);
+    setCoachVoice('gruff', 'david');
+    const persisted = (JSON.parse(localStorage.getItem('overload_tracker_v2')).coachVoices || {}).gruff;
+    // neutral persona shows no select (it uses the system voice)
+    selectCoachPersona('neutral');
+    const neutralHasSelect = !!document.getElementById('coach-voice-select');
+    return { hasSelect, optionVals, persisted, neutralHasSelect, inKeys: SETTINGS_KEYS.includes('coachVoices') };
+  });
+  expect(r.hasSelect).toBe(true);
+  expect(r.optionVals).toContain('auto');
+  expect(r.optionVals).toContain('system');
+  expect(r.optionVals).toContain('david');
+  expect(r.persisted).toBe('david');
+  expect(r.neutralHasSelect).toBe(false);   // neutral has no per-coach voice (system default)
+  expect(r.inKeys).toBe(true);
+});
+
 test('feat 296 — coachPersona migrates from the legacy ttsVoice toggle', async ({ page }) => {
   const r = await page.evaluate(() => {
     delete state.coachPersona; state.ttsVoice = 'system'; normalizeState();
