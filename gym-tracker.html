@@ -212,6 +212,12 @@ body.brand-hidden { --topbar-h: 44px; } /* brand hidden → just the controls ro
 body.workout-active { --topbar-h: 122px; }              /* 82 + 40 */
 body.brand-hidden.workout-active { --topbar-h: 84px; }  /* 44 + 40 (two-class selector wins by specificity) */
 .topbar-brand-btn { background: none; border: none; cursor: pointer; padding: 3px 12px; display: flex; align-items: center; -webkit-tap-highlight-color: transparent; }
+/* feat 290 — top-bar identity: profile name + synced-account avatar, pinned left (mirrors topbar-live on the right) */
+.topbar-identity { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 5px; background: none; border: none; cursor: pointer; padding: 2px 4px; max-width: 34%; overflow: hidden; -webkit-tap-highlight-color: transparent; }
+.topbar-identity .ti-pfp { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border2); flex-shrink: 0; background: var(--bg3); }
+.topbar-identity .ti-name { font-size: 12px; font-weight: 700; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-identity .ti-lock { font-size: 9px; opacity: 0.65; flex-shrink: 0; }
+body.has-topbar-live .topbar-identity { max-width: 26%; } /* leave room for the live HR/elapsed stats */
 .topbar-ctrl-row { display: flex; align-items: stretch; height: 44px; flex-shrink: 0; }
 .topbar-shortcut-row { display: none; height: 40px; flex-shrink: 0; border-top: 1px solid var(--nav-border); }
 body.workout-active .topbar-shortcut-row { display: flex; }
@@ -799,7 +805,7 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   /* feat 148 — the Log-Sets sheet (#trk-modal) is a full-screen fixed overlay, so unlike .panel it sat at top:0
      and the fixed top bar + rest/plan-step HUD bars floated OVER its top content (clipping the exercise + sets).
      Push the sheet down to start below whichever bars are showing. Mirrors the .panel offsets above. */
-  #trk-modal { top: var(--topbar-h); }
+  #trk-modal { top: var(--topbar-h); transition: none; } /* feat 278 — Exercise page renders in place (no bottom slide-in); it's a router destination, not a popup */
   body.rest-bar-on #trk-modal { top: calc(var(--topbar-h) + 30px); }
   body.rest-bar-idle #trk-modal { top: calc(var(--topbar-h) + 18px); }
   body.plan-step-bar-on #trk-modal { top: calc(var(--topbar-h) + 24px); }
@@ -876,13 +882,50 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .sp-chip.active { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
   .sp-note { font-size: 11.5px; color: var(--warn); margin-top: 8px; line-height: 1.4; }
   /* feat 255 — themed split picker */
-  .sp-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .sp-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: 360px; overflow-y: auto; }
   .sp-theme { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); cursor: pointer; font-family: inherit; }
   .sp-theme.active { border-color: var(--accent); background: var(--accent-bg); }
   .sp-theme-emoji { font-size: 17px; line-height: 1; }
   .sp-theme-name { font-size: 12.5px; font-weight: 800; }
   .sp-theme-tag { font-size: 10px; color: var(--text3); }
   .sp-theme.active .sp-theme-tag { color: var(--accent); }
+  /* feat 283 — collapsible split-planner sections + themed-split search/filter */
+  .sp-sec-head { cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
+  .sp-sec-chev { display: inline-block; font-size: 11px; color: var(--text3); transition: transform 0.12s; margin-right: 2px; }
+  .sp-sec.collapsed .sp-sec-body { display: none; }
+  .sp-sec-count { font-size: 11px; color: var(--text3); font-weight: 600; }
+  .sp-theme-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .sp-theme-search { flex: 1 1 150px; min-width: 120px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 12.5px; font-family: inherit; }
+  .sp-theme-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sp-theme-days { font-size: 10px; color: var(--accent2, var(--accent)); font-weight: 700; }
+  .sp-theme-none { font-size: 12px; color: var(--text3); padding: 8px 2px; }
+  /* feat 284 — weekly Summary cards */
+  .summary-intro { font-size: 12px; color: var(--text2); line-height: 1.5; }
+  .summary-empty { font-size: 12.5px; color: var(--text3); text-align: center; padding: 6px 2px; }
+  .summary-week.rest { opacity: 0.72; }
+  .summary-week-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .summary-week-when { font-size: 13.5px; font-weight: 800; }
+  .summary-week-meta { font-size: 11px; color: var(--text3); white-space: nowrap; }
+  .summary-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+  .summary-list li { font-size: 12.5px; line-height: 1.4; padding: 5px 9px; border-radius: 8px; border-left: 3px solid var(--border2); background: var(--bg3); }
+  .summary-list li.sm-hi { border-left-color: #3fb950; }
+  .summary-list li.sm-lo { border-left-color: var(--warn); }
+  /* feat 292 — fitness focus & archetype */
+  .focus-arch { display: flex; align-items: center; gap: 14px; }
+  .focus-arch-emoji { font-size: 44px; line-height: 1; flex-shrink: 0; }
+  .focus-arch-lbl { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .focus-arch-name { font-size: 20px; font-weight: 800; color: var(--accent); line-height: 1.15; margin: 1px 0 4px; }
+  .focus-arch-blurb { font-size: 12.5px; color: var(--text2); line-height: 1.5; }
+  .focus-arch-sec { font-size: 11.5px; color: var(--text3); margin-top: 6px; }
+  .focus-radar-wrap { display: flex; justify-content: center; padding: 4px 0 10px; }
+  .focus-radar { max-width: 100%; height: auto; }
+  .focus-dims { display: flex; flex-direction: column; gap: 9px; }
+  .focus-dim-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .focus-dim-name { font-size: 12.5px; font-weight: 700; }
+  .focus-dim-pct { font-size: 12px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .focus-dim-bar { height: 8px; border-radius: 5px; background: var(--bg3); overflow: hidden; margin-top: 3px; }
+  .focus-dim-fill { height: 100%; background: var(--accent); border-radius: 5px; }
+  .focus-dim-sub { font-size: 10.5px; color: var(--text3); margin-top: 3px; }
   .sp-days { display: flex; flex-direction: column; gap: 7px; }
   .sp-day { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
   .sp-day-slot { flex-shrink: 0; width: 64px; }
@@ -1044,6 +1087,30 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-edit-intensity { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
   /* feat 162 — plan revision bar + history */
   .plan-rev-bar { background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; padding: 7px 9px; margin: 8px 0 4px; }
+  /* feat 276 — read-only plan view: banner + hide every mutating control, freeze pills */
+  .plan-ro-banner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--accent-bg, rgba(180,138,255,0.12)); border: 1px solid var(--accent-border, rgba(180,138,255,0.4)); border-radius: 9px; padding: 9px 11px; margin: 6px 0 4px; font-size: 12.5px; color: var(--text2); }
+  .plan-ro-banner b { color: var(--accent, #b48aff); }
+  .plan-ro-banner .drawer-btn { margin-left: auto; }
+  .plan-ro-wrap #plan-commit-btn, .plan-ro-wrap #plan-revert-btn, .plan-ro-wrap #plan-author-btn,
+  .plan-ro-wrap [data-step-up], .plan-ro-wrap [data-step-down], .plan-ro-wrap [data-step-del],
+  .plan-ro-wrap [data-add-opt], .plan-ro-wrap [data-opt-del], .plan-ro-wrap #plan-add-step-btn,
+  .plan-ro-wrap .plan-media-add, .plan-ro-wrap #plan-media-add-btn, .plan-ro-wrap #plan-media-del { display: none !important; }
+  .plan-ro-wrap .plan-edit-opt { padding-right: 8px; }
+  .plan-ro-wrap .pei-pill, .plan-ro-wrap .pel-pill { pointer-events: none; }
+  .plan-ro-wrap input:disabled, .plan-ro-wrap textarea:disabled { opacity: 1; color: var(--text); -webkit-text-fill-color: var(--text); }
+  /* feat 277 — sibling plans (same exercises/order, different volume/intensity), colour-coded by effort */
+  .plan-siblings { margin-top: 14px; border-top: 1px solid var(--border2); padding-top: 10px; }
+  .plan-sib-head { font-size: 12.5px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+  .plan-sib-note { display: block; font-size: 10.5px; font-weight: 400; color: var(--text3); margin-top: 2px; }
+  .plan-sib-row { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; background: var(--bg3); border: 1px solid var(--border2); border-left-width: 4px; border-radius: 8px; padding: 8px 11px; margin-bottom: 6px; cursor: pointer; font-family: inherit; }
+  .plan-sib-row .psib-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .plan-sib-row.eff-low { border-left-color: #3fb950; } .plan-sib-row.eff-low .psib-dot { background: #3fb950; }
+  .plan-sib-row.eff-mid { border-left-color: #d2bd2a; } .plan-sib-row.eff-mid .psib-dot { background: #d2bd2a; }
+  .plan-sib-row.eff-high { border-left-color: #e5534b; } .plan-sib-row.eff-high .psib-dot { background: #e5534b; }
+  .psib-main { flex: 1; min-width: 0; }
+  .psib-name { display: block; font-size: 13px; font-weight: 700; color: var(--text); }
+  .psib-sub { display: block; font-size: 10.5px; color: var(--text3); }
+  .psib-rel { font-size: 11px; font-weight: 700; color: var(--text2); white-space: nowrap; }
   .prb-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; }
   .prb-rev { font-weight: 800; color: var(--text); background: var(--bg4); border-radius: 5px; padding: 1px 7px; }
   .prb-author { background: none; border: none; color: var(--accent2); font: inherit; font-size: 11.5px; cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 2px; }
@@ -2695,6 +2762,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
     <button id="app-brand-btn" class="topbar-brand-btn" onclick="navTo('home')" title="Home — GymTracker315" aria-label="Home">
       <h1 id="app-brand" class="gt-brand" title="GymTracker315"><span class="gt-brand-mark">🏋️</span><span class="gt-brand-word">Gym<b>Tracker</b><sup class="gt-brand-num"><span class="gt-brand-d" data-lift="bench">3</span><span class="gt-brand-d" data-lift="dead">1</span><span class="gt-brand-d" data-lift="squat">5</span></sup></span></h1>
     </button>
+    <!-- feat 290 — current profile name + synced-account avatar (mandatory branding, consistent layout) -->
+    <button id="app-identity" class="topbar-identity" onclick="navTo('set-profile')" title="Profile" aria-label="Profile" style="display:none;"></button>
     <!-- feat 244 — live HR (💓 bpm + sparkline) + workout elapsed (⏱), next to the brand; hidden when empty -->
     <div id="topbar-live" class="topbar-live" aria-live="off"></div>
   </div>
@@ -4049,7 +4118,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
@@ -4242,6 +4311,7 @@ function normalizeState() {
   if (!state.studyPod || typeof state.studyPod !== 'object') state.studyPod = { resumeKey: null, lastListenDay: null, nudgeDay: null }; // feat 275 — resume + daily nudge
   if (typeof state.studyNudge !== 'boolean') state.studyNudge = true; // feat 275 — daily "X unread" nudge toggle
   if (!state.settingsCollapse || typeof state.settingsCollapse !== 'object') state.settingsCollapse = { theme: true };
+  state.hideBranding = false; // feat 290 — top branding is mandatory (consistent layout); the old hide toggle is retired
   if (!state.lang || typeof state.lang !== 'string') state.lang = 'en';
   if (typeof state.readonly !== 'boolean') state.readonly = false;
   if (typeof state.warnStaleBodyweight !== 'boolean') state.warnStaleBodyweight = true;
@@ -4298,7 +4368,13 @@ function normalizeState() {
   state.splitPlan.sessions = Math.max(2, Math.min(6, state.splitPlan.sessions | 0 || 3));
   state.splitPlan.days = Math.max(state.splitPlan.sessions, Math.min(7, state.splitPlan.days | 0 || 7));
   if (!(state.splitPlan.minutes >= 15 && state.splitPlan.minutes <= 240)) state.splitPlan.minutes = 60;
-  if (state.program && (!Array.isArray(state.program.week) || state.program.week.length !== 7 || !Array.isArray(state.program.pool))) state.program = null; // feat 230 — drop a malformed program
+  if (state.program) { // feat 230/282 — drop a malformed program (weekday week[7] OR a >7-day rotation)
+    const p = state.program;
+    const okWeek = Array.isArray(p.week) && p.week.length === 7 && Array.isArray(p.pool);
+    const okRot = p.mode === 'rotation' && Array.isArray(p.rotation) && p.rotation.length >= 8 && p.rotation.length <= 28
+      && Array.isArray(p.pool) && typeof p.start === 'string' && p.splitLen === p.rotation.length;
+    if (!okWeek && !okRot) state.program = null;
+  }
   if (!state.meso || typeof state.meso !== 'object') state.meso = { enabled: false, length: 4, start: null }; // feat 232 — periodization mesocycle
   state.meso.length = Math.max(3, Math.min(6, state.meso.length | 0 || 4));
   state.meso.enabled = !!state.meso.enabled;
@@ -4343,6 +4419,7 @@ function savePending() {
   try { localStorage.setItem(PENDING_KEY, JSON.stringify(pending)); } catch(e) {}
 }
 function clearPending() {
+  if (typeof cancelHoldCue === 'function') cancelHoldCue(); // feat 291 — stop any running hold count cue
   pending = { varUuid: null, subUuid: null, sets: [], cardio: null, defaultWeight: null, superset: null };
   localStorage.removeItem(PENDING_KEY);
 }
@@ -5454,7 +5531,9 @@ function cloudOriginAllowed(origin) {
 }
 
 const GOOGLE_GIS_SRC = 'https://accounts.google.com/gsi/client';
-const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+// feat 290 — request basic profile (name + avatar) alongside drive.appdata so the synced account can be shown.
+// openid + userinfo.profile are non-sensitive scopes; granted incrementally if only drive.appdata was given before.
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata openid https://www.googleapis.com/auth/userinfo.profile';
 const GOOGLE_STATE_FILENAME = 'gymtracker-state.json';
 
 let _cloudPushTimer = null;      // debounce handle for saveState-driven pushes
@@ -5473,6 +5552,28 @@ function cloudPersist() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify
 function cloudProviderActive() { const cs = state.cloudSync; return cs && cs.provider ? (CLOUD_PROVIDERS[cs.provider] || null) : null; }
 function cloudActive() { const cs = state.cloudSync; return !!(cs && cs.enabled && cs.provider && CLOUD_PROVIDERS[cs.provider]); }
 function cloudSetMeta(patch) { state.cloudSync = { ...(state.cloudSync || {}), ...patch }; cloudPersist(); }
+// feat 290 — synced-account identity (name + avatar). Populated best-effort after a cloud connect; drives the
+// mandatory top-bar identity, the Data sync card, and the profile-name lock. DEVICE-LOCAL (rides in cloudSync).
+function cloudAccount() { return cloudActive() ? ((state.cloudSync && state.cloudSync.account) || null) : null; }
+function cloudAccountName() { const a = cloudAccount(); return (a && a.name) ? a.name : null; }
+function cloudAccountPic() { const a = cloudAccount(); return (a && a.picture) ? a.picture : null; }
+function profileNameLocked() { return !!cloudAccountName(); } // an active cloud account force-locks the profile name
+function effectiveProfileName() { return profileNameLocked() ? cloudAccountName() : ((state.profile && state.profile.name) || ''); }
+function _applyProfileLock() { const n = cloudAccountName(); if (n && state.profile && state.profile.name !== n) { state.profile.name = n; saveState(); } }
+async function cloudRefreshAccount(providerId) {
+  try {
+    if (providerId === 'google') {
+      const hdr = await cloudGoogleAuthHeader();
+      const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: hdr });
+      if (r.ok) {
+        const j = await r.json();
+        const account = { provider: 'google', name: j.name || j.given_name || '', email: j.email || '', picture: j.picture || '' };
+        if (account.name || account.picture) { cloudSetMeta({ account }); _applyProfileLock(); try { refreshIdentity(); } catch (_) {} }
+      }
+    }
+    // Dropbox / OneDrive account info — added when those flows surface a profile endpoint (same `account` shape).
+  } catch (_) { /* best-effort: no avatar/name without profile consent — the manual profile name still shows */ }
+}
 
 // Dynamic SDK loader. Resolves immediately if the global is already present — which is also the
 // test seam (a stubbed window.google short-circuits the network load).
@@ -5777,14 +5878,16 @@ async function cloudFinishConnect(providerId) {
   await cloudPullNow(true);   // fold any existing remote state into local
   await cloudPushNow();       // seed/refresh the remote file with the merged result
   cloudSetMeta({ lastSync: new Date().toISOString(), lastError: null });
-  try { renderSettingsDrawer(); } catch (_) {}
+  try { await cloudRefreshAccount(providerId); } catch (_) {} // feat 290 — best-effort: synced account name + avatar
+  try { renderSettingsDrawer(); applyBranding(); } catch (_) {}
   toast('☁ ' + p.label + ' connected');
 }
 function cloudDisconnect() {
   const p = cloudProviderActive();
   try { if (p && p.disconnect) p.disconnect(); } catch (_) {}
-  cloudSetMeta({ enabled: false });
+  cloudSetMeta({ enabled: false, account: null }); // feat 290 — drop the synced identity; profile name unlocks
   renderSettingsDrawer();
+  try { applyBranding(); } catch (_) {}
   toast('Cloud sync disconnected');
 }
 async function cloudPullNow(silent) {
@@ -5845,10 +5948,21 @@ function cloudSyncCardHtml() {
   const connected = cs.enabled && cs.provider && CLOUD_PROVIDERS[cs.provider];
   if (connected) {
     const pLabel = CLOUD_PROVIDERS[cs.provider].label;
+    const acct = cloudAccount(); // feat 290 — synced account name + avatar (same will apply to other providers)
+    const acctRow = acct && (acct.name || acct.picture) ? `
+        <div style="display:flex;align-items:center;gap:9px;margin-top:8px;padding-top:8px;border-top:1px solid var(--accent-border);">
+          ${acct.picture ? `<img src="${escapeAttr(acct.picture)}" alt="" referrerpolicy="no-referrer" loading="lazy" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border2);flex-shrink:0;">` : '<span style="font-size:22px;flex-shrink:0;">👤</span>'}
+          <div style="min-width:0;">
+            <div style="font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(acct.name || 'Synced account')}</div>
+            ${acct.email ? `<div style="color:var(--text3);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(acct.email)}</div>` : ''}
+            <div style="color:var(--text3);font-size:10.5px;">🔒 Your profile name is locked to this account</div>
+          </div>
+        </div>` : '';
     return `
       <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
         <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">☁ ${escapeHtml(pLabel)} connected</div>
         <div style="color:var(--text2);">${cs.lastSync ? 'Last synced ' + escapeHtml(cloudShortTime(cs.lastSync)) : 'Not synced yet'}${cs.lastError ? ' · <span style="color:var(--warn);">' + escapeHtml(String(cs.lastError)) + '</span>' : ''}</div>
+        ${acctRow}
       </div>
       <div class="drawer-setting-row">
         <div><div class="drawer-setting-label">Sync after each workout</div><div class="drawer-setting-sub">Push immediately when a workout ends (in addition to the live auto-sync)</div></div>
@@ -6230,7 +6344,9 @@ function decorateSettingsSections(body) {
       const sec = document.createElement('div');
       sec.className = 'drawer-section';
       sec.dataset.sec = id;
-      if ((state.settingsCollapse || {})[id]) sec.classList.add('collapsed');
+      // feat 289 — sections default COLLAPSED; only an explicit `false` (the user expanded it) keeps it open,
+      // and that choice is remembered across navigation + reloads via state.settingsCollapse.
+      if (((state.settingsCollapse || {})[id]) !== false) sec.classList.add('collapsed');
       const header = document.createElement('button');
       header.type = 'button';
       header.className = 'drawer-section-header';
@@ -6269,7 +6385,7 @@ function applySettingsFilter(q) {
     const rows = sec.querySelectorAll('.drawer-setting-row');
     if (!q) {
       sec.style.display = '';
-      sec.classList.toggle('collapsed', !!(state.settingsCollapse || {})[id]);
+      sec.classList.toggle('collapsed', ((state.settingsCollapse || {})[id]) !== false); // feat 289 — default collapsed
       rows.forEach(r => r.style.display = '');
       anyVisible = true;
       return;
@@ -6552,10 +6668,11 @@ function renderSettingsDrawer() {
 
     <div class="drawer-section-title">Profile</div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Name</div>
-      <input type="text" id="prof-name" value="${escapeAttr(state.profile.name||'')}" placeholder="optional"
-        style="width:130px;padding:6px 8px;font-size:13px;border-radius:6px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+      <div class="drawer-setting-label">Name${profileNameLocked() ? ' 🔒' : ''}</div>
+      <input type="text" id="prof-name" value="${escapeAttr(effectiveProfileName())}" placeholder="optional" ${profileNameLocked() ? 'disabled title="Locked to your synced cloud account — disconnect cloud sync to edit"' : ''}
+        style="width:130px;padding:6px 8px;font-size:13px;border-radius:6px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);${profileNameLocked() ? 'opacity:0.7;' : ''}">
     </div>
+    ${profileNameLocked() ? `<div style="font-size:11px;color:var(--text3);margin:-4px 0 10px;">🔒 Locked to your synced cloud account (${escapeHtml(cloudAccountName())}). Disconnect cloud sync in <b>Data</b> to edit it.</div>` : ''}
     <div class="drawer-setting-row">
       <div class="drawer-setting-label">Date of birth</div>
       <input type="date" id="prof-dob" value="${state.profile.dob||''}"
@@ -6582,12 +6699,8 @@ function renderSettingsDrawer() {
     <div class="drawer-section-title" data-sec-id="branding">Branding</div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Show GymTracker315 branding</div>
-        <div class="drawer-setting-sub">The placeholder wordmark at the top of the app. Image / PDF exports always carry it regardless.</div>
-      </div>
-      <div class="drawer-pill-group">
-        <button class="drawer-pill ${!state.hideBranding ? 'active' : ''}" data-pref-brand="show">On</button>
-        <button class="drawer-pill ${state.hideBranding ? 'active' : ''}" data-pref-brand="hide">Off</button>
+        <div class="drawer-setting-label">Top branding &amp; identity</div>
+        <div class="drawer-setting-sub">The GymTracker315 wordmark plus your name${cloudAccount() ? ' and synced-account avatar' : ''} sit at the top for a consistent layout. ${profileNameLocked() ? `Showing <b>${escapeHtml(cloudAccountName())}</b> from your synced cloud account.` : (effectiveProfileName() ? `Showing <b>${escapeHtml(effectiveProfileName())}</b> (set under Profile).` : 'Set your name under Profile to show it here.')}</div>
       </div>
     </div>
     <div class="drawer-setting-row" style="flex-direction:column;align-items:stretch;gap:8px;">
@@ -7026,6 +7139,24 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-data-row">
       <button class="drawer-btn" id="drawer-metro-test">▶ Test beat</button>
+    </div>
+    <div class="drawer-setting-row" style="margin-top:6px;">
+      <div>
+        <div class="drawer-setting-label">⏱ Timed-hold count cue</div>
+        <div class="drawer-setting-sub">For holds &amp; hangs: on set start the voice says “Ready… Set… Go”, then counts the seconds aloud (1, 2, 3…). The hold timer starts on <b>“Go”</b>. Overrides the metronome &amp; rest cues while it runs.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${holdCueCfg().enabled ? 'active' : ''}" data-holdcue="enabled" data-holdcue-val="on">On</button>
+        <button class="drawer-pill ${!holdCueCfg().enabled ? 'active' : ''}" data-holdcue="enabled" data-holdcue-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Count every (seconds)</div>
+        <div class="drawer-setting-sub">1 = say every second (Go, 1, 2, 3…). Higher = count in steps (e.g. 5 → 5, 10, 15…).</div>
+      </div>
+      <input type="number" id="drawer-holdcue-every" value="${holdCueCfg().every}" min="1" max="60" step="1"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
 
     <div class="drawer-section-title">Rest timer cues</div>
@@ -7542,7 +7673,7 @@ function renderSettingsDrawer() {
 
   // Profile inputs
   const pn = body.querySelector('#prof-name');
-  if (pn) pn.addEventListener('change', () => { state.profile.name = pn.value.trim(); saveState(); });
+  if (pn) pn.addEventListener('change', () => { if (profileNameLocked()) return; state.profile.name = pn.value.trim(); saveState(); applyBranding(); }); // feat 290 — keep the top-bar identity in sync (no-op while cloud-locked)
   const pd = body.querySelector('#prof-dob');
   if (pd) pd.addEventListener('change', () => { state.profile.dob = pd.value; saveState(); renderSettingsDrawer(); });
   const ph = body.querySelector('#prof-height');
@@ -7636,6 +7767,12 @@ function renderSettingsDrawer() {
   const mAccent = body.querySelector('#drawer-metro-accent');
   if (mAccent) mAccent.addEventListener('change', () => { const v = parseInt(mAccent.value); if (!isNaN(v) && v >= 0 && v <= 16) setMetro({ accentEvery: v }); });
   body.querySelector('#drawer-metro-test')?.addEventListener('click', () => { const c = metroCfg(); metroBeep(c.freq || 880, c.vol); if (c.haptic) safeVibrate([30]); });
+  // feat 291 — timed-hold count cue
+  body.querySelectorAll('[data-holdcue]').forEach(b => b.addEventListener('click', () => {
+    state.holdCue = { ...holdCueCfg(), [b.dataset.holdcue]: b.dataset.holdcueVal === 'on' }; saveState(); renderSettingsDrawer();
+  }));
+  const hcEvery = body.querySelector('#drawer-holdcue-every');
+  if (hcEvery) hcEvery.addEventListener('change', () => { const v = parseInt(hcEvery.value); if (!isNaN(v)) { state.holdCue = { ...holdCueCfg(), every: Math.max(1, Math.min(60, v)) }; saveState(); } });
   // Rest cue timer settings (feat 104)
   const setRC = (patch) => { state.restCues = { ...restCueCfg(), ...patch }; saveState(); _lastRestCueSec = -1; };
   const rcTarget = body.querySelector('#drawer-rc-target');
@@ -7830,7 +7967,9 @@ function _relocateSettingsPage() {
   const main = document.getElementById('trk-main'), body = document.getElementById('settings-drawer-body');
   if (!main || !body) return;
   main.innerHTML = '';
-  secs.forEach(id => { const sec = body.querySelector('.drawer-section[data-sec="' + id + '"]'); if (sec) { sec.classList.remove('collapsed'); main.appendChild(sec); } });
+  // feat 289 — honour each section's remembered collapse state (default COLLAPSED; the moved header's bound
+  // toggle persists changes to state.settingsCollapse), instead of force-expanding every section.
+  secs.forEach(id => { const sec = body.querySelector('.drawer-section[data-sec="' + id + '"]'); if (sec) { sec.classList.toggle('collapsed', ((state.settingsCollapse || {})[id]) !== false); main.appendChild(sec); } });
   if (!main.children.length) main.innerHTML = '<div class="card"><div class="card-title">No settings here</div></div>';
 }
 function renderSettingsPage(main) {
@@ -8513,6 +8652,273 @@ function getWeeklySplitVolume(weekOffset = 0) {
 }
 
 /* ============================================================
+   feat 284 — WEEKLY SUMMARY. The review pages (Log / History / Trends / Volume …) hold a LOT of detail; this
+   distils each COMPLETE calendar week (Mon–Sun) into a few highlights (🌟) and lowlights (⚠️). The current,
+   in-progress week is intentionally skipped (weekOffset ≥ 1). Pure over state.sessions + the existing helpers.
+   ============================================================ */
+const _SUMMARY_MEGA = { push:'Push', pull:'Pull', lower:'Legs', core:'Core', full:'Full body', cardio:'Cardio', other:'Other' };
+function _weekRangeMs(weekOffset) {
+  const thisWeekStart = startOfWeek(new Date());
+  const start = thisWeekStart - weekOffset * 7 * 86400000;
+  return { start, end: start + 7 * 86400000 };
+}
+function _weekHasActivity(s) { return (s.exercises || []).some(e => e.cardio || (e.sets || []).length); }
+function _weekSessions(weekOffset) {
+  const { start, end } = _weekRangeMs(weekOffset);
+  return (state.sessions || []).filter(s => { const t = new Date(s.date).getTime(); return t >= start && t < end && _weekHasActivity(s); });
+}
+function _weekStrengthAgg(sessions) {
+  let sets = 0, volume = 0, mega = {}, topLift = null, bestScore = null;
+  sessions.forEach(s => {
+    (s.exercises || []).forEach(ex => {
+      if (ex.cardio) return;
+      const info = VAR_INDEX.get(ex.varUuid), m = (info && info.family) ? (info.family.mega || 'other') : 'other';
+      (ex.sets || []).forEach(set => {
+        sets++; volume += (parseFloat(set.w) || 0) * (parseFloat(set.r) || 0); mega[m] = (mega[m] || 0) + 1;
+        const e = estimated1RMSet(set);
+        if (e > 0 && (!topLift || e > topLift.e1rm)) topLift = { name: displayName(ex.varUuid, ex.subUuid), e1rm: Math.round(e), w: set.w, r: set.r };
+      });
+    });
+    const sc = s.finalScore;
+    if (sc && typeof sc.points === 'number' && (!bestScore || sc.points > bestScore.points)) bestScore = sc;
+  });
+  return { sets, volume: Math.round(volume), mega, topLift, bestScore };
+}
+// Highlights + lowlights for ONE complete week (weekOffset ≥ 1). `inSpan` = within the user's training history
+// (so an empty week between real sessions shows as a rest/no-training lowlight rather than being skipped).
+function weekSummary(weekOffset) {
+  const { start, end } = _weekRangeMs(weekOffset);
+  const sessions = _weekSessions(weekOffset);
+  const prev = _weekSessions(weekOffset + 1);
+  const agg = _weekStrengthAgg(sessions), pAgg = _weekStrengthAgg(prev);
+  const unit = state.unit || 'kg';
+  const fmt = n => n.toLocaleString();
+  const dRange = (() => { const a = new Date(start), b = new Date(end - 86400000);
+    const md = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return md(a) + ' – ' + md(b); })();
+  const highlights = [], lowlights = [];
+  if (sessions.length === 0) {
+    lowlights.push('😴 No training logged this week');
+    return { weekOffset, start, end, label: dRange, sessions: 0, sets: 0, volume: 0, empty: true, highlights, lowlights };
+  }
+  highlights.push(`💪 ${sessions.length} session${sessions.length === 1 ? '' : 's'} · ${agg.sets} sets`);
+  if (agg.topLift) highlights.push(`🏆 Top lift: ${agg.topLift.name} — e1RM ${agg.topLift.e1rm}${unit} (${agg.topLift.w}×${agg.topLift.r})`);
+  if (agg.bestScore) highlights.push(`⭐ Best session score: ${agg.bestScore.grade} (${agg.bestScore.points}/100)`);
+  if (agg.volume > 0) highlights.push(`🏋️ ${fmt(agg.volume)} ${unit} total volume`);
+  // most-trained split
+  const topMega = Object.entries(agg.mega).sort((a, b) => b[1] - a[1])[0];
+  if (topMega && topMega[1] > 0) highlights.push(`🎯 Most work: ${_SUMMARY_MEGA[topMega[0]] || topMega[0]} (${topMega[1]} sets)`);
+  // week-over-week deltas
+  if (pAgg.volume > 0) {
+    const pct = Math.round((agg.volume - pAgg.volume) / pAgg.volume * 100);
+    if (pct >= 5) highlights.push(`📈 Volume up ${pct}% vs the week before`);
+    else if (pct <= -10) lowlights.push(`📉 Volume down ${Math.abs(pct)}% vs the week before`);
+  }
+  if (prev.length > 0 && sessions.length > prev.length) highlights.push(`🔥 ${sessions.length - prev.length} more session${sessions.length - prev.length === 1 ? '' : 's'} than the week before`);
+  if (prev.length > 0 && sessions.length < prev.length) lowlights.push(`🛌 ${prev.length - sessions.length} fewer session${prev.length - sessions.length === 1 ? '' : 's'} than the week before`);
+  // a split trained last week but dropped entirely this week
+  Object.keys(pAgg.mega).forEach(m => { if (pAgg.mega[m] >= 3 && !(agg.mega[m] > 0) && m !== 'cardio' && m !== 'other') lowlights.push(`➖ No ${_SUMMARY_MEGA[m] || m} work this week (trained it last week)`); });
+  // program adherence (Monday-aligned: weekOffset == weeksBack)
+  const adh = (typeof programWeekAdherence === 'function') ? programWeekAdherence(weekOffset) : null;
+  if (adh && adh.scheduled > 0) {
+    if (adh.done >= adh.scheduled) highlights.push(`✅ Hit all ${adh.scheduled} planned sessions`);
+    else if (adh.missed > 0) lowlights.push(`⚠️ Missed ${adh.missed} of ${adh.scheduled} planned session${adh.scheduled === 1 ? '' : 's'}`);
+  }
+  return { weekOffset, start, end, label: dRange, sessions: sessions.length, sets: agg.sets, volume: agg.volume, empty: false, highlights, lowlights };
+}
+// The complete weeks (most recent first) that fall within the user's training history, capped for the page.
+function summaryWeeks(maxWeeks) {
+  const cap = maxWeeks || 12;
+  const sessions = (state.sessions || []).filter(_weekHasActivity);
+  if (!sessions.length) return [];
+  const earliest = Math.min(...sessions.map(s => new Date(s.date).getTime()));
+  const thisWeekStart = startOfWeek(new Date());
+  const out = [];
+  for (let off = 1; off <= 60 && out.length < cap; off++) {
+    const start = thisWeekStart - off * 7 * 86400000;
+    if (start + 7 * 86400000 <= earliest) break; // past the user's first training week
+    out.push(weekSummary(off));
+  }
+  return out;
+}
+// feat 284 — the Summary page (Reflect › Summary): one compact card per complete week.
+function renderSummaryPage(main) {
+  if (!main) return;
+  const weeks = summaryWeeks(12);
+  const intro = `<div class="card"><div class="card-title">📋 Weekly Summary</div>
+    <div class="summary-intro">The highlights and lowlights of each <b>complete</b> calendar week (Mon–Sun). This week is still in progress, so it isn't summarised yet — open the Log, History or Trends pages for the full detail.</div></div>`;
+  if (!weeks.length) {
+    main.innerHTML = intro + `<div class="card"><div class="summary-empty">No complete training weeks yet — log a few sessions and check back next week.</div></div>`;
+    return;
+  }
+  const card = w => {
+    const hi = w.highlights.map(h => `<li class="sm-hi">${escapeHtml(h)}</li>`).join('');
+    const lo = w.lowlights.map(l => `<li class="sm-lo">${escapeHtml(l)}</li>`).join('');
+    return `<div class="card summary-week${w.empty ? ' rest' : ''}">
+      <div class="summary-week-head"><span class="summary-week-when">Week of ${escapeHtml(w.label)}</span><span class="summary-week-meta">${w.empty ? 'rest week' : `${w.sessions} session${w.sessions === 1 ? '' : 's'} · ${w.sets} sets`}</span></div>
+      <ul class="summary-list">${hi}${lo}</ul>
+    </div>`;
+  };
+  main.innerHTML = intro + weeks.map(card).join('')
+    + (weeks.length >= 12 ? `<div class="card"><div class="summary-empty">Showing the last 12 weeks · older detail lives on the History &amp; Trends pages.</div></div>` : '');
+}
+
+/* ============================================================
+   feat 292 — FITNESS FOCUS & ARCHETYPE. A descriptive "personality-type" read of HOW you train (not a score):
+   which areas of athleticism you emphasise (max strength, hypertrophy, strength-endurance, power & agility,
+   endurance, flexibility & mobility) and the closest fitness archetype (powerlifter, hybrid athlete, yoga-runner,
+   …). Each logged exercise is classified by its family taxonomy (mega/keywords), its mode (holds/carries) and —
+   for plain resistance work — its rep range. Cosine-similarity matches the resulting profile to an archetype.
+   Gated behind a minimum of data so it only appears once there's enough to be meaningful.
+   ============================================================ */
+const FITNESS_DIMS = [
+  { key:'strength',  label:'Max Strength',           emoji:'🏋️', desc:'heavy, low-rep lifting' },
+  { key:'muscle',    label:'Hypertrophy',            emoji:'💪', desc:'moderate-rep muscle building' },
+  { key:'stamina',   label:'Strength-Endurance',     emoji:'🔁', desc:'high-rep work, holds & carries' },
+  { key:'power',     label:'Power & Agility',        emoji:'⚡', desc:'explosive, ballistic & plyometric' },
+  { key:'endurance', label:'Endurance',              emoji:'🫀', desc:'cardio & aerobic conditioning' },
+  { key:'mobility',  label:'Flexibility & Mobility', emoji:'🧘', desc:'yoga, stretching & mobility' },
+];
+const _FD_ORDER = FITNESS_DIMS.map(d => d.key);
+// Archetype vectors in _FD_ORDER order [strength, muscle, stamina, power, endurance, mobility].
+const ARCHETYPES = [
+  { id:'powerlifter',  name:'Powerlifter',                emoji:'🏋️', vec:[1.0,0.5,0.2,0.4,0.1,0.15], blurb:'Heavy and low-rep — the squat, bench and deadlift are your love language.' },
+  { id:'bodybuilder',  name:'Bodybuilder',                emoji:'💪', vec:[0.5,1.0,0.45,0.2,0.15,0.2], blurb:'Volume and the pump — you train to sculpt and grow muscle.' },
+  { id:'powerbuilder', name:'Powerbuilder',               emoji:'🦾', vec:[0.85,0.85,0.35,0.35,0.15,0.2], blurb:'Strong AND big — you chase strength and size in equal measure.' },
+  { id:'weightlifter', name:'Olympic Weightlifter',       emoji:'🥇', vec:[0.8,0.4,0.25,1.0,0.2,0.45], blurb:'Explosive barbell sport — cleans, snatches and total intent.' },
+  { id:'strongman',    name:'Strongman',                  emoji:'🪨', vec:[0.9,0.5,0.65,0.8,0.2,0.15], blurb:'Odd objects, heavy carries and raw, brutish power.' },
+  { id:'crossfitter',  name:'Functional / CrossFit Athlete', emoji:'🔥', vec:[0.6,0.5,0.85,0.8,0.7,0.35], blurb:'Constantly varied, high intensity — a bit of everything, done fast.' },
+  { id:'hybrid',       name:'Hybrid Athlete',             emoji:'⚔️', vec:[0.75,0.5,0.6,0.6,0.85,0.4], blurb:'Lift heavy and go long — you live in two worlds at once.' },
+  { id:'endurance',    name:'Endurance Athlete',          emoji:'🏃', vec:[0.2,0.2,0.55,0.3,1.0,0.45], blurb:'An aerobic engine first — the miles go in the bank.' },
+  { id:'tactical',     name:'Tactical Athlete',           emoji:'🎖️', vec:[0.7,0.5,0.8,0.6,0.75,0.4], blurb:'Ready for anything — strength, work capacity and endurance together.' },
+  { id:'calisthenics', name:'Calisthenics Athlete',       emoji:'🤸', vec:[0.5,0.5,0.9,0.6,0.4,0.55], blurb:'Mastering your own bodyweight — reps, holds and skill.' },
+  { id:'yogi',         name:'Mobility Specialist',        emoji:'🧘', vec:[0.2,0.2,0.45,0.2,0.3,1.0], blurb:'Range, control and breath — you train to move well.' },
+  { id:'yogarunner',   name:'Yoga-Runner',                emoji:'🌿', vec:[0.2,0.25,0.45,0.3,0.85,0.85], blurb:'Long, supple and light on your feet.' },
+  { id:'martial',      name:'Martial Artist',             emoji:'🥋', vec:[0.5,0.4,0.7,0.8,0.7,0.6], blurb:'Power, conditioning and mobility — built for the bout.' },
+  { id:'sprinter',     name:'Explosive Athlete',          emoji:'💥', vec:[0.6,0.4,0.4,1.0,0.5,0.5], blurb:'Fast-twitch and springy — jump, throw and sprint.' },
+  { id:'allrounder',   name:'All-Rounder',                emoji:'🌟', vec:[0.6,0.6,0.6,0.6,0.6,0.6], blurb:'Balanced across the board — a true generalist athlete.' },
+  { id:'movement',     name:'Movement Athlete',           emoji:'🤾', vec:[0.6,0.4,0.65,0.55,0.35,0.8], blurb:'Strong through a full range — you move as well as you lift.' },
+];
+const FOCUS_MIN_SETS = 30, FOCUS_MIN_SESSIONS = 5;
+const _ENDURANCE_MEGAS = new Set(['cardio','run','bike','swim','water','winter','outdoor','race','multi']);
+const _POWER_FAMILIES = new Set(['olympic-lifts','plyometrics','medicine-ball','strongman','boxing-bag']);
+const _POWER_RE = /\b(jump|plyo|plyometric|throw|slam|snatch|clean|jerk|sprint|explosive|ballistic|broad ?jump|box ?jump|bound|sledgehammer)\b/;
+const _FLEX_RE = /\b(yoga|stretch|mobility|pilates|tai ?chi|flexibility|foam ?roll|mobiliz|supple|range of motion)\b/;
+// Which athletic dimension(s) a logged exercise feeds, given its average reps + tracking mode.
+function _varDimWeights(varUuid, avgReps, mode) {
+  const info = (typeof VAR_INDEX !== 'undefined') ? VAR_INDEX.get(varUuid) : null;
+  if (!info) return null;
+  const fam = info.family || {}, mega = fam.mega || 'other';
+  const hay = ((fam.id || '') + ' ' + (fam.keywords || '') + ' ' + ((info.variation && info.variation.title) || '')).toLowerCase();
+  if (_ENDURANCE_MEGAS.has(mega)) return { endurance: 1 };
+  if (mega === 'mobility' || mega === 'recovery' || _FLEX_RE.test(hay)) return { mobility: 1 };
+  if (_POWER_FAMILIES.has(fam.id) || _POWER_RE.test(hay)) return { power: 1 };
+  if (mode === 'time' || mode === 'distance') return { stamina: 1 };  // isometric holds, loaded carries
+  const r = avgReps || 0;                                              // plain resistance → by rep range
+  if (r > 0 && r <= 5) return { strength: 1 };
+  if (r >= 13) return { stamina: 1 };
+  return { muscle: 1 };                                                // 6–12 (and unknown rep counts)
+}
+function _focusTally(sessions) {
+  const units = { strength:0, muscle:0, stamina:0, power:0, endurance:0, mobility:0 };
+  const exTop = {}; let classified = 0;
+  const bump = (dim, n, name) => { units[dim] += n; classified += n; (exTop[dim] = exTop[dim] || {})[name] = (exTop[dim][name] || 0) + n; };
+  (sessions || []).forEach(s => {
+    (s.exercises || []).forEach(ex => {
+      const name = displayName(ex.varUuid, ex.subUuid);
+      if (ex.cardio) { const min = parseFloat(ex.cardio.elapsedMin) || 0; bump('endurance', Math.max(1, Math.min(8, Math.round(min / 10) || 1)), name); return; }
+      const sets = (ex.sets || []).filter(st => (st.w !== '' && st.w != null) || (st.r !== '' && st.r != null));
+      if (!sets.length) return;
+      const reps = sets.map(st => parseFloat(st.r)).filter(x => !isNaN(x));
+      const avgReps = reps.length ? reps.reduce((a, b) => a + b, 0) / reps.length : 0;
+      const mode = (typeof exMode === 'function') ? exMode(ex.varUuid).mode : 'standard';
+      const w = _varDimWeights(ex.varUuid, avgReps, mode);
+      if (!w) return;
+      for (const k in w) bump(k, sets.length * w[k], name);
+    });
+  });
+  return { units, classified, exTop };
+}
+function fitnessFocus(windowDays) {
+  const all = (state.sessions || []).filter(s => (s.exercises || []).some(e => e.cardio || (e.sets || []).length));
+  let used = all, windowUsed = windowDays || null;
+  if (windowDays) {
+    const cutoff = Date.now() - windowDays * 86400000;
+    used = all.filter(s => new Date(s.date).getTime() >= cutoff);
+  }
+  let t = _focusTally(used);
+  if (windowDays && t.classified < FOCUS_MIN_SETS && all.length > used.length) { used = all; windowUsed = null; t = _focusTally(all); } // broaden if recent is thin
+  const total = _FD_ORDER.reduce((a, k) => a + t.units[k], 0);
+  const pct = {}; _FD_ORDER.forEach(k => pct[k] = total > 0 ? t.units[k] / total : 0);
+  const ready = t.classified >= FOCUS_MIN_SETS && used.length >= FOCUS_MIN_SESSIONS; // a single-focus athlete (e.g. a pure powerlifter) still gets a profile
+  return { ready, units: t.units, pct, total, classifiedSets: Math.round(t.classified), sessions: used.length, windowDays: windowUsed, exTop: t.exTop, needSets: FOCUS_MIN_SETS, needSessions: FOCUS_MIN_SESSIONS };
+}
+function _cosineSim(a, b) {
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  return (na && nb) ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+}
+function fitnessArchetype(pct) {
+  const vec = _FD_ORDER.map(k => pct[k] || 0);
+  const scored = ARCHETYPES.map(a => ({ a, sim: _cosineSim(vec, a.vec) })).sort((x, y) => y.sim - x.sim);
+  return { primary: scored[0].a, secondary: (scored[1] && scored[1].sim > 0.55) ? scored[1].a : null, scores: scored };
+}
+// A 6-axis radar of the profile SHAPE (each axis normalised so the strongest dimension reaches the edge).
+function _focusRadarSvg(norm, size) {
+  const S = size || 230, c = S / 2, R = c - 30;
+  const ang = i => -Math.PI / 2 + i * Math.PI / 3;
+  const pt = (i, rad) => [c + rad * Math.cos(ang(i)), c + rad * Math.sin(ang(i))];
+  const ring = scale => _FD_ORDER.map((_, i) => pt(i, R * scale).map(n => n.toFixed(1)).join(',')).join(' ');
+  const grid = [0.25, 0.5, 0.75, 1].map(s => `<polygon points="${ring(s)}" fill="none" stroke="var(--border2)" stroke-width="1"/>`).join('');
+  const spokes = _FD_ORDER.map((_, i) => { const [x, y] = pt(i, R); return `<line x1="${c}" y1="${c}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--border2)" stroke-width="1"/>`; }).join('');
+  const data = _FD_ORDER.map((k, i) => pt(i, R * Math.max(0.04, norm[k] || 0)).map(n => n.toFixed(1)).join(',')).join(' ');
+  const labels = FITNESS_DIMS.map((d, i) => { const [x, y] = pt(i, R + 16); const anchor = Math.abs(x - c) < 6 ? 'middle' : (x < c ? 'end' : 'start'); return `<text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="${anchor}" font-size="11">${d.emoji}</text>`; }).join('');
+  return `<svg viewBox="0 0 ${S} ${S}" width="${S}" height="${S}" class="focus-radar" role="img" aria-label="Athletic profile radar">${grid}${spokes}<polygon points="${data}" fill="var(--accent)" fill-opacity="0.28" stroke="var(--accent)" stroke-width="2"/>${labels}</svg>`;
+}
+// feat 292 — the Fitness Focus & Archetype page (Reflect › Focus).
+function renderArchetypePage(main) {
+  if (!main) return;
+  const f = fitnessFocus(112); // ~16 weeks; broadens to all-time if that window is thin
+  const head = `<div class="card"><div class="card-title">🎯 Fitness Focus &amp; Archetype</div>
+    <div class="summary-intro">Which <b>areas of athleticism</b> you emphasise, and your fitness <b>archetype</b> — a descriptive profile (think personality type), <b>not</b> a score or a judgment. Your grades &amp; progress live on the Achievements and Trends pages.</div></div>`;
+  if (!f.ready) {
+    const p = Math.min(100, Math.round(f.classifiedSets / f.needSets * 100));
+    main.innerHTML = head + `<div class="card"><div class="summary-empty" style="text-align:left;">
+      Not enough data to read your profile yet — analysed <b>${f.classifiedSets}</b> of ~${f.needSets} sets across <b>${f.sessions}</b>/${f.needSessions} sessions.
+      <div class="focus-dim-bar" style="margin-top:9px;"><div class="focus-dim-fill" style="width:${p}%;"></div></div>
+      <div style="margin-top:7px;color:var(--text3);">Keep logging a variety of work and check back — it appears automatically.</div>
+    </div></div>`;
+    return;
+  }
+  const arch = fitnessArchetype(f.pct);
+  const maxPct = Math.max(..._FD_ORDER.map(k => f.pct[k])) || 1;
+  const norm = {}; _FD_ORDER.forEach(k => norm[k] = f.pct[k] / maxPct);
+  const dims = FITNESS_DIMS.slice().sort((a, b) => f.pct[b.key] - f.pct[a.key]).map(d => {
+    const p = Math.round(f.pct[d.key] * 100);
+    const topMap = f.exTop[d.key]; const top = topMap ? Object.entries(topMap).sort((a, b) => b[1] - a[1])[0] : null;
+    return `<div class="focus-dim"><div class="focus-dim-head"><span class="focus-dim-name">${d.emoji} ${d.label}</span><span class="focus-dim-pct">${p}%</span></div>
+      <div class="focus-dim-bar"><div class="focus-dim-fill" style="width:${p}%;"></div></div>
+      <div class="focus-dim-sub">${escapeHtml(d.desc)}${top ? ` · most: ${escapeHtml(top[0])}` : ''}</div></div>`;
+  }).join('');
+  const winTxt = f.windowDays ? `your last ${Math.round(f.windowDays / 7)} weeks` : 'your whole training history';
+  main.innerHTML = head + `
+    <div class="card focus-arch">
+      <div class="focus-arch-emoji">${arch.primary.emoji}</div>
+      <div class="focus-arch-body">
+        <div class="focus-arch-lbl">You train like a…</div>
+        <div class="focus-arch-name">${escapeHtml(arch.primary.name)}</div>
+        <div class="focus-arch-blurb">${escapeHtml(arch.primary.blurb)}</div>
+        ${arch.secondary ? `<div class="focus-arch-sec">…with a strong streak of <b>${escapeHtml(arch.secondary.name)}</b> ${arch.secondary.emoji}</div>` : ''}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Your athletic profile</div>
+      <div class="focus-radar-wrap">${_focusRadarSvg(norm, 230)}</div>
+      <div class="focus-dims">${dims}</div>
+    </div>
+    <div class="card"><div class="summary-empty" style="text-align:left;">Based on ${escapeHtml(winTxt)} (${f.classifiedSets} classified sets · ${f.sessions} sessions). This is a snapshot of your current <b>focus</b> and shifts as your training does — change what you train and the archetype follows.</div></div>`;
+}
+/* ============================================================
    FAB STATE
    ============================================================ */
 function updateFAB() {
@@ -8547,13 +8953,40 @@ function exMode(varUuid) {
   const t = info ? (info.variation.title || '').toLowerCase() : '';
   const fid = info ? info.family.id : '';
   if (/\b(dead ?hang|hang|hold|plank|l-?sit|wall sit|isometric|iso hold)\b/.test(t))
-    return { mode:'time', wLabel:'Weight', rLabel:'Seconds' };
+    return { mode:'time', wLabel:'Weight', rLabel:'Time' }; // feat 288 — "Time" (stored as seconds; entered as raw seconds or hh:mm:ss)
   if (fid === 'carries' || /\b(carry|carries|farmer|yoke|suitcase carry|waiter|sled (push|drag|pull))\b/.test(t))
     return { mode:'distance', wLabel:'Weight', rLabel:'Distance' };
   if (/\b(pull-?up|chin-?up|dip|muscle-?up|push-?up|inverted row|pistol|nordic)\b/.test(t) && !/machine|assisted|lat ?pulldown|banded/.test(t))
     return { mode:'bodyweight', wLabel:'Added (− assist)', rLabel:'Reps' };
   return { mode:'standard', wLabel:'Weight', rLabel:'Reps' };
 }
+// feat 288 — time-mode (holds/planks) sets store SECONDS in the reps field, but may be ENTERED as raw seconds
+// ("90") OR as a clock string ("1:30", "1:05:05"). parseTimeToSeconds normalizes any of those to total seconds
+// (null = empty/invalid); formatSecondsClock renders seconds back to m:ss / h:mm:ss for the field + display.
+function parseTimeToSeconds(str) {
+  if (str == null) return null;
+  const t = String(str).trim();
+  if (t === '') return null;
+  if (t.indexOf(':') === -1) { const n = parseFloat(t); return (isNaN(n) || n < 0) ? null : n; } // raw seconds
+  const parts = t.split(':');
+  if (parts.length > 3) return null;
+  let total = 0;
+  for (let k = 0; k < parts.length; k++) {
+    const p = parts[k].trim();
+    const v = p === '' ? 0 : parseFloat(p);
+    if (isNaN(v) || v < 0) return null;
+    total = total * 60 + v;
+  }
+  return total;
+}
+function formatSecondsClock(sec) {
+  const t = Math.max(0, Math.round(parseFloat(sec) || 0));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  const p = n => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
+}
+// Is the active log entry in time mode? (drives the Seconds→Time field + hh:mm:ss entry across the numpad path)
+function pendingIsTimeMode() { return !!(pending && pending.varUuid && exMode(pending.varUuid).mode === 'time'); }
 function getCurrentBodyweightKg() {
   const s = sortedBodyComp();
   return s.length ? s[0].weightKg : null;
@@ -9670,7 +10103,7 @@ const PAGES = {
   // ever just a nav list. Browsing happens in the compact nav-tree popover; the breadcrumb shows where you are.
   home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'], primary:'workout' },
   train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'], primary:'workout' },
-  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','history','trends','volume','achievements','replay','progression'], primary:'log' },
+  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','summary','focus','history','trends','volume','achievements','replay','progression'], primary:'log' },
   execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail'], primary:'workout' },
   prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator','split-planner'], primary:'gyms' },
   study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','media-gallery','glossary','anatomy','advice'], primary:'reference' },
@@ -9678,6 +10111,9 @@ const PAGES = {
   // leaf pages that already render into a container (reused unchanged)
   workout:     { title:'Workout',          emoji:'🔥', kind:'leaf', parent:'execute', tab:'log',      render:m=>renderLog(m) },
   log:         { title:'Log',              emoji:'📅', kind:'leaf', parent:'reflect', tab:'sessions', render:m=>renderSessionsLog(m) },
+  summary:     { title:'Summary',          emoji:'📋', kind:'leaf', parent:'reflect', render:m=>renderSummaryPage(m) }, // feat 284
+  focus:       { title:'Fitness Focus',     emoji:'🎯', kind:'leaf', parent:'reflect', render:m=>renderArchetypePage(m) }, // feat 292
+
   history:     { title:'History',          emoji:'🕓', kind:'leaf', parent:'reflect', tab:'history',  render:m=>renderHistory(m) },
   trends:      { title:'Trends',           emoji:'📈', kind:'leaf', parent:'reflect', tab:'trends',   render:m=>renderTrends(m) },
   volume:      { title:'Volume',           emoji:'🧮', kind:'leaf', parent:'reflect', tab:'volume',   render:m=>renderVolume(m) },
@@ -9904,9 +10340,21 @@ function lift315(familyId) {
     uuids.has(ex.varUuid) && (ex.sets || []).some(set => { const w = parseFloat(set.w), r = parseFloat(set.r); return w >= thr && r >= 1; })));
 }
 const _BRAND_DIGIT_LIFT = { bench: 'flat-bench-press', dead: 'deadlift', squat: 'squat' }; // 3 · 1 · 5 → bench · deadlift · squat
+// feat 290 — the top-bar identity: the current (or synced) profile name + the synced-account avatar. Mandatory
+// branding means this row is always present for a consistent layout; the identity shows when a name/avatar exists.
+function refreshIdentity() {
+  const el = document.getElementById('app-identity'); if (!el) return;
+  const name = effectiveProfileName(), pic = cloudAccountPic(), locked = profileNameLocked();
+  let html = '';
+  if (pic) html += `<img class="ti-pfp" src="${escapeAttr(pic)}" alt="" referrerpolicy="no-referrer" loading="lazy">`;
+  if (name) html += `<span class="ti-name"${locked ? ' title="Synced to your cloud account"' : ''}>${escapeHtml(name)}</span>${locked ? '<span class="ti-lock" aria-hidden="true">🔒</span>' : ''}`;
+  if (el.innerHTML !== html) el.innerHTML = html;
+  el.style.display = html ? '' : 'none';
+}
 function applyBranding() {
-  try { document.body.classList.toggle('brand-hidden', !!state.hideBranding); } catch (_) {}
+  try { document.body.classList.remove('brand-hidden'); state.hideBranding = false; } catch (_) {} // feat 290 — branding is mandatory (consistent layout)
   try { const m = document.querySelector('#app-brand .gt-brand-mark'); if (m && m.textContent !== brandMark()) m.textContent = brandMark(); } catch (_) {} // feat 250 — custom emoji
+  try { refreshIdentity(); } catch (_) {} // feat 290
   // feat 250 — each digit of "315" sparkles once you've hit 315 in the matching lift (3=bench, 1=deadlift, 5=squat)
   try { document.querySelectorAll('#app-brand .gt-brand-d').forEach(el => el.classList.toggle('sparkle', lift315(_BRAND_DIGIT_LIFT[el.dataset.lift]))); } catch (_) {}
 }
@@ -10153,14 +10601,22 @@ const SEED_PLANS = [
   // —— Tranche 11 (feat 273) — more strength variety ——
   { id:'seed-powerbuilding-upper', name:'Powerbuilding Upper', intensity:4, desc:'Strength meets size for the upper body — heavy compound presses and pulls up front, then hypertrophy back-off work. Build a strong AND big upper half.', steps:[
     _pstep(5,[_mvOpt('flat-bench-press')],'Heavy bench — top-end strength.','heavy'), _pstep(5,[_mvOpt('row'),_mvOpt('pull-up')],'Heavy pull to balance the press.','heavy'), _pstep(4,[_mvOpt('incline-bench-press')],'Hypertrophy back-off — upper chest.'), _pstep(3,[_mvOpt('shoulder-press')],'Overhead for the delts.'), _pstep(3,[_mvOpt('lat-pulldown')],'Lat width.'), _pstep(3,[_mvOpt('lateral-raise')],'','light'), _pstep(3,[_mvOpt('bicep-curl'),_mvOpt('tricep-extension')],'Arms superset to finish.','light') ] },
-  { id:'seed-posterior-chain', name:'Posterior Chain', intensity:5, desc:'Everything on the back side of the body — hinge, hamstrings, glutes, lower back and upper-back pulls. The chain that keeps you strong, athletic and injury-resistant.', steps:[
+  { id:'seed-posterior-chain', name:'Posterior Chain Power', intensity:5, desc:'Everything on the back side of the body — hinge, hamstrings, glutes, lower back and upper-back pulls. The chain that keeps you strong, athletic and injury-resistant.', steps:[
     _pstep(5,[_mvOpt('deadlift')],'The hinge — heavy pulls.','heavy'), _pstep(4,[_mvOpt('hip-thrust')],'Glute power.','heavy'), _pstep(3,[_mvOpt('leg-curl')],'Direct hamstrings.'), _pstep(3,[_mvOpt('back-extension')],'Lower back and glutes.'), _pstep(3,[_mvOpt('row')],'Upper-back thickness.'), _pstep(3,[_mvOpt('calf-raise')],'','light') ] },
-  { id:'seed-athletic-fullbody', name:'Athletic Full Body', intensity:4, desc:'A power-and-strength full-body session for athleticism — an explosive movement, the big compounds, and core. Train to be strong, fast and resilient, not just big.', steps:[
+  { id:'seed-athletic-fullbody', name:'Athletic Strength', intensity:4, desc:'A power-and-strength full-body session for athleticism — an explosive movement, the big compounds, and core. Train to be strong, fast and resilient, not just big.', steps:[
     _pstep(4,[_mvOpt('squat')],'Strength base — squat.','heavy'), _pstep(4,[_mvOpt('flat-bench-press')],'Upper-body press.','heavy'), _pstep(3,[_mvOpt('deadlift'),_mvOpt('row')],'Pull — hinge or row.','heavy'), _pstep(3,[_mvOpt('shoulder-press')],'Overhead strength.'), _pstep(3,[_mvOpt('core-stability')],'Trunk stability — anti-movement.'), _pstep(3,[_mvOpt('calf-raise'),_mvOpt('abs-dynamic')],'','light') ] },
   { id:'seed-chest-arms', name:'Chest & Arms', intensity:3, desc:'A classic "beach" pairing — chest pressed from every angle, then biceps and triceps supersets for the pump. Big, fun and great for a packed bench-and-dumbbell corner.', steps:[
     _pstep(4,[_mvOpt('flat-bench-press')],'','heavy'), _pstep(3,[_mvOpt('incline-bench-press')],'Upper chest.'), _pstep(3,[_mvOpt('chest-fly'),_mvOpt('dips')],'Stretch and squeeze.','light'), _pstep(3,[_mvOpt('tricep-extension')],'Triceps.','light'), _pstep(3,[_mvOpt('bicep-curl')],'Biceps.','light'), _pstep(2,[_mvOpt('hammer-curl')],'Brachialis to finish.','light') ] },
-  { id:'seed-back-bis', name:'Back & Biceps', intensity:4, desc:'A focused back-and-biceps builder — vertical and horizontal pulls for width and thickness, rear delts and traps, then a thorough biceps finish. Pull from every angle.', steps:[
+  { id:'seed-back-bis', name:'Back & Biceps Builder', intensity:4, desc:'A focused back-and-biceps builder — vertical and horizontal pulls for width and thickness, rear delts and traps, then a thorough biceps finish. Pull from every angle.', steps:[
     _pstep(4,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'Width — vertical pull.','heavy'), _pstep(4,[_mvOpt('row')],'Thickness — heavy row.','heavy'), _pstep(3,[_mvOpt('lat-pulldown')],'A second vertical angle.'), _pstep(3,[_mvOpt('rear-delt')],'Rear delts and face pulls.','light'), _pstep(2,[_mvOpt('shrugs')],'Traps.'), _pstep(3,[_mvOpt('bicep-curl')],'Biceps.','light'), _pstep(2,[_mvOpt('hammer-curl')],'','light') ] },
+  // —— Tranche 12 (feat 280) — limelight for under-represented movements (decline press, front raise, pullover,
+  //    rotator cuff, Olympic lifts, strongman, medicine ball, gymnastics core, grip) that the catalogue under-used ——
+  { id:'seed-chest-complete', name:'Complete Chest', intensity:4, desc:'The chest from every angle in one session — flat, incline AND decline pressing, then flyes and a pullover for the stretch. Decline and the pullover finally get their due; a thorough builder for a full, balanced chest.', steps:[
+    _pstep(4,[_mvOpt('flat-bench-press')],'Flat barbell press — the foundation.','heavy'), _pstep(4,[_mvOpt('incline-bench-press')],'Incline press — upper chest.'), _pstep(4,[_mvOpt('decline-bench-press')],'Decline press — lower-chest thickness.'), _pstep(3,[_mvOpt('chest-fly'),_mvOpt('dips')],'Flyes or dips — stretch and squeeze.','light'), _pstep(3,[_mvOpt('pullover')],'Dumbbell pullover — expand the ribcage, lats and chest.','light'), _pstep(2,[_mvOpt('push-ups')],'Push-up burnout to finish.','light') ] },
+  { id:'seed-delt-sculpt', name:'Delt Sculpt', intensity:3, desc:'All three deltoid heads, plus the cuff that keeps them healthy — press overhead, then dedicated front, side and rear raises before traps and rotator-cuff balance. Front raises get the spotlight for complete, capped shoulders.', steps:[
+    _pstep(4,[_mvOpt('shoulder-press')],'Overhead press — the anchor.','heavy'), _pstep(3,[_mvOpt('front-raise')],'Front raises — anterior delts, strict and slow.','light'), _pstep(4,[_mvOpt('lateral-raise')],'Lateral raises — cap the side delts.','light'), _pstep(3,[_mvOpt('rear-delt')],'Rear delts and face pulls — the rear head.','light'), _pstep(3,[_mvOpt('shrugs')],'Shrugs — traps to finish.'), _pstep(2,[_mvOpt('rotator-cuff')],'Cuff work — balance and insure the joint.','light') ] },
+  { id:'seed-power-athlete', name:'Power Athlete', intensity:5, desc:'Train the qualities the iron usually skips — explosive Olympic pulls, ballistic med-ball work, raw strongman loading, gymnastics core holds and a crushing grip finisher. Power, not just size; every rep fast and intent-driven.', steps:[
+    _pstep(5,[_mvOpt('olympic-lifts')],'Power cleans or hang snatches — explode through the hips.','heavy'), _pstep(3,[_mvOpt('medicine-ball')],'Med-ball slams and rotational throws — full intent.','light'), _pstep(3,[_mvOpt('strongman')],'Strongman loading — carry, drag or tire flip.','heavy'), _pstep(3,[_mvOpt('gymnastics-core')],'Hollow holds and L-sits — total-body tension.','light'), _pstep(2,[_mvOpt('grip-training')],'Grip finisher — crush and hold.','light') ] },
 ];
 function cloneSeedPlan(sp) {
   return { id:sp.id, name:sp.name, desc:sp.desc||'', intensity:sp.intensity||3, steps:sp.steps.map(s => ({ id:newUuid(), sets:s.sets, desc:s.desc||'', load:s.load||'moderate', options:s.options.map(o => ({ ...o })) })) };
@@ -10169,6 +10625,32 @@ function cloneSeedPlans() { return SEED_PLANS.map(cloneSeedPlan); }
 function getPlan(id) { return (state.plans || []).find(p => p.id === id) || null; }
 function getActivePlan() { const s = getActiveSession(); return (s && s.planId) ? getPlan(s.planId) : null; }
 function planTotalSets(p) { return (p.steps || []).reduce((n, s) => n + (s.sets || 0), 0); }
+// feat 277 — plan "siblings": plans whose steps hold the SAME exercises in the SAME order (ignoring set
+// counts / intensity / load / notes). Signature = per-step sorted exercise ids, in step order.
+function planSignature(plan) {
+  return JSON.stringify((plan && plan.steps || []).map(st => (st.options || []).map(o => o.type === 'variation' ? ('v:' + o.uuid) : ('m:' + (typeof resolveFamilyId === 'function' ? resolveFamilyId(o.familyId) : o.familyId))).sort()));
+}
+function planEffort(p) { return planTotalSets(p) * (planIntensity(p) || 3); } // a "total work" proxy: sets weighted by intensity
+function planSiblings(plan) {
+  if (!plan || !(plan.steps || []).length) return [];
+  const sig = planSignature(plan);
+  return (state.plans || []).filter(p => p.id !== plan.id && (p.steps || []).length && planSignature(p) === sig);
+}
+function siblingEffortClass(effort, min, max) { if (max <= min) return 'eff-mid'; const t = (effort - min) / (max - min); return t < 0.34 ? 'eff-low' : t < 0.67 ? 'eff-mid' : 'eff-high'; }
+function planSiblingsHtml(plan) {
+  const sibs = planSiblings(plan);
+  if (!sibs.length) return '';
+  const efforts = [plan].concat(sibs).map(planEffort), min = Math.min.apply(null, efforts), max = Math.max.apply(null, efforts), cur = planEffort(plan);
+  const rows = sibs.slice().sort((a, b) => planEffort(a) - planEffort(b)).map(s => {
+    const eff = planEffort(s), rel = eff > cur ? '▲ harder' : eff < cur ? '▼ easier' : '≈ same';
+    return `<button type="button" class="plan-sib-row ${siblingEffortClass(eff, min, max)}" data-plan-sib="${escapeAttr(s.id)}" title="Open ${escapeAttr(s.name)}">
+      <span class="psib-dot"></span>
+      <span class="psib-main"><span class="psib-name">${escapeHtml(s.name)}</span><span class="psib-sub">${planTotalSets(s)} sets · intensity ${planIntensity(s)}/5 · ~${estimatePlanMinutes(s)} min</span></span>
+      <span class="psib-rel">${rel}</span>
+    </button>`;
+  }).join('');
+  return `<div class="plan-siblings"><div class="plan-sib-head">🔀 Sibling plans <span class="plan-sib-note">same exercises &amp; order — coloured by effort (green = lighter, red = harder)</span></div>${rows}</div>`;
+}
 
 // feat 178 — favorites for plans + exercise variations (synced personal prefs; harmless, so not read-only-gated).
 function isFavPlan(id) { return !!(id && state.favoritePlans && state.favoritePlans[id]); }
@@ -10341,9 +10823,87 @@ function stepMinSets(plan, step) {
   if (pct <= 0) return 0;
   return Math.max(1, Math.ceil(target * pct / 100));
 }
+/* feat 281 — UNIQUE set→step allocation. A logged set must count toward exactly ONE plan step. The legacy
+   per-step counters (stepSavedSets/stepLoggedSets) tallied EVERY set whose exercise matched a step, so a set
+   whose variation satisfied several steps (e.g. three "row" steps in Pull Marathon) was counted toward all of
+   them — doing the first row step wrongly completed the later ones. Here each set is assigned to a single step:
+   steps are filled to target in plan order (so the earlier duplicate completes first), then any surplus sets
+   ("extra work on" a step) attach to the LAST step they match. Matching still honors merged-family aliases and
+   secondary parents through optionMatchesVar. */
+function _allocSetsToSteps(steps, units) {
+  const N = steps.length;
+  const assigned = new Array(N).fill(0);
+  if (!N || !units.length) return assigned;
+  const rem = units.map(u => u.count);
+  // Which step indexes each unit could satisfy (and, implicitly, how many — used for least-shared-first).
+  const unitSteps = units.map(u => {
+    const arr = [];
+    for (let i = 0; i < N; i++) if ((steps[i].options || []).some(o => optionMatchesVar(o, u.varUuid))) arr.push(i);
+    return arr;
+  });
+  // Per step, its matching units ordered least-shared-first: a step prefers a set that fewer OTHER steps could
+  // have used, so it doesn't grab a set that the only other step matching it still needs.
+  const stepUnits = steps.map((_, i) => {
+    const arr = [];
+    for (let k = 0; k < units.length; k++) if (unitSteps[k].indexOf(i) >= 0) arr.push(k);
+    arr.sort((a, b) => (unitSteps[a].length - unitSteps[b].length) || (a - b));
+    return arr;
+  });
+  // Pass 1 — fill each step to its target, in plan order (complete earlier duplicate steps first).
+  for (let i = 0; i < N; i++) {
+    const target = steps[i].sets || 0;
+    if (target <= 0) continue;
+    for (const k of stepUnits[i]) {
+      if (assigned[i] >= target) break;
+      const take = Math.min(rem[k], target - assigned[i]);
+      assigned[i] += take; rem[k] -= take;
+    }
+  }
+  // Pass 1b — a target-less step (sets=0, which is "done" on any single set) claims one remaining matching set.
+  for (let i = 0; i < N; i++) {
+    if ((steps[i].sets || 0) > 0) continue;
+    for (const k of stepUnits[i]) { if (rem[k] > 0) { assigned[i]++; rem[k]--; break; } }
+  }
+  // Pass 2 — surplus sets beyond every target ("extra work") attach to the LAST step they match.
+  for (let k = 0; k < units.length; k++) {
+    if (rem[k] <= 0 || !unitSteps[k].length) continue;
+    assigned[unitSteps[k][unitSteps[k].length - 1]] += rem[k];
+    rem[k] = 0;
+  }
+  return assigned;
+}
+let _allocMemo = null; // single-entry cache — callers hit allocation N× per render/summary for one session+plan
+function planStepAllocation(session, plan) {
+  const steps = (plan && plan.steps) || [];
+  const N = steps.length;
+  if (!session || !N) return { saved: new Array(N).fill(0), logged: new Array(N).fill(0) };
+  // Saved units — one entry per session exercise: its variation + how many sets it holds.
+  const savedUnits = [];
+  (session.exercises || []).forEach(ex => { if (ex.varUuid) savedUnits.push({ varUuid: ex.varUuid, count: (ex.sets || []).length }); });
+  // Logged units = saved + the live pending exercise's COMPLETED sets (active session, not editing; feat 137/211,
+  // suppressed for the save-time saved-only snapshot via _planIgnorePending).
+  let pendVar = '', pendCount = 0;
+  if (!_planIgnorePending && pending && pending.varUuid && session === getActiveSession()
+      && !(typeof modalState !== 'undefined' && modalState.isEditing)) {
+    pendVar = pending.varUuid;
+    pendCount = (pending.sets || []).filter(s => s && s.w !== '' && s.w != null && !isNaN(parseFloat(s.w)) && s.r !== '' && s.r != null && parseFloat(s.r) > 0).length;
+  }
+  const key = (plan.id || '') + '@' + (plan._atRev != null ? plan._atRev : (plan.rev != null ? plan.rev : '')) + '#' + N
+    + '|' + (session.id || session.date || '') + '|' + JSON.stringify(savedUnits) + '|' + pendVar + ':' + pendCount;
+  if (_allocMemo && _allocMemo.key === key) return _allocMemo;
+  const saved = _allocSetsToSteps(steps, savedUnits);
+  const logged = pendCount > 0 ? _allocSetsToSteps(steps, savedUnits.concat([{ varUuid: pendVar, count: pendCount }])) : saved.slice();
+  _allocMemo = { key, saved, logged };
+  return _allocMemo;
+}
 function stepStatus(session, step, plan) {
-  const logged = stepLoggedSets(session, step), target = step.sets || 0;
-  const saved = stepSavedSets(session, step), minSets = stepMinSets(plan, step);
+  let logged, saved;
+  if (plan && plan.steps) {
+    const idx = plan.steps.indexOf(step);
+    if (idx >= 0) { const a = planStepAllocation(session, plan); logged = a.logged[idx]; saved = a.saved[idx]; } // feat 281 — unique assignment
+  }
+  if (logged == null) { logged = stepLoggedSets(session, step); saved = stepSavedSets(session, step); } // legacy fallback (plan-less callers)
+  const target = step.sets || 0, minSets = stepMinSets(plan, step);
   // `done` = the FULL target met (live, pending-inclusive) — drives the current-step pointer + the step HUD bar,
   // so following the plan exactly never skips ahead. `satisfied` = the feat 144 min-% threshold met by SAVED
   // sets only (checked after a save, not mid-entry) — drives plan-completion + the execution view.
@@ -10390,7 +10950,7 @@ function stepImpossibleInGym(step) {
 // Rough live ETA: remaining suggested sets × (avg set time + avg inter-set rest), defaults if no timing yet.
 function computePlanETA(session, plan) {
   let remainingSets = 0;
-  (plan.steps || []).forEach(st => { remainingSets += Math.max(0, (st.sets || 0) - stepStatus(session, st).logged); });
+  (plan.steps || []).forEach(st => { remainingSets += Math.max(0, (st.sets || 0) - stepStatus(session, st, plan).logged); });
   const rs = computeRestStats(session, pending, true);
   const perSetSec = (rs.avgSetTimeSec || 35) + (rs.avgInterSetRestSec || 105);
   const remMin = Math.round(remainingSets * perSetSec / 60);
@@ -10540,7 +11100,7 @@ function planStepIndicatorHtml() {
   const session = getActiveSession(); if (!session) return '';
   const idx = planStepForVar(session, plan, pending.varUuid);
   if (idx < 0) return `<div class="logstep off">📋 ${escapeHtml(plan.name)} · not part of any plan step</div>`;
-  const st = plan.steps[idx], ss = stepStatus(session, st), ef = stepEffort(session, st);
+  const st = plan.steps[idx], ss = stepStatus(session, st, plan), ef = stepEffort(session, st);
   const pct = st.sets > 0 ? Math.min(100, (ss.logged / st.sets) * 100) : 0;
   const effortTxt = ef.applicable ? ` · 💪 ${ef.hit ? 'on target' : `${ef.top || 0}/${ef.sug}${state.unit}`}` : '';
   return `<div class="logstep ${ss.done ? 'done' : 'current'}">
@@ -10959,21 +11519,42 @@ function splitTemplateFor(sessions) { return SPLIT_TEMPLATES[Math.max(2, Math.mi
 // routine; the programming is our own generic archetype (PPL / upper-lower / full-body), and the recommender
 // fills each slot from YOUR plan library. Purely a fun starting point.
 const THEMED_SPLITS = [
-  { id:'steel',   name:'Man of Lifting Steel',     emoji:'🦸', tag:'4-day · caped strength',      blurb:'Heavy presses and a back built to fill a cape — upper/lower, then a pull and a push to finish.', slots:['Upper','Legs','Pull','Push'] },
-  { id:'oak',     name:'The Golden-Era Oak',       emoji:'🌳', tag:'6-day · mirror muscles',      blurb:'A high-volume, sun-soaked beach classic — chest & back paired, legs honoured, arms never skipped.', slots:['Push','Pull','Legs','Push','Pull','Legs'] },
-  { id:'spartan', name:'Three Hundred Reasons',    emoji:'🛡️', tag:'3-day · lean & conditioned',  blurb:'A lean warrior look: full-body strength three times a week, every session earns its sweat.', slots:['Full Body','Full Body','Full Body'] },
-  { id:'thunder', name:'God of Thunder',           emoji:'⚡', tag:'4-day · overhead power',       blurb:'Shoulder-forward and powerful — press overhead like a worthy hammer depends on it.', slots:['Push','Pull','Legs','Upper'] },
-  { id:'people',  name:'The People’s Pump',        emoji:'🌋', tag:'5-day · boulder shoulders',    blurb:'Big chest and bigger delts, five days, maximum effort — no day wasted, my friends.', slots:['Push','Pull','Legs','Push','Pull'] },
-  { id:'cowl',    name:'The Caped Crusader’s Cut',  emoji:'🦇', tag:'4-day · athletic minimalism', blurb:'Dense and athletic — an upper/lower you could run out of a cave anywhere in the city.', slots:['Upper','Legs','Upper','Legs'] },
+  // —— Within a calendar week (≤7 days → weekday program) ——
+  { id:'steel',   name:'Man of Lifting Steel',     emoji:'🦸', tag:'4-day · caped strength',      blurb:'Heavy presses and a back built to fill a cape — upper/lower, then a pull and a push to finish.', slots:['Upper','Legs','Pull','Push'], days:7 },
+  { id:'oak',     name:'The Golden-Era Oak',       emoji:'🌳', tag:'6-day · mirror muscles',      blurb:'A high-volume, sun-soaked beach classic — chest & back paired, legs honoured, arms never skipped.', slots:['Push','Pull','Legs','Push','Pull','Legs'], days:7 },
+  { id:'spartan', name:'Three Hundred Reasons',    emoji:'🛡️', tag:'3-day · lean & conditioned',  blurb:'A lean warrior look: full-body strength three times a week, every session earns its sweat.', slots:['Full Body','Full Body','Full Body'], days:7 },
+  { id:'thunder', name:'God of Thunder',           emoji:'⚡', tag:'4-day · overhead power',       blurb:'Shoulder-forward and powerful — press overhead like a worthy hammer depends on it.', slots:['Push','Pull','Legs','Upper'], days:7 },
+  { id:'people',  name:'The People’s Pump',        emoji:'🌋', tag:'5-day · boulder shoulders',    blurb:'Big chest and bigger delts, five days, maximum effort — no day wasted, my friends.', slots:['Push','Pull','Legs','Push','Pull'], days:7 },
+  { id:'cowl',    name:'The Caped Crusader’s Cut',  emoji:'🦇', tag:'4-day · athletic minimalism', blurb:'Dense and athletic — an upper/lower you could run out of a cave anywhere in the city.', slots:['Upper','Legs','Upper','Legs'], days:7 },
   // feat 273 — martial-arts & mind-body themed splits. A "Core" slot will surface the new core/conditioning
   // plans (Pilates, Fighter\'s Circuit) when they cover it best.
-  { id:'dragon',    name:'Way of the Dragon',        emoji:'🐉', tag:'4-day · martial athleticism',     blurb:'A fighter build — push, pull and legs for power, then a core-and-conditioning day to tie it all together.', slots:['Push','Pull','Legs','Core'] },
-  { id:'crane',     name:'The Crane & The Tiger',    emoji:'🦢', tag:'4-day · strength meets stillness', blurb:'Hard and soft in balance — two big strength days, a pull day, and a core / mind-body day to reset.', slots:['Upper','Legs','Pull','Core'] },
-  { id:'shaolin',   name:'The Shaolin Path',         emoji:'🧘', tag:'3-day · full-body discipline',     blurb:'Lean, capable and unhurried — full-body strength bookending a core-and-control day. Move with intent.', slots:['Full Body','Core','Full Body'] },
-  { id:'contender', name:'The Contender',            emoji:'🥊', tag:'5-day · a fighter engine',         blurb:'Train like you have a fight coming — upper and lower power, a pull day, and a core-conditioning finisher.', slots:['Push','Legs','Pull','Upper','Core'] },
-  { id:'aegis',     name:'The Shield-Bearer',        emoji:'🛡️', tag:'4-day · armoured all-rounder',     blurb:'Balanced, durable and strong from every angle — an upper / lower base with a posterior and core focus.', slots:['Upper','Legs','Pull','Core'] },
+  { id:'dragon',    name:'Way of the Dragon',        emoji:'🐉', tag:'4-day · martial athleticism',     blurb:'A fighter build — push, pull and legs for power, then a core-and-conditioning day to tie it all together.', slots:['Push','Pull','Legs','Core'], days:7 },
+  { id:'crane',     name:'The Crane & The Tiger',    emoji:'🦢', tag:'4-day · strength meets stillness', blurb:'Hard and soft in balance — two big strength days, a pull day, and a core / mind-body day to reset.', slots:['Upper','Legs','Pull','Core'], days:7 },
+  { id:'shaolin',   name:'The Shaolin Path',         emoji:'🧘', tag:'3-day · full-body discipline',     blurb:'Lean, capable and unhurried — full-body strength bookending a core-and-control day. Move with intent.', slots:['Full Body','Core','Full Body'], days:7 },
+  { id:'contender', name:'The Contender',            emoji:'🥊', tag:'5-day · a fighter engine',         blurb:'Train like you have a fight coming — upper and lower power, a pull day, and a core-conditioning finisher.', slots:['Push','Legs','Pull','Upper','Core'], days:7 },
+  { id:'aegis',     name:'The Shield-Bearer',        emoji:'🛡️', tag:'4-day · armoured all-rounder',     blurb:'Balanced, durable and strong from every angle — an upper / lower base with a posterior and core focus.', slots:['Upper','Legs','Pull','Core'], days:7 },
+  // —— feat 283 — rotations LONGER than a week (>7 days → a rotating cycle anchored to a start date). The
+  //    recommender still fills each slot from your library; more variety in the library = fewer repeats. ——
+  { id:'eight-engine', name:'The Eight-Day Engine',    emoji:'🎼', tag:'8-day · PPL ×2, two rests',     blurb:'Two push/pull/legs blocks across eight days — a touch more recovery than a strict weekly six.', slots:['Push','Pull','Legs','Push','Pull','Legs'], days:8 },
+  { id:'ebb-flow',     name:'Ebb & Flow',               emoji:'🌊', tag:'8-day · upper/lower wave',       blurb:'An upper/lower tide that drifts off the calendar — five sessions paced over eight days.', slots:['Upper','Legs','Push','Pull','Legs'], days:8 },
+  { id:'rule-threes',  name:'Rule of Threes',           emoji:'🔱', tag:'9-day · PPL ×2 + a core day',    blurb:'Push, pull, legs — twice — capped with a dedicated core day, breathing across nine days.', slots:['Push','Pull','Legs','Push','Pull','Legs','Core'], days:9 },
+  { id:'nine-ronin',   name:'The Nine-Day Ronin',       emoji:'🗡️', tag:'9-day · strength + core, paced', blurb:'A masterless rhythm — push/pull/legs and core, then again, set to its own nine-day clock.', slots:['Push','Pull','Legs','Core','Push','Pull','Legs'], days:9 },
+  { id:'decathlete',   name:'The Decathlete',           emoji:'🏅', tag:'10-day · full rotation',         blurb:'Every quality gets a day — push, pull, legs, upper, full-body and core across a ten-day wheel.', slots:['Push','Pull','Legs','Upper','Full Body','Core','Push','Pull'], days:10 },
+  { id:'long-orbit',   name:'Long Orbit',               emoji:'☄️', tag:'10-day · PPL ×2 + two cores',    blurb:'A wide, comfortable orbit — two PPL blocks with a core day after each, ten days end to end.', slots:['Push','Pull','Legs','Core','Push','Pull','Legs','Core'], days:10 },
+  { id:'clockwork',    name:'Clockwork Twelve',         emoji:'⚙️', tag:'12-day · PPL ×3, spaced',        blurb:'Three precise push/pull/legs turns over twelve days — high frequency with engineered rest.', slots:['Push','Pull','Legs','Push','Pull','Legs','Push','Pull','Legs'], days:12 },
+  { id:'long-voyage',  name:'The Long Voyage',          emoji:'🚢', tag:'12-day · upper/lower ×3 + core', blurb:'A steady upper/lower crossing — three laps and a core day, charted over twelve days.', slots:['Upper','Legs','Upper','Legs','Upper','Legs','Core'], days:12 },
+  { id:'fortnight',    name:'The Fortnight Forge',      emoji:'🗓️', tag:'14-day · two-week microcycle',   blurb:'A full two-week block — push, pull, legs, upper and core, twice — your own fourteen-day cycle.', slots:['Push','Pull','Legs','Upper','Core','Push','Pull','Legs','Upper','Core'], days:14 },
+  { id:'base-peak',    name:'Base & Peak',              emoji:'⛰️', tag:'14-day · full-body base + splits', blurb:'Open each week on a full-body base, then split push/pull/legs — a balanced fourteen-day arc.', slots:['Full Body','Push','Pull','Legs','Full Body','Push','Pull','Legs'], days:14 },
+  { id:'two-week-tempo', name:'The Two-Week Tempo',     emoji:'🏃', tag:'14-day · high-frequency PPL',    blurb:'Three PPL turns plus a core day over fourteen days — frequent, but with honest recovery built in.', slots:['Push','Pull','Legs','Push','Pull','Legs','Push','Pull','Legs','Core'], days:14 },
+  { id:'colossus',     name:'The Sixteen-Day Colossus', emoji:'🗿', tag:'16-day · specialization wheel',  blurb:'A long, monumental rotation — every split plus full-body and core, paced across sixteen days.', slots:['Push','Pull','Legs','Upper','Push','Pull','Legs','Core','Full Body','Push','Pull','Legs'], days:16 },
+  { id:'three-week',   name:'The Three-Week Cycle',     emoji:'🌒', tag:'21-day · accumulation block',    blurb:'An accumulation block as one repeating split — twenty-one days of structured push/pull/legs and core.', slots:['Push','Pull','Legs','Upper','Core','Push','Pull','Legs','Upper','Core','Push','Pull','Legs','Full Body'], days:21 },
+  { id:'pilgrimage',   name:'The Long Pilgrimage',      emoji:'🧭', tag:'21-day · sustainable rotation',  blurb:'An unhurried twenty-one-day journey — push, pull, legs, core, on repeat, with room to recover.', slots:['Push','Pull','Legs','Core','Push','Pull','Legs','Core','Push','Pull','Legs','Core'], days:21 },
+  { id:'lunar-cycle',  name:'The Lunar Cycle',          emoji:'🌕', tag:'28-day · a month as one split',  blurb:'A whole month as a single rotation — every quality, three times around, over twenty-eight days.', slots:['Push','Pull','Legs','Upper','Core','Full Body','Push','Pull','Legs','Upper','Core','Full Body','Push','Pull','Legs','Upper','Core','Full Body'], days:28 },
+  { id:'odyssey',      name:'The Monthlong Odyssey',    emoji:'🗺️', tag:'28-day · periodized month',      blurb:'A periodized month — full-body openers feeding into push/pull/legs/upper/core, twenty-eight days long.', slots:['Full Body','Push','Pull','Legs','Upper','Core','Full Body','Push','Pull','Legs','Upper','Core','Push','Pull','Legs','Upper'], days:28 },
 ];
 function themedSplit(id) { return THEMED_SPLITS.find(t => t.id === id) || null; }
+// feat 283 — a themed split's own length (the rotation/cycle length); falls back to its session count.
+function themeDays(t) { return (t && t.days) ? t.days : ((t && t.slots) ? t.slots.length : 7); }
 // The muscle GROUPS a slot is meant to cover — so a "Pull" day is judged on back+biceps volume, not just
 // on fitting the clock (which would otherwise pick a tiny Arm Day over a proper rowing session).
 const SLOT_GROUPS = {
@@ -11017,6 +11598,15 @@ function buildRecommendedSplit(opts) {
 }
 const SPLIT_STATUS_LABEL = { under: 'under', light: 'light', optimal: 'on target', over: 'over' };
 function splitPlanCfg() { return state.splitPlan || (state.splitPlan = { sessions: 3, days: 7, minutes: 60 }); }
+// feat 283 — split-planner UI prefs (per-section collapse + the themed-split length filter). Themed splits
+// default COLLAPSED (the list is long); the other sections default expanded. Persisted via SETTINGS_KEYS.
+function spUICfg() {
+  if (!state.spUI || typeof state.spUI !== 'object') state.spUI = {};
+  if (!state.spUI.collapse || typeof state.spUI.collapse !== 'object') state.spUI.collapse = { themes: true };
+  if (!state.spUI.themeFilter) state.spUI.themeFilter = 'all';
+  return state.spUI;
+}
+let _spThemeSearch = ''; // transient — not persisted across sessions
 /* ============================================================
    feat 230 — SCHEDULED WEEKLY PROGRAM. The future-oriented layer over the split planner: save a recommended
    split as a day-by-day weekly program (state.program), then the app knows what's planned for each day —
@@ -11028,7 +11618,48 @@ const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0]; // display Monday-first (a training wee
 // Sensible default day placements (JS DOW) per session count — spaced for recovery.
 const PROGRAM_DOW_PICKS = { 2: [1, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 5, 6], 6: [1, 2, 3, 4, 5, 6] };
 function getProgram() { return state.program || null; }
-function buildProgramFromSplit(split, sessions, minutes) {
+// feat 282 — a split can be LONGER than a calendar week. ≤7 days → the familiar weekday program (week[7],
+// JS DOW). >7 days → a rotating N-day cycle anchored to a start date: "today" is computed by rotation, so a
+// 9-day split repeats every 9 days regardless of weekday. programMode() discriminates; everything downstream
+// resolves a date → planId through scheduledPlanIdForDate so both modes share one code path.
+function programMode(p) { p = p || getProgram(); return (p && p.mode === 'rotation') ? 'rotation' : 'week'; }
+function _isoToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString().slice(0, 10); }
+// Whole days from an ISO date (anchored at local midnight) to a Date — robust to DST via rounding.
+function _daysFromIso(iso, dateObj) {
+  const a = new Date(iso + 'T00:00:00'); const b = new Date(dateObj); b.setHours(0, 0, 0, 0);
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+// Which rotation slot (0…N-1) a date lands on.
+function rotationDayIndex(p, dateObj) {
+  const n = p.splitLen || (p.rotation || []).length || 1;
+  return (((_daysFromIso(p.start, dateObj) % n) + n) % n);
+}
+// The scheduled plan id for ANY date, in either mode (null = rest / no program).
+function scheduledPlanIdForDate(dateObj) {
+  const p = getProgram(); if (!p) return null;
+  if (programMode(p) === 'rotation') return (p.rotation || [])[rotationDayIndex(p, dateObj)] || null;
+  return (p.week || [])[dateObj.getDay()] || null;
+}
+// Distinct indexes spread evenly across [0, span) — places `count` training days within a longer rotation.
+function _spreadIndices(count, span) {
+  const out = [], used = new Set();
+  for (let i = 0; i < count; i++) {
+    let idx = Math.min(span - 1, Math.round(i * span / count));
+    while (used.has(idx)) idx = (idx + 1) % span;
+    used.add(idx); out.push(idx);
+  }
+  return out;
+}
+function buildProgramFromSplit(split, sessions, minutes, splitLen) {
+  // feat 282 — a >7-day split builds a rotating cycle; ≤7 keeps the weekday week[7] (unchanged).
+  if (splitLen && splitLen > 7) {
+    const len = Math.min(28, Math.max(8, splitLen | 0));
+    const placed = (split || []).filter(s => s && s.plan);
+    const idxs = _spreadIndices(placed.length, len);
+    const rotation = new Array(len).fill(null), pool = [];
+    placed.forEach((s, i) => { rotation[idxs[i]] = s.plan.id; if (!pool.includes(s.plan.id)) pool.push(s.plan.id); });
+    return { name: len + '-day split', createdAt: new Date().toISOString(), sessions, minutes, mode: 'rotation', splitLen: len, start: _isoToday(), pool, rotation };
+  }
   const picks = PROGRAM_DOW_PICKS[Math.max(2, Math.min(6, sessions | 0 || 3))] || PROGRAM_DOW_PICKS[3];
   const week = [null, null, null, null, null, null, null], pool = [];
   (split || []).forEach((s, i) => {
@@ -11042,33 +11673,73 @@ function saveProgramFromSplit() {
   const cfg = splitPlanCfg();
   const t = cfg.theme ? themedSplit(cfg.theme) : null; // feat 255 — honour the chosen themed split
   const sessions = t ? t.slots.length : cfg.sessions;
+  const splitLen = Math.max(sessions, Math.min(28, (cfg.days | 0) || 7)); // feat 282 — the split's own length
   const split = buildRecommendedSplit({ sessions, minutes: cfg.minutes, slots: t ? t.slots : null });
-  state.program = buildProgramFromSplit(split, sessions, cfg.minutes);
+  state.program = buildProgramFromSplit(split, sessions, cfg.minutes, splitLen);
   if (t) state.program.name = t.name;
   saveState();
 }
 function clearProgram() { state.program = null; saveState(); }
-// The planned session for a given JS day-of-week (or null = rest / no program).
+// The planned session for a given JS day-of-week (week mode only — drives the Mon–Sun agenda).
 function programForDow(dow) {
   const p = getProgram(); if (!p || !p.week) return null;
   const id = p.week[dow]; if (!id) return null;
   const plan = getPlan(id); return plan ? { dow, planId: id, plan } : null;
 }
-function programToday() { return programForDow(new Date().getDay()); }
-// The next planned session within the coming 7 days (today first), for the "up next" surfacing.
+// Today's planned session in EITHER mode.
+function programToday() {
+  const id = scheduledPlanIdForDate(new Date()); if (!id) return null;
+  const plan = getPlan(id); return plan ? { planId: id, plan } : null;
+}
+// The next planned session within the coming cycle (today first), for the "up next" surfacing.
 function programNextUp() {
-  if (!getProgram()) return null;
-  const today = new Date().getDay();
-  for (let i = 0; i < 7; i++) { const e = programForDow((today + i) % 7); if (e) return { ...e, inDays: i }; }
+  const p = getProgram(); if (!p) return null;
+  const horizon = Math.max(7, (programMode(p) === 'rotation') ? p.splitLen : 7);
+  const base = new Date(); base.setHours(0, 0, 0, 0);
+  for (let i = 0; i < horizon; i++) {
+    const d = new Date(base); d.setDate(base.getDate() + i);
+    const id = scheduledPlanIdForDate(d); if (!id) continue;
+    const plan = getPlan(id); if (plan) return { planId: id, plan, inDays: i };
+  }
   return null;
 }
-// Tap a day to cycle Rest → each distinct program plan → Rest.
+// Tap a weekday to cycle Rest → each distinct program plan → Rest (week mode).
 function cycleProgramDay(dow) {
-  const p = getProgram(); if (!p) return;
+  const p = getProgram(); if (!p || !p.week) return;
   const opts = [null].concat(p.pool || []);
   let idx = opts.indexOf(p.week[dow] || null); if (idx < 0) idx = 0;
   p.week[dow] = opts[(idx + 1) % opts.length];
   saveState();
+}
+// Tap a rotation day to cycle Rest → each distinct program plan → Rest (rotation mode).
+function cycleProgramRotDay(i) {
+  const p = getProgram(); if (!p || !Array.isArray(p.rotation) || i < 0 || i >= p.rotation.length) return;
+  const opts = [null].concat(p.pool || []);
+  let idx = opts.indexOf(p.rotation[i] || null); if (idx < 0) idx = 0;
+  p.rotation[i] = opts[(idx + 1) % opts.length];
+  saveState();
+}
+// feat 282 — the current rotation cycle's days (Day 1…N) with per-day status, for the rotation agenda.
+function programCycleDays() {
+  const p = getProgram(); if (!p || programMode(p) !== 'rotation') return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayIdx = rotationDayIndex(p, today), N = p.splitLen;
+  const rows = [];
+  for (let k = 0; k < N; k++) {
+    const date = new Date(today); date.setDate(today.getDate() + (k - todayIdx));
+    const planId = p.rotation[k] || null;
+    let status = null;
+    if (planId) {
+      const sess = _realSessionsOnDate(date);
+      if (sess.some(s => s.planId === planId)) status = 'done';
+      else if (sess.length) status = 'off-plan';
+      else if (date < today) status = 'missed';
+      else if (+date === +today) status = 'today';
+      else status = 'upcoming';
+    }
+    rows.push({ idx: k, day: k + 1, date: date.toISOString().slice(0, 10), planId, plan: planId ? getPlan(planId) : null, status, isToday: k === todayIdx });
+  }
+  return { todayIdx, rows };
 }
 /* ============================================================
    feat 231 — PROGRAM ADHERENCE. Match logged sessions back to the scheduled program: what was hit, what was
@@ -11098,7 +11769,7 @@ function programWeekAdherence(weeksBack) {
   const days = [];
   for (let i = 0; i < 7; i++) {
     const date = new Date(monday); date.setDate(monday.getDate() + i);
-    const planId = p.week[date.getDay()]; if (!planId) continue;
+    const planId = scheduledPlanIdForDate(date); if (!planId) continue; // feat 282 — week or rotation
     const sess = _realSessionsOnDate(date);
     let status;
     if (sess.some(s => s.planId === planId)) status = 'done';
@@ -11119,7 +11790,7 @@ function programAdherenceStreak() {
   let streak = 0;
   for (let i = 1; i <= 180; i++) {
     const day = new Date(d); day.setDate(d.getDate() - i);
-    if (!p.week[day.getDay()]) continue;        // not a scheduled day → skip
+    if (!scheduledPlanIdForDate(day)) continue; // feat 282 — not a scheduled day (week or rotation) → skip
     if (_realSessionsOnDate(day).length) streak++; else break;
   }
   return streak;
@@ -11137,12 +11808,32 @@ function renderSplitPlannerPage(main) {
   const theme = cfg.theme ? themedSplit(cfg.theme) : null; // feat 255
   const split = buildRecommendedSplit({ sessions: theme ? theme.slots.length : cfg.sessions, minutes: cfg.minutes, slots: theme ? theme.slots : null });
   const meso = mesoCurrentWeek(); // feat 232 — periodization scales the coverage projection by the current week's volume
-  const analysis = splitAnalysis(split.map(s => s.plan).filter(Boolean), meso ? meso.vol : 1);
+  // feat 282 — a split longer than a week spreads its sessions over >7 days, so its PER-WEEK volume is the
+  // rotation total scaled by 7/days. Keeps "sets/week" coverage honest for long splits.
+  const weekScale = cfg.days > 7 ? 7 / cfg.days : 1;
+  const analysis = splitAnalysis(split.map(s => s.plan).filter(Boolean), (meso ? meso.vol : 1) * weekScale);
   const chip = (attr, val, cur, label) => `<button class="sp-chip ${cur === val ? 'active' : ''}" data-${attr}="${val}">${label}</button>`;
   const sessChips = [2, 3, 4, 5, 6].map(n => chip('sp-sessions', n, cfg.sessions, n)).join('');
-  const dayChips = [3, 4, 5, 6, 7].filter(d => d >= cfg.sessions).map(d => chip('sp-days', d, cfg.days, d)).join('');
+  // feat 282 — "days in the split" (the rotation's own length), not days-in-a-calendar-week; goes up to 28.
+  const dayChips = [3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 21, 28].filter(d => d >= cfg.sessions).map(d => chip('sp-days', d, cfg.days, d)).join('');
   const minChips = [30, 45, 60, 90, 120].map(m => chip('sp-min', m, cfg.minutes, m + 'm')).join('');
   const doubles = cfg.sessions > cfg.days;
+  const longSplit = cfg.days > 7; // feat 282 — a split longer than a week saves as a rotating cycle
+  // feat 283 — collapsible sections + themed-split search/filter
+  const ui = spUICfg(), coll = ui.collapse;
+  const isColl = k => !!coll[k];
+  const chev = k => `<span class="sp-sec-chev">${isColl(k) ? '▸' : '▾'}</span>`;
+  // themed-split length filter + (client-side) text search
+  const THEME_LEN_FILTERS = [{ id: 'all', label: 'All' }, { id: 'week', label: '≤1 wk' }, { id: 'short', label: '8–14d' }, { id: 'long', label: '15–28d' }];
+  const tf = ui.themeFilter || 'all';
+  const themeInFilter = t => { const d = themeDays(t); return tf === 'all' || (tf === 'week' && d <= 7) || (tf === 'short' && d >= 8 && d <= 14) || (tf === 'long' && d >= 15); };
+  const themesShown = THEMED_SPLITS.filter(themeInFilter);
+  const themeFilterChips = THEME_LEN_FILTERS.map(f => `<button class="sp-chip ${tf === f.id ? 'active' : ''}" data-theme-filter="${f.id}">${f.label}</button>`).join('');
+  const themeChips = themesShown.map(t => {
+    const hay = (t.name + ' ' + t.tag + ' ' + t.blurb + ' ' + themeDays(t) + 'day').toLowerCase();
+    const hidden = _spThemeSearch && !hay.includes(_spThemeSearch.trim().toLowerCase());
+    return `<button class="sp-theme ${cfg.theme === t.id ? 'active' : ''}" data-sp-theme="${escapeAttr(t.id)}" data-theme-search="${escapeAttr(hay)}" title="${escapeAttr(t.blurb)}"${hidden ? ' style="display:none"' : ''}><span class="sp-theme-emoji">${t.emoji}</span><span class="sp-theme-name">${escapeHtml(t.name)}</span><span class="sp-theme-tag">${escapeHtml(t.tag)}</span><span class="sp-theme-days">${themeDays(t)}-day split</span></button>`;
+  }).join('');
   // recommended split rows
   const splitRows = split.map(s => s.plan
     ? `<div class="sp-day"><div class="sp-day-slot"><span class="sp-day-n">Day ${s.day}</span><span class="sp-day-cat">${escapeHtml(s.slot)}</span></div>
@@ -11167,80 +11858,122 @@ function renderSplitPlannerPage(main) {
   const adh = prog ? programWeekAdherence(0) : null, adhByDow = {};
   if (adh) adh.days.forEach(x => { adhByDow[x.dow] = x.status; });
   const PG_ICON = { done: '✓', 'off-plan': '✓', missed: '✗', today: '▸', upcoming: '·' };
-  const agendaRows = DOW_ORDER.map(d => {
-    const entry = programForDow(d), isToday = d === todayDow;
-    const st = entry ? (adhByDow[d] || (isToday ? 'today' : 'upcoming')) : null;
-    return `<button class="pg-day ${isToday ? 'today' : ''} ${entry ? '' : 'rest'}${st ? ' pg-' + st : ''}" data-pg-dow="${d}" title="Tap to change this day">
-      <span class="pg-dow">${DOW_SHORT[d]}${isToday ? ' · today' : ''}</span>
-      <span class="pg-plan">${entry ? escapeHtml(entry.plan.name) : '— rest —'}</span>
-      ${st ? `<span class="pg-status pg-${st}">${PG_ICON[st] || ''}</span>` : ''}
-    </button>`;
-  }).join('');
+  // feat 282 — a >7-day program is a rotating cycle (Day 1…N) rather than a Mon–Sun week.
+  const progIsRot = prog && programMode(prog) === 'rotation';
+  const cycle = progIsRot ? programCycleDays() : null;
+  const agendaRows = progIsRot
+    ? (cycle ? cycle.rows.map(r => {
+        const st = r.status;
+        return `<button class="pg-day ${r.isToday ? 'today' : ''} ${r.planId ? '' : 'rest'}${st ? ' pg-' + st : ''}" data-pg-rot="${r.idx}" title="Tap to change this day">
+          <span class="pg-dow">Day ${r.day}${r.isToday ? ' · today' : ''}</span>
+          <span class="pg-plan">${r.planId && r.plan ? escapeHtml(r.plan.name) : '— rest —'}</span>
+          ${st ? `<span class="pg-status pg-${st}">${PG_ICON[st] || ''}</span>` : ''}
+        </button>`;
+      }).join('') : '')
+    : DOW_ORDER.map(d => {
+        const entry = programForDow(d), isToday = d === todayDow;
+        const st = entry ? (adhByDow[d] || (isToday ? 'today' : 'upcoming')) : null;
+        return `<button class="pg-day ${isToday ? 'today' : ''} ${entry ? '' : 'rest'}${st ? ' pg-' + st : ''}" data-pg-dow="${d}" title="Tap to change this day">
+          <span class="pg-dow">${DOW_SHORT[d]}${isToday ? ' · today' : ''}</span>
+          <span class="pg-plan">${entry ? escapeHtml(entry.plan.name) : '— rest —'}</span>
+          ${st ? `<span class="pg-status pg-${st}">${PG_ICON[st] || ''}</span>` : ''}
+        </button>`;
+      }).join('');
+  const todayDone = progIsRot ? !!(cycle && cycle.rows.some(r => r.isToday && r.status === 'done')) : adhByDow[todayDow] === 'done';
+  const todayLbl = progIsRot ? `Day ${(cycle ? cycle.todayIdx + 1 : 1)}/${prog ? prog.splitLen : ''}` : DOW_SHORT[todayDow];
+  const progTitle = progIsRot ? `📅 Your ${prog.splitLen}-day split` : '📅 Your weekly program';
   const streak = prog ? programAdherenceStreak() : 0;
   const trend = prog ? programAdherenceTrend(4) : [];
   const trendDots = trend.map(w => `<span class="pg-dot ${w.scheduled && w.done >= w.scheduled ? 'full' : (w.done ? 'part' : 'none')}" title="${w.done}/${w.scheduled} done"></span>`).join('');
   const adhLine = adh ? `<div class="pg-adh">This week <b>${adh.done}/${adh.scheduled}</b> done${adh.missed ? ` · <span class="pg-missed-txt">${adh.missed} missed</span>` : ''}${streak ? ` · 🔥 ${streak}-session streak` : ''}<span class="pg-trend">${trendDots}<span class="pg-trend-lbl">4 wks</span></span></div>` : '';
   const programCard = prog ? `
-    <div class="card" id="sp-program">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>📅 Your weekly program</span><button class="sp-clear" id="pg-clear">Clear</button></div>
+    <div class="card sp-sec ${isColl('program') ? 'collapsed' : ''}" id="sp-program">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span class="sp-sec-head" data-sp-coll="program">${chev('program')} ${progTitle}</span><button class="sp-clear" id="pg-clear">Clear</button></div>
+      <div class="sp-sec-body">
       ${adhLine}
       ${todayEntry
-        ? `<div class="pg-today"><div><div class="pg-today-lbl">Today · ${DOW_SHORT[todayDow]}${adhByDow[todayDow] === 'done' ? ' · done ✓' : ''}</div><div class="pg-today-name">${escapeHtml(todayEntry.plan.name)}</div></div>${adhByDow[todayDow] === 'done' ? '' : `<button class="sp-use" data-plan-use="${escapeAttr(todayEntry.planId)}">▶ Start</button>`}</div>`
+        ? `<div class="pg-today"><div><div class="pg-today-lbl">Today · ${todayLbl}${todayDone ? ' · done ✓' : ''}</div><div class="pg-today-name">${escapeHtml(todayEntry.plan.name)}</div></div>${todayDone ? '' : `<button class="sp-use" data-plan-use="${escapeAttr(todayEntry.planId)}">▶ Start</button>`}</div>`
         : `<div class="pg-today rest"><div class="pg-today-name">Rest day — nothing scheduled today.</div></div>`}
       <div class="pg-week">${agendaRows}</div>
-      <div class="sp-legend">✓ done · ✗ missed · today highlighted. Tap any day to reassign it (cycles through your split's sessions and rest).</div>
+      <div class="sp-legend">${progIsRot ? `A rotating ${prog.splitLen}-day split — repeats from Day 1 regardless of weekday. ` : ''}✓ done · ✗ missed · today highlighted. Tap any day to reassign it (cycles through your split's sessions and rest).</div>
+      </div>
     </div>` : '';
   // feat 232 — periodization card: enable a mesocycle, see the week ramp, restart the block.
   const mcfg = mesoCfg();
   const mesoStrip = mesoWeekPlan(mcfg.length).map(w => `<div class="ms-wk ms-${w.phase.toLowerCase()} ${meso && meso.week === w.week ? 'cur' : ''}"><span class="ms-wk-n">W${w.week}</span><span class="ms-wk-phase">${w.phase}</span><span class="ms-wk-vol">${Math.round(w.vol * 100)}%</span></div>`).join('');
   const mesoLenChips = [3, 4, 5, 6].map(n => `<button class="sp-chip ${mcfg.length === n ? 'active' : ''}" data-ms-len="${n}">${n} wk</button>`).join('');
   const mesoCard = `
-    <div class="card" id="sp-meso">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>📈 Periodization</span><button class="sp-toggle ${mcfg.enabled ? 'on' : ''}" id="ms-toggle" role="switch" aria-checked="${mcfg.enabled}">${mcfg.enabled ? 'On' : 'Off'}</button></div>
+    <div class="card sp-sec ${isColl('meso') ? 'collapsed' : ''}" id="sp-meso">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span class="sp-sec-head" data-sp-coll="meso">${chev('meso')} 📈 Periodization</span><button class="sp-toggle ${mcfg.enabled ? 'on' : ''}" id="ms-toggle" role="switch" aria-checked="${mcfg.enabled}">${mcfg.enabled ? 'On' : 'Off'}</button></div>
+      <div class="sp-sec-body">
       <div class="sp-intro">Ramp volume across a mesocycle, then deload — accumulation weeks push toward your MRV, the deload backs off. Planning guidance, not auto-applied to your logged sets.</div>
       ${mcfg.enabled ? `${meso ? `<div class="ms-banner ms-${meso.phase.toLowerCase()}"><b>Week ${meso.week} of ${meso.length} · ${meso.phase}</b> · ${Math.round(meso.vol * 100)}% volume · ${meso.effort}</div>` : ''}
       <div class="sp-input"><div class="sp-input-lbl">Cycle length</div><div class="sp-chips">${mesoLenChips}</div></div>
       <div class="ms-strip">${mesoStrip}</div>
       <button class="sp-save" id="ms-restart" style="margin-top:10px;">↻ Restart cycle this week</button>` : ''}
+      </div>
     </div>`;
   main.innerHTML = `
-    <div class="card">
-      <div class="card-title">🗓️ Split Planner</div>
-      <div class="sp-intro">Tell us what you've got — we'll recommend a weekly split and show how well it covers each muscle group against its weekly volume target (MEV–MRV). It's a planning aid, not a rule.</div>
-      <div class="sp-input"><div class="sp-input-lbl">Sessions / week</div><div class="sp-chips">${sessChips}</div></div>
-      <div class="sp-input"><div class="sp-input-lbl">Days / week</div><div class="sp-chips">${dayChips}</div></div>
+    <div class="card sp-sec ${isColl('inputs') ? 'collapsed' : ''}">
+      <div class="card-title sp-sec-head" data-sp-coll="inputs">${chev('inputs')} 🗓️ Split Planner</div>
+      <div class="sp-sec-body">
+      <div class="sp-intro">Tell us what you've got — we'll recommend a split and show how well it covers each muscle group against its weekly volume target (MEV–MRV). It's a planning aid, not a rule.</div>
+      <div class="sp-input"><div class="sp-input-lbl">Training sessions</div><div class="sp-chips">${sessChips}</div></div>
+      <div class="sp-input"><div class="sp-input-lbl">Days in the split</div><div class="sp-chips">${dayChips}</div></div>
       <div class="sp-input"><div class="sp-input-lbl">Time / session</div><div class="sp-chips">${minChips}</div></div>
       ${doubles ? `<div class="sp-note">⚠️ ${cfg.sessions} sessions across ${cfg.days} days means some days double up — make sure you can recover.</div>` : ''}
+      ${longSplit ? `<div class="sp-note">🔁 A ${cfg.days}-day split is longer than a week, so it saves as a <b>rotating cycle</b> (Day 1…${cfg.days}, repeating from a start date) rather than a fixed Mon–Sun program. ${cfg.sessions} sessions · ${cfg.days - cfg.sessions} rest day${cfg.days - cfg.sessions === 1 ? '' : 's'} per cycle.</div>` : ''}
+      </div>
     </div>
-    <div class="card">
-      <div class="card-title">✨ Themed splits</div>
-      <div class="sp-intro">Curated splits that group complementary plans into one coherent week — pick a vibe to shape the recommendation below (tap again to clear). ${theme ? `<b>${escapeHtml(theme.name)}</b> — ${escapeHtml(theme.blurb)}` : 'The recommender fills each day from your own plan library.'}</div>
-      <div class="sp-themes">${THEMED_SPLITS.map(t => `<button class="sp-theme ${cfg.theme === t.id ? 'active' : ''}" data-sp-theme="${escapeAttr(t.id)}" title="${escapeAttr(t.blurb)}"><span class="sp-theme-emoji">${t.emoji}</span><span class="sp-theme-name">${escapeHtml(t.name)}</span><span class="sp-theme-tag">${escapeHtml(t.tag)}</span></button>`).join('')}</div>
+    <div class="card sp-sec ${isColl('themes') ? 'collapsed' : ''}">
+      <div class="card-title sp-sec-head" data-sp-coll="themes">${chev('themes')} ✨ Themed splits <span class="sp-sec-count">${themesShown.length}${tf !== 'all' ? ` of ${THEMED_SPLITS.length}` : ''}</span></div>
+      <div class="sp-sec-body">
+      <div class="sp-intro">Curated splits that group complementary plans into a coherent rotation — pick a vibe to shape the recommendation below (tap again to clear). ${theme ? `<b>${escapeHtml(theme.name)}</b> — ${escapeHtml(theme.blurb)}` : 'The recommender fills each day from your own plan library.'}</div>
+      <div class="sp-theme-tools">
+        <input type="search" class="sp-theme-search" id="sp-theme-search" placeholder="🔎 Search splits…" value="${escapeAttr(_spThemeSearch)}" autocomplete="off">
+        <div class="sp-theme-filters">${themeFilterChips}</div>
+      </div>
+      <div class="sp-themes">${themeChips || '<div class="sp-theme-none">No splits match this filter.</div>'}</div>
+      </div>
     </div>
-    <div class="card">
-      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span>${theme ? '🎬 ' + escapeHtml(theme.name) : 'Recommended split'}</span><button class="sp-save" id="pg-save">${prog ? '↻ Reschedule' : '📅 Save as program'}</button></div>
-      <div class="sp-days">${splitRows}</div>
+    <div class="card sp-sec ${isColl('recommended') ? 'collapsed' : ''}">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;"><span class="sp-sec-head" data-sp-coll="recommended">${chev('recommended')} ${theme ? '🎬 ' + escapeHtml(theme.name) : 'Recommended split'}</span><button class="sp-save" id="pg-save">${prog ? '↻ Reschedule' : '📅 Save as program'}</button></div>
+      <div class="sp-sec-body"><div class="sp-days">${splitRows}</div></div>
     </div>
     ${programCard}
     ${mesoCard}
-    <div class="card">
-      <div class="card-title">Coverage vs targets${meso ? ` <span class="ms-cov-tag ms-${meso.phase.toLowerCase()}">week ${meso.week} · ${Math.round(meso.vol * 100)}%</span>` : ''}</div>
+    <div class="card sp-sec ${isColl('coverage') ? 'collapsed' : ''}">
+      <div class="card-title sp-sec-head" data-sp-coll="coverage">${chev('coverage')} Coverage vs targets${meso ? ` <span class="ms-cov-tag ms-${meso.phase.toLowerCase()}">week ${meso.week} · ${Math.round(meso.vol * 100)}%</span>` : ''}</div>
+      <div class="sp-sec-body">
       <div class="sp-balance">Balance <span class="sp-bal-score sp-${balClass}">${analysis.balance}%</span>${analysis.under ? ` · <span class="sp-under">${analysis.under} under</span>` : ''}${analysis.over ? ` · <span class="sp-over">${analysis.over} over</span>` : ''}${!analysis.under && !analysis.over ? ' · well balanced 💪' : ''}</div>
       <div class="sp-grps">${barRows}</div>
       <div class="sp-legend">Bar = your weekly sets · green band = the productive MEV–MRV window · marker colour = status.${meso ? ` Volumes shown for <b>${meso.phase}</b> week (${Math.round(meso.vol * 100)}% of base).` : ''}</div>
+      </div>
     </div>`;
   main.querySelectorAll('[data-sp-sessions]').forEach(b => b.addEventListener('click', () => { cfg.sessions = +b.dataset.spSessions; cfg.theme = null; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; saveState(); renderSplitPlannerPage(main); })); // feat 255 — a manual session count clears the themed slot sequence
   main.querySelectorAll('[data-sp-theme]').forEach(b => b.addEventListener('click', () => { // feat 255 — pick / clear a themed split
     const id = b.dataset.spTheme; cfg.theme = (cfg.theme === id) ? null : id;
     const t = cfg.theme ? themedSplit(cfg.theme) : null;
-    if (t) { cfg.sessions = t.slots.length; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; }
+    if (t) { cfg.sessions = t.slots.length; cfg.days = Math.min(28, Math.max(t.slots.length, themeDays(t))); } // feat 283 — a theme carries its own split length
     saveState(); renderSplitPlannerPage(main);
   }));
+  // feat 283 — collapse/expand a section (persisted); themed-split length filter; live text search
+  main.querySelectorAll('[data-sp-coll]').forEach(el => el.addEventListener('click', () => {
+    const k = el.dataset.spColl, u = spUICfg(); u.collapse[k] = !u.collapse[k]; saveState(); renderSplitPlannerPage(main);
+  }));
+  main.querySelectorAll('[data-theme-filter]').forEach(b => b.addEventListener('click', () => { spUICfg().themeFilter = b.dataset.themeFilter; _spThemeSearch = ''; saveState(); renderSplitPlannerPage(main); }));
+  const themeSearchEl = main.querySelector('#sp-theme-search');
+  if (themeSearchEl) themeSearchEl.addEventListener('input', () => { // client-side filter (no re-render → keeps focus)
+    _spThemeSearch = themeSearchEl.value;
+    const q = themeSearchEl.value.trim().toLowerCase();
+    main.querySelectorAll('.sp-themes .sp-theme').forEach(el => { el.style.display = (!q || (el.dataset.themeSearch || '').includes(q)) ? '' : 'none'; });
+  });
   main.querySelectorAll('[data-sp-days]').forEach(b => b.addEventListener('click', () => { cfg.days = +b.dataset.spDays; saveState(); renderSplitPlannerPage(main); }));
   main.querySelectorAll('[data-sp-min]').forEach(b => b.addEventListener('click', () => { cfg.minutes = +b.dataset.spMin; saveState(); renderSplitPlannerPage(main); }));
   main.querySelector('#pg-save')?.addEventListener('click', () => { saveProgramFromSplit(); renderSplitPlannerPage(main); }); // feat 230
   main.querySelector('#pg-clear')?.addEventListener('click', () => { clearProgram(); renderSplitPlannerPage(main); });
   main.querySelectorAll('[data-pg-dow]').forEach(b => b.addEventListener('click', () => { cycleProgramDay(+b.dataset.pgDow); renderSplitPlannerPage(main); }));
+  main.querySelectorAll('[data-pg-rot]').forEach(b => b.addEventListener('click', () => { cycleProgramRotDay(+b.dataset.pgRot); renderSplitPlannerPage(main); })); // feat 282 — rotation-day reassign
   main.querySelector('#ms-toggle')?.addEventListener('click', () => { const m = mesoCfg(); m.enabled = !m.enabled; if (m.enabled && !m.start) m.start = _weekMonday(0).toISOString().slice(0, 10); saveState(); renderSplitPlannerPage(main); }); // feat 232
   main.querySelectorAll('[data-ms-len]').forEach(b => b.addEventListener('click', () => { mesoCfg().length = +b.dataset.msLen; saveState(); renderSplitPlannerPage(main); }));
   main.querySelector('#ms-restart')?.addEventListener('click', () => { mesoRestart(); renderSplitPlannerPage(main); });
@@ -11283,6 +12016,7 @@ function startExerciseFromPlanOption(o, load) {
 
 /* ---- Plans overlay (list + builder) ---- */
 let _plansEditId = null, _plansAddOptStep = null, _plansOptSearch = '';
+let _plansViewMode = false; // feat 276 — open the editor read-only (same layout, no inputs/commit) to view a plan safely
 let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Execution View mode (which plan + which session)
 let _plansRevView = false; // feat 162 — when editing a plan, show its revision history instead of the form
 let _plansSearch = '', _plansCatFilter = 'all', _plansLenFilter = 'all'; // feat 147 — plan picker search + filters
@@ -11293,14 +12027,17 @@ let _plansDeepLink = false; // feat 184 — openPlanFull sets this so the page r
 // openPlansOverlay opens the list; openPlanFull deep-links to one plan's editor. Both navTo the page; in-page
 // sub-navigation (Edit / 🕘 History / ← All plans) re-renders within #trk-main via renderPlansOverlay().
 function renderPlanCreatorPage(main) {
-  if (!_plansDeepLink) { _plansEditId = null; _plansRevView = false; _plansAddOptStep = null; } // plain entry → list root
+  if (!_plansDeepLink) { _plansEditId = null; _plansRevView = false; _plansAddOptStep = null; _plansViewMode = false; } // plain entry → list root
   _plansDeepLink = false;
   renderPlansOverlay();
 }
-function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; _plansDeepLink = false; navTo('plan-creator'); }
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; _plansDeepLink = false; navTo('plan-creator'); }
 function openPlanPicker() { openPlansOverlay(); }
 function openPlanFull(id) { // feat 138/184 — open the plan editor as a page, focused on one plan's steps
-  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansDeepLink = true; navTo('plan-creator');
+  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = false; _plansDeepLink = true; navTo('plan-creator');
+}
+function openPlanView(id) { // feat 276 — open a plan in the read-only view
+  _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = true; _plansDeepLink = true; navTo('plan-creator');
 }
 // feat 145 — open the detailed Plan Execution View for a plan + a session (defaults to the active session).
 function openPlanExecution(planId, sessionDate) {
@@ -11358,6 +12095,7 @@ const _planRowHtml = (p) => `<div class="plan-row">
       ${favStarHtml(isFavPlan(p.id), `data-fav-plan="${escapeAttr(p.id)}"`)}
       ${p.media ? `<button class="drawer-btn" data-plan-media="${p.id}" title="Watch attached video">🎬</button>` : ''}
       <button class="drawer-btn" data-plan-use="${p.id}">Use</button>
+      <button class="drawer-btn" data-plan-view="${p.id}" title="View read-only">👁</button>
       <button class="drawer-btn" data-plan-edit="${p.id}">Edit</button>
       <button class="drawer-btn danger" data-plan-del="${p.id}">Del</button>
     </div>
@@ -11442,7 +12180,8 @@ function bindPlansList(body) {
   body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; renderPlansOverlay(); });
   body.querySelectorAll('[data-plan-media]').forEach(b => b.addEventListener('click', () => openPlanMedia(b.dataset.planMedia)));
   body.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
-  body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; renderPlansOverlay(); }));
+  body.querySelectorAll('[data-plan-view]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planView; _plansViewMode = true; _plansRevView = false; renderPlansOverlay(); })); // feat 276 — read-only view
+  body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; _plansViewMode = false; renderPlansOverlay(); }));
   body.querySelectorAll('[data-plan-del]').forEach(b => b.addEventListener('click', () => { guardedConfirm('Delete this plan?', b).then(ok => { if (ok) { state.plans = (state.plans || []).filter(p => p.id !== b.dataset.planDel); saveState(); renderPlansOverlay(); } }); }));
   body.querySelector('#plan-new-btn')?.addEventListener('click', () => { const p = { id: newUuid(), name: 'New Plan', steps: [{ id:newUuid(), sets:3, options:[] }] }; state.plans = state.plans || []; state.plans.push(p); saveState(); _plansEditId = p.id; renderPlansOverlay(); });
   body.querySelector('#plan-new-from-workout')?.addEventListener('click', openPlanFromWorkout); // feat 155
@@ -11584,6 +12323,7 @@ function _planExecStatsHtml(detail, plan) {
 }
 function renderPlanEditor(body, plan) {
   if (_plansAddOptStep != null) { renderOptionPicker(body, plan); return; }
+  const ro = !!_plansViewMode; // feat 276 — read-only view: same layout, inputs disabled, no commit/edit controls
   ensurePlanRevisioned(plan); // feat 162 — guarantee author + a revision baseline before drawing the bar
   const dirty = planIsDirty(plan);
   const revBar = `<div class="plan-rev-bar">
@@ -11593,7 +12333,8 @@ function renderPlanEditor(body, plan) {
         <button class="prb-btn" id="plan-revert-btn" ${dirty ? '' : 'disabled'}>↩ Revert</button>
         <button class="prb-btn" id="plan-history-btn">🕘 History (${(plan.revisions || []).length})</button>
       </div></div>`;
-  body.innerHTML = `<button class="drawer-btn" id="plan-back-btn">← All plans</button>
+  const _roBanner = ro ? `<div class="plan-ro-banner">👁 <b>Read-only view</b> — nothing here can be changed. <button class="drawer-btn" id="plan-ro-edit">✎ Edit plan</button></div>` : ''; // feat 276
+  const _content = `<button class="drawer-btn" id="plan-back-btn">← All plans</button>
     ${revBar}
     <input type="text" id="plan-name-input" value="${escapeAttr(plan.name)}" placeholder="Plan name" style="width:100%;margin:10px 0 6px;padding:9px 11px;font-size:15px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     <textarea id="plan-desc-input" placeholder="Plan description — theme & benefits (optional)" rows="2" style="width:100%;margin:0 0 10px;padding:8px 11px;font-size:12.5px;line-height:1.5;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);resize:vertical;">${escapeHtml(plan.desc||'')}</textarea>
@@ -11619,19 +12360,26 @@ function renderPlanEditor(body, plan) {
       <div class="plan-edit-load"><span>Load vs baseline</span>${['light','moderate','heavy'].map(l => `<button class="pel-pill ${l} ${(st.load||'moderate')===l ? 'active' : ''}" data-step-load="${i}:${l}">${l}</button>`).join('')}</div>
       <input type="text" data-step-desc="${i}" value="${escapeAttr(st.desc||'')}" placeholder="Step note (optional)" style="width:100%;margin-top:6px;padding:5px 8px;font-size:12px;border-radius:6px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);">
     </div>`).join('')}
-    <button class="drawer-btn" id="plan-add-step-btn" style="margin-top:8px;">+ Add step</button>`;
+    <button class="drawer-btn" id="plan-add-step-btn" style="margin-top:8px;">+ Add step</button>
+    ${planSiblingsHtml(plan)}`;
+  body.innerHTML = _roBanner + (ro ? `<div class="plan-ro-wrap">${_content}</div>` : _content); // feat 276
   bindPlanEditor(body, plan);
 }
 function bindPlanEditor(body, plan) {
+  const ro = !!_plansViewMode; // feat 276
   const save = () => saveState();
-  body.querySelector('#plan-back-btn')?.addEventListener('click', () => { _plansEditId = null; _plansRevView = false; renderPlansOverlay(); });
+  body.querySelector('#plan-back-btn')?.addEventListener('click', () => { _plansEditId = null; _plansRevView = false; _plansViewMode = false; renderPlansOverlay(); });
+  body.querySelector('#plan-history-btn')?.addEventListener('click', () => { _plansRevView = true; renderPlansOverlay(); }); // history is safe to browse read-only
+  body.querySelector('#plan-media-view')?.addEventListener('click', () => openPlanMedia(plan.id));
+  body.querySelector('#plan-ro-edit')?.addEventListener('click', () => { _plansViewMode = false; renderPlansOverlay(); }); // feat 276 — switch into edit
+  body.querySelectorAll('[data-plan-sib]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planSib; _plansRevView = false; renderPlansOverlay(); })); // feat 277 — open a sibling (keeps view/edit mode)
+  if (ro) { body.querySelectorAll('input, textarea').forEach(el => { el.disabled = true; }); return; } // feat 276 — read-only: no edit handlers, inputs frozen, dangerous buttons hidden by CSS
   // feat 162 — revision controls: Commit snapshots the draft, Revert discards uncommitted edits, History lists revisions.
   body.querySelector('#plan-commit-btn')?.addEventListener('click', () => { const r = commitPlanRevision(plan); renderPlansOverlay(); toast(`✔ Committed rev ${r}`); });
   body.querySelector('#plan-revert-btn')?.addEventListener('click', () => {
     confirmDialog('Discard uncommitted changes and revert to the last committed revision?', { title: 'Revert plan', okLabel: 'Revert', danger: true })
       .then(ok => { if (ok) { revertPlanToCommitted(plan); renderPlansOverlay(); toast('↩ Reverted to last commit'); } });
   });
-  body.querySelector('#plan-history-btn')?.addEventListener('click', () => { _plansRevView = true; renderPlansOverlay(); });
   body.querySelector('#plan-author-btn')?.addEventListener('click', () => {
     promptDialog({ title: 'Plan author', message: 'Who authored this plan?', value: plan.author || 'You', placeholder: 'Author', maxLength: 40 })
       .then(v => { if (v != null) { plan.author = (v.trim() || 'You'); save(); renderPlansOverlay(); } });
@@ -11647,7 +12395,6 @@ function bindPlanEditor(body, plan) {
   const planMediaAdd = () => { const inp = body.querySelector('#plan-media-input'); if (!inp) return; const parsed = parseMediaUrl(inp.value); if (!parsed) { toast('Could not read that link'); return; } plan.media = parsed; save(); renderPlansOverlay(); toast('Video attached'); };
   body.querySelector('#plan-media-add-btn')?.addEventListener('click', planMediaAdd);
   body.querySelector('#plan-media-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); planMediaAdd(); } });
-  body.querySelector('#plan-media-view')?.addEventListener('click', () => openPlanMedia(plan.id));
   body.querySelector('#plan-media-del')?.addEventListener('click', () => { delete plan.media; save(); renderPlansOverlay(); });
   body.querySelectorAll('[data-step-desc]').forEach(inp => inp.addEventListener('change', () => { const st = plan.steps[+inp.dataset.stepDesc]; if (st) { st.desc = inp.value.trim(); save(); } }));
   body.querySelectorAll('[data-step-up]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.stepUp; if (i > 0) { [plan.steps[i-1], plan.steps[i]] = [plan.steps[i], plan.steps[i-1]]; save(); renderPlansOverlay(); } }));
@@ -12647,6 +13394,7 @@ function discardActiveWorkout() {
       saveState();
       toast('🗑 Workout discarded');
       if (typeof refreshRestBar === 'function') refreshRestBar();
+      if (typeof refreshTopbarLive === 'function') refreshTopbarLive(); // feat 287 — clear the ⏱ elapsed stat too
       releaseWakeLock(); // feat 160
       render();
     });
@@ -12690,6 +13438,10 @@ function finalizeEndWorkout(active, skipConfirm) {
     finalizePlanExecution(active); // feat 164 — historize the plan execution + incomplete/skipped stats
     saveState();
     render();
+    // feat 287 — clear the live HUD the instant the workout ends (don't wait for the next 1 s rest tick):
+    // the ⏱ workout-elapsed stat and the rest bar both belong to an active session that no longer exists.
+    if (typeof refreshTopbarLive === 'function') refreshTopbarLive();
+    if (typeof refreshRestBar === 'function') refreshRestBar();
     // feat 272 — wrap-up side effects: a guaranteed (immediate) cloud push, and the AI-ready brief export
     if (typeof cloudActive === 'function' && cloudActive() && !(state.cloudSync && state.cloudSync.syncOnEnd === false)) { try { cloudPushNow().catch(() => {}); } catch (_) {} }
     if (typeof aiExportOnWorkoutEnd === 'function') aiExportOnWorkoutEnd();
@@ -16736,7 +17488,7 @@ function renderPicker() {
   if (plan) {
     const sess = getActiveSession();
     const chips = plan.steps.map((st, i) => {
-      const ss = stepStatus(sess, st);
+      const ss = stepStatus(sess, st, plan);
       if (ss.done) return '';
       const label = (st.options || []).map(optionLabel).join(' / ') || 'step';
       return `<button class="picker-step-chip ${modalState.planStepFilter === i ? 'active' : ''}" data-picker-step="${i}">Step ${i + 1}: ${escapeHtml(label)} <span class="psc-sets">${ss.logged}/${st.sets}</span></button>`;
@@ -17515,7 +18267,11 @@ function renderSetsForm() {
     const np = !!(state.workoutControls && state.workoutControls.onScreenNumpad);
     const repsIm = (M.mode==='standard'||M.mode==='bodyweight') ? 'numeric' : 'decimal';
     const wAttrs = np ? 'type="text" inputmode="none" readonly' : 'type="number" inputmode="decimal" step="any"';
-    const rAttrs = np ? 'type="text" inputmode="none" readonly' : `type="number" inputmode="${repsIm}" step="${M.mode==='standard'||M.mode==='bodyweight'?'1':'any'}"`;
+    // feat 288 — time mode: a text field so a clock value ("1:30") can be typed (raw seconds still work too).
+    const rAttrs = np ? 'type="text" inputmode="none" readonly'
+      : (M.mode === 'time' ? 'type="text" inputmode="numeric" autocomplete="off"' : `type="number" inputmode="${repsIm}" step="${M.mode==='standard'||M.mode==='bodyweight'?'1':'any'}"`);
+    // feat 288 — show the stored seconds as a clock (m:ss / h:mm:ss); other modes show the raw value.
+    const rVal = (M.mode === 'time' && s.r !== '' && s.r != null && !isNaN(parseFloat(s.r))) ? formatSecondsClock(s.r) : s.r;
     const npCls = np ? ' numpad-mode' : '';
     // feat 257 — live hold timer: for a TIMED hold (plank / dead hang / wall sit / L-sit) once the set has
     // STARTED (weight entered → wTs) but isn't DONE yet, surface a count-up button. Tapping it records the
@@ -17530,7 +18286,7 @@ function renderSetsForm() {
       <div class="${rowClass}">
         <div class="set-num">${i + 1}</div>
         <input class="set-input${npCls}" ${wAttrs} placeholder="${M.wLabel}" value="${s.w}" data-i="${i}" data-field="w" style="${wOver ? 'color:#ff4444;font-weight:700;' : ''}">
-        <input class="set-input${npCls}" ${rAttrs} placeholder="${M.rLabel}" value="${s.r}" data-i="${i}" data-field="r" ${(s.w !== '' && s.w != null) ? '' : 'disabled title="Enter weight first"'}>
+        <input class="set-input${npCls}" ${rAttrs} placeholder="${M.rLabel}" value="${rVal}" data-i="${i}" data-field="r" ${(s.w !== '' && s.w != null) ? '' : 'disabled title="Enter weight first"'}>
         ${rpeSelectHtml(s, i)}
         <button class="set-remove" data-remove="${i}">×</button>
         ${overloadTagHtml}
@@ -17603,7 +18359,7 @@ function renderSetsForm() {
     <div class="card-title" style="margin-top:14px;">Sets</div>
     <div class="sets-section${rpeEnabled() ? ' rpe-on' : ''}">
       <div class="set-header">
-        <div>#</div><div>WEIGHT</div><div>REPS</div>${rpeEnabled() ? `<div>${rpeMode() === 'rir' ? 'RIR' : 'RPE'}</div>` : ''}<div></div>
+        <div>#</div><div>${escapeHtml(M.wLabel)}</div><div>${escapeHtml(M.rLabel)}</div>${rpeEnabled() ? `<div>${rpeMode() === 'rir' ? 'RIR' : 'RPE'}</div>` : ''}<div></div>
       </div>
       <div id="trk-sets-container" class="sets-scroll">${setsHtml}</div>
     </div>
@@ -17748,16 +18504,29 @@ function commitSetField(i, f, val) {
   const s = pending.sets[i];
   if (!s) return;
   const prev = s[f];
-  const n = parseFloat(val);
-  s[f] = (val === '' || val == null || isNaN(n)) ? '' : n;
+  if (f === 'r' && pendingIsTimeMode()) {            // feat 288 — the Time field accepts "90" or "1:30"/"1:05:05"
+    const secs = parseTimeToSeconds(val);
+    s[f] = (secs == null) ? '' : secs;
+  } else {
+    const n = parseFloat(val);
+    s[f] = (val === '' || val == null || isNaN(n)) ? '' : n;
+  }
   const wFilled = s.w !== '' && s.w != null;
   if (f === 'w') {
-    if (wFilled && !s.wTs) { s.wTs = new Date().toISOString(); if (typeof annunceSetStart === 'function') annunceSetStart(); } // weight entered → set starts (feat 206 — speak the position)
-    else if (!wFilled) { s.wTs = undefined; s.ts = undefined; }     // weight cleared → reset both
+    if (wFilled && !s.wTs) {
+      // feat 291 — on a TIMED hold with the count cue on, don't start the timer yet: run "ready/set/go" first
+      // and stamp wTs on "go". Otherwise stamp now + speak the set-start position (feat 206).
+      if (pendingIsTimeMode() && holdCueCfg().enabled && !(typeof modalState !== 'undefined' && modalState.isEditing)) {
+        if (!holdCueActive()) startHoldCue(i);
+      } else {
+        s.wTs = new Date().toISOString(); if (typeof annunceSetStart === 'function') annunceSetStart();
+      }
+    } else if (!wFilled) { s.wTs = undefined; s.ts = undefined; if (holdCueActive()) cancelHoldCue(); } // weight cleared → reset
   } else if (f === 'r') {
     const rFilled = s.r !== '' && s.r != null;
     const wasDone = !!s.ts; // feat 207 — annunce only on the rising edge, not on rep edits
     s.ts = rFilled ? new Date().toISOString() : undefined;          // reps entered → set done
+    if (s.ts && holdCueActive()) cancelHoldCue();                   // feat 291 — the hold finished → stop counting
     if (s.ts && !wasDone && parseFloat(s.r) > 0 && typeof annunceSetEnd === 'function') annunceSetEnd(); // feat 207
   }
   savePending();
@@ -17831,8 +18600,12 @@ function numpadApplyKey(buf, key, opts) {
   }
   if (key === 'sign') { if (!opts.sign) return buf; return buf.charAt(0) === '-' ? buf.slice(1) : '-' + buf; }
   if (key === '.') { if (!opts.decimal || buf.indexOf('.') !== -1) return buf; return (buf === '' || buf === '-') ? buf + '0.' : buf + '.'; }
+  if (key === 'colon' || key === ':') { // feat 288 — time separator: no leading/double colon, at most 2 (h:m:s)
+    if (!opts.time || buf === '' || buf.slice(-1) === ':' || (buf.match(/:/g) || []).length >= 2) return buf;
+    return buf + ':';
+  }
   if (/^[0-9]$/.test(key)) {
-    const digits = buf.replace('-', '').replace('.', '');
+    const digits = buf.replace(/[-.:]/g, ''); // feat 288 — colons don't count toward the digit cap
     if (digits.length >= maxLen) return buf;
     if (buf === '0') return key;        // replace a lone leading zero
     if (buf === '-0') return '-' + key;
@@ -17840,16 +18613,33 @@ function numpadApplyKey(buf, key, opts) {
   }
   return buf;
 }
+// feat 279 — the on-screen numpad now defers its write: keystrokes only build the buffer + the numpad's own
+// display; the set field is committed when the user confirms (Next / Done) or the numpad closes / switches
+// fields / a save flushes it. _numpadFlush writes the buffer (or the evaluated calc result) into the field.
+function _numpadFlush(np) {
+  np = np || modalState.numpad;
+  if (!np) return;
+  if (state.calcMode === true) { finalizeCalc(np); return; }
+  const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + np.i + '"][data-field="' + np.field + '"]');
+  if (inp) inp.value = np.buf;
+  commitSetField(np.i, np.field, np.buf);
+}
 function openNumpad(i, field) {
   const s = pending.sets[i];
   if (!s) return;
+  // feat 279 — switching to a different field commits the one you were on (no silent loss)
+  if (modalState.numpad && modalState.numpad.open && (modalState.numpad.i !== i || modalState.numpad.field !== field)) _numpadFlush(modalState.numpad);
   const cur = s[field];
-  modalState.numpad = { open: true, i: i, field: field, buf: (cur === '' || cur == null) ? '' : String(cur) };
+  let buf = (cur === '' || cur == null) ? '' : String(cur);
+  // feat 288 — open a time field showing the clock form ("1:30"), so editing reads naturally; flush re-parses it.
+  if (field === 'r' && buf !== '' && !isNaN(parseFloat(buf)) && pendingIsTimeMode()) buf = formatSecondsClock(buf);
+  modalState.numpad = { open: true, i: i, field: field, buf: buf };
   renderNumpad();
   document.getElementById('trk-numpad')?.classList.add('open');
   document.getElementById('trk-numpad-backdrop')?.classList.add('open');
 }
 function closeNumpad() {
+  if (modalState.numpad && modalState.numpad.open) _numpadFlush(modalState.numpad); // feat 279 — commit the buffer on any close
   if (modalState.numpad) modalState.numpad.open = false;
   document.getElementById('trk-numpad')?.classList.remove('open');
   document.getElementById('trk-numpad-backdrop')?.classList.remove('open');
@@ -17857,7 +18647,7 @@ function closeNumpad() {
 function numpadNext() {
   const np = modalState.numpad;
   if (!np) return;
-  if (np.field === 'w') openNumpad(np.i, 'r');
+  if (np.field === 'w') openNumpad(np.i, 'r'); // openNumpad flushes the weight field first (feat 279)
   else if (np.i + 1 < pending.sets.length) openNumpad(np.i + 1, 'w');
   else closeNumpad();
 }
@@ -17868,7 +18658,8 @@ function renderNumpad() {
   if (!np || !np.open || !pending.varUuid) { sheet.innerHTML = ''; return; }
   const M = exMode(pending.varUuid);
   const isW = np.field === 'w';
-  const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
+  const timeR = !isW && M.mode === 'time'; // feat 288 — the Time field gets a ":" key for hh:mm:ss
+  const decimal = isW ? true : (M.mode === 'distance'); // time uses ":" instead of "."
   const sign = isW && M.mode === 'bodyweight';
   const calc = state.calcMode === true;
   // feat 78/202 — the equipment-setup strip renders for any weight field; renderNpSetup derives the tool itself
@@ -17883,7 +18674,7 @@ function renderNumpad() {
     ${calc ? `<div class="np-ops">${key('lparen','(')}${key('rparen',')')}${key('div','÷')}${key('mul','×')}${key('sub','−')}${key('add','+')}</div>` : ''}
     <div class="np-grid">
       ${['1','2','3','4','5','6','7','8','9'].map(d => key(d, d)).join('')}
-      ${(decimal || calc) ? key('.', '.') : '<span class="np-key np-key-empty"></span>'}
+      ${timeR && !calc ? key('colon', ':') : (decimal || calc) ? key('.', '.') : '<span class="np-key np-key-empty"></span>'}
       ${key('0', '0')}
       ${key('back', '⌫')}
     </div>
@@ -17911,24 +18702,16 @@ function numpadHandleKey(k) {
   if (!np) return;
   if (k === 'calctoggle') { state.calcMode = !state.calcMode; saveState(); renderNumpad(); return; }   // feat 65 — persistent
   const calc = state.calcMode === true;
-  if (k === 'done') { if (calc) finalizeCalc(np); closeNumpad(); return; }
-  if (k === 'next') { if (calc) finalizeCalc(np); numpadNext(); return; }
+  if (k === 'done') { closeNumpad(); return; }   // feat 279 — closeNumpad flushes the buffer into the field
+  if (k === 'next') { numpadNext(); return; }    // feat 279 — Next flushes (via openNumpad/closeNumpad) then advances
   const M = exMode(pending.varUuid), isW = np.field === 'w';
-  const decimal = isW ? true : (M.mode === 'time' || M.mode === 'distance');
+  const timeR = !isW && M.mode === 'time'; // feat 288
+  const decimal = isW ? true : (M.mode === 'distance');
   const sign = isW && M.mode === 'bodyweight';
-  np.buf = numpadApplyKey(np.buf, k, { decimal: decimal, sign: sign, maxLen: 7, calc: calc });
+  np.buf = numpadApplyKey(np.buf, k, { decimal: decimal, sign: sign, maxLen: 7, calc: calc, time: timeR });
+  // feat 279 — keystrokes only update the numpad's own display; the set field stays put until Next / Done.
   const disp = sheet ? sheet.querySelector('.np-display') : null;
-  const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + np.i + '"][data-field="' + np.field + '"]');
-  if (calc) {
-    if (disp) disp.textContent = formatCalcDisplay(np.buf);
-    const r = evalExpr(np.buf);                 // commit the running result; leave field untouched mid-expression
-    if (r != null) { if (inp) inp.value = String(r); commitSetField(np.i, np.field, String(r)); }
-    else if (np.buf === '') { if (inp) inp.value = ''; commitSetField(np.i, np.field, ''); }
-  } else {
-    if (disp) disp.textContent = np.buf === '' ? '0' : np.buf;
-    if (inp) inp.value = np.buf;
-    commitSetField(np.i, np.field, np.buf);
-  }
+  if (disp) disp.textContent = calc ? formatCalcDisplay(np.buf) : (np.buf === '' ? '0' : np.buf);
 }
 // feat 100 — a digit key taps to its digit, but HELD (from an empty field) enters digit x10 (hold 7 -> 70).
 // With digits already present, or in calculator mode, a hold is just a normal short press of the digit.
@@ -18415,6 +19198,7 @@ function addSetRow(mode) {
 function saveSets(endingWorkout) {
   // feat 86 — returns a Promise<boolean> (themed confirm replaces native confirm()).
   // feat 114 — endingWorkout=true skips the post-save picker routing (the caller is ending the workout).
+  if (typeof modalState !== 'undefined' && modalState.numpad && modalState.numpad.open && typeof _numpadFlush === 'function') _numpadFlush(modalState.numpad); // feat 279 — commit any open numpad buffer before saving
   if (roBlocked('log sets')) return Promise.resolve(false);
   if (!pending.varUuid) { toast('Pick an exercise'); return Promise.resolve(false); }
   const nowIso = new Date().toISOString();
@@ -18631,7 +19415,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 220 · 2026-06-17 17:59';
+const APP_BUILD = 'build 235 · 2026-06-19 17:57';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -18913,8 +19697,11 @@ function setPositionInfo(kind) {
   const session = (typeof getActiveSession === 'function') ? getActiveSession() : null;
   const editing = (typeof modalState !== 'undefined') && modalState.isEditing;
   if (plan && session && pending.varUuid && !editing) {
-    const step = (plan.steps || []).find(st => (st.options || []).some(o => optionMatchesVar(o, pending.varUuid)));
-    if (step && step.sets > 0) return { x: stepSavedSets(session, step) + x0, y: step.sets, onPlan: true };
+    // feat 281 — attribute the position to the step this exercise is actually serving (first incomplete match,
+    // else first match) and use its UNIQUE saved-set allocation, not the raw match count across duplicate steps.
+    const idx = planStepForVar(session, plan, pending.varUuid);
+    const step = idx >= 0 ? plan.steps[idx] : null;
+    if (step && step.sets > 0) return { x: (planStepAllocation(session, plan).saved[idx] || 0) + x0, y: step.sets, onPlan: true };
   }
   return { x: x0, y: null, onPlan: false };
 }
@@ -19071,6 +19858,7 @@ function metroSpeakNextTip() {
   } catch (e) { _metroSpeaking = false; }
 }
 function metroTick() {
+  if (holdCueActive()) return; // feat 291 — the timed-hold count cue overrides the metronome / Mantranome
   const c = metroCfg();
   const active = metroSetActive();
   if (active && !_metroWasActive) _metroMantraIdx = 0; // feat 205 — a NEW set restarts the Mantranome cycles
@@ -19109,6 +19897,50 @@ function refreshMetronomeUI() {
   if (btn) { btn.classList.toggle('on', metronomeRunning()); btn.textContent = (metronomeRunning() ? '⏸' : '▶') + ' Metronome'; }
   const bpmEl = document.getElementById('metro-bpm-val');
   if (bpmEl) bpmEl.textContent = metroCfg().bpm + ' bpm';
+}
+/* ---- feat 291 — TIMED-HOLD count cue. On a hold's set-start the coach voice says "Ready… Set… Go", and only
+   on "Go" does the SET TIMER start (wTs is stamped). It then counts the elapsed seconds aloud (Go, 1, 2, 3…) at
+   a configurable interval. While active it OVERRIDES the metronome / Mantranome / rest cues. Opt-in (state.holdCue,
+   default off). The lead-in is fixed (Ready 0s · Set 0.9s · Go 1.8s); only the count interval is configurable. ---- */
+function holdCueCfg() { const d = { enabled: false, every: 1 }; const c = { ...d, ...(state.holdCue || {}) }; c.enabled = !!c.enabled; c.every = Math.max(1, Math.min(60, (c.every | 0) || 1)); return c; }
+let _holdCue = null, _holdCueGen = 0;
+function holdCueActive() { return !!_holdCue; }
+function cancelHoldCue() {
+  if (!_holdCue) return;
+  try { clearTimeout(_holdCue.t1); } catch (_) {}
+  try { clearTimeout(_holdCue.t2); } catch (_) {}
+  try { clearInterval(_holdCue.iv); } catch (_) {}
+  _holdCue = null;
+  try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
+}
+function startHoldCue(i) {
+  cancelHoldCue();
+  const cfg = holdCueCfg();
+  const gen = ++_holdCueGen;
+  _holdCue = { i, gen, t1: null, t2: null, iv: null };
+  const alive = () => !!_holdCue && _holdCue.gen === gen;
+  const say = (txt) => { try { if (alive() && typeof annunce === 'function') annunce(txt); } catch (_) {} };
+  say('Ready');                                         // t = 0
+  _holdCue.t1 = setTimeout(() => say('Set'), 900);      // t ≈ 0.9 s
+  _holdCue.t2 = setTimeout(() => {                       // t ≈ 1.8 s — "Go": the timer starts here
+    if (!alive()) return;
+    const s = pending.sets[i];
+    if (!s || s.w === '' || s.w == null) { cancelHoldCue(); return; } // weight cleared before "Go" → abort
+    say('Go');
+    s.wTs = new Date().toISOString();                   // feat 291 — set timer starts on "Go", not on weight entry
+    s.ts = undefined;
+    try { savePending(); } catch (_) {}
+    try { if (typeof refreshRestBar === 'function') refreshRestBar(); } catch (_) {}
+    try { if (typeof modalState !== 'undefined' && modalState.open && typeof renderModal === 'function') renderModal(); } catch (_) {} // surface the live hold timer (feat 257)
+    let n = 0;
+    _holdCue.iv = setInterval(() => {                    // count up: 1, 2, 3… every `every` seconds
+      if (!alive()) return;
+      const cur = pending.sets[i];
+      if (!cur || cur.wTs == null || cur.ts != null || cur.w === '' || cur.w == null) { cancelHoldCue(); return; } // set ended / cleared
+      n += cfg.every;
+      say(String(n));
+    }, cfg.every * 1000);
+  }, 1800);
 }
 function changeMetroBpm(delta) {
   const next = Math.max(20, Math.min(300, (metroCfg().bpm || 60) + delta));
@@ -19349,6 +20181,16 @@ function refreshRestBar() {
   updateWorkoutBar(); // feat 188 — keep the contextual shortcut row in sync with the active session
   const bar = document.getElementById('rest-bar');
   if (!bar) return;
+  // feat 287 — the rest bar (the live "Rest"/"Set" timer AND the idle "since last set" strip) belongs to an
+  // IN-PROGRESS workout. Once the workout is ended/discarded there's no active session, so hide it entirely —
+  // it was lingering after a workout because the idle strip keyed off any past set's timestamp.
+  if (!getActiveSession()) {
+    bar.style.display = 'none';
+    document.body.classList.remove('rest-bar-on', 'rest-bar-idle');
+    _lastRestZone = null;
+    refreshPlanStepBar();
+    return;
+  }
   const wc = state.workoutControls || {};
   if (wc.restTimer === false) {
     bar.style.display = 'none';
@@ -19440,8 +20282,11 @@ function refreshPlanStepBar() {
     if (idx < 0) idx = currentPlanStepIndex(session, plan);
   }
   if (!session || !plan || idx < 0 || idx >= plan.steps.length) { bar.style.display = 'none'; document.body.classList.remove('plan-step-bar-on'); return; }
-  const st = plan.steps[idx], total = stepStatus(session, st).logged, target = st.sets || 0;
-  _planIgnorePending = true; const saved = stepStatus(session, st).logged; _planIgnorePending = false; // saved-only, to split solid vs dimmed notches
+  const st = plan.steps[idx], target = st.sets || 0;
+  // feat 281 — read this step's UNIQUE allocation: logged (incl. pending) for the total, saved-only to split
+  // solid vs dimmed notches (no per-step double-count across duplicate steps).
+  const _alloc = planStepAllocation(session, plan);
+  const total = _alloc.logged[idx] || 0, saved = _alloc.saved[idx] || 0;
   const inprog = pendingStepOpenSets(st); // feat 211 — weight in, reps pending → checkered, never counted
   const pend = Math.max(0, total - saved), done = target > 0 ? total >= target : total > 0;
   // feat 212 — sets BEYOND the step target get their own glowing notches instead of vanishing
@@ -19484,6 +20329,7 @@ function restCueFire(kind) { // kind: 'tick' | 'interval' | 'end'
   }
 }
 function restCueTick() {
+  if (holdCueActive()) { _lastRestCueSec = -1; return; } // feat 291 — the hold count cue overrides rest cues
   const c = restCueCfg();
   if (!c.enabled) { _lastRestCueSec = -1; return; }
   let st; try { st = computeRestState(); } catch (_) { return; }

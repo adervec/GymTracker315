@@ -55,17 +55,21 @@ test('holding 0 from empty stays 0 (no negative/odd state)', async ({ page }) =>
   expect(buf).toBe('0');
 });
 
-test('the held value is committed to the set field', async ({ page }) => {
+test('feat 279 — the buffered value commits to the set field on Done, not mid-entry', async ({ page }) => {
   await page.evaluate(() => openNumpad(0, 'w'));
-  await press(page, '9', 450); // -> 90
-  const w = await page.evaluate(() => pending.sets[0].w);
-  expect(Number(w)).toBe(90);
+  await press(page, '9', 450); // -> buffer 90
+  const before = await page.evaluate(() => pending.sets[0].w);
+  expect(before === '' || before == null).toBe(true);  // feat 279 — typing does NOT change the field
+  await page.evaluate(() => numpadHandleKey('done'));
+  const after = await page.evaluate(() => pending.sets[0].w);
+  expect(Number(after)).toBe(90);                       // Done commits it
 });
 
 test('feat 141 — holding a digit on the REPS field does NOT x10 (reps stay literal)', async ({ page }) => {
   await page.evaluate(() => openNumpad(0, 'r'));
   const held = await press(page, '7', 450); // a long hold on reps == a normal tap
   expect(held).toBe('7');                   // not "70"
+  await page.evaluate(() => numpadHandleKey('done')); // feat 279 — commit on Done
   const r = await page.evaluate(() => pending.sets[0].r);
   expect(Number(r)).toBe(7);
   // the ×10 affordance label is never armed on the reps key

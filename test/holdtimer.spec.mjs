@@ -29,12 +29,12 @@ const openTimed = (page, v, opts) => page.evaluate(({ v, opts }) => {
   renderModal();
 }, { v, opts });
 
-test('feat 257 — timed holds log Seconds (mode + label), standard lifts do not', async ({ page }) => {
+test('feat 257 — timed holds log Time (mode + label), standard lifts do not', async ({ page }) => {
   const v = await timedVar(page);
   expect(v).not.toBeNull();
   const r = await page.evaluate((v) => ({ mode: exMode(v).mode, rLabel: exMode(v).rLabel }), v);
   expect(r.mode).toBe('time');
-  expect(r.rLabel).toBe('Seconds');
+  expect(r.rLabel).toBe('Time');   // feat 288 — stored as seconds, entered as raw seconds or hh:mm:ss
 });
 
 test('feat 257 — a started timed set shows the count-up button reflecting elapsed time', async ({ page }) => {
@@ -72,12 +72,12 @@ test('feat 257 — tapping the timer records the elapsed seconds and marks the s
     document.querySelector('.hold-timer-btn').click();
     const s = pending.sets[0];
     const rInput = document.querySelector('#trk-sets-container .set-input[data-i="0"][data-field="r"]');
-    return { recorded: s.r, done: !!s.ts, fieldVal: rInput?.value, buttonGone: !document.querySelector('.hold-timer-btn') };
+    return { recorded: s.r, done: !!s.ts, fieldVal: rInput?.value, expClock: formatSecondsClock(s.r), buttonGone: !document.querySelector('.hold-timer-btn') };
   });
   expect(typeof r.recorded).toBe('number');
   expect(r.recorded).toBeGreaterThanOrEqual(12);  // ~12 s elapsed, captured at tap
   expect(r.done).toBe(true);                       // ts stamped → set complete
-  expect(r.fieldVal).toBe(String(r.recorded));     // Seconds field reflects it
+  expect(r.fieldVal).toBe(r.expClock);             // feat 288 — Time field shows the clock form (e.g. "0:12")
   expect(r.buttonGone).toBe(true);                 // a completed set drops its timer
 });
 

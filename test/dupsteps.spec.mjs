@@ -61,3 +61,46 @@ test('the plan card badges the duplicate steps and names their partners (feat 24
   expect(r[1]).toBe(null);          // the squat step is clean
   expect(r[2]).toContain('1');      // step 3 points back at step 1
 });
+
+// feat 281 — a logged set counts toward exactly ONE step. The bug: in Pull Marathon (three "row" steps),
+// rows logged for the first row step also completed the later ones. Fix: sets fill steps to target in plan
+// order, then surplus attaches to the LAST matching step — never shared.
+test('feat 281 — a set counts toward exactly one step; duplicate steps do not share sets', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let rowUuid = null;
+    for (const [u, i] of VAR_INDEX) { if (i.family.id === 'row') { rowUuid = u; break; } }
+    const plan = { id: 't-dup281', rev: 0, steps: [
+      { id: 's1', sets: 3, options: [{ type: 'movement', familyId: 'row' }] },
+      { id: 's2', sets: 3, options: [{ type: 'movement', familyId: 'row' }] },
+      { id: 's3', sets: 3, options: [{ type: 'movement', familyId: 'row' }] },
+    ] };
+    // a non-active synthetic session (so pending is never folded in)
+    const mk = (n) => ({ id: 'sess281', date: '2099-01-01',
+      exercises: [{ varUuid: rowUuid, subUuid: null, sets: Array.from({ length: n }, () => ({ w: '50', r: '8' })) }] });
+    pending = { varUuid: null, subUuid: null, sets: [] };
+    const snap = (sess) => plan.steps.map(st => { const ss = stepStatus(sess, st, plan); return { logged: ss.logged, done: ss.done }; });
+    const sum = (sess) => planStepAllocation(sess, plan).logged.reduce((a, b) => a + b, 0);
+    return {
+      rowUuid,
+      l3: snap(mk(3)).map(s => s.logged), d3: snap(mk(3)).map(s => s.done),
+      l5: snap(mk(5)).map(s => s.logged),
+      l9: snap(mk(9)).map(s => s.logged), d9: snap(mk(9)).map(s => s.done),
+      l11: snap(mk(11)).map(s => s.logged),
+      sum9: sum(mk(9)), sum11: sum(mk(11)),
+    };
+  });
+  expect(r.rowUuid).toBeTruthy();
+  // 3 row sets → ONLY the first row step is done (the bug marked all three done)
+  expect(r.l3).toEqual([3, 0, 0]);
+  expect(r.d3).toEqual([true, false, false]);
+  // 5 sets → first step full, two spill into the second, third untouched
+  expect(r.l5).toEqual([3, 2, 0]);
+  // 9 sets → each step gets exactly its three; all done, none shared
+  expect(r.l9).toEqual([3, 3, 3]);
+  expect(r.d9).toEqual([true, true, true]);
+  // surplus beyond every target attaches to the LAST matching step only
+  expect(r.l11).toEqual([3, 3, 5]);
+  // conservation: every logged set is allocated exactly once
+  expect(r.sum9).toBe(9);
+  expect(r.sum11).toBe(11);
+});

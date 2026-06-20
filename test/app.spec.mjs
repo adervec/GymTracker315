@@ -480,6 +480,66 @@ test('feat 275 — unified study read-state across advice + guides, totals, nudg
   expect(r.resumeLeads).toBe(true);            // resume rotates the queue to where you left off
 });
 
+test('feat 276 — read-only plan view shows the same data with inputs frozen and no commit/edit controls', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    normalizeState();
+    const p = state.plans[0];
+    openPlanView(p.id);
+    const main = document.getElementById('trk-main');
+    const hid = (sel) => { const el = main.querySelector(sel); return el ? getComputedStyle(el).display === 'none' : true; };
+    const nameInp = main.querySelector('#plan-name-input'), setsInp = main.querySelector('[data-step-sets]');
+    const out = {
+      banner: !!main.querySelector('.plan-ro-banner'),
+      hasEditBtn: !!main.querySelector('#plan-ro-edit'),
+      nameDisabled: nameInp ? nameInp.disabled : false,
+      setsDisabled: setsInp ? setsInp.disabled : false,
+      nameMatches: nameInp ? nameInp.value === p.name : false,
+      commitHidden: hid('#plan-commit-btn'), addStepHidden: hid('#plan-add-step-btn'),
+    };
+    // switching to Edit re-enables everything
+    main.querySelector('#plan-ro-edit').click();
+    const nameInp2 = document.getElementById('trk-main').querySelector('#plan-name-input');
+    out.editableAfter = nameInp2 ? !nameInp2.disabled : false;
+    out.commitShownAfter = !(getComputedStyle(document.getElementById('trk-main').querySelector('#plan-commit-btn')).display === 'none');
+    return out;
+  });
+  expect(r.banner).toBe(true);
+  expect(r.hasEditBtn).toBe(true);
+  expect(r.nameDisabled).toBe(true);
+  expect(r.setsDisabled).toBe(true);
+  expect(r.nameMatches).toBe(true);      // identical data to the editor
+  expect(r.commitHidden).toBe(true);     // the commit button can't be pressed
+  expect(r.addStepHidden).toBe(true);
+  expect(r.editableAfter).toBe(true);    // ✎ Edit unlocks it
+  expect(r.commitShownAfter).toBe(true);
+});
+
+test('feat 277 — plan siblings: same exercise signature, different volume → colour-coded by effort', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let n = 0; const step = (fid, sets) => ({ id: 's' + (n++), sets, options: [{ type: 'movement', familyId: fid }] });
+    state.plans = [
+      { id: 'sib-light', name: 'Push (Light)', intensity: 2, steps: [step('flat-bench-press', 3), step('shoulder-press', 3), step('tricep-extension', 2)] },
+      { id: 'sib-mod', name: 'Push (Moderate)', intensity: 3, steps: [step('flat-bench-press', 4), step('shoulder-press', 4), step('tricep-extension', 3)] },
+      { id: 'sib-heavy', name: 'Push (Heavy)', intensity: 5, steps: [step('flat-bench-press', 5), step('shoulder-press', 5), step('tricep-extension', 4)] },
+      { id: 'other', name: 'Legs', intensity: 3, steps: [step('squat', 4), step('leg-curl', 3)] },
+    ];
+    return {
+      sigSame: planSignature(getPlan('sib-light')) === planSignature(getPlan('sib-heavy')),
+      sibsOfMod: planSiblings(getPlan('sib-mod')).map(p => p.id).sort(),
+      sibsOfOther: planSiblings(getPlan('other')).map(p => p.id),
+      effLight: planEffort(getPlan('sib-light')), effHeavy: planEffort(getPlan('sib-heavy')),
+      html: planSiblingsHtml(getPlan('sib-light')), // from the lightest, the others read as harder
+    };
+  });
+  expect(r.sigSame).toBe(true);                            // same exercises + order → same signature
+  expect(r.sibsOfMod).toEqual(['sib-heavy', 'sib-light']); // both other Push variants are siblings
+  expect(r.sibsOfOther).toEqual([]);                       // the Legs plan has none
+  expect(r.effHeavy).toBeGreaterThan(r.effLight);          // effort = sets × intensity
+  expect(r.html).toContain('eff-high');                    // heaviest sibling coloured high-effort
+  expect(r.html).toContain('eff-low');                     // a lighter one low-effort
+  expect(r.html).toMatch(/harder/);                        // relative-effort labels present
+});
+
 test('plan estimates are sane', async ({ page }) => {
   const r = await page.evaluate(() => ({
     empty: estimatePlanMinutes({ steps: [] }),

@@ -27,7 +27,7 @@ test('each Settings sub-page renders its own disjoint bucket of sections into #t
   const cosSecs = await secIdsOf(page);
   expect(cosSecs).toContain('theme');
   expect(cosSecs).toContain('branding');                 // branding moved out of Preferences into Cosmetic
-  expect(await page.evaluate(() => !!document.getElementById('trk-main').querySelector('[data-pref-brand]'))).toBe(true);
+  expect(await page.evaluate(() => !!document.getElementById('trk-main').querySelector('[data-brand-emoji]'))).toBe(true); // feat 290 — the emoji picker (hide toggle retired)
 
   const prefs = await page.evaluate(() => { navTo('set-prefs'); return currentPage; });
   expect(prefs).toBe('set-prefs');
@@ -49,37 +49,35 @@ test('the leaves are render-pages under Settings (no longer drawer openers)', as
   for (const d of r) { expect(d.parent).toBe('settings'); expect(d.isRender).toBe(true); expect(d.noOpen).toBe(true); }
 });
 
-test('a toggle on a Settings page updates the page in place (binding re-render is re-projected)', async ({ page }) => {
+test('a control on a Settings page updates the page in place (binding re-render is re-projected)', async ({ page }) => {
   const r = await page.evaluate(() => {
+    state.brandMark = '';
     navTo('set-cosmetic');
     const main = document.getElementById('trk-main');
-    const start = state.hideBranding;
-    main.querySelector('[data-pref-brand="hide"]').click();     // turn branding OFF
-    const afterState = state.hideBranding;
-    const offActive = main.querySelector('[data-pref-brand="hide"]').classList.contains('active'); // re-queried after the in-place re-render
-    main.querySelector('[data-pref-brand="show"]').click();     // restore
-    return { start, afterState, offActive, stillCosmetic: currentPage === 'set-cosmetic', stillHasTheme: !!main.querySelector('.drawer-section[data-sec="theme"]') };
+    main.querySelector('[data-brand-emoji="💪"]').click();      // pick a brand emoji (re-renders the drawer → re-projects)
+    const after = document.getElementById('trk-main');
+    const active = after.querySelector('[data-brand-emoji="💪"]').classList.contains('active'); // re-queried after the in-place re-render
+    return { mark: brandMark(), active, stillCosmetic: currentPage === 'set-cosmetic', stillHasTheme: !!after.querySelector('.drawer-section[data-sec="theme"]') };
   });
-  expect(r.afterState).toBe(true);       // the toggle took effect
-  expect(r.offActive).toBe(true);        // and the page reflected it in place (not the hidden drawer)
+  expect(r.mark).toBe('💪');             // the pick took effect
+  expect(r.active).toBe(true);           // and the page reflected it in place (not the hidden drawer)
   expect(r.stillCosmetic).toBe(true);
   expect(r.stillHasTheme).toBe(true);    // the rest of the bucket survived the re-render
 });
 
-// the legacy all-in-one drawer still works (⚙️ long-press / sound-menu entry points) and still carries the
-// data-pref-brand toggle for branding.spec's contract.
+// the legacy all-in-one drawer still works (⚙️ long-press / sound-menu entry points) and renders every section.
 test('the legacy settings drawer still renders every section (compat)', async ({ page }) => {
   const r = await page.evaluate(() => {
     renderSettingsDrawer();
     const body = document.getElementById('settings-drawer-body');
     return {
-      hasBrand: body.innerHTML.includes('data-pref-brand'),
+      hasBrandEmoji: body.innerHTML.includes('data-brand-emoji'),   // feat 290 — emoji picker (hide toggle retired)
       hasTheme: !!body.querySelector('.drawer-section[data-sec="theme"]'),
       hasProfile: !!body.querySelector('.drawer-section[data-sec="profile"]'),
       hasBranding: !!body.querySelector('.drawer-section[data-sec="branding"]'),
     };
   });
-  expect(r.hasBrand).toBe(true);
+  expect(r.hasBrandEmoji).toBe(true);
   expect(r.hasTheme).toBe(true);
   expect(r.hasProfile).toBe(true);
   expect(r.hasBranding).toBe(true);

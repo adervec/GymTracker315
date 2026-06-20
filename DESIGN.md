@@ -1079,6 +1079,155 @@ They share variation **UUIDs**.
   skipped if you already listened today) plus an unread-count **badge** on the Study/Glossary/Advice nav-menu items
   (`renderMenu` + `refreshStudyBadge`). `studyUnreadTotal` sums all three surfaces. `test/app.spec.mjs` (advice/guide
   read-state + counts, tag-stripped narration, once-a-day nudge, resume rotation).
+- **Read-only plan view (feat 276):** the Plan Creator list gains a **👁 View** action (beside Use/Edit/Del) that opens
+  the editor in a **read-only mode** — the exact same layout and data, but every input is `disabled` and every mutating
+  control (Commit, Revert, author, step add/move/delete, +exercise, option ✕, add-step, media add/remove) is hidden, so
+  the **Commit button can't be accidentally pressed**. A `_plansViewMode` flag drives it: `renderPlanEditor` wraps the
+  body in `.plan-ro-wrap` (CSS hides the mutators) under a "👁 Read-only view" banner with an **✎ Edit** switch;
+  `bindPlanEditor` binds only Back / History / media-preview / the Edit toggle then early-returns with inputs frozen.
+  History stays browsable (read-only). `openPlanView(id)` deep-links to it. `test/app.spec.mjs` (same data, inputs
+  disabled, commit/add-step hidden, ✎ Edit unlocks).
+- **Plan "siblings" (feat 277):** the plan editor/view shows a **🔀 Sibling plans** section — other plans whose steps
+  hold the **same exercises in the same order** (ignoring set counts / intensity / load / notes), i.e. volume/intensity
+  variants of the same template. `planSignature` is the per-step sorted exercise-id list in step order; `planSiblings`
+  finds matches. Each sibling is **colour-coded by relative effort** (`planEffort = total sets × intensity`, mapped to
+  green/amber/red across the group's min–max via `siblingEffortClass`) with a ▲ harder / ▼ easier / ≈ same label vs the
+  current plan, sorted lightest-first. Tapping a sibling opens it in the current mode (view stays read-only). Shown in
+  both the editor and the feat-276 read-only view. `test/app.spec.mjs` (signature match, sibling sets, effort scaling +
+  colour classes).
+- **Exercise log renders on the tab, not a slide-in (feat 278):** the Log-Sets surface (`#trk-modal`) used to animate
+  **up from the bottom** like a sheet even though it fills the Exercise tab — a leftover sheet transition. It now sits
+  in place directly under the topbar (`top: var(--topbar-h); transition: none`), so opening the Exercise tab shows the
+  set-entry content **immediately, on the tab**, with no slide. No behavioural change to the form itself.
+- **On-screen numpad commits on Next/Done, not mid-keystroke (feat 279):** typing on the OSK used to write each
+  keystroke straight into the set field (live), so a half-typed value (e.g. "9" before "90") momentarily *was* the
+  field. The numpad now buffers: `numpadHandleKey` only updates `np.buf` + the `.np-display`, and the value is
+  **flushed into the field once** via `_numpadFlush(np)` — invoked by **Next** (`numpadNext`), **Done** (`closeNumpad`),
+  and `saveSets` (so an open buffer isn't lost on save). Calculator mode flushes through `finalizeCalc`. The field no
+  longer changes until you commit. `test/numpad.spec.mjs` (buffer not committed before Done; committed after).
+- **A set counts toward exactly ONE plan step (feat 281):** plan progress matched sets to steps **independently per
+  step**, so a set whose variation satisfied several steps (e.g. the three `row` steps in *Pull Marathon*) was counted
+  toward **every** matching step — doing the first row step wrongly completed the later ones. New `planStepAllocation`
+  distributes a session's sets **uniquely**: steps are filled to target **in plan order** (so the earlier duplicate
+  completes first via `_allocSetsToSteps`, least-shared set first to avoid starving a step), and any **surplus** beyond
+  every target ("extra work") attaches to the **last** step it matches. `stepStatus` reads `logged`/`saved` from this
+  allocation (legacy per-step counters kept only as a plan-less fallback); the step HUD bar, picker chips, log-sets
+  banner, `setPositionInfo` and ETA all route through it. Single-entry memo keyed on session+plan+set fingerprint.
+  `test/dupsteps.spec.mjs` (3 row sets complete only step 1; 9 sets give each step exactly 3; surplus lands on the last;
+  every set allocated exactly once).
+- **Limelight for under-used movements (feat 280):** a coverage audit (`_mvOpt` usage across SEED_PLANS) found
+  movements with **zero** plan appearances — **decline bench press, front raise, gymnastics core holds** — and several
+  with only one (pullover, rotator cuff, Olympic lifts, strongman, medicine ball, grip). Three master-crafted plans now
+  feature them: **Complete Chest** (flat→incline→**decline** pressing, flyes/dips and a **pullover**), **Delt Sculpt**
+  (overhead press, **front raises**, lateral + rear raises, traps, **rotator-cuff** balance) and **Power Athlete**
+  (**Olympic lifts**, **medicine-ball** ballistics, **strongman** loading, **gymnastics-core** holds, **grip** finisher).
+  They append to SEED_PLANS (tranche 12) and self-seed via the additive `seededPlanIds` ledger. Also fixed three
+  **pre-existing duplicate display names** from the feat-273 tranche so the library no longer shows two of each:
+  *Posterior Chain → Posterior Chain Power*, *Athletic Full Body → Athletic Strength*, *Back & Biceps → Back & Biceps
+  Builder* (ids unchanged, so existing users' seeded plans are untouched; only fresh seeds get the clean names).
+  `test/limelight.spec.mjs` (new plans seed; every step satisfiable; the once-starved movements now have ≥1 step; the
+  whole catalogue is free of duplicate ids **and** names).
+- **Splits longer than a week — hybrid scheduling (feat 282):** the planner's day selector was mislabelled "Days /
+  week" and capped at 7. It's now **"Days in the split"** (a week always has 7 days; a split's rotation needn't) and
+  goes up to **28**. Scheduling is **hybrid**: a split of **≤7 days** still saves as the familiar weekday program
+  (`week[7]`, JS day-of-week — unchanged); a split of **>7 days** saves as a **rotating N-day cycle** anchored to a
+  start date — `{mode:'rotation', splitLen, start, rotation[N]}` — where *today's* session is computed by rotation
+  (`rotationDayIndex`), so a 9-day split repeats from Day 1 every 9 days regardless of weekday. Both modes resolve a
+  date → planId through one helper (`scheduledPlanIdForDate`), so `programToday`, `programNextUp`, `programWeekAdherence`
+  and the streak all work for either without branching. `buildProgramFromSplit` gained a `splitLen` arg and spreads the
+  sessions evenly across the cycle (`_spreadIndices`); the program card renders a **Day 1…N agenda** (tap to reassign,
+  `cycleProgramRotDay`) for rotations and the Mon–Sun agenda for weeks. Coverage math scales a long split's volume by
+  `7/days` so "sets/week" stays honest. Old weekday programs are untouched (normalize accepts both shapes).
+  `test/splitlength.spec.mjs` (rotation build, date rotation + wrap both directions, slot cycling, normalize
+  validation, planner saves a rotation + Day 1…N agenda, the selector exposes lengths up to 28).
+- **Split Planner — collapsible sections + searchable themed splits + many more (feat 283):** with the day range now
+  reaching 28 the themed-split list grew, so every Split Planner card is now **collapsible** (`.sp-sec` + a
+  `data-sp-coll` header chevron; state in `state.spUI.collapse`, persisted via SETTINGS_KEYS). **Themed splits default
+  collapsed** (the other sections expand); the section also gains a **🔎 text search** (client-side, hides non-matching
+  chips without a re-render so typing keeps focus) and a **length filter** (All / ≤1 wk / 8–14d / 15–28d, in
+  `state.spUI.themeFilter`). THEMED_SPLITS expanded from 11 to **27** — each now carries its own `days` (rotation
+  length) via `themeDays`, and the new entries span **8–28 days** (Eight-Day Engine → The Lunar Cycle / Monthlong
+  Odyssey), so picking a long theme sets the split length and saves a **rotating cycle** (feat 282). Coy, non-infringing
+  names continue the feat-255 style; the recommender still fills every slot from your own library. `test/
+  splitplannerui.spec.mjs` (≥25 themes with valid `days`≤28, long theme → rotation, collapse defaults + persistence,
+  search hides-not-removes, length-filter bucket). `test/splitplanner.spec.mjs` updated: a theme may now span up to 28
+  slots/days.
+- **Live HUD lingered after a workout ended (feat 287):** the ⏱ workout-elapsed stat (by the brand) and the rest-timer
+  bar could keep showing after a workout was ended or discarded. Two causes: the **rest bar** computed its idle "since
+  last set" strip from *any* past set's timestamp (`lastExerciseEndedMs` scans all sessions), so it kept showing with
+  no active workout; and the **elapsed stat** only refreshed on the next 1 s rest tick, so it flashed for up to a
+  second after End. Fix: `refreshRestBar` now returns early (hiding the bar + clearing its body classes) whenever
+  `getActiveSession()` is null — the bar belongs to an in-progress workout only — and `finalizeEndWorkout` /
+  `discardActiveWorkout` call `refreshTopbarLive()` (and `refreshRestBar()`) immediately so both clear the instant the
+  workout ends. `test/endtimer.spec.mjs` (rest bar + elapsed visible mid-workout, both gone the instant it ends and on
+  later ticks; the bar stays hidden with no active session despite past logged sets).
+- **Time-mode sets read "Time" and accept hh:mm:ss (feat 288):** timed holds (planks / dead hangs / wall sits / L-sits)
+  record a DURATION, but the set table's column header was hard-coded **"REPS"**. The header now derives from
+  `exMode().wLabel`/`rLabel`, so timed sets read **"TIME"** (and carries read "DISTANCE"). The value can be **entered
+  as raw seconds ("90") OR as a clock string ("1:30", "1:05:05")** and is stored as total seconds: `parseTimeToSeconds`
+  normalizes any form (raw / mm:ss / h:mm:ss / leading-or-trailing colon), `formatSecondsClock` renders it back as
+  m:ss / h:mm:ss for the field. The native input becomes a text field in time mode (so a colon can be typed), and the
+  on-screen numpad swaps its "." key for a **":"** key (no leading/double colon, max two — h:m:s; colons don't count
+  toward the 7-digit cap). `commitSetField` parses time for the time-mode reps field; `openNumpad` seeds the buffer in
+  clock form so editing reads naturally. The feat-257 hold timer still logs straight into it. `test/timeentry.spec.mjs`
+  (parse/format round-trip, "TIME" header, commit accepts both forms, numpad ":" buffer); `test/holdtimer.spec.mjs`
+  updated for the new label + clock display.
+- **Settings sections default collapsed + remembered everywhere (feat 289):** the per-section collapse state already
+  persisted in `state.settingsCollapse`, but (a) sections defaulted to *expanded* and (b) the Settings sub-pages
+  (Profile / Cosmetic / Preferences) force-**expanded** every section on projection (`_relocateSettingsPage` did
+  `classList.remove('collapsed')`), so the memory never showed on the actual screen. Now every section **defaults
+  collapsed** and an explicit expand is remembered: the store reads "collapsed unless the value is exactly `false`"
+  (a user-expanded section), applied in `decorateSettingsSections`, `applySettingsFilter`, **and**
+  `_relocateSettingsPage` (which now honours the state instead of clearing it). The moved section header keeps its
+  bound toggle, so expanding/collapsing on a Settings page persists and survives leaving + returning. `test/
+  settingscollapse.spec.mjs` (all collapsed by default, expand persists across navigation, re-collapse persists too).
+- **Weekly Summary digest (feat 284):** the Reflect review pages (Log / History / Trends / Volume …) hold a lot of
+  detail, so a new **Reflect › Summary** page (📋) distils each **complete** calendar week (Mon–Sun) into a few
+  **highlights** (🌟) and **lowlights** (⚠️). The current, in-progress week is intentionally skipped. `weekSummary(off)`
+  aggregates a week's sessions (sets, total volume, top lift by e1RM, best session score, most-trained split) and
+  compares to the prior week (volume ±%, session count, a split trained last week but dropped) plus program adherence
+  (hit-all / missed) when a program exists; `summaryWeeks(max)` returns the complete weeks within the user's training
+  history, most-recent-first (capped at 12). The page renders one compact card per week with green/amber bullet lists;
+  an empty week within the span shows a single "no training" lowlight. Pure over `state.sessions` + existing helpers
+  (`startOfWeek`, `estimated1RMSet`, `programWeekAdherence`). `test/summary.spec.mjs` (skips current week, most-recent
+  first, highlight content + week-over-week deltas, page renders cards, rest-week lowlight).
+- **Mandatory branding + synced-account identity (feat 290):** the top branding is now **always shown** (the feat-170
+  hide toggle is retired and `state.hideBranding` is force-normalized off) so the layout is consistent. A new top-bar
+  **identity** chip (`#app-identity`, pinned left, mirrors the live HR/elapsed on the right) shows the **current profile
+  name** and, when cloud-synced, the **account avatar**. Cloud connect now requests Google's non-sensitive
+  `openid`+`userinfo.profile` scopes and, best-effort, fetches `userinfo` into `state.cloudSync.account =
+  {name,email,picture}` (`cloudRefreshAccount`, wrapped so a denied/absent profile scope just means no avatar). An
+  active cloud account **force-locks the profile name** to the account name: `effectiveProfileName()` returns it, the
+  Profile name input is **disabled** with a 🔒 note, and the Data sync card shows the avatar + name + email. Helpers:
+  `cloudAccount/Name/Pic`, `profileNameLocked`, `effectiveProfileName`, `refreshIdentity` (called from `applyBranding`).
+  The same `account` shape will light up Dropbox/OneDrive once those flows surface a profile endpoint. `test/
+  identity.spec.mjs` (no-cloud uses manual name; synced account locks name + supplies avatar; top-bar render; Profile
+  input disabled + lock note; Data card shows account). `branding.spec` / `settingspages.spec` / `navtopbar.spec`
+  updated: branding is mandatory and the hide toggle is gone.
+- **Timed-hold "Ready · Set · Go" count cue (feat 291):** an opt-in voice cue for holds & hangs. On a timed set's
+  start the coach voice says **"Ready… Set… Go"** (fixed lead-in: 0 s / 0.9 s / 1.8 s) and the **set timer (`wTs`)
+  only starts on "Go"** — `commitSetField`'s weight path defers the timestamp and runs `startHoldCue(i)` instead of
+  stamping immediately. From "Go" it **counts the seconds aloud** (1, 2, 3…) on a `setInterval`, at a **configurable**
+  step (`state.holdCue = {enabled, every}`; every=1 → every second, every=5 → 5,10,15…). While active it **overrides**
+  the metronome / Mantranome (`metroTick` early-returns) and the rest cues (`restCueTick`), via `holdCueActive()`. The
+  cue cancels when the set completes (reps/seconds land), the weight is cleared before "Go", or the log is cleared.
+  Config lives in **Settings › Metronome** (toggle + interval). Reuses the feat-257 live hold timer (which keys off
+  `wTs`, so it appears on "Go") and the feat-206 `annunce` speaker. `test/holdcue.spec.mjs` (cfg defaults/clamp,
+  deferred-then-stamped `wTs` on "Go", abort on weight-clear, completion cancels, metronome suppression, settings UI).
+- **Fitness Focus & Archetype (feat 292):** a new **Reflect › Fitness Focus** page (🎯) gives a descriptive,
+  personality-type read of *how* you train — **not** a score or judgment (grades/progress already live on
+  Achievements & Trends). Each logged exercise is classified into one of six **athletic dimensions** (Max Strength,
+  Hypertrophy, Strength-Endurance, Power & Agility, Endurance, Flexibility & Mobility) by its family taxonomy
+  (`mega`/keywords), its tracking mode (holds/carries → strength-endurance; cardio → endurance) and — for plain
+  resistance — its **rep range** (≤5 strength · 6–12 hypertrophy · ≥13 strength-endurance). `fitnessFocus` tallies the
+  last ~16 weeks (broadening to all-time if thin) into a normalized profile; `fitnessArchetype` cosine-matches it to
+  the nearest of **16 archetypes** (Powerlifter, Bodybuilder, Powerbuilder, Olympic Weightlifter, Strongman, CrossFit
+  Athlete, Hybrid Athlete, Endurance Athlete, Tactical, Calisthenics, Mobility Specialist, Yoga-Runner, Martial Artist,
+  Explosive Athlete, All-Rounder, Movement Athlete), with a secondary when close. The page shows the archetype headline
+  + blurb, a 6-axis **radar** of the profile shape, and per-dimension bars (% + the top exercise feeding each). Gated
+  behind `FOCUS_MIN_SETS`(30)/`FOCUS_MIN_SESSIONS`(5) with a progress bar until there's enough data; a single-focus
+  athlete (e.g. a pure powerlifter, all low-rep strength) still qualifies. `test/archetype.spec.mjs` (classification by
+  mode/rep-range, the data gate, cosine archetype matching for strength/endurance/flex/balanced profiles, page render).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
