@@ -9249,6 +9249,25 @@ function purgeCreator(name) {
   if (removed) saveState();
   return removed;
 }
+// feat 294 — count / purge every NON-EMBEDDABLE clip: a pure external link with no inline preview (no embedUrl
+// and not an image). mediaPlayable() is the inverse, so images & embeds are always kept.
+function countNonEmbeddableMedia() {
+  let n = 0;
+  Object.keys(state.exerciseMedia || {}).forEach(k => (state.exerciseMedia[k] || []).forEach(m => { if (!mediaPlayable(m)) n++; }));
+  return n;
+}
+function purgeNonEmbeddableMedia() {
+  if (typeof roBlocked === 'function' && roBlocked('purge link-only media')) return 0;
+  let removed = 0;
+  Object.keys(state.exerciseMedia || {}).forEach(k => {
+    const list = state.exerciseMedia[k] || [], before = list.length;
+    state.exerciseMedia[k] = list.filter(m => mediaPlayable(m));
+    removed += before - state.exerciseMedia[k].length;
+    if (!state.exerciseMedia[k].length) delete state.exerciseMedia[k];
+  });
+  if (removed) saveState();
+  return removed;
+}
 function getExerciseMedia(uuid) { if (!uuid || !state.exerciseMedia) return []; return state.exerciseMedia[uuid] || []; }
 /* feat 238 — WATCH TRACKING. The last time you actually WATCHED a clip (keyed by the clip itself, so it's
    shared everywhere the clip appears). "Watched" = you opened the embed and it stayed up for the dwell
@@ -9765,6 +9784,7 @@ function renderMediaWizard() {
     <label class="drawer-btn" id="mw-import-sheet-lbl" style="padding:6px 10px;cursor:pointer;" title="Import a filled media sheet (.md / .txt / .json)">⬆ Import sheet<input type="file" id="mw-import-sheet" accept=".md,.txt,.json" hidden></label>
     <button class="drawer-btn" id="mw-retest" style="padding:6px 10px;">↻ Re-test all</button>
     <button class="drawer-btn" id="mw-gallery" style="padding:6px 10px;" title="Open the Media Gallery — every clip in a searchable, watch-tracked grid">🎞️ Gallery</button>
+    ${notEmbed ? `<button class="drawer-btn danger" id="mw-purge-nonembed" style="padding:6px 10px;" title="Remove every link-only clip (external links with no inline preview) across all exercises">🗑 Purge link-only (${notEmbed})</button>` : ''}
     <span class="mw-stat">${varWith} variations · ${movWith} movements · ${totalLinks} links · ${notEmbed} not embeddable</span>`;
   const rows = mediaWizardRows();
   const capped = rows.length > 150 ? rows.slice(0, 150) : rows;
@@ -9845,6 +9865,17 @@ function bindMediaWizard() {
   tb.querySelector('#mw-import-sheet')?.addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const rd = new FileReader(); rd.onload = () => { importMediaData(String(rd.result || '')); renderMediaWizard(); }; rd.readAsText(f); }); // feat 236 — import a filled sheet
   tb.querySelector('#mw-retest')?.addEventListener('click', mediaWizardRetestAll);
   tb.querySelector('#mw-gallery')?.addEventListener('click', () => { closeMediaWizard(); navTo('media-gallery'); }); // feat 239 — jump to the gallery
+  tb.querySelector('#mw-purge-nonembed')?.addEventListener('click', () => { // feat 294 — purge all non-embeddable (link-only) media
+    const n = countNonEmbeddableMedia();
+    if (!n) { toast('No link-only media to purge'); return; }
+    confirmDialog(`Remove all ${n} link-only clip${n === 1 ? '' : 's'}? These are external links with no inline preview (embeddable videos and images are kept). This can't be undone — export your media first if unsure.`, { title: 'Purge link-only media?', okLabel: '🗑 Purge ' + n, cancelLabel: 'Keep', danger: true }).then(ok => {
+      if (!ok) return;
+      const removed = purgeNonEmbeddableMedia();
+      renderMediaWizard();
+      toast(`Purged ${removed} link-only clip${removed === 1 ? '' : 's'}`);
+      if (typeof logInfo === 'function') logInfo('Purged link-only media', removed + ' removed');
+    });
+  });
   body.querySelectorAll('[data-mw-purge]').forEach(b => b.addEventListener('click', () => { // feat 237 — purge a whole creator
     const name = b.dataset.mwPurge, n = +b.dataset.mwPurgeN || 0;
     confirmDialog(`Remove all ${n} reference link${n === 1 ? '' : 's'} from ${name}? This can't be undone (export your media first if unsure).`, { title: 'Purge creator?', okLabel: 'Purge', cancelLabel: 'Keep', danger: true }).then(ok => { if (!ok) return; const removed = purgeCreator(name); renderMediaWizard(); toast(`Purged ${removed} link${removed === 1 ? '' : 's'} from ${name}`); });
@@ -19428,7 +19459,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 236 · 2026-06-20 11:23';
+const APP_BUILD = 'build 237 · 2026-06-20 11:32';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

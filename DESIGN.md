@@ -1235,6 +1235,13 @@ They share variation **UUIDs**.
   flavours on the hybrid ones). They self-seed via the additive `seededPlanIds` ledger. Four classify as **Full Body**;
   the strongman & hybrid ones legitimately read as **Mixed** (they blend strength + conditioning + odd implements).
   `test/fullbodyplans.spec.mjs` (seed, every step satisfiable, monster size, category, unique ids/names catalogue-wide).
+- **Purge all non-embeddable media (feat 294):** the Media Wizard toolbar gains a **🗑 Purge link-only (N)** button
+  (shown only when `N > 0`) that, after a confirm, removes every **non-embeddable** clip across all exercises — pure
+  external links with no inline preview (no `embedUrl` and not an image). `purgeNonEmbeddableMedia` filters each
+  `state.exerciseMedia[key]` to `mediaPlayable(m)` (so embeddable videos **and** images are always kept) and drops any
+  emptied key; `countNonEmbeddableMedia` powers the button label. Read-only-guarded, save-on-change.
+  `test/mediapurge.spec.mjs` (purge keeps embeds/images, removes link-only, drops emptied keys; toolbar button appears
+  only with link-only media, carrying the count).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
