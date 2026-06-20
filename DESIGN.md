@@ -1228,6 +1228,13 @@ They share variation **UUIDs**.
   behind `FOCUS_MIN_SETS`(30)/`FOCUS_MIN_SESSIONS`(5) with a progress bar until there's enough data; a single-focus
   athlete (e.g. a pure powerlifter, all low-rep strength) still qualifies. `test/archetype.spec.mjs` (classification by
   mode/rep-range, the data gate, cosine archetype matching for strength/endurance/flex/balanced profiles, page render).
+- **Full-body "monster" plans (feat 293):** six big, demanding, train-it-all-in-one-sitting seed plans (SEED_PLANS
+  tranche 13) — **The Full-Body Behemoth, Total-Body Annihilation, The Iron Decathlon, Strongman's Full-Body Gauntlet,
+  Hybrid Beast (Full Body)** and **The Two-Hour Full-Body Crucible** — each ≥8 steps and ≥30 sets, opening with heavy
+  compounds then sweeping every pattern (squat · hinge · push · pull · carry · core, plus strongman/Olympic/plyo
+  flavours on the hybrid ones). They self-seed via the additive `seededPlanIds` ledger. Four classify as **Full Body**;
+  the strongman & hybrid ones legitimately read as **Mixed** (they blend strength + conditioning + odd implements).
+  `test/fullbodyplans.spec.mjs` (seed, every step satisfiable, monster size, category, unique ids/names catalogue-wide).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
