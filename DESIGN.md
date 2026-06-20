@@ -1279,6 +1279,16 @@ They share variation **UUIDs**.
   active coach. `coachVoice()`/`pickCoachVoice()` stay as active-persona wrappers (back-compat). `test/
   coachpersona.spec.mjs` (per-persona auto-pick differs by bias, explicit + system per-coach choices win, the settings
   voice picker renders + persists, neutral has none); `coachvoice.spec` updated to the per-coach override.
+- **Plans for neglected movement areas (feat 298):** a fresh per-family coverage audit (count of SEED_PLAN steps
+  referencing each family) found loggable movements **no plan touched** — Roman chair, CrossFit moves, TRX,
+  specialty bars, pin lifts, mace/club & specialty implements, cable attachments — plus the lower-leg / joint prehab
+  set used only once (tibialis, ATG knees-over-toes, adductor, neck). Seven new SEED_PLANS (tranche 14) feature them:
+  **Lower-Back & Core Fortress** (Roman chair), **Functional Throwdown** (CrossFit moves), **Suspension Total Body
+  (TRX)**, **Specialty Bar Power** (specialty bars + pin lifts), **Mace & Club Flow** (mace/club + implements),
+  **Bulletproof Joints & Lower Leg** (tibialis/ATG/adductor/neck) and **Cable Sculpt Circuit** (cable attachments).
+  Every step was verified to resolve to a qualifying variation; they self-seed via the additive `seededPlanIds`
+  ledger. `test/neglected.spec.mjs` (seed, every step satisfiable, the once-zero families now have ≥1 step, catalogue
+  still free of duplicate ids/names).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
