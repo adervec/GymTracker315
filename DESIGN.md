@@ -1304,6 +1304,13 @@ They share variation **UUIDs**.
   spirit as feat 262); hidden until ≥3 sessions + a recent recovery signal. `renderReadinessCard` shows the score,
   status pill and the factor chips (Recovery % · N stalled · Effort ↑/→/↓). `test/readiness.spec.mjs` (null on thin
   history, rested→Primed/Ready, thrashed→deload band, composite null when nothing recent, RPE-trend rising/off/sparse).
+- **Add-set keeps the new row in view (feat 300):** appending a set on the log-sets sheet left the new row
+  hidden, because two scroll layers stack — the sets list is an inner box (`#trk-sets-container`,
+  `max-height:40vh`, own `overflow-y`) and the modal below it has a `position:sticky` footer. `revealLastSetRow()`
+  (called from `addSetRow`, `copyWeightToNextSet`, `duplicateLastSet`) first scrolls the inner list to its
+  bottom to surface the newest row, then — only if that row still sits behind/below the sticky footer at the
+  modal level — nudges the modal just enough to clear it (minimal, `behavior:'smooth'`). `test/setaddscroll.spec.mjs`
+  (after appending the 41st row to an overflowing list, the last `.set-row` ends fully above the footer and on-screen).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

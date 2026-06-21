@@ -19359,6 +19359,7 @@ function copyWeightToNextSet() {
   updateFAB();
   updateSaveBtn();
   if (typeof refreshRestBar === 'function') refreshRestBar();
+  revealLastSetRow(); // feat 300 — keep the copied-to new row clear of the sticky footer
 }
 
 // feat 142 — long-press Copy: fill the OPEN set's still-empty reps with the previous rep count, so an
@@ -19408,6 +19409,7 @@ function duplicateLastSet() {
   try { safeVibrate(15); } catch (_) {}
   toast('📋 Duplicated ' + src.w + ' × ' + src.r);
   if (typeof refreshRestBar === 'function') refreshRestBar();
+  revealLastSetRow(); // feat 300 — keep the duplicated new row clear of the sticky footer
 }
 
 function addSetRow(mode) {
@@ -19437,6 +19439,31 @@ function addSetRow(mode) {
   renderModal();
   updateSaveBtn();
   if (typeof refreshRestBar === 'function') refreshRestBar();
+  revealLastSetRow(); // feat 300 — lift the just-added row clear of the sticky footer
+}
+
+// feat 300 — after a set is appended, the new (last) row read as "not fully visible". Two scroll layers
+// are in play: the sets list itself is an inner box (#trk-sets-container, max-height:40vh, own overflow),
+// and below it the modal has a position:sticky footer. So we (1) scroll the inner list to its bottom to
+// surface the new row, then (2) if that row still sits behind/below the sticky footer at the modal level,
+// nudge the modal just enough to clear it. Used by every path that appends a set + re-renders the modal.
+function revealLastSetRow() {
+  requestAnimationFrame(() => {
+    const c = document.getElementById('trk-sets-container');
+    if (!c) return;
+    c.scrollTop = c.scrollHeight; // 1) reveal the newest row within the inner 40vh sets list
+    requestAnimationFrame(() => {
+      const modal = document.getElementById('trk-modal');
+      const footer = document.getElementById('trk-modal-footer');
+      const rows = c.querySelectorAll('.set-row');
+      const last = rows[rows.length - 1];
+      if (!modal || !last) return;
+      const lr = last.getBoundingClientRect();
+      const fTop = footer ? footer.getBoundingClientRect().top : window.innerHeight;
+      const overlap = lr.bottom - fTop + 14; // px hidden behind the sticky footer (+ a little breathing room)
+      if (overlap > 0) { try { modal.scrollBy({ top: overlap, behavior: 'smooth' }); } catch (_) { modal.scrollTop += overlap; } }
+    });
+  });
 }
 
 function saveSets(endingWorkout) {
@@ -19676,7 +19703,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 255 · 2026-06-20 23:23';
+const APP_BUILD = 'build 256 · 2026-06-20 23:44';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
