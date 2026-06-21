@@ -1352,6 +1352,13 @@ They share variation **UUIDs**.
   `persona` (`_podPlay` uses new `coachifyAs(u, personaId)` to apply *that* coach's voice instead of the active one) and
   a `kind:'variation'` guard so a brief never marks study terms read or disturbs the study resume point. `test/coachpodcast.spec.mjs`
   (persona mapping; tight on-topic brief ~30-60s; player driven with the right coach; coachifyAs is persona-specific; the Brief button renders).
+- **Diamond Gym style plans (feat 305):** a SEED_PLANS **tranche 15** of six old-school hardcore powerbuilding
+  sessions (requested): **Diamond Gym Chest & Back**, **Leg Blast**, **Delts & Arms**, **Powerbuilding — Upper**,
+  **Powerbuilding — Lower**, and a **Heavy-Duty Full Body**. Each leads with a heavy barbell compound (`load:'heavy'`,
+  intensity 4-5) then piles on back-off volume and accessories — the chalk-and-iron template. Additively seeded by the
+  existing `seededPlanIds` ledger (new ids → appended for existing users; descriptive "Diamond Gym" naming covered by
+  the trademark disclaimer). `test/diamond.spec.mjs` (all six seed, every step resolves to a qualifying variation, each
+  opens heavy on a compound, no duplicate ids/names); the global `plancoverage` step-resolution check also covers them.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
