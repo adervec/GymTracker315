@@ -1871,6 +1871,35 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .rdy-chip { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); white-space: nowrap; }
   .rdy-chip.rdy-chip-warn { border-color: #e0883a; color: #e0883a; }
   .rdy-action { font-size: 12px; color: var(--text2); margin-top: 9px; line-height: 1.45; }
+  /* feat 306 — constellation / tech-tree view */
+  .cst-head { margin-bottom: 6px; }
+  .cst-sub { font-size: 11.5px; color: var(--text3); line-height: 1.45; margin-top: 4px; }
+  .cst-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 6px; }
+  .cst-pill { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); cursor: pointer; font-family: inherit; }
+  .cst-pill.active { background: var(--accent, #b48aff); border-color: var(--accent, #b48aff); color: #0a0a0a; }
+  .cst-pill.active[style*="--ch"] { background: var(--ch); border-color: var(--ch); }
+  .cst-stage { width: 100%; border-radius: 10px; overflow: hidden; }
+  .cst-svg { width: 100%; height: auto; display: block; touch-action: manipulation; }
+  .cst-node { cursor: pointer; transition: fill-opacity 0.12s; }
+  .cst-node:hover { fill-opacity: 1 !important; }
+  .cst-core-lbl { fill: var(--accent, #b48aff); font-size: 13px; font-weight: 800; letter-spacing: 1px; font-family: inherit; opacity: 0.85; }
+  .cst-mega-lbl { font-size: 15px; font-weight: 800; font-family: inherit; opacity: 0.85; }
+  .cst-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 10.5px; color: var(--text3); }
+  .cst-leg { display: inline-flex; align-items: center; gap: 4px; }
+  .cst-leg i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .cst-leg-bright { color: var(--text2); }
+  #cst-pop { position: fixed; inset: 0; z-index: 10060; display: flex; align-items: center; justify-content: center; }
+  .cst-pop-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
+  .cst-pop-card { position: relative; z-index: 1; width: min(340px, 90vw); background: var(--modal-bg, #14141c); border: 1px solid var(--border2, #333); border-radius: 12px; padding: 16px 16px 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+  .cst-pop-x { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--text3); font-size: 16px; cursor: pointer; }
+  .cst-pop-mega { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; }
+  .cst-pop-title { font-size: 17px; font-weight: 800; color: var(--text); margin-top: 2px; line-height: 1.2; }
+  .cst-pop-fam { font-size: 12px; color: var(--text3); margin-top: 2px; }
+  .cst-pop-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+  .cst-pop-prowess { font-size: 12px; color: var(--text2); margin-bottom: 12px; line-height: 1.4; }
+  .cst-pop-actions { display: flex; gap: 8px; }
+  .cst-pop-btn { flex: 1; padding: 9px 8px; border-radius: 8px; border: 1px solid var(--border2, #333); background: var(--bg3, #1a1a1a); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .cst-pop-ref { background: var(--accent, #b48aff); border-color: var(--accent, #b48aff); color: #0a0a0a; }
   /* feat 263 — plateau / stall surfaces */
   .plateau-note { margin: 8px 0 2px; padding: 9px 11px; border-radius: 8px; background: rgba(229,136,58,0.12); border: 1px solid rgba(229,136,58,0.4); color: var(--text2); font-size: 11.5px; line-height: 1.45; }
   .plateau-note b { color: #e0883a; }
@@ -10328,12 +10357,155 @@ let currentTab = 'log';
    the tab bar / direct `currentTab=X;render()`) keep working, so screens migrate to pages incrementally (feat
    182+). Leaves not yet converted to pages carry an `open()` that calls their existing overlay opener.
    ============================================================ */
+/* ============================================================
+   feat 306 — CONSTELLATION / TECH-TREE of every variation. A radial star-map in Reflect: fundamental
+   movements sit near the centre and branch outward into the obscure & advanced (by family importance, then
+   difficulty), one spiral arm per mega category. Nodes are colour-coded by mega and brightness-coded by your
+   prowess (logged history); tapping a node opens an info popup with a link to its full reference. Pure read.
+   ============================================================ */
+const _MEGA_HUE = { push:'#e0883a', pull:'#6ca0ff', lower:'#3fb950', core:'#d2bd2a', cardio:'#e5534b', workouts:'#b48aff', mobility:'#87cefa', recovery:'#5fd0c0', full:'#ff8ab4', other:'#9aa0a6' };
+const _MEGA_LABEL = { push:'Push', pull:'Pull', lower:'Lower Body', core:'Core', cardio:'Cardio', workouts:'Workouts', mobility:'Mobility', recovery:'Recovery', full:'Full Body' };
+function _megaHue(m) { return _MEGA_HUE[(m || 'other').toLowerCase()] || _MEGA_HUE.other; }
+function _megaLabel(m) { const k = (m || 'other').toLowerCase(); return _MEGA_LABEL[k] || (typeof BP_LABELS !== 'undefined' && BP_LABELS[k]) || (k.charAt(0).toUpperCase() + k.slice(1)); }
+let _constFilter = null; // active mega filter (null = all)
+// One pass over the log → per-variation { sessions, lastMs, best e1RM } for prowess brightness.
+function buildProwessMap() {
+  const m = new Map();
+  (state.sessions || []).forEach(s => {
+    const t = new Date(s.date).getTime();
+    (s.exercises || []).forEach(ex => {
+      if (ex.cardio || !ex.sets || !ex.sets.length) return;
+      let e = m.get(ex.varUuid); if (!e) { e = { sessions: 0, lastMs: 0, best: 0 }; m.set(ex.varUuid, e); }
+      e.sessions++; if (t > e.lastMs) e.lastMs = t;
+      ex.sets.forEach(st => { const v = (typeof estimated1RMSet === 'function') ? estimated1RMSet(st) : 0; if (v > e.best) e.best = v; });
+    });
+  });
+  return m;
+}
+// Brightness 0..1: untrained = 0; otherwise grows with sessions, with a recency boost.
+function prowessScore(entry, now) {
+  if (!entry || !entry.sessions) return 0;
+  now = now || Date.now();
+  const days = (now - entry.lastMs) / 86400000;
+  const rec = days <= 14 ? 0.25 : days <= 60 ? 0.12 : 0.03;
+  return Math.max(0.12, Math.min(1, 0.3 + 0.45 * Math.min(1, entry.sessions / 8) + rec));
+}
+// Lay every (visible) variation on a radial map: inner = fundamental (high family importance), spiralling
+// outward by importance then difficulty, one arm per mega. Deterministic (index-based, no random).
+function constellationNodes() {
+  const W = 1000, H = 1000, cx = W / 2, cy = H / 2, TAU = Math.PI * 2;
+  const now = Date.now(), prowess = buildProwessMap();
+  const ORDER = ['push', 'pull', 'lower', 'core', 'cardio', 'workouts', 'mobility', 'recovery', 'full'];
+  const diffRank = { beg: 0, int: 1, adv: 2, exp: 3 };
+  const byMega = new Map();
+  FAMILIES.forEach(f => {
+    const mega = (f.mega || 'other').toLowerCase();
+    (f.variations || []).forEach(v => {
+      if (typeof varVisibleInPicker === 'function' && !varVisibleInPicker(f, v)) return; // skip suppressed twins
+      let arr = byMega.get(mega); if (!arr) { arr = []; byMega.set(mega, arr); }
+      arr.push({ f, v });
+    });
+  });
+  const megas = [...byMega.keys()].sort((a, b) => { const ia = ORDER.indexOf(a), ib = ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b); });
+  const nodes = [];
+  megas.forEach((mega, mi) => {
+    const items = byMega.get(mega);
+    items.forEach(it => { it._imp = getImportance(it.f.id, it.f.mega); it._diff = getDifficulty(it.v.id, it.f.id); });
+    items.sort((a, b) => (b._imp - a._imp) || ((diffRank[a._diff] || 1) - (diffRank[b._diff] || 1)) || a.f.title.localeCompare(b.f.title) || a.v.title.localeCompare(b.v.title));
+    const a0 = (mi / megas.length) * TAU, a1 = ((mi + 1) / megas.length) * TAU;
+    const aMid = (a0 + a1) / 2, halfW = (a1 - a0) / 2 * 0.84;
+    const n = items.length, rMin = 86, rMax = Math.min(W, H) / 2 - 64;
+    items.forEach((it, idx) => {
+      const t = n > 1 ? idx / (n - 1) : 0;
+      const radius = rMin + t * (rMax - rMin);
+      const ang = aMid + (t - 0.5) * 2 * halfW + Math.sin(idx * 1.7) * 0.03;
+      const pe = prowess.get(it.v.uuid), pr = prowessScore(pe, now);
+      nodes.push({ uuid: it.v.uuid, x: +(cx + radius * Math.cos(ang)).toFixed(1), y: +(cy + radius * Math.sin(ang)).toFixed(1),
+        mega, fam: it.f.id, famTitle: it.f.title, title: it.v.title, importance: it._imp, difficulty: it._diff,
+        prowess: +pr.toFixed(3), trained: !!(pe && pe.sessions), sessions: pe ? pe.sessions : 0, best: pe ? Math.round(pe.best) : 0,
+        r: +(3.4 + it._imp * 0.7).toFixed(1) });
+    });
+  });
+  return { W, H, cx, cy, nodes, megas };
+}
+function renderConstellationPage(main) {
+  if (!main) return;
+  const data = constellationNodes();
+  const { W, H, cx, cy, nodes, megas } = data;
+  const trainedCount = nodes.filter(n => n.trained).length;
+  const arms = megas.map(m => {
+    const pts = nodes.filter(n => n.mega === m).map(n => `${n.x},${n.y}`).join(' ');
+    return pts ? `<polyline points="${pts}" fill="none" stroke="${_megaHue(m)}" stroke-opacity="0.16" stroke-width="1.4"/>` : '';
+  }).join('');
+  const circles = nodes.map(n => {
+    const dim = _constFilter && n.mega !== _constFilter;
+    const op = (dim ? 0.06 : (0.22 + 0.62 * n.prowess)).toFixed(3);
+    const halo = (n.trained && !dim) ? `<circle cx="${n.x}" cy="${n.y}" r="${(n.r + 2.4).toFixed(1)}" fill="none" stroke="${_megaHue(n.mega)}" stroke-opacity="${(0.22 + 0.5 * n.prowess).toFixed(3)}" stroke-width="1"/>` : '';
+    return `${halo}<circle class="cst-node" data-uuid="${escapeAttr(n.uuid)}" cx="${n.x}" cy="${n.y}" r="${n.r}" fill="${_megaHue(n.mega)}" fill-opacity="${op}"><title>${escapeHtml(n.title)}</title></circle>`;
+  }).join('');
+  const megaLabels = megas.map(m => {
+    const arm = nodes.filter(n => n.mega === m); if (!arm.length) return '';
+    const o = arm[arm.length - 1];
+    return `<text class="cst-mega-lbl" x="${o.x}" y="${o.y - 6}" fill="${_megaHue(m)}" text-anchor="${o.x < cx ? 'end' : 'start'}">${escapeHtml(_megaLabel(m))}</text>`;
+  }).join('');
+  const pills = ['all'].concat(megas).map(m =>
+    `<button class="cst-pill ${(_constFilter || 'all') === m ? 'active' : ''}" data-cst-mega="${escapeAttr(m)}"${m !== 'all' ? ` style="--ch:${_megaHue(m)}"` : ''}>${m === 'all' ? 'All' : escapeHtml(_megaLabel(m))}</button>`
+  ).join('');
+  main.innerHTML = `<div class="card cst-card">
+    <div class="cst-head"><div class="card-title" style="margin:0;">✨ Constellation</div><div class="cst-sub">Every movement as a star — fundamentals at the core, the obscure &amp; advanced spiralling out. Brightness = your prowess (<b>${trainedCount}</b>/${nodes.length} lit). Tap a star for details.</div></div>
+    <div class="cst-pills">${pills}</div>
+    <div class="cst-stage"><svg viewBox="0 0 ${W} ${H}" class="cst-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Constellation of exercise variations">
+      <defs><radialGradient id="cst-bg" cx="50%" cy="50%" r="60%"><stop offset="0%" stop-color="rgba(124,77,255,0.10)"/><stop offset="100%" stop-color="rgba(0,0,0,0)"/></radialGradient></defs>
+      <rect x="0" y="0" width="${W}" height="${H}" fill="url(#cst-bg)"/>
+      ${arms}
+      <circle cx="${cx}" cy="${cy}" r="22" fill="none" stroke="var(--accent,#b48aff)" stroke-opacity="0.6" stroke-width="1.5"/>
+      <text x="${cx}" y="${cy + 4}" text-anchor="middle" class="cst-core-lbl">CORE</text>
+      ${circles}
+      ${megaLabels}
+    </svg></div>
+    <div class="cst-legend">${megas.map(m => `<span class="cst-leg"><i style="background:${_megaHue(m)}"></i>${escapeHtml(_megaLabel(m))}</span>`).join('')}<span class="cst-leg cst-leg-bright">◐ brighter = stronger / more trained</span></div>
+  </div>`;
+  main.querySelectorAll('[data-cst-mega]').forEach(b => b.addEventListener('click', () => { _constFilter = b.dataset.cstMega === 'all' ? null : b.dataset.cstMega; renderConstellationPage(main); }));
+  main.querySelectorAll('.cst-node').forEach(c => c.addEventListener('click', () => _constellationPopup(c.getAttribute('data-uuid'))));
+}
+// Info popup for a tapped star: title, family, mega, importance/difficulty badges, prowess, + a reference link.
+function _constellationPopup(uuid) {
+  const info = VAR_INDEX.get(uuid); if (!info) return;
+  const f = info.family, v = info.variation;
+  const pe = buildProwessMap().get(uuid), pr = prowessScore(pe);
+  const prowessLine = (pe && pe.sessions)
+    ? `🔥 <b>${Math.round(pr * 100)}%</b> prowess · ${pe.sessions} session${pe.sessions === 1 ? '' : 's'}${pe.best ? ` · best e1RM ${Math.round(pe.best)}${escapeHtml(state.unit || '')}` : ''}`
+    : '☆ Not logged yet — train it to light up this star.';
+  _closeConstellationPop();
+  const wrap = document.createElement('div'); wrap.id = 'cst-pop';
+  wrap.innerHTML = `<div class="cst-pop-backdrop"></div>
+    <div class="cst-pop-card" role="dialog" aria-modal="true">
+      <button class="cst-pop-x" type="button" aria-label="Close">✕</button>
+      <div class="cst-pop-mega" style="color:${_megaHue(f.mega)}">${escapeHtml(_megaLabel(f.mega))}</div>
+      <div class="cst-pop-title">${escapeHtml(v.title)}</div>
+      <div class="cst-pop-fam">${escapeHtml(f.title)}</div>
+      <div class="cst-pop-badges">${(typeof importanceBadge === 'function' ? importanceBadge(f.id, f.mega) : '')}${(typeof difficultyBadge === 'function' ? difficultyBadge(v.id, f.id) : '')}</div>
+      <div class="cst-pop-prowess">${prowessLine}</div>
+      <div class="cst-pop-actions">
+        <button class="cst-pop-btn cst-pop-ref" type="button">📚 Full reference</button>
+        <button class="cst-pop-btn cst-pop-brief" type="button">🎧 Brief</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => _closeConstellationPop();
+  wrap.querySelector('.cst-pop-backdrop').addEventListener('click', close);
+  wrap.querySelector('.cst-pop-x').addEventListener('click', close);
+  wrap.querySelector('.cst-pop-ref').addEventListener('click', () => { close(); if (typeof openReferenceFor === 'function') openReferenceFor(uuid); });
+  wrap.querySelector('.cst-pop-brief').addEventListener('click', () => { if (typeof startVariationPodcast === 'function') startVariationPodcast(uuid); });
+}
+function _closeConstellationPop() { const el = document.getElementById('cst-pop'); if (el) el.remove(); }
+
 const PAGES = {
   // feat 221 — menus are grouping nodes only: navTo() forwards them to their `primary` leaf, so no screen is
   // ever just a nav list. Browsing happens in the compact nav-tree popover; the breadcrumb shows where you are.
   home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'], primary:'workout' },
   train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'], primary:'workout' },
-  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','summary','focus','history','trends','volume','achievements','replay','progression'], primary:'log' },
+  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','summary','focus','history','trends','volume','achievements','constellation','replay','progression'], primary:'log' },
   execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail','hiit'], primary:'workout' },
   prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator','split-planner'], primary:'gyms' },
   study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','media-gallery','glossary','anatomy','advice'], primary:'reference' },
@@ -10348,6 +10520,7 @@ const PAGES = {
   trends:      { title:'Trends',           emoji:'📈', kind:'leaf', parent:'reflect', tab:'trends',   render:m=>renderTrends(m) },
   volume:      { title:'Volume',           emoji:'🧮', kind:'leaf', parent:'reflect', tab:'volume',   render:m=>renderVolume(m) },
   achievements:{ title:'Achievement Paths',emoji:'🏅', kind:'leaf', parent:'reflect', render:m=>{ m.innerHTML = renderAchievements(); } },
+  constellation:{ title:'Constellation',    emoji:'✨', kind:'leaf', parent:'reflect', render:m=>renderConstellationPage(m) }, // feat 306
   replay:      { title:'Replay',           emoji:'⏪', kind:'leaf', parent:'reflect', render:m=>renderReplayPage(m) }, // feat 219
   progression: { title:'Progression',      emoji:'🚀', kind:'leaf', parent:'reflect', render:m=>renderProgressionPage(m) }, // feat 233
   gyms:        { title:'Gyms',             emoji:'📍', kind:'leaf', parent:'prepare', tab:'gyms', render:m=>renderGymsTab(m) },
@@ -19763,7 +19936,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 261 · 2026-06-21 07:40';
+const APP_BUILD = 'build 262 · 2026-06-21 07:48';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -1359,6 +1359,18 @@ They share variation **UUIDs**.
   existing `seededPlanIds` ledger (new ids → appended for existing users; descriptive "Diamond Gym" naming covered by
   the trademark disclaimer). `test/diamond.spec.mjs` (all six seed, every step resolves to a qualifying variation, each
   opens heavy on a compound, no duplicate ids/names); the global `plancoverage` step-resolution check also covers them.
+- **Constellation / tech-tree view (feat 306):** a new **Reflect → ✨ Constellation** page (`renderConstellationPage`)
+  that maps **every** variation as a star. `constellationNodes()` lays them radially — **fundamentals at the core**
+  (sorted by family `getImportance`), spiralling **outward to the obscure/advanced** (then by `getDifficulty`), one
+  spiral arm per **mega** category (deterministic, index-based geometry into a 1000×1000 viewBox). Nodes are
+  **colour-coded by mega** (`_MEGA_HUE`) and **brightness-coded by prowess** — `buildProwessMap()` does one pass over
+  the log for per-variation {sessions, recency, best e1RM} and `prowessScore()` maps it to 0..1 fill-opacity (untrained
+  = dim, strong/recent = bright; trained stars also get a halo). Rendered as a single responsive `<svg>` (faint
+  per-mega arm polylines + a CORE hub + mega labels + legend) with mega **filter pills**. Tapping a star opens an info
+  popup (`_constellationPopup`) — title, family, mega, **importance/difficulty badges** (reused from the reference),
+  prowess line — with **📚 Full reference** (`openReferenceFor`, the feat-204 deep-link) and **🎧 Brief** (feat 304).
+  `test/constellation.spec.mjs` (registered under Reflect; one node per visible variation, in-bounds, fundamentals
+  nearer the core; prowess tracks logged history; SVG renders clickable nodes; the popup deep-links to reference).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
