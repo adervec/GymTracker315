@@ -1322,6 +1322,12 @@ They share variation **UUIDs**.
   `reconcileVariationParents()` into `applyExtraSecondaryParents()`, called **after** `applyExtraVariations()` so the
   extra-injected (`b1a1…`) hack squats are in `VAR_INDEX` in time to be cross-listed. `test/hacksquat.spec.mjs`
   (satisfies squat + still matches leg-press; extra foot-placement variant cross-listed; achievement still excludes).
+- **Life Fitness arm machines (feat 302):** added the **Preacher Curl Machine (Life Fitness)** and **Triceps
+  Extension Machine (Life Fitness)** the user couldn't find. Both go in via `EXTRA_VARIATIONS` (feat 17/18), so a
+  single entry each lands in **both** the loggable `FAMILIES` (picker/tracking, via `applyExtraVariations`) and the
+  reference `exercises` docs (via `injectExtraIntoReference`) — attached to the existing **Bicep Curl** /
+  **Tricep Extension** families with full cue/setup/movement/mistakes/programming/tip. `test/lifefitness.spec.mjs`
+  (loggable in the right family + standard mode, present in reference docs, findable by "life fitness"/"preacher" search).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
