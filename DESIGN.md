@@ -1289,6 +1289,21 @@ They share variation **UUIDs**.
   Every step was verified to resolve to a qualifying variation; they self-seed via the additive `seededPlanIds`
   ledger. `test/neglected.spec.mjs` (seed, every step satisfiable, the once-zero families now have ≥1 step, catalogue
   still free of duplicate ids/names).
+- **Composite "Today's Readiness" score (feat 299):** the capstone over the feat-261..264 trio — one **0..100**
+  headline that answers "push, hold, or back off today?" by folding the three signals into a single card atop the
+  **Volume** tab (above the per-group breakdown). `compositeRecovery` is the **load-weighted** mean of feat-262
+  group readiness over groups trained in the last ~10 days (weighting by each group's own most-recent load anchors
+  it to the lifts you actually train, and returns `null` when there's no recent signal); `rpeTrend` compares the
+  mean session-RPE of the 3 most-recent RPE-tagged sessions vs the prior up-to-5 (positive = sessions feeling
+  harder; `null` unless RPE logging is on, feat 261, with ≥4 tagged sessions); `findPlateaus().length` (feat
+  263/264) counts currently-stalled lifts. `trainingReadiness` starts from `recovery×100`, docks **−6 per stalled
+  lift** (capped at 4) and up to **−15** for a rising RPE trend, then bands the result: **≥80 Primed · ≥60 Ready ·
+  ≥40 Ease off · else Back off**. The action line is **reactive** (unlike the scheduled mesocycle deload, feat
+  232): when low recovery is corroborated by **≥2 stalled lifts** it escalates to "take a **deload week** (~−10%
+  load & volume)" — the classic unplanned-overreaching signal. Pure compute over the log (stores nothing new, same
+  spirit as feat 262); hidden until ≥3 sessions + a recent recovery signal. `renderReadinessCard` shows the score,
+  status pill and the factor chips (Recovery % · N stalled · Effort ↑/→/↓). `test/readiness.spec.mjs` (null on thin
+  history, rested→Primed/Ready, thrashed→deload band, composite null when nothing recent, RPE-trend rising/off/sparse).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

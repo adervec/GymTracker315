@@ -1857,6 +1857,20 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .rstrip-row { display: flex; flex-wrap: wrap; gap: 6px; }
   .rstrip-chip { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); white-space: nowrap; }
   .rstrip-chip.rec-fatigued { border-color: #e5534b; } .rstrip-chip.rec-recovering { border-color: #e0883a; } .rstrip-chip.rec-ready { border-color: #d2bd2a; } .rstrip-chip.rec-fresh { border-color: #3fb950; }
+  /* feat 299 — composite "Today's Readiness" card */
+  .rdy-card { border-left: 4px solid var(--text3); }
+  .rdy-card.rdy-primed { border-left-color: #3fb950; } .rdy-card.rdy-ready { border-left-color: #d2bd2a; } .rdy-card.rdy-caution { border-left-color: #e0883a; } .rdy-card.rdy-deload { border-left-color: #e5534b; }
+  .rdy-top { display: flex; align-items: center; gap: 14px; }
+  .rdy-score { font-size: 34px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text); }
+  .rdy-score .rdy-score-max { font-size: 13px; font-weight: 600; color: var(--text3); }
+  .rdy-primed .rdy-score { color: #3fb950; } .rdy-ready .rdy-score { color: #d2bd2a; } .rdy-caution .rdy-score { color: #e0883a; } .rdy-deload .rdy-score { color: #e5534b; }
+  .rdy-headline { min-width: 0; }
+  .rdy-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text3); }
+  .rdy-status { font-size: 15px; font-weight: 700; color: var(--text); margin-top: 2px; }
+  .rdy-factors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .rdy-chip { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); white-space: nowrap; }
+  .rdy-chip.rdy-chip-warn { border-color: #e0883a; color: #e0883a; }
+  .rdy-action { font-size: 12px; color: var(--text2); margin-top: 9px; line-height: 1.45; }
   /* feat 263 — plateau / stall surfaces */
   .plateau-note { margin: 8px 0 2px; padding: 9px 11px; border-radius: 8px; background: rgba(229,136,58,0.12); border: 1px solid rgba(229,136,58,0.4); color: var(--text2); font-size: 11.5px; line-height: 1.45; }
   .plateau-note b { color: #e0883a; }
@@ -4146,6 +4160,84 @@ function exerciseRecoveryHint(varUuid) {
   const r = recoveryReadiness()[g]; if (!r || r.lastMs == null) return null;
   if ((Date.now() - r.lastMs) / 3600000 > 168 || r.readiness >= 0.85) return null;
   return { group: g, label: BP_LABELS[g] || g, readiness: r.readiness, pct: Math.round(r.readiness * 100), status: recoveryStatus(r.readiness) };
+}
+
+// feat 299 — TRAINING READINESS (composite). One 0..100 "should I push, hold, or back off today?" score
+// that folds the three feat-261..264 signals into a single headline: per-group recovery (feat 262), the
+// count of currently-stalled lifts (feat 263/264) and the session RPE trend (feat 261). Pure compute over
+// the log — stores nothing new, mirroring feat 262. Reactive, not scheduled: unlike the mesocycle deload
+// (feat 232) this nudges a deload when your *actual* training says you've earned one. Directional, never
+// auto-applied to logged sets or targets.
+
+// Load-weighted mean recovery across groups trained in the last ~10 days; null when there's no recent
+// signal. Weighting by each group's own most-recent load anchors the number to the lifts you actually
+// train (a perpetually-fresh calf shouldn't paper over a thrashed back).
+function compositeRecovery(nowMs) {
+  nowMs = nowMs || Date.now();
+  const rec = recoveryReadiness(nowMs);
+  let wSum = 0, rSum = 0;
+  RECOVERY_BPS.forEach(bp => {
+    const r = rec[bp];
+    if (!r || r.lastMs == null || (nowMs - r.lastMs) > 240 * 3600000) return; // older than ~10d → not this block
+    const w = r.lastLoad > 0 ? r.lastLoad : 1;
+    wSum += w; rSum += w * r.readiness;
+  });
+  return wSum > 0 ? rSum / wSum : null;
+}
+// Mean RPE over a session's strength sets that carried one (null when none / RPE off).
+function _sessionMeanRpe(s) {
+  let sum = 0, n = 0;
+  (s.exercises || []).forEach(ex => { if (ex.cardio) return; (ex.sets || []).forEach(st => { const rp = setRpe(st); if (rp != null) { sum += rp; n++; } }); });
+  return n ? sum / n : null;
+}
+// RPE trend: mean session-RPE of the 3 most-recent RPE-tagged sessions minus that of the prior up-to-5.
+// Positive = sessions are feeling harder (accumulating fatigue). Null unless RPE logging is on (feat 261)
+// and there are ≥4 tagged sessions to compare.
+function rpeTrend(nowMs) {
+  if (!rpeEnabled()) return null;
+  nowMs = nowMs || Date.now();
+  const tagged = (state.sessions || [])
+    .filter(s => new Date(s.date).getTime() <= nowMs)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .map(_sessionMeanRpe).filter(v => v != null);
+  if (tagged.length < 4) return null;
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  return mean(tagged.slice(0, 3)) - mean(tagged.slice(3, 8));
+}
+// Score band → status chip. Mirrors the recoveryStatus thresholds in spirit (high = good).
+function readinessStatus(score) {
+  if (score >= 80) return { key: 'primed',  label: 'Primed',   emoji: '🟢' };
+  if (score >= 60) return { key: 'ready',   label: 'Ready',    emoji: '🟡' };
+  if (score >= 40) return { key: 'caution', label: 'Ease off', emoji: '🟠' };
+  return { key: 'deload', label: 'Back off', emoji: '🔴' };
+}
+// One-line action for the band. The deload nudge escalates to a *week* when stalled lifts corroborate the
+// low recovery — that combination is the classic unplanned-overreaching signal.
+function readinessAction(key, plateauCount) {
+  if (key === 'primed') return 'Primed to push — chase a rep or a little more load on your top sets.';
+  if (key === 'ready')  return 'Train as planned — beat last session where you feel strong.';
+  if (key === 'caution') return plateauCount >= 2
+    ? 'Under-recovered with stalled lifts — hold loads today and plan a deload week soon.'
+    : 'Keep it crisp — hold loads, trim a back-off set, leave a rep in reserve.';
+  return plateauCount >= 2
+    ? 'Several lifts have stalled and you’re under-recovered — take a deload week (~−10% load & volume).'
+    : 'You’re under-recovered — take a lighter day or an extra rest day before training hard again.';
+}
+// The headline. Composite recovery is the base; active plateaus and a rising RPE trend dent it. Null until
+// there are ≥3 sessions and a recent recovery signal (so it never shows noise on a fresh log).
+function trainingReadiness(nowMs) {
+  nowMs = nowMs || Date.now();
+  if ((state.sessions || []).filter(s => new Date(s.date).getTime() <= nowMs).length < 3) return null;
+  const rec = compositeRecovery(nowMs);
+  if (rec == null) return null;
+  const plateauCount = findPlateaus().length;
+  const trend = rpeTrend(nowMs);
+  let score = rec * 100;
+  score -= Math.min(24, plateauCount * 6);                            // each stalled lift dents it, capped at 4
+  if (trend != null && trend > 0) score -= Math.min(15, trend * 15); // sessions feeling harder → fatigue tax
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  const status = readinessStatus(score);
+  return { score, status, action: readinessAction(status.key, plateauCount), factors: { recoveryPct: Math.round(rec * 100), plateauCount, rpeTrend: trend } };
 }
 
 /* ============================================================
@@ -14894,6 +14986,31 @@ function _replayRefresh() {
   renderReplayPage(host.parentElement);
 }
 
+// feat 299 — the composite "Today's Readiness" card: one score + status band + the factors behind it,
+// riding above the per-group recovery breakdown. Hidden until trainingReadiness() has enough history.
+function renderReadinessCard() {
+  const tr = trainingReadiness();
+  if (!tr) return '';
+  const f = tr.factors;
+  const chips = [`<span class="rdy-chip">🔄 Recovery ${f.recoveryPct}%</span>`];
+  if (f.plateauCount > 0) chips.push(`<span class="rdy-chip rdy-chip-warn">📉 ${f.plateauCount} lift${f.plateauCount === 1 ? '' : 's'} stalled</span>`);
+  if (f.rpeTrend != null) {
+    const t = f.rpeTrend;
+    chips.push(`<span class="rdy-chip">💪 Effort ${t > 0.25 ? '↑ rising' : (t < -0.25 ? '↓ easing' : '→ steady')}</span>`);
+  }
+  return `<div class="card rdy-card rdy-${tr.status.key}">
+    <div class="rdy-top">
+      <div class="rdy-score">${tr.score}<span class="rdy-score-max">/100</span></div>
+      <div class="rdy-headline">
+        <div class="rdy-title">Today's Readiness</div>
+        <div class="rdy-status">${tr.status.emoji} ${escapeHtml(tr.status.label)}</div>
+      </div>
+    </div>
+    <div class="rdy-factors">${chips.join('')}</div>
+    <div class="rdy-action">${escapeHtml(tr.action)}</div>
+  </div>`;
+}
+
 // feat 262 — the Recovery card: which groups are still recovering vs fresh to train today.
 function renderRecoveryCard() {
   const sessions = state.sessions || [];
@@ -14977,6 +15094,7 @@ function renderVolume(main) {
     <div class="sub-tab ${volLevel==='head'?'active':''}" data-vollevel="head">Heads</div>
   </div>`;
   html += renderVolumeHeatmapCard(); // feat 217 — the anatomy heatmap rides above the bars
+  html += renderReadinessCard();     // feat 299 — composite training-readiness score (sits above the breakdown)
   html += renderRecoveryCard();      // feat 262 — recovery readiness per muscle group
 
   if (!categoryHidden('cardio')) html += renderCardioGoals(volWeekOffset); // feat 7
@@ -19558,7 +19676,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 241 · 2026-06-20 13:47';
+const APP_BUILD = 'build 255 · 2026-06-20 23:23';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
