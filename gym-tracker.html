@@ -18619,7 +18619,7 @@ function renderSetsForm() {
       }</div>` : ''}
       ${(() => { const h = weightRecordHint(pending.varUuid); return h ? `<div class="weight-record-hint">${escapeHtml(h)}</div>` : ''; })()}
       <div class="ex-note-row">${exNoteHtml}</div>
-      <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-ex-trends-btn" type="button">📈 Trends</button></div>
+      <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-ex-trends-btn" type="button">📈 Trends</button><button class="ex-media-btn" id="trk-podcast-btn" type="button" title="Play a 30-60s coach brief on this movement">🎧 Brief</button></div>
       ${renderTrendPeek(pending.varUuid, pending.subUuid)}
       ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
     </div>
@@ -19085,6 +19085,7 @@ function bindSetsForm() {
 
   // Tips section toggle
   document.getElementById('trk-tips-ref-btn')?.addEventListener('click', (e) => { e.stopPropagation(); openReferenceFor(pending.varUuid); });
+  document.getElementById('trk-podcast-btn')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 304
   document.getElementById('trk-tips-header')?.addEventListener('click', () => {
     const sec = document.getElementById('trk-tips-section');
     sec.classList.toggle('open');
@@ -19748,7 +19749,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 259 · 2026-06-21 07:29';
+const APP_BUILD = 'build 260 · 2026-06-21 07:37';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -28080,7 +28081,8 @@ function _podPlay(i) {
   const myGen = _glossPod.gen, seg = _glossPod.segs[i];
   const u = new SpeechSynthesisUtterance(seg.text);
   u.rate = 0.98; u.lang = 'en-US'; u.volume = (typeof sndVol === 'function') ? sndVol() : 1;
-  if (typeof coachify === 'function') coachify(u);
+  if (_glossPod.persona && typeof coachifyAs === 'function') coachifyAs(u, _glossPod.persona); // feat 304 — variation brief in the movement's coach voice
+  else if (typeof coachify === 'function') coachify(u);
   u.onend = () => { // a skip/stop/new-play bumps gen, so a superseded utterance's end is ignored
     if (!_glossPod || myGen !== _glossPod.gen) return;
     if (seg.readKey) markStudyRead(seg.readKey, 'listen'); // earned by hearing the whole entry
@@ -28098,11 +28100,12 @@ function _podTogglePause() {
 }
 function _podStop() {
   if (!_glossPod) return;
+  const wasVar = _glossPod.kind === 'variation'; // feat 304 — a variation brief must not touch the study resume point
   const seg = _glossPod.segs[_glossPod.idx]; // feat 275 — remember the in-progress entry to resume from
-  if (state.studyPod) { state.studyPod.resumeKey = (seg && seg.readKey) || null; saveState(); }
+  if (!wasVar && state.studyPod) { state.studyPod.resumeKey = (seg && seg.readKey) || null; saveState(); }
   _glossPod.gen++; _podStopResumeHack(); try { window.speechSynthesis.cancel(); } catch (_) {} _glossPod = null; renderPodBar(); _refreshStudyUI();
 }
-function _podFinish() { _podStopResumeHack(); _glossPod = null; if (state.studyPod) { state.studyPod.resumeKey = null; saveState(); } renderPodBar(); _refreshStudyUI(); toast('🎧 Caught up — unread pile cleared'); }
+function _podFinish() { const wasVar = _glossPod && _glossPod.kind === 'variation'; _podStopResumeHack(); _glossPod = null; if (!wasVar && state.studyPod) { state.studyPod.resumeKey = null; saveState(); } renderPodBar(); _refreshStudyUI(); toast(wasVar ? '🎧 Brief complete' : '🎧 Caught up — unread pile cleared'); }
 function _podStartResumeHack() { _podStopResumeHack(); _podResumeTimer = setInterval(() => { try { if (_glossPod && !_glossPod.paused && window.speechSynthesis.speaking) window.speechSynthesis.resume(); } catch (_) {} }, 9000); }
 function _podStopResumeHack() { if (_podResumeTimer) { clearInterval(_podResumeTimer); _podResumeTimer = null; } }
 function renderPodBar() {
@@ -28111,8 +28114,9 @@ function renderPodBar() {
   if (!bar) { bar = document.createElement('div'); bar.id = 'gloss-pod-bar'; document.body.appendChild(bar); }
   const seg = _glossPod.segs[_glossPod.idx] || {}, prog = _podEntryProgress();
   const nowLabel = seg.kind === 'entry' ? escapeHtml(seg.label || '') : (seg.kind === 'intro' ? 'Intro' : 'Wrapping up');
+  const subMode = _glossPod.kind === 'variation' ? escapeHtml('🎙️ ' + (_glossPod.title || 'coach brief')) : ((_glossPod.order || 'logical') === 'random' ? 'shuffled' : 'in order'); // feat 304
   bar.innerHTML = `<div class="pod-bar-inner">
-    <div class="pod-now"><span class="pod-eq ${_glossPod.paused ? '' : 'on'}">🎧</span><div class="pod-now-txt"><div class="pod-now-term">${nowLabel}</div><div class="pod-now-sub">${prog.n} / ${prog.total} · ${(_glossPod.order || 'logical') === 'random' ? 'shuffled' : 'in order'}${_glossPod.paused ? ' · paused' : ''}</div></div></div>
+    <div class="pod-now"><span class="pod-eq ${_glossPod.paused ? '' : 'on'}">🎧</span><div class="pod-now-txt"><div class="pod-now-term">${nowLabel}</div><div class="pod-now-sub">${prog.n} / ${prog.total} · ${subMode}${_glossPod.paused ? ' · paused' : ''}</div></div></div>
     <div class="pod-ctrls">
       <button class="pod-btn" id="pod-pause" title="${_glossPod.paused ? 'Resume' : 'Pause'}">${_glossPod.paused ? '▶' : '⏸'}</button>
       <button class="pod-btn" id="pod-skip" title="Skip — don't mark read">⏭</button>
@@ -28122,6 +28126,96 @@ function renderPodBar() {
   bar.querySelector('#pod-pause').onclick = _podTogglePause;
   bar.querySelector('#pod-skip').onclick = _podSkip;
   bar.querySelector('#pod-stop').onclick = _podStop;
+}
+
+// feat 304 — per-variation "podcast bite": a 30-60s spoken brief on THIS specific variation (its lore/family,
+// setup, technique and what makes it unique), delivered in the voice of the coach that best fits the movement.
+// Reuses the feat-274/275 podcast player (pause/skip/stop bar) with its own segments + a per-podcast persona.
+
+// Apply a SPECIFIC persona's voice profile to an utterance (vs coachify, which uses the active persona).
+function coachifyAs(u, personaId) {
+  const p = coachPersona(personaId); if (!p || p.sys) return u;
+  u.pitch = (p.pitch != null) ? p.pitch : 0.8;
+  u.rate = (p.rate != null) ? p.rate : (u.rate || 0.95);
+  try { const v = coachVoiceFor(p); if (v) u.voice = v; } catch (_) {}
+  return u;
+}
+// Lazy uuid → reference-block variation docs index. The `exercises` array carries the rich per-variation
+// setup/movement/mistakes/programming that the compact FAMILIES dataset (cue/tip/best) doesn't.
+let _EX_VAR_INDEX = null;
+function exVarDocs(uuid) {
+  if (!_EX_VAR_INDEX) {
+    _EX_VAR_INDEX = new Map();
+    try { (typeof exercises !== 'undefined' ? exercises : []).forEach(ex => (ex.variations || []).forEach(v => { if (v && v.uuid) _EX_VAR_INDEX.set(v.uuid, v); })); } catch (_) {}
+  }
+  return _EX_VAR_INDEX.get(uuid) || null;
+}
+// Pick the coach that best fits a movement: conditioning→Hype, mobility/recovery/core→Zen, heavy barbell
+// compound→Drill Sergeant, machine/cable isolation→Analyst, bodyweight skill→Hype Buddy, else Gruff.
+function variationCoachPersona(varUuid) {
+  const info = VAR_INDEX.get(varUuid); if (!info) return state.coachPersona || 'gruff';
+  const f = info.family, v = info.variation;
+  const mega = (f.mega || '').toLowerCase();
+  const equip = (f.equip || []).join(' ').toLowerCase();
+  const title = ((v.title || '') + ' ' + (f.title || '')).toLowerCase();
+  if (mega === 'conditioning' || mega === 'cardio' || /sprint|hiit|burpee|jump|plyo|battle rope|metcon|ballistic|swing/.test(title)) return 'hype';
+  if (mega === 'mobility' || mega === 'recovery' || mega === 'core' || /stretch|mobility|yoga|breath|foam roll|corrective|prehab|cat-cow|plank|\bhold\b|carry/.test(title)) return 'zen';
+  if (/barbell/.test(equip) && /squat|deadlift|bench|overhead press|\bpress\b|\brow\b|clean|snatch|jerk|lunge/.test(title)) return 'sergeant';
+  if (/machine|cable|smith/.test(equip) || /machine|cable|pec.?deck|pushdown|extension|\bcurl\b|\bfly\b|raise|pull-?down|kickback/.test(title)) return 'analyst';
+  if (/bodyweight/.test(equip) && /pull-?up|chin-?up|\bdip\b|push-?up|pistol|muscle-?up|l-sit|lever/.test(title)) return 'buddy';
+  return 'gruff';
+}
+// Per-persona framing so the brief's wording matches the chosen voice's character.
+const _PERSONA_POD = {
+  gruff:    { in: 'Listen up. Quick brief on the ', out: 'Now go put in the work.' },
+  hype:     { in: "Oh, you're gonna love this one — the ", out: "Let's GO — leave nothing in the tank!" },
+  zen:      { in: 'Settle in. A calm word on the ', out: 'Move with intention. Breathe.' },
+  sergeant: { in: 'Eyes front! The ', out: 'No excuses. Execute.' },
+  analyst:  { in: "Let's break down the ", out: 'Precision over ego. Log it and move on.' },
+  buddy:    { in: 'Alright, real quick on the ', out: "You got this — go get it!" },
+  neutral:  { in: 'A brief on the ', out: '' },
+};
+// Build the brief → { persona, title, segs:[{kind:'entry',label,text}] }. ~70-110 spoken words ≈ 30-60s.
+function variationPodcast(varUuid) {
+  const info = VAR_INDEX.get(varUuid); if (!info) return null;
+  const v = info.variation, f = info.family;
+  const dv = exVarDocs(varUuid); // rich reference docs (may be null for some variations)
+  const title = v.title || (dv && dv.title) || f.title;
+  const persona = variationCoachPersona(varUuid);
+  const flav = _PERSONA_POD[persona] || _PERSONA_POD.gruff;
+  const clean = s => (typeof _speechClean === 'function' ? _speechClean(String(s || '')) : String(s || '').replace(/<[^>]+>/g, '').trim());
+  const list = a => (Array.isArray(a) ? a : []).map(clean).filter(Boolean);
+  const setup = list(dv && dv.setup);
+  const movement = list((dv && dv.movement) || (f.general && f.general.movement));
+  const mistakes = list((dv && dv.mistakes) || (f.general && f.general.mistakes));
+  const cue = clean(v.cue || (dv && dv.cue) || f.quickCue || '');
+  const tip = clean(v.tip || (dv && dv.tip) || '');
+  const best = clean(v.best || (dv && dv.best) || '');
+  const segs = [];
+  let intro = `${flav.in}${title}. It's a ${clean(f.title)} movement`;
+  if (best) intro += `, and it earns its place for ${best.toLowerCase()}`;
+  intro += '. ';
+  if (cue) intro += cue + ' ';
+  segs.push({ kind: 'entry', label: title, text: intro.replace(/\s+/g, ' ').trim() });
+  if (setup.length) segs.push({ kind: 'entry', label: 'Setup', text: ('Setting up. ' + setup.join('. ') + '.').replace(/\s+/g, ' ').trim() });
+  if (movement.length) segs.push({ kind: 'entry', label: 'Technique', text: ('The movement. ' + movement.join('. ') + '.').replace(/\s+/g, ' ').trim() });
+  let why = '';
+  if (tip) why += tip + ' ';
+  if (mistakes.length) why += 'One thing to avoid: ' + mistakes[0] + '. ';
+  if (flav.out) why += flav.out;
+  if (why.trim()) segs.push({ kind: 'entry', label: 'Why it works', text: why.replace(/\s+/g, ' ').trim() });
+  return { persona, title, segs };
+}
+// Start the brief through the shared player (with the movement's coach). Stops any pod already running first.
+function startVariationPodcast(varUuid) {
+  if (!_podSupported()) { toast('Speech is not available in this browser'); return; }
+  if (typeof sndAudioOn === 'function' && !sndAudioOn()) { toast('🔇 Unmute audio to listen'); return; }
+  const built = variationPodcast(varUuid);
+  if (!built || !built.segs.length) { toast('No brief available for that movement'); return; }
+  if (_glossPod) _podStop();
+  _glossPod = { segs: built.segs, idx: 0, gen: 0, paused: false, order: 'logical', kind: 'variation', persona: built.persona, title: built.title };
+  _podStartResumeHack();
+  _podPlay(0);
 }
 
 function renderGlossCats() {

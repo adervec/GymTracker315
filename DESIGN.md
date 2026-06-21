@@ -1341,6 +1341,17 @@ They share variation **UUIDs**.
   `setCoachAuto` re-picks immediately if a workout is already running. `test/coachauto.spec.mjs` (mode coercion;
   session coach overrides the chosen persona; random is always flavored; vibe mapping; coachify gates on the effective
   persona). `coachvoice.spec` updated to drive the "untouched" case via the neutral persona (the source of truth).
+- **Per-variation "podcast bite" (feat 304):** a 🎧 **Brief** button on the log-sets sheet plays a **30-60s** spoken
+  rundown of *the specific variation* — its lore/family, setup, technique, and what makes it unique — **in the voice of
+  the coach that best fits the movement**. `variationCoachPersona(uuid)` maps a movement to a persona
+  (conditioning→Hype, mobility/recovery/core→Zen, heavy barbell compound→Drill Sergeant, machine/cable isolation→Analyst,
+  bodyweight skill→Hype Buddy, else Gruff). `variationPodcast(uuid)` builds `{persona, title, segs}` from the compact
+  FAMILIES data (cue/tip/best/family) plus the rich reference docs (`exVarDocs` — a lazy uuid→`exercises` index for the
+  per-variation setup/movement/mistakes the FAMILIES blob omits), framed by a per-persona intro/outro (`_PERSONA_POD`).
+  It plays through the **feat-274/275 podcast player** (the pause/skip/stop bar) with two additions: a per-podcast
+  `persona` (`_podPlay` uses new `coachifyAs(u, personaId)` to apply *that* coach's voice instead of the active one) and
+  a `kind:'variation'` guard so a brief never marks study terms read or disturbs the study resume point. `test/coachpodcast.spec.mjs`
+  (persona mapping; tight on-topic brief ~30-60s; player driven with the right coach; coachifyAs is persona-specific; the Brief button renders).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
