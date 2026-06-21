@@ -3718,7 +3718,17 @@ const VAR_DUP_RECONCILE = [
   { keep:'fd98cd9e-23e2-4f05-8d86-2492612a3f2f', drop:'4f411ea2-aeaf-4fe4-9cf6-5f7cb54a1bb9' }, // VersaClimber — Cardio Extras ◀ (twin family)
 ];
 // Pure additive cross-listings (no duplicate to suppress): canonical uuid → extra parent family ids.
-const SECONDARY_PARENTS_EXTRA = {};
+const SECONDARY_PARENTS_EXTRA = {
+  // feat 301 — hack-squat variants are a squat movement pattern, so they SATISFY a 'squat' plan step (their
+  // primary parent is the leg-press family). Plan-step only: the BARBELL squat *achievement* still excludes
+  // them by name (feat 253 `exclude` regex), so a hack squat never inflates that "plates on the bar" milestone.
+  '5d630c7c-26fd-4cab-a033-3c5c6640956b': ['squat'], // Hack Squat
+  'b2b798fa-a00e-4072-8e56-47909a3c84ab': ['squat'], // Hack Squat Machine
+  'fcc438a7-de69-4aaa-8d70-7b11c6f1f98b': ['squat'], // Reverse Hack Squat
+  'b1a10003-0003-4003-8003-aaaaaaaa0003': ['squat'], // Hack Squat — High & Wide Feet (extra-injected)
+  'b1a10004-0004-4004-8004-aaaaaaaa0004': ['squat'], // Hack Squat — Low & Narrow Feet (extra-injected)
+  'b1a10006-0006-4006-8006-aaaaaaaa0006': ['squat'], // Sissy Hack Squat (extra-injected)
+};
 const _SECONDARY_PARENTS = new Map(); // canonicalUuid -> [familyId, ...]  (its secondary parent movements)
 const _FAMILY_SECONDARY  = new Map(); // familyId -> [{ uuid, primaryId, primaryTitle }]  (vars cross-listed INTO this family)
 const _VAR_SUPPRESS = new Set();      // uuids hidden from their own family's picker list (a canonical secondary stands in)
@@ -3739,6 +3749,10 @@ function reconcileVariationParents() {
     _VAR_SUPPRESS.add(drop);                             // hide the duplicate copy from its own family
     _addSecondaryParent(keep, di.family.id);             // canonical now cross-lists under the dropped copy's family
   });
+}
+// feat 301 — apply the additive cross-listings. Run AFTER applyExtraVariations() so EXTRA_VARIATIONS uuids
+// (e.g. the foot-placement hack squats) are already in VAR_INDEX and can be cross-listed too. Idempotent.
+function applyExtraSecondaryParents() {
   Object.keys(SECONDARY_PARENTS_EXTRA).forEach(uuid => (SECONDARY_PARENTS_EXTRA[uuid] || []).forEach(fid => _addSecondaryParent(uuid, fid)));
 }
 function secondaryParentsOf(uuid) { return _SECONDARY_PARENTS.get(uuid) || []; }            // secondary parent family ids for a variation
@@ -19612,6 +19626,7 @@ applyExtraFamilies(); // feat 90 — inject the new neck / jaw / climbing famili
 dedupeFamilies(); // feat 166 — reconcile any remaining same-title duplicate movement families
 reconcileVariationParents(); // feat 167 — cross-list duplicate variations (one primary + secondary parent movements)
 applyExtraVariations();
+applyExtraSecondaryParents(); // feat 301 — additive cross-listings (after extras exist in VAR_INDEX)
 applyCustomVariations();
 installGlossaryHighlight();
 applyI18n(document); // feat 61 — translate tagged static markup (attrs/text) for the active language
@@ -19703,7 +19718,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 256 · 2026-06-20 23:44';
+const APP_BUILD = 'build 257 · 2026-06-20 23:48';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

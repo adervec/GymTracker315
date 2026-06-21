@@ -1311,6 +1311,17 @@ They share variation **UUIDs**.
   bottom to surface the newest row, then — only if that row still sits behind/below the sticky footer at the
   modal level — nudges the modal just enough to clear it (minimal, `behavior:'smooth'`). `test/setaddscroll.spec.mjs`
   (after appending the 41st row to an overflowing list, the last `.set-row` ends fully above the footer and on-screen).
+- **Hack squat counts for a squat plan step (feat 301):** clarifying feat 253 — a hack squat should *satisfy a
+  squat step in a normal plan*, even though it must NOT inflate the BARBELL squat *achievement*. The two are
+  separate mechanisms: the achievement exclusion is a name regex (`exclude:/hack|…/`, unchanged), while plan-step
+  matching is family-based. Hack squats live in the **leg-press** family, so a `_mvOpt('squat')` step didn't accept
+  them. Fixed by the additive secondary-parent cross-listing (feat 167): `SECONDARY_PARENTS_EXTRA` now maps the six
+  hack-squat variants (Hack Squat / Machine / Reverse + the three extra foot-placement/sissy seeds) → `['squat']`,
+  so `optionMatchesVar`/`stepQualifyingVarSet` accept them and the squat-step picker offers them as cross-links —
+  while leg-press stays their primary. The `SECONDARY_PARENTS_EXTRA` application moved out of
+  `reconcileVariationParents()` into `applyExtraSecondaryParents()`, called **after** `applyExtraVariations()` so the
+  extra-injected (`b1a1…`) hack squats are in `VAR_INDEX` in time to be cross-listed. `test/hacksquat.spec.mjs`
+  (satisfies squat + still matches leg-press; extra foot-placement variant cross-listed; achievement still excludes).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
