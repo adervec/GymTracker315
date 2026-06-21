@@ -1328,6 +1328,19 @@ They share variation **UUIDs**.
   reference `exercises` docs (via `injectExtraIntoReference`) — attached to the existing **Bicep Curl** /
   **Tricep Extension** families with full cue/setup/movement/mistakes/programming/tip. `test/lifefitness.spec.mjs`
   (loggable in the right family + standard mode, present in reference docs, findable by "life fitness"/"preacher" search).
+- **Auto-pick coach per workout (feat 303):** a new **Settings → Coach personality → Auto-pick** mode
+  (`state.coachAuto` ∈ `off`|`vibe`|`random`) that overrides the chosen persona (feat 296) at each workout start.
+  **Vibe** classifies the active plan and matches a coach (`workoutVibePersona`: HIIT/conditioning→Hype,
+  mobility/recovery→Zen, heavy/power→Drill Sergeant, hypertrophy→Analyst, easy→Hype Buddy, else Gruff); **Random**
+  re-rolls a flavored (non-system) coach every workout. The pick is computed in `startWorkout` (`pickWorkoutCoachPersona`)
+  and stored on the session (`session.coach`, survives reload). A new `effectiveCoachPersonaId()` returns the active
+  workout's coach when auto is on (else the chosen persona), and `activeCoachPersona()` now routes through it — so all
+  spoken cues (annunce / Mantranome / tips / HIIT) and the per-coach voice (feat 297) follow the auto pick. `coachify`
+  was decoupled from the legacy `state.ttsVoice` and now gates on the **effective** persona's `sys` flag (neutral =
+  device voice untouched), which is behaviour-identical for the normal in-sync states but correct under auto override.
+  `setCoachAuto` re-picks immediately if a workout is already running. `test/coachauto.spec.mjs` (mode coercion;
+  session coach overrides the chosen persona; random is always flavored; vibe mapping; coachify gates on the effective
+  persona). `coachvoice.spec` updated to drive the "untouched" case via the neutral persona (the source of truth).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

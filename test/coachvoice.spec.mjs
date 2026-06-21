@@ -18,11 +18,11 @@ test('ttsVoice defaults to auto (a settings key), and coachify deepens the pitch
     const before = u.pitch;
     coachify(u);
     const coachPitch = u.pitch;
-    state.ttsVoice = 'system';
+    state.coachPersona = 'neutral'; state.ttsVoice = 'system'; // feat 303 — the neutral persona is the source of truth for "system/untouched"
     const u2 = new SpeechSynthesisUtterance('x');
     coachify(u2);
     const systemPitch = u2.pitch;
-    state.ttsVoice = 'auto';
+    state.coachPersona = 'gruff'; state.ttsVoice = 'auto';
     return { def, before, coachPitch, systemPitch, inKeys: SETTINGS_KEYS.includes('ttsVoice') };
   });
   expect(r.def).toBe('auto');

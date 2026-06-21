@@ -4281,7 +4281,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
-  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','metronome','annunciation','plans','seededPlanIds','hrDevice',
+  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','metronome','annunciation','plans','seededPlanIds','hrDevice',
   'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
@@ -4486,6 +4486,7 @@ function normalizeState() {
   if (typeof state.ttsVoice !== 'string') state.ttsVoice = 'auto'; // feat 210 — 'auto' = the gruff coach pick; 'system' = untouched
   if (typeof state.coachPersona !== 'string' || !COACH_PERSONAS.some(p => p.id === state.coachPersona)) state.coachPersona = (state.ttsVoice === 'system') ? 'neutral' : 'gruff'; // feat 296 — derive from the legacy voice toggle
   if (!state.coachVoices || typeof state.coachVoices !== 'object') state.coachVoices = {}; // feat 297 — per-persona TTS voice (id → 'auto'|'system'|voiceURI)
+  if (['off', 'random', 'vibe'].indexOf(state.coachAuto) === -1) state.coachAuto = 'off'; // feat 303 — auto-pick coach per workout
   if (state.ttsVoice && state.ttsVoice !== 'auto' && state.ttsVoice !== 'system' && !state.coachVoices[state.coachPersona]) { state.coachVoices[state.coachPersona] = state.ttsVoice; state.ttsVoice = 'auto'; } // migrate a legacy explicit voiceURI to the active coach
   if (typeof state.audioHeadphonesOnly !== 'boolean') state.audioHeadphonesOnly = true; // feat 105 — default on
   // feat 144 — default minimum completion % (0..100). 1% means "even 1 set counts the step as done".
@@ -6937,6 +6938,17 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">🎲 Auto-pick coach per workout</div>
+        <div class="drawer-setting-sub">Override the persona above at each workout start. <b>Vibe</b> matches the coach to the session (HIIT→Hype, mobility→Zen, heavy→Drill Sergeant, hypertrophy→Analyst…); <b>Random</b> re-rolls a coach every workout.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${coachAutoMode() === 'off' ? 'active' : ''}" data-coachauto="off">Off</button>
+        <button class="drawer-pill ${coachAutoMode() === 'vibe' ? 'active' : ''}" data-coachauto="vibe">Vibe</button>
+        <button class="drawer-pill ${coachAutoMode() === 'random' ? 'active' : ''}" data-coachauto="random">Random</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">🗣 Annunciate set start</div>
         <div class="drawer-setting-sub">Speak the position when a set starts (weight entered) — "First set of 4", "Set 2 of 4", "Last set", plan-aware</div>
       </div>
@@ -7955,6 +7967,7 @@ function renderSettingsDrawer() {
     state.holdCue = { ...holdCueCfg(), [b.dataset.holdcue]: b.dataset.holdcueVal === 'on' }; saveState(); renderSettingsDrawer();
   }));
   body.querySelectorAll('[data-coach-persona]').forEach(b => b.addEventListener('click', () => selectCoachPersona(b.dataset.coachPersona))); // feat 296
+  body.querySelectorAll('[data-coachauto]').forEach(b => b.addEventListener('click', () => setCoachAuto(b.dataset.coachauto))); // feat 303
   const cvSel = body.querySelector('#coach-voice-select'); // feat 297 — per-coach TTS voice
   if (cvSel) cvSel.addEventListener('change', () => setCoachVoice(state.coachPersona, cvSel.value));
   const hcEvery = body.querySelector('#drawer-holdcue-every');
@@ -13564,15 +13577,17 @@ function startWorkout() {
   const existing = getActiveSession();
   if (existing) { toast('Workout already in progress'); return; }
   const session = newSession({ startedManually: true });
+  if (coachAutoMode() !== 'off') session.coach = pickWorkoutCoachPersona(); // feat 303 — auto-pick this workout's coach
   state.sessions.push(session);
   stampActiveSessionGym(); // feat 259 — record the currently-active gym as this session's location (GPS ping below may refine it)
   modalState.setup = {}; modalState.setupOpen = false; // feat 85 — equipment setup persists *within* a workout; fresh at begin
   saveState();
   render();
+  const coachTag = session.coach ? ' · 🎙️ ' + ((coachPersona(session.coach) || {}).name || '') : ''; // feat 303
   // feat 63 — warn at workout start if bodyweight (and optionally other biometrics) is missing or stale.
   const warns = biometricWarnings();
   if (warns.length) { toast('⚠️ Workout started — ' + warns.join(' · ')); logWarn('Stale/missing biometrics at workout start', warns.join('; ')); }
-  else toast('💪 Workout started');
+  else toast('💪 Workout started' + coachTag);
   logInfo('Workout started');
   // feat 38 — ping location to auto-select the nearest saved gym, if any have coords
   if ((state.gyms || []).some(g => g.lat != null)) pingLocationSelectGym(true);
@@ -19733,7 +19748,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 258 · 2026-06-20 23:50';
+const APP_BUILD = 'build 259 · 2026-06-21 07:29';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -19981,8 +19996,54 @@ function pickCoachVoice() { return pickCoachVoiceFor(activeCoachPersona()); } //
    runs the active persona's flavour over the neutral base text, falling back to the base. */
 // COACH_PERSONAS is declared near the INIT block (before loadState) so normalizeState can read it without a TDZ.
 function coachPersona(id) { return COACH_PERSONAS.find(p => p.id === id) || null; }
+// feat 303 — auto-pick the coach per workout. 'off' = use the chosen persona; 'vibe' = match the workout's
+// character; 'random' = re-roll every workout. The pick is stored on the active session (survives reload).
+function coachAutoMode() { const m = state.coachAuto; return (m === 'random' || m === 'vibe') ? m : 'off'; }
+// Classify the active plan into a persona that fits its vibe. Keyword + intensity heuristic; defaults to gruff.
+function workoutVibePersona() {
+  let plan = null; try { plan = getActivePlan(); } catch (_) {}
+  const h = (((plan && plan.name) || '') + ' ' + ((plan && plan.desc) || '')).toLowerCase();
+  const intensity = plan && typeof plan.intensity === 'number' ? plan.intensity : null;
+  if (/hiit|tabata|metcon|conditioning|sprint|circuit|cardio|amrap|emom|engine|wod/.test(h)) return 'hype';
+  if (/mobility|recovery|stretch|yoga|zen|breath|prehab|rehab|calm|restorative|deload|gentle|flow/.test(h)) return 'zen';
+  if (/power|strength|\b5\s*[x×]\s*5\b|heavy|1rm|\bmax\b|powerlift|peak|brute|monster|beast/.test(h) || intensity === 5) return 'sergeant';
+  if (/hypertrophy|volume|pump|sculpt|bodybuild|aesthetic|tempo/.test(h)) return 'analyst';
+  if (intensity != null && intensity <= 2) return 'buddy';
+  return 'gruff';
+}
+// The persona id to use for a workout under the current auto mode (caller stores it on the session).
+function pickWorkoutCoachPersona() {
+  const mode = coachAutoMode();
+  if (mode === 'vibe') return workoutVibePersona();
+  if (mode === 'random') { const pool = COACH_PERSONAS.filter(p => !p.sys); return pool[Math.floor(Math.random() * pool.length)].id; }
+  return state.coachPersona || 'gruff';
+}
+// The coach that should actually speak right now: the active workout's auto-pick when auto is on, else the
+// chosen persona. Everything (coachify/coachPhrase/coachVoice) routes through activeCoachPersona → here.
+function effectiveCoachPersonaId() {
+  if (coachAutoMode() !== 'off') {
+    let s = null; try { s = getActiveSession(); } catch (_) {}
+    if (s && s.coach && coachPersona(s.coach)) return s.coach;
+  }
+  return state.coachPersona || 'gruff';
+}
+// Switch auto mode; if a workout is already running, re-pick its coach immediately so the change is audible now.
+function setCoachAuto(mode) {
+  state.coachAuto = (mode === 'random' || mode === 'vibe') ? mode : 'off';
+  try { const s = getActiveSession(); if (s) s.coach = (state.coachAuto === 'off') ? undefined : pickWorkoutCoachPersona(); } catch (_) {}
+  _coachVoice = null;
+  saveState();
+  try { renderSettingsDrawer(); } catch (_) {}
+  try {
+    if (state.coachAuto === 'off') { toast('Auto-coach off'); return; }
+    const ap = activeCoachPersona();
+    toast('Auto-coach: ' + (state.coachAuto === 'vibe' ? 'match workout vibe' : 'random each workout'));
+    if (typeof annunce === 'function') annunce(ap.sample || ap.name);
+  } catch (_) {}
+}
 function activeCoachPersona() {
-  if (state.coachPersona) { const p = coachPersona(state.coachPersona); if (p) return p; }
+  const id = effectiveCoachPersonaId(); // feat 303 — honours the per-workout auto-pick
+  if (id) { const p = coachPersona(id); if (p) return p; }
   return coachPersona(state.ttsVoice === 'system' ? 'neutral' : 'gruff') || COACH_PERSONAS[1]; // back-compat fallback
 }
 // Flavour a neutral cue string through the active persona. kind ∈ setStart|setEnd|hiitWork|hiitRest|hiitPrep|go.
@@ -20029,8 +20090,8 @@ function setCoachVoice(personaId, value) {
 // Apply the active persona's voice profile to an utterance. 'system' (neutral) leaves it untouched (feat 210);
 // otherwise the persona sets pitch + rate and the coach voice pick is applied (feat 296).
 function coachify(u) {
-  if (state.ttsVoice === 'system') return u;
   const p = activeCoachPersona();
+  if (p.sys) return u; // feat 303 — gate on the EFFECTIVE persona (neutral = device voice, untouched), not legacy ttsVoice
   u.pitch = (p.pitch != null) ? p.pitch : 0.8;
   u.rate = (p.rate != null) ? p.rate : (u.rate || 0.95);
   try { const v = coachVoice(); if (v) u.voice = v; } catch (_) {}
