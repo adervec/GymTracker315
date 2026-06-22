@@ -1371,6 +1371,13 @@ They share variation **UUIDs**.
   prowess line — with **📚 Full reference** (`openReferenceFor`, the feat-204 deep-link) and **🎧 Brief** (feat 304).
   `test/constellation.spec.mjs` (registered under Reflect; one node per visible variation, in-bounds, fundamentals
   nearer the core; prowess tracks logged history; SVG renders clickable nodes; the popup deep-links to reference).
+- **Constellation pan / zoom + zoom-to-filter (feat 307):** the constellation is now navigable. A live SVG `viewBox`
+  (`_constView`, kept square) is driven by `_attachConstPanZoom` — drag / one-finger to **pan**, wheel / pinch to
+  **zoom** (anchored at the cursor/midpoint), clamped in-bounds by `_clampConstView` (`.cst-svg` is `touch-action:none`
+  so a drag pans instead of scrolling the page). Picking a **mega filter pill zooms onto that area**: `_constBBoxView`
+  computes a centered square that fully frames the filtered mega's nodes (capped at the canvas), and the page renders
+  with that as the initial viewBox (the **All** pill resets to the full view). `test/constellation.spec.mjs` extended
+  (full viewBox unfiltered; filtering zooms to a smaller square that frames every node of that mega; bbox/clamp helpers).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

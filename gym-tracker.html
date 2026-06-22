@@ -1879,7 +1879,9 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .cst-pill.active { background: var(--accent, #b48aff); border-color: var(--accent, #b48aff); color: #0a0a0a; }
   .cst-pill.active[style*="--ch"] { background: var(--ch); border-color: var(--ch); }
   .cst-stage { width: 100%; border-radius: 10px; overflow: hidden; }
-  .cst-svg { width: 100%; height: auto; display: block; touch-action: manipulation; }
+  .cst-svg { width: 100%; height: auto; display: block; touch-action: none; cursor: grab; } /* feat 307 — touch-action:none so a drag pans instead of scrolling */
+  .cst-svg:active { cursor: grabbing; }
+  .cst-hint { font-size: 10px; color: var(--text3); margin-top: 6px; text-align: center; }
   .cst-node { cursor: pointer; transition: fill-opacity 0.12s; }
   .cst-node:hover { fill-opacity: 1 !important; }
   .cst-core-lbl { fill: var(--accent, #b48aff); font-size: 13px; font-weight: 800; letter-spacing: 1px; font-family: inherit; opacity: 0.85; }
@@ -10368,6 +10370,52 @@ const _MEGA_LABEL = { push:'Push', pull:'Pull', lower:'Lower Body', core:'Core',
 function _megaHue(m) { return _MEGA_HUE[(m || 'other').toLowerCase()] || _MEGA_HUE.other; }
 function _megaLabel(m) { const k = (m || 'other').toLowerCase(); return _MEGA_LABEL[k] || (typeof BP_LABELS !== 'undefined' && BP_LABELS[k]) || (k.charAt(0).toUpperCase() + k.slice(1)); }
 let _constFilter = null; // active mega filter (null = all)
+let _constView = null;   // feat 307 — current square SVG viewBox {x,y,w,h} for pan/zoom
+// feat 307 — keep a square viewBox inside the content bounds.
+function _clampConstView(v, W, H) {
+  v.w = Math.max(140, Math.min(W, v.w)); v.h = v.w;
+  v.x = Math.max(0, Math.min(W - v.w, v.x));
+  v.y = Math.max(0, Math.min(H - v.h, v.y));
+  return v;
+}
+// feat 307 — a square viewBox that frames a subset of nodes (with padding) — used to zoom onto a filtered mega.
+function _constBBoxView(nodes, W, H) {
+  if (!nodes || !nodes.length) return { x: 0, y: 0, w: W, h: H };
+  let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+  nodes.forEach(n => { if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x; if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y; });
+  const padX = (maxX - minX) * 0.18 + 50, padY = (maxY - minY) * 0.18 + 50;
+  minX -= padX; maxX += padX; minY -= padY; maxY += padY;
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  // centered square ≥ the padded rect (so it fully frames the subset), capped at the canvas; position NOT
+  // clamped here — a slight margin beyond the edge is fine, and pan clamps separately.
+  const side = Math.min(W, Math.max(maxX - minX, maxY - minY, 200));
+  return { x: cx - side / 2, y: cy - side / 2, w: side, h: side };
+}
+// feat 307 — pan (drag / one-finger) + zoom (wheel / pinch) by mutating the live SVG viewBox.
+function _attachConstPanZoom(svg, W, H) {
+  if (!svg || !_constView) return;
+  const pts = new Map(); let pinch = null;
+  const setVB = () => svg.setAttribute('viewBox', `${_constView.x} ${_constView.y} ${_constView.w} ${_constView.h}`);
+  const anchorZoom = (cx, cy, side) => {
+    const r = svg.getBoundingClientRect(); if (!r.width) return;
+    const px = _constView.x + (cx - r.left) / r.width * _constView.w;
+    const py = _constView.y + (cy - r.top) / r.height * _constView.h;
+    side = Math.max(140, Math.min(W, side));
+    _constView.x = px - (cx - r.left) / r.width * side;
+    _constView.y = py - (cy - r.top) / r.height * side;
+    _constView.w = side; _constView.h = side; _clampConstView(_constView, W, H); setVB();
+  };
+  svg.addEventListener('wheel', e => { e.preventDefault(); anchorZoom(e.clientX, e.clientY, _constView.w * (e.deltaY < 0 ? 0.85 : 1 / 0.85)); }, { passive: false });
+  svg.addEventListener('pointerdown', e => { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, w: _constView.w }; } });
+  svg.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    const prev = pts.get(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size >= 2 && pinch) { const [a, b] = [...pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y) || 1; anchorZoom((a.x + b.x) / 2, (a.y + b.y) / 2, pinch.w * (pinch.d / d)); }
+    else if (pts.size === 1) { const r = svg.getBoundingClientRect(); if (!r.width) return; _constView.x -= (e.clientX - prev.x) / r.width * _constView.w; _constView.y -= (e.clientY - prev.y) / r.height * _constView.h; _clampConstView(_constView, W, H); setVB(); }
+  });
+  const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
+  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up); svg.addEventListener('pointerleave', up);
+}
 // One pass over the log → per-variation { sessions, lastMs, best e1RM } for prowess brightness.
 function buildProwessMap() {
   const m = new Map();
@@ -10433,6 +10481,8 @@ function renderConstellationPage(main) {
   const data = constellationNodes();
   const { W, H, cx, cy, nodes, megas } = data;
   const trainedCount = nodes.filter(n => n.trained).length;
+  _constView = _constFilter ? _constBBoxView(nodes.filter(n => n.mega === _constFilter), W, H) : { x: 0, y: 0, w: W, h: H }; // feat 307 — zoom onto the filtered mega, else show all
+  const vb = `${(+_constView.x).toFixed(1)} ${(+_constView.y).toFixed(1)} ${(+_constView.w).toFixed(1)} ${(+_constView.h).toFixed(1)}`;
   const arms = megas.map(m => {
     const pts = nodes.filter(n => n.mega === m).map(n => `${n.x},${n.y}`).join(' ');
     return pts ? `<polyline points="${pts}" fill="none" stroke="${_megaHue(m)}" stroke-opacity="0.16" stroke-width="1.4"/>` : '';
@@ -10454,7 +10504,7 @@ function renderConstellationPage(main) {
   main.innerHTML = `<div class="card cst-card">
     <div class="cst-head"><div class="card-title" style="margin:0;">✨ Constellation</div><div class="cst-sub">Every movement as a star — fundamentals at the core, the obscure &amp; advanced spiralling out. Brightness = your prowess (<b>${trainedCount}</b>/${nodes.length} lit). Tap a star for details.</div></div>
     <div class="cst-pills">${pills}</div>
-    <div class="cst-stage"><svg viewBox="0 0 ${W} ${H}" class="cst-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Constellation of exercise variations">
+    <div class="cst-stage"><svg viewBox="${vb}" class="cst-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Constellation of exercise variations">
       <defs><radialGradient id="cst-bg" cx="50%" cy="50%" r="60%"><stop offset="0%" stop-color="rgba(124,77,255,0.10)"/><stop offset="100%" stop-color="rgba(0,0,0,0)"/></radialGradient></defs>
       <rect x="0" y="0" width="${W}" height="${H}" fill="url(#cst-bg)"/>
       ${arms}
@@ -10463,10 +10513,12 @@ function renderConstellationPage(main) {
       ${circles}
       ${megaLabels}
     </svg></div>
+    <div class="cst-hint">Drag to pan · scroll or pinch to zoom · pick a category to zoom in · tap a star for details</div>
     <div class="cst-legend">${megas.map(m => `<span class="cst-leg"><i style="background:${_megaHue(m)}"></i>${escapeHtml(_megaLabel(m))}</span>`).join('')}<span class="cst-leg cst-leg-bright">◐ brighter = stronger / more trained</span></div>
   </div>`;
   main.querySelectorAll('[data-cst-mega]').forEach(b => b.addEventListener('click', () => { _constFilter = b.dataset.cstMega === 'all' ? null : b.dataset.cstMega; renderConstellationPage(main); }));
   main.querySelectorAll('.cst-node').forEach(c => c.addEventListener('click', () => _constellationPopup(c.getAttribute('data-uuid'))));
+  _attachConstPanZoom(main.querySelector('.cst-svg'), W, H); // feat 307 — pan/zoom on the live viewBox
 }
 // Info popup for a tapped star: title, family, mega, importance/difficulty badges, prowess, + a reference link.
 function _constellationPopup(uuid) {
@@ -19936,7 +19988,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 262 · 2026-06-21 07:48';
+const APP_BUILD = 'build 263 · 2026-06-22 07:32';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

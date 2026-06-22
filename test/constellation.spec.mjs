@@ -78,3 +78,40 @@ test('the page renders an SVG of clickable nodes; a node opens an info popup tha
   expect(r.refCalled).toBe(BENCH);            // the popup links to that variation's full reference
   expect(r.popGoneAfterClick).toBe(true);     // and closes on navigate
 });
+
+// feat 307 — pan/zoom + zoom-onto-the-filtered-area
+test('the viewBox is full by default and zooms onto a filtered mega that it fully frames', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.sessions = [];
+    const main = document.getElementById('trk-main');
+    _constFilter = null; renderConstellationPage(main);
+    const full = main.querySelector('.cst-svg').getAttribute('viewBox');
+    const d = constellationNodes(); const mega = d.megas[0];
+    _constFilter = mega; renderConstellationPage(main);
+    const vb = main.querySelector('.cst-svg').getAttribute('viewBox').split(/\s+/).map(Number);
+    const inside = d.nodes.filter(n => n.mega === mega).every(n => n.x >= vb[0] - 0.5 && n.x <= vb[0] + vb[2] + 0.5 && n.y >= vb[1] - 0.5 && n.y <= vb[1] + vb[3] + 0.5);
+    _constFilter = null;
+    return { full: full.split(/\s+/).map(Number), w: vb[2], h: vb[3], square: Math.abs(vb[2] - vb[3]) < 0.5, inside };
+  });
+  expect(r.full).toEqual([0, 0, 1000, 1000]);   // full view when unfiltered
+  expect(r.w).toBeLessThan(1000);          // zoomed in on the filtered mega
+  expect(r.square).toBe(true);
+  expect(r.inside).toBe(true);             // every node of that mega is framed
+});
+
+test('_constBBoxView frames a subset squarely (≤ canvas); _clampConstView keeps the view in bounds', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const d = constellationNodes();
+    const v = _constBBoxView(d.nodes.filter(n => n.mega === d.megas[0]), d.W, d.H);
+    const cl = _clampConstView({ x: -500, y: 5000, w: 99999, h: 10 }, d.W, d.H);
+    return { square: Math.abs(v.w - v.h) < 0.001, cap: v.w <= d.W + 0.001, smaller: v.w < d.W,
+      clW: cl.w, clX: cl.x, clY: cl.y, clSquare: Math.abs(cl.w - cl.h) < 0.001 };
+  });
+  expect(r.square).toBe(true);
+  expect(r.cap).toBe(true);
+  expect(r.smaller).toBe(true);
+  expect(r.clW).toBeLessThanOrEqual(1000);
+  expect(r.clX).toBeGreaterThanOrEqual(0);
+  expect(r.clY).toBeGreaterThanOrEqual(0);
+  expect(r.clSquare).toBe(true);
+});
