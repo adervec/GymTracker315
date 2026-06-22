@@ -1385,6 +1385,20 @@ They share variation **UUIDs**.
   lines — `explored` · "of N explored" · a rate line (`+K new · 30d` when there's recent activity, else `~P/wk pace`,
   else a "tap a star to begin" nudge) — drawn on top of the nodes. `test/constellation.spec.mjs` (distinct count out of
   total, new-in-30d excludes older first-logs, non-zero pace, empty state; the core renders the count+rate and no "CORE").
+- **Reflect quick-nav pills (feat 309):** an **optional** pill bar to hop between the Reflect pages, shown **only**
+  in the Reflect area. `renderCurrentPage` injects `_injectReflectPills` at the top of `#trk-main` whenever the current
+  page is a **Reflect leaf** (`def.parent === 'reflect'`) and the toggle is on — one pill per `PAGES.reflect.children`
+  (Log · Summary · Focus · History · Trends · Volume · Achievements · Constellation · Replay · Progression), current
+  highlighted, each → `navTo`. Gated by **Settings → Preferences → Reflect quick-nav pills** (`state.reflectPills`,
+  default on, in SETTINGS_KEYS). `test/reflectpills.spec.mjs` (one pill per child + active on the current page; absent
+  outside Reflect; a pill navigates; the setting hides them).
+- **Weekly summary grade (feat 310):** every weekly summary now carries an overall **letter grade** on the same
+  **S…D** scale as session scores (`gradeFor`). `weekSummary` computes `gradePoints` (0–100) from four weighted
+  ingredients already aggregated for the week — **work done** (sessions, 45), **consistency / program adherence**
+  (25), **progression vs last week** (±10% volume spans the band, 20), and **best-session quality** (10) — and returns
+  `{grade, gradePoints}`. The Summary card shows a colour-coded badge (`_gradeHue`, S…D) in its header; rest weeks stay
+  ungraded. `test/weekgrade.spec.mjs` (valid letter + points, busier/progressing weeks grade higher, rest weeks
+  ungraded, the badge renders on a complete week). `summary.spec` seed made week-aligned so it's deterministic on any weekday.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
