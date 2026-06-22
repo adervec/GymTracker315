@@ -18,11 +18,11 @@ test('ttsVoice defaults to auto (a settings key), and coachify deepens the pitch
     const before = u.pitch;
     coachify(u);
     const coachPitch = u.pitch;
-    state.ttsVoice = 'system';
+    state.coachPersona = 'neutral'; state.ttsVoice = 'system'; // feat 303 — the neutral persona is the source of truth for "system/untouched"
     const u2 = new SpeechSynthesisUtterance('x');
     coachify(u2);
     const systemPitch = u2.pitch;
-    state.ttsVoice = 'auto';
+    state.coachPersona = 'gruff'; state.ttsVoice = 'auto';
     return { def, before, coachPitch, systemPitch, inKeys: SETTINGS_KEYS.includes('ttsVoice') };
   });
   expect(r.def).toBe('auto');
@@ -50,28 +50,28 @@ test('pickCoachVoice prefers a deep male English voice and shuns female-named on
   expect(r.cached).toMatch(/David/);  // coachVoice() resolves + caches the same pick
 });
 
-test('an explicit voiceURI override wins; the drawer pills switch coach/system', async ({ page }) => {
+test('a per-coach explicit voice wins; the persona picker switches voice mode (feat 296/297)', async ({ page }) => {
   const r = await page.evaluate(() => {
     const fake = [
       { name: 'Microsoft David - English (United States)', lang: 'en-US', localService: true, default: false, voiceURI: 'david' },
       { name: 'Microsoft Zira - English (United States)', lang: 'en-US', localService: true, default: true, voiceURI: 'zira' },
     ];
     window.speechSynthesis.getVoices = () => fake;
-    state.ttsVoice = 'zira'; _coachVoice = null;      // explicit override (even a "female" one — user's call)
+    state.coachPersona = 'gruff'; state.coachVoices = { gruff: 'zira' }; _coachVoice = null;  // explicit per-coach override
     const overridden = coachVoice();
-    state.ttsVoice = 'auto'; _coachVoice = null;
+    state.coachVoices = {}; _coachVoice = null;
     renderSettingsDrawer();
-    const has = document.body.innerHTML.includes('Coach voice');
-    document.querySelector('[data-pref-voice="system"]').click();
-    const sys = state.ttsVoice;
-    document.querySelector('[data-pref-voice="coach"]').click();
-    const coach = state.ttsVoice;
+    const has = document.body.innerHTML.includes('Coach personality');
+    document.querySelector('[data-coach-persona="neutral"]').click();   // neutral → device voice untouched
+    const sys = { persona: state.coachPersona, voice: state.ttsVoice };
+    document.querySelector('[data-coach-persona="gruff"]').click();      // back to the gruff coach
+    const coach = { persona: state.coachPersona, voice: state.ttsVoice };
     return { overridden: overridden && overridden.name, has, sys, coach };
   });
-  expect(r.overridden).toMatch(/Zira/);  // explicit user override is honored verbatim
+  expect(r.overridden).toMatch(/Zira/);  // the per-coach voice override is honored verbatim
   expect(r.has).toBe(true);
-  expect(r.sys).toBe('system');
-  expect(r.coach).toBe('auto');
+  expect(r.sys).toEqual({ persona: 'neutral', voice: 'system' });   // neutral persona ⇒ system voice untouched
+  expect(r.coach).toEqual({ persona: 'gruff', voice: 'auto' });
 });
 
 test('all three speech paths run through coachify (annunce, Mantranome, tips)', async ({ page }) => {

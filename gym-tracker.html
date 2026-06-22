@@ -926,6 +926,16 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .focus-dim-bar { height: 8px; border-radius: 5px; background: var(--bg3); overflow: hidden; margin-top: 3px; }
   .focus-dim-fill { height: 100%; background: var(--accent); border-radius: 5px; }
   .focus-dim-sub { font-size: 10.5px; color: var(--text3); margin-top: 3px; }
+  /* feat 296 — coach persona picker */
+  .coach-persona-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 7px; }
+  .coach-persona { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .coach-persona.active { border-color: var(--accent); background: var(--accent-bg); }
+  .coach-persona .cp-emoji { font-size: 18px; line-height: 1.1; }
+  .coach-persona .cp-name { font-size: 12.5px; font-weight: 800; }
+  .coach-persona .cp-tag { font-size: 9.5px; color: var(--text3); }
+  .coach-persona.active .cp-tag { color: var(--accent); }
+  .coach-voice-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+  .coach-voice-lbl { font-size: 12px; font-weight: 700; color: var(--text2); }
   .sp-days { display: flex; flex-direction: column; gap: 7px; }
   .sp-day { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
   .sp-day-slot { flex-shrink: 0; width: 64px; }
@@ -1847,6 +1857,49 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .rstrip-row { display: flex; flex-wrap: wrap; gap: 6px; }
   .rstrip-chip { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); white-space: nowrap; }
   .rstrip-chip.rec-fatigued { border-color: #e5534b; } .rstrip-chip.rec-recovering { border-color: #e0883a; } .rstrip-chip.rec-ready { border-color: #d2bd2a; } .rstrip-chip.rec-fresh { border-color: #3fb950; }
+  /* feat 299 — composite "Today's Readiness" card */
+  .rdy-card { border-left: 4px solid var(--text3); }
+  .rdy-card.rdy-primed { border-left-color: #3fb950; } .rdy-card.rdy-ready { border-left-color: #d2bd2a; } .rdy-card.rdy-caution { border-left-color: #e0883a; } .rdy-card.rdy-deload { border-left-color: #e5534b; }
+  .rdy-top { display: flex; align-items: center; gap: 14px; }
+  .rdy-score { font-size: 34px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text); }
+  .rdy-score .rdy-score-max { font-size: 13px; font-weight: 600; color: var(--text3); }
+  .rdy-primed .rdy-score { color: #3fb950; } .rdy-ready .rdy-score { color: #d2bd2a; } .rdy-caution .rdy-score { color: #e0883a; } .rdy-deload .rdy-score { color: #e5534b; }
+  .rdy-headline { min-width: 0; }
+  .rdy-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text3); }
+  .rdy-status { font-size: 15px; font-weight: 700; color: var(--text); margin-top: 2px; }
+  .rdy-factors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .rdy-chip { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); white-space: nowrap; }
+  .rdy-chip.rdy-chip-warn { border-color: #e0883a; color: #e0883a; }
+  .rdy-action { font-size: 12px; color: var(--text2); margin-top: 9px; line-height: 1.45; }
+  /* feat 306 — constellation / tech-tree view */
+  .cst-head { margin-bottom: 6px; }
+  .cst-sub { font-size: 11.5px; color: var(--text3); line-height: 1.45; margin-top: 4px; }
+  .cst-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 6px; }
+  .cst-pill { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); cursor: pointer; font-family: inherit; }
+  .cst-pill.active { background: var(--accent, #b48aff); border-color: var(--accent, #b48aff); color: #0a0a0a; }
+  .cst-pill.active[style*="--ch"] { background: var(--ch); border-color: var(--ch); }
+  .cst-stage { width: 100%; border-radius: 10px; overflow: hidden; }
+  .cst-svg { width: 100%; height: auto; display: block; touch-action: manipulation; }
+  .cst-node { cursor: pointer; transition: fill-opacity 0.12s; }
+  .cst-node:hover { fill-opacity: 1 !important; }
+  .cst-core-lbl { fill: var(--accent, #b48aff); font-size: 13px; font-weight: 800; letter-spacing: 1px; font-family: inherit; opacity: 0.85; }
+  .cst-mega-lbl { font-size: 15px; font-weight: 800; font-family: inherit; opacity: 0.85; }
+  .cst-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 10.5px; color: var(--text3); }
+  .cst-leg { display: inline-flex; align-items: center; gap: 4px; }
+  .cst-leg i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .cst-leg-bright { color: var(--text2); }
+  #cst-pop { position: fixed; inset: 0; z-index: 10060; display: flex; align-items: center; justify-content: center; }
+  .cst-pop-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
+  .cst-pop-card { position: relative; z-index: 1; width: min(340px, 90vw); background: var(--modal-bg, #14141c); border: 1px solid var(--border2, #333); border-radius: 12px; padding: 16px 16px 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+  .cst-pop-x { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--text3); font-size: 16px; cursor: pointer; }
+  .cst-pop-mega { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; }
+  .cst-pop-title { font-size: 17px; font-weight: 800; color: var(--text); margin-top: 2px; line-height: 1.2; }
+  .cst-pop-fam { font-size: 12px; color: var(--text3); margin-top: 2px; }
+  .cst-pop-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+  .cst-pop-prowess { font-size: 12px; color: var(--text2); margin-bottom: 12px; line-height: 1.4; }
+  .cst-pop-actions { display: flex; gap: 8px; }
+  .cst-pop-btn { flex: 1; padding: 9px 8px; border-radius: 8px; border: 1px solid var(--border2, #333); background: var(--bg3, #1a1a1a); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .cst-pop-ref { background: var(--accent, #b48aff); border-color: var(--accent, #b48aff); color: #0a0a0a; }
   /* feat 263 — plateau / stall surfaces */
   .plateau-note { margin: 8px 0 2px; padding: 9px 11px; border-radius: 8px; background: rgba(229,136,58,0.12); border: 1px solid rgba(229,136,58,0.4); color: var(--text2); font-size: 11.5px; line-height: 1.45; }
   .plateau-note b { color: #e0883a; }
@@ -2752,6 +2805,37 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .guide-reader-close:active { transform: scale(0.96); }
 .guide-reader-title { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .guide-reader-frame { flex: 1 1 auto; width: 100%; border: 0; background: var(--bg); }
+/* feat 295 — HIIT block runner overlay + launcher cards */
+#hiit-runner { position: fixed; inset: 0; z-index: 10090; display: none; flex-direction: column; color: #fff;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  background: #1d2733; transition: background 0.25s; }
+#hiit-runner.open { display: flex; }
+#hiit-runner.work { background: linear-gradient(160deg, #1b5e20, #2e7d32); }
+#hiit-runner.rest { background: linear-gradient(160deg, #0d3b66, #1565c0); }
+#hiit-runner.prep { background: linear-gradient(160deg, #4a3b12, #8a6d1e); }
+#hiit-runner.paused { filter: saturate(0.6) brightness(0.85); }
+.hiit-top { display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; }
+.hiit-name { font-size: 14px; font-weight: 800; opacity: 0.92; }
+.hiit-x { background: rgba(255,255,255,0.16); border: none; color: #fff; width: 34px; height: 34px; border-radius: 9px; font-size: 16px; cursor: pointer; }
+.hiit-stage { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+.hiit-kind { font-size: 16px; font-weight: 800; letter-spacing: 3px; opacity: 0.85; }
+.hiit-timer { font-size: 84px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.hiit-ex { font-size: 22px; font-weight: 700; max-width: 90%; }
+.hiit-round { font-size: 14px; opacity: 0.85; }
+.hiit-paused-badge { margin-top: 8px; font-size: 14px; font-weight: 800; background: rgba(0,0,0,0.28); padding: 5px 12px; border-radius: 999px; }
+.hiit-controls { display: flex; gap: 10px; flex: 0 0 auto; }
+.hiit-btn { flex: 1; padding: 15px 0; border-radius: 12px; border: none; font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit; background: rgba(255,255,255,0.16); color: #fff; -webkit-tap-highlight-color: transparent; }
+.hiit-btn.primary { background: #fff; color: #16202b; }
+.hiit-btn.danger { background: rgba(180,40,40,0.55); }
+.hiit-btn:active { transform: scale(0.97); }
+.hiit-foot { text-align: center; font-size: 12px; opacity: 0.8; margin-top: 8px; flex: 0 0 auto; }
+.hiit-card-head { display: flex; align-items: center; gap: 11px; margin-bottom: 7px; }
+.hiit-card-emoji { font-size: 30px; line-height: 1; flex-shrink: 0; }
+.hiit-card-name { font-size: 15px; font-weight: 800; }
+.hiit-card-tag { font-size: 11.5px; color: var(--text3); }
+.hiit-card-blurb { font-size: 12.5px; color: var(--text2); line-height: 1.5; margin-bottom: 10px; }
+.hiit-start { width: 100%; padding: 11px 0; border-radius: 10px; border: none; background: var(--accent); color: #fff; font-size: 14px; font-weight: 800; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+.hiit-start:active { transform: scale(0.98); }
 </style>
 </head>
 <body>
@@ -2816,6 +2900,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <!-- feat 57 — optional in-app numpad for set entry (avoids the native mobile keyboard) -->
 <div id="trk-numpad-backdrop"></div>
 <div id="trk-numpad" class="numpad-sheet" role="dialog" aria-label="On-screen numpad"></div>
+<!-- feat 295 — full-screen HIIT block runner overlay -->
+<div id="hiit-runner" role="dialog" aria-label="HIIT block runner"></div>
 
 <!-- ====== SETTINGS DRAWER ====== -->
 <div id="settings-backdrop" onclick="closeSettingsDrawer()"></div>
@@ -3141,6 +3227,21 @@ const EXTRA_VARIATIONS = [
     mistakes:['Yanking with the arms','Uneven reps side to side'],
     programming:{'Hypertrophy':'3 × 12-15 each side'},
     tip:'Add a little rotation to loaded crunches to bring the obliques into a machine you can progressively overload.' },
+  // feat 302 — Life Fitness arm machines (requested) — attach to the existing Bicep Curl / Tricep Extension families.
+  { movementId:'bicep-curl', id:'lifefitness-preacher-curl', uuid:'b1a1000b-000b-400b-800b-aaaaaaaa000b', title:'Preacher Curl Machine (Life Fitness)', best:'Machine Preacher',
+    cue:'Seated plate-loaded / selectorized preacher. Upper arms flat on the pad, curl through a fixed arc — strict, no swing.',
+    setup:['Set the seat so your armpits rest at the top of the angled pad','Upper arms flat against the pad, hands on the grips','Pick a load you can control through a full stretch'],
+    movement:['Curl the handles up and squeeze the biceps hard at the top','Lower under control to a full stretch — don\'t let it yank the elbows','Keep the upper arms pinned to the pad the whole time'],
+    mistakes:['Lifting the elbows off the pad','Bouncing out of the bottom stretch','Half reps that skip the lengthened position'],
+    programming:{'Hypertrophy':'3-4 × 10-15','Pump':'2-3 × 15-20'},
+    tip:'The fixed arc keeps constant tension and removes the cheat — brutal in the stretched position. Great as a finisher.' },
+  { movementId:'tricep-extension', id:'lifefitness-triceps-extension', uuid:'b1a1000c-000c-400c-800c-aaaaaaaa000c', title:'Triceps Extension Machine (Life Fitness)', best:'Machine Triceps',
+    cue:'Seated triceps extension machine. Elbows on the pad, press the handles to lockout — strict overload, no balance demands.',
+    setup:['Set the seat so your elbows sit on the pad in line with the pivot','Forearms on the pads / hands on the grips','Brace the torso against the back pad'],
+    movement:['Extend the elbows to a firm (not hyperextended) lockout','Squeeze the triceps at full extension','Return under control to a deep stretch — keep the elbows planted'],
+    mistakes:['Letting the elbows drift off the pad','Leaning / using the shoulders to muscle the weight','Cutting the lockout short'],
+    programming:{'Hypertrophy':'3-4 × 10-15','Strength':'4 × 6-8'},
+    tip:'Progressively overload the triceps with zero stabiliser fatigue — pairs well after pressing or as a high-rep pump.' },
   // feat 90 — grip / digit-strength additions (attach to the existing Grip Training family → Forearms)
   { movementId:'grip-training', id:'plate-pinch-hold', uuid:'c0ac0031-0031-4031-8031-000000000031', title:'Plate Pinch Hold', best:'Pinch / Thumb',
     cue:'Pinch two plates smooth-side-out between thumb and fingers. Hold for time — log seconds as reps.',
@@ -3661,7 +3762,17 @@ const VAR_DUP_RECONCILE = [
   { keep:'fd98cd9e-23e2-4f05-8d86-2492612a3f2f', drop:'4f411ea2-aeaf-4fe4-9cf6-5f7cb54a1bb9' }, // VersaClimber — Cardio Extras ◀ (twin family)
 ];
 // Pure additive cross-listings (no duplicate to suppress): canonical uuid → extra parent family ids.
-const SECONDARY_PARENTS_EXTRA = {};
+const SECONDARY_PARENTS_EXTRA = {
+  // feat 301 — hack-squat variants are a squat movement pattern, so they SATISFY a 'squat' plan step (their
+  // primary parent is the leg-press family). Plan-step only: the BARBELL squat *achievement* still excludes
+  // them by name (feat 253 `exclude` regex), so a hack squat never inflates that "plates on the bar" milestone.
+  '5d630c7c-26fd-4cab-a033-3c5c6640956b': ['squat'], // Hack Squat
+  'b2b798fa-a00e-4072-8e56-47909a3c84ab': ['squat'], // Hack Squat Machine
+  'fcc438a7-de69-4aaa-8d70-7b11c6f1f98b': ['squat'], // Reverse Hack Squat
+  'b1a10003-0003-4003-8003-aaaaaaaa0003': ['squat'], // Hack Squat — High & Wide Feet (extra-injected)
+  'b1a10004-0004-4004-8004-aaaaaaaa0004': ['squat'], // Hack Squat — Low & Narrow Feet (extra-injected)
+  'b1a10006-0006-4006-8006-aaaaaaaa0006': ['squat'], // Sissy Hack Squat (extra-injected)
+};
 const _SECONDARY_PARENTS = new Map(); // canonicalUuid -> [familyId, ...]  (its secondary parent movements)
 const _FAMILY_SECONDARY  = new Map(); // familyId -> [{ uuid, primaryId, primaryTitle }]  (vars cross-listed INTO this family)
 const _VAR_SUPPRESS = new Set();      // uuids hidden from their own family's picker list (a canonical secondary stands in)
@@ -3682,6 +3793,10 @@ function reconcileVariationParents() {
     _VAR_SUPPRESS.add(drop);                             // hide the duplicate copy from its own family
     _addSecondaryParent(keep, di.family.id);             // canonical now cross-lists under the dropped copy's family
   });
+}
+// feat 301 — apply the additive cross-listings. Run AFTER applyExtraVariations() so EXTRA_VARIATIONS uuids
+// (e.g. the foot-placement hack squats) are already in VAR_INDEX and can be cross-listed too. Idempotent.
+function applyExtraSecondaryParents() {
   Object.keys(SECONDARY_PARENTS_EXTRA).forEach(uuid => (SECONDARY_PARENTS_EXTRA[uuid] || []).forEach(fid => _addSecondaryParent(uuid, fid)));
 }
 function secondaryParentsOf(uuid) { return _SECONDARY_PARENTS.get(uuid) || []; }            // secondary parent family ids for a variation
@@ -4105,6 +4220,84 @@ function exerciseRecoveryHint(varUuid) {
   return { group: g, label: BP_LABELS[g] || g, readiness: r.readiness, pct: Math.round(r.readiness * 100), status: recoveryStatus(r.readiness) };
 }
 
+// feat 299 — TRAINING READINESS (composite). One 0..100 "should I push, hold, or back off today?" score
+// that folds the three feat-261..264 signals into a single headline: per-group recovery (feat 262), the
+// count of currently-stalled lifts (feat 263/264) and the session RPE trend (feat 261). Pure compute over
+// the log — stores nothing new, mirroring feat 262. Reactive, not scheduled: unlike the mesocycle deload
+// (feat 232) this nudges a deload when your *actual* training says you've earned one. Directional, never
+// auto-applied to logged sets or targets.
+
+// Load-weighted mean recovery across groups trained in the last ~10 days; null when there's no recent
+// signal. Weighting by each group's own most-recent load anchors the number to the lifts you actually
+// train (a perpetually-fresh calf shouldn't paper over a thrashed back).
+function compositeRecovery(nowMs) {
+  nowMs = nowMs || Date.now();
+  const rec = recoveryReadiness(nowMs);
+  let wSum = 0, rSum = 0;
+  RECOVERY_BPS.forEach(bp => {
+    const r = rec[bp];
+    if (!r || r.lastMs == null || (nowMs - r.lastMs) > 240 * 3600000) return; // older than ~10d → not this block
+    const w = r.lastLoad > 0 ? r.lastLoad : 1;
+    wSum += w; rSum += w * r.readiness;
+  });
+  return wSum > 0 ? rSum / wSum : null;
+}
+// Mean RPE over a session's strength sets that carried one (null when none / RPE off).
+function _sessionMeanRpe(s) {
+  let sum = 0, n = 0;
+  (s.exercises || []).forEach(ex => { if (ex.cardio) return; (ex.sets || []).forEach(st => { const rp = setRpe(st); if (rp != null) { sum += rp; n++; } }); });
+  return n ? sum / n : null;
+}
+// RPE trend: mean session-RPE of the 3 most-recent RPE-tagged sessions minus that of the prior up-to-5.
+// Positive = sessions are feeling harder (accumulating fatigue). Null unless RPE logging is on (feat 261)
+// and there are ≥4 tagged sessions to compare.
+function rpeTrend(nowMs) {
+  if (!rpeEnabled()) return null;
+  nowMs = nowMs || Date.now();
+  const tagged = (state.sessions || [])
+    .filter(s => new Date(s.date).getTime() <= nowMs)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .map(_sessionMeanRpe).filter(v => v != null);
+  if (tagged.length < 4) return null;
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  return mean(tagged.slice(0, 3)) - mean(tagged.slice(3, 8));
+}
+// Score band → status chip. Mirrors the recoveryStatus thresholds in spirit (high = good).
+function readinessStatus(score) {
+  if (score >= 80) return { key: 'primed',  label: 'Primed',   emoji: '🟢' };
+  if (score >= 60) return { key: 'ready',   label: 'Ready',    emoji: '🟡' };
+  if (score >= 40) return { key: 'caution', label: 'Ease off', emoji: '🟠' };
+  return { key: 'deload', label: 'Back off', emoji: '🔴' };
+}
+// One-line action for the band. The deload nudge escalates to a *week* when stalled lifts corroborate the
+// low recovery — that combination is the classic unplanned-overreaching signal.
+function readinessAction(key, plateauCount) {
+  if (key === 'primed') return 'Primed to push — chase a rep or a little more load on your top sets.';
+  if (key === 'ready')  return 'Train as planned — beat last session where you feel strong.';
+  if (key === 'caution') return plateauCount >= 2
+    ? 'Under-recovered with stalled lifts — hold loads today and plan a deload week soon.'
+    : 'Keep it crisp — hold loads, trim a back-off set, leave a rep in reserve.';
+  return plateauCount >= 2
+    ? 'Several lifts have stalled and you’re under-recovered — take a deload week (~−10% load & volume).'
+    : 'You’re under-recovered — take a lighter day or an extra rest day before training hard again.';
+}
+// The headline. Composite recovery is the base; active plateaus and a rising RPE trend dent it. Null until
+// there are ≥3 sessions and a recent recovery signal (so it never shows noise on a fresh log).
+function trainingReadiness(nowMs) {
+  nowMs = nowMs || Date.now();
+  if ((state.sessions || []).filter(s => new Date(s.date).getTime() <= nowMs).length < 3) return null;
+  const rec = compositeRecovery(nowMs);
+  if (rec == null) return null;
+  const plateauCount = findPlateaus().length;
+  const trend = rpeTrend(nowMs);
+  let score = rec * 100;
+  score -= Math.min(24, plateauCount * 6);                            // each stalled lift dents it, capped at 4
+  if (trend != null && trend > 0) score -= Math.min(15, trend * 15); // sessions feeling harder → fatigue tax
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  const status = readinessStatus(score);
+  return { score, status, action: readinessAction(status.key, plateauCount), factors: { recoveryPct: Math.round(rec * 100), plateauCount, rpeTrend: trend } };
+}
+
 /* ============================================================
    STATE & STORAGE
    ============================================================ */
@@ -4117,7 +4310,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
-  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','metronome','annunciation','plans','seededPlanIds','hrDevice',
+  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','metronome','annunciation','plans','seededPlanIds','hrDevice',
   'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
@@ -4320,6 +4513,10 @@ function normalizeState() {
   if (typeof state.calcMode !== 'boolean') state.calcMode = false;
   if (typeof state.ttsTips !== 'boolean') state.ttsTips = true;
   if (typeof state.ttsVoice !== 'string') state.ttsVoice = 'auto'; // feat 210 — 'auto' = the gruff coach pick; 'system' = untouched
+  if (typeof state.coachPersona !== 'string' || !COACH_PERSONAS.some(p => p.id === state.coachPersona)) state.coachPersona = (state.ttsVoice === 'system') ? 'neutral' : 'gruff'; // feat 296 — derive from the legacy voice toggle
+  if (!state.coachVoices || typeof state.coachVoices !== 'object') state.coachVoices = {}; // feat 297 — per-persona TTS voice (id → 'auto'|'system'|voiceURI)
+  if (['off', 'random', 'vibe'].indexOf(state.coachAuto) === -1) state.coachAuto = 'off'; // feat 303 — auto-pick coach per workout
+  if (state.ttsVoice && state.ttsVoice !== 'auto' && state.ttsVoice !== 'system' && !state.coachVoices[state.coachPersona]) { state.coachVoices[state.coachPersona] = state.ttsVoice; state.ttsVoice = 'auto'; } // migrate a legacy explicit voiceURI to the active coach
   if (typeof state.audioHeadphonesOnly !== 'boolean') state.audioHeadphonesOnly = true; // feat 105 — default on
   // feat 144 — default minimum completion % (0..100). 1% means "even 1 set counts the step as done".
   { const m = Number(state.planDefaults.minPct); state.planDefaults.minPct = isNaN(m) ? 1 : Math.min(100, Math.max(0, m)); }
@@ -6742,14 +6939,41 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${state.ttsTips === false ? 'active' : ''}" data-pref-tts="off">Off</button>
       </div>
     </div>
+    <div class="drawer-setting-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+      <div>
+        <div class="drawer-setting-label">🏋️ Coach personality</div>
+        <div class="drawer-setting-sub">Who's in your ear — a voice profile (pitch &amp; pace) plus the wording of every spoken cue. Tap one to switch and hear it.</div>
+      </div>
+      <div class="coach-persona-pick">
+        ${COACH_PERSONAS.map(p => `<button type="button" class="coach-persona ${(state.coachPersona || 'gruff') === p.id ? 'active' : ''}" data-coach-persona="${escapeAttr(p.id)}" title="${escapeAttr(p.desc)}"><span class="cp-emoji">${p.emoji}</span><span class="cp-name">${escapeHtml(p.name)}</span><span class="cp-tag">${escapeHtml(p.tag)}</span></button>`).join('')}
+      </div>
+      ${(() => { // feat 297 — per-coach TTS voice picker for the ACTIVE persona
+        const ap = activeCoachPersona();
+        if (ap.sys) return `<div class="coach-voice-row"><span class="coach-voice-lbl">🔈 ${ap.emoji} ${escapeHtml(ap.name)}</span><span class="drawer-setting-sub" style="margin:0;">uses your device’s default voice</span></div>`;
+        let voices = []; try { voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (_) {}
+        voices = voices.slice().sort((a, b) => (/^en/i.test(b.lang) ? 1 : 0) - (/^en/i.test(a.lang) ? 1 : 0) || (a.name || '').localeCompare(b.name || ''));
+        const cur = coachVoiceChoice(ap.id);
+        const opt = (val, lbl, sel) => `<option value="${escapeAttr(val)}" ${sel ? 'selected' : ''}>${escapeHtml(lbl)}</option>`;
+        const tag = v => /en-gb/i.test(v.lang) ? ' (UK)' : /en-us/i.test(v.lang) ? ' (US)' : /^en/i.test(v.lang) ? ' (EN)' : (v.lang ? ' (' + v.lang + ')' : '');
+        return `<div class="coach-voice-row">
+          <span class="coach-voice-lbl">🔈 ${ap.emoji} ${escapeHtml(ap.name)} voice</span>
+          <select id="coach-voice-select" class="vw-select" style="max-width:170px;">
+            ${opt('auto', 'Auto — best for ' + ap.name, cur === 'auto')}
+            ${opt('system', 'System default', cur === 'system')}
+            ${voices.map(v => opt(v.voiceURI, v.name + tag(v), cur === v.voiceURI)).join('')}
+          </select>
+        </div>${voices.length ? '' : '<div class="drawer-setting-sub">Loading device voices…</div>'}`;
+      })()}
+    </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🏋️ Coach voice</div>
-        <div class="drawer-setting-sub">Spoken cues default to a deeper, gruffer coach (deep voice + low pitch, tough but fair). System = leave the device default untouched</div>
+        <div class="drawer-setting-label">🎲 Auto-pick coach per workout</div>
+        <div class="drawer-setting-sub">Override the persona above at each workout start. <b>Vibe</b> matches the coach to the session (HIIT→Hype, mobility→Zen, heavy→Drill Sergeant, hypertrophy→Analyst…); <b>Random</b> re-rolls a coach every workout.</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.ttsVoice !== 'system' ? 'active' : ''}" data-pref-voice="coach">Gruff coach ★</button>
-        <button class="drawer-pill ${state.ttsVoice === 'system' ? 'active' : ''}" data-pref-voice="system">System</button>
+        <button class="drawer-pill ${coachAutoMode() === 'off' ? 'active' : ''}" data-coachauto="off">Off</button>
+        <button class="drawer-pill ${coachAutoMode() === 'vibe' ? 'active' : ''}" data-coachauto="vibe">Vibe</button>
+        <button class="drawer-pill ${coachAutoMode() === 'random' ? 'active' : ''}" data-coachauto="random">Random</button>
       </div>
     </div>
     <div class="drawer-setting-row">
@@ -7771,6 +7995,10 @@ function renderSettingsDrawer() {
   body.querySelectorAll('[data-holdcue]').forEach(b => b.addEventListener('click', () => {
     state.holdCue = { ...holdCueCfg(), [b.dataset.holdcue]: b.dataset.holdcueVal === 'on' }; saveState(); renderSettingsDrawer();
   }));
+  body.querySelectorAll('[data-coach-persona]').forEach(b => b.addEventListener('click', () => selectCoachPersona(b.dataset.coachPersona))); // feat 296
+  body.querySelectorAll('[data-coachauto]').forEach(b => b.addEventListener('click', () => setCoachAuto(b.dataset.coachauto))); // feat 303
+  const cvSel = body.querySelector('#coach-voice-select'); // feat 297 — per-coach TTS voice
+  if (cvSel) cvSel.addEventListener('change', () => setCoachVoice(state.coachPersona, cvSel.value));
   const hcEvery = body.querySelector('#drawer-holdcue-every');
   if (hcEvery) hcEvery.addEventListener('change', () => { const v = parseInt(hcEvery.value); if (!isNaN(v)) { state.holdCue = { ...holdCueCfg(), every: Math.max(1, Math.min(60, v)) }; saveState(); } });
   // Rest cue timer settings (feat 104)
@@ -9249,6 +9477,25 @@ function purgeCreator(name) {
   if (removed) saveState();
   return removed;
 }
+// feat 294 — count / purge every NON-EMBEDDABLE clip: a pure external link with no inline preview (no embedUrl
+// and not an image). mediaPlayable() is the inverse, so images & embeds are always kept.
+function countNonEmbeddableMedia() {
+  let n = 0;
+  Object.keys(state.exerciseMedia || {}).forEach(k => (state.exerciseMedia[k] || []).forEach(m => { if (!mediaPlayable(m)) n++; }));
+  return n;
+}
+function purgeNonEmbeddableMedia() {
+  if (typeof roBlocked === 'function' && roBlocked('purge link-only media')) return 0;
+  let removed = 0;
+  Object.keys(state.exerciseMedia || {}).forEach(k => {
+    const list = state.exerciseMedia[k] || [], before = list.length;
+    state.exerciseMedia[k] = list.filter(m => mediaPlayable(m));
+    removed += before - state.exerciseMedia[k].length;
+    if (!state.exerciseMedia[k].length) delete state.exerciseMedia[k];
+  });
+  if (removed) saveState();
+  return removed;
+}
 function getExerciseMedia(uuid) { if (!uuid || !state.exerciseMedia) return []; return state.exerciseMedia[uuid] || []; }
 /* feat 238 — WATCH TRACKING. The last time you actually WATCHED a clip (keyed by the clip itself, so it's
    shared everywhere the clip appears). "Watched" = you opened the embed and it stayed up for the dwell
@@ -9765,6 +10012,7 @@ function renderMediaWizard() {
     <label class="drawer-btn" id="mw-import-sheet-lbl" style="padding:6px 10px;cursor:pointer;" title="Import a filled media sheet (.md / .txt / .json)">⬆ Import sheet<input type="file" id="mw-import-sheet" accept=".md,.txt,.json" hidden></label>
     <button class="drawer-btn" id="mw-retest" style="padding:6px 10px;">↻ Re-test all</button>
     <button class="drawer-btn" id="mw-gallery" style="padding:6px 10px;" title="Open the Media Gallery — every clip in a searchable, watch-tracked grid">🎞️ Gallery</button>
+    ${notEmbed ? `<button class="drawer-btn danger" id="mw-purge-nonembed" style="padding:6px 10px;" title="Remove every link-only clip (external links with no inline preview) across all exercises">🗑 Purge link-only (${notEmbed})</button>` : ''}
     <span class="mw-stat">${varWith} variations · ${movWith} movements · ${totalLinks} links · ${notEmbed} not embeddable</span>`;
   const rows = mediaWizardRows();
   const capped = rows.length > 150 ? rows.slice(0, 150) : rows;
@@ -9845,6 +10093,17 @@ function bindMediaWizard() {
   tb.querySelector('#mw-import-sheet')?.addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const rd = new FileReader(); rd.onload = () => { importMediaData(String(rd.result || '')); renderMediaWizard(); }; rd.readAsText(f); }); // feat 236 — import a filled sheet
   tb.querySelector('#mw-retest')?.addEventListener('click', mediaWizardRetestAll);
   tb.querySelector('#mw-gallery')?.addEventListener('click', () => { closeMediaWizard(); navTo('media-gallery'); }); // feat 239 — jump to the gallery
+  tb.querySelector('#mw-purge-nonembed')?.addEventListener('click', () => { // feat 294 — purge all non-embeddable (link-only) media
+    const n = countNonEmbeddableMedia();
+    if (!n) { toast('No link-only media to purge'); return; }
+    confirmDialog(`Remove all ${n} link-only clip${n === 1 ? '' : 's'}? These are external links with no inline preview (embeddable videos and images are kept). This can't be undone — export your media first if unsure.`, { title: 'Purge link-only media?', okLabel: '🗑 Purge ' + n, cancelLabel: 'Keep', danger: true }).then(ok => {
+      if (!ok) return;
+      const removed = purgeNonEmbeddableMedia();
+      renderMediaWizard();
+      toast(`Purged ${removed} link-only clip${removed === 1 ? '' : 's'}`);
+      if (typeof logInfo === 'function') logInfo('Purged link-only media', removed + ' removed');
+    });
+  });
   body.querySelectorAll('[data-mw-purge]').forEach(b => b.addEventListener('click', () => { // feat 237 — purge a whole creator
     const name = b.dataset.mwPurge, n = +b.dataset.mwPurgeN || 0;
     confirmDialog(`Remove all ${n} reference link${n === 1 ? '' : 's'} from ${name}? This can't be undone (export your media first if unsure).`, { title: 'Purge creator?', okLabel: 'Purge', cancelLabel: 'Keep', danger: true }).then(ok => { if (!ok) return; const removed = purgeCreator(name); renderMediaWizard(); toast(`Purged ${removed} link${removed === 1 ? '' : 's'} from ${name}`); });
@@ -10098,13 +10357,156 @@ let currentTab = 'log';
    the tab bar / direct `currentTab=X;render()`) keep working, so screens migrate to pages incrementally (feat
    182+). Leaves not yet converted to pages carry an `open()` that calls their existing overlay opener.
    ============================================================ */
+/* ============================================================
+   feat 306 — CONSTELLATION / TECH-TREE of every variation. A radial star-map in Reflect: fundamental
+   movements sit near the centre and branch outward into the obscure & advanced (by family importance, then
+   difficulty), one spiral arm per mega category. Nodes are colour-coded by mega and brightness-coded by your
+   prowess (logged history); tapping a node opens an info popup with a link to its full reference. Pure read.
+   ============================================================ */
+const _MEGA_HUE = { push:'#e0883a', pull:'#6ca0ff', lower:'#3fb950', core:'#d2bd2a', cardio:'#e5534b', workouts:'#b48aff', mobility:'#87cefa', recovery:'#5fd0c0', full:'#ff8ab4', other:'#9aa0a6' };
+const _MEGA_LABEL = { push:'Push', pull:'Pull', lower:'Lower Body', core:'Core', cardio:'Cardio', workouts:'Workouts', mobility:'Mobility', recovery:'Recovery', full:'Full Body' };
+function _megaHue(m) { return _MEGA_HUE[(m || 'other').toLowerCase()] || _MEGA_HUE.other; }
+function _megaLabel(m) { const k = (m || 'other').toLowerCase(); return _MEGA_LABEL[k] || (typeof BP_LABELS !== 'undefined' && BP_LABELS[k]) || (k.charAt(0).toUpperCase() + k.slice(1)); }
+let _constFilter = null; // active mega filter (null = all)
+// One pass over the log → per-variation { sessions, lastMs, best e1RM } for prowess brightness.
+function buildProwessMap() {
+  const m = new Map();
+  (state.sessions || []).forEach(s => {
+    const t = new Date(s.date).getTime();
+    (s.exercises || []).forEach(ex => {
+      if (ex.cardio || !ex.sets || !ex.sets.length) return;
+      let e = m.get(ex.varUuid); if (!e) { e = { sessions: 0, lastMs: 0, best: 0 }; m.set(ex.varUuid, e); }
+      e.sessions++; if (t > e.lastMs) e.lastMs = t;
+      ex.sets.forEach(st => { const v = (typeof estimated1RMSet === 'function') ? estimated1RMSet(st) : 0; if (v > e.best) e.best = v; });
+    });
+  });
+  return m;
+}
+// Brightness 0..1: untrained = 0; otherwise grows with sessions, with a recency boost.
+function prowessScore(entry, now) {
+  if (!entry || !entry.sessions) return 0;
+  now = now || Date.now();
+  const days = (now - entry.lastMs) / 86400000;
+  const rec = days <= 14 ? 0.25 : days <= 60 ? 0.12 : 0.03;
+  return Math.max(0.12, Math.min(1, 0.3 + 0.45 * Math.min(1, entry.sessions / 8) + rec));
+}
+// Lay every (visible) variation on a radial map: inner = fundamental (high family importance), spiralling
+// outward by importance then difficulty, one arm per mega. Deterministic (index-based, no random).
+function constellationNodes() {
+  const W = 1000, H = 1000, cx = W / 2, cy = H / 2, TAU = Math.PI * 2;
+  const now = Date.now(), prowess = buildProwessMap();
+  const ORDER = ['push', 'pull', 'lower', 'core', 'cardio', 'workouts', 'mobility', 'recovery', 'full'];
+  const diffRank = { beg: 0, int: 1, adv: 2, exp: 3 };
+  const byMega = new Map();
+  FAMILIES.forEach(f => {
+    const mega = (f.mega || 'other').toLowerCase();
+    (f.variations || []).forEach(v => {
+      if (typeof varVisibleInPicker === 'function' && !varVisibleInPicker(f, v)) return; // skip suppressed twins
+      let arr = byMega.get(mega); if (!arr) { arr = []; byMega.set(mega, arr); }
+      arr.push({ f, v });
+    });
+  });
+  const megas = [...byMega.keys()].sort((a, b) => { const ia = ORDER.indexOf(a), ib = ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b); });
+  const nodes = [];
+  megas.forEach((mega, mi) => {
+    const items = byMega.get(mega);
+    items.forEach(it => { it._imp = getImportance(it.f.id, it.f.mega); it._diff = getDifficulty(it.v.id, it.f.id); });
+    items.sort((a, b) => (b._imp - a._imp) || ((diffRank[a._diff] || 1) - (diffRank[b._diff] || 1)) || a.f.title.localeCompare(b.f.title) || a.v.title.localeCompare(b.v.title));
+    const a0 = (mi / megas.length) * TAU, a1 = ((mi + 1) / megas.length) * TAU;
+    const aMid = (a0 + a1) / 2, halfW = (a1 - a0) / 2 * 0.84;
+    const n = items.length, rMin = 86, rMax = Math.min(W, H) / 2 - 64;
+    items.forEach((it, idx) => {
+      const t = n > 1 ? idx / (n - 1) : 0;
+      const radius = rMin + t * (rMax - rMin);
+      const ang = aMid + (t - 0.5) * 2 * halfW + Math.sin(idx * 1.7) * 0.03;
+      const pe = prowess.get(it.v.uuid), pr = prowessScore(pe, now);
+      nodes.push({ uuid: it.v.uuid, x: +(cx + radius * Math.cos(ang)).toFixed(1), y: +(cy + radius * Math.sin(ang)).toFixed(1),
+        mega, fam: it.f.id, famTitle: it.f.title, title: it.v.title, importance: it._imp, difficulty: it._diff,
+        prowess: +pr.toFixed(3), trained: !!(pe && pe.sessions), sessions: pe ? pe.sessions : 0, best: pe ? Math.round(pe.best) : 0,
+        r: +(3.4 + it._imp * 0.7).toFixed(1) });
+    });
+  });
+  return { W, H, cx, cy, nodes, megas };
+}
+function renderConstellationPage(main) {
+  if (!main) return;
+  const data = constellationNodes();
+  const { W, H, cx, cy, nodes, megas } = data;
+  const trainedCount = nodes.filter(n => n.trained).length;
+  const arms = megas.map(m => {
+    const pts = nodes.filter(n => n.mega === m).map(n => `${n.x},${n.y}`).join(' ');
+    return pts ? `<polyline points="${pts}" fill="none" stroke="${_megaHue(m)}" stroke-opacity="0.16" stroke-width="1.4"/>` : '';
+  }).join('');
+  const circles = nodes.map(n => {
+    const dim = _constFilter && n.mega !== _constFilter;
+    const op = (dim ? 0.06 : (0.22 + 0.62 * n.prowess)).toFixed(3);
+    const halo = (n.trained && !dim) ? `<circle cx="${n.x}" cy="${n.y}" r="${(n.r + 2.4).toFixed(1)}" fill="none" stroke="${_megaHue(n.mega)}" stroke-opacity="${(0.22 + 0.5 * n.prowess).toFixed(3)}" stroke-width="1"/>` : '';
+    return `${halo}<circle class="cst-node" data-uuid="${escapeAttr(n.uuid)}" cx="${n.x}" cy="${n.y}" r="${n.r}" fill="${_megaHue(n.mega)}" fill-opacity="${op}"><title>${escapeHtml(n.title)}</title></circle>`;
+  }).join('');
+  const megaLabels = megas.map(m => {
+    const arm = nodes.filter(n => n.mega === m); if (!arm.length) return '';
+    const o = arm[arm.length - 1];
+    return `<text class="cst-mega-lbl" x="${o.x}" y="${o.y - 6}" fill="${_megaHue(m)}" text-anchor="${o.x < cx ? 'end' : 'start'}">${escapeHtml(_megaLabel(m))}</text>`;
+  }).join('');
+  const pills = ['all'].concat(megas).map(m =>
+    `<button class="cst-pill ${(_constFilter || 'all') === m ? 'active' : ''}" data-cst-mega="${escapeAttr(m)}"${m !== 'all' ? ` style="--ch:${_megaHue(m)}"` : ''}>${m === 'all' ? 'All' : escapeHtml(_megaLabel(m))}</button>`
+  ).join('');
+  main.innerHTML = `<div class="card cst-card">
+    <div class="cst-head"><div class="card-title" style="margin:0;">✨ Constellation</div><div class="cst-sub">Every movement as a star — fundamentals at the core, the obscure &amp; advanced spiralling out. Brightness = your prowess (<b>${trainedCount}</b>/${nodes.length} lit). Tap a star for details.</div></div>
+    <div class="cst-pills">${pills}</div>
+    <div class="cst-stage"><svg viewBox="0 0 ${W} ${H}" class="cst-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Constellation of exercise variations">
+      <defs><radialGradient id="cst-bg" cx="50%" cy="50%" r="60%"><stop offset="0%" stop-color="rgba(124,77,255,0.10)"/><stop offset="100%" stop-color="rgba(0,0,0,0)"/></radialGradient></defs>
+      <rect x="0" y="0" width="${W}" height="${H}" fill="url(#cst-bg)"/>
+      ${arms}
+      <circle cx="${cx}" cy="${cy}" r="22" fill="none" stroke="var(--accent,#b48aff)" stroke-opacity="0.6" stroke-width="1.5"/>
+      <text x="${cx}" y="${cy + 4}" text-anchor="middle" class="cst-core-lbl">CORE</text>
+      ${circles}
+      ${megaLabels}
+    </svg></div>
+    <div class="cst-legend">${megas.map(m => `<span class="cst-leg"><i style="background:${_megaHue(m)}"></i>${escapeHtml(_megaLabel(m))}</span>`).join('')}<span class="cst-leg cst-leg-bright">◐ brighter = stronger / more trained</span></div>
+  </div>`;
+  main.querySelectorAll('[data-cst-mega]').forEach(b => b.addEventListener('click', () => { _constFilter = b.dataset.cstMega === 'all' ? null : b.dataset.cstMega; renderConstellationPage(main); }));
+  main.querySelectorAll('.cst-node').forEach(c => c.addEventListener('click', () => _constellationPopup(c.getAttribute('data-uuid'))));
+}
+// Info popup for a tapped star: title, family, mega, importance/difficulty badges, prowess, + a reference link.
+function _constellationPopup(uuid) {
+  const info = VAR_INDEX.get(uuid); if (!info) return;
+  const f = info.family, v = info.variation;
+  const pe = buildProwessMap().get(uuid), pr = prowessScore(pe);
+  const prowessLine = (pe && pe.sessions)
+    ? `🔥 <b>${Math.round(pr * 100)}%</b> prowess · ${pe.sessions} session${pe.sessions === 1 ? '' : 's'}${pe.best ? ` · best e1RM ${Math.round(pe.best)}${escapeHtml(state.unit || '')}` : ''}`
+    : '☆ Not logged yet — train it to light up this star.';
+  _closeConstellationPop();
+  const wrap = document.createElement('div'); wrap.id = 'cst-pop';
+  wrap.innerHTML = `<div class="cst-pop-backdrop"></div>
+    <div class="cst-pop-card" role="dialog" aria-modal="true">
+      <button class="cst-pop-x" type="button" aria-label="Close">✕</button>
+      <div class="cst-pop-mega" style="color:${_megaHue(f.mega)}">${escapeHtml(_megaLabel(f.mega))}</div>
+      <div class="cst-pop-title">${escapeHtml(v.title)}</div>
+      <div class="cst-pop-fam">${escapeHtml(f.title)}</div>
+      <div class="cst-pop-badges">${(typeof importanceBadge === 'function' ? importanceBadge(f.id, f.mega) : '')}${(typeof difficultyBadge === 'function' ? difficultyBadge(v.id, f.id) : '')}</div>
+      <div class="cst-pop-prowess">${prowessLine}</div>
+      <div class="cst-pop-actions">
+        <button class="cst-pop-btn cst-pop-ref" type="button">📚 Full reference</button>
+        <button class="cst-pop-btn cst-pop-brief" type="button">🎧 Brief</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => _closeConstellationPop();
+  wrap.querySelector('.cst-pop-backdrop').addEventListener('click', close);
+  wrap.querySelector('.cst-pop-x').addEventListener('click', close);
+  wrap.querySelector('.cst-pop-ref').addEventListener('click', () => { close(); if (typeof openReferenceFor === 'function') openReferenceFor(uuid); });
+  wrap.querySelector('.cst-pop-brief').addEventListener('click', () => { if (typeof startVariationPodcast === 'function') startVariationPodcast(uuid); });
+}
+function _closeConstellationPop() { const el = document.getElementById('cst-pop'); if (el) el.remove(); }
+
 const PAGES = {
   // feat 221 — menus are grouping nodes only: navTo() forwards them to their `primary` leaf, so no screen is
   // ever just a nav list. Browsing happens in the compact nav-tree popover; the breadcrumb shows where you are.
   home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'], primary:'workout' },
   train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'], primary:'workout' },
-  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','summary','focus','history','trends','volume','achievements','replay','progression'], primary:'log' },
-  execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail'], primary:'workout' },
+  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','summary','focus','history','trends','volume','achievements','constellation','replay','progression'], primary:'log' },
+  execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail','hiit'], primary:'workout' },
   prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator','split-planner'], primary:'gyms' },
   study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','media-gallery','glossary','anatomy','advice'], primary:'reference' },
   settings:{ title:'Settings',emoji:'⚙️', kind:'menu', parent:'home',  children:['set-profile','set-cosmetic','set-prefs','set-data','set-help','set-about'], primary:'set-prefs' },
@@ -10118,6 +10520,7 @@ const PAGES = {
   trends:      { title:'Trends',           emoji:'📈', kind:'leaf', parent:'reflect', tab:'trends',   render:m=>renderTrends(m) },
   volume:      { title:'Volume',           emoji:'🧮', kind:'leaf', parent:'reflect', tab:'volume',   render:m=>renderVolume(m) },
   achievements:{ title:'Achievement Paths',emoji:'🏅', kind:'leaf', parent:'reflect', render:m=>{ m.innerHTML = renderAchievements(); } },
+  constellation:{ title:'Constellation',    emoji:'✨', kind:'leaf', parent:'reflect', render:m=>renderConstellationPage(m) }, // feat 306
   replay:      { title:'Replay',           emoji:'⏪', kind:'leaf', parent:'reflect', render:m=>renderReplayPage(m) }, // feat 219
   progression: { title:'Progression',      emoji:'🚀', kind:'leaf', parent:'reflect', render:m=>renderProgressionPage(m) }, // feat 233
   gyms:        { title:'Gyms',             emoji:'📍', kind:'leaf', parent:'prepare', tab:'gyms', render:m=>renderGymsTab(m) },
@@ -10125,6 +10528,7 @@ const PAGES = {
   // leaves still served by their existing overlay/opener (converted to real pages in later phases)
   exercise:      { title:'Exercise',     emoji:'✍️', kind:'leaf', parent:'execute', open:()=>openLogModal() },
   'plan-detail': { title:'Plan Detail',  emoji:'🗺️', kind:'leaf', parent:'execute', render:m=>renderPlanDetailPage(m) }, // feat 183
+  hiit:          { title:'HIIT Blocks',  emoji:'⏱️', kind:'leaf', parent:'execute', render:m=>renderHiitPage(m) }, // feat 295
   equipment:     { title:'Equipment',    emoji:'🏗️', kind:'leaf', parent:'prepare', render:m=>renderEquipmentPage(m) }, // feat 193
   'plan-creator':{ title:'Plan Creator', emoji:'📝', kind:'leaf', parent:'prepare', render:m=>renderPlanCreatorPage(m) }, // feat 184
   'split-planner':{ title:'Split Planner', emoji:'🗓️', kind:'leaf', parent:'prepare', render:m=>renderSplitPlannerPage(m) }, // feat 229
@@ -10617,6 +11021,49 @@ const SEED_PLANS = [
     _pstep(4,[_mvOpt('shoulder-press')],'Overhead press — the anchor.','heavy'), _pstep(3,[_mvOpt('front-raise')],'Front raises — anterior delts, strict and slow.','light'), _pstep(4,[_mvOpt('lateral-raise')],'Lateral raises — cap the side delts.','light'), _pstep(3,[_mvOpt('rear-delt')],'Rear delts and face pulls — the rear head.','light'), _pstep(3,[_mvOpt('shrugs')],'Shrugs — traps to finish.'), _pstep(2,[_mvOpt('rotator-cuff')],'Cuff work — balance and insure the joint.','light') ] },
   { id:'seed-power-athlete', name:'Power Athlete', intensity:5, desc:'Train the qualities the iron usually skips — explosive Olympic pulls, ballistic med-ball work, raw strongman loading, gymnastics core holds and a crushing grip finisher. Power, not just size; every rep fast and intent-driven.', steps:[
     _pstep(5,[_mvOpt('olympic-lifts')],'Power cleans or hang snatches — explode through the hips.','heavy'), _pstep(3,[_mvOpt('medicine-ball')],'Med-ball slams and rotational throws — full intent.','light'), _pstep(3,[_mvOpt('strongman')],'Strongman loading — carry, drag or tire flip.','heavy'), _pstep(3,[_mvOpt('gymnastics-core')],'Hollow holds and L-sits — total-body tension.','light'), _pstep(2,[_mvOpt('grip-training')],'Grip finisher — crush and hold.','light') ] },
+  // —— Tranche 13 (feat 293) — full-body MONSTERS: big, demanding, train-it-all-in-one-sitting sessions ——
+  { id:'seed-fullbody-behemoth', name:'The Full-Body Behemoth', intensity:5, desc:'The everything session — squat, deadlift, press, pull and carry, then enough accessory work to finish the job. A brutal, complete full-body monster for when you want to hit it ALL in one sitting. Eat big afterwards.', steps:[
+    _pstep(5,[_mvOpt('squat')],'Back squat — the cornerstone. Work up heavy.','heavy'), _pstep(5,[_mvOpt('deadlift')],'Deadlift — pull from the floor, brace hard.','heavy'), _pstep(4,[_mvOpt('flat-bench-press')],'Heavy bench — the horizontal press.','heavy'), _pstep(4,[_mvOpt('row'),_mvOpt('pull-up')],'Heavy pull — rows or weighted chins.','heavy'), _pstep(4,[_mvOpt('shoulder-press')],'Overhead press — vertical push.'), _pstep(3,[_mvOpt('lat-pulldown')],'Lat width to balance the press.'), _pstep(3,[_mvOpt('lunge')],'Walking lunges — single-leg under load.'), _pstep(3,[_mvOpt('loaded-carries')],'Heavy carry — the whole body braces.','heavy'), _pstep(3,[_mvOpt('bicep-curl'),_mvOpt('tricep-extension')],'Arms superset — biceps and triceps.','light'), _pstep(3,[_mvOpt('calf-raise')],'Calves through a full range.','light'), _pstep(3,[_mvOpt('core-stability')],'Anti-movement core to close — planks and Pallof.','light') ] },
+  { id:'seed-fullbody-annihilation', name:'Total-Body Annihilation', intensity:5, desc:'Hit every muscle, hard, in one savage full-body bodybuilding session. Compounds first, then a thorough isolation sweep — chest, back, shoulders, legs and arms all earn their volume. A pump that reaches everywhere.', steps:[
+    _pstep(4,[_mvOpt('flat-bench-press')],'Chest press to open.','heavy'), _pstep(4,[_mvOpt('row')],'Rows for back thickness.','heavy'), _pstep(4,[_mvOpt('squat'),_mvOpt('leg-press')],'Quads — squat or press.'), _pstep(3,[_mvOpt('shoulder-press')],'Overhead for the delts.'), _pstep(3,[_mvOpt('lat-pulldown')],'Lat width.'), _pstep(3,[_mvOpt('incline-bench-press'),_mvOpt('chest-fly')],'Upper chest or flyes.','light'), _pstep(3,[_mvOpt('leg-curl')],'Hamstrings.'), _pstep(3,[_mvOpt('lateral-raise')],'Side delts.','light'), _pstep(3,[_mvOpt('bicep-curl')],'Biceps.','light'), _pstep(3,[_mvOpt('tricep-extension')],'Triceps.','light'), _pstep(3,[_mvOpt('calf-raise')],'Calves.','light'), _pstep(3,[_mvOpt('abs-dynamic')],'Abs to finish.','light') ] },
+  { id:'seed-fullbody-decathlon', name:'The Iron Decathlon', intensity:5, desc:'Ten movement patterns, one brutal lap — squat, hinge, push, pull, carry, lunge and core. A complete athletic full-body monster that leaves no pattern untrained.', steps:[
+    _pstep(4,[_mvOpt('squat')],'1 · Squat — knees and quads.','heavy'), _pstep(4,[_mvOpt('deadlift'),_mvOpt('hip-thrust')],'2 · Hinge — deadlift or thrust.','heavy'), _pstep(4,[_mvOpt('flat-bench-press')],'3 · Horizontal push.','heavy'), _pstep(4,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'4 · Vertical pull.','heavy'), _pstep(4,[_mvOpt('shoulder-press')],'5 · Vertical push.'), _pstep(4,[_mvOpt('row')],'6 · Horizontal pull.'), _pstep(3,[_mvOpt('lunge')],'7 · Single-leg.'), _pstep(3,[_mvOpt('loaded-carries')],'8 · Carry.','heavy'), _pstep(3,[_mvOpt('core-stability')],'9 · Core stability.','light'), _pstep(3,[_mvOpt('calf-raise')],'10 · Calves to close.','light') ] },
+  { id:'seed-fullbody-strongman-gauntlet', name:"Strongman's Full-Body Gauntlet", intensity:5, desc:'Raw, full-body strength the old-fashioned way — heavy pulls and presses, odd-object loading, brutal carries and a grip that earns it. A strongman-flavoured monster that builds real-world power head to toe.', steps:[
+    _pstep(5,[_mvOpt('deadlift')],'Heavy deadlift — the foundation.','heavy'), _pstep(4,[_mvOpt('strongman')],'Strongman event — yoke, sled or tire.','heavy'), _pstep(4,[_mvOpt('shoulder-press')],'Overhead — press something heavy.','heavy'), _pstep(4,[_mvOpt('squat'),_mvOpt('leg-press')],'Legs — squat or press.','heavy'), _pstep(4,[_mvOpt('row')],'Heavy row for the back.','heavy'), _pstep(4,[_mvOpt('loaded-carries')],'Farmer or suitcase carry — go far.','heavy'), _pstep(3,[_mvOpt('shrugs')],'Traps — heavy shrugs.'), _pstep(3,[_mvOpt('grip-training')],'Grip work — crush, pinch, hold.','light') ] },
+  { id:'seed-fullbody-hybrid-beast', name:'Hybrid Beast (Full Body)', intensity:5, desc:'Strength, power and conditioning fused into one full-body monster — explosive Olympic pulls, the big compounds, plyometrics, carries and a hard core finish. Built to be strong, fast AND conditioned in a single session.', steps:[
+    _pstep(5,[_mvOpt('olympic-lifts')],'Power clean or hang snatch — explode.','heavy'), _pstep(4,[_mvOpt('squat')],'Squat strength.','heavy'), _pstep(4,[_mvOpt('flat-bench-press')],'Bench press.','heavy'), _pstep(4,[_mvOpt('deadlift'),_mvOpt('row')],'Heavy pull — hinge or row.','heavy'), _pstep(3,[_mvOpt('plyometrics')],'Box or broad jumps — land quiet.','light'), _pstep(3,[_mvOpt('loaded-carries')],'Carry medley.','heavy'), _pstep(4,[_mvOpt('shoulder-press')],'Overhead press.'), _pstep(3,[_mvOpt('core-stability'),_mvOpt('abs-dynamic')],'Core finisher.','light') ] },
+  { id:'seed-fullbody-crucible', name:'The Two-Hour Full-Body Crucible', intensity:5, desc:'Two hours, the whole body, every angle — heavy compounds up front, then a long, thorough accessory tour through legs, chest, back, shoulders, arms and core. The ultimate full-body marathon for a day you have nothing to do but train.', steps:[
+    _pstep(5,[_mvOpt('squat')],'Back squat — work up heavy.','heavy'), _pstep(5,[_mvOpt('flat-bench-press')],'Bench — heavy pressing.','heavy'), _pstep(5,[_mvOpt('deadlift'),_mvOpt('row')],'Heavy pull — deadlift or row.','heavy'), _pstep(4,[_mvOpt('shoulder-press')],'Overhead press.'), _pstep(4,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'Vertical pull.'), _pstep(4,[_mvOpt('lunge'),_mvOpt('leg-press')],'More legs — lunges or press.'), _pstep(4,[_mvOpt('incline-bench-press')],'Upper chest.'), _pstep(4,[_mvOpt('rear-delt')],'Rear delts and face pulls.','light'), _pstep(3,[_mvOpt('bicep-curl')],'Biceps.','light'), _pstep(3,[_mvOpt('tricep-extension')],'Triceps.','light'), _pstep(3,[_mvOpt('hammer-curl')],'Forearms and brachialis.','light'), _pstep(3,[_mvOpt('calf-raise')],'Calves.','light'), _pstep(3,[_mvOpt('abs-dynamic'),_mvOpt('core-stability')],'Core to close.','light') ] },
+  // —— Tranche 14 (feat 298) — bring up NEGLECTED areas: Roman chair, CrossFit moves, TRX, specialty bars,
+  //    pin lifts, mace/club & implements, cable attachments, lower-leg/joint prehab ——
+  { id:'seed-core-fortress', name:'Lower-Back & Core Fortress', intensity:3, desc:'Armour the trunk from every angle — the often-skipped Roman chair and back extensions for a bulletproof lower back, then anti-movement core, obliques and dynamic abs. The base that makes every other lift safer.', steps:[
+    _pstep(4,[_mvOpt('roman-chair')],'Roman-chair back extensions or weighted sit-ups — own the range.'), _pstep(3,[_mvOpt('back-extension')],'Back extensions — squeeze the glutes at the top.'), _pstep(3,[_mvOpt('core-stability')],'Anti-movement — planks, Pallof, dead bugs.','light'), _pstep(3,[_mvOpt('obliques')],'Rotation and side flexion.','light'), _pstep(3,[_mvOpt('abs-dynamic')],'Dynamic abs to finish.','light') ] },
+  { id:'seed-functional-throwdown', name:'Functional Throwdown', intensity:5, desc:'CrossFit-flavoured conditioning — thrusters and wall balls, explosive Olympic pulls, kettlebell ballistics, plyometrics and gymnastics core. Mixed-modal, high-intensity, leaves you on the floor.', steps:[
+    _pstep(5,[_mvOpt('crossfit-moves')],'Thrusters or wall balls — the engine builder.','heavy'), _pstep(4,[_mvOpt('olympic-lifts')],'Clean or snatch — fast and crisp.','heavy'), _pstep(3,[_mvOpt('kettlebell-specific')],'Swings or snatches — sharp hips.'), _pstep(3,[_mvOpt('plyometrics')],'Box jumps or burpees — land quiet.','light'), _pstep(3,[_mvOpt('gymnastics-core')],'Hollow holds and L-sits.','light') ] },
+  { id:'seed-trx-total-body', name:'Suspension Total Body (TRX)', intensity:3, desc:'A full-body session on the straps — TRX rows, presses and single-leg work hit everything with just your bodyweight and an anchor point. Scalable by angle; perfect for home, travel or a packed gym.', steps:[
+    _pstep(4,[_mvOpt('trx-work')],'TRX rows — set the angle to your level.'), _pstep(4,[_mvOpt('push-ups'),_mvOpt('trx-work')],'Pressing — TRX or floor push-ups.'), _pstep(3,[_mvOpt('pull-up'),_mvOpt('trx-work')],'Vertical or assisted pulling.'), _pstep(3,[_mvOpt('lunge')],'Single-leg — TRX-assisted or bodyweight.'), _pstep(3,[_mvOpt('core-stability')],'Strap core — fallouts and planks.','light') ] },
+  { id:'seed-specialty-bar-power', name:'Specialty Bar Power', intensity:5, desc:'Heavy strength with the bars that spare the joints and expose weak points — safety-squat and trap bars, plus pin lifts (Anderson squats, pin presses, rack pulls) to overload through your sticking points. Strength with a purpose.', steps:[
+    _pstep(5,[_mvOpt('specialty-bars')],'Safety-bar or trap-bar lift — heavy and braced.','heavy'), _pstep(4,[_mvOpt('pin-lifts')],'Pin work — Anderson squat, pin press or rack pull.','heavy'), _pstep(4,[_mvOpt('squat'),_mvOpt('deadlift')],'A second heavy compound.','heavy'), _pstep(3,[_mvOpt('shrugs')],'Traps — heavy holds.'), _pstep(3,[_mvOpt('core-stability')],'Brace work to protect the spine.','light') ] },
+  { id:'seed-mace-club-flow', name:'Mace & Club Flow', intensity:3, desc:'Unconventional steel — mace 360s, club swings and Y-bell work for rotational power, shoulder health and an iron grip. Old-school implements that build resilience the dumbbell rack can’t.', steps:[
+    _pstep(4,[_mvOpt('mace-club-work')],'Mace 360s and 10-and-2 — control the arc.'), _pstep(3,[_mvOpt('specialty-implements')],'Y-bell or club press and squat.'), _pstep(3,[_mvOpt('loaded-carries')],'Heavy carry — grip and posture.','heavy'), _pstep(3,[_mvOpt('rotator-cuff')],'Cuff work — keep the shoulders healthy.','light'), _pstep(2,[_mvOpt('grip-training')],'Grip finisher.','light') ] },
+  { id:'seed-bulletproof-joints', name:'Bulletproof Joints & Lower Leg', intensity:2, desc:'The prehab the iron forgets — tibialis raises, knees-over-toes split squats, adductors, full-range calves and direct neck work. Boring on purpose; it keeps knees, ankles, hips and neck strong and pain-free.', steps:[
+    _pstep(3,[_mvOpt('tibialis')],'Tib raises — the front of the shin.','light'), _pstep(4,[_mvOpt('atg-knees-over-toes')],'ATG split squats or backward sled — full range.'), _pstep(3,[_mvOpt('adductor')],'Adductors — Copenhagen or machine.','light'), _pstep(3,[_mvOpt('calf-raise')],'Calves through a full stretch.'), _pstep(3,[_mvOpt('neck-training')],'Neck flexion and extension — light and strict.','light') ] },
+  { id:'seed-cable-sculpt', name:'Cable Sculpt Circuit', intensity:3, desc:'Constant-tension isolation — work the cable attachments for chest, back, shoulders and arms with no rest for the muscle. Smooth resistance, big pump, joint-friendly. Great when the racks are packed.', steps:[
+    _pstep(4,[_mvOpt('cable-attachments')],'Pick an attachment — rope, D-handle or bar.'), _pstep(3,[_mvOpt('lat-pulldown')],'Lats — full stretch and squeeze.'), _pstep(3,[_mvOpt('chest-fly')],'Cable crossover or fly.','light'), _pstep(3,[_mvOpt('lateral-raise')],'Cable laterals — constant tension.','light'), _pstep(3,[_mvOpt('tricep-extension')],'Rope pushdowns to finish.','light') ] },
+  // —— Tranche 15 (feat 305) — DIAMOND GYM: old-school hardcore powerbuilding. Heavy barbell basics up front
+  //    for low reps, then brutal back-off volume and hard accessories. No frills — chalk, iron, intensity. ——
+  { id:'seed-diamond-chest-back', name:'Diamond Gym Chest & Back', intensity:5, desc:'Old-school powerbuilding — heavy bench paired with heavy rows, then incline, chins and flyes until the chest and back are cooked. Big basics first, brutal volume after. Chalk up.', steps:[
+    _pstep(5,[_mvOpt('flat-bench-press')],'Work up to a heavy top set, then back off — leave one in the tank.','heavy'), _pstep(5,[_mvOpt('row')],'Heavy barbell rows — dead-stop each rep.','heavy'), _pstep(4,[_mvOpt('incline-bench-press')],'Upper-chest pressing.','heavy'), _pstep(4,[_mvOpt('pull-up'),_mvOpt('lat-pulldown')],'Chins or pulldowns for lat width.'), _pstep(3,[_mvOpt('chest-fly'),_mvOpt('dips')],'Stretch and squeeze the chest.','light'), _pstep(3,[_mvOpt('rear-delt')],'Rear delts to balance all the pressing.','light') ] },
+  { id:'seed-diamond-legs', name:'Diamond Gym Leg Blast', intensity:5, desc:'A no-mercy leg day the old way — squat heavy for fives, then press, hinge and curl until you can barely walk. The session that built the legends. Don’t skip it.', steps:[
+    _pstep(5,[_mvOpt('squat')],'Back squat — work up to heavy fives, full depth.','heavy'), _pstep(4,[_mvOpt('leg-press')],'Heavy leg press — deep and controlled.','heavy'), _pstep(4,[_mvOpt('leg-curl')],'Hamstrings — never skip them.'), _pstep(3,[_mvOpt('lunge')],'Walking lunges under load.'), _pstep(3,[_mvOpt('leg-extension')],'Quad burnout — high reps.','light'), _pstep(5,[_mvOpt('calf-raise')],'Calves through a full range.','light') ] },
+  { id:'seed-diamond-delts-arms', name:'Diamond Gym Delts & Arms', intensity:4, desc:'Cannonball delts and thick arms, hardcore style — heavy overhead pressing, then strict laterals and a relentless biceps/triceps superset assault. Pump till the sleeves split.', steps:[
+    _pstep(5,[_mvOpt('shoulder-press')],'Heavy overhead press — strict and braced.','heavy'), _pstep(4,[_mvOpt('lateral-raise')],'Strict side laterals — width.','light'), _pstep(4,[_mvOpt('bicep-curl')],'Heavy barbell curls.','light'), _pstep(4,[_mvOpt('tricep-extension'),_mvOpt('dips')],'Triceps — extensions or dips.','light'), _pstep(3,[_mvOpt('hammer-curl')],'Hammers for the brachialis.','light'), _pstep(3,[_mvOpt('shrugs')],'Heavy shrugs to cap the traps.') ] },
+  { id:'seed-diamond-powerbuild-upper', name:'Diamond Gym Powerbuilding — Upper', intensity:5, desc:'Strength meets size — heavy low-rep bench and rows for power, then higher-rep accessories for the mass. The powerbuilding upper day done the hardcore way.', steps:[
+    _pstep(5,[_mvOpt('flat-bench-press')],'Heavy triples/fives — build the press.','heavy'), _pstep(5,[_mvOpt('row')],'Heavy rows to match the bench.','heavy'), _pstep(4,[_mvOpt('shoulder-press')],'Overhead pressing.','heavy'), _pstep(3,[_mvOpt('lat-pulldown'),_mvOpt('pull-up')],'Lat width.'), _pstep(3,[_mvOpt('incline-bench-press'),_mvOpt('chest-fly')],'Upper-chest hypertrophy.','light'), _pstep(3,[_mvOpt('bicep-curl'),_mvOpt('tricep-extension')],'Arms superset to finish.','light') ] },
+  { id:'seed-diamond-powerbuild-lower', name:'Diamond Gym Powerbuilding — Lower', intensity:5, desc:'Heavy squat and deadlift for raw strength, then targeted leg volume for the size. Powerbuilding’s lower half — brutal and effective.', steps:[
+    _pstep(5,[_mvOpt('squat')],'Heavy back squat — low reps, perfect bracing.','heavy'), _pstep(4,[_mvOpt('deadlift')],'Heavy pulls — leave the ugly grinders alone.','heavy'), _pstep(4,[_mvOpt('leg-press')],'Back-off quad volume.'), _pstep(3,[_mvOpt('leg-curl')],'Hamstring isolation.'), _pstep(3,[_mvOpt('back-extension')],'Bullet-proof the lower back.','light'), _pstep(4,[_mvOpt('calf-raise')],'Calves to finish.','light') ] },
+  { id:'seed-diamond-heavy-duty', name:'Diamond Gym Heavy-Duty Full Body', intensity:5, desc:'The whole body, basics only, taken to the limit — a couple of all-out heavy sets per big lift in the Heavy-Duty spirit: squat, bench, row, press and a single brutal deadlift. Brief, infrequent, savagely hard. Recover, then grow.', steps:[
+    _pstep(2,[_mvOpt('squat')],'One or two all-out heavy sets — to failure with a spotter.','heavy'), _pstep(2,[_mvOpt('flat-bench-press')],'Heavy bench — a hand on standby.','heavy'), _pstep(2,[_mvOpt('row')],'Heavy rows — full effort.','heavy'), _pstep(2,[_mvOpt('shoulder-press')],'Overhead press — one hard set.','heavy'), _pstep(1,[_mvOpt('deadlift')],'One brutal top set — then leave it.','heavy') ] },
 ];
 function cloneSeedPlan(sp) {
   return { id:sp.id, name:sp.name, desc:sp.desc||'', intensity:sp.intensity||3, steps:sp.steps.map(s => ({ id:newUuid(), sets:s.sets, desc:s.desc||'', load:s.load||'moderate', options:s.options.map(o => ({ ...o })) })) };
@@ -13317,15 +13764,17 @@ function startWorkout() {
   const existing = getActiveSession();
   if (existing) { toast('Workout already in progress'); return; }
   const session = newSession({ startedManually: true });
+  if (coachAutoMode() !== 'off') session.coach = pickWorkoutCoachPersona(); // feat 303 — auto-pick this workout's coach
   state.sessions.push(session);
   stampActiveSessionGym(); // feat 259 — record the currently-active gym as this session's location (GPS ping below may refine it)
   modalState.setup = {}; modalState.setupOpen = false; // feat 85 — equipment setup persists *within* a workout; fresh at begin
   saveState();
   render();
+  const coachTag = session.coach ? ' · 🎙️ ' + ((coachPersona(session.coach) || {}).name || '') : ''; // feat 303
   // feat 63 — warn at workout start if bodyweight (and optionally other biometrics) is missing or stale.
   const warns = biometricWarnings();
   if (warns.length) { toast('⚠️ Workout started — ' + warns.join(' · ')); logWarn('Stale/missing biometrics at workout start', warns.join('; ')); }
-  else toast('💪 Workout started');
+  else toast('💪 Workout started' + coachTag);
   logInfo('Workout started');
   // feat 38 — ping location to auto-select the nearest saved gym, if any have coords
   if ((state.gyms || []).some(g => g.lat != null)) pingLocationSelectGym(true);
@@ -14768,6 +15217,31 @@ function _replayRefresh() {
   renderReplayPage(host.parentElement);
 }
 
+// feat 299 — the composite "Today's Readiness" card: one score + status band + the factors behind it,
+// riding above the per-group recovery breakdown. Hidden until trainingReadiness() has enough history.
+function renderReadinessCard() {
+  const tr = trainingReadiness();
+  if (!tr) return '';
+  const f = tr.factors;
+  const chips = [`<span class="rdy-chip">🔄 Recovery ${f.recoveryPct}%</span>`];
+  if (f.plateauCount > 0) chips.push(`<span class="rdy-chip rdy-chip-warn">📉 ${f.plateauCount} lift${f.plateauCount === 1 ? '' : 's'} stalled</span>`);
+  if (f.rpeTrend != null) {
+    const t = f.rpeTrend;
+    chips.push(`<span class="rdy-chip">💪 Effort ${t > 0.25 ? '↑ rising' : (t < -0.25 ? '↓ easing' : '→ steady')}</span>`);
+  }
+  return `<div class="card rdy-card rdy-${tr.status.key}">
+    <div class="rdy-top">
+      <div class="rdy-score">${tr.score}<span class="rdy-score-max">/100</span></div>
+      <div class="rdy-headline">
+        <div class="rdy-title">Today's Readiness</div>
+        <div class="rdy-status">${tr.status.emoji} ${escapeHtml(tr.status.label)}</div>
+      </div>
+    </div>
+    <div class="rdy-factors">${chips.join('')}</div>
+    <div class="rdy-action">${escapeHtml(tr.action)}</div>
+  </div>`;
+}
+
 // feat 262 — the Recovery card: which groups are still recovering vs fresh to train today.
 function renderRecoveryCard() {
   const sessions = state.sessions || [];
@@ -14851,6 +15325,7 @@ function renderVolume(main) {
     <div class="sub-tab ${volLevel==='head'?'active':''}" data-vollevel="head">Heads</div>
   </div>`;
   html += renderVolumeHeatmapCard(); // feat 217 — the anatomy heatmap rides above the bars
+  html += renderReadinessCard();     // feat 299 — composite training-readiness score (sits above the breakdown)
   html += renderRecoveryCard();      // feat 262 — recovery readiness per muscle group
 
   if (!categoryHidden('cardio')) html += renderCardioGoals(volWeekOffset); // feat 7
@@ -18331,7 +18806,7 @@ function renderSetsForm() {
       }</div>` : ''}
       ${(() => { const h = weightRecordHint(pending.varUuid); return h ? `<div class="weight-record-hint">${escapeHtml(h)}</div>` : ''; })()}
       <div class="ex-note-row">${exNoteHtml}</div>
-      <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-ex-trends-btn" type="button">📈 Trends</button></div>
+      <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}" id="trk-ex-media-btn" type="button" data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-ex-trends-btn" type="button">📈 Trends</button><button class="ex-media-btn" id="trk-podcast-btn" type="button" title="Play a 30-60s coach brief on this movement">🎧 Brief</button></div>
       ${renderTrendPeek(pending.varUuid, pending.subUuid)}
       ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
     </div>
@@ -18797,6 +19272,7 @@ function bindSetsForm() {
 
   // Tips section toggle
   document.getElementById('trk-tips-ref-btn')?.addEventListener('click', (e) => { e.stopPropagation(); openReferenceFor(pending.varUuid); });
+  document.getElementById('trk-podcast-btn')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 304
   document.getElementById('trk-tips-header')?.addEventListener('click', () => {
     const sec = document.getElementById('trk-tips-section');
     sec.classList.toggle('open');
@@ -19115,6 +19591,7 @@ function copyWeightToNextSet() {
   updateFAB();
   updateSaveBtn();
   if (typeof refreshRestBar === 'function') refreshRestBar();
+  revealLastSetRow(); // feat 300 — keep the copied-to new row clear of the sticky footer
 }
 
 // feat 142 — long-press Copy: fill the OPEN set's still-empty reps with the previous rep count, so an
@@ -19164,6 +19641,7 @@ function duplicateLastSet() {
   try { safeVibrate(15); } catch (_) {}
   toast('📋 Duplicated ' + src.w + ' × ' + src.r);
   if (typeof refreshRestBar === 'function') refreshRestBar();
+  revealLastSetRow(); // feat 300 — keep the duplicated new row clear of the sticky footer
 }
 
 function addSetRow(mode) {
@@ -19193,6 +19671,31 @@ function addSetRow(mode) {
   renderModal();
   updateSaveBtn();
   if (typeof refreshRestBar === 'function') refreshRestBar();
+  revealLastSetRow(); // feat 300 — lift the just-added row clear of the sticky footer
+}
+
+// feat 300 — after a set is appended, the new (last) row read as "not fully visible". Two scroll layers
+// are in play: the sets list itself is an inner box (#trk-sets-container, max-height:40vh, own overflow),
+// and below it the modal has a position:sticky footer. So we (1) scroll the inner list to its bottom to
+// surface the new row, then (2) if that row still sits behind/below the sticky footer at the modal level,
+// nudge the modal just enough to clear it. Used by every path that appends a set + re-renders the modal.
+function revealLastSetRow() {
+  requestAnimationFrame(() => {
+    const c = document.getElementById('trk-sets-container');
+    if (!c) return;
+    c.scrollTop = c.scrollHeight; // 1) reveal the newest row within the inner 40vh sets list
+    requestAnimationFrame(() => {
+      const modal = document.getElementById('trk-modal');
+      const footer = document.getElementById('trk-modal-footer');
+      const rows = c.querySelectorAll('.set-row');
+      const last = rows[rows.length - 1];
+      if (!modal || !last) return;
+      const lr = last.getBoundingClientRect();
+      const fTop = footer ? footer.getBoundingClientRect().top : window.innerHeight;
+      const overlap = lr.bottom - fTop + 14; // px hidden behind the sticky footer (+ a little breathing room)
+      if (overlap > 0) { try { modal.scrollBy({ top: overlap, behavior: 'smooth' }); } catch (_) { modal.scrollTop += overlap; } }
+    });
+  });
 }
 
 function saveSets(endingWorkout) {
@@ -19319,11 +19822,29 @@ function deleteExercise() {
    ============================================================ */
 loadLog();
 installErrorHandlers();
+/* feat 296 — COACH PERSONAS (declared before loadState so normalizeState can read it). The spoken coach has a
+   PERSONALITY: a voice profile (pitch/rate) + a phrasing flavour over the key cues (set start/end, HIIT
+   work/rest/prep, the hold "go"). 'neutral' = the device's own voice, untouched (ttsVoice 'system'). */
+const COACH_PERSONAS = [
+  { id:'neutral',  name:'Neutral',        emoji:'🎙️', tag:'system voice, untouched', desc:'Clean, calm announcements in your device’s own voice.', pitch:1, rate:1, sys:true, sample:'Neutral coach. Ready when you are.' },
+  { id:'gruff',    name:'Gruff Coach',    emoji:'💪', tag:'deep · tough but fair', desc:'Deep and gruff — the default. Get under the bar.', pitch:0.8, rate:0.95, sample:'Coach voice on. Get under the bar.', vbias:{ male:4, female:-4, gb:1, local:1, default:0.5 } },
+  { id:'hype',     name:'Hype Coach',     emoji:'🔥', tag:'high energy · all gas', desc:'Loud, fast and fired up — every set is a moment.', pitch:1.18, rate:1.12, sample:'Let’s GO! Big energy — leave nothing in the tank!', vbias:{ male:2, female:-1, us:1, local:1, default:1 },
+    flavor:{ setStart:(b)=>"Let’s go! "+b+"!", setEnd:(b)=>b+" — let’s GO!", hiitWork:(b,c)=>"Go go go! "+(c.ex||'work')+"!", hiitRest:()=>"Breathe — you earned it!", hiitPrep:()=>"Here we go!", go:()=>"GO!" } },
+  { id:'zen',      name:'Zen Coach',      emoji:'🧘', tag:'calm · mindful', desc:'Soft and unhurried — steady breath, controlled tempo.', pitch:0.92, rate:0.84, sample:'Settle in. Steady breath, controlled tempo.', vbias:{ female:3, male:-1, gb:1, local:1, default:0.5 },
+    flavor:{ setStart:(b)=>b+". Breathe.", setEnd:(b)=>b+". Nice and easy.", hiitWork:(b,c)=>"Begin. "+(c.ex||''), hiitRest:()=>"Rest. Soften the breath.", hiitPrep:()=>"Settle in.", go:()=>"Begin." } },
+  { id:'sergeant', name:'Drill Sergeant', emoji:'🎖️', tag:'loud · no excuses', desc:'In your face — commands, not suggestions.', pitch:0.78, rate:1.06, sample:'On your feet! No excuses — you move when I say move!', vbias:{ male:5, female:-4, us:1, local:1 },
+    flavor:{ setStart:(b)=>b.toUpperCase()+", MOVE!", setEnd:(b)=>b.toUpperCase()+"!", hiitWork:(b,c)=>(c.ex||'WORK').toUpperCase()+", NOW! GO!", hiitRest:()=>"REST! SHAKE IT OUT!", hiitPrep:()=>"ON YOUR FEET!", go:()=>"GO! GO! GO!" } },
+  { id:'analyst',  name:'The Analyst',    emoji:'🔬', tag:'precise · technical', desc:'Measured and methodical — cues tempo, form and output.', pitch:1, rate:0.98, sample:'Prepare. Control the tempo, own the output.', vbias:{ male:1, gb:1, local:1, default:1 },
+    flavor:{ setStart:(b)=>b+". Control the tempo.", setEnd:(b)=>b+". Log it.", hiitWork:(b,c)=>(c.ex||'work')+". Steady output.", hiitRest:()=>"Rest. Bring the heart rate down.", hiitPrep:()=>"Prepare. Set your position.", go:()=>"Execute." } },
+  { id:'buddy',    name:'Hype Buddy',     emoji:'🤙', tag:'supportive · chill', desc:'Your encouraging gym partner — upbeat and easygoing.', pitch:1.06, rate:1, sample:'Alright, let’s do this — you got this.', vbias:{ male:2, local:1, default:1 },
+    flavor:{ setStart:(b)=>b+" — you got this.", setEnd:(b)=>"Nice! "+b, hiitWork:(b,c)=>"You got this — "+(c.ex||'go')+"!", hiitRest:()=>"Good work, breathe it out.", hiitPrep:()=>"Alright, let’s do this.", go:()=>"Let’s go!" } },
+];
 loadState();
 applyExtraFamilies(); // feat 90 — inject the new neck / jaw / climbing families first
 dedupeFamilies(); // feat 166 — reconcile any remaining same-title duplicate movement families
 reconcileVariationParents(); // feat 167 — cross-list duplicate variations (one primary + secondary parent movements)
 applyExtraVariations();
+applyExtraSecondaryParents(); // feat 301 — additive cross-listings (after extras exist in VAR_INDEX)
 applyCustomVariations();
 installGlossaryHighlight();
 applyI18n(document); // feat 61 — translate tagged static markup (attrs/text) for the active language
@@ -19415,7 +19936,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 235 · 2026-06-19 17:57';
+const APP_BUILD = 'build 262 · 2026-06-21 07:48';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -19635,36 +20156,136 @@ function annunciationCfg() { return { start:false, end:false, startLimit:0, endL
    known-voice heuristics, female names score down) and drop pitch to 0.8. state.ttsVoice: 'auto' (the
    coach pick, default) | 'system' (leave everything alone) | an explicit voiceURI/name override. */
 let _coachVoice = null;
-function pickCoachVoice() {
+// feat 297 — per-persona auto-pick: score device voices against the persona's voice bias (vbias). Each coach
+// has a sensible default kind of voice (gruff/sergeant → deep male, zen → softer, analyst → clear, …).
+function pickCoachVoiceFor(persona) {
   try {
     if (typeof window === 'undefined' || !window.speechSynthesis) return null;
     const vs = window.speechSynthesis.getVoices() || [];
     if (!vs.length) return null;
     const en = vs.filter(v => /^en/i.test(v.lang || ''));
     const pool = en.length ? en : vs;
+    const b = (persona && persona.vbias) || { male: 4, female: -4, gb: 1, local: 1, default: 0.5 };
     const MALE = /\b(male|david|mark|daniel|alex|fred|george|james|guy|ryan|aaron|arthur|reed|rocko)\b/i;
     const FEMALE = /\b(female|zira|susan|hazel|samantha|victoria|karen|moira|tessa|fiona|serena|kate|allison|ava|joanna|salli|kimberly|ivy|aria|jenny|sonia|natasha)\b/i;
-    const score = v => (MALE.test(v.name) ? 4 : 0) + (FEMALE.test(v.name) ? -4 : 0)
-      + (/uk english male|en-gb/i.test(v.name + ' ' + v.lang) ? 1 : 0) + (v.localService ? 1 : 0) + (v.default ? 0.5 : 0);
-    return pool.slice().sort((a, b) => score(b) - score(a))[0] || null;
+    const score = v => {
+      const nm = v.name || '', tag = nm + ' ' + (v.lang || '');
+      return (MALE.test(nm) ? (b.male || 0) : 0) + (FEMALE.test(nm) ? (b.female || 0) : 0)
+        + (/en-gb|uk english/i.test(tag) ? (b.gb || 0) : 0) + (/en-us|us english/i.test(tag) ? (b.us || 0) : 0)
+        + (v.localService ? (b.local || 0) : 0) + (v.default ? (b.default || 0) : 0);
+    };
+    return pool.slice().sort((a, b2) => score(b2) - score(a))[0] || null;
   } catch (_) { return null; }
 }
-function coachVoice() {
-  if (state.ttsVoice === 'system') return null;
-  if (state.ttsVoice && state.ttsVoice !== 'auto') {
-    try { const vs = window.speechSynthesis.getVoices() || []; const m = vs.find(v => v.voiceURI === state.ttsVoice || v.name === state.ttsVoice); if (m) return m; } catch (_) {}
-  }
-  if (!_coachVoice) _coachVoice = pickCoachVoice();
-  return _coachVoice;
+function pickCoachVoice() { return pickCoachVoiceFor(activeCoachPersona()); } // back-compat (default persona bias)
+/* feat 296 — COACH PERSONAS. The spoken coach now has a PERSONALITY: a voice profile (pitch/rate) plus a phrasing
+   flavour over the key cues (set start/end, HIIT work/rest/prep, the hold "go"). 'neutral' = the device's own
+   voice, untouched (ttsVoice 'system'); every other persona has its own pitch/rate + word choices. coachPhrase()
+   runs the active persona's flavour over the neutral base text, falling back to the base. */
+// COACH_PERSONAS is declared near the INIT block (before loadState) so normalizeState can read it without a TDZ.
+function coachPersona(id) { return COACH_PERSONAS.find(p => p.id === id) || null; }
+// feat 303 — auto-pick the coach per workout. 'off' = use the chosen persona; 'vibe' = match the workout's
+// character; 'random' = re-roll every workout. The pick is stored on the active session (survives reload).
+function coachAutoMode() { const m = state.coachAuto; return (m === 'random' || m === 'vibe') ? m : 'off'; }
+// Classify the active plan into a persona that fits its vibe. Keyword + intensity heuristic; defaults to gruff.
+function workoutVibePersona() {
+  let plan = null; try { plan = getActivePlan(); } catch (_) {}
+  const h = (((plan && plan.name) || '') + ' ' + ((plan && plan.desc) || '')).toLowerCase();
+  const intensity = plan && typeof plan.intensity === 'number' ? plan.intensity : null;
+  if (/hiit|tabata|metcon|conditioning|sprint|circuit|cardio|amrap|emom|engine|wod/.test(h)) return 'hype';
+  if (/mobility|recovery|stretch|yoga|zen|breath|prehab|rehab|calm|restorative|deload|gentle|flow/.test(h)) return 'zen';
+  if (/power|strength|\b5\s*[x×]\s*5\b|heavy|1rm|\bmax\b|powerlift|peak|brute|monster|beast/.test(h) || intensity === 5) return 'sergeant';
+  if (/hypertrophy|volume|pump|sculpt|bodybuild|aesthetic|tempo/.test(h)) return 'analyst';
+  if (intensity != null && intensity <= 2) return 'buddy';
+  return 'gruff';
 }
-// Apply the gruff-coach profile to an utterance ('system' mode leaves it untouched).
+// The persona id to use for a workout under the current auto mode (caller stores it on the session).
+function pickWorkoutCoachPersona() {
+  const mode = coachAutoMode();
+  if (mode === 'vibe') return workoutVibePersona();
+  if (mode === 'random') { const pool = COACH_PERSONAS.filter(p => !p.sys); return pool[Math.floor(Math.random() * pool.length)].id; }
+  return state.coachPersona || 'gruff';
+}
+// The coach that should actually speak right now: the active workout's auto-pick when auto is on, else the
+// chosen persona. Everything (coachify/coachPhrase/coachVoice) routes through activeCoachPersona → here.
+function effectiveCoachPersonaId() {
+  if (coachAutoMode() !== 'off') {
+    let s = null; try { s = getActiveSession(); } catch (_) {}
+    if (s && s.coach && coachPersona(s.coach)) return s.coach;
+  }
+  return state.coachPersona || 'gruff';
+}
+// Switch auto mode; if a workout is already running, re-pick its coach immediately so the change is audible now.
+function setCoachAuto(mode) {
+  state.coachAuto = (mode === 'random' || mode === 'vibe') ? mode : 'off';
+  try { const s = getActiveSession(); if (s) s.coach = (state.coachAuto === 'off') ? undefined : pickWorkoutCoachPersona(); } catch (_) {}
+  _coachVoice = null;
+  saveState();
+  try { renderSettingsDrawer(); } catch (_) {}
+  try {
+    if (state.coachAuto === 'off') { toast('Auto-coach off'); return; }
+    const ap = activeCoachPersona();
+    toast('Auto-coach: ' + (state.coachAuto === 'vibe' ? 'match workout vibe' : 'random each workout'));
+    if (typeof annunce === 'function') annunce(ap.sample || ap.name);
+  } catch (_) {}
+}
+function activeCoachPersona() {
+  const id = effectiveCoachPersonaId(); // feat 303 — honours the per-workout auto-pick
+  if (id) { const p = coachPersona(id); if (p) return p; }
+  return coachPersona(state.ttsVoice === 'system' ? 'neutral' : 'gruff') || COACH_PERSONAS[1]; // back-compat fallback
+}
+// Flavour a neutral cue string through the active persona. kind ∈ setStart|setEnd|hiitWork|hiitRest|hiitPrep|go.
+function coachPhrase(kind, base, ctx) {
+  const p = activeCoachPersona();
+  const f = p && p.flavor && p.flavor[kind];
+  if (typeof f === 'function') { try { return f(base, ctx || {}) || base; } catch (_) { return base; } }
+  return (typeof f === 'string') ? f : base;
+}
+// feat 296 — switch persona: store it, keep the legacy ttsVoice toggle in sync (neutral → untouched system voice,
+// otherwise the coach pick), drop the cached voice, then preview the new persona with its sample line.
+function selectCoachPersona(id) {
+  const p = coachPersona(id); if (!p) return;
+  state.coachPersona = id;
+  state.ttsVoice = p.sys ? 'system' : 'auto';
+  _coachVoice = null;
+  saveState();
+  try { renderSettingsDrawer(); } catch (_) {}
+  try { if (typeof annunce === 'function') annunce(p.sample || p.name); } catch (_) {}
+  try { toast('Coach: ' + p.name); } catch (_) {}
+}
+// feat 297 — the chosen TTS voice for a persona: state.coachVoices[personaId] ∈ 'auto' (best-fit pick) |
+// 'system' (device default, null) | a voiceURI/name. Falls back to the auto-pick if a saved voice is absent here.
+function coachVoiceChoice(personaId) { return (state.coachVoices && state.coachVoices[personaId]) || (coachPersona(personaId) && coachPersona(personaId).sys ? 'system' : 'auto'); }
+function coachVoiceFor(persona) {
+  persona = persona || activeCoachPersona();
+  const choice = coachVoiceChoice(persona.id);
+  if (choice === 'system') return null;
+  if (choice !== 'auto') {
+    try { const vs = window.speechSynthesis.getVoices() || []; const m = vs.find(v => v.voiceURI === choice || v.name === choice); if (m) return m; } catch (_) {} // saved voice; fall through if missing on this device
+  }
+  return pickCoachVoiceFor(persona);
+}
+function coachVoice() { return coachVoiceFor(activeCoachPersona()); }
+// Set a persona's voice (per coach), persist, then preview it with the persona's sample line.
+function setCoachVoice(personaId, value) {
+  const p = coachPersona(personaId); if (!p) return;
+  if (!state.coachVoices || typeof state.coachVoices !== 'object') state.coachVoices = {};
+  state.coachVoices[personaId] = value;
+  _coachVoice = null; saveState();
+  try { renderSettingsDrawer(); } catch (_) {}
+  if (personaId === state.coachPersona) { try { if (typeof annunce === 'function') annunce(p.sample || p.name); } catch (_) {} }
+}
+// Apply the active persona's voice profile to an utterance. 'system' (neutral) leaves it untouched (feat 210);
+// otherwise the persona sets pitch + rate and the coach voice pick is applied (feat 296).
 function coachify(u) {
-  if (state.ttsVoice === 'system') return u;
+  const p = activeCoachPersona();
+  if (p.sys) return u; // feat 303 — gate on the EFFECTIVE persona (neutral = device voice, untouched), not legacy ttsVoice
+  u.pitch = (p.pitch != null) ? p.pitch : 0.8;
+  u.rate = (p.rate != null) ? p.rate : (u.rate || 0.95);
   try { const v = coachVoice(); if (v) u.voice = v; } catch (_) {}
-  u.pitch = 0.8; // deeper
   return u;
 }
-try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.onvoiceschanged = () => { _coachVoice = null; }; } catch (_) {} // voices arrive async — refresh the pick
+try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.onvoiceschanged = () => { _coachVoice = null; try { if (document.getElementById('coach-voice-select') || document.querySelector('[data-coach-persona]')) renderSettingsDrawer(); } catch (_) {} }; } catch (_) {} // voices arrive async — refresh the pick + the per-coach voice list
 
 let _annDuckActive = false, _annDuckTimer = null;
 function duckedVol() { return sndVol() * (_annDuckActive ? 0.3 : 1); }
@@ -19726,7 +20347,7 @@ function annunceSetStart() {
   if (!c.start) return;
   const pos = setPositionInfo();
   if (!annunceWithinLimit(pos, c.startLimit)) return; // feat 208
-  annunce(setStartPhrase(pos));
+  annunce(coachPhrase('setStart', setStartPhrase(pos), { pos })); // feat 296 — persona flavour
 }
 // feat 207 — set-END cues, spoken when a set completes (reps land): "One down — 3 to go",
 // "2 of 4 down", "Half done", "One more, then Squat", "All done — time for Squat".
@@ -19761,7 +20382,7 @@ function annunceSetEnd() {
   if (!pos.x) return;
   if (!annunceWithinLimit(pos, c.endLimit)) return; // feat 208
   const next = (pos.y && pos.x >= pos.y - 1) ? nextStepLabelAfterCurrent() : null;
-  annunce(setEndPhrase(pos, next));
+  annunce(coachPhrase('setEnd', setEndPhrase(pos, next), { pos })); // feat 296 — persona flavour
 }
 
 /* ---- Workout metronome (feat 69) — customizable audio + haptic; on/off is per-workout (runtime only). ---- */
@@ -19926,7 +20547,7 @@ function startHoldCue(i) {
     if (!alive()) return;
     const s = pending.sets[i];
     if (!s || s.w === '' || s.w == null) { cancelHoldCue(); return; } // weight cleared before "Go" → abort
-    say('Go');
+    say(coachPhrase('go', 'Go')); // feat 296 — persona-flavoured "go"
     s.wTs = new Date().toISOString();                   // feat 291 — set timer starts on "Go", not on weight entry
     s.ts = undefined;
     try { savePending(); } catch (_) {}
@@ -19941,6 +20562,157 @@ function startHoldCue(i) {
       say(String(n));
     }, cfg.every * 1000);
   }, 1800);
+}
+/* ============================================================
+   feat 295 — HIIT BLOCKS. Coach-driven interval workouts: a fixed series of TIMED work + rest steps the engine
+   auto-runs while the voice urges you through it (work / rest / countdown). Time-based conditioning only. You can
+   pause any time — the pause is recorded. On finish the block logs to the session (per-exercise time sets + a
+   `hiitBlocks` summary with the pause accounting). Presets cover Tabata / HIIT / sprint / AMRAP shapes.
+   ============================================================ */
+const HIIT_BLOCKS = [
+  { id:'tabata-classic', name:'Tabata Classic', emoji:'🔥', tag:'4 min · 20s on / 10s off × 8', blurb:'The original Tabata protocol — twenty seconds all-out, ten seconds rest, eight rounds. Pick one hard movement and empty the tank.', prep:10, work:20, rest:10, rounds:8, exercises:['7483a88e-9369-4751-a0d2-97727a6c6c97'] },
+  { id:'tabata-mixed', name:'Tabata Mixed', emoji:'♻️', tag:'4 min · alternating × 8', blurb:'Tabata with two alternating movements — burpees and mountain climbers, twenty on / ten off. No two rounds the same.', prep:10, work:20, rest:10, rounds:8, exercises:['7483a88e-9369-4751-a0d2-97727a6c6c97','5b23b98b-5b11-482f-bd98-fffb2f435d44'] },
+  { id:'battle-rope-intervals', name:'Battle Rope Intervals', emoji:'🌊', tag:'10 rounds · 30s on / 30s off', blurb:'Alternating battle-rope patterns — waves, then double slams — thirty seconds hard, thirty to recover, ten rounds. Grip and lungs both get tested.', prep:10, work:30, rest:30, rounds:10, exercises:['77e61934-ec74-4d43-8a5b-143fdf9be6a6'] },
+  { id:'bodyweight-hiit', name:'Bodyweight HIIT 30/30', emoji:'⚡', tag:'9 rounds · 30s on / 30s off', blurb:'No equipment, no excuses — burpees, mountain climbers and jump rope on a thirty/thirty clock, three times through. A full conditioning hit anywhere.', prep:10, work:30, rest:30, rounds:9, exercises:['7483a88e-9369-4751-a0d2-97727a6c6c97','5b23b98b-5b11-482f-bd98-fffb2f435d44','c4ba4621-e379-40a0-871f-f7f672e4273b'] },
+  { id:'sprint-intervals', name:'Sprint Intervals', emoji:'🏃', tag:'6 × 30s sprint / 90s easy', blurb:'Classic sprint conditioning — thirty seconds near-max, ninety seconds easy to recover, six rounds. Treadmill, track or bike. Honest efforts only.', prep:15, work:30, rest:90, rounds:6, exercises:['e0216af0-a278-4299-ad45-817ff88e88a1'] },
+  { id:'amrap-six', name:'AMRAP 6:00 Burner', emoji:'💥', tag:'6 min · as many as possible', blurb:'One clock, six minutes, no rest — as many quality reps as you can hold. Pace it: go out too hot and you will pay. Burpees the whole way.', prep:10, work:360, rest:0, rounds:1, exercises:['7483a88e-9369-4751-a0d2-97727a6c6c97'] },
+];
+function hiitBlock(id) { return HIIT_BLOCKS.find(b => b.id === id) || null; }
+// Expand a block's rounds into a flat step list: [prep?, (work, rest) × rounds] (no rest after the last round).
+function hiitFlatten(block) {
+  const steps = [];
+  if (block.prep > 0) steps.push({ kind:'prep', sec: block.prep, label:'Get ready' });
+  const exs = block.exercises || [];
+  for (let r = 0; r < block.rounds; r++) {
+    const uuid = exs.length ? exs[r % exs.length] : null;
+    steps.push({ kind:'work', sec: block.work, label: uuid ? displayName(uuid) : 'Work', varUuid: uuid || null, round: r + 1 });
+    if (block.rest > 0 && r < block.rounds - 1) steps.push({ kind:'rest', sec: block.rest, label:'Rest', round: r + 1 });
+  }
+  return steps;
+}
+let _hiit = null;
+function hiitActive() { return !!_hiit; }
+function hiitState() { return _hiit; }
+function startHiitBlock(id) {
+  if (typeof roBlocked === 'function' && roBlocked('start a HIIT block')) return;
+  const block = (id && typeof id === 'object') ? id : hiitBlock(id);
+  if (!block) return;
+  if (_hiit) hiitFinish(false);                 // replace any running block
+  if (typeof cancelHoldCue === 'function') cancelHoldCue();
+  const steps = hiitFlatten(block);
+  if (!steps.length) return;
+  _hiit = { block, steps, idx: 0, remMs: steps[0].sec * 1000, lastMs: Date.now(), paused: false, pauseStartMs: 0, pausedMs: 0, pauseCount: 0, log: [], done: false, iv: null };
+  _hiit.iv = setInterval(hiitTick, 200);
+  hiitCueStep(steps[0]);
+  renderHiitRunner();
+}
+function hiitCueStep(step) {
+  if (!step) return;
+  const ex = step.label || '';
+  const base = step.kind === 'prep' ? 'Get ready' : step.kind === 'rest' ? 'Rest' : ('Work — ' + ex);
+  const kind = step.kind === 'work' ? 'hiitWork' : step.kind === 'rest' ? 'hiitRest' : 'hiitPrep';
+  try { if (typeof annunce === 'function') annunce(coachPhrase(kind, base, { ex })); } catch (_) {} // feat 296 — persona flavour
+  try { if (typeof metroBeep === 'function') metroBeep(step.kind === 'work' ? 988 : 660, 0.4); } catch (_) {}
+}
+function hiitTick() {
+  const h = _hiit; if (!h || h.paused || h.done) return;
+  const now = Date.now(), dt = now - h.lastMs; h.lastMs = now;
+  const prevSec = Math.ceil(h.remMs / 1000);
+  h.remMs -= dt;
+  const curSec = Math.ceil(h.remMs / 1000);
+  if (curSec !== prevSec && curSec > 0 && curSec <= 3) { try { if (typeof metroBeep === 'function') metroBeep(784, 0.35); } catch (_) {} } // last-3s countdown
+  if (h.remMs <= 0) { _hiitAdvance(false); return; }
+  renderHiitRunner();
+}
+function _hiitAdvance(skipped) {
+  const h = _hiit; if (!h) return;
+  const step = h.steps[h.idx];
+  if (step && step.kind === 'work') {
+    const doneSec = skipped ? Math.max(1, Math.round((step.sec * 1000 - Math.max(0, h.remMs)) / 1000)) : step.sec;
+    h.log.push({ varUuid: step.varUuid, sec: doneSec, round: step.round });
+  }
+  h.idx++;
+  if (h.idx >= h.steps.length) { hiitFinish(true); return; }
+  h.remMs = h.steps[h.idx].sec * 1000; h.lastMs = Date.now();
+  hiitCueStep(h.steps[h.idx]);
+  renderHiitRunner();
+}
+function hiitSkip() { if (_hiit && !_hiit.done) _hiitAdvance(true); }
+function hiitPause() { const h = _hiit; if (!h || h.paused || h.done) return; h.paused = true; h.pauseStartMs = Date.now(); h.pauseCount++; renderHiitRunner(); }
+function hiitResume() { const h = _hiit; if (!h || !h.paused) return; h.pausedMs += Date.now() - h.pauseStartMs; h.paused = false; h.lastMs = Date.now(); renderHiitRunner(); }
+function hiitToggle() { const h = _hiit; if (!h) return; h.paused ? hiitResume() : hiitPause(); }
+function hiitStop() { if (_hiit) hiitFinish(false); }
+function hiitFinish(completed) {
+  const h = _hiit; if (!h) return null;
+  try { clearInterval(h.iv); } catch (_) {}
+  if (h.paused) { h.pausedMs += Date.now() - h.pauseStartMs; h.paused = false; }
+  h.done = true;
+  const session = hiitFinalize(h, completed);
+  _hiit = null;
+  renderHiitRunner();
+  try { if (typeof render === 'function') render(); } catch (_) {}
+  try { toast(completed ? '🔥 HIIT block complete' : 'HIIT block stopped'); } catch (_) {}
+  return session;
+}
+// Record a finished/stopped block onto the session: per-exercise TIME sets (seconds) + a rich hiitBlocks summary
+// (rounds done, recorded pause time). Uses the active session if any, else starts one.
+function hiitFinalize(h, completed) {
+  if (!h || !h.log.length) return null;
+  let session = (typeof getActiveSession === 'function') ? getActiveSession() : null;
+  if (!session) { session = newSession({ startedManually: true }); state.sessions.push(session); }
+  const byVar = {}; h.log.forEach(e => { if (e.varUuid) (byVar[e.varUuid] = byVar[e.varUuid] || []).push(e.sec); });
+  const nowIso = new Date().toISOString();
+  for (const uuid in byVar) {
+    let ex = (session.exercises || []).find(e => e.varUuid === uuid && !e.subUuid);
+    if (!ex) { ex = { varUuid: uuid, subUuid: null, sets: [] }; session.exercises.push(ex); }
+    byVar[uuid].forEach(sec => ex.sets.push({ w: '', r: sec, ts: nowIso, hiit: true }));
+  }
+  session.hiitBlocks = session.hiitBlocks || [];
+  session.hiitBlocks.push({ name: h.block.name, work: h.block.work, rest: h.block.rest, rounds: h.log.length, pausedSec: Math.round(h.pausedMs / 1000), pauses: h.pauseCount, completed: !!completed, at: nowIso });
+  if (typeof touchSession === 'function') touchSession(session);
+  saveState();
+  return session;
+}
+// The full-screen runner overlay (big timer + work/rest colour + controls). Driven live by hiitTick.
+function renderHiitRunner() {
+  const el = document.getElementById('hiit-runner'); if (!el) return;
+  const h = _hiit;
+  if (!h || h.done) { el.classList.remove('open'); el.innerHTML = ''; return; }
+  const step = h.steps[h.idx] || {};
+  const sec = Math.max(0, Math.ceil(h.remMs / 1000));
+  const next = h.steps[h.idx + 1];
+  const workRounds = h.steps.filter(s => s.kind === 'work').length;
+  const kindCls = step.kind === 'work' ? 'work' : (step.kind === 'rest' ? 'rest' : 'prep');
+  el.className = 'open ' + kindCls + (h.paused ? ' paused' : '');
+  el.innerHTML = `
+    <div class="hiit-top"><span class="hiit-name">${escapeHtml(h.block.name)}</span><button class="hiit-x" data-hiit="stop" title="Stop">✕</button></div>
+    <div class="hiit-stage">
+      <div class="hiit-kind">${step.kind === 'work' ? 'WORK' : step.kind === 'rest' ? 'REST' : 'GET READY'}</div>
+      <div class="hiit-timer">${formatSecondsClock(sec)}</div>
+      <div class="hiit-ex">${escapeHtml(step.label || '')}</div>
+      <div class="hiit-round">${step.kind === 'work' ? `Round ${step.round || 0} / ${workRounds}` : (next ? 'Next: ' + escapeHtml(next.label || '') : 'Last one!')}</div>
+      ${h.paused ? '<div class="hiit-paused-badge">⏸ Paused — recorded</div>' : ''}
+    </div>
+    <div class="hiit-controls">
+      <button class="hiit-btn" data-hiit="skip">⏭ Skip</button>
+      <button class="hiit-btn primary" data-hiit="toggle">${h.paused ? '▶ Resume' : '⏸ Pause'}</button>
+      <button class="hiit-btn danger" data-hiit="stop">⏹ Stop</button>
+    </div>
+    ${h.pauseCount ? `<div class="hiit-foot">⏸ ${h.pauseCount} pause${h.pauseCount === 1 ? '' : 's'} · ${Math.round(h.pausedMs / 1000)}s recorded</div>` : ''}`;
+  el.querySelectorAll('[data-hiit]').forEach(b => b.addEventListener('click', () => { const a = b.dataset.hiit; if (a === 'skip') hiitSkip(); else if (a === 'toggle') hiitToggle(); else if (a === 'stop') hiitStop(); }));
+}
+// feat 295 — the HIIT Blocks launcher page (Execute › HIIT Blocks).
+function renderHiitPage(main) {
+  if (!main) return;
+  const cards = HIIT_BLOCKS.map(b => `
+    <div class="card hiit-card">
+      <div class="hiit-card-head"><span class="hiit-card-emoji">${b.emoji}</span><div><div class="hiit-card-name">${escapeHtml(b.name)}</div><div class="hiit-card-tag">${escapeHtml(b.tag)}</div></div></div>
+      <div class="hiit-card-blurb">${escapeHtml(b.blurb)}</div>
+      <button class="hiit-start" data-hiit-start="${escapeAttr(b.id)}">▶ Start block</button>
+    </div>`).join('');
+  main.innerHTML = `<div class="card"><div class="card-title">⏱️ HIIT Blocks</div>
+    <div class="summary-intro">Coach-driven interval workouts — a fixed series of timed work and rest. The voice calls every round; you just move. <b>Pause any time — it's recorded.</b> Time-based conditioning only.</div></div>${cards}`;
+  main.querySelectorAll('[data-hiit-start]').forEach(b => b.addEventListener('click', () => startHiitBlock(b.dataset.hiitStart)));
 }
 function changeMetroBpm(delta) {
   const next = Math.max(20, Math.min(300, (metroCfg().bpm || 60) + delta));
@@ -27496,7 +28268,8 @@ function _podPlay(i) {
   const myGen = _glossPod.gen, seg = _glossPod.segs[i];
   const u = new SpeechSynthesisUtterance(seg.text);
   u.rate = 0.98; u.lang = 'en-US'; u.volume = (typeof sndVol === 'function') ? sndVol() : 1;
-  if (typeof coachify === 'function') coachify(u);
+  if (_glossPod.persona && typeof coachifyAs === 'function') coachifyAs(u, _glossPod.persona); // feat 304 — variation brief in the movement's coach voice
+  else if (typeof coachify === 'function') coachify(u);
   u.onend = () => { // a skip/stop/new-play bumps gen, so a superseded utterance's end is ignored
     if (!_glossPod || myGen !== _glossPod.gen) return;
     if (seg.readKey) markStudyRead(seg.readKey, 'listen'); // earned by hearing the whole entry
@@ -27514,11 +28287,12 @@ function _podTogglePause() {
 }
 function _podStop() {
   if (!_glossPod) return;
+  const wasVar = _glossPod.kind === 'variation'; // feat 304 — a variation brief must not touch the study resume point
   const seg = _glossPod.segs[_glossPod.idx]; // feat 275 — remember the in-progress entry to resume from
-  if (state.studyPod) { state.studyPod.resumeKey = (seg && seg.readKey) || null; saveState(); }
+  if (!wasVar && state.studyPod) { state.studyPod.resumeKey = (seg && seg.readKey) || null; saveState(); }
   _glossPod.gen++; _podStopResumeHack(); try { window.speechSynthesis.cancel(); } catch (_) {} _glossPod = null; renderPodBar(); _refreshStudyUI();
 }
-function _podFinish() { _podStopResumeHack(); _glossPod = null; if (state.studyPod) { state.studyPod.resumeKey = null; saveState(); } renderPodBar(); _refreshStudyUI(); toast('🎧 Caught up — unread pile cleared'); }
+function _podFinish() { const wasVar = _glossPod && _glossPod.kind === 'variation'; _podStopResumeHack(); _glossPod = null; if (!wasVar && state.studyPod) { state.studyPod.resumeKey = null; saveState(); } renderPodBar(); _refreshStudyUI(); toast(wasVar ? '🎧 Brief complete' : '🎧 Caught up — unread pile cleared'); }
 function _podStartResumeHack() { _podStopResumeHack(); _podResumeTimer = setInterval(() => { try { if (_glossPod && !_glossPod.paused && window.speechSynthesis.speaking) window.speechSynthesis.resume(); } catch (_) {} }, 9000); }
 function _podStopResumeHack() { if (_podResumeTimer) { clearInterval(_podResumeTimer); _podResumeTimer = null; } }
 function renderPodBar() {
@@ -27527,8 +28301,9 @@ function renderPodBar() {
   if (!bar) { bar = document.createElement('div'); bar.id = 'gloss-pod-bar'; document.body.appendChild(bar); }
   const seg = _glossPod.segs[_glossPod.idx] || {}, prog = _podEntryProgress();
   const nowLabel = seg.kind === 'entry' ? escapeHtml(seg.label || '') : (seg.kind === 'intro' ? 'Intro' : 'Wrapping up');
+  const subMode = _glossPod.kind === 'variation' ? escapeHtml('🎙️ ' + (_glossPod.title || 'coach brief')) : ((_glossPod.order || 'logical') === 'random' ? 'shuffled' : 'in order'); // feat 304
   bar.innerHTML = `<div class="pod-bar-inner">
-    <div class="pod-now"><span class="pod-eq ${_glossPod.paused ? '' : 'on'}">🎧</span><div class="pod-now-txt"><div class="pod-now-term">${nowLabel}</div><div class="pod-now-sub">${prog.n} / ${prog.total} · ${(_glossPod.order || 'logical') === 'random' ? 'shuffled' : 'in order'}${_glossPod.paused ? ' · paused' : ''}</div></div></div>
+    <div class="pod-now"><span class="pod-eq ${_glossPod.paused ? '' : 'on'}">🎧</span><div class="pod-now-txt"><div class="pod-now-term">${nowLabel}</div><div class="pod-now-sub">${prog.n} / ${prog.total} · ${subMode}${_glossPod.paused ? ' · paused' : ''}</div></div></div>
     <div class="pod-ctrls">
       <button class="pod-btn" id="pod-pause" title="${_glossPod.paused ? 'Resume' : 'Pause'}">${_glossPod.paused ? '▶' : '⏸'}</button>
       <button class="pod-btn" id="pod-skip" title="Skip — don't mark read">⏭</button>
@@ -27538,6 +28313,96 @@ function renderPodBar() {
   bar.querySelector('#pod-pause').onclick = _podTogglePause;
   bar.querySelector('#pod-skip').onclick = _podSkip;
   bar.querySelector('#pod-stop').onclick = _podStop;
+}
+
+// feat 304 — per-variation "podcast bite": a 30-60s spoken brief on THIS specific variation (its lore/family,
+// setup, technique and what makes it unique), delivered in the voice of the coach that best fits the movement.
+// Reuses the feat-274/275 podcast player (pause/skip/stop bar) with its own segments + a per-podcast persona.
+
+// Apply a SPECIFIC persona's voice profile to an utterance (vs coachify, which uses the active persona).
+function coachifyAs(u, personaId) {
+  const p = coachPersona(personaId); if (!p || p.sys) return u;
+  u.pitch = (p.pitch != null) ? p.pitch : 0.8;
+  u.rate = (p.rate != null) ? p.rate : (u.rate || 0.95);
+  try { const v = coachVoiceFor(p); if (v) u.voice = v; } catch (_) {}
+  return u;
+}
+// Lazy uuid → reference-block variation docs index. The `exercises` array carries the rich per-variation
+// setup/movement/mistakes/programming that the compact FAMILIES dataset (cue/tip/best) doesn't.
+let _EX_VAR_INDEX = null;
+function exVarDocs(uuid) {
+  if (!_EX_VAR_INDEX) {
+    _EX_VAR_INDEX = new Map();
+    try { (typeof exercises !== 'undefined' ? exercises : []).forEach(ex => (ex.variations || []).forEach(v => { if (v && v.uuid) _EX_VAR_INDEX.set(v.uuid, v); })); } catch (_) {}
+  }
+  return _EX_VAR_INDEX.get(uuid) || null;
+}
+// Pick the coach that best fits a movement: conditioning→Hype, mobility/recovery/core→Zen, heavy barbell
+// compound→Drill Sergeant, machine/cable isolation→Analyst, bodyweight skill→Hype Buddy, else Gruff.
+function variationCoachPersona(varUuid) {
+  const info = VAR_INDEX.get(varUuid); if (!info) return state.coachPersona || 'gruff';
+  const f = info.family, v = info.variation;
+  const mega = (f.mega || '').toLowerCase();
+  const equip = (f.equip || []).join(' ').toLowerCase();
+  const title = ((v.title || '') + ' ' + (f.title || '')).toLowerCase();
+  if (mega === 'conditioning' || mega === 'cardio' || /sprint|hiit|burpee|jump|plyo|battle rope|metcon|ballistic|swing/.test(title)) return 'hype';
+  if (mega === 'mobility' || mega === 'recovery' || mega === 'core' || /stretch|mobility|yoga|breath|foam roll|corrective|prehab|cat-cow|plank|\bhold\b|carry/.test(title)) return 'zen';
+  if (/barbell/.test(equip) && /squat|deadlift|bench|overhead press|\bpress\b|\brow\b|clean|snatch|jerk|lunge/.test(title)) return 'sergeant';
+  if (/machine|cable|smith/.test(equip) || /machine|cable|pec.?deck|pushdown|extension|\bcurl\b|\bfly\b|raise|pull-?down|kickback/.test(title)) return 'analyst';
+  if (/bodyweight/.test(equip) && /pull-?up|chin-?up|\bdip\b|push-?up|pistol|muscle-?up|l-sit|lever/.test(title)) return 'buddy';
+  return 'gruff';
+}
+// Per-persona framing so the brief's wording matches the chosen voice's character.
+const _PERSONA_POD = {
+  gruff:    { in: 'Listen up. Quick brief on the ', out: 'Now go put in the work.' },
+  hype:     { in: "Oh, you're gonna love this one — the ", out: "Let's GO — leave nothing in the tank!" },
+  zen:      { in: 'Settle in. A calm word on the ', out: 'Move with intention. Breathe.' },
+  sergeant: { in: 'Eyes front! The ', out: 'No excuses. Execute.' },
+  analyst:  { in: "Let's break down the ", out: 'Precision over ego. Log it and move on.' },
+  buddy:    { in: 'Alright, real quick on the ', out: "You got this — go get it!" },
+  neutral:  { in: 'A brief on the ', out: '' },
+};
+// Build the brief → { persona, title, segs:[{kind:'entry',label,text}] }. ~70-110 spoken words ≈ 30-60s.
+function variationPodcast(varUuid) {
+  const info = VAR_INDEX.get(varUuid); if (!info) return null;
+  const v = info.variation, f = info.family;
+  const dv = exVarDocs(varUuid); // rich reference docs (may be null for some variations)
+  const title = v.title || (dv && dv.title) || f.title;
+  const persona = variationCoachPersona(varUuid);
+  const flav = _PERSONA_POD[persona] || _PERSONA_POD.gruff;
+  const clean = s => (typeof _speechClean === 'function' ? _speechClean(String(s || '')) : String(s || '').replace(/<[^>]+>/g, '').trim());
+  const list = a => (Array.isArray(a) ? a : []).map(clean).filter(Boolean);
+  const setup = list(dv && dv.setup);
+  const movement = list((dv && dv.movement) || (f.general && f.general.movement));
+  const mistakes = list((dv && dv.mistakes) || (f.general && f.general.mistakes));
+  const cue = clean(v.cue || (dv && dv.cue) || f.quickCue || '');
+  const tip = clean(v.tip || (dv && dv.tip) || '');
+  const best = clean(v.best || (dv && dv.best) || '');
+  const segs = [];
+  let intro = `${flav.in}${title}. It's a ${clean(f.title)} movement`;
+  if (best) intro += `, and it earns its place for ${best.toLowerCase()}`;
+  intro += '. ';
+  if (cue) intro += cue + ' ';
+  segs.push({ kind: 'entry', label: title, text: intro.replace(/\s+/g, ' ').trim() });
+  if (setup.length) segs.push({ kind: 'entry', label: 'Setup', text: ('Setting up. ' + setup.join('. ') + '.').replace(/\s+/g, ' ').trim() });
+  if (movement.length) segs.push({ kind: 'entry', label: 'Technique', text: ('The movement. ' + movement.join('. ') + '.').replace(/\s+/g, ' ').trim() });
+  let why = '';
+  if (tip) why += tip + ' ';
+  if (mistakes.length) why += 'One thing to avoid: ' + mistakes[0] + '. ';
+  if (flav.out) why += flav.out;
+  if (why.trim()) segs.push({ kind: 'entry', label: 'Why it works', text: why.replace(/\s+/g, ' ').trim() });
+  return { persona, title, segs };
+}
+// Start the brief through the shared player (with the movement's coach). Stops any pod already running first.
+function startVariationPodcast(varUuid) {
+  if (!_podSupported()) { toast('Speech is not available in this browser'); return; }
+  if (typeof sndAudioOn === 'function' && !sndAudioOn()) { toast('🔇 Unmute audio to listen'); return; }
+  const built = variationPodcast(varUuid);
+  if (!built || !built.segs.length) { toast('No brief available for that movement'); return; }
+  if (_glossPod) _podStop();
+  _glossPod = { segs: built.segs, idx: 0, gen: 0, paused: false, order: 'logical', kind: 'variation', persona: built.persona, title: built.title };
+  _podStartResumeHack();
+  _podPlay(0);
 }
 
 function renderGlossCats() {

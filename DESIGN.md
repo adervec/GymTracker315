@@ -1228,6 +1228,149 @@ They share variation **UUIDs**.
   behind `FOCUS_MIN_SETS`(30)/`FOCUS_MIN_SESSIONS`(5) with a progress bar until there's enough data; a single-focus
   athlete (e.g. a pure powerlifter, all low-rep strength) still qualifies. `test/archetype.spec.mjs` (classification by
   mode/rep-range, the data gate, cosine archetype matching for strength/endurance/flex/balanced profiles, page render).
+- **Full-body "monster" plans (feat 293):** six big, demanding, train-it-all-in-one-sitting seed plans (SEED_PLANS
+  tranche 13) — **The Full-Body Behemoth, Total-Body Annihilation, The Iron Decathlon, Strongman's Full-Body Gauntlet,
+  Hybrid Beast (Full Body)** and **The Two-Hour Full-Body Crucible** — each ≥8 steps and ≥30 sets, opening with heavy
+  compounds then sweeping every pattern (squat · hinge · push · pull · carry · core, plus strongman/Olympic/plyo
+  flavours on the hybrid ones). They self-seed via the additive `seededPlanIds` ledger. Four classify as **Full Body**;
+  the strongman & hybrid ones legitimately read as **Mixed** (they blend strength + conditioning + odd implements).
+  `test/fullbodyplans.spec.mjs` (seed, every step satisfiable, monster size, category, unique ids/names catalogue-wide).
+- **Purge all non-embeddable media (feat 294):** the Media Wizard toolbar gains a **🗑 Purge link-only (N)** button
+  (shown only when `N > 0`) that, after a confirm, removes every **non-embeddable** clip across all exercises — pure
+  external links with no inline preview (no `embedUrl` and not an image). `purgeNonEmbeddableMedia` filters each
+  `state.exerciseMedia[key]` to `mediaPlayable(m)` (so embeddable videos **and** images are always kept) and drops any
+  emptied key; `countNonEmbeddableMedia` powers the button label. Read-only-guarded, save-on-change.
+  `test/mediapurge.spec.mjs` (purge keeps embeds/images, removes link-only, drops emptied keys; toolbar button appears
+  only with link-only media, carrying the count).
+- **HIIT Blocks — coach-driven interval timer (feat 295):** a new **Execute › HIIT Blocks** page (⏱️) of preset,
+  coach-driven interval workouts — a fixed series of **timed work + rest** the engine auto-runs while the voice urges
+  you through it. `hiitFlatten` expands a block (`{prep, work, rest, rounds, exercises[]}`) into a flat step list —
+  `prep`, then `(work, rest)` per round (rotating the exercises, no rest after the last round). The runtime (`_hiit`)
+  drives a 200 ms tick that counts down each step, **announces** work/rest transitions (`annunce`) with last-3-second
+  countdown beeps, and auto-advances; `_hiitAdvance` logs each completed work interval's seconds. A **full-screen
+  runner overlay** (`#hiit-runner`, work=green / rest=blue / prep=amber) shows the big timer, current exercise, round
+  X/N, and Skip / **Pause** / Stop. **Pausing is recorded** — `pauseCount` + accumulated `pausedMs` — and surfaced live
+  and in the saved summary. On finish/stop, `hiitFinalize` logs to the active-or-new session: per-exercise **time sets**
+  (seconds, `hiit:true`) plus a **`session.hiitBlocks`** entry `{name, work, rest, rounds, pausedSec, pauses,
+  completed, at}`. Six presets cover **Tabata** (classic + mixed), **battle-rope intervals**, **bodyweight 30/30**,
+  **sprint intervals** and an **AMRAP** burner — all time-based conditioning movements. `test/hiit.spec.mjs` (flatten
+  shape + rotation, preset validity, full walk → session log, pause accounting recorded, launcher + runner open/close).
+- **Coach personalities (feat 296):** the spoken coach is now a selectable **persona** — a voice profile **and** a
+  phrasing flavour — beyond the old neutral/gruff pair. `COACH_PERSONAS` ships seven: **Neutral** (the device voice,
+  untouched), **Gruff Coach** (the deep default), **Hype Coach**, **Zen Coach**, **Drill Sergeant**, **The Analyst**
+  and **Hype Buddy**. Each carries `pitch`/`rate` (applied in `coachify`) and a `flavor` map that reshapes the key cues
+  via `coachPhrase(kind, base, ctx)` — e.g. the Sergeant shouts (`'Last set'` → `'LAST SET, MOVE!'`), Hype hypes, Zen
+  breathes — wired through set start/end (`annunceSetStart/End`), HIIT work/rest/prep (`hiitCueStep`) and the hold-cue
+  "go". `ttsVoice` stays the master voice toggle (`'system'` = untouched, honouring the legacy contract + explicit
+  voiceURI overrides); the **Settings persona picker** sets `state.coachPersona` and keeps `ttsVoice` in sync
+  (neutral → `system`, else → `auto`), then previews the persona's sample line. `state.coachPersona` is persisted and
+  migrates from the old toggle. The registry is declared before `loadState()` so `normalizeState` reads it without a
+  temporal-dead-zone error. `test/coachpersona.spec.mjs` (registry shape, per-persona pitch/rate, per-persona phrasing,
+  picker persist + voice-sync, legacy migration); `coachvoice.spec` updated for the picker.
+- **Per-coach TTS voice (feat 297):** each persona now has its **own** TTS voice with a **sensible auto-default**.
+  `state.coachVoices` maps `personaId → 'auto' | 'system' | voiceURI`; `coachVoiceFor(persona)` resolves it ('system' →
+  device default, a voiceURI → that voice if present-on-device else fall back to auto). The **auto** pick is
+  persona-aware: `pickCoachVoiceFor` scores `getVoices()` against the persona's **`vbias`** (e.g. Gruff/Sergeant favour
+  a deep male voice, Zen leans softer/female, the Analyst a clear UK voice), so every coach starts on a fitting voice.
+  The Settings persona block gains a **per-coach voice `<select>`** (Auto-for-this-coach / System default / every device
+  voice, EN-first, UK/US tagged) for the *active* persona; choosing one persists to `state.coachVoices[id]` and previews
+  it in that voice. Neutral shows no picker (it uses the device default). The `onvoiceschanged` handler re-renders the
+  open drawer so the list fills once the OS reports its voices, and a legacy explicit `ttsVoice` URI migrates into the
+  active coach. `coachVoice()`/`pickCoachVoice()` stay as active-persona wrappers (back-compat). `test/
+  coachpersona.spec.mjs` (per-persona auto-pick differs by bias, explicit + system per-coach choices win, the settings
+  voice picker renders + persists, neutral has none); `coachvoice.spec` updated to the per-coach override.
+- **Plans for neglected movement areas (feat 298):** a fresh per-family coverage audit (count of SEED_PLAN steps
+  referencing each family) found loggable movements **no plan touched** — Roman chair, CrossFit moves, TRX,
+  specialty bars, pin lifts, mace/club & specialty implements, cable attachments — plus the lower-leg / joint prehab
+  set used only once (tibialis, ATG knees-over-toes, adductor, neck). Seven new SEED_PLANS (tranche 14) feature them:
+  **Lower-Back & Core Fortress** (Roman chair), **Functional Throwdown** (CrossFit moves), **Suspension Total Body
+  (TRX)**, **Specialty Bar Power** (specialty bars + pin lifts), **Mace & Club Flow** (mace/club + implements),
+  **Bulletproof Joints & Lower Leg** (tibialis/ATG/adductor/neck) and **Cable Sculpt Circuit** (cable attachments).
+  Every step was verified to resolve to a qualifying variation; they self-seed via the additive `seededPlanIds`
+  ledger. `test/neglected.spec.mjs` (seed, every step satisfiable, the once-zero families now have ≥1 step, catalogue
+  still free of duplicate ids/names).
+- **Composite "Today's Readiness" score (feat 299):** the capstone over the feat-261..264 trio — one **0..100**
+  headline that answers "push, hold, or back off today?" by folding the three signals into a single card atop the
+  **Volume** tab (above the per-group breakdown). `compositeRecovery` is the **load-weighted** mean of feat-262
+  group readiness over groups trained in the last ~10 days (weighting by each group's own most-recent load anchors
+  it to the lifts you actually train, and returns `null` when there's no recent signal); `rpeTrend` compares the
+  mean session-RPE of the 3 most-recent RPE-tagged sessions vs the prior up-to-5 (positive = sessions feeling
+  harder; `null` unless RPE logging is on, feat 261, with ≥4 tagged sessions); `findPlateaus().length` (feat
+  263/264) counts currently-stalled lifts. `trainingReadiness` starts from `recovery×100`, docks **−6 per stalled
+  lift** (capped at 4) and up to **−15** for a rising RPE trend, then bands the result: **≥80 Primed · ≥60 Ready ·
+  ≥40 Ease off · else Back off**. The action line is **reactive** (unlike the scheduled mesocycle deload, feat
+  232): when low recovery is corroborated by **≥2 stalled lifts** it escalates to "take a **deload week** (~−10%
+  load & volume)" — the classic unplanned-overreaching signal. Pure compute over the log (stores nothing new, same
+  spirit as feat 262); hidden until ≥3 sessions + a recent recovery signal. `renderReadinessCard` shows the score,
+  status pill and the factor chips (Recovery % · N stalled · Effort ↑/→/↓). `test/readiness.spec.mjs` (null on thin
+  history, rested→Primed/Ready, thrashed→deload band, composite null when nothing recent, RPE-trend rising/off/sparse).
+- **Add-set keeps the new row in view (feat 300):** appending a set on the log-sets sheet left the new row
+  hidden, because two scroll layers stack — the sets list is an inner box (`#trk-sets-container`,
+  `max-height:40vh`, own `overflow-y`) and the modal below it has a `position:sticky` footer. `revealLastSetRow()`
+  (called from `addSetRow`, `copyWeightToNextSet`, `duplicateLastSet`) first scrolls the inner list to its
+  bottom to surface the newest row, then — only if that row still sits behind/below the sticky footer at the
+  modal level — nudges the modal just enough to clear it (minimal, `behavior:'smooth'`). `test/setaddscroll.spec.mjs`
+  (after appending the 41st row to an overflowing list, the last `.set-row` ends fully above the footer and on-screen).
+- **Hack squat counts for a squat plan step (feat 301):** clarifying feat 253 — a hack squat should *satisfy a
+  squat step in a normal plan*, even though it must NOT inflate the BARBELL squat *achievement*. The two are
+  separate mechanisms: the achievement exclusion is a name regex (`exclude:/hack|…/`, unchanged), while plan-step
+  matching is family-based. Hack squats live in the **leg-press** family, so a `_mvOpt('squat')` step didn't accept
+  them. Fixed by the additive secondary-parent cross-listing (feat 167): `SECONDARY_PARENTS_EXTRA` now maps the six
+  hack-squat variants (Hack Squat / Machine / Reverse + the three extra foot-placement/sissy seeds) → `['squat']`,
+  so `optionMatchesVar`/`stepQualifyingVarSet` accept them and the squat-step picker offers them as cross-links —
+  while leg-press stays their primary. The `SECONDARY_PARENTS_EXTRA` application moved out of
+  `reconcileVariationParents()` into `applyExtraSecondaryParents()`, called **after** `applyExtraVariations()` so the
+  extra-injected (`b1a1…`) hack squats are in `VAR_INDEX` in time to be cross-listed. `test/hacksquat.spec.mjs`
+  (satisfies squat + still matches leg-press; extra foot-placement variant cross-listed; achievement still excludes).
+- **Life Fitness arm machines (feat 302):** added the **Preacher Curl Machine (Life Fitness)** and **Triceps
+  Extension Machine (Life Fitness)** the user couldn't find. Both go in via `EXTRA_VARIATIONS` (feat 17/18), so a
+  single entry each lands in **both** the loggable `FAMILIES` (picker/tracking, via `applyExtraVariations`) and the
+  reference `exercises` docs (via `injectExtraIntoReference`) — attached to the existing **Bicep Curl** /
+  **Tricep Extension** families with full cue/setup/movement/mistakes/programming/tip. `test/lifefitness.spec.mjs`
+  (loggable in the right family + standard mode, present in reference docs, findable by "life fitness"/"preacher" search).
+- **Auto-pick coach per workout (feat 303):** a new **Settings → Coach personality → Auto-pick** mode
+  (`state.coachAuto` ∈ `off`|`vibe`|`random`) that overrides the chosen persona (feat 296) at each workout start.
+  **Vibe** classifies the active plan and matches a coach (`workoutVibePersona`: HIIT/conditioning→Hype,
+  mobility/recovery→Zen, heavy/power→Drill Sergeant, hypertrophy→Analyst, easy→Hype Buddy, else Gruff); **Random**
+  re-rolls a flavored (non-system) coach every workout. The pick is computed in `startWorkout` (`pickWorkoutCoachPersona`)
+  and stored on the session (`session.coach`, survives reload). A new `effectiveCoachPersonaId()` returns the active
+  workout's coach when auto is on (else the chosen persona), and `activeCoachPersona()` now routes through it — so all
+  spoken cues (annunce / Mantranome / tips / HIIT) and the per-coach voice (feat 297) follow the auto pick. `coachify`
+  was decoupled from the legacy `state.ttsVoice` and now gates on the **effective** persona's `sys` flag (neutral =
+  device voice untouched), which is behaviour-identical for the normal in-sync states but correct under auto override.
+  `setCoachAuto` re-picks immediately if a workout is already running. `test/coachauto.spec.mjs` (mode coercion;
+  session coach overrides the chosen persona; random is always flavored; vibe mapping; coachify gates on the effective
+  persona). `coachvoice.spec` updated to drive the "untouched" case via the neutral persona (the source of truth).
+- **Per-variation "podcast bite" (feat 304):** a 🎧 **Brief** button on the log-sets sheet plays a **30-60s** spoken
+  rundown of *the specific variation* — its lore/family, setup, technique, and what makes it unique — **in the voice of
+  the coach that best fits the movement**. `variationCoachPersona(uuid)` maps a movement to a persona
+  (conditioning→Hype, mobility/recovery/core→Zen, heavy barbell compound→Drill Sergeant, machine/cable isolation→Analyst,
+  bodyweight skill→Hype Buddy, else Gruff). `variationPodcast(uuid)` builds `{persona, title, segs}` from the compact
+  FAMILIES data (cue/tip/best/family) plus the rich reference docs (`exVarDocs` — a lazy uuid→`exercises` index for the
+  per-variation setup/movement/mistakes the FAMILIES blob omits), framed by a per-persona intro/outro (`_PERSONA_POD`).
+  It plays through the **feat-274/275 podcast player** (the pause/skip/stop bar) with two additions: a per-podcast
+  `persona` (`_podPlay` uses new `coachifyAs(u, personaId)` to apply *that* coach's voice instead of the active one) and
+  a `kind:'variation'` guard so a brief never marks study terms read or disturbs the study resume point. `test/coachpodcast.spec.mjs`
+  (persona mapping; tight on-topic brief ~30-60s; player driven with the right coach; coachifyAs is persona-specific; the Brief button renders).
+- **Diamond Gym style plans (feat 305):** a SEED_PLANS **tranche 15** of six old-school hardcore powerbuilding
+  sessions (requested): **Diamond Gym Chest & Back**, **Leg Blast**, **Delts & Arms**, **Powerbuilding — Upper**,
+  **Powerbuilding — Lower**, and a **Heavy-Duty Full Body**. Each leads with a heavy barbell compound (`load:'heavy'`,
+  intensity 4-5) then piles on back-off volume and accessories — the chalk-and-iron template. Additively seeded by the
+  existing `seededPlanIds` ledger (new ids → appended for existing users; descriptive "Diamond Gym" naming covered by
+  the trademark disclaimer). `test/diamond.spec.mjs` (all six seed, every step resolves to a qualifying variation, each
+  opens heavy on a compound, no duplicate ids/names); the global `plancoverage` step-resolution check also covers them.
+- **Constellation / tech-tree view (feat 306):** a new **Reflect → ✨ Constellation** page (`renderConstellationPage`)
+  that maps **every** variation as a star. `constellationNodes()` lays them radially — **fundamentals at the core**
+  (sorted by family `getImportance`), spiralling **outward to the obscure/advanced** (then by `getDifficulty`), one
+  spiral arm per **mega** category (deterministic, index-based geometry into a 1000×1000 viewBox). Nodes are
+  **colour-coded by mega** (`_MEGA_HUE`) and **brightness-coded by prowess** — `buildProwessMap()` does one pass over
+  the log for per-variation {sessions, recency, best e1RM} and `prowessScore()` maps it to 0..1 fill-opacity (untrained
+  = dim, strong/recent = bright; trained stars also get a halo). Rendered as a single responsive `<svg>` (faint
+  per-mega arm polylines + a CORE hub + mega labels + legend) with mega **filter pills**. Tapping a star opens an info
+  popup (`_constellationPopup`) — title, family, mega, **importance/difficulty badges** (reused from the reference),
+  prowess line — with **📚 Full reference** (`openReferenceFor`, the feat-204 deep-link) and **🎧 Brief** (feat 304).
+  `test/constellation.spec.mjs` (registered under Reflect; one node per visible variation, in-bounds, fundamentals
+  nearer the core; prowess tracks logged history; SVG renders clickable nodes; the popup deep-links to reference).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
