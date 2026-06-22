@@ -4530,6 +4530,8 @@ function normalizeState() {
   if (typeof state.audioHeadphonesOnly !== 'boolean') state.audioHeadphonesOnly = true; // feat 105 — default on
   // feat 144 — default minimum completion % (0..100). 1% means "even 1 set counts the step as done".
   { const m = Number(state.planDefaults.minPct); state.planDefaults.minPct = isNaN(m) ? 1 : Math.min(100, Math.max(0, m)); }
+  state.planDefaults.warmup = !!state.planDefaults.warmup;     // feat 311 — auto-prepend a warm-up block on plan start
+  state.planDefaults.cooldown = !!state.planDefaults.cooldown; // feat 311 — auto-append a cool-down / finisher block
   state.metronome = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, mantra:false, setActiveOnly:true, ...(state.metronome && typeof state.metronome === 'object' ? state.metronome : {}) };
   // feat 206 — set start/end annunciations (spoken position cues); off by default. startLimit/endLimit
   // (feat 208) bound them to the first/last X sets (0 = no limit); duck (feat 209) lowers other audio.
@@ -7162,6 +7164,26 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">🤸 Auto warm-up block</div>
+        <div class="drawer-setting-sub">Prepend a light mobility / activation warm-up to a plan when you start it.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.planDefaults||{}).warmup ? 'active' : ''}" data-pref-warmup="on">On</button>
+        <button class="drawer-pill ${!(state.planDefaults||{}).warmup ? 'active' : ''}" data-pref-warmup="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">🧊 Auto cool-down / finisher block</div>
+        <div class="drawer-setting-sub">Append a core finisher + static-stretch cool-down to a plan when you start it.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.planDefaults||{}).cooldown ? 'active' : ''}" data-pref-cooldown="on">On</button>
+        <button class="drawer-pill ${!(state.planDefaults||{}).cooldown ? 'active' : ''}" data-pref-cooldown="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">Live score after</div>
         <div class="drawer-setting-sub">Minutes before showing rough live score (chunky)</div>
       </div>
@@ -7901,6 +7923,8 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefReadonly) { state.readonly = btn.dataset.prefReadonly === 'on'; saveState(); render(); toast('Read-only mode: ' + (state.readonly ? 'on' : 'off')); }
       else if (btn.dataset.prefTts) { state.ttsTips = btn.dataset.prefTts === 'on'; saveState(); if (state.ttsTips) toast('Tips will be read aloud'); else { try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} toast('Tip narration off'); } }
       else if (btn.dataset.prefReflectpills) { state.reflectPills = btn.dataset.prefReflectpills === 'on'; saveState(); renderSettingsDrawer(); if (typeof renderCurrentPage === 'function') renderCurrentPage(); toast('Reflect pills: ' + (state.reflectPills ? 'on' : 'off')); } // feat 309
+      else if (btn.dataset.prefWarmup) { state.planDefaults = state.planDefaults || {}; state.planDefaults.warmup = btn.dataset.prefWarmup === 'on'; saveState(); renderSettingsDrawer(); toast('Auto warm-up: ' + (state.planDefaults.warmup ? 'on' : 'off')); } // feat 311
+      else if (btn.dataset.prefCooldown) { state.planDefaults = state.planDefaults || {}; state.planDefaults.cooldown = btn.dataset.prefCooldown === 'on'; saveState(); renderSettingsDrawer(); toast('Auto cool-down: ' + (state.planDefaults.cooldown ? 'on' : 'off')); } // feat 311
       else if (btn.dataset.prefVoice) { state.ttsVoice = btn.dataset.prefVoice === 'system' ? 'system' : 'auto'; _coachVoice = null; saveState(); annunce(state.ttsVoice === 'system' ? 'System voice' : 'Coach voice on. Get under the bar.'); toast('Voice: ' + (state.ttsVoice === 'system' ? 'system default' : 'gruff coach')); } // feat 210
       else if (btn.dataset.prefAnn) { const a = { ...annunciationCfg() }; const k = btn.dataset.prefAnn; if (k === 'start-on') a.start = true; else if (k === 'start-off') a.start = false; else if (k === 'end-on') a.end = true; else if (k === 'end-off') a.end = false; else if (k === 'duck-on') a.duck = true; else if (k === 'duck-off') { a.duck = false; if (typeof _annDuckOff === 'function') _annDuckOff(); } state.annunciation = a; saveState(); toast(/^start/.test(k) ? ('Set-start annunciation: ' + (a.start ? 'on' : 'off')) : /^end/.test(k) ? ('Set-end annunciation: ' + (a.end ? 'on' : 'off')) : ('Speech ducking: ' + (a.duck ? 'on' : 'off'))); } // feat 206/207/209
       else if (btn.dataset.prefHp) { state.audioHeadphonesOnly = btn.dataset.prefHp === 'on'; saveState(); if (state.audioHeadphonesOnly) probeAudioOutput(); refreshSoundIcon(); toast('Headphone-only audio: ' + (state.audioHeadphonesOnly ? 'on' : 'off')); }
@@ -11195,7 +11219,31 @@ function cloneSeedPlan(sp) {
 }
 function cloneSeedPlans() { return SEED_PLANS.map(cloneSeedPlan); }
 function getPlan(id) { return (state.plans || []).find(p => p.id === id) || null; }
-function getActivePlan() { const s = getActiveSession(); return (s && s.planId) ? getPlan(s.planId) : null; }
+// feat 311 — optional warm-up / cool-down step blocks, prepended/appended to a plan at workout start. They're
+// real movement steps (so the picker/HUD/tracking work), tagged `bookend` so they don't gate plan completion.
+const WARMUP_BLOCK = [
+  _pstep(1, [_mvOpt('mobility-warmup')], 'Warm-up — 5 min of light cardio / dynamic mobility to raise the heart rate.', 'light'),
+  _pstep(1, [_mvOpt('mobility-warmup'), _mvOpt('iso-poses')], 'A few activation / dynamic-stretch moves for what you’re about to train.', 'light'),
+];
+const COOLDOWN_BLOCK = [
+  _pstep(2, [_mvOpt('abs-dynamic'), _mvOpt('core-stability')], 'Finisher — a couple of hard core sets while you’re still warm.', 'light'),
+  _pstep(1, [_mvOpt('static-stretch')], 'Cool-down — easy static stretching for the muscles you trained.', 'light'),
+];
+function planBookendDefaults() { const pd = state.planDefaults || {}; return { warmup: !!pd.warmup, cooldown: !!pd.cooldown }; }
+function _withBookends(plan, b) {
+  if (!b || (!b.warmup && !b.cooldown)) return plan;
+  const steps = [];
+  if (b.warmup) WARMUP_BLOCK.forEach(st => steps.push({ ...st, bookend: 'warmup' }));
+  (plan.steps || []).forEach(st => steps.push(st));
+  if (b.cooldown) COOLDOWN_BLOCK.forEach(st => steps.push({ ...st, bookend: 'cooldown' }));
+  return { ...plan, steps, _bookended: true };
+}
+function getActivePlan() {
+  const s = getActiveSession();
+  if (!s || !s.planId) return null;
+  const plan = getPlan(s.planId); if (!plan) return null;
+  return (s.bookends) ? _withBookends(plan, s.bookends) : plan; // feat 311 — augment with this session's warm-up/cool-down
+}
 function planTotalSets(p) { return (p.steps || []).reduce((n, s) => n + (s.sets || 0), 0); }
 // feat 277 — plan "siblings": plans whose steps hold the SAME exercises in the SAME order (ignoring set
 // counts / intensity / load / notes). Signature = per-step sorted exercise ids, in step order.
@@ -11555,13 +11603,15 @@ function planExecutionSummary(session, plan) {
   // feat 144 — `stepsDone` now counts steps that met their min-% threshold (ss.satisfied); `stepsFull`
   // counts steps taken all the way to target. `complete` (the 🎉 banner / popup) fires on min-% satisfied.
   let stepsDone = 0, stepsFull = 0, setsDone = 0, setsTarget = 0, effortHits = 0, effortApplicable = 0;
+  let mainTotal = 0, mainDone = 0; // feat 311 — warm-up/cool-down bookend steps don't gate completion
   (plan.steps || []).forEach(st => {
     const ss = stepStatus(session, st, plan); if (ss.satisfied) stepsDone++; if (ss.done) stepsFull++;
     setsDone += ss.logged; setsTarget += (st.sets || 0);
     const ef = stepEffort(session, st); if (ef.applicable) { effortApplicable++; if (ef.hit) effortHits++; }
+    if (!st.bookend) { mainTotal++; if (ss.satisfied) mainDone++; }
   });
   const total = (plan.steps || []).length;
-  return { stepsDone, stepsFull, stepsTotal: total, setsDone, setsTarget, effortHits, effortApplicable, complete: stepsDone >= total && total > 0 };
+  return { stepsDone, stepsFull, stepsTotal: total, setsDone, setsTarget, effortHits, effortApplicable, complete: mainDone >= mainTotal && mainTotal > 0 };
 }
 function _execSets(s) { return (s.exercises || []).reduce((c, e) => c + (e.sets || []).length, 0); }
 function _execScore(s) { return (s.finalScore && typeof s.finalScore.points === 'number') ? s.finalScore.points : -1; }
@@ -12643,7 +12693,9 @@ function planUseForWorkout(id) {
   if (!s) { startWorkout(); s = getActiveSession(); }   // start a workout if not already in one
   if (!s) return;
   s.planId = id; const _pl = getPlan(id); s.planRev = _pl ? (ensurePlanRevisioned(_pl), _pl.rev || 1) : 1; // feat 162 — record which revision this execution ran
-  saveState(); navTo('workout'); toast('Using plan for this workout'); // feat 184 — picking a plan takes you to the Workout page
+  const bk = planBookendDefaults(); s.bookends = (bk.warmup || bk.cooldown) ? bk : undefined; // feat 311 — optional warm-up / cool-down for this execution
+  saveState(); navTo('workout');
+  toast('Using plan for this workout' + (s.bookends ? ' (+' + [bk.warmup && 'warm-up', bk.cooldown && 'cool-down'].filter(Boolean).join(' & ') + ')' : '')); // feat 184 / 311
 }
 function renderPlansOverlay() {
   const body = (currentPage === 'plan-creator') ? document.getElementById('trk-main') : null; // feat 184 — only renders while on the plan-creator page
@@ -20061,7 +20113,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 265 · 2026-06-22 09:23';
+const APP_BUILD = 'build 266 · 2026-06-22 12:35';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

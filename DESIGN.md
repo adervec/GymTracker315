@@ -1399,6 +1399,18 @@ They share variation **UUIDs**.
   `{grade, gradePoints}`. The Summary card shows a colour-coded badge (`_gradeHue`, S…D) in its header; rest weeks stay
   ungraded. `test/weekgrade.spec.mjs` (valid letter + points, busier/progressing weeks grade higher, rest weeks
   ungraded, the badge renders on a complete week). `summary.spec` seed made week-aligned so it's deterministic on any weekday.
+- **Optional warm-up / cool-down blocks on plan start (feat 311):** a plan can now be **bookended** with a warm-up
+  (prepended) and a cool-down / finisher (appended) when you start it. `WARMUP_BLOCK` (light mobility + activation) and
+  `COOLDOWN_BLOCK` (a core finisher + static-stretch cool-down) are real movement steps (so the picker/HUD/tracking work),
+  built from the `mobility-warmup` / `static-stretch` / `abs-dynamic` / `core-stability` families. `planUseForWorkout`
+  stamps the active session with `session.bookends = {warmup, cooldown}` from the **plan defaults**, and `getActivePlan()`
+  augments the plan's steps via `_withBookends` (warm-up steps first, then the plan, then cool-down) — tagged `bookend`
+  and returned as a **copy** so the saved plan is never mutated. Bookend steps are excluded from the completion gate
+  (`planExecutionSummary.complete` now keys off non-bookend "main" steps, identical to before when there are none).
+  Toggled in **Settings → plan defaults → Auto warm-up block / Auto cool-down · finisher block**
+  (`state.planDefaults.warmup` / `.cooldown`, default off). `test/planbookends.spec.mjs` (defaults reflect settings;
+  blocks resolve to real movements; getActivePlan prepends/appends without mutating the stored plan; bookends don't gate
+  completion; planUseForWorkout applies the defaults). Full suite stays green (getActivePlan augments only when opted in).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
