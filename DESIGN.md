@@ -1378,6 +1378,13 @@ They share variation **UUIDs**.
   computes a centered square that fully frames the filtered mega's nodes (capped at the canvas), and the page renders
   with that as the initial viewBox (the **All** pill resets to the full view). `test/constellation.spec.mjs` extended
   (full viewBox unfiltered; filtering zooms to a smaller square that frames every node of that mega; bbox/clamp helpers).
+- **Constellation core = exploration stats (feat 308):** the centre no longer reads a static "CORE" — it now shows
+  the user's **exploration**: a big count of **distinct variations logged at least once** out of the total visible, plus
+  the **rate** of exploration. `constellationStats()` walks the log once for each variation's *first*-logged date (counting
+  only uuids that resolve in `VAR_INDEX`), giving `{explored, total, pct, new30, new7, perWeek}`. The core renders three
+  lines — `explored` · "of N explored" · a rate line (`+K new · 30d` when there's recent activity, else `~P/wk pace`,
+  else a "tap a star to begin" nudge) — drawn on top of the nodes. `test/constellation.spec.mjs` (distinct count out of
+  total, new-in-30d excludes older first-logs, non-zero pace, empty state; the core renders the count+rate and no "CORE").
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

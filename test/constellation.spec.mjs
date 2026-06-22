@@ -7,11 +7,12 @@ import { test, expect } from '@playwright/test';
 const APP = '/gym-tracker.html';
 
 const BENCH = '239a5594-2c8b-40c8-a19c-dd8cfa8b58f8'; // Barbell Flat Bench Press
+const SQUAT = '5d630c7c-26fd-4cab-a033-3c5c6640956b'; // Hack Squat (any other distinct variation)
 
 test.beforeEach(async ({ page }) => {
   await page.goto(APP, { waitUntil: 'load' });
   await page.waitForFunction(() => typeof constellationNodes === 'function' && typeof renderConstellationPage === 'function'
-    && typeof _constellationPopup === 'function' && typeof PAGES !== 'undefined', null, { timeout: 15000 });
+    && typeof _constellationPopup === 'function' && typeof constellationStats === 'function' && typeof PAGES !== 'undefined', null, { timeout: 15000 });
 });
 
 test('the Constellation page is registered under Reflect', async ({ page }) => {
@@ -114,4 +115,42 @@ test('_constBBoxView frames a subset squarely (≤ canvas); _clampConstView keep
   expect(r.clX).toBeGreaterThanOrEqual(0);
   expect(r.clY).toBeGreaterThanOrEqual(0);
   expect(r.clSquare).toBe(true);
+});
+
+// feat 308 — the core shows exploration stats (distinct variations explored + rate), not a "CORE" label
+test('constellationStats counts distinct explored variations out of the total', async ({ page }) => {
+  const r = await page.evaluate(({ BENCH, SQUAT }) => {
+    const iso = (daysAgo) => new Date(Date.now() - daysAgo * 86400000).toISOString();
+    state.sessions = [];
+    const empty = constellationStats();
+    state.sessions = [
+      { id: 'a', date: iso(3),  exercises: [{ varUuid: BENCH, subUuid: null, sets: [{ w: 100, r: 5 }] }] },         // bench: new in last 30d
+      { id: 'b', date: iso(2),  exercises: [{ varUuid: BENCH, subUuid: null, sets: [{ w: 102, r: 5 }] }] },         // bench again → still 1 distinct
+      { id: 'c', date: iso(40), exercises: [{ varUuid: SQUAT, subUuid: null, sets: [{ w: 140, r: 5 }] }] },         // hack squat: explored 40d ago (not "new 30d")
+    ];
+    const s = constellationStats();
+    return { empty, explored: s.explored, total: s.total, new30: s.new30, pct: s.pct, perWeek: s.perWeek };
+  }, { BENCH, SQUAT });
+  expect(r.empty.explored).toBe(0);
+  expect(r.empty.new30).toBe(0);
+  expect(r.explored).toBe(2);                 // two distinct variations logged
+  expect(r.total).toBeGreaterThan(r.explored);
+  expect(r.new30).toBe(1);                     // only bench's first log is within 30 days
+  expect(r.perWeek).toBeGreaterThan(0);        // a non-zero exploration pace
+});
+
+test('the core renders the explored count + rate, not a CORE label', async ({ page }) => {
+  const r = await page.evaluate(({ BENCH }) => {
+    state.sessions = [{ id: 'a', date: new Date().toISOString(), exercises: [{ varUuid: BENCH, subUuid: null, sets: [{ w: 100, r: 5 }] }] }];
+    const main = document.getElementById('trk-main');
+    _constFilter = null; renderConstellationPage(main);
+    const svg = main.querySelector('.cst-svg');
+    return { hasNum: !!svg.querySelector('.cst-core-num'), hasRate: !!svg.querySelector('.cst-core-rate'),
+      coreText: svg.textContent, num: (svg.querySelector('.cst-core-num') || {}).textContent };
+  }, { BENCH });
+  expect(r.hasNum).toBe(true);
+  expect(r.hasRate).toBe(true);
+  expect(r.coreText).toContain('explored');
+  expect(r.coreText).not.toContain('CORE');
+  expect(Number(r.num)).toBeGreaterThanOrEqual(1);
 });
