@@ -1580,6 +1580,13 @@ They share variation **UUIDs**.
   PNG card renders a `Plan · <name>` row (accent2) above the EXERCISES list for a single session (range exports are
   unchanged — "this workout" is singular). `test/planexport.spec.mjs` (live/snapshot/free-form label resolution; the
   summary + text export include the plan only when present).
+- **Variation briefing reachable from the full Reference (feat 330):** the 🎧 coach brief (`startVariationPodcast`,
+  feat 304) — previously only on the constellation popup and the active-workout exercise page — is now a button on every
+  variation in the **detailed Reference** view, sitting in the variation header's badge row beside 🎬 Movement media and
+  📈 Trends. It carries `data-brief-uuid` and calls `startVariationPodcast(uuid)` (which self-guards speech support /
+  audio-on and always builds at least an intro segment, so it's available for any variation). Detailed view only — the
+  compact tree/table views are click-to-drill summaries and stay uncluttered. `test/refbrief.spec.mjs` (the button renders
+  with the right uuid; clicking it starts that variation's briefing; it sits alongside the media + trends actions).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
