@@ -1644,6 +1644,16 @@ They share variation **UUIDs**.
   gentle "No sets logged this time" line instead. Text only, in the popup; the long-press skip-confirm path is
   unaffected. `test/endcoach.spec.mjs` (`sessionPRCount` PR/first-ever/decline; grade-keyed phrasing + PR mention +
   empty case; the popup message carries the comment).
+- **Fitness Archetypes guide (feat 337):** the Fitness Focus page (feat 292) now links to a new **Archetypes guide**
+  (`archetypes` route, leaf under `focus`) that explains which focus-area combo embodies each of the 16 archetypes.
+  `archetypeFocusMix(a)` turns an archetype's 6-dim `vec` into per-dimension weights + the "defining" dims (within
+  0.7× of its peak); `renderArchetypesGuide` renders a card per archetype — emoji, name, blurb, a one-line "Defining
+  mix: 🏋️ Max Strength + …", and the six dimension bars sorted by weight — and flags the archetype the user's own
+  training currently matches with a "★ You" badge (via `fitnessFocus`→`fitnessArchetype`, shown only once the profile
+  is ready). The link sits in the Focus page intro (both the ready and not-ready states), so the guide is browsable
+  even before you have a profile. Reuses the existing `.focus-*` styles. `test/archetypesguide.spec.mjs`
+  (`archetypeFocusMix` shape + defining dim; a card per archetype with a defining mix; the user's archetype flagged
+  when ready; the Focus page links out and the route renders).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
