@@ -2542,6 +2542,11 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .touch-badge.recent { color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); }
   .touch-badge.stale { color: var(--text2); background: var(--bg4); }
   .touch-badge.old { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+  /* feat 332 — discrete e1RM trend dot on picker rows */
+  .picker-trend { font-size: 10px; font-weight: 800; line-height: 1; opacity: 0.9; }
+  .picker-trend.pt-up { color: var(--good); }
+  .picker-trend.pt-down { color: var(--warn); }
+  .picker-trend.pt-flat { color: var(--text3); }
   /* feat 122 — injury autocomplete chips in the session notes modal */
   .injury-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
   .injury-suggest:empty { display: none; }
@@ -14008,19 +14013,25 @@ function sparklineSvg(series, opts) {
 }
 // feat 270 — inline "trend peek": a glanceable e1RM sparkline for the exercise you're logging, right in the
 // sheet, so you don't have to leave for the Trends page. RPE-aware (sessionBestE1RM); tapping opens the full view.
+// feat 332 — shared compact-trend math: a chronological e1RM series → { dir, pct, latest, best, recent }, or null
+// when there are <2 points. Reused by the in-sheet trend peek (feat 270) and the exercise picker's trend dot.
+function e1rmTrend(series) {
+  const s = (series || []).filter(v => typeof v === 'number' && v > 0);
+  if (s.length < 2) return null;
+  const recent = s.slice(-12);
+  const latest = recent[recent.length - 1], firstShown = recent[0];
+  const pct = firstShown > 0 ? Math.round((latest - firstShown) / firstShown * 100) : 0;
+  return { dir: pct > 1 ? 'up' : pct < -1 ? 'down' : 'flat', pct, latest, best: Math.max.apply(null, s), recent };
+}
 function renderTrendPeek(varUuid, subUuid) {
   if (!varUuid) return '';
   const hist = getHistoryByKey(varUuid, subUuid); // recent-first
   if (!hist || hist.length < 2) return '';
-  const series = hist.slice().reverse().map(h => Math.round(sessionBestE1RM(h))).filter(v => v > 0); // chronological
-  if (series.length < 2) return '';
-  const recent = series.slice(-12);
-  const latest = recent[recent.length - 1], firstShown = recent[0], best = Math.max.apply(null, series);
-  const pct = firstShown > 0 ? Math.round((latest - firstShown) / firstShown * 100) : 0;
-  const dir = pct > 1 ? 'up' : pct < -1 ? 'down' : 'flat';
-  return `<button type="button" class="trend-peek tp-${dir}" id="trk-trend-peek" title="Open full trends for this exercise">
-    <span class="tp-spark">${sparklineSvg(recent, { w: 116, h: 26 })}</span>
-    <span class="tp-stats"><b class="tp-cur">${latest}</b> <span class="tp-unit">${state.unit} e1RM</span> · best ${best} · <span class="tp-delta tp-${dir}">${pct >= 0 ? '+' : ''}${pct}%</span></span>
+  const t = e1rmTrend(hist.slice().reverse().map(h => Math.round(sessionBestE1RM(h)))); // chronological
+  if (!t) return '';
+  return `<button type="button" class="trend-peek tp-${t.dir}" id="trk-trend-peek" title="Open full trends for this exercise">
+    <span class="tp-spark">${sparklineSvg(t.recent, { w: 116, h: 26 })}</span>
+    <span class="tp-stats"><b class="tp-cur">${t.latest}</b> <span class="tp-unit">${state.unit} e1RM</span> · best ${t.best} · <span class="tp-delta tp-${t.dir}">${t.pct >= 0 ? '+' : ''}${t.pct}%</span></span>
     <span class="tp-arrow">›</span>
   </button>`;
 }
@@ -18965,11 +18976,39 @@ function touchBadgeHtml(t) {
   const recency = since <= 14 ? 'recent' : since <= 60 ? 'stale' : 'old';
   return `<span class="touch-badge ${recency}" title="Trained on ${n} day${n === 1 ? '' : 's'} · last ${sinceTxt}">${n}×</span>`;
 }
+// feat 332 — one pass over history → per-variation chronological e1RM series (best set per training day, across ANY
+// subvariation), so the picker can show a glanceable trend per row without re-scanning sessions for each one.
+function buildVarTrendMap() {
+  const byVar = new Map(); // varUuid -> Map<dateStr, {ms, best}>
+  (state.sessions || []).forEach(s => {
+    const d = new Date(s.date), key = d.toDateString(), ms = d.getTime();
+    (s.exercises || []).forEach(ex => {
+      if (!ex.varUuid || ex.cardio || !ex.sets || !ex.sets.length) return;
+      let best = 0; ex.sets.forEach(set => { const e = estimated1RMSet(set); if (e > best) best = e; });
+      if (best <= 0) return;
+      let m = byVar.get(ex.varUuid); if (!m) { m = new Map(); byVar.set(ex.varUuid, m); }
+      const cur = m.get(key); if (!cur || best > cur.best) m.set(key, { ms: cur ? Math.min(cur.ms, ms) : ms, best });
+    });
+  });
+  const out = new Map();
+  byVar.forEach((m, uuid) => out.set(uuid, [...m.values()].sort((a, b) => a.ms - b.ms).map(e => Math.round(e.best))));
+  return out;
+}
+// feat 332 — a discrete e1RM trend dot for a picker row (▲ improving · ▼ declining · – holding). Empty until there
+// are 2+ training days, so it never implies a trend it can't support; the % sits in the tooltip to stay glanceable.
+function pickerTrendBadge(series) {
+  const t = e1rmTrend(series);
+  if (!t) return '';
+  const sym = t.dir === 'up' ? '▲' : t.dir === 'down' ? '▼' : '–';
+  const sign = t.pct > 0 ? '+' : '';
+  return `<span class="picker-trend pt-${t.dir}" title="e1RM trend ${sign}${t.pct}% recently · best ${t.best} ${state.unit}">${sym}</span>`;
+}
 // feat 68 — results are a separate fragment so typing re-renders only the list, leaving the search
 // input and its ✕ button untouched (fixes the jiggly/inconsistent clear button + focus juggling).
 function renderPickerResults() {
   const results = filterVariations();
   const touch = buildTouchMap(); // feat 121
+  const trend = buildVarTrendMap(); // feat 332 — discrete e1RM trend per variation
   const shown = results.reduce((s, r) => s + r.variations.length + (r.secondaryVars ? r.secondaryVars.length : 0), 0);
   // feat 179 — with a plan step active the pills STACK with the step set, so report how many of the step's
   // compatible variations are currently visible: "X of Y step-compatible variations shown".
@@ -18994,7 +19033,7 @@ function renderPickerResults() {
                 <div class="picker-var-main">
                   <div class="picker-var-name">${escapeHtml(v.title)}${v._custom ? '<span class="manual-tag">manual</span>' : ''}${v.subvariation ? `<span class="sub-tag">${escapeHtml(v.subvariation.label)}</span>` : ''}</div>
                 </div>
-                <div class="picker-var-right">${v.uuid ? favStarHtml(isFavVar(v.uuid), `data-fav-var="${v.uuid}"`) : ''}${spotterBadge(v, r.family)}${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
+                <div class="picker-var-right">${v.uuid ? favStarHtml(isFavVar(v.uuid), `data-fav-var="${v.uuid}"`) : ''}${spotterBadge(v, r.family)}${v.uuid ? pickerTrendBadge(trend.get(v.uuid)) : ''}${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
               </div>
             `).join('')}
             ${(r.secondaryVars || []).map(s => `
@@ -19003,7 +19042,7 @@ function renderPickerResults() {
                   <div class="picker-var-name">${escapeHtml(s.v.title)}</div>
                   <div class="picker-var-secfrom">↳ primarily a <span class="sec-jump" data-sec-jump="${escapeAttr(s.primaryTitle)}">${escapeHtml(s.primaryTitle)}</span> exercise</div>
                 </div>
-                <div class="picker-var-right">${favStarHtml(isFavVar(s.v.uuid), `data-fav-var="${s.v.uuid}"`)}${spotterBadge(s.v, VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family : r.family)}${touchBadgeHtml(touch.get(s.v.uuid))}<div class="picker-var-arrow">›</div></div>
+                <div class="picker-var-right">${favStarHtml(isFavVar(s.v.uuid), `data-fav-var="${s.v.uuid}"`)}${spotterBadge(s.v, VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family : r.family)}${pickerTrendBadge(trend.get(s.v.uuid))}${touchBadgeHtml(touch.get(s.v.uuid))}<div class="picker-var-arrow">›</div></div>
               </div>
             `).join('')}
             <div class="picker-add-var" data-add-var-fam="${r.family.id}">+ Add custom variation</div>
@@ -20851,7 +20890,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 291 · 2026-06-23 09:49';
+const APP_BUILD = 'build 292 · 2026-06-23 10:25';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

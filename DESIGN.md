@@ -1597,6 +1597,16 @@ They share variation **UUIDs**.
   one-tap feat-234 `prog-target` hint in the log sheet, so the user opts in with a tap instead of getting it forced. The
   explicit hold-to-copy gesture (`copyRepsToOpenSet`, feats 201/…) is unchanged. `test/firstsetblank.spec.mjs` (blank even
   with prefill forced on + history present; blank from a plan step that has a suggestion; the toggle is gone).
+- **Exercise picker shows how each variation is trending (feat 332):** every picker row gets a discrete e1RM **trend
+  dot** in its right-hand badge cluster (beside the fav star / spotter / "touched" recency badge): **▲** improving
+  (green) · **▼** declining (warn) · **–** holding (muted), with the exact % in the tooltip to stay glanceable. The
+  trend math is shared with the in-sheet trend peek (feat 270): `e1rmTrend(series)` → `{dir,pct,latest,best,recent}`
+  (`renderTrendPeek` refactored onto it, output unchanged). The picker computes it efficiently via `buildVarTrendMap()`
+  — one pass over history building a per-variation chronological series (best set per training day, aggregated across
+  ANY subvariation, mirroring `buildTouchMap`) — so a row's dot is a Map lookup, not a re-scan per row (matters because
+  the list re-renders on every keystroke). The dot is **omitted until there are 2+ training days**, so it never implies
+  a trend it can't support. `test/pickertrend.spec.mjs` (`e1rmTrend` up/down/flat/null; same-day collapse + chronological
+  order; the dot renders for a climbing variation; nothing logged or a single day → no dot).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
