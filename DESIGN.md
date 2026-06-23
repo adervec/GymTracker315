@@ -1572,6 +1572,78 @@ They share variation **UUIDs**.
   still rides its own `profileSavedAt` (feat 324). `test/syncscope.spec.mjs` (plans/body/strava sync despite a newer local
   `savedAt`; device-local kept while user scalars adopt; `syncPayload` strips the right keys; plan + body delete
   tombstones; same-day body recency). All existing `sync`/`profilesync`/`dataexport` merge tests stay green.
+- **Workout export shows the plan it ran from (feat 329):** the per-workout PNG summary card and the
+  Strava-description text export now surface the plan a workout was run from, when applicable. `sessionPlanLabel(session)`
+  resolves the name from the per-session **snapshot** (`planExec.planName`, captured at completion so it survives a later
+  plan rename/delete) and falls back to the live `getPlan(session.planId)`; a free-form workout returns `null` and shows
+  nothing. `summarizeSession` carries it as `.plan`; the text export adds a `Plan: <name>` line under the date, and the
+  PNG card renders a `Plan · <name>` row (accent2) above the EXERCISES list for a single session (range exports are
+  unchanged — "this workout" is singular). `test/planexport.spec.mjs` (live/snapshot/free-form label resolution; the
+  summary + text export include the plan only when present).
+- **Variation briefing reachable from the full Reference (feat 330):** the 🎧 coach brief (`startVariationPodcast`,
+  feat 304) — previously only on the constellation popup and the active-workout exercise page — is now a button on every
+  variation in the **detailed Reference** view, sitting in the variation header's badge row beside 🎬 Movement media and
+  📈 Trends. It carries `data-brief-uuid` and calls `startVariationPodcast(uuid)` (which self-guards speech support /
+  audio-on and always builds at least an intro segment, so it's available for any variation). Detailed view only — the
+  compact tree/table views are click-to-drill summaries and stay uncluttered. `test/refbrief.spec.mjs` (the button renders
+  with the right uuid; clicking it starts that variation's briefing; it sits alongside the media + trends actions).
+- **First set always opens blank — prepopulation archived (feat 331):** the first set of a newly-started exercise no
+  longer auto-fills. Two behaviors were archived: **prefill-from-last-session** (feat 58 — the Settings toggle that
+  copied your last set's weight/reps into the first set) and the **plan suggested-weight seed** (feat 82 — starting an
+  exercise from a plan step pre-filled the first set with baseline × load). All three history-prefill sites
+  (`startExerciseFromSuggestion`, `bindPickerResults`, the sub-variation `change` handler) and both plan-seed sites now
+  open `[{ w:'', r:'' }]`; the dead "Prefill from last session" drawer toggle is removed and `workoutControls.prefillFromHistory`
+  is retained but inert (dormant key, no UI, no behavior). The suggested target is **not** lost — it still shows as the
+  one-tap feat-234 `prog-target` hint in the log sheet, so the user opts in with a tap instead of getting it forced. The
+  explicit hold-to-copy gesture (`copyRepsToOpenSet`, feats 201/…) is unchanged. `test/firstsetblank.spec.mjs` (blank even
+  with prefill forced on + history present; blank from a plan step that has a suggestion; the toggle is gone).
+- **Exercise picker shows how each variation is trending (feat 332):** every picker row gets a discrete e1RM **trend
+  dot** in its right-hand badge cluster (beside the fav star / spotter / "touched" recency badge): **▲** improving
+  (green) · **▼** declining (warn) · **–** holding (muted), with the exact % in the tooltip to stay glanceable. The
+  trend math is shared with the in-sheet trend peek (feat 270): `e1rmTrend(series)` → `{dir,pct,latest,best,recent}`
+  (`renderTrendPeek` refactored onto it, output unchanged). The picker computes it efficiently via `buildVarTrendMap()`
+  — one pass over history building a per-variation chronological series (best set per training day, aggregated across
+  ANY subvariation, mirroring `buildTouchMap`) — so a row's dot is a Map lookup, not a re-scan per row (matters because
+  the list re-renders on every keystroke). The dot is **omitted until there are 2+ training days**, so it never implies
+  a trend it can't support. `test/pickertrend.spec.mjs` (`e1rmTrend` up/down/flat/null; same-day collapse + chronological
+  order; the dot renders for a climbing variation; nothing logged or a single day → no dot).
+- **Coach calls out the trend on the first set (feat 333):** when set-start annunciation (feat 206) is on, the spoken
+  cue for the **first set** of an exercise now appends a quick, informative note on how that variation's strength is
+  trending — e.g. "First set of 4. Trending up — strength's climbed 12 percent lately. Keep it rolling." Down →
+  "…dipped N percent recently. Let's turn it around today."; flat → "Strength has held flat lately. Time to break the
+  plateau." `setStartTrendComment(varUuid)` reuses the feat-332 `variationTrend` (e1RM, var-level) and returns '' until
+  there are 2+ training days, so the coach never invents a trend. Phrased for speech (no "e1RM" abbreviation), one short
+  sentence, appended after the persona-flavoured position phrase in a single utterance. Only the first set (`pos.x === 1`)
+  gets it — later sets keep the plain position cue. The just-started set (weight in, no reps) scores 0 e1RM, so it never
+  skews the trend it's reporting. `test/anntrend.spec.mjs` (up/down/flat/empty phrasing; appended on set 1, absent on set
+  2; silent when the start cue is off).
+- **Body Position & Setup table in the exercise-page full tip (feat 334):** the collapsed "📐 Body Position & Setup"
+  table from the full Reference (`renderPosition`/`getPosition` — body + equipment rows) now appears near the top of the
+  **FULL** tip on the exercise/log page, above the verbose general-movement text. It renders in its default collapsed
+  state (tap to expand) under a `trk-pos-<id>` uid namespace so it never clashes with the Reference page's own copy if
+  both are in the DOM. Only in `tipsMode === 'full'` — concise mode keeps the lighter cue set. Reuses the existing
+  reference variation lookup already done for the full tip; the global `.position-*` styles apply unchanged.
+  `test/tipposition.spec.mjs` (full tip has the collapsed table above general setup, with its own uid + real Body rows;
+  concise mode omits it).
+- **Save-sets popup previews the trend impact (feat 335):** the confirm popup that appears before saving sets (when
+  `alwaysConfirm` is on, or a weight is over the limit) now ends with a coach line on how confirming will move this
+  variation's e1RM trend. `saveSetsTrendComment(varUuid, validSets)` takes the best set being saved (max
+  `estimated1RMSet`) and compares it to the trend it's coming into (feat-332 `variationTrend`, which excludes the
+  still-pending sets): a new high → "📈 …a new high, N% over your previous best. Confirming pushes your trend up.";
+  at/above the latest → "…keeps the trend climbing/steady."; below the last → "📉 …N% below your last; this may nudge the
+  trend down."; no prior history → "…sets your baseline." Non-e1RM sets (time/bodyweight/cardio score 0) get no line.
+  Appended to the existing message for both the normal and over-limit variants; the hold-to-skip-confirm path is
+  unaffected. `test/savetrend.spec.mjs` (PR/dip/baseline/none phrasing; the popup message carries the note).
+- **End-Workout popup gets a coach final comment (feat 336):** the End-Workout confirm popup (`finalizeEndWorkout`'s
+  `choiceDialog`) now closes with a coach sign-off below the Duration/Exercises/Sets/Score summary.
+  `endWorkoutCoachComment(session, stats, score)` leads with a verdict keyed to the workout grade (≥85 Outstanding ·
+  ≥70 Strong · ≥50 Solid · else "every session counts"), then calls out the session's new e1RM **bests** via
+  `sessionPRCount` — exercises whose top e1RM beat an *established* history on other days (first-ever lifts and
+  declines don't count; cardio/time score 0) — tying into the trends theme, or "N sets banked toward your trends" when
+  there were none, and an encouraging close ("Refuel, recover, and come back stronger."). An empty session gets a
+  gentle "No sets logged this time" line instead. Text only, in the popup; the long-press skip-confirm path is
+  unaffected. `test/endcoach.spec.mjs` (`sessionPRCount` PR/first-ever/decline; grade-keyed phrasing + PR mention +
+  empty case; the popup message carries the comment).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
