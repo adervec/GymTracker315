@@ -1548,6 +1548,10 @@ They share variation **UUIDs**.
   is "more is better", and weight / water / other girths are neutral (no value judgment). Shown only with ≥2 data
   points. `test/bodytrends.spec.mjs` (series ascending + skips null days; chart+delta per metric, empty below 2 points;
   the Body page renders the section).
+- **Model-agnostic cowork wording (feat 327):** the hub is renamed **"AI Cowork hub"** in the user-facing copy
+  (Settings label + sub, the generated `README-COWORK.md`, and the AI-brief export text) and explicitly described as
+  model-agnostic — any agent that can read/write the folder (e.g. Claude or GPT), not Claude-specific. No behaviour
+  change; the internal feat name in this doc remains "Cowork hub" for continuity.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
