@@ -4413,6 +4413,63 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
   'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions','profileSavedAt'];
 
+/* ---- feat 328 — cross-device sync policy ---------------------------------------------------------
+   SETTINGS_KEYS (above) is the "persisted + full-backup" allowlist. Cloud SYNC is narrower: it carries the
+   user's data and plans/progress across devices but NOT device-specific settings. The old merge had two bugs:
+   (1) every setting — including plans & bodyComp — was adopted only when the file's single `savedAt` was newer,
+   but the gym phone bumps savedAt on every logged set, so it almost always "won" and the desktop's plans/body
+   never reached the phone; (2) device-only settings (theming, audio, folder locations) rode along and DID sync.
+   Fix: user-data COLLECTIONS merge per-record independent of savedAt (like sessions); device-local keys are
+   never adopted on merge and are stripped from the pushed payload; only small user-data scalars use coarse LWW. */
+
+// Device-specific — never crosses devices (theming, audio, paired hardware, folder locations, per-screen UI).
+const DEVICE_LOCAL_KEYS = new Set(['theme','sound','metronome','annunciation','ttsTips','ttsVoice','coachPersona',
+  'coachVoices','coachAuto','reflectPills','audioHeadphonesOnly','restCues','uiFeedback','trackerPress',
+  'autoSave','autoLoad','bioAutoLoad','stravaAutoLoad','aiExport','cowork','hrDevice','activeGymId',
+  'dashboard','workoutControls','settingsCollapse','refView','glossaryAsPage','glossaryHighlight','spUI','holdCue',
+  'anatomyChart','tipsExpanded','tipsMode','calcMode','alwaysConfirm','longPressConfirm','lang','readonly',
+  'brandMark','hideBranding','maxWeightLb','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','studyNudge']);
+// User-data collections merged per-record below (so the coarse savedAt race can't block them).
+const SYNC_COLLECTION_KEYS = new Set(['plans','bodyComp','stravaActivities','customVariations','gyms','seededPlanIds',
+  'exerciseMedia','exerciseSetup','cardioGoals','favoritePlans','favoriteVars','hiddenVars','hiddenMovements',
+  'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod']);
+// Beyond DEVICE_LOCAL_KEYS, these top-level slices are connection/identity that must never be pushed to the cloud.
+const NEVER_SYNC_EXTRA = ['cloudSync','coworkLocal','deviceId','lastSettingAnchor'];
+// The object actually written to the cloud file: everything EXCEPT device-local + connection/identity state.
+function syncPayload(st) {
+  const o = {};
+  Object.keys(st || {}).forEach(k => { if (!DEVICE_LOCAL_KEYS.has(k) && NEVER_SYNC_EXTRA.indexOf(k) < 0) o[k] = st[k]; });
+  return o;
+}
+// bodyComp is one entry per calendar day (matches the in-app same-day replace in saveBodyEntry).
+function bodyDayKey(b) { return b && b.date ? new Date(b.date).toDateString() : null; }
+function bodyNewer(inc, cur) { return ((inc && inc.updatedAt) || '') >= ((cur && cur.updatedAt) || ''); }
+// A plan's recency: highest rev, tiebroken by its newest revision timestamp.
+function planEditTs(p) { if (!p) return ''; const r = p.revisions; const at = (r && r.length) ? r[r.length - 1].at : ''; return at || p.createdAt || ''; }
+function planNewer(inc, cur) { const ri = (inc && inc.rev) || 0, rc = (cur && cur.rev) || 0; if (ri !== rc) return ri > rc; return planEditTs(inc) >= planEditTs(cur); }
+// Last-write-wins UNION of two record arrays keyed by keyFn; newerFn(inc,cur) breaks ties. Records whose key is
+// null are kept from local (so a legacy id-less plan is never dropped) but not duplicated from incoming.
+function mergeKeyedArray(localArr, incArr, keyFn, newerFn) {
+  const m = new Map(), loose = [];
+  (localArr || []).forEach(x => { const k = keyFn(x); if (k == null) loose.push(x); else m.set(k, x); });
+  (incArr || []).forEach(x => { const k = keyFn(x); if (k == null) return; const cur = m.get(k); if (!cur || newerFn(x, cur)) m.set(k, x); });
+  return [...m.values(), ...loose];
+}
+function mergeIdSet(localArr, incArr) { return [...new Set([...(localArr || []), ...(incArr || [])])]; }
+// Union of object maps (progress / flag maps only ever accumulate); on a key conflict the incoming value wins.
+function mergeMap(localObj, incObj) { return (incObj && typeof incObj === 'object') ? { ...(localObj || {}), ...incObj } : (localObj || {}); }
+// Plan/body delete tombstones, mirroring deletedSessions: a delete wins only if it's at least as new as the
+// record's last edit (so an edit-after-delete on the other device survives).
+function tombstonePlan(id) { if (!id) return; if (!Array.isArray(state.deletedPlans)) state.deletedPlans = []; const now = new Date().toISOString(); const e = state.deletedPlans.find(t => t.id === id); if (e) e.deletedAt = now; else state.deletedPlans.push({ id, deletedAt: now }); }
+function tombstoneBody(dayKey) { if (!dayKey) return; if (!Array.isArray(state.deletedBody)) state.deletedBody = []; const now = new Date().toISOString(); const e = state.deletedBody.find(t => t.id === dayKey); if (e) e.deletedAt = now; else state.deletedBody.push({ id: dayKey, deletedAt: now }); }
+function applyKeyedTombstones(st, arrKey, tombKey, data, keyFn, tsFn) {
+  const tombs = new Map();
+  const add = t => { if (t && t.id && t.deletedAt) { const e = tombs.get(t.id); if (!e || t.deletedAt > e.deletedAt) tombs.set(t.id, t); } };
+  (st[tombKey] || []).forEach(add); (data[tombKey] || []).forEach(add);
+  st[arrKey] = (st[arrKey] || []).filter(x => { const t = tombs.get(keyFn(x)); return !(t && t.deletedAt >= tsFn(x)); });
+  st[tombKey] = [...tombs.values()];
+}
+
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
 // merge:     sessions are merged by date; settings from the file are ignored.
@@ -4454,12 +4511,26 @@ function applyImport(data, mode) {
   tombs.forEach(t => { const s = byKey.get(t.id); if (s && t.deletedAt >= sessionTs(s)) byKey.delete(t.id); });
   const merged = [...byKey.values()].sort((a, b) => new Date(b.date) - new Date(a.date));
   state = { ...state, sessions: merged, deletedSessions: [...tombs.values()] };
-  // Settings: coarse whole-object last-write-wins — adopt the file's settings only if it saved later.
-  // feat 324 — `profile` syncs on its OWN timestamp so a profile edit isn't blocked or clobbered by an unrelated
-  // newer save on the other device (the gym phone bumps savedAt constantly by logging sets).
+  // feat 328 — USER-DATA collections merge per-record, INDEPENDENT of the coarse savedAt (so the gym phone's
+  // constant savedAt bumps can never block the desktop's plans/body/etc. from reaching it, and vice-versa).
+  state.plans            = mergeKeyedArray(state.plans, data.plans, p => p && p.id, planNewer);
+  state.bodyComp         = mergeKeyedArray(state.bodyComp, data.bodyComp, bodyDayKey, bodyNewer);
+  state.stravaActivities = mergeKeyedArray(state.stravaActivities, data.stravaActivities, a => a && a.id != null ? String(a.id) : null, () => true);
+  state.customVariations = mergeKeyedArray(state.customVariations, data.customVariations, v => v && (v.uuid || v.id), () => true);
+  state.gyms             = mergeKeyedArray(state.gyms, data.gyms, g => g && g.id, () => true);
+  if ('seededPlanIds' in data) state.seededPlanIds = mergeIdSet(state.seededPlanIds, data.seededPlanIds);
+  ['exerciseMedia','exerciseSetup','cardioGoals','favoritePlans','favoriteVars','hiddenVars','hiddenMovements',
+   'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod'].forEach(k => { if (k in data) state[k] = mergeMap(state[k], data[k]); });
+  applyKeyedTombstones(state, 'plans', 'deletedPlans', data, p => p && p.id, planEditTs);
+  applyKeyedTombstones(state, 'bodyComp', 'deletedBody', data, bodyDayKey, b => (b && b.updatedAt) || '');
+
+  // Remaining small user-data scalars/objects: coarse last-write-wins, gated by savedAt. DEVICE-LOCAL keys
+  // (theming, audio, folder locations, per-screen UI) and the per-record collections above are excluded, so
+  // device settings never cross devices and user data is never clobbered by an unrelated newer save.
+  // feat 324 — `profile` still syncs on its OWN timestamp (captured before the coarse copy, restored after).
   const _lp = state.profile, _lpt = state.profileSavedAt || '';
   if (data.savedAt && (!state.savedAt || data.savedAt > state.savedAt)) {
-    SETTINGS_KEYS.forEach(k => { if (k in data) state[k] = data[k]; });
+    SETTINGS_KEYS.forEach(k => { if (k in data && !DEVICE_LOCAL_KEYS.has(k) && !SYNC_COLLECTION_KEYS.has(k)) state[k] = data[k]; });
     state.savedAt = data.savedAt;
   }
   const _dpt = data.profileSavedAt || '';
@@ -4764,6 +4835,11 @@ function normalizeState() {
   if (!Array.isArray(state.deletedSessions)) state.deletedSessions = [];
   const _tombMin = new Date(Date.now() - 365 * 86400000).toISOString();
   state.deletedSessions = state.deletedSessions.filter(t => t && t.id && t.deletedAt && t.deletedAt > _tombMin);
+  // feat 328 — plan/body delete tombstones (same shape + pruning), so cross-device merges don't resurrect deletions.
+  if (!Array.isArray(state.deletedPlans)) state.deletedPlans = [];
+  state.deletedPlans = state.deletedPlans.filter(t => t && t.id && t.deletedAt && t.deletedAt > _tombMin);
+  if (!Array.isArray(state.deletedBody)) state.deletedBody = [];
+  state.deletedBody = state.deletedBody.filter(t => t && t.id && t.deletedAt && t.deletedAt > _tombMin);
 }
 
 function loadState() {
@@ -6684,7 +6760,7 @@ async function cloudPushNow() {
   try {
     // read-merge-write: fold in any concurrent remote edits before overwriting the file
     try { const remote = await p.pull(); if (remote && typeof remote === 'object') applyImport(remote, 'merge'); } catch (_) {}
-    const body = JSON.stringify(state);
+    const body = JSON.stringify(syncPayload(state)); // feat 328 — push user data only; device-local + connection state stays on this device
     cloudPersist();
     await p.push(body);
     cloudSetMeta({ lastSync: new Date().toISOString(), lastError: null });
@@ -13416,7 +13492,7 @@ function bindPlansList(body) {
   body.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
   body.querySelectorAll('[data-plan-view]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planView; _plansViewMode = true; _plansRevView = false; renderPlansOverlay(); })); // feat 276 — read-only view
   body.querySelectorAll('[data-plan-edit]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planEdit; _plansViewMode = false; renderPlansOverlay(); }));
-  body.querySelectorAll('[data-plan-del]').forEach(b => b.addEventListener('click', () => { guardedConfirm('Delete this plan?', b).then(ok => { if (ok) { state.plans = (state.plans || []).filter(p => p.id !== b.dataset.planDel); saveState(); renderPlansOverlay(); } }); }));
+  body.querySelectorAll('[data-plan-del]').forEach(b => b.addEventListener('click', () => { guardedConfirm('Delete this plan?', b).then(ok => { if (ok) { tombstonePlan(b.dataset.planDel); state.plans = (state.plans || []).filter(p => p.id !== b.dataset.planDel); saveState(); renderPlansOverlay(); } }); })); // feat 328 — tombstone so the delete propagates and isn't resurrected by a cross-device merge
   body.querySelector('#plan-new-btn')?.addEventListener('click', () => { const p = { id: newUuid(), name: 'New Plan', steps: [{ id:newUuid(), sets:3, options:[] }] }; state.plans = state.plans || []; state.plans.push(p); saveState(); _plansEditId = p.id; renderPlansOverlay(); });
   body.querySelector('#plan-new-from-workout')?.addEventListener('click', openPlanFromWorkout); // feat 155
 }
@@ -18103,6 +18179,7 @@ function renderBody(main) {
   main.querySelectorAll('[data-bc-del]').forEach(b => b.addEventListener('click', () => {
     guardedConfirm('Delete this measurement?', b).then(ok => {
       if (!ok) return;
+      tombstoneBody(bodyDayKey({ date: b.dataset.bcDel })); // feat 328 — propagate the delete across devices
       state.bodyComp = state.bodyComp.filter(x => x.date !== b.dataset.bcDel);
       saveState(); logInfo('Body measurement deleted'); renderBody(main);
     });
@@ -18135,6 +18212,7 @@ function saveBodyEntry(main) {
     boneMassKg: bone,
     bodyWaterPct: isNaN(water) ? null : Math.round(water * 10) / 10,
     note: note || null,
+    updatedAt: new Date().toISOString(), // feat 328 — same-day cross-device merge picks the most recently edited entry
   };
   GIRTH_FIELDS.forEach(g => { // feat 220 — optional tape measurements
     const el = document.getElementById('bc-g-' + g.id);
@@ -18173,6 +18251,7 @@ function normBiometricEntry(r) {
     boneMassKg: r.boneMassKg != null ? _bioKg(r.boneMassKg) : (r.boneMassLb != null ? _bioKg(lbToKg(+r.boneMassLb)) : null),
     bodyWaterPct: _bioNum(r.bodyWaterPct),
     note: r.note || null,
+    updatedAt: new Date().toISOString(), // feat 328 — recency stamp for cross-device same-day merge
   };
   ['neckCm', 'chestCm', 'waistCm', 'hipsCm', 'bicepsCm', 'thighCm', 'calfCm'].forEach(k => { const v = _bioNum(r[k]); if (v != null && v > 0) e[k] = v; }); // feat 220
   return e;
@@ -20779,7 +20858,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 285 · 2026-06-23 00:16';
+const APP_BUILD = 'build 286 · 2026-06-23 07:56';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

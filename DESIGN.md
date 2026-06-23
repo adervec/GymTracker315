@@ -1552,6 +1552,26 @@ They share variation **UUIDs**.
   (Settings label + sub, the generated `README-COWORK.md`, and the AI-brief export text) and explicitly described as
   model-agnostic — any agent that can read/write the folder (e.g. Claude or GPT), not Claude-specific. No behaviour
   change; the internal feat name in this doc remains "Cowork hub" for continuity.
+- **Cloud sync carries all user data, never device settings (feat 328):** cross-device sync was dropping plans /
+  body measurements / Strava activities on the phone while *device* settings (theming, audio, folder locations) were
+  syncing — the opposite of what's wanted. Root cause: the **coarse settings last-write-wins** adopted ALL of
+  `SETTINGS_KEYS` (or none) gated by a single `savedAt`; the gym phone bumps `savedAt` on every logged set, so it almost
+  always "won" and the desktop's plans/body never propagated (only `sessions` synced, because they merge per-record
+  always — which is why Strava *cardio sessions* did show up). Generalising feat 324's per-domain approach: `SETTINGS_KEYS`
+  stays the persistence/full-backup allowlist, and sync gains its own policy. **`DEVICE_LOCAL_KEYS`** (theming · audio ·
+  folder/sync config · paired hardware · per-screen UI) are **never adopted on merge** and are **stripped from the pushed
+  payload** via `syncPayload(state)` (which also drops connection/identity: `cloudSync`, `coworkLocal`, `deviceId`).
+  **User-data collections** (`plans`, `bodyComp`, `stravaActivities`, `customVariations`, `gyms`, `seededPlanIds`, plus the
+  progress/flag maps `exerciseMedia`/`favoritePlans`/`hiddenVars`/`glossaryRead`/…) merge **per-record, independent of
+  `savedAt`** (`mergeKeyedArray`/`mergeIdSet`/`mergeMap`) — so neither device's constant saving can block the other's
+  data. `plans` keys by `id` (newest `rev`, tiebroken by latest revision `at`); `bodyComp` keys by **calendar day** with a
+  new per-entry `updatedAt` recency stamp. Deletions propagate via new tombstones `deletedPlans` / `deletedBody` (mirroring
+  `deletedSessions`: a delete wins only if at least as new as the record's last edit), wired into the plan-delete and
+  body-measurement-delete handlers + defaulted/pruned in `normalizeState`. Remaining small user-data scalars (`unit`,
+  `muscleWeights`, `program`, `podOptions`, …) keep coarse LWW, now restricted to non-device, non-collection keys; `profile`
+  still rides its own `profileSavedAt` (feat 324). `test/syncscope.spec.mjs` (plans/body/strava sync despite a newer local
+  `savedAt`; device-local kept while user scalars adopt; `syncPayload` strips the right keys; plan + body delete
+  tombstones; same-day body recency). All existing `sync`/`profilesync`/`dataexport` merge tests stay green.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
