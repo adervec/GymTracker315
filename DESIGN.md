@@ -1526,6 +1526,15 @@ They share variation **UUIDs**.
   `strava.com/activities/<id>`, shown as a 🔗 Strava chip in the History session header for any session carrying a
   `stravaId` (linked workouts and inserted orphan cardio alike). `test/coworkcardio.spec.mjs` (kayak/swim/pickleball →
   the generic var, still `mega:'cardio'`; URL format).
+- **Profile syncs independently (feat 324):** profile edits weren't reliably crossing devices — `profile` rode the
+  **coarse settings last-write-wins** (`applyImport` adopts the file's settings only when its `savedAt` is newer), but
+  the gym phone bumps `savedAt` on every logged set, so a desktop profile edit (older overall `savedAt`) never won, and
+  a read-merge-write push could clobber it. Fixed with a dedicated `state.profileSavedAt` timestamp (in SETTINGS_KEYS),
+  bumped by `touchProfile()` on every profile edit (name/dob/height/gender + the cloud-account name lock). `applyImport`
+  now resolves `profile` by **its own** timestamp, independent of the coarse gate — capturing the local profile before
+  the coarse copy and keeping whichever side edited the profile more recently. `test/profilesync.spec.mjs` (a local
+  edit survives a newer unrelated phone save; a newer remote profile edit is adopted even when the file is otherwise
+  older; `touchProfile` stamps). Existing `sync` merge tests unaffected (no-op when `profileSavedAt` is absent).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
