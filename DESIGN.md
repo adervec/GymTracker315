@@ -1572,6 +1572,14 @@ They share variation **UUIDs**.
   still rides its own `profileSavedAt` (feat 324). `test/syncscope.spec.mjs` (plans/body/strava sync despite a newer local
   `savedAt`; device-local kept while user scalars adopt; `syncPayload` strips the right keys; plan + body delete
   tombstones; same-day body recency). All existing `sync`/`profilesync`/`dataexport` merge tests stay green.
+- **Workout export shows the plan it ran from (feat 329):** the per-workout PNG summary card and the
+  Strava-description text export now surface the plan a workout was run from, when applicable. `sessionPlanLabel(session)`
+  resolves the name from the per-session **snapshot** (`planExec.planName`, captured at completion so it survives a later
+  plan rename/delete) and falls back to the live `getPlan(session.planId)`; a free-form workout returns `null` and shows
+  nothing. `summarizeSession` carries it as `.plan`; the text export adds a `Plan: <name>` line under the date, and the
+  PNG card renders a `Plan · <name>` row (accent2) above the EXERCISES list for a single session (range exports are
+  unchanged — "this workout" is singular). `test/planexport.spec.mjs` (live/snapshot/free-form label resolution; the
+  summary + text export include the plan only when present).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

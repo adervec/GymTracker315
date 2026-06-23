@@ -17084,6 +17084,15 @@ function sessionScore(session) {
 }
 
 // Normalize a session into the shape both the text and image builders consume.
+// feat 329 — the plan a workout ran from, for export surfaces (null when it wasn't run from a plan). Prefers the
+// snapshot captured at completion (planExec.planName survives a later plan rename/delete), else the live plan name.
+function sessionPlanLabel(session) {
+  if (!session) return null;
+  const pe = session.planExec;
+  let name = (pe && pe.planName) || null;
+  if (!name && session.planId) { const p = getPlan(session.planId); name = p ? p.name : null; }
+  return name || null;
+}
 function summarizeSession(session) {
   const stats = computeSessionStats(session);
   const score = sessionScore(session);
@@ -17097,7 +17106,7 @@ function summarizeSession(session) {
     if (!ex.sets || !ex.sets.length) return null;
     return { name: displayName(ex.varUuid, ex.subUuid), detail: ex.sets.map(s => `${s.w}×${s.r}${rpeExportTag(s)}`).join(', '), isCardio: false }; // feat 267 — effort tag when enabled
   }).filter(Boolean);
-  return { dateAbs, timeRange, stats, score, hr, exercises, raw: session };
+  return { dateAbs, timeRange, stats, score, hr, exercises, plan: sessionPlanLabel(session), raw: session };
 }
 
 // Build plain, Strava-description-friendly text for one session or a range.
@@ -17107,6 +17116,7 @@ function buildWorkoutText(sessions, opts) {
   const blockFor = sm => {
     const lines = [];
     lines.push(`${sm.dateAbs} · ${sm.timeRange}`);
+    if (sm.plan) lines.push(`Plan: ${sm.plan}`); // feat 329 — surface the plan a workout ran from
     let stat = `Duration ${sm.stats.elapsedDisplay} · ${sm.stats.totalSets} set${sm.stats.totalSets===1?'':'s'} · ${nf(sm.stats.totalVolume)} ${unit}`;
     if (sm.score) stat += ` · Score ${sm.score.grade} (${sm.score.points}/100)`;
     lines.push(stat);
@@ -17281,6 +17291,7 @@ function renderWorkoutCard(sessions, opts) {
     const items = [];
     if (!isRange) {
       const sm = summaries[0];
+      if (sm.plan) items.push({ kind:'plan', text: sm.plan, h: HEAD_ROW_H }); // feat 329 — plan the workout ran from
       items.push({ kind:'heading', text:'EXERCISES', h: HEAD_ROW_H });
       sm.exercises.slice(0, MAX_ROWS_SINGLE).forEach(e => items.push({ kind:'ex', e, h: ROW_H }));
       if (!sm.exercises.length) items.push({ kind:'more', text:'No exercises logged', h: MORE_H });
@@ -17359,6 +17370,8 @@ function renderWorkoutCard(sessions, opts) {
         T(e.name, cX, y + 19, 13, 500, C.text, 'left', cW - dW - 16);
       } else if (it.kind === 'more') {
         T(it.text, cX, y + 16, 11.5, 600, C.text3, 'left', cW);
+      } else if (it.kind === 'plan') {
+        T('Plan · ' + it.text, cX, y + 15, 12, 700, C.accent2, 'left', cW); // feat 329
       }
       y += it.h;
     });
@@ -20858,7 +20871,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 286 · 2026-06-23 07:56';
+const APP_BUILD = 'build 289 · 2026-06-23 09:12';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
