@@ -18994,6 +18994,9 @@ function buildVarTrendMap() {
   byVar.forEach((m, uuid) => out.set(uuid, [...m.values()].sort((a, b) => a.ms - b.ms).map(e => Math.round(e.best))));
   return out;
 }
+// feat 332/333 — the e1RM trend for a SINGLE variation (null until 2+ training days). Used by the coach's
+// first-set annunciation; the picker uses the batched buildVarTrendMap instead (one pass for the whole list).
+function variationTrend(varUuid) { return varUuid ? e1rmTrend(buildVarTrendMap().get(varUuid)) : null; }
 // feat 332 — a discrete e1RM trend dot for a picker row (▲ improving · ▼ declining · – holding). Empty until there
 // are 2+ training days, so it never implies a trend it can't support; the % sits in the tooltip to stay glanceable.
 function pickerTrendBadge(series) {
@@ -20890,7 +20893,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 292 · 2026-06-23 10:25';
+const APP_BUILD = 'build 293 · 2026-06-23 10:39';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -21296,12 +21299,24 @@ function annunceWithinLimit(pos, L) {
   if (pos.x <= L) return true;
   return pos.y ? pos.x > pos.y - L : false;
 }
+// feat 333 — a quick, informative note on how this variation's strength is trending, spoken on the FIRST set's
+// start cue. Empty until there are 2+ training days (so the coach never invents a trend); reuses the feat-332 e1RM
+// trend. Phrased for speech (no "e1RM" abbreviation) and kept to one short sentence.
+function setStartTrendComment(varUuid) {
+  const t = variationTrend(varUuid);
+  if (!t) return '';
+  if (t.dir === 'up') return `Trending up — strength's climbed ${t.pct} percent lately. Keep it rolling.`;
+  if (t.dir === 'down') return `This one's dipped ${Math.abs(t.pct)} percent recently. Let's turn it around today.`;
+  return `Strength has held flat lately. Time to break the plateau.`;
+}
 function annunceSetStart() {
   const c = annunciationCfg();
   if (!c.start) return;
   const pos = setPositionInfo();
   if (!annunceWithinLimit(pos, c.startLimit)) return; // feat 208
-  annunce(coachPhrase('setStart', setStartPhrase(pos), { pos })); // feat 296 — persona flavour
+  let phrase = coachPhrase('setStart', setStartPhrase(pos), { pos }); // feat 296 — persona flavour
+  if (pos.x === 1) { const tc = setStartTrendComment(pending.varUuid); if (tc) phrase += '. ' + tc; } // feat 333 — first-set trend note
+  annunce(phrase);
 }
 // feat 207 — set-END cues, spoken when a set completes (reps land): "One down — 3 to go",
 // "2 of 4 down", "Half done", "One more, then Squat", "All done — time for Squat".

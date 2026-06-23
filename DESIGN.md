@@ -1607,6 +1607,16 @@ They share variation **UUIDs**.
   the list re-renders on every keystroke). The dot is **omitted until there are 2+ training days**, so it never implies
   a trend it can't support. `test/pickertrend.spec.mjs` (`e1rmTrend` up/down/flat/null; same-day collapse + chronological
   order; the dot renders for a climbing variation; nothing logged or a single day → no dot).
+- **Coach calls out the trend on the first set (feat 333):** when set-start annunciation (feat 206) is on, the spoken
+  cue for the **first set** of an exercise now appends a quick, informative note on how that variation's strength is
+  trending — e.g. "First set of 4. Trending up — strength's climbed 12 percent lately. Keep it rolling." Down →
+  "…dipped N percent recently. Let's turn it around today."; flat → "Strength has held flat lately. Time to break the
+  plateau." `setStartTrendComment(varUuid)` reuses the feat-332 `variationTrend` (e1RM, var-level) and returns '' until
+  there are 2+ training days, so the coach never invents a trend. Phrased for speech (no "e1RM" abbreviation), one short
+  sentence, appended after the persona-flavoured position phrase in a single utterance. Only the first set (`pos.x === 1`)
+  gets it — later sets keep the plain position cue. The just-started set (weight in, no reps) scores 0 e1RM, so it never
+  skews the trend it's reporting. `test/anntrend.spec.mjs` (up/down/flat/empty phrasing; appended on set 1, absent on set
+  2; silent when the start cue is off).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
