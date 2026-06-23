@@ -698,6 +698,15 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .about-credit strong { color: var(--text); }
 .about-build { margin-top: 10px; font-size: 10.5px; color: var(--text3); letter-spacing: 0.3px; font-family: ui-monospace, Menlo, Consolas, monospace; }
 .drawer-data-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+/* feat 319 — Plan-of-the-Day options form */
+.pod-options { margin-top: 8px; padding: 10px 11px; border-radius: 9px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); }
+.pod-field { display: block; font-size: 12px; color: var(--text2); margin-top: 10px; }
+.pod-field > span { display: block; margin-bottom: 4px; }
+.pod-field input[type=range] { width: 100%; }
+.pod-field textarea, .pod-field select { width: 100%; margin-top: 4px; }
+.pod-field summary { cursor: pointer; font-weight: 700; color: var(--text); }
+.pod-chk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin-top: 6px; }
+.pod-chk { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text2); }
 .drawer-btn {
   padding: 8px 14px; background: var(--bg3); border: 1px solid var(--border2);
   border-radius: 8px; color: var(--text2); font-size: 12px; font-weight: 600;
@@ -6026,6 +6035,88 @@ function cardioSystemicFatigue(nowMs) {
   return f;
 }
 
+/* ============================================================
+   feat 319 — CLAUDE COWORK HUB (Phase 4: Plan of the Day). The agent reads options.json + context and drops
+   plans into plan-of-the-day/inbox/. The importer validates every step against REAL movements (unknown ids
+   dropped, empty plans rejected), stamps source:'daily', replaces same-date dailies, prunes old ones. Daily
+   plans render in their own pinned "Plans of the Day" section but otherwise run like any plan.
+   ============================================================ */
+// Keep only step options that resolve to a real movement/variation; drop empty steps; reject empty plans.
+function validateImportedPlan(raw) {
+  if (!raw || typeof raw !== 'object') return { plan: null, dropped: 'not an object' };
+  let dropped = 0; const steps = [];
+  (raw.steps || []).forEach(st => {
+    const opts = (st.options || []).filter(o => {
+      try {
+        if (o && o.type === 'variation' && o.uuid) return VAR_INDEX.has(o.uuid);
+        if (o && o.type === 'movement' && o.familyId) { const fid = (typeof resolveFamilyId === 'function') ? resolveFamilyId(o.familyId) : o.familyId; return FAMILIES.some(f => f.id === fid); }
+      } catch (_) {}
+      return false;
+    }).map(o => o.type === 'variation' ? { type: 'variation', uuid: o.uuid } : { type: 'movement', familyId: (typeof resolveFamilyId === 'function') ? resolveFamilyId(o.familyId) : o.familyId });
+    if (!opts.length) { dropped++; return; }
+    let set = null; try { set = stepQualifyingVarSet({ options: opts }); } catch (_) {}
+    if (set && set.size === 0) { dropped++; return; } // resolves to no actual exercises
+    steps.push({ id: newUuid(), sets: Math.max(1, Math.min(20, (st.sets | 0) || 3)), options: opts, desc: String(st.desc || ''), load: (['light', 'moderate', 'heavy'].indexOf(st.load) !== -1 ? st.load : 'moderate') });
+  });
+  if (!steps.length) return { plan: null, dropped: 'no valid steps' };
+  return { plan: { id: newUuid(), name: String(raw.name || 'Plan of the Day').slice(0, 80), intensity: Math.max(1, Math.min(5, (raw.intensity | 0) || 3)), desc: String(raw.desc || ''), steps }, dropped };
+}
+function coworkImportPlanOfDay(payload) {
+  if (!payload || !Array.isArray(payload.plans)) return { handled: false, reason: 'no plans' };
+  const date = (payload.date && /^\d{4}-\d{2}-\d{2}$/.test(payload.date)) ? payload.date : new Date().toISOString().slice(0, 10);
+  if (!Array.isArray(state.plans)) state.plans = [];
+  state.plans = state.plans.filter(p => !(p.source === 'daily' && p.dailyDate === date)); // replace same-date dailies
+  let added = 0, rejected = 0;
+  payload.plans.forEach(raw => {
+    const v = validateImportedPlan(raw);
+    if (!v.plan) { rejected++; return; }
+    v.plan.source = 'daily'; v.plan.dailyDate = date; v.plan.dailyGeneratedAt = new Date().toISOString();
+    v.plan.author = 'Plan of the Day'; v.plan.dailyRationale = String(payload.rationale || '');
+    try { ensurePlanRevisioned(v.plan); } catch (_) {}
+    state.plans.push(v.plan); added++;
+  });
+  const keepDays = (state.cowork && state.cowork.podKeepDays) || 7; // prune stale dailies
+  const cutoff = new Date(Date.now() - keepDays * 86400000).toISOString().slice(0, 10);
+  state.plans = state.plans.filter(p => !(p.source === 'daily' && p.dailyDate && p.dailyDate < cutoff));
+  if (added) { saveState(); if (typeof render === 'function') render(); }
+  return { handled: true, kind: 'pod', added, rejected, date };
+}
+// Persist POD options + re-write options.json so the agent sees the latest.
+function coworkWritePodOptions() { saveState(); try { renderSettingsDrawer(); } catch (_) {} if (state.cowork && state.cowork.enabled) coworkExportNow(true).catch(() => {}); toast('🗓️ Plan-of-Day options saved'); }
+// Read the options editor form back into state, then persist + export.
+function podSaveFromForm(body) {
+  const o = state.podOptions || {};
+  const minEl = body.querySelector('#pod-minutes'); const min = minEl ? +minEl.value : (o.availableMinutes || 60);
+  const modeEl = body.querySelector('.pod-mode.active'); const mode = (modeEl && modeEl.dataset.podMode) || o.targetMode || 'recovered';
+  const groups = [...body.querySelectorAll('.pod-group:checked')].map(c => c.value);
+  const injuries = [...body.querySelectorAll('.pod-injury:checked')].map(c => c.value);
+  const equipment = [...body.querySelectorAll('.pod-equip:checked')].map(c => c.value);
+  const focusEl = body.querySelector('#pod-focus'); const fitnessFocus = (focusEl && focusEl.value) || 'balance';
+  const notesEl = body.querySelector('#pod-notes'); const notes = notesEl ? notesEl.value : (o.notes || '');
+  state.podOptions = { ...o, availableMinutes: Math.max(20, Math.min(180, min | 0 || 60)), targetMode: mode, targetGroups: groups, injuries, equipment, fitnessFocus, notes };
+  coworkWritePodOptions();
+}
+// The POD options editor (rendered inside the Cowork settings block when the hub is on).
+function renderPodOptionsForm() {
+  const o = state.podOptions || {};
+  const FOCUS = [['balance', 'Balanced (default)'], ['strength', 'Max Strength'], ['muscle', 'Hypertrophy'], ['stamina', 'Strength-Endurance'], ['power', 'Power & Agility'], ['endurance', 'Endurance'], ['mobility', 'Flexibility & Mobility']];
+  const groups = RECOVERY_BPS.map(bp => `<label class="pod-chk"><input type="checkbox" class="pod-group" value="${bp}" ${(o.targetGroups || []).indexOf(bp) !== -1 ? 'checked' : ''}> ${escapeHtml(BP_LABELS[bp] || bp)}</label>`).join('');
+  const inj = injuryOptionList().map(i => `<label class="pod-chk"><input type="checkbox" class="pod-injury" value="${escapeAttr(i.id)}" ${(o.injuries || []).indexOf(i.id) !== -1 ? 'checked' : ''}> ${escapeHtml(i.label)}</label>`).join('');
+  const equip = GYM_EQUIP.map(e => `<label class="pod-chk"><input type="checkbox" class="pod-equip" value="${escapeAttr(e.id)}" ${(o.equipment || []).indexOf(e.id) !== -1 ? 'checked' : ''}> ${escapeHtml(e.label || e.id)}</label>`).join('');
+  return `<div class="pod-options">
+    <div class="drawer-setting-label" style="margin-top:8px;">🗓️ Plan of the Day options</div>
+    <div class="drawer-setting-sub">Shapes the daily plans the cowork agent writes (saved to options.json).</div>
+    <label class="pod-field">Available time: <b id="pod-min-val">${o.availableMinutes || 60}</b> min<input type="range" id="pod-minutes" min="20" max="180" step="5" value="${o.availableMinutes || 60}"></label>
+    <div class="pod-field"><span>Target</span><div class="drawer-pill-group">${[['recovered', 'Most recovered'], ['groups', 'Specific groups'], ['rehab', 'Recovery & rehab']].map(([v, l]) => `<button type="button" class="drawer-pill pod-mode ${(o.targetMode || 'recovered') === v ? 'active' : ''}" data-pod-mode="${v}">${l}</button>`).join('')}</div></div>
+    <div class="pod-field" id="pod-groups-wrap" style="${(o.targetMode === 'groups') ? '' : 'display:none;'}"><div class="pod-chk-grid">${groups}</div></div>
+    <label class="pod-field">Fitness focus <select id="pod-focus" class="vw-select">${FOCUS.map(([v, l]) => `<option value="${v}" ${(o.fitnessFocus || 'balance') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <details class="pod-field"><summary>Injuries to avoid (${(o.injuries || []).length})</summary><div class="pod-chk-grid">${inj}</div></details>
+    <details class="pod-field"><summary>Available equipment (${(o.equipment || []).length || 'active gym'})</summary><div class="pod-chk-grid">${equip}</div></details>
+    <label class="pod-field">Notes<textarea id="pod-notes" rows="2" class="vw-select" placeholder="e.g. shoulder tweaky; want more posterior chain">${escapeHtml(o.notes || '')}</textarea></label>
+    <button class="drawer-btn" id="pod-save">💾 Save options</button>
+  </div>`;
+}
+
 /* ---- feat 89 — Strava activities auto-load (mirrors biometrics auto-load; reuses the bioIdb* handle store) ---- */
 let _stravaLoadFileHandle = null, _stravaLoadDirHandle = null;
 async function stravaLoadNewestInDir(dirHandle) {
@@ -8212,7 +8303,7 @@ function renderSettingsDrawer() {
           <button class="drawer-pill ${state.cowork.cardioFatigue ? 'active' : ''}" data-cardiofatigue="on">On</button>
           <button class="drawer-pill ${!state.cowork.cardioFatigue ? 'active' : ''}" data-cardiofatigue="off">Off</button>
         </div>
-      </div>` : ''}
+      </div>${renderPodOptionsForm()}` : ''}
     ` : `
       <div class="drawer-data-row" style="flex-wrap:wrap;">
         <button class="drawer-btn" id="ai-pick-folder-btn">📁 Pick export folder</button>
@@ -8572,6 +8663,9 @@ function renderSettingsDrawer() {
   body.querySelectorAll('[data-cowork]').forEach(b => b.addEventListener('click', () => { state.cowork.enabled = b.dataset.cowork === 'on'; saveState(); renderSettingsDrawer(); if (state.cowork.enabled) coworkExportNow(false).catch(() => {}); })); // feat 316
   body.querySelector('#cowork-write-now')?.addEventListener('click', () => coworkExportNow(false).catch(() => {})); // feat 316
   body.querySelectorAll('[data-cardiofatigue]').forEach(b => b.addEventListener('click', () => { state.cowork.cardioFatigue = b.dataset.cardiofatigue === 'on'; saveState(); renderSettingsDrawer(); if (typeof render === 'function') render(); toast('Cardio in recovery: ' + (state.cowork.cardioFatigue ? 'on' : 'off')); })); // feat 318
+  body.querySelectorAll('[data-pod-mode]').forEach(b => b.addEventListener('click', () => { body.querySelectorAll('.pod-mode').forEach(x => x.classList.remove('active')); b.classList.add('active'); const w = body.querySelector('#pod-groups-wrap'); if (w) w.style.display = b.dataset.podMode === 'groups' ? '' : 'none'; })); // feat 319
+  { const pmin = body.querySelector('#pod-minutes'); if (pmin) pmin.addEventListener('input', () => { const v = body.querySelector('#pod-min-val'); if (v) v.textContent = pmin.value; }); }
+  body.querySelector('#pod-save')?.addEventListener('click', () => podSaveFromForm(body)); // feat 319
   body.querySelector('#ai-disable-btn')?.addEventListener('click', aiExportDisable);
   body.querySelectorAll('[data-ai]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, [b.dataset.ai]: b.dataset.aiVal === 'on' }; saveState(); renderSettingsDrawer(); }));
   body.querySelectorAll('[data-aiscope]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, scope: b.dataset.aiscope }; saveState(); renderSettingsDrawer(); }));
@@ -12254,6 +12348,7 @@ function planMegaDist(plan) {
   return { mega, total };
 }
 function planCategory(plan) {
+  if (plan && plan.source === 'daily') return 'Plans of the Day'; // feat 319 — pinned at the top in its own section
   const { mega, total } = planMegaDist(plan);
   if (!total) return 'Other';
   const NAME = { push:'Push', pull:'Pull', lower:'Legs', core:'Core', full:'Full Body', mobility:'Mobility', recovery:'Recovery' };
@@ -12358,7 +12453,7 @@ function recommendPlans(minutes, limit) {
   scored.sort((a, b) => b.score - a.score || estimatePlanMinutes(a.plan) - estimatePlanMinutes(b.plan));
   return scored.slice(0, limit || 3).map(x => ({ ...x, reason: planRecReason(x.plan, minutes, recent, rec) }));
 }
-const PLAN_CAT_ORDER = ['Full Body','Upper','Push','Pull','Legs','Core','Mixed','Mobility','Recovery','Other'];
+const PLAN_CAT_ORDER = ['Plans of the Day','Full Body','Upper','Push','Pull','Legs','Core','Mixed','Mobility','Recovery','Other']; // feat 319 — daily plans pinned first
 /* ============================================================
    feat 229 — SPLIT PLANNER. Optional weekly-split facility: recommend a split for the sessions / days /
    hours you have, then analyse how far that split over- or under-shoots each muscle group's weekly volume
@@ -20564,7 +20659,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 275 · 2026-06-22 22:45';
+const APP_BUILD = 'build 276 · 2026-06-22 22:50';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

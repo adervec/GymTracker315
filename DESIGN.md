@@ -1480,6 +1480,19 @@ They share variation **UUIDs**.
   composite Training Readiness (feat 299) only — never any muscle group. `test/coworkcardio.spec.mjs` (sport→real
   cardio var; field mapping; orphan insert + idempotency + linked-excluded; toggle leaves `recoveryReadiness`
   byte-identical while lowering `trainingReadiness`). Phase 4 adds Plan of the Day.
+- **Claude Cowork hub — Phase 4 Plan of the Day (feat 319):** the agent drops generated plans in
+  `plan-of-the-day/inbox/`; `coworkImportPlanOfDay` validates each via `validateImportedPlan` (every step option
+  checked against real movements with `resolveFamilyId`/`VAR_INDEX`/`stepQualifyingVarSet` — unknown `familyId`/`uuid`
+  dropped, empty steps removed, zero-step plans rejected), stamps **`source:'daily'`** + `dailyDate`/`dailyRationale`,
+  runs `ensurePlanRevisioned`, **replaces same-date** dailies and **prunes** ones older than `cowork.podKeepDays` (7).
+  Daily plans render in a **pinned "Plans of the Day" section** — `planCategory` short-circuits to it and it's index 0
+  in `PLAN_CAT_ORDER` (so `renderPlansList`'s existing grouping puts it first) — but otherwise run like any plan
+  (`planUseForWorkout`). A **POD options editor** in Settings → Cowork (`renderPodOptionsForm`/`podSaveFromForm` →
+  `coworkWritePodOptions` writes `options.json`): available time (20-180), target mode (most-recovered / specific
+  groups / recovery&rehab) + group multi-select, fitness focus (default balance), faceted injuries-to-avoid, available
+  equipment, and free notes — stored in `state.podOptions` (synced). `test/coworkpod.spec.mjs` (validation keep/drop/
+  reject; import adds source:daily + rejects bad + same-date replace + age prune; pinned category rank 0 + section
+  renders + starts like a normal plan). Phase 5 adds periodic cloud sync + post-pull re-export + loop hardening.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
