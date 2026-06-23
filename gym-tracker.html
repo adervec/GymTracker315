@@ -956,6 +956,14 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .arch-guide.arch-mine { border-color: var(--accent); }
   .arch-you { font-size: 10px; font-weight: 800; color: var(--accent); background: var(--accent-bg); border-radius: 999px; padding: 1px 7px; margin-left: 6px; vertical-align: middle; }
   .arch-guide-link { margin-top: 10px; }
+  /* feat 338 — archetype journey */
+  .arch-journey { display: flex; flex-direction: column; gap: 2px; }
+  .arch-journey-row { display: flex; align-items: center; gap: 10px; padding: 6px 2px; border-bottom: 1px solid var(--border2); }
+  .arch-journey-row:last-child { border-bottom: none; }
+  .arch-journey-row .ajr-emoji { font-size: 18px; flex-shrink: 0; }
+  .arch-journey-row .ajr-name { flex: 1; font-size: 13px; font-weight: 700; }
+  .arch-journey-row .ajr-date { font-size: 11px; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .ajr-now { font-size: 9.5px; font-weight: 800; color: var(--accent); background: var(--accent-bg); border-radius: 999px; padding: 1px 6px; margin-left: 5px; vertical-align: middle; }
   /* feat 296 — coach persona picker */
   .coach-persona-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 7px; }
   .coach-persona { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
@@ -4532,6 +4540,8 @@ function applyImport(data, mode) {
    'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod'].forEach(k => { if (k in data) state[k] = mergeMap(state[k], data[k]); });
   applyKeyedTombstones(state, 'plans', 'deletedPlans', data, p => p && p.id, planEditTs);
   applyKeyedTombstones(state, 'bodyComp', 'deletedBody', data, bodyDayKey, b => (b && b.updatedAt) || '');
+  state.archetypeHistory = mergeKeyedArray(state.archetypeHistory, data.archetypeHistory, h => h && h.at, () => true) // feat 338 — union by timestamp
+    .sort((a, b) => String(a.at).localeCompare(String(b.at)));
 
   // Remaining small user-data scalars/objects: coarse last-write-wins, gated by savedAt. DEVICE-LOCAL keys
   // (theming, audio, folder locations, per-screen UI) and the per-record collections above are excluded, so
@@ -4849,6 +4859,7 @@ function normalizeState() {
   state.deletedPlans = state.deletedPlans.filter(t => t && t.id && t.deletedAt && t.deletedAt > _tombMin);
   if (!Array.isArray(state.deletedBody)) state.deletedBody = [];
   state.deletedBody = state.deletedBody.filter(t => t && t.id && t.deletedAt && t.deletedAt > _tombMin);
+  if (!Array.isArray(state.archetypeHistory)) state.archetypeHistory = []; // feat 338 — log of fitness-archetype shifts over time
 }
 
 function loadState() {
@@ -9867,6 +9878,13 @@ function renderArchetypePage(main) {
       <div class="focus-dim-sub">${escapeHtml(d.desc)}${top ? ` · most: ${escapeHtml(top[0])}` : ''}</div></div>`;
   }).join('');
   const winTxt = f.windowDays ? `your last ${Math.round(f.windowDays / 7)} weeks` : 'your whole training history';
+  // feat 338 — the archetype journey: past shifts, newest first (a single baseline entry isn't a "journey").
+  const journey = (state.archetypeHistory || []).slice().sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  const journeyHtml = journey.length >= 2 ? `<div class="card"><div class="card-title">🧬 Your archetype journey</div>
+    <div class="arch-journey">${journey.slice(-8).reverse().map((h, i) => {
+      const a = ARCHETYPES.find(x => x.id === h.id) || {};
+      return `<div class="arch-journey-row"><span class="ajr-emoji">${a.emoji || '•'}</span><span class="ajr-name">${escapeHtml(h.name || h.id)}${i === 0 ? ' <span class="ajr-now">now</span>' : ''}</span><span class="ajr-date">${fmtDate(h.at)}</span></div>`;
+    }).join('')}</div></div>` : '';
   main.innerHTML = head + `
     <div class="card focus-arch">
       <div class="focus-arch-emoji">${arch.primary.emoji}</div>
@@ -9882,6 +9900,7 @@ function renderArchetypePage(main) {
       <div class="focus-radar-wrap">${_focusRadarSvg(norm, 230)}</div>
       <div class="focus-dims">${dims}</div>
     </div>
+    ${journeyHtml}
     <div class="card"><div class="summary-empty" style="text-align:left;">Based on ${escapeHtml(winTxt)} (${f.classifiedSets} classified sets · ${f.sessions} sessions). This is a snapshot of your current <b>focus</b> and shifts as your training does — change what you train and the archetype follows.</div></div>`;
 }
 // feat 337 — the focus-dimension mix that defines an archetype: per-dimension weights (in _FD_ORDER) plus the
@@ -9921,6 +9940,36 @@ function renderArchetypesGuide(main) {
     </div>`;
   }).join('');
   main.innerHTML = head + cards;
+}
+// feat 338 — historize archetype shifts. Compares the current archetype (from fitnessFocus, ≥ enough data) to the
+// last recorded one; on a change it appends to state.archetypeHistory and returns the shift (for the end-workout
+// popup). The first recorded archetype seeds a baseline (no shift). Returns null when there's no change / no profile.
+function recordArchetypeShift() {
+  let cur = null;
+  try { const ff = fitnessFocus(112); if (ff && ff.ready) cur = fitnessArchetype(ff.pct).primary; } catch (_) { return null; }
+  if (!cur) return null;
+  if (!Array.isArray(state.archetypeHistory)) state.archetypeHistory = [];
+  const hist = state.archetypeHistory;
+  const last = hist.length ? hist[hist.length - 1] : null;
+  if (last && last.id === cur.id) return null; // unchanged → nothing to record
+  hist.push({ at: new Date().toISOString(), id: cur.id, name: cur.name, emoji: cur.emoji, from: last ? last.id : null });
+  if (hist.length > 100) hist.splice(0, hist.length - 100);
+  saveState();
+  return last ? { from: last.id, to: cur.id, fromName: last.name, toName: cur.name } : null; // popup only when there was a prior archetype
+}
+// feat 338 — celebrate an archetype shift after a workout (offers a jump to the full profile).
+function showArchetypeShiftDialog(shift) {
+  if (!shift || !shift.from || typeof choiceDialog !== 'function') return;
+  const to = ARCHETYPES.find(a => a.id === shift.to) || {}, from = ARCHETYPES.find(a => a.id === shift.from) || {};
+  const msg = `Your recent training has shifted your archetype:\n\n${from.emoji || ''} ${from.name || shift.from}  →  ${to.emoji || ''} ${to.name || shift.to}\n\n${to.blurb || ''}`;
+  choiceDialog({
+    title: '🔱 Archetype shift!',
+    message: msg,
+    choices: [
+      { label: '🎯 View profile', value: 'focus', style: 'primary' },
+      { label: 'Nice', value: 'ok' },
+    ],
+  }).then(c => { if (c === 'focus' && typeof navTo === 'function') navTo('focus'); });
 }
 /* ============================================================
    FAB STATE
@@ -14635,6 +14684,7 @@ function maybeAutoEndActive() {
     active.endedAt = new Date(last).toISOString(); // end timestamp = last set time
     active.endReason = 'auto-inactivity';
     saveState();
+    try { recordArchetypeShift(); } catch (_) {} // feat 338 — keep the archetype history complete (silent on auto-end)
     toast('Workout auto-ended (no activity)');
   }
 }
@@ -14841,6 +14891,8 @@ function finalizeEndWorkout(active, skipConfirm) {
     if (typeof aiExportOnWorkoutEnd === 'function') aiExportOnWorkoutEnd();
     logInfo('Workout ended', (score ? score.grade + ' ' + score.points : '') + ' · ' + stats.totalSets + ' sets');
     toast(score ? `🏁 Workout ended · ${score.grade}` : '🏁 Workout ended');
+    // feat 338 — historize any archetype shift this workout produced, and celebrate it in a popup
+    try { const shift = recordArchetypeShift(); if (shift) showArchetypeShiftDialog(shift); } catch (_) {}
   };
   if (skipConfirm) { finish(); return; }
   let msg = `End workout?\n\nDuration: ${stats.elapsedDisplay}\nExercises: ${stats.exerciseCount}\nSets: ${stats.totalSets}`;
@@ -21000,7 +21052,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 298 · 2026-06-23 12:54';
+const APP_BUILD = 'build 299 · 2026-06-23 13:09';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

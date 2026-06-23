@@ -1654,6 +1654,16 @@ They share variation **UUIDs**.
   even before you have a profile. Reuses the existing `.focus-*` styles. `test/archetypesguide.spec.mjs`
   (`archetypeFocusMix` shape + defining dim; a card per archetype with a defining mix; the user's archetype flagged
   when ready; the Focus page links out and the route renders).
+- **Archetype shift history + end-workout popup (feat 338):** the fitness archetype is now historized. `state.archetypeHistory`
+  (synced — merged by timestamp in `applyImport`, defaulted in `normalizeState`) logs each change. `recordArchetypeShift()`
+  compares the current archetype (`fitnessFocus`→`fitnessArchetype`, once the profile is ready) to the last recorded one:
+  the first becomes a silent baseline, an unchanged read is a no-op, and a change appends `{at,id,name,emoji,from}` and
+  returns the shift. It's called from `finalizeEndWorkout`'s `finish()` — on a real shift it pops a celebratory
+  `showArchetypeShiftDialog` (from → to + the new archetype's blurb, with a "🎯 View profile" jump) — and silently from
+  `maybeAutoEndActive` (auto-end keeps the history complete without a popup). The **Fitness Focus** page gains a "🧬 Your
+  archetype journey" timeline (newest first, latest tagged "now") once there are 2+ entries. `test/archshift.spec.mjs`
+  (baseline/shift/no-change bookkeeping; ending a workout pops the dialog + appends; cross-device merge by timestamp; the
+  journey renders).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
