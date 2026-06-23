@@ -11391,7 +11391,7 @@ function renderConstellationPage(main) {
   }).join('');
   const circles = nodes.map(n => {
     const dim = anyFilter && !matchSet.has(n.uuid);
-    const op = (dim ? 0.05 : (0.22 + 0.62 * n.prowess)).toFixed(3);
+    const op = (dim ? 0.12 : (0.22 + 0.62 * n.prowess)).toFixed(3); // feat 341 — filtered-out stars stay barely visible (a faint ghost), not gone
     const halo = (n.trained && !dim) ? `<circle cx="${n.x}" cy="${n.y}" r="${(n.r + 2.4).toFixed(1)}" fill="none" stroke="${_megaHue(n.mega)}" stroke-opacity="${(0.22 + 0.5 * n.prowess).toFixed(3)}" stroke-width="1"/>` : '';
     return `${halo}<circle class="cst-node" data-uuid="${escapeAttr(n.uuid)}" cx="${n.x}" cy="${n.y}" r="${n.r}" fill="${_megaHue(n.mega)}" fill-opacity="${op}"><title>${escapeHtml(n.title)}</title></circle>`;
   }).join('');
@@ -21172,7 +21172,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 301 · 2026-06-23 18:14';
+const APP_BUILD = 'build 303 · 2026-06-23 18:39';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

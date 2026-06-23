@@ -1685,6 +1685,10 @@ They share variation **UUIDs**.
   re-render so typing flows. Each node carries its family `equip` for the equipment filter. `test/constfilter.spec.mjs`
   (the predicate per dimension; the controls render + Clear appears/resets; filtering dims non-matches and zooms);
   existing `constellation.spec.mjs` stays green.
+- **Constellation filtered-out stars stay barely visible (feat 341):** the dim opacity for non-matching nodes was 0.05
+  (effectively invisible). Raised to **0.12** so filtered-out stars remain a faint ghost — the overall constellation
+  shape is still readable while the matched subset clearly stands out. `test/constfilter.spec.mjs` asserts the dim band
+  (barely visible, < the matched brightness).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

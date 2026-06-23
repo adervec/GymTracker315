@@ -87,5 +87,6 @@ test('filtering dims non-matching stars and zooms to the matching subset', async
   }, { BENCH });
   expect(r.changed).toBe(true);            // zoomed in on the matching subset
   expect(r.benchOp).toBeGreaterThan(r.dimOp);
-  expect(r.dimOp).toBeLessThan(0.1);       // non-matching stars are dimmed right down
+  expect(r.dimOp).toBeGreaterThan(0.08);   // feat 341 — filtered-out stars stay barely visible…
+  expect(r.dimOp).toBeLessThan(0.2);       // …a faint ghost, clearly de-emphasised vs matches
 });
