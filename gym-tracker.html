@@ -6111,20 +6111,9 @@ function coworkImportPlanOfDay(payload) {
   return { handled: true, kind: 'pod', added, rejected, date };
 }
 // Persist POD options + re-write options.json so the agent sees the latest.
+// feat 321 — POD option controls persist to state on change (see the per-control handlers in renderSettingsDrawer);
+// this just persists + pushes options.json to the cowork folder.
 function coworkWritePodOptions() { saveState(); try { renderSettingsDrawer(); } catch (_) {} if (state.cowork && state.cowork.enabled) coworkExportNow(true).catch(() => {}); toast('🗓️ Plan-of-Day options saved'); }
-// Read the options editor form back into state, then persist + export.
-function podSaveFromForm(body) {
-  const o = state.podOptions || {};
-  const minEl = body.querySelector('#pod-minutes'); const min = minEl ? +minEl.value : (o.availableMinutes || 60);
-  const modeEl = body.querySelector('.pod-mode.active'); const mode = (modeEl && modeEl.dataset.podMode) || o.targetMode || 'recovered';
-  const groups = [...body.querySelectorAll('.pod-group:checked')].map(c => c.value);
-  const injuries = [...body.querySelectorAll('.pod-injury:checked')].map(c => c.value);
-  const equipment = [...body.querySelectorAll('.pod-equip:checked')].map(c => c.value);
-  const focusEl = body.querySelector('#pod-focus'); const fitnessFocus = (focusEl && focusEl.value) || 'balance';
-  const notesEl = body.querySelector('#pod-notes'); const notes = notesEl ? notesEl.value : (o.notes || '');
-  state.podOptions = { ...o, availableMinutes: Math.max(20, Math.min(180, min | 0 || 60)), targetMode: mode, targetGroups: groups, injuries, equipment, fitnessFocus, notes };
-  coworkWritePodOptions();
-}
 // The POD options editor (rendered inside the Cowork settings block when the hub is on).
 function renderPodOptionsForm() {
   const o = state.podOptions || {};
@@ -6142,7 +6131,8 @@ function renderPodOptionsForm() {
     <details class="pod-field"><summary>Injuries to avoid (${(o.injuries || []).length})</summary><div class="pod-chk-grid">${inj}</div></details>
     <details class="pod-field"><summary>Available equipment (${(o.equipment || []).length || 'active gym'})</summary><div class="pod-chk-grid">${equip}</div></details>
     <label class="pod-field">Notes<textarea id="pod-notes" rows="2" class="vw-select" placeholder="e.g. shoulder tweaky; want more posterior chain">${escapeHtml(o.notes || '')}</textarea></label>
-    <button class="drawer-btn" id="pod-save">💾 Save options</button>
+    <div class="drawer-setting-sub">Changes apply instantly. Use the button to push options.json to the cowork folder right now.</div>
+    <button class="drawer-btn" id="pod-save">💾 Send options to cowork folder</button>
   </div>`;
 }
 
@@ -8692,9 +8682,17 @@ function renderSettingsDrawer() {
   body.querySelectorAll('[data-cowork]').forEach(b => b.addEventListener('click', () => { state.cowork.enabled = b.dataset.cowork === 'on'; saveState(); renderSettingsDrawer(); if (state.cowork.enabled) coworkExportNow(false).catch(() => {}); })); // feat 316
   body.querySelector('#cowork-write-now')?.addEventListener('click', () => coworkExportNow(false).catch(() => {})); // feat 316
   body.querySelectorAll('[data-cardiofatigue]').forEach(b => b.addEventListener('click', () => { state.cowork.cardioFatigue = b.dataset.cardiofatigue === 'on'; saveState(); renderSettingsDrawer(); if (typeof render === 'function') render(); toast('Cardio in recovery: ' + (state.cowork.cardioFatigue ? 'on' : 'off')); })); // feat 318
-  body.querySelectorAll('[data-pod-mode]').forEach(b => b.addEventListener('click', () => { body.querySelectorAll('.pod-mode').forEach(x => x.classList.remove('active')); b.classList.add('active'); const w = body.querySelector('#pod-groups-wrap'); if (w) w.style.display = b.dataset.podMode === 'groups' ? '' : 'none'; })); // feat 319
-  { const pmin = body.querySelector('#pod-minutes'); if (pmin) pmin.addEventListener('input', () => { const v = body.querySelector('#pod-min-val'); if (v) v.textContent = pmin.value; }); }
-  body.querySelector('#pod-save')?.addEventListener('click', () => podSaveFromForm(body)); // feat 319
+  // feat 321 — POD options controls persist IMMEDIATELY to state (the generic drawer-pill handler below
+  // re-renders the drawer on every pill click, which would otherwise discard unsaved form edits / reset pills).
+  body.querySelectorAll('[data-pod-mode]').forEach(b => b.addEventListener('click', () => { state.podOptions.targetMode = b.dataset.podMode; saveState(); renderSettingsDrawer(); }));
+  { const pmin = body.querySelector('#pod-minutes'); if (pmin) { pmin.addEventListener('input', () => { const v = body.querySelector('#pod-min-val'); if (v) v.textContent = pmin.value; }); pmin.addEventListener('change', () => { state.podOptions.availableMinutes = Math.max(20, Math.min(180, +pmin.value || 60)); saveState(); }); } }
+  { const pf = body.querySelector('#pod-focus'); if (pf) pf.addEventListener('change', () => { state.podOptions.fitnessFocus = pf.value || 'balance'; saveState(); }); }
+  { const pn = body.querySelector('#pod-notes'); if (pn) pn.addEventListener('change', () => { state.podOptions.notes = pn.value || ''; saveState(); }); }
+  const _podRoot = c => (c.closest('.pod-options') || document); // feat 321 — the form is relocated out of `body`; query from its own root
+  body.querySelectorAll('.pod-group').forEach(c => c.addEventListener('change', () => { state.podOptions.targetGroups = [..._podRoot(c).querySelectorAll('.pod-group:checked')].map(x => x.value); saveState(); }));
+  body.querySelectorAll('.pod-injury').forEach(c => c.addEventListener('change', () => { state.podOptions.injuries = [..._podRoot(c).querySelectorAll('.pod-injury:checked')].map(x => x.value); saveState(); }));
+  body.querySelectorAll('.pod-equip').forEach(c => c.addEventListener('change', () => { state.podOptions.equipment = [..._podRoot(c).querySelectorAll('.pod-equip:checked')].map(x => x.value); saveState(); }));
+  body.querySelector('#pod-save')?.addEventListener('click', () => coworkWritePodOptions()); // feat 321 — fields persist live; this just pushes options.json to the cowork folder now
   body.querySelector('#ai-disable-btn')?.addEventListener('click', aiExportDisable);
   body.querySelectorAll('[data-ai]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, [b.dataset.ai]: b.dataset.aiVal === 'on' }; saveState(); renderSettingsDrawer(); }));
   body.querySelectorAll('[data-aiscope]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, scope: b.dataset.aiscope }; saveState(); renderSettingsDrawer(); }));
@@ -20688,7 +20686,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 277 · 2026-06-22 23:01';
+const APP_BUILD = 'build 278 · 2026-06-22 23:43';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

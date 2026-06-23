@@ -1505,6 +1505,15 @@ They share variation **UUIDs**.
   itself is untouched (its contract/tests preserved); the trigger is bolted on at the call sites. `test/coworkloop.spec.mjs`
   (periodicMinutes default + timer arms cleanly; `coworkAfterPull` fires once for a new foreign ended workout and never
   for own-device / open / already-present / disabled / mid-import — proving convergence). Full suite **1504 passing**.
+- **Plan-of-the-Day options bugfix (feat 321):** the POD option controls didn't stick — the generic `.drawer-pill`
+  click handler ends with an **unconditional `renderSettingsDrawer()`**, which reset the Target pills and discarded any
+  unsaved form edits; and the checkbox handlers re-queried via the bind-time `body`, but the Data section is
+  **relocated out of `settings-drawer-body`**, so those queries found nothing. Fixed by persisting **every** control to
+  `state.podOptions` immediately on change (Target pills, time slider, group/injury/equipment checkboxes, fitness-focus,
+  notes) and querying the checkbox groups from their own form root (`closest('.pod-options')`) instead of the stale
+  `body`; the Save button now just pushes `options.json` (`coworkWritePodOptions`) rather than re-reading the form.
+  `test/coworkpodui.spec.mjs` (clicking the Target pill changes the mode; slider/checkbox/focus all persist through the
+  drawer re-render).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
