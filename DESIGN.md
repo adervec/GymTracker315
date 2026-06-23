@@ -1432,6 +1432,79 @@ They share variation **UUIDs**.
   **fills** the available time; over-budget still falls off (1.0 just over → 0 at 2×). `test/quickpicktime.spec.mjs`
   (fuller-use plan outscores a quarter-budget one; recommendPlans picks a longer plan for a 180-min window than a 45-min
   one). All existing `quickpick` / `plancoverage` ordering tests still pass (fits-over-overrun, the 30/120/180 cases).
+- **Claude Cowork hub — Phase 0 foundations (feat 315):** groundwork for a two-way desktop folder where a Claude
+  "cowork" agent reconciles Garmin/Strava and generates a Plan of the Day (later phases). State: `state.cowork`
+  (synced settings: pollMinutes/minExportGapSec/podKeepDays/cardioFatigue), `state.coworkLocal` (device-local: the
+  processed-file ledger + export de-dup, NOT in SETTINGS_KEYS), `state.podOptions` (synced), `state.deviceId` (a
+  stable per-device id, NOT synced), and `cloudSync.periodicMinutes` (default 30). Every workout now carries
+  `session.origin = deviceId`. Pure helpers: a versioned exchange envelope (`buildCoworkEnvelope`/`parseCoworkEnvelope`,
+  `protocol gymtracker-cowork v1` — tolerantly rejects bad/foreign/newer files), a sync content hash (`coworkHashText`,
+  djb2), an idempotency ledger (`coworkLedgerHas`/`coworkLedgerAdd`, per-channel, pruned to 200), and the loop guard
+  `coworkNewWorkoutSince(prevKeys, sessions, deviceId)` — true only for a newly-arrived, **ended**, **foreign-origin**
+  workout (so the export→import→cloud→pull→re-export cycle can't run away). `test/cowork.spec.mjs` (envelope
+  round-trip/reject, hash stability, ledger record+prune, origin stamping, the loop-guard truth table, and that
+  merge+normalize never strip `origin`/`stravaId`/`source:'daily'`). Phases 1–5 build the folder I/O, importers,
+  orphan-cardio, Plan of the Day, and periodic-sync on top.
+- **Claude Cowork hub — Phase 1 export (feat 316):** the desktop app now writes a structured hub into the existing
+  aiExport "Claude folder": `app-export.json` (a machine export — recent sessions, plans, recovery/training-readiness,
+  fitness focus, gym equipment, POD options, and a **`vocab`** of real cardio uuids + movement `familyId`s + muscle
+  groups + the injury taxonomy so the agent references real ids), `README-COWORK.md`, and three channel subfolders
+  (`garmin-reconciliation/`, `strava-reconciliation/`, `plan-of-the-day/`) each with an app-written `INSTRUCTIONS.md`
+  + `context.json` + `inbox/` + `processed/`, plus `plan-of-the-day/options.json`. Pure builders (`buildAppExportPayload`,
+  `buildInstructionsMd`, `buildChannelContext`, `buildPodOptionsFile`/`applyPodOptionsFile`, `buildCoworkReadme`,
+  `injuryOptionList`/`INJURY_REGIONS`) are unit-tested; thin I/O (`coworkResolveRoot` reuses `aiExportResolveHandle`,
+  `coworkExportNow` with content-hash skip + min-gap) is desktop-only. Wired to a **Settings → AI export → Claude Cowork
+  hub** toggle + "Write hub now", and to workout-end (`coworkOnWorkoutEnd`). `test/coworkexport.spec.mjs` (payload keys
+  + vocab of real ids; INSTRUCTIONS document the envelope/inbox/schema per channel; context shapes; options round-trip;
+  faceted injury list). Phase 2 adds inbox polling + Garmin/Strava import.
+- **Claude Cowork hub — Phase 2 poll + import (feat 317):** the desktop app now polls each channel's `inbox/`,
+  imports unconsumed files (idempotency ledger by content hash), and moves them to `processed/`. `coworkPollAll`
+  (desktop-only, `_coworkPolling` re-entry guard) routes by envelope kind via `coworkApplyImport`: **garmin-output**
+  → `coworkImportGarmin` (reuses `importBiometrics` → bodyComp merged by day + sleep matched to that day's workout);
+  **strava-output** → `coworkImportStrava` (reuses `importStravaActivities`, then `coworkAutoLinkStrava` links the
+  confidently-overlapping proposals ≤90 min and backfills HR/calories/duration — **logged sets/reps stay master**).
+  Imports run under `_coworkImporting` then `saveState()` (which already triggers the cloud push, so the phone
+  updates). Boot starts a `pollMinutes` interval (`coworkStartPolling`) + an immediate sweep, and tab-focus polls
+  (debounced 30 s). `test/coworkimport.spec.mjs` (kind routing + graceful degrade; Garmin merges weight & matches
+  sleep; Strava auto-links + backfills HR; the ≤90-min confidence window excludes a far-apart activity). Phase 3
+  adds orphan-Strava→cardio insertion.
+- **Claude Cowork hub — Phase 3 orphan cardio + opt-in fatigue (feat 318):** Strava activities with no matching
+  workout (outdoor runs/rides/…) are now inserted into History as **cardio** bouts. `stravaSportToCardioVar` maps a
+  sport to a real cardio variation (run→Steady-State Run, walk→Brisk Walk, ride→Bike, row→Row, stair/climb→Stairmaster,
+  ski→Ski Erg, else a neutral machine cardio); `stravaActivityToCardioSession` builds a `saveCardio`-shaped session
+  (elapsedSec→min, metres→km/mi, HR/calories, `stravaId` + `origin`); `coworkStravaOrphans` returns non-strength,
+  unlinked activities and `coworkInsertStravaOrphans` inserts them **deduped by `stravaId`** (re-runs never duplicate).
+  Wired into `coworkImportStrava` after auto-linking. Cardio still stays **out of per-muscle recovery**
+  (`bpSessionLoad` unchanged); an **opt-in** "Count cardio in recovery" toggle (`state.cowork.cardioFatigue`, default
+  off) makes `cardioSystemicFatigue()` (effort×duration, ~36 h half-life) shave up to 12 **systemic** points off the
+  composite Training Readiness (feat 299) only — never any muscle group. `test/coworkcardio.spec.mjs` (sport→real
+  cardio var; field mapping; orphan insert + idempotency + linked-excluded; toggle leaves `recoveryReadiness`
+  byte-identical while lowering `trainingReadiness`). Phase 4 adds Plan of the Day.
+- **Claude Cowork hub — Phase 4 Plan of the Day (feat 319):** the agent drops generated plans in
+  `plan-of-the-day/inbox/`; `coworkImportPlanOfDay` validates each via `validateImportedPlan` (every step option
+  checked against real movements with `resolveFamilyId`/`VAR_INDEX`/`stepQualifyingVarSet` — unknown `familyId`/`uuid`
+  dropped, empty steps removed, zero-step plans rejected), stamps **`source:'daily'`** + `dailyDate`/`dailyRationale`,
+  runs `ensurePlanRevisioned`, **replaces same-date** dailies and **prunes** ones older than `cowork.podKeepDays` (7).
+  Daily plans render in a **pinned "Plans of the Day" section** — `planCategory` short-circuits to it and it's index 0
+  in `PLAN_CAT_ORDER` (so `renderPlansList`'s existing grouping puts it first) — but otherwise run like any plan
+  (`planUseForWorkout`). A **POD options editor** in Settings → Cowork (`renderPodOptionsForm`/`podSaveFromForm` →
+  `coworkWritePodOptions` writes `options.json`): available time (20-180), target mode (most-recovered / specific
+  groups / recovery&rehab) + group multi-select, fitness focus (default balance), faceted injuries-to-avoid, available
+  equipment, and free notes — stored in `state.podOptions` (synced). `test/coworkpod.spec.mjs` (validation keep/drop/
+  reject; import adds source:daily + rejects bad + same-date replace + age prune; pinned category rank 0 + section
+  renders + starts like a normal plan). Phase 5 adds periodic cloud sync + post-pull re-export + loop hardening.
+- **Claude Cowork hub — Phase 5 periodic sync + post-pull re-export (feat 320):** closes the loop so the phone
+  stays current and the agent sees new workouts. `coworkCloudTimerStart` arms a **periodic desktop cloud sync**
+  (`cloudSync.periodicMinutes`, default **30** — addressing "not frequent enough"), gated by `cloudActive()` and the
+  existing `_cloudSyncing` guard. After **any** cloud pull (boot, periodic, and manual `cloudSyncNow`), `coworkAfterPull`
+  re-exports the hub **only** when `coworkNewWorkoutSince` reports a genuinely-new, **ended**, **foreign-origin** workout
+  (a finished phone session) — via a 3 s-debounced `coworkExportLater`, itself protected by `coworkExportNow`'s
+  content-hash skip + min-gap and the `_coworkImporting` flag. This is the capstone of the layered loop guards
+  (origin stamp · import suppression · content de-dup · debounce/min-gap · `_cloudSyncing` · import ledger), so the
+  export→agent→import→cloud→pull→re-export cycle converges after at most one export per new phone workout. `cloudPullNow`
+  itself is untouched (its contract/tests preserved); the trigger is bolted on at the call sites. `test/coworkloop.spec.mjs`
+  (periodicMinutes default + timer arms cleanly; `coworkAfterPull` fires once for a new foreign ended workout and never
+  for own-device / open / already-present / disabled / mid-import — proving convergence). Full suite **1504 passing**.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

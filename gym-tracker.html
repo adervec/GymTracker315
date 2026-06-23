@@ -698,6 +698,15 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .about-credit strong { color: var(--text); }
 .about-build { margin-top: 10px; font-size: 10.5px; color: var(--text3); letter-spacing: 0.3px; font-family: ui-monospace, Menlo, Consolas, monospace; }
 .drawer-data-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+/* feat 319 — Plan-of-the-Day options form */
+.pod-options { margin-top: 8px; padding: 10px 11px; border-radius: 9px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); }
+.pod-field { display: block; font-size: 12px; color: var(--text2); margin-top: 10px; }
+.pod-field > span { display: block; margin-bottom: 4px; }
+.pod-field input[type=range] { width: 100%; }
+.pod-field textarea, .pod-field select { width: 100%; margin-top: 4px; }
+.pod-field summary { cursor: pointer; font-weight: 700; color: var(--text); }
+.pod-chk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin-top: 6px; }
+.pod-chk { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text2); }
 .drawer-btn {
   padding: 8px 14px; background: var(--bg3); border: 1px solid var(--border2);
   border-radius: 8px; color: var(--text2); font-size: 12px; font-weight: 600;
@@ -4356,9 +4365,13 @@ function trainingReadiness(nowMs) {
   let score = rec * 100;
   score -= Math.min(24, plateauCount * 6);                            // each stalled lift dents it, capped at 4
   if (trend != null && trend > 0) score -= Math.min(15, trend * 15); // sessions feeling harder → fatigue tax
+  let cardioPenalty = 0; // feat 318 — opt-in: recent hard cardio adds a small SYSTEMIC tax (per-muscle recovery untouched)
+  if (state.cowork && state.cowork.cardioFatigue && typeof cardioSystemicFatigue === 'function') {
+    cardioPenalty = Math.min(12, cardioSystemicFatigue(nowMs) * 8); score -= cardioPenalty;
+  }
   score = Math.max(0, Math.min(100, Math.round(score)));
   const status = readinessStatus(score);
-  return { score, status, action: readinessAction(status.key, plateauCount), factors: { recoveryPct: Math.round(rec * 100), plateauCount, rpeTrend: trend } };
+  return { score, status, action: readinessAction(status.key, plateauCount), factors: { recoveryPct: Math.round(rec * 100), plateauCount, rpeTrend: trend, cardioPenalty: Math.round(cardioPenalty) } };
 }
 
 /* ============================================================
@@ -4374,13 +4387,13 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
 // merge:     sessions are merged by date; settings from the file are ignored.
 // feat 95 — session identity + delete tombstones, for robust cross-device last-write-wins sync.
-function newSession(extra) { const now = new Date().toISOString(); return { id: newUuid(), date: now, updatedAt: now, exercises: [], ...(extra || {}) }; }
+function newSession(extra) { const now = new Date().toISOString(); return { id: newUuid(), date: now, updatedAt: now, origin: (typeof state !== 'undefined' && state && state.deviceId) || null, exercises: [], ...(extra || {}) }; } // feat 315 — origin = this device, for the cowork re-export loop guard
 function touchSession(s) { if (s) s.updatedAt = new Date().toISOString(); return s; }
 // Legacy (id-less) sessions key by date so two devices migrating the same session don't fork into duplicates.
 function sessionKey(s) { return s && (s.id || ('d:' + s.date)); }
@@ -4531,6 +4544,52 @@ let pending = {
 
 // Ensure nested config objects exist & merge defaults for forward-compat with
 // state saved by older versions of the app.
+// feat 315 — Claude Cowork hub: a versioned exchange protocol, an idempotency ledger, and the loop-guard detector.
+const COWORK_PROTOCOL = 'gymtracker-cowork';
+const COWORK_PROTOCOL_VERSION = 1;
+// Small synchronous content hash (djb2) — skip re-importing / re-exporting identical content. No async/crypto.
+function coworkHashText(text) {
+  let h = 5381; const s = String(text == null ? '' : text);
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+// Wrap a payload in the versioned envelope the cowork agent reads/writes.
+function buildCoworkEnvelope(kind, payload) {
+  return { protocol: COWORK_PROTOCOL, protocolVersion: COWORK_PROTOCOL_VERSION, kind: kind,
+    generatedAt: new Date().toISOString(), appBuild: (typeof APP_BUILD !== 'undefined' ? APP_BUILD : null),
+    payload: (payload == null ? {} : payload) };
+}
+// Validate + unwrap an envelope from disk. Tolerant: rejects (never throws) on bad/foreign/newer-than-known files.
+function parseCoworkEnvelope(text) {
+  let o; try { o = JSON.parse(text); } catch (_) { return { ok: false, reason: 'not JSON' }; }
+  if (!o || o.protocol !== COWORK_PROTOCOL) return { ok: false, reason: 'wrong protocol' };
+  if ((o.protocolVersion | 0) > COWORK_PROTOCOL_VERSION) return { ok: false, reason: 'newer protocol version ' + o.protocolVersion };
+  if (!o.kind) return { ok: false, reason: 'missing kind' };
+  return { ok: true, kind: o.kind, payload: o.payload || {}, generatedAt: o.generatedAt || null, protocolVersion: o.protocolVersion | 0 };
+}
+// Idempotency ledger (device-local): has this channel already consumed this exact content?
+function coworkLedgerHas(channel, hash) {
+  const led = (state.coworkLocal && state.coworkLocal.processed) || {};
+  return !!(led[channel] && led[channel][hash]);
+}
+function coworkLedgerAdd(channel, hash, meta) {
+  if (!state.coworkLocal) state.coworkLocal = { processed: {} };
+  if (!state.coworkLocal.processed) state.coworkLocal.processed = {};
+  const led = state.coworkLocal.processed;
+  if (!led[channel]) led[channel] = {};
+  led[channel][hash] = { at: new Date().toISOString(), ...(meta || {}) };
+  const keys = Object.keys(led[channel]); // prune to the most-recent ~200 per channel
+  if (keys.length > 200) {
+    keys.sort((a, b) => (led[channel][a].at || '').localeCompare(led[channel][b].at || ''));
+    keys.slice(0, keys.length - 200).forEach(k => delete led[channel][k]);
+  }
+}
+// THE loop guard (feat 315): after a cloud pull, re-export to the folder ONLY for a genuinely-new, finished
+// workout from ANOTHER device (the phone). Own-device or still-open sessions never trigger a re-export.
+function coworkNewWorkoutSince(prevKeys, sessions, deviceId) {
+  const prev = (prevKeys instanceof Set) ? prevKeys : new Set(prevKeys || []);
+  return (sessions || []).some(s => s && s.endedAt && (s.origin && s.origin !== deviceId) && !prev.has(sessionKey(s)));
+}
 function normalizeState() {
   const d = {
     profile: { name:'', dob:'', heightCm:null, gender:'' },
@@ -4543,7 +4602,10 @@ function normalizeState() {
     aiExport: { enabled:false, onWorkoutEnd:true, daily:true, scope:'last30', filename:'gymtracker-brief.md', lastWriteDay:null, lastWriteAt:null }, // feat 272 — per-device AI-ready digest auto-export to a folder
     planDefaults: { minPct:1 }, // feat 144 — default min % of a step's sets that counts the step as "done" (overridable per plan / per step)
     historyFilter: { range:'all', bp:'', family:'', varKey:'', q:'' }, // feat 102 — device-local view filter
-    cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{}, syncOnEnd:true }, // feat 124 — DEVICE-LOCAL (not synced); feat 272 — guaranteed push on workout end
+    cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{}, syncOnEnd:true, periodicMinutes:30 }, // feat 124 — DEVICE-LOCAL (not synced); feat 272 — guaranteed push on workout end; feat 315 — periodic desktop sync
+    cowork: { enabled:false, pollMinutes:5, minExportGapSec:120, podKeepDays:7, cardioFatigue:false }, // feat 315 — Claude Cowork hub (synced settings)
+    coworkLocal: { processed:{}, lastExportHash:null, lastExportAt:null, lastPollAt:null }, // feat 315 — DEVICE-LOCAL (not in SETTINGS_KEYS): processed-file ledger + export de-dup
+    podOptions: { notes:'', injuries:[], gyms:[], equipment:[], availableMinutes:60, targetMode:'recovered', targetGroups:[], fitnessFocus:'balance' }, // feat 315 — Plan-of-the-Day options (synced)
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   // feat 197 — the old 5-min abandon default proved ~3x too quick; migrate stored old-default values to 15.
@@ -4580,6 +4642,18 @@ function normalizeState() {
   if (!state.coachVoices || typeof state.coachVoices !== 'object') state.coachVoices = {}; // feat 297 — per-persona TTS voice (id → 'auto'|'system'|voiceURI)
   if (['off', 'random', 'vibe'].indexOf(state.coachAuto) === -1) state.coachAuto = 'off'; // feat 303 — auto-pick coach per workout
   if (typeof state.reflectPills !== 'boolean') state.reflectPills = true; // feat 309 — Reflect quick-nav pills (on by default)
+  // feat 315 — Claude Cowork hub: a stable per-device id (NOT synced — each device keeps its own), + bounds.
+  if (typeof state.deviceId !== 'string' || !state.deviceId) state.deviceId = newUuid();
+  state.cowork.pollMinutes = Math.max(1, Math.min(60, state.cowork.pollMinutes | 0 || 5));
+  state.cowork.minExportGapSec = Math.max(15, Math.min(3600, state.cowork.minExportGapSec | 0 || 120));
+  state.cowork.podKeepDays = Math.max(1, Math.min(60, state.cowork.podKeepDays | 0 || 7));
+  state.cowork.cardioFatigue = !!state.cowork.cardioFatigue;
+  if (!state.coworkLocal.processed || typeof state.coworkLocal.processed !== 'object') state.coworkLocal.processed = {};
+  if (!Array.isArray(state.podOptions.injuries)) state.podOptions.injuries = [];
+  if (!Array.isArray(state.podOptions.targetGroups)) state.podOptions.targetGroups = [];
+  state.podOptions.availableMinutes = Math.max(20, Math.min(180, state.podOptions.availableMinutes | 0 || 60));
+  if (['groups','recovered','rehab'].indexOf(state.podOptions.targetMode) === -1) state.podOptions.targetMode = 'recovered';
+  if (!(state.cloudSync.periodicMinutes >= 5)) state.cloudSync.periodicMinutes = 30;
   if (state.ttsVoice && state.ttsVoice !== 'auto' && state.ttsVoice !== 'system' && !state.coachVoices[state.coachPersona]) { state.coachVoices[state.coachPersona] = state.ttsVoice; state.ttsVoice = 'auto'; } // migrate a legacy explicit voiceURI to the active coach
   if (typeof state.audioHeadphonesOnly !== 'boolean') state.audioHeadphonesOnly = true; // feat 105 — default on
   // feat 144 — default minimum completion % (0..100). 1% means "even 1 set counts the step as done".
@@ -5665,6 +5739,411 @@ function aiExportOnWorkoutEnd() {
   const cfg = state.aiExport;
   if (!cfg || !cfg.enabled || cfg.onWorkoutEnd === false) return;
   aiExportWriteNow(true, false).catch(() => {});
+  coworkOnWorkoutEnd(); // feat 316 — also refresh the cowork hub so the agent sees the latest workout
+}
+
+/* ============================================================
+   feat 316 — CLAUDE COWORK HUB (Phase 1: export). Extends the aiExport folder into a structured two-way hub:
+   the app writes a machine-readable export + per-channel INSTRUCTIONS/context + Plan-of-the-Day options; a
+   Claude cowork agent (run separately on the desktop) drops outputs into each channel's inbox/ (imported in
+   later phases). All I/O is desktop-only (File System Access). Pure builders are unit-tested; I/O is thin.
+   ============================================================ */
+let _coworkImporting = false;   // feat 315/317 — true while importing agent output (suppresses re-export/poll loops)
+let _coworkPolling = false;     // feat 317 — re-entry guard for the inbox poller
+let _coworkExportTimer = null;  // feat 320 — debounced re-export
+// Injury taxonomy (feat 316/319) — three facets the cowork agent uses to avoid movements. No app-side filtering.
+const INJURY_REGIONS = {
+  joints: ['shoulder', 'elbow', 'wrist', 'neck', 'lower-back', 'hip', 'knee', 'ankle'],
+  regions: ['chest', 'upper-back', 'lats', 'traps', 'abs', 'glutes', 'hamstrings', 'quads', 'calves', 'forearms'],
+  patterns: ['overhead-press', 'horizontal-press', 'deep-squat', 'hip-hinge', 'axial-loading', 'pulling-grip', 'plyometric', 'high-impact'],
+};
+function injuryOptionList() { // flat [{id,label,facet}] for the POD options UI (ids namespaced by facet)
+  const out = [];
+  Object.keys(INJURY_REGIONS).forEach(facet => { const f = facet.replace(/s$/, ''); INJURY_REGIONS[facet].forEach(id =>
+    out.push({ id: f + ':' + id, label: id.replace(/-/g, ' '), facet: f })); });
+  return out;
+}
+// The machine export the agent reads: recent sessions + reconciliation/POD context + a vocab of REAL ids.
+function buildAppExportPayload(opts) {
+  opts = opts || {};
+  const scope = opts.scope || (state.aiExport && state.aiExport.scope) || 'last30';
+  const safe = (fn, fb) => { try { return fn(); } catch (_) { return fb; } };
+  const slimPlan = p => ({ id: p.id, name: p.name, intensity: p.intensity, source: p.source || null,
+    category: safe(() => planCategory(p), 'Other'), estMin: safe(() => estimatePlanMinutes(p), null),
+    steps: (p.steps || []).map(st => ({ sets: st.sets, load: st.load, desc: st.desc || '', options: st.options || [] })) });
+  const focus = safe(() => fitnessFocus(), null);
+  return {
+    scope,
+    sessions: safe(() => selectSessionsForExport({ preset: scope }), []),
+    stravaActivities: state.stravaActivities || [],
+    bodyComp: state.bodyComp || [],
+    plans: safe(() => (state.plans || []).map(slimPlan), []),
+    recovery: safe(() => recoveryReadiness(), {}),
+    trainingReadiness: safe(() => trainingReadiness(), null),
+    compositeRecovery: safe(() => compositeRecovery(), null),
+    focus, archetype: safe(() => (focus && focus.ready) ? fitnessArchetype(focus.pct) : null, null),
+    recentMega: safe(() => recentMegaLoad(7), {}),
+    gym: safe(() => { const g = getActiveGym(); return { activeGymId: state.activeGymId || null, name: g ? g.name : null,
+      equipment: (g && g.equip) ? Object.keys(g.equip).filter(k => g.equip[k]) : GYM_EQUIP.map(e => e.id) }; }, null),
+    podOptions: state.podOptions || {},
+    deviceId: state.deviceId || null,
+    vocab: {
+      cardioVariations: safe(() => { const out = []; (FAMILIES || []).forEach(f => { if ((f.mega || '') !== 'cardio') return; (f.variations || []).forEach(v => out.push({ uuid: v.uuid, title: v.title, family: f.id })); }); return out; }, []),
+      movementFamilies: safe(() => (FAMILIES || []).map(f => ({ id: f.id, title: f.title, mega: f.mega })), []),
+      muscleGroups: RECOVERY_BPS.map(bp => ({ id: bp, label: BP_LABELS[bp] || bp })),
+      injuryRegions: INJURY_REGIONS,
+    },
+  };
+}
+// Per-channel context the agent needs to do its specific job.
+function buildChannelContext(channel) {
+  const safe = (fn, fb) => { try { return fn(); } catch (_) { return fb; } };
+  if (channel === 'garmin') {
+    const recent = (state.bodyComp || []).slice(-14).map(b => ({ date: b.date, weightKg: b.weightKg }));
+    const sleepGaps = safe(() => (state.sessions || []).filter(s => !s.sleep && (Date.now() - new Date(s.date).getTime()) < 30 * 86400000).map(s => s.date.slice(0, 10)), []);
+    return { recentBodyComp: recent, sleepGaps };
+  }
+  if (channel === 'strava') {
+    const buckets = safe(() => reconcileStravaBuckets(), null);
+    return { activities: state.stravaActivities || [], buckets, matchWindowMin: (typeof STRAVA_MATCH_WINDOW_MIN !== 'undefined' ? STRAVA_MATCH_WINDOW_MIN : 120) };
+  }
+  // pod
+  return {
+    recovery: safe(() => recoveryReadiness(), {}),
+    trainingReadiness: safe(() => trainingReadiness(), null),
+    recentMega: safe(() => recentMegaLoad(7), {}),
+    gym: safe(() => { const g = getActiveGym(); return g ? { name: g.name, equipment: g.equip ? Object.keys(g.equip).filter(k => g.equip[k]) : [] } : null; }, null),
+    focus: safe(() => fitnessFocus(), null),
+    options: state.podOptions || {},
+  };
+}
+// The Plan-of-the-Day options file (app-owned, written on edit + each export).
+function buildPodOptionsFile() { return buildCoworkEnvelope('pod-options', state.podOptions || {}); }
+function applyPodOptionsFile(payload) { if (payload && typeof payload === 'object') state.podOptions = { ...state.podOptions, ...payload }; return state.podOptions; }
+// INSTRUCTIONS.md per channel — documents the envelope + payload schema + drop location + an example.
+function buildInstructionsMd(channel) {
+  const env = '```json\n' + JSON.stringify({ protocol: COWORK_PROTOCOL, protocolVersion: COWORK_PROTOCOL_VERSION, kind: '<kind>', generatedAt: '<ISO>', payload: { '…': '…' } }, null, 2) + '\n```';
+  const head = `# GymTracker315 — Cowork channel: ${channel}\n\nRead \`../app-export.json\` for full context and \`context.json\` here for this channel's task. Emit your result as a JSON file dropped in **\`inbox/\`** named \`output-<ISO-date>.json\`, wrapped in this envelope:\n\n${env}\n\n`;
+  if (channel === 'garmin') return head +
+`## kind: \`garmin-output\`\nFill in biometrics + sleep from Garmin. Payload (matches the app's importer):\n\n\`\`\`json\n{ "bodyComp": [ { "date": "YYYY-MM-DD", "weightKg": 81.2, "bodyFatPct": 18.4, "muscleMassKg": 34.1, "bodyWaterPct": 55.1 } ],\n  "sleep": [ { "date": "YYYY-MM-DD", "score": 78, "note": "7h12m" } ] }\n\`\`\`\n\n- \`context.json\` lists recent bodyComp dates and the session dates that still lack sleep — prioritise those gaps.\n- Body composition is merged by calendar day; sleep is matched to the workout on that day.\n`;
+  if (channel === 'strava') return head +
+`## kind: \`strava-output\`\nProvide Strava activities so the app can link them to workouts and insert orphan cardio. Payload:\n\n\`\`\`json\n{ "activities": [ { "id": "123", "name": "Evening Run", "sport_type": "Run", "start_date": "ISO", "elapsed_time": 2400, "distance": 6000, "average_heartrate": 150, "calories": 480 } ] }\n\`\`\`\n\n- The app time-matches each activity to a workout (±${(typeof STRAVA_MATCH_WINDOW_MIN !== 'undefined' ? STRAVA_MATCH_WINDOW_MIN : 120)} min) and backfills HR/calories/duration; **the logged sets/reps stay the master data**.\n- Activities with no matching workout (e.g. outdoor runs) are inserted into History as cardio.\n- \`context.json\` has the current activities + reconciliation buckets (linked / proposed / gymOnly / stravaOnly).\n`;
+  return head +
+`## kind: \`pod-output\`\nGenerate one or more "Plan of the Day" plans. Honour \`options.json\` (notes, injuries to avoid, available gyms/equipment, available minutes, target mode, fitness focus) and \`context.json\` (recovery readiness, recent split, equipment, focus). Payload:\n\n\`\`\`json\n{ "date": "YYYY-MM-DD", "rationale": "why these",\n  "plans": [ { "name": "...", "desc": "...", "intensity": 4,\n    "steps": [ { "sets": 4, "load": "heavy", "desc": "...", "options": [ { "type": "movement", "familyId": "squat" } ] } ] } ] }\n\`\`\`\n\n- **Reference only REAL ids** from \`app-export.json\` → \`vocab\` (\`movementFamilies[].id\` for \`familyId\`, \`cardioVariations[].uuid\` for \`{type:"variation",uuid}\`). The importer drops unknown options and rejects empty plans.\n- Avoid anything contraindicated by the selected injuries. Fit the total within the available minutes.\n`;
+}
+function buildCoworkReadme() {
+  return `# GymTracker315 — Claude Cowork hub\n\nThis folder is a two-way bridge between the GymTracker315 web app (desktop) and a Claude cowork agent.\n\n- \`app-export.json\` — the app's current state + context (read this first). Versioned envelope, protocol \`${COWORK_PROTOCOL}\` v${COWORK_PROTOCOL_VERSION}.\n- \`garmin-reconciliation/\`, \`strava-reconciliation/\`, \`plan-of-the-day/\` — one task each. See each folder's \`INSTRUCTIONS.md\` + \`context.json\`.\n- Drop your results as JSON in each channel's \`inbox/\`. The app imports them, moves them to \`processed/\`, and cloud-syncs so the phone is up to date.\n\nThe app re-writes these files after each workout and on a schedule. Don't edit \`app-export.json\`/\`context.json\` by hand.\n`;
+}
+// ---- Thin I/O (desktop only; not unit-tested — all logic is in the pure builders above) ----
+async function _coworkWriteFile(dirHandle, name, text) {
+  const fh = await dirHandle.getFileHandle(name, { create: true });
+  const w = await fh.createWritable();
+  await w.write(new Blob([text], { type: name.endsWith('.md') ? 'text/markdown' : 'application/json' }));
+  await w.close();
+}
+async function coworkResolveRoot(interactive) {
+  const root = await aiExportResolveHandle(interactive); // reuse the existing "Claude folder" handle
+  if (!root) return null;
+  const sub = {};
+  for (const name of ['garmin-reconciliation', 'strava-reconciliation', 'plan-of-the-day']) {
+    const d = await root.getDirectoryHandle(name, { create: true });
+    await d.getDirectoryHandle('inbox', { create: true });
+    await d.getDirectoryHandle('processed', { create: true });
+    sub[name] = d;
+  }
+  return { root, sub };
+}
+async function coworkExportNow(silent) {
+  if (_coworkImporting) return false;                       // feat 320 — don't re-export mid-import (loop guard)
+  if (!state.cowork || !state.cowork.enabled) { if (!silent) toast('Enable the Cowork hub first'); return false; }
+  if (!('showDirectoryPicker' in window)) { if (!silent) toast('Cowork hub needs Chrome/Edge on desktop'); return false; }
+  let res; try { res = await coworkResolveRoot(silent ? false : true); } catch (_) { res = null; }
+  if (!res) { if (!silent) autoSaveSetStatus('⚠ Cowork: set the AI export folder first'); return false; }
+  const { root, sub } = res;
+  try {
+    const env = JSON.stringify(buildCoworkEnvelope('app-export', buildAppExportPayload({})), null, 2);
+    const hash = coworkHashText(env);
+    const now = Date.now(), last = state.coworkLocal.lastExportAt ? new Date(state.coworkLocal.lastExportAt).getTime() : 0;
+    const gapOk = (now - last) >= (state.cowork.minExportGapSec * 1000);
+    if (hash !== state.coworkLocal.lastExportHash && (gapOk || !silent)) { // interactive writes bypass the min-gap
+      await _coworkWriteFile(root, 'app-export.json', env);
+      state.coworkLocal.lastExportHash = hash; state.coworkLocal.lastExportAt = new Date().toISOString();
+    }
+    await _coworkWriteFile(root, 'README-COWORK.md', buildCoworkReadme());
+    const map = { garmin: 'garmin-reconciliation', strava: 'strava-reconciliation', pod: 'plan-of-the-day' };
+    for (const ch of ['garmin', 'strava', 'pod']) {
+      await _coworkWriteFile(sub[map[ch]], 'INSTRUCTIONS.md', buildInstructionsMd(ch));
+      await _coworkWriteFile(sub[map[ch]], 'context.json', JSON.stringify(buildCoworkEnvelope('context', buildChannelContext(ch)), null, 2));
+    }
+    await _coworkWriteFile(sub['plan-of-the-day'], 'options.json', JSON.stringify(buildPodOptionsFile(), null, 2));
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+    if (!silent) { autoSaveSetStatus('✓ Cowork hub written'); toast(`🤝 Cowork hub → ${root.name}`); try { renderSettingsDrawer(); } catch (_) {} }
+    logInfo('Cowork hub written', root.name);
+    return true;
+  } catch (err) { if (!silent) autoSaveSetStatus('⚠ Cowork hub write failed'); logWarn('Cowork export failed', err && err.message); return false; }
+}
+function coworkOnWorkoutEnd() { if (state.cowork && state.cowork.enabled) coworkExportNow(true).catch(() => {}); }
+
+/* ============================================================
+   feat 317 — CLAUDE COWORK HUB (Phase 2: poll + import). The poller (desktop only) reads each channel's
+   inbox/, skips already-consumed content (the ledger), routes by kind, imports, and moves the file to
+   processed/. Importers reuse the existing Garmin/Strava paths; the logged sets/reps stay the master data.
+   ============================================================ */
+function coworkImportGarmin(payload) { // reuse the canonical biometrics importer ({bodyComp, sleep})
+  const r = importBiometrics(JSON.stringify(payload || {}), { silent: true });
+  return { handled: true, kind: 'garmin', added: (r && r.added) || 0, sleep: (r && r.sleepN) || 0 };
+}
+// Auto-link the confidently-overlapping proposals (≤ ~90 min apart). Returns the count linked.
+function coworkAutoLinkStrava(maxDeltaMin) {
+  const cap = (maxDeltaMin == null) ? 90 : maxDeltaMin;
+  let n = 0;
+  (reconcileStravaBuckets().proposed || []).forEach(p => { if (p.deltaMin <= cap) { linkStrava(p.session.date, p.activity.id); n++; } });
+  return n;
+}
+function coworkImportStrava(payload) {
+  const r = importStravaActivities(JSON.stringify(payload || {}), { silent: true });
+  const linked = coworkAutoLinkStrava(); // backfill HR/calories/duration on the matched workouts
+  const orphansInserted = coworkInsertStravaOrphans(coworkStravaOrphans()); // feat 318 — non-strength activities → cardio history
+  return { handled: true, kind: 'strava', added: (r && r.added) || 0, updated: (r && r.updated) || 0, linked, orphansInserted };
+}
+// Route a parsed envelope to its importer. pod-output is handled once Phase 4 defines coworkImportPlanOfDay.
+function coworkApplyImport(kind, payload) {
+  if (kind === 'garmin-output') return coworkImportGarmin(payload);
+  if (kind === 'strava-output') return coworkImportStrava(payload);
+  if (kind === 'pod-output') return (typeof coworkImportPlanOfDay === 'function') ? coworkImportPlanOfDay(payload) : { handled: false, reason: 'pod import not available yet' };
+  return { handled: false, reason: 'unknown kind ' + kind };
+}
+async function _coworkMoveToProcessed(channelDir, inbox, name, text) {
+  try { const pf = await channelDir.getDirectoryHandle('processed', { create: true }); const fh = await pf.getFileHandle(name, { create: true }); const w = await fh.createWritable(); await w.write(new Blob([text])); await w.close(); await inbox.removeEntry(name); } catch (_) {}
+}
+// Walk all inboxes, import unconsumed files, push to the cloud so the phone updates. Silent + idempotent.
+async function coworkPollAll(interactive) {
+  if (_coworkPolling || _coworkImporting) return;
+  if (!state.cowork || !state.cowork.enabled || !('showDirectoryPicker' in window)) return;
+  _coworkPolling = true;
+  let imported = 0;
+  try {
+    const res = await coworkResolveRoot(interactive ? true : false); if (!res) return;
+    const map = { 'garmin-reconciliation': 'garmin', 'strava-reconciliation': 'strava', 'plan-of-the-day': 'pod' };
+    for (const subName in map) {
+      const channel = map[subName], channelDir = res.sub[subName];
+      let inbox; try { inbox = await channelDir.getDirectoryHandle('inbox', { create: true }); } catch (_) { continue; }
+      const files = [];
+      try { for await (const [name, h] of inbox.entries()) { if (h.kind === 'file' && /\.json$/i.test(name)) files.push({ name, h }); } } catch (_) { continue; }
+      files.sort((a, b) => a.name.localeCompare(b.name));
+      for (const f of files) {
+        let text; try { text = await (await f.h.getFile()).text(); } catch (_) { continue; }
+        const hash = coworkHashText(text);
+        if (coworkLedgerHas(channel, hash)) { await _coworkMoveToProcessed(channelDir, inbox, f.name, text); continue; }
+        const env = parseCoworkEnvelope(text);
+        if (!env.ok) { coworkLedgerAdd(channel, hash, { fileName: f.name, skipped: env.reason }); await _coworkMoveToProcessed(channelDir, inbox, f.name, text); continue; }
+        _coworkImporting = true;
+        let result; try { result = coworkApplyImport(env.kind, env.payload); } catch (e) { result = { handled: false, error: e && e.message }; }
+        _coworkImporting = false;
+        coworkLedgerAdd(channel, hash, { fileName: f.name, kind: env.kind, result });
+        await _coworkMoveToProcessed(channelDir, inbox, f.name, text);
+        if (result && result.handled) imported++;
+      }
+    }
+    state.coworkLocal.lastPollAt = new Date().toISOString();
+    if (imported > 0) { saveState(); if (typeof render === 'function') render(); toast('🤝 Cowork imported ' + imported + ' file' + (imported === 1 ? '' : 's')); }
+    else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {} } // persist the ledger/lastPollAt without a cloud push
+  } catch (e) { logWarn('Cowork poll failed', e && e.message); }
+  finally { _coworkPolling = false; }
+}
+let _coworkPollTimer = null, _coworkFocusAt = 0;
+function coworkStartPolling() { // desktop boot wiring (feat 317); periodic + on tab-focus
+  if (!('showDirectoryPicker' in window)) return;
+  if (_coworkPollTimer) clearInterval(_coworkPollTimer);
+  const mins = (state.cowork && state.cowork.pollMinutes) || 5;
+  _coworkPollTimer = setInterval(() => coworkPollAll(false).catch(() => {}), Math.max(1, mins) * 60000);
+  coworkPollAll(false).catch(() => {}); // an immediate first sweep
+}
+
+/* ============================================================
+   feat 320 — CLAUDE COWORK HUB (Phase 5: periodic cloud sync + post-pull re-export + loop hardening). A
+   periodic desktop cloud sync (default 30 min) keeps the phone current; after any pull, if a NEW finished
+   workout arrived from ANOTHER device, the hub export is refreshed so the agent can reconcile/plan against it.
+   ============================================================ */
+let _coworkCloudTimer = null;
+// Debounced hub re-export (the min-gap + content-hash skip in coworkExportNow are the real loop guards).
+function coworkExportLater() {
+  if (_coworkImporting) return;
+  if (_coworkExportTimer) clearTimeout(_coworkExportTimer);
+  _coworkExportTimer = setTimeout(() => { coworkExportNow(true).then(() => coworkPollAll(false)).catch(() => {}); }, 3000);
+}
+// After a cloud pull: re-export ONLY when a genuinely-new, finished, foreign-origin workout appeared (loop guard).
+function coworkAfterPull(prevKeys) {
+  if (!state.cowork || !state.cowork.enabled || _coworkImporting) return;
+  try { if (coworkNewWorkoutSince(prevKeys, state.sessions, state.deviceId)) coworkExportLater(); } catch (_) {}
+}
+// Periodic cloud sync (feat 320). Pull, then re-export if a foreign workout arrived. Gated by cloudActive.
+function coworkCloudTimerStart() {
+  if (_coworkCloudTimer) clearInterval(_coworkCloudTimer);
+  const mins = (state.cloudSync && state.cloudSync.periodicMinutes) || 30;
+  _coworkCloudTimer = setInterval(() => {
+    if (typeof cloudActive !== 'function' || !cloudActive()) return;
+    if (typeof _cloudSyncing !== 'undefined' && _cloudSyncing) return;
+    const prev = new Set((state.sessions || []).map(sessionKey));
+    cloudPullNow(true).then(() => coworkAfterPull(prev)).catch(() => {});
+  }, Math.max(5, mins) * 60000);
+}
+
+/* ============================================================
+   feat 318 — CLAUDE COWORK HUB (Phase 3: orphan Strava → cardio history + opt-in systemic fatigue). Strava
+   activities with no matching workout (outdoor runs, rides, …) are inserted into History as cardio bouts,
+   deduped by stravaId. Cardio stays out of the per-muscle recovery model; an opt-in toggle lets recent hard
+   cardio shave a few points off the composite Training Readiness only (a systemic, not muscle-specific, tax).
+   ============================================================ */
+const _STRAVA_CARDIO_MAP = [
+  [/run|jog|trail/i, '41cb3500-9d9d-40e1-ac39-3b3f05fdecc2'],       // Steady-State Run
+  [/walk|hike/i, '10e6a133-b61a-4cab-8c99-aab26149a669'],           // Brisk Walk
+  [/ride|bike|cycl/i, 'cb5464ea-e79d-43f0-bbb2-a7ffccb22d0e'],      // Steady-State Bike
+  [/row/i, 'd119b32b-6207-4576-b193-a34c62018719'],                 // Steady-State Row
+  [/stair|climb/i, '1df5066f-cb8f-42d1-8286-596dadeda51d'],         // Steady Climb (stairmaster)
+  [/ski/i, '3a802e5e-a11f-41b2-a83f-7d5e13c25fec'],                 // Ski Erg
+  [/elliptical/i, '11104a65-56db-4b58-8dc2-dc484a9f76fc'],          // Steady Elliptical
+];
+const _STRAVA_CARDIO_FALLBACK = '11104a65-56db-4b58-8dc2-dc484a9f76fc'; // neutral machine cardio for unknown sports
+function stravaSportToCardioVar(sportType) {
+  const t = String(sportType || '');
+  for (let i = 0; i < _STRAVA_CARDIO_MAP.length; i++) if (_STRAVA_CARDIO_MAP[i][0].test(t)) return { varUuid: _STRAVA_CARDIO_MAP[i][1], subUuid: null };
+  return { varUuid: _STRAVA_CARDIO_FALLBACK, subUuid: null };
+}
+// Build a cardio session (saveCardio shape) from a Strava activity. Accepts both the stored (normStravaActivity)
+// shape and raw Strava keys. Carries stravaId (dedupe + marks it linked) and origin (loop guard).
+function stravaActivityToCardioSession(activity) {
+  const a = activity || {};
+  const map = stravaSportToCardioVar(a.sportType || a.sport_type);
+  const startIso = a.startDate || a.start_date;
+  const elapsedSec = a.elapsedSec != null ? a.elapsedSec : (a.elapsed_time || 0);
+  const distM = a.distance != null ? a.distance : null; // Strava distance is metres
+  const unit = (state.cardioGoals && state.cardioGoals.distanceUnit) || 'km';
+  const dist = distM != null ? (unit === 'mi' ? +(distM / 1609.344).toFixed(2) : +(distM / 1000).toFixed(2)) : null;
+  const avgHr = a.avgHr != null ? a.avgHr : (a.average_heartrate != null ? a.average_heartrate : null);
+  const maxHr = a.maxHr != null ? a.maxHr : (a.max_heartrate != null ? a.max_heartrate : null);
+  const calories = a.calories != null ? a.calories : null;
+  const now = new Date().toISOString();
+  const s = {
+    id: newUuid(), date: startIso || now, updatedAt: now, origin: (state.deviceId || null),
+    stravaId: a.id, source: 'strava-import',
+    endedAt: (startIso && elapsedSec) ? new Date(new Date(startIso).getTime() + elapsedSec * 1000).toISOString() : undefined,
+    exercises: [{ varUuid: map.varUuid, subUuid: null, sets: [], cardio: {
+      elapsedMin: Math.max(1, Math.round(elapsedSec / 60)), distance: dist, distanceUnit: unit,
+      calories: calories, effort: null, setting: 'outdoor', notes: a.name || '', ts: now } }],
+  };
+  if (avgHr != null || calories != null) s.hr = { avg: avgHr, max: maxHr, calories: calories };
+  return s;
+}
+// Non-strength Strava activities not already linked to / inserted as a session.
+function coworkStravaOrphans() {
+  const linked = new Set();
+  (state.sessions || []).forEach(s => { if (s.stravaId) linked.add(s.stravaId); });
+  return (state.stravaActivities || []).filter(a => !isStrengthType(a.sportType) && !linked.has(a.id));
+}
+// Insert orphan activities as cardio sessions; dedupe by stravaId so re-runs never duplicate. Returns the count.
+function coworkInsertStravaOrphans(activities) {
+  const existing = new Set();
+  (state.sessions || []).forEach(s => { if (s.stravaId) existing.add(s.stravaId); });
+  let inserted = 0;
+  (activities || []).forEach(a => { if (!a || existing.has(a.id)) return; state.sessions.push(stravaActivityToCardioSession(a)); existing.add(a.id); inserted++; });
+  if (inserted) saveState();
+  return inserted;
+}
+// Opt-in (feat 318) systemic fatigue from recent cardio: effort×duration, decaying ~36h half-life. NOT attributed
+// to any muscle group — recoveryReadiness is unchanged; only trainingReadiness subtracts a capped few points.
+function cardioSystemicFatigue(nowMs) {
+  nowMs = nowMs || Date.now();
+  const HALF = 36; let f = 0;
+  (state.sessions || []).forEach(s => {
+    const t = new Date(s.date).getTime(), hrs = (nowMs - t) / 3600000; if (hrs < 0 || hrs > HALF * 4) return;
+    (s.exercises || []).forEach(ex => { if (!ex.cardio) return; const min = +ex.cardio.elapsedMin || 0; if (min <= 0) return;
+      const eff = (ex.cardio.effort != null ? ex.cardio.effort : 6); // default moderate effort
+      f += (min / 30) * (0.6 + 0.05 * eff) * Math.pow(0.5, hrs / HALF); }); // 30 min @ effort 8 ≈ 1.0
+  });
+  return f;
+}
+
+/* ============================================================
+   feat 319 — CLAUDE COWORK HUB (Phase 4: Plan of the Day). The agent reads options.json + context and drops
+   plans into plan-of-the-day/inbox/. The importer validates every step against REAL movements (unknown ids
+   dropped, empty plans rejected), stamps source:'daily', replaces same-date dailies, prunes old ones. Daily
+   plans render in their own pinned "Plans of the Day" section but otherwise run like any plan.
+   ============================================================ */
+// Keep only step options that resolve to a real movement/variation; drop empty steps; reject empty plans.
+function validateImportedPlan(raw) {
+  if (!raw || typeof raw !== 'object') return { plan: null, dropped: 'not an object' };
+  let dropped = 0; const steps = [];
+  (raw.steps || []).forEach(st => {
+    const opts = (st.options || []).filter(o => {
+      try {
+        if (o && o.type === 'variation' && o.uuid) return VAR_INDEX.has(o.uuid);
+        if (o && o.type === 'movement' && o.familyId) { const fid = (typeof resolveFamilyId === 'function') ? resolveFamilyId(o.familyId) : o.familyId; return FAMILIES.some(f => f.id === fid); }
+      } catch (_) {}
+      return false;
+    }).map(o => o.type === 'variation' ? { type: 'variation', uuid: o.uuid } : { type: 'movement', familyId: (typeof resolveFamilyId === 'function') ? resolveFamilyId(o.familyId) : o.familyId });
+    if (!opts.length) { dropped++; return; }
+    let set = null; try { set = stepQualifyingVarSet({ options: opts }); } catch (_) {}
+    if (set && set.size === 0) { dropped++; return; } // resolves to no actual exercises
+    steps.push({ id: newUuid(), sets: Math.max(1, Math.min(20, (st.sets | 0) || 3)), options: opts, desc: String(st.desc || ''), load: (['light', 'moderate', 'heavy'].indexOf(st.load) !== -1 ? st.load : 'moderate') });
+  });
+  if (!steps.length) return { plan: null, dropped: 'no valid steps' };
+  return { plan: { id: newUuid(), name: String(raw.name || 'Plan of the Day').slice(0, 80), intensity: Math.max(1, Math.min(5, (raw.intensity | 0) || 3)), desc: String(raw.desc || ''), steps }, dropped };
+}
+function coworkImportPlanOfDay(payload) {
+  if (!payload || !Array.isArray(payload.plans)) return { handled: false, reason: 'no plans' };
+  const date = (payload.date && /^\d{4}-\d{2}-\d{2}$/.test(payload.date)) ? payload.date : new Date().toISOString().slice(0, 10);
+  if (!Array.isArray(state.plans)) state.plans = [];
+  state.plans = state.plans.filter(p => !(p.source === 'daily' && p.dailyDate === date)); // replace same-date dailies
+  let added = 0, rejected = 0;
+  payload.plans.forEach(raw => {
+    const v = validateImportedPlan(raw);
+    if (!v.plan) { rejected++; return; }
+    v.plan.source = 'daily'; v.plan.dailyDate = date; v.plan.dailyGeneratedAt = new Date().toISOString();
+    v.plan.author = 'Plan of the Day'; v.plan.dailyRationale = String(payload.rationale || '');
+    try { ensurePlanRevisioned(v.plan); } catch (_) {}
+    state.plans.push(v.plan); added++;
+  });
+  const keepDays = (state.cowork && state.cowork.podKeepDays) || 7; // prune stale dailies
+  const cutoff = new Date(Date.now() - keepDays * 86400000).toISOString().slice(0, 10);
+  state.plans = state.plans.filter(p => !(p.source === 'daily' && p.dailyDate && p.dailyDate < cutoff));
+  if (added) { saveState(); if (typeof render === 'function') render(); }
+  return { handled: true, kind: 'pod', added, rejected, date };
+}
+// Persist POD options + re-write options.json so the agent sees the latest.
+function coworkWritePodOptions() { saveState(); try { renderSettingsDrawer(); } catch (_) {} if (state.cowork && state.cowork.enabled) coworkExportNow(true).catch(() => {}); toast('🗓️ Plan-of-Day options saved'); }
+// Read the options editor form back into state, then persist + export.
+function podSaveFromForm(body) {
+  const o = state.podOptions || {};
+  const minEl = body.querySelector('#pod-minutes'); const min = minEl ? +minEl.value : (o.availableMinutes || 60);
+  const modeEl = body.querySelector('.pod-mode.active'); const mode = (modeEl && modeEl.dataset.podMode) || o.targetMode || 'recovered';
+  const groups = [...body.querySelectorAll('.pod-group:checked')].map(c => c.value);
+  const injuries = [...body.querySelectorAll('.pod-injury:checked')].map(c => c.value);
+  const equipment = [...body.querySelectorAll('.pod-equip:checked')].map(c => c.value);
+  const focusEl = body.querySelector('#pod-focus'); const fitnessFocus = (focusEl && focusEl.value) || 'balance';
+  const notesEl = body.querySelector('#pod-notes'); const notes = notesEl ? notesEl.value : (o.notes || '');
+  state.podOptions = { ...o, availableMinutes: Math.max(20, Math.min(180, min | 0 || 60)), targetMode: mode, targetGroups: groups, injuries, equipment, fitnessFocus, notes };
+  coworkWritePodOptions();
+}
+// The POD options editor (rendered inside the Cowork settings block when the hub is on).
+function renderPodOptionsForm() {
+  const o = state.podOptions || {};
+  const FOCUS = [['balance', 'Balanced (default)'], ['strength', 'Max Strength'], ['muscle', 'Hypertrophy'], ['stamina', 'Strength-Endurance'], ['power', 'Power & Agility'], ['endurance', 'Endurance'], ['mobility', 'Flexibility & Mobility']];
+  const groups = RECOVERY_BPS.map(bp => `<label class="pod-chk"><input type="checkbox" class="pod-group" value="${bp}" ${(o.targetGroups || []).indexOf(bp) !== -1 ? 'checked' : ''}> ${escapeHtml(BP_LABELS[bp] || bp)}</label>`).join('');
+  const inj = injuryOptionList().map(i => `<label class="pod-chk"><input type="checkbox" class="pod-injury" value="${escapeAttr(i.id)}" ${(o.injuries || []).indexOf(i.id) !== -1 ? 'checked' : ''}> ${escapeHtml(i.label)}</label>`).join('');
+  const equip = GYM_EQUIP.map(e => `<label class="pod-chk"><input type="checkbox" class="pod-equip" value="${escapeAttr(e.id)}" ${(o.equipment || []).indexOf(e.id) !== -1 ? 'checked' : ''}> ${escapeHtml(e.label || e.id)}</label>`).join('');
+  return `<div class="pod-options">
+    <div class="drawer-setting-label" style="margin-top:8px;">🗓️ Plan of the Day options</div>
+    <div class="drawer-setting-sub">Shapes the daily plans the cowork agent writes (saved to options.json).</div>
+    <label class="pod-field">Available time: <b id="pod-min-val">${o.availableMinutes || 60}</b> min<input type="range" id="pod-minutes" min="20" max="180" step="5" value="${o.availableMinutes || 60}"></label>
+    <div class="pod-field"><span>Target</span><div class="drawer-pill-group">${[['recovered', 'Most recovered'], ['groups', 'Specific groups'], ['rehab', 'Recovery & rehab']].map(([v, l]) => `<button type="button" class="drawer-pill pod-mode ${(o.targetMode || 'recovered') === v ? 'active' : ''}" data-pod-mode="${v}">${l}</button>`).join('')}</div></div>
+    <div class="pod-field" id="pod-groups-wrap" style="${(o.targetMode === 'groups') ? '' : 'display:none;'}"><div class="pod-chk-grid">${groups}</div></div>
+    <label class="pod-field">Fitness focus <select id="pod-focus" class="vw-select">${FOCUS.map(([v, l]) => `<option value="${v}" ${(o.fitnessFocus || 'balance') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <details class="pod-field"><summary>Injuries to avoid (${(o.injuries || []).length})</summary><div class="pod-chk-grid">${inj}</div></details>
+    <details class="pod-field"><summary>Available equipment (${(o.equipment || []).length || 'active gym'})</summary><div class="pod-chk-grid">${equip}</div></details>
+    <label class="pod-field">Notes<textarea id="pod-notes" rows="2" class="vw-select" placeholder="e.g. shoulder tweaky; want more posterior chain">${escapeHtml(o.notes || '')}</textarea></label>
+    <button class="drawer-btn" id="pod-save">💾 Save options</button>
+  </div>`;
 }
 
 /* ---- feat 89 — Strava activities auto-load (mirrors biometrics auto-load; reuses the bioIdb* handle store) ---- */
@@ -6199,7 +6678,7 @@ function cloudPushTrigger() {
 async function cloudSyncNow() {
   if (!cloudActive()) { toast('Connect a cloud provider first'); return; }
   cloudStatus('☁ Syncing…');
-  try { await cloudPullNow(true); await cloudPushNow(); renderSettingsDrawer(); }
+  try { const _prev = new Set((state.sessions || []).map(sessionKey)); await cloudPullNow(true); await cloudPushNow(); try { coworkAfterPull(_prev); } catch (_) {} renderSettingsDrawer(); } // feat 320 — manual sync also refreshes the hub on a new phone workout
   catch (_) { cloudStatus('⚠ Cloud sync failed'); renderSettingsDrawer(); }
 }
 
@@ -7839,6 +8318,21 @@ function renderSettingsDrawer() {
         <button class="drawer-btn" id="ai-repick-btn">📁 Change folder</button>
         <button class="drawer-btn danger" id="ai-disable-btn">✕ Disable</button>
       </div>
+      <div class="drawer-setting-row" style="margin-top:8px;">
+        <div><div class="drawer-setting-label">🤝 Claude Cowork hub</div><div class="drawer-setting-sub">Also write the machine export + task folders (Garmin / Strava / Plan-of-the-Day) into this folder for a cowork agent, and import its results.</div></div>
+        <div class="drawer-pill-group">
+          <button class="drawer-pill ${state.cowork.enabled ? 'active' : ''}" data-cowork="on">On</button>
+          <button class="drawer-pill ${!state.cowork.enabled ? 'active' : ''}" data-cowork="off">Off</button>
+        </div>
+      </div>
+      ${state.cowork.enabled ? `<div class="drawer-data-row" style="flex-wrap:wrap;"><button class="drawer-btn" id="cowork-write-now">🤝 Write hub now</button></div>
+      <div class="drawer-setting-row">
+        <div><div class="drawer-setting-label">Count cardio in recovery</div><div class="drawer-setting-sub">Let recent hard cardio (incl. imported Strava activities) gently lower your Training Readiness. Per-muscle recovery is unaffected.</div></div>
+        <div class="drawer-pill-group">
+          <button class="drawer-pill ${state.cowork.cardioFatigue ? 'active' : ''}" data-cardiofatigue="on">On</button>
+          <button class="drawer-pill ${!state.cowork.cardioFatigue ? 'active' : ''}" data-cardiofatigue="off">Off</button>
+        </div>
+      </div>${renderPodOptionsForm()}` : ''}
     ` : `
       <div class="drawer-data-row" style="flex-wrap:wrap;">
         <button class="drawer-btn" id="ai-pick-folder-btn">📁 Pick export folder</button>
@@ -8195,6 +8689,12 @@ function renderSettingsDrawer() {
   body.querySelector('#ai-pick-folder-btn')?.addEventListener('click', aiExportPickFolder);
   body.querySelector('#ai-repick-btn')?.addEventListener('click', aiExportPickFolder);
   body.querySelector('#ai-write-now-btn')?.addEventListener('click', () => { aiExportWriteNow(false, true).catch(() => {}); });
+  body.querySelectorAll('[data-cowork]').forEach(b => b.addEventListener('click', () => { state.cowork.enabled = b.dataset.cowork === 'on'; saveState(); renderSettingsDrawer(); if (state.cowork.enabled) coworkExportNow(false).catch(() => {}); })); // feat 316
+  body.querySelector('#cowork-write-now')?.addEventListener('click', () => coworkExportNow(false).catch(() => {})); // feat 316
+  body.querySelectorAll('[data-cardiofatigue]').forEach(b => b.addEventListener('click', () => { state.cowork.cardioFatigue = b.dataset.cardiofatigue === 'on'; saveState(); renderSettingsDrawer(); if (typeof render === 'function') render(); toast('Cardio in recovery: ' + (state.cowork.cardioFatigue ? 'on' : 'off')); })); // feat 318
+  body.querySelectorAll('[data-pod-mode]').forEach(b => b.addEventListener('click', () => { body.querySelectorAll('.pod-mode').forEach(x => x.classList.remove('active')); b.classList.add('active'); const w = body.querySelector('#pod-groups-wrap'); if (w) w.style.display = b.dataset.podMode === 'groups' ? '' : 'none'; })); // feat 319
+  { const pmin = body.querySelector('#pod-minutes'); if (pmin) pmin.addEventListener('input', () => { const v = body.querySelector('#pod-min-val'); if (v) v.textContent = pmin.value; }); }
+  body.querySelector('#pod-save')?.addEventListener('click', () => podSaveFromForm(body)); // feat 319
   body.querySelector('#ai-disable-btn')?.addEventListener('click', aiExportDisable);
   body.querySelectorAll('[data-ai]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, [b.dataset.ai]: b.dataset.aiVal === 'on' }; saveState(); renderSettingsDrawer(); }));
   body.querySelectorAll('[data-aiscope]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, scope: b.dataset.aiscope }; saveState(); renderSettingsDrawer(); }));
@@ -11877,6 +12377,7 @@ function planMegaDist(plan) {
   return { mega, total };
 }
 function planCategory(plan) {
+  if (plan && plan.source === 'daily') return 'Plans of the Day'; // feat 319 — pinned at the top in its own section
   const { mega, total } = planMegaDist(plan);
   if (!total) return 'Other';
   const NAME = { push:'Push', pull:'Pull', lower:'Legs', core:'Core', full:'Full Body', mobility:'Mobility', recovery:'Recovery' };
@@ -11981,7 +12482,7 @@ function recommendPlans(minutes, limit) {
   scored.sort((a, b) => b.score - a.score || estimatePlanMinutes(a.plan) - estimatePlanMinutes(b.plan));
   return scored.slice(0, limit || 3).map(x => ({ ...x, reason: planRecReason(x.plan, minutes, recent, rec) }));
 }
-const PLAN_CAT_ORDER = ['Full Body','Upper','Push','Pull','Legs','Core','Mixed','Mobility','Recovery','Other'];
+const PLAN_CAT_ORDER = ['Plans of the Day','Full Body','Upper','Push','Pull','Legs','Core','Mixed','Mobility','Recovery','Other']; // feat 319 — daily plans pinned first
 /* ============================================================
    feat 229 — SPLIT PLANNER. Optional weekly-split facility: recommend a split for the sessions / days /
    hours you have, then analyse how far that split over- or under-shoots each muscle group's weekly volume
@@ -20165,6 +20666,7 @@ document.addEventListener('visibilitychange', () => {
   // value when you return. Restart the tick (defensive) and repaint immediately so it snaps to the real time.
   try { ensureRestTick(); restTick(); } catch (_) {}
   try { if (typeof aiExportMaybeDaily === 'function') aiExportMaybeDaily(); } catch (_) {} // feat 272 — a new day may have started while away
+  try { const _n = Date.now(); if (_n - _coworkFocusAt > 30000 && state.cowork && state.cowork.enabled) { _coworkFocusAt = _n; coworkPollAll(false).catch(() => {}); } } catch (_) {} // feat 317 — pick up cowork outputs on tab focus (debounced)
 });
 window.addEventListener('focus', () => { try { if (typeof hrTryReconnect === 'function' && !_hrConnected && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {} });
 try { refreshWakeLock(); } catch (_) {}
@@ -20186,7 +20688,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 269 · 2026-06-22 20:19';
+const APP_BUILD = 'build 277 · 2026-06-22 23:01';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -21449,13 +21951,16 @@ setTimeout(() => {
   }
   // feat 272 — AI-ready digest export: once-a-day write on load (the "EOD" path); silent, no prompt on boot
   if (typeof aiExportMaybeDaily === 'function') aiExportMaybeDaily();
+  try { coworkStartPolling(); } catch (_) {} // feat 317 — desktop inbox poller (periodic + on focus)
   // feat 275 — once-a-day "you have N unread study items" nudge
   if (typeof studyDailyNudge === 'function') studyDailyNudge();
   // feat 124/125 — cloud sync: first finish any pending OAuth redirect (Dropbox/OneDrive land back here
   // with ?code=…); otherwise silent-pull if a provider is already connected. OAuth providers can refresh
   // silently from the IndexedDB refresh token; Google falls back to a silent GIS token when its session lives.
+  const _coworkBootKeys = new Set((state.sessions || []).map(sessionKey)); // feat 320 — detect a foreign workout from the boot pull
   cloudOAuthHandleRedirect()
     .then((handled) => { if (!handled && cloudActive()) return cloudPullNow(true); })
+    .then(() => { try { coworkAfterPull(_coworkBootKeys); } catch (_) {} try { coworkCloudTimerStart(); } catch (_) {} }) // feat 320 — re-export on a new phone workout + arm periodic sync
     .catch(() => {});
 }, 300);
 </script>
