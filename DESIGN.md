@@ -1445,6 +1445,18 @@ They share variation **UUIDs**.
   round-trip/reject, hash stability, ledger record+prune, origin stamping, the loop-guard truth table, and that
   merge+normalize never strip `origin`/`stravaId`/`source:'daily'`). Phases 1–5 build the folder I/O, importers,
   orphan-cardio, Plan of the Day, and periodic-sync on top.
+- **Claude Cowork hub — Phase 1 export (feat 316):** the desktop app now writes a structured hub into the existing
+  aiExport "Claude folder": `app-export.json` (a machine export — recent sessions, plans, recovery/training-readiness,
+  fitness focus, gym equipment, POD options, and a **`vocab`** of real cardio uuids + movement `familyId`s + muscle
+  groups + the injury taxonomy so the agent references real ids), `README-COWORK.md`, and three channel subfolders
+  (`garmin-reconciliation/`, `strava-reconciliation/`, `plan-of-the-day/`) each with an app-written `INSTRUCTIONS.md`
+  + `context.json` + `inbox/` + `processed/`, plus `plan-of-the-day/options.json`. Pure builders (`buildAppExportPayload`,
+  `buildInstructionsMd`, `buildChannelContext`, `buildPodOptionsFile`/`applyPodOptionsFile`, `buildCoworkReadme`,
+  `injuryOptionList`/`INJURY_REGIONS`) are unit-tested; thin I/O (`coworkResolveRoot` reuses `aiExportResolveHandle`,
+  `coworkExportNow` with content-hash skip + min-gap) is desktop-only. Wired to a **Settings → AI export → Claude Cowork
+  hub** toggle + "Write hub now", and to workout-end (`coworkOnWorkoutEnd`). `test/coworkexport.spec.mjs` (payload keys
+  + vocab of real ids; INSTRUCTIONS document the envelope/inbox/schema per channel; context shapes; options round-trip;
+  faceted injury list). Phase 2 adds inbox polling + Garmin/Strava import.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
