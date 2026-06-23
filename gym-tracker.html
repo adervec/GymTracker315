@@ -14735,6 +14735,43 @@ function finalizePlanExecution(session) {
   session.planExec = { at: new Date().toISOString(), planId: session.planId, planName: evalPlan.name, planRev: session.planRev || null, summary: sum, incomplete, skipped, detail };
   return session.planExec;
 }
+// feat 336 — how many exercises set a NEW e1RM best this session (over an established history on other days).
+// First-ever lifts don't count as PRs (no prior to beat); cardio/time sets score 0 e1RM and are skipped.
+function sessionPRCount(session) {
+  if (!session) return 0;
+  const dayKey = new Date(session.date).toDateString();
+  let prs = 0;
+  (session.exercises || []).forEach(ex => {
+    if (ex.cardio || !ex.sets || !ex.sets.length) return;
+    const todayBest = ex.sets.reduce((m, s) => Math.max(m, estimated1RMSet(s)), 0);
+    if (!(todayBest > 0)) return;
+    let priorBest = 0;
+    (state.sessions || []).forEach(s2 => {
+      if (new Date(s2.date).toDateString() === dayKey) return; // exclude today
+      (s2.exercises || []).forEach(e2 => {
+        if (e2.varUuid !== ex.varUuid || e2.cardio || !e2.sets) return;
+        e2.sets.forEach(st => { const v = estimated1RMSet(st); if (v > priorBest) priorBest = v; });
+      });
+    });
+    if (priorBest > 0 && todayBest > priorBest) prs++;
+  });
+  return prs;
+}
+// feat 336 — the coach's final sign-off for the end-workout popup: a quick verdict on the session keyed to its
+// grade, the new e1RM bests it produced (ties into the trends theme), and an encouraging close.
+function endWorkoutCoachComment(session, stats, score) {
+  if (!stats || !stats.totalSets) return '🏁 No sets logged this time — rest up, next one’s yours.';
+  const prs = sessionPRCount(session);
+  let lead;
+  if (score && score.points >= 85) lead = 'Outstanding work today.';
+  else if (score && score.points >= 70) lead = 'Strong session.';
+  else if (score && score.points >= 50) lead = 'Solid work.';
+  else lead = 'In the books — every session counts.';
+  const mid = prs > 0
+    ? `${prs} new e1RM ${prs === 1 ? 'best' : 'bests'} — your trend’s moving the right way.`
+    : `${stats.totalSets} set${stats.totalSets === 1 ? '' : 's'} banked toward your trends.`;
+  return `🏁 ${lead} ${mid} Refuel, recover, and come back stronger.`;
+}
 function finalizeEndWorkout(active, skipConfirm) {
   if (!active || active.endedAt) return;
   const stats = computeSessionStats(active);
@@ -14765,6 +14802,8 @@ function finalizeEndWorkout(active, skipConfirm) {
   let msg = `End workout?\n\nDuration: ${stats.elapsedDisplay}\nExercises: ${stats.exerciseCount}\nSets: ${stats.totalSets}`;
   if (score) msg += `\nScore: ${score.grade} (${score.points}/100)`;
   msg += `\n\nOnce ended you can still edit exercises but the timer stops.`;
+  const coachClose = endWorkoutCoachComment(active, stats, score); // feat 336 — coach's final comment
+  if (coachClose) msg += `\n\n${coachClose}`;
   // feat 123 — offer to jot session notes (location, injuries, how it felt) before ending.
   choiceDialog({
     title: 'End workout',
@@ -20917,7 +20956,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 295 · 2026-06-23 11:15';
+const APP_BUILD = 'build 296 · 2026-06-23 11:40';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

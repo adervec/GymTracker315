@@ -1634,6 +1634,16 @@ They share variation **UUIDs**.
   trend down."; no prior history → "…sets your baseline." Non-e1RM sets (time/bodyweight/cardio score 0) get no line.
   Appended to the existing message for both the normal and over-limit variants; the hold-to-skip-confirm path is
   unaffected. `test/savetrend.spec.mjs` (PR/dip/baseline/none phrasing; the popup message carries the note).
+- **End-Workout popup gets a coach final comment (feat 336):** the End-Workout confirm popup (`finalizeEndWorkout`'s
+  `choiceDialog`) now closes with a coach sign-off below the Duration/Exercises/Sets/Score summary.
+  `endWorkoutCoachComment(session, stats, score)` leads with a verdict keyed to the workout grade (≥85 Outstanding ·
+  ≥70 Strong · ≥50 Solid · else "every session counts"), then calls out the session's new e1RM **bests** via
+  `sessionPRCount` — exercises whose top e1RM beat an *established* history on other days (first-ever lifts and
+  declines don't count; cardio/time score 0) — tying into the trends theme, or "N sets banked toward your trends" when
+  there were none, and an encouraging close ("Refuel, recover, and come back stronger."). An empty session gets a
+  gentle "No sets logged this time" line instead. Text only, in the popup; the long-press skip-confirm path is
+  unaffected. `test/endcoach.spec.mjs` (`sessionPRCount` PR/first-ever/decline; grade-keyed phrasing + PR mention +
+  empty case; the popup message carries the comment).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
