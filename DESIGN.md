@@ -1676,6 +1676,15 @@ They share variation **UUIDs**.
   **Recovery** card so the per-muscle readiness view carries the Garmin context. `test/recoverylog.spec.mjs` (all-days
   capture incl. rest days; workout-day sleep still attaches; re-import merge; cross-device merge; the Body section renders;
   the cowork channel asks for + reports recovery).
+- **Constellation filtering (feat 340):** the Constellation (feat 306) had only a mega filter. It now combines several
+  filters — the mega pills, a free-text **search** (movement / variation name), **Status** (✨ Explored / 🌑 Unexplored),
+  **Level** (Beginner → Expert), **Equipment** (derived from the families present), and an **⭐ Favourites** toggle, plus
+  a **✕ Clear** that appears when anything is active. `constNodeMatches(n)` ANDs all of them; matching stars stay bright
+  while the rest dim right down, and the SVG viewBox zooms to fit the matching subset (reusing `_constBBoxView`). A
+  "N of M match" line reports the count (and flags an empty result). Search is debounced (~220ms) and refocuses after the
+  re-render so typing flows. Each node carries its family `equip` for the equipment filter. `test/constfilter.spec.mjs`
+  (the predicate per dimension; the controls render + Clear appears/resets; filtering dims non-matches and zooms);
+  existing `constellation.spec.mjs` stays green.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

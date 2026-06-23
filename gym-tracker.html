@@ -1928,6 +1928,13 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .cst-pill { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); cursor: pointer; font-family: inherit; }
   .cst-pill.active { background: var(--accent, #b48aff); border-color: var(--accent, #b48aff); color: #0a0a0a; }
   .cst-pill.active[style*="--ch"] { background: var(--ch); border-color: var(--ch); }
+  /* feat 340 — extra constellation filters */
+  .cst-search { width: 100%; box-sizing: border-box; margin: 8px 0 4px; padding: 8px 11px; border-radius: 9px; border: 1px solid var(--border2, #333); background: var(--bg3, #1a1a1a); color: var(--text, #eee); font-family: inherit; font-size: 13px; }
+  .cst-frow { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+  .cst-frow .cst-flabel { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text3, #888); flex: 0 0 auto; width: 62px; padding-top: 9px; }
+  .cst-frow .cst-pills { margin: 4px 0; flex: 1; min-width: 0; }
+  .cst-pill.cst-clear { background: color-mix(in srgb, var(--warn, #e5534b) 14%, transparent); border-color: var(--warn, #e5534b); color: var(--warn, #e5534b); }
+  .cst-match { font-size: 11px; color: var(--text3, #888); margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
   .cst-stage { width: 100%; border-radius: 10px; overflow: hidden; }
   .cst-svg { width: 100%; height: auto; display: block; touch-action: none; cursor: grab; } /* feat 307 — touch-action:none so a drag pans instead of scrolling */
   .cst-svg:active { cursor: grabbing; }
@@ -11213,6 +11220,27 @@ function _megaHue(m) { return _MEGA_HUE[(m || 'other').toLowerCase()] || _MEGA_H
 function _megaLabel(m) { const k = (m || 'other').toLowerCase(); return _MEGA_LABEL[k] || (typeof BP_LABELS !== 'undefined' && BP_LABELS[k]) || (k.charAt(0).toUpperCase() + k.slice(1)); }
 let _constFilter = null; // active mega filter (null = all)
 let _constView = null;   // feat 307 — current square SVG viewBox {x,y,w,h} for pan/zoom
+// feat 340 — additional constellation filters (all combine with the mega filter; matches stay bright, the rest dim)
+let _constStatus = 'all'; // 'all' | 'explored' | 'unexplored'
+let _constEquip = 'all';  // 'all' | an equipment id
+let _constDiff = 'all';   // 'all' | 'beg' | 'int' | 'adv' | 'exp'
+let _constFav = false;    // favourites only
+let _constSearch = '';    // free-text match on movement / variation name
+let _constSearchTimer = null;
+function constNodeMatches(n) {
+  if (!n) return false;
+  if (_constFilter && n.mega !== _constFilter) return false;
+  if (_constStatus === 'explored' && !n.trained) return false;
+  if (_constStatus === 'unexplored' && n.trained) return false;
+  if (_constDiff !== 'all' && (n.difficulty || 'int') !== _constDiff) return false;
+  if (_constEquip !== 'all' && (n.equip || []).indexOf(_constEquip) < 0) return false;
+  if (_constFav && !(typeof isFavVar === 'function' && isFavVar(n.uuid))) return false;
+  if (_constSearch) { const q = _constSearch.toLowerCase(); if (String(n.title || '').toLowerCase().indexOf(q) < 0 && String(n.famTitle || '').toLowerCase().indexOf(q) < 0) return false; }
+  return true;
+}
+function _constAnyFilter() { return !!(_constFilter || _constStatus !== 'all' || _constEquip !== 'all' || _constDiff !== 'all' || _constFav || _constSearch); }
+function _constResetFilters() { _constFilter = null; _constStatus = 'all'; _constEquip = 'all'; _constDiff = 'all'; _constFav = false; _constSearch = ''; }
+function _constEquipLabel(e) { return String(e || '').charAt(0).toUpperCase() + String(e || '').slice(1); }
 // feat 307 — keep a square viewBox inside the content bounds.
 function _clampConstView(v, W, H) {
   v.w = Math.max(140, Math.min(W, v.w)); v.h = v.w;
@@ -11311,7 +11339,7 @@ function constellationNodes() {
       const ang = aMid + (t - 0.5) * 2 * halfW + Math.sin(idx * 1.7) * 0.03;
       const pe = prowess.get(it.v.uuid), pr = prowessScore(pe, now);
       nodes.push({ uuid: it.v.uuid, x: +(cx + radius * Math.cos(ang)).toFixed(1), y: +(cy + radius * Math.sin(ang)).toFixed(1),
-        mega, fam: it.f.id, famTitle: it.f.title, title: it.v.title, importance: it._imp, difficulty: it._diff,
+        mega, fam: it.f.id, famTitle: it.f.title, title: it.v.title, importance: it._imp, difficulty: it._diff, equip: it.f.equip || [],
         prowess: +pr.toFixed(3), trained: !!(pe && pe.sessions), sessions: pe ? pe.sessions : 0, best: pe ? Math.round(pe.best) : 0,
         r: +(3.4 + it._imp * 0.7).toFixed(1) });
     });
@@ -11345,7 +11373,10 @@ function renderConstellationPage(main) {
   const data = constellationNodes();
   const { W, H, cx, cy, nodes, megas } = data;
   const trainedCount = nodes.filter(n => n.trained).length;
-  _constView = _constFilter ? _constBBoxView(nodes.filter(n => n.mega === _constFilter), W, H) : { x: 0, y: 0, w: W, h: H }; // feat 307 — zoom onto the filtered mega, else show all
+  // feat 340 — all filters combine into one match set; matches stay bright, the rest dim, and the view zooms to fit them.
+  const matchSet = new Set(nodes.filter(constNodeMatches).map(n => n.uuid));
+  const anyFilter = _constAnyFilter(), matchCount = matchSet.size;
+  _constView = (anyFilter && matchCount) ? _constBBoxView(nodes.filter(n => matchSet.has(n.uuid)), W, H) : { x: 0, y: 0, w: W, h: H };
   const vb = `${(+_constView.x).toFixed(1)} ${(+_constView.y).toFixed(1)} ${(+_constView.w).toFixed(1)} ${(+_constView.h).toFixed(1)}`;
   const stats = constellationStats(); // feat 308 — exploration count + rate at the core
   const rateLine = stats.new30 > 0 ? `+${stats.new30} new · 30d` : (stats.explored > 0 ? `~${stats.perWeek}/wk pace` : 'tap a star to begin');
@@ -11359,8 +11390,8 @@ function renderConstellationPage(main) {
     return pts ? `<polyline points="${pts}" fill="none" stroke="${_megaHue(m)}" stroke-opacity="0.16" stroke-width="1.4"/>` : '';
   }).join('');
   const circles = nodes.map(n => {
-    const dim = _constFilter && n.mega !== _constFilter;
-    const op = (dim ? 0.06 : (0.22 + 0.62 * n.prowess)).toFixed(3);
+    const dim = anyFilter && !matchSet.has(n.uuid);
+    const op = (dim ? 0.05 : (0.22 + 0.62 * n.prowess)).toFixed(3);
     const halo = (n.trained && !dim) ? `<circle cx="${n.x}" cy="${n.y}" r="${(n.r + 2.4).toFixed(1)}" fill="none" stroke="${_megaHue(n.mega)}" stroke-opacity="${(0.22 + 0.5 * n.prowess).toFixed(3)}" stroke-width="1"/>` : '';
     return `${halo}<circle class="cst-node" data-uuid="${escapeAttr(n.uuid)}" cx="${n.x}" cy="${n.y}" r="${n.r}" fill="${_megaHue(n.mega)}" fill-opacity="${op}"><title>${escapeHtml(n.title)}</title></circle>`;
   }).join('');
@@ -11369,12 +11400,26 @@ function renderConstellationPage(main) {
     const o = arm[arm.length - 1];
     return `<text class="cst-mega-lbl" x="${o.x}" y="${o.y - 6}" fill="${_megaHue(m)}" text-anchor="${o.x < cx ? 'end' : 'start'}">${escapeHtml(_megaLabel(m))}</text>`;
   }).join('');
-  const pills = ['all'].concat(megas).map(m =>
-    `<button class="cst-pill ${(_constFilter || 'all') === m ? 'active' : ''}" data-cst-mega="${escapeAttr(m)}"${m !== 'all' ? ` style="--ch:${_megaHue(m)}"` : ''}>${m === 'all' ? 'All' : escapeHtml(_megaLabel(m))}</button>`
-  ).join('');
+  // feat 340 — filter UI: mega + free-text search + status / difficulty / equipment + favourites, with a Clear.
+  const pill = (active, attr, label, hue) => `<button class="cst-pill ${active ? 'active' : ''}" ${attr}${hue ? ` style="--ch:${hue}"` : ''}>${label}</button>`;
+  const megaPills = ['all'].concat(megas).map(m => pill((_constFilter || 'all') === m, `data-cst-mega="${escapeAttr(m)}"`, m === 'all' ? 'All' : escapeHtml(_megaLabel(m)), m !== 'all' ? _megaHue(m) : null)).join('');
+  const statusPills = [['all', 'All'], ['explored', '✨ Explored'], ['unexplored', '🌑 Unexplored']].map(([v, l]) => pill(_constStatus === v, `data-cst-status="${v}"`, l)).join('') + pill(_constFav, 'data-cst-fav="1"', '⭐ Favourites');
+  const diffPills = [['all', 'All'], ['beg', 'Beginner'], ['int', 'Intermediate'], ['adv', 'Advanced'], ['exp', 'Expert']].map(([v, l]) => pill(_constDiff === v, `data-cst-diff="${v}"`, l)).join('');
+  const equipSet = new Set(); FAMILIES.forEach(f => (f.equip || []).forEach(e => equipSet.add(e)));
+  const EQ_ORDER = ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'kettlebell', 'smith', 'band', 'plate', 'sled'];
+  const equips = [...equipSet].sort((a, b) => { const ia = EQ_ORDER.indexOf(a), ib = EQ_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b); });
+  const equipPills = [['all', 'All']].concat(equips.map(e => [e, _constEquipLabel(e)])).map(([v, l]) => pill(_constEquip === v, `data-cst-equip="${escapeAttr(v)}"`, escapeHtml(l))).join('');
+  const clearPill = anyFilter ? `<button class="cst-pill cst-clear" data-cst-clear="1">✕ Clear filters</button>` : '';
+  const matchLine = anyFilter ? `<div class="cst-match">${matchCount} of ${nodes.length} match${matchCount === 0 ? ' — nothing fits these filters' : ''}</div>` : '';
   main.innerHTML = `<div class="card cst-card">
     <div class="cst-head"><div class="card-title" style="margin:0;">✨ Constellation</div><div class="cst-sub">Every movement as a star — fundamentals at the core, the obscure &amp; advanced spiralling out. Brightness = your prowess (<b>${trainedCount}</b>/${nodes.length} lit). Tap a star for details.</div></div>
-    <div class="cst-pills">${pills}</div>
+    <input id="cst-search" class="cst-search" type="search" placeholder="🔍 Search movements…" value="${escapeAttr(_constSearch)}" autocomplete="off">
+    <div class="cst-pills">${megaPills}</div>
+    <div class="cst-frow"><span class="cst-flabel">Status</span><div class="cst-pills">${statusPills}</div></div>
+    <div class="cst-frow"><span class="cst-flabel">Level</span><div class="cst-pills">${diffPills}</div></div>
+    <div class="cst-frow"><span class="cst-flabel">Equipment</span><div class="cst-pills">${equipPills}</div></div>
+    ${clearPill ? `<div class="cst-pills">${clearPill}</div>` : ''}
+    ${matchLine}
     <div class="cst-stage"><svg viewBox="${vb}" class="cst-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Constellation of exercise variations">
       <defs><radialGradient id="cst-bg" cx="50%" cy="50%" r="60%"><stop offset="0%" stop-color="rgba(124,77,255,0.10)"/><stop offset="100%" stop-color="rgba(0,0,0,0)"/></radialGradient></defs>
       <rect x="0" y="0" width="${W}" height="${H}" fill="url(#cst-bg)"/>
@@ -11386,7 +11431,15 @@ function renderConstellationPage(main) {
     <div class="cst-hint">Drag to pan · scroll or pinch to zoom · pick a category to zoom in · tap a star for details</div>
     <div class="cst-legend">${megas.map(m => `<span class="cst-leg"><i style="background:${_megaHue(m)}"></i>${escapeHtml(_megaLabel(m))}</span>`).join('')}<span class="cst-leg cst-leg-bright">◐ brighter = stronger / more trained</span></div>
   </div>`;
-  main.querySelectorAll('[data-cst-mega]').forEach(b => b.addEventListener('click', () => { _constFilter = b.dataset.cstMega === 'all' ? null : b.dataset.cstMega; renderConstellationPage(main); }));
+  const reRender = () => renderConstellationPage(main);
+  main.querySelectorAll('[data-cst-mega]').forEach(b => b.addEventListener('click', () => { _constFilter = b.dataset.cstMega === 'all' ? null : b.dataset.cstMega; reRender(); }));
+  main.querySelectorAll('[data-cst-status]').forEach(b => b.addEventListener('click', () => { _constStatus = b.dataset.cstStatus; reRender(); }));
+  main.querySelectorAll('[data-cst-diff]').forEach(b => b.addEventListener('click', () => { _constDiff = b.dataset.cstDiff; reRender(); }));
+  main.querySelectorAll('[data-cst-equip]').forEach(b => b.addEventListener('click', () => { _constEquip = b.dataset.cstEquip; reRender(); }));
+  main.querySelectorAll('[data-cst-fav]').forEach(b => b.addEventListener('click', () => { _constFav = !_constFav; reRender(); }));
+  main.querySelectorAll('[data-cst-clear]').forEach(b => b.addEventListener('click', () => { _constResetFilters(); reRender(); }));
+  const si = main.querySelector('#cst-search'); // feat 340 — debounced search; refocus after the re-render so typing flows
+  if (si) si.addEventListener('input', () => { clearTimeout(_constSearchTimer); _constSearchTimer = setTimeout(() => { const cur = main.querySelector('#cst-search'); _constSearch = (cur ? cur.value : '').trim(); renderConstellationPage(main); const s2 = main.querySelector('#cst-search'); if (s2) { s2.focus(); s2.setSelectionRange(s2.value.length, s2.value.length); } }, 220); });
   main.querySelectorAll('.cst-node').forEach(c => c.addEventListener('click', () => _constellationPopup(c.getAttribute('data-uuid'))));
   _attachConstPanZoom(main.querySelector('.cst-svg'), W, H); // feat 307 — pan/zoom on the live viewBox
 }
@@ -21119,7 +21172,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 300 · 2026-06-23 14:40';
+const APP_BUILD = 'build 301 · 2026-06-23 18:14';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
