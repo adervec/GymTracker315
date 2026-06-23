@@ -1493,6 +1493,18 @@ They share variation **UUIDs**.
   equipment, and free notes — stored in `state.podOptions` (synced). `test/coworkpod.spec.mjs` (validation keep/drop/
   reject; import adds source:daily + rejects bad + same-date replace + age prune; pinned category rank 0 + section
   renders + starts like a normal plan). Phase 5 adds periodic cloud sync + post-pull re-export + loop hardening.
+- **Claude Cowork hub — Phase 5 periodic sync + post-pull re-export (feat 320):** closes the loop so the phone
+  stays current and the agent sees new workouts. `coworkCloudTimerStart` arms a **periodic desktop cloud sync**
+  (`cloudSync.periodicMinutes`, default **30** — addressing "not frequent enough"), gated by `cloudActive()` and the
+  existing `_cloudSyncing` guard. After **any** cloud pull (boot, periodic, and manual `cloudSyncNow`), `coworkAfterPull`
+  re-exports the hub **only** when `coworkNewWorkoutSince` reports a genuinely-new, **ended**, **foreign-origin** workout
+  (a finished phone session) — via a 3 s-debounced `coworkExportLater`, itself protected by `coworkExportNow`'s
+  content-hash skip + min-gap and the `_coworkImporting` flag. This is the capstone of the layered loop guards
+  (origin stamp · import suppression · content de-dup · debounce/min-gap · `_cloudSyncing` · import ledger), so the
+  export→agent→import→cloud→pull→re-export cycle converges after at most one export per new phone workout. `cloudPullNow`
+  itself is untouched (its contract/tests preserved); the trigger is bolted on at the call sites. `test/coworkloop.spec.mjs`
+  (periodicMinutes default + timer arms cleanly; `coworkAfterPull` fires once for a new foreign ended workout and never
+  for own-device / open / already-present / disabled / mid-import — proving convergence). Full suite **1504 passing**.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

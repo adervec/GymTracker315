@@ -5961,6 +5961,35 @@ function coworkStartPolling() { // desktop boot wiring (feat 317); periodic + on
 }
 
 /* ============================================================
+   feat 320 — CLAUDE COWORK HUB (Phase 5: periodic cloud sync + post-pull re-export + loop hardening). A
+   periodic desktop cloud sync (default 30 min) keeps the phone current; after any pull, if a NEW finished
+   workout arrived from ANOTHER device, the hub export is refreshed so the agent can reconcile/plan against it.
+   ============================================================ */
+let _coworkCloudTimer = null;
+// Debounced hub re-export (the min-gap + content-hash skip in coworkExportNow are the real loop guards).
+function coworkExportLater() {
+  if (_coworkImporting) return;
+  if (_coworkExportTimer) clearTimeout(_coworkExportTimer);
+  _coworkExportTimer = setTimeout(() => { coworkExportNow(true).then(() => coworkPollAll(false)).catch(() => {}); }, 3000);
+}
+// After a cloud pull: re-export ONLY when a genuinely-new, finished, foreign-origin workout appeared (loop guard).
+function coworkAfterPull(prevKeys) {
+  if (!state.cowork || !state.cowork.enabled || _coworkImporting) return;
+  try { if (coworkNewWorkoutSince(prevKeys, state.sessions, state.deviceId)) coworkExportLater(); } catch (_) {}
+}
+// Periodic cloud sync (feat 320). Pull, then re-export if a foreign workout arrived. Gated by cloudActive.
+function coworkCloudTimerStart() {
+  if (_coworkCloudTimer) clearInterval(_coworkCloudTimer);
+  const mins = (state.cloudSync && state.cloudSync.periodicMinutes) || 30;
+  _coworkCloudTimer = setInterval(() => {
+    if (typeof cloudActive !== 'function' || !cloudActive()) return;
+    if (typeof _cloudSyncing !== 'undefined' && _cloudSyncing) return;
+    const prev = new Set((state.sessions || []).map(sessionKey));
+    cloudPullNow(true).then(() => coworkAfterPull(prev)).catch(() => {});
+  }, Math.max(5, mins) * 60000);
+}
+
+/* ============================================================
    feat 318 — CLAUDE COWORK HUB (Phase 3: orphan Strava → cardio history + opt-in systemic fatigue). Strava
    activities with no matching workout (outdoor runs, rides, …) are inserted into History as cardio bouts,
    deduped by stravaId. Cardio stays out of the per-muscle recovery model; an opt-in toggle lets recent hard
@@ -6649,7 +6678,7 @@ function cloudPushTrigger() {
 async function cloudSyncNow() {
   if (!cloudActive()) { toast('Connect a cloud provider first'); return; }
   cloudStatus('☁ Syncing…');
-  try { await cloudPullNow(true); await cloudPushNow(); renderSettingsDrawer(); }
+  try { const _prev = new Set((state.sessions || []).map(sessionKey)); await cloudPullNow(true); await cloudPushNow(); try { coworkAfterPull(_prev); } catch (_) {} renderSettingsDrawer(); } // feat 320 — manual sync also refreshes the hub on a new phone workout
   catch (_) { cloudStatus('⚠ Cloud sync failed'); renderSettingsDrawer(); }
 }
 
@@ -20659,7 +20688,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 276 · 2026-06-22 22:50';
+const APP_BUILD = 'build 277 · 2026-06-22 23:01';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -21928,8 +21957,10 @@ setTimeout(() => {
   // feat 124/125 — cloud sync: first finish any pending OAuth redirect (Dropbox/OneDrive land back here
   // with ?code=…); otherwise silent-pull if a provider is already connected. OAuth providers can refresh
   // silently from the IndexedDB refresh token; Google falls back to a silent GIS token when its session lives.
+  const _coworkBootKeys = new Set((state.sessions || []).map(sessionKey)); // feat 320 — detect a foreign workout from the boot pull
   cloudOAuthHandleRedirect()
     .then((handled) => { if (!handled && cloudActive()) return cloudPullNow(true); })
+    .then(() => { try { coworkAfterPull(_coworkBootKeys); } catch (_) {} try { coworkCloudTimerStart(); } catch (_) {} }) // feat 320 — re-export on a new phone workout + arm periodic sync
     .catch(() => {});
 }, 300);
 </script>
