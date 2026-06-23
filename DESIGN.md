@@ -1689,6 +1689,13 @@ They share variation **UUIDs**.
   (effectively invisible). Raised to **0.12** so filtered-out stars remain a faint ghost — the overall constellation
   shape is still readable while the matched subset clearly stands out. `test/constfilter.spec.mjs` asserts the dim band
   (barely visible, < the matched brightness).
+- **Missing "machine for a different exercise" calf raises (feat 342):** an audit of machine-repurposing variations
+  (the spirit of the existing Calf-Machine Shrug, Leg-Press Calf Raise, Reverse Hack, Lat-Pulldown→Triceps/Crunch,
+  Smith→Shrug/Hip-Thrust/Inverted-Row, etc.) found the calf-raise family had **Leg Press** calf raises but not the
+  equally-common **Hack Squat Calf Raise** and **Smith Machine Calf Raise** — squat machines repurposed for calves.
+  Both added to the calf family (real unique uuids, cues/tips mirroring the Leg Press one). They flow through everywhere
+  automatically (VAR_INDEX, picker, reference, constellation). `test/calfmachines.spec.mjs` (both exist in the family,
+  resolve via VAR_INDEX, are pickable, the Leg-Press sibling is untouched, and no duplicate uuids).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
