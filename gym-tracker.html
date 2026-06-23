@@ -1888,6 +1888,15 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .rec-meta { grid-area: meta; font-size: 10px; color: var(--text3); }
   .rec-allclear { font-size: 12px; color: var(--text2); padding: 4px 0; }
   .rec-note { font-size: 10px; color: var(--text3); margin-top: 11px; font-style: italic; }
+  /* feat 339 — Garmin sleep & recovery context */
+  .rec-recovery-snap { font-size: 11.5px; color: var(--text2); margin-top: 9px; padding: 7px 9px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; }
+  .rec-recovery-snap .rec-snap-date { color: var(--text3); font-size: 10px; }
+  .rcv-sub { font-size: 10.5px; color: var(--text3); margin-bottom: 8px; }
+  .rcv-list { display: flex; flex-direction: column; gap: 1px; }
+  .rcv-row { display: flex; align-items: baseline; gap: 10px; padding: 6px 2px; border-bottom: 1px solid var(--border2); }
+  .rcv-row:last-child { border-bottom: none; }
+  .rcv-row .rcv-date { flex: 0 0 auto; width: 96px; font-size: 11px; font-weight: 700; color: var(--text3); }
+  .rcv-row .rcv-vals { flex: 1; font-size: 12px; color: var(--text); }
   /* feat 265 — recovery hint in the log-sets header */
   .ex-recovery-hint { font-size: 11px; color: var(--text2); margin-top: 4px; padding: 3px 8px; border-radius: 6px; display: inline-block; background: var(--bg3, #1a1a1a); border-left: 3px solid var(--text3); }
   .ex-recovery-hint.rec-fatigued { border-left-color: #e5534b; } .ex-recovery-hint.rec-recovering { border-left-color: #e0883a; } .ex-recovery-hint.rec-ready { border-left-color: #d2bd2a; }
@@ -4542,6 +4551,8 @@ function applyImport(data, mode) {
   applyKeyedTombstones(state, 'bodyComp', 'deletedBody', data, bodyDayKey, b => (b && b.updatedAt) || '');
   state.archetypeHistory = mergeKeyedArray(state.archetypeHistory, data.archetypeHistory, h => h && h.at, () => true) // feat 338 — union by timestamp
     .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  state.recoveryLog = mergeKeyedArray(state.recoveryLog, data.recoveryLog, r => recoveryDayKey(r && r.date), // feat 339 — union by day, newest edit wins
+    (inc, cur) => ((inc && inc.updatedAt) || '') >= ((cur && cur.updatedAt) || ''));
 
   // Remaining small user-data scalars/objects: coarse last-write-wins, gated by savedAt. DEVICE-LOCAL keys
   // (theming, audio, folder locations, per-screen UI) and the per-record collections above are excluded, so
@@ -4860,6 +4871,7 @@ function normalizeState() {
   if (!Array.isArray(state.deletedBody)) state.deletedBody = [];
   state.deletedBody = state.deletedBody.filter(t => t && t.id && t.deletedAt && t.deletedAt > _tombMin);
   if (!Array.isArray(state.archetypeHistory)) state.archetypeHistory = []; // feat 338 — log of fitness-archetype shifts over time
+  if (!Array.isArray(state.recoveryLog)) state.recoveryLog = []; // feat 339 — daily sleep & recovery log from Garmin
 }
 
 function loadState() {
@@ -5929,7 +5941,11 @@ function buildChannelContext(channel) {
   if (channel === 'garmin') {
     const recent = (state.bodyComp || []).slice(-14).map(b => ({ date: b.date, weightKg: b.weightKg }));
     const sleepGaps = safe(() => (state.sessions || []).filter(s => !s.sleep && (Date.now() - new Date(s.date).getTime()) < 30 * 86400000).map(s => s.date.slice(0, 10)), []);
-    return { recentBodyComp: recent, sleepGaps };
+    // feat 339 — daily recovery log: report the last covered day + recent entries so the agent backfills the gap.
+    const recLog = safe(() => recoveryLogSorted(), []);
+    const lastRecoveryDate = recLog.length ? recLog[recLog.length - 1].date.slice(0, 10) : null;
+    const recentRecovery = recLog.slice(-7).map(r => ({ date: r.date.slice(0, 10), sleepScore: r.sleepScore != null ? r.sleepScore : null, bodyBattery: r.bodyBattery != null ? r.bodyBattery : null, hrv: r.hrv != null ? r.hrv : null, restingHr: r.restingHr != null ? r.restingHr : null }));
+    return { recentBodyComp: recent, sleepGaps, lastRecoveryDate, recentRecovery };
   }
   if (channel === 'strava') {
     const buckets = safe(() => reconcileStravaBuckets(), null);
@@ -5953,7 +5969,7 @@ function buildInstructionsMd(channel) {
   const env = '```json\n' + JSON.stringify({ protocol: COWORK_PROTOCOL, protocolVersion: COWORK_PROTOCOL_VERSION, kind: '<kind>', generatedAt: '<ISO>', payload: { '…': '…' } }, null, 2) + '\n```';
   const head = `# GymTracker315 — Cowork channel: ${channel}\n\nRead \`../app-export.json\` for full context and \`context.json\` here for this channel's task. Emit your result as a JSON file dropped in **\`inbox/\`** named \`output-<ISO-date>.json\`, wrapped in this envelope:\n\n${env}\n\n`;
   if (channel === 'garmin') return head +
-`## kind: \`garmin-output\`\nFill in biometrics + sleep from Garmin. Payload (matches the app's importer):\n\n\`\`\`json\n{ "bodyComp": [ { "date": "YYYY-MM-DD", "weightKg": 81.2, "bodyFatPct": 18.4, "muscleMassKg": 34.1, "bodyWaterPct": 55.1 } ],\n  "sleep": [ { "date": "YYYY-MM-DD", "score": 78, "note": "7h12m" } ] }\n\`\`\`\n\n- \`context.json\` lists recent bodyComp dates and the session dates that still lack sleep — prioritise those gaps.\n- Body composition is merged by calendar day; sleep is matched to the workout on that day.\n`;
+`## kind: \`garmin-output\`\nFill in biometrics, sleep + daily recovery from Garmin. Payload (matches the app's importer):\n\n\`\`\`json\n{ "bodyComp": [ { "date": "YYYY-MM-DD", "weightKg": 81.2, "bodyFatPct": 18.4, "muscleMassKg": 34.1, "bodyWaterPct": 55.1 } ],\n  "sleep": [ { "date": "YYYY-MM-DD", "score": 78, "note": "7h12m" } ],\n  "recovery": [ { "date": "YYYY-MM-DD", "sleepScore": 78, "sleepNote": "7h12m", "bodyBattery": 72, "hrv": 64, "restingHr": 52, "stress": 28 } ] }\n\`\`\`\n\n- \`context.json\` lists recent bodyComp dates, the session dates still lacking sleep, and \`lastRecoveryDate\` — backfill \`recovery\` for EVERY day since then (rest days too), not just workout days.\n- Body composition is merged by calendar day; \`sleep\` is matched to the workout that day; \`recovery\` is kept as a standalone daily log (sleep + body battery / HRV / resting HR / stress).\n`;
   if (channel === 'strava') return head +
 `## kind: \`strava-output\`\nProvide Strava activities so the app can link them to workouts and insert orphan cardio. Payload:\n\n\`\`\`json\n{ "activities": [ { "id": "123", "name": "Evening Run", "sport_type": "Run", "start_date": "ISO", "elapsed_time": 2400, "distance": 6000, "average_heartrate": 150, "calories": 480 } ] }\n\`\`\`\n\n- The app time-matches each activity to a workout (±${(typeof STRAVA_MATCH_WINDOW_MIN !== 'undefined' ? STRAVA_MATCH_WINDOW_MIN : 120)} min) and backfills HR/calories/duration; **the logged sets/reps stay the master data**.\n- Activities with no matching workout (e.g. outdoor runs) are inserted into History as cardio.\n- \`context.json\` has the current activities + reconciliation buckets (linked / proposed / gymOnly / stravaOnly).\n`;
   return head +
@@ -6019,7 +6035,7 @@ function coworkOnWorkoutEnd() { if (state.cowork && state.cowork.enabled) cowork
    ============================================================ */
 function coworkImportGarmin(payload) { // reuse the canonical biometrics importer ({bodyComp, sleep})
   const r = importBiometrics(JSON.stringify(payload || {}), { silent: true });
-  return { handled: true, kind: 'garmin', added: (r && r.added) || 0, sleep: (r && r.sleepN) || 0 };
+  return { handled: true, kind: 'garmin', added: (r && r.added) || 0, sleep: (r && r.sleepN) || 0, recovery: (r && r.recoveryN) || 0 };
 }
 // Auto-link the confidently-overlapping proposals (≤ ~90 min apart). Returns the count linked.
 function coworkAutoLinkStrava(maxDeltaMin) {
@@ -16269,11 +16285,14 @@ function renderRecoveryCard() {
   const lead = readyNames.length
     ? `🟢 Good to train: <b>${readyNames.slice(0, 6).map(escapeHtml).join(', ')}</b>`
     : `Everything trained recently is still recovering — consider a lighter day.`;
+  const lr = latestRecovery(), lrBits = recoveryBits(lr); // feat 339 — Garmin sleep & recovery context
+  const recSnap = lrBits.length ? `<div class="rec-recovery-snap">${lrBits.map(escapeHtml).join(' · ')} <span class="rec-snap-date">${fmtDate(lr.date)}</span></div>` : '';
   return `<div class="card rec-card">
     <div class="rec-head"><div class="card-title" style="margin:0;">🔄 Recovery</div><button class="rec-info-btn" id="rec-info-btn" type="button" title="How this is estimated" aria-label="How recovery is estimated">ⓘ</button></div>
     <div class="rec-lead">${lead}</div>
     <div class="rec-list">${list}</div>
-    <div class="rec-note">Estimated from recent training volume${rpeEnabled() ? ' + RPE' : ''}, decaying over a few days. Directional — listen to your body.</div>
+    ${recSnap}
+    <div class="rec-note">Estimated from recent training volume${rpeEnabled() ? ' + RPE' : ''}, decaying over a few days. Directional — listen to your body. Sleep &amp; recovery shown is from Garmin.</div>
   </div>`;
 }
 
@@ -18227,6 +18246,7 @@ function renderBody(main) {
   }
 
   html += renderBodyTrends(); // feat 326 — body-composition trends over time
+  html += renderRecoveryLog(); // feat 339 — daily sleep & recovery from Garmin
 
   html += `<button class="${bodyFormOpen ? 'ghost' : ''} full" id="bc-add-btn" style="margin-bottom:12px;${bodyFormOpen?'':'background:var(--accent-bg);border:1px solid var(--accent-border);color:var(--accent);padding:10px;border-radius:9px;font-weight:700;font-size:13px;cursor:pointer;width:100%;'}">${bodyFormOpen ? t('body.cancel') : t('body.add')}</button>`;
   html += `<button class="ghost" id="bc-import-btn" style="width:100%;margin-bottom:12px;font-size:12px;padding:8px;border-radius:8px;font-family:inherit;cursor:pointer;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);">${t('body.import')}</button>
@@ -18405,15 +18425,52 @@ function normBiometricEntry(r) {
   ['neckCm', 'chestCm', 'waistCm', 'hipsCm', 'bicepsCm', 'thighCm', 'calfCm'].forEach(k => { const v = _bioNum(r[k]); if (v != null && v > 0) e[k] = v; }); // feat 220
   return e;
 }
+// feat 339 — daily sleep & recovery log (Garmin), independent of workout days. Day-keyed; merged by date on sync.
+function _recInt(v) { return (v == null || v === '' || isNaN(+v)) ? null : Math.round(+v); }
+function recoveryDayKey(v) { const t = String(v); const d = t.length > 10 ? new Date(t) : new Date(t.slice(0, 10) + 'T12:00:00.000Z'); return isNaN(d.getTime()) ? '' : d.toDateString(); }
+function recoveryAnchorIso(v) { const t = String(v); return t.length > 10 ? new Date(t).toISOString() : (t.slice(0, 10) + 'T12:00:00.000Z'); }
+function recoveryLogSorted() { return (state.recoveryLog || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date))); }
+function latestRecovery() { const a = recoveryLogSorted(); return a.length ? a[a.length - 1] : null; }
+// feat 339 — a day's recovery pieces as small labelled bits (sleep / body battery / HRV / resting HR / stress).
+function recoveryBits(r) {
+  if (!r) return [];
+  const bits = [];
+  if (r.sleepScore != null || r.sleepNote) bits.push('😴 ' + [r.sleepScore != null ? r.sleepScore : '', r.sleepNote || ''].filter(x => x !== '').join(' · '));
+  if (r.bodyBattery != null) bits.push('🔋 ' + r.bodyBattery);
+  if (r.hrv != null) bits.push('〰️ HRV ' + r.hrv);
+  if (r.restingHr != null) bits.push('❤️ ' + r.restingHr);
+  if (r.stress != null) bits.push('🧠 ' + r.stress);
+  return bits;
+}
+// feat 339 — the standalone "Sleep & Recovery" card on the Body page: the most recent daily log from Garmin.
+function renderRecoveryLog() {
+  const log = recoveryLogSorted();
+  if (!log.length) return '';
+  const rows = log.slice(-14).reverse().map(r => {
+    const bits = recoveryBits(r);
+    return `<div class="rcv-row"><span class="rcv-date">${fmtDate(r.date)}</span><span class="rcv-vals">${bits.length ? bits.map(escapeHtml).join(' · ') : '–'}</span></div>`;
+  }).join('');
+  return `<div class="card rcv-card"><div class="card-title" style="margin-bottom:4px;">😴 Sleep &amp; Recovery</div>
+    <div class="rcv-sub">Daily sleep &amp; recovery from Garmin — how recovered you are, independent of whether you trained that day.</div>
+    <div class="rcv-list">${rows}</div></div>`;
+}
 function parseBiometrics(text) {
   text = String(text || '').trim(); if (!text) return null;
   const bodyComp = [], sleep = [];
+  let recovery = [];
   if (text[0] === '{' || text[0] === '[') {
     let data; try { data = JSON.parse(text); } catch (e) { return null; }
     const arr = Array.isArray(data) ? data : (data.bodyComp || data.weight || data.entries || []);
     (arr || []).forEach(r => { const e = normBiometricEntry(r); if (e) bodyComp.push(e); });
     const sl = (!Array.isArray(data) && (data.sleep || data.sleeps)) || [];
     (sl || []).forEach(s => { if (s && s.date) sleep.push({ date: s.date, score: s.score != null ? s.score : null, note: s.note || '' }); });
+    // feat 339 — fold sleep + an optional `recovery` array (body battery / HRV / resting HR / stress) into one
+    // per-day recovery entry, so it's retained for EVERY day, not only days that had a workout.
+    const recMap = {};
+    const upRec = (date, fields) => { const k = recoveryDayKey(date); if (!k) return; const cur = recMap[k] || { date: recoveryAnchorIso(date) }; for (const f in fields) { if (fields[f] != null && fields[f] !== '') cur[f] = fields[f]; } recMap[k] = cur; };
+    sleep.forEach(s => upRec(s.date, { sleepScore: s.score, sleepNote: s.note }));
+    ((!Array.isArray(data) && (data.recovery || data.recoveries)) || []).forEach(r => { if (r && r.date) upRec(r.date, { sleepScore: _recInt(r.sleepScore != null ? r.sleepScore : r.score), sleepNote: r.sleepNote || r.note || '', bodyBattery: _recInt(r.bodyBattery), hrv: _recInt(r.hrv), restingHr: _recInt(r.restingHr), stress: _recInt(r.stress) }); });
+    recovery = Object.keys(recMap).map(k => recMap[k]);
   } else {
     // Tolerant CSV (Garmin weight export): detect columns by header keyword.
     const lines = text.split(/\r?\n/).filter(l => l.trim());
@@ -18439,13 +18496,13 @@ function parseBiometrics(text) {
       if (e) bodyComp.push(e);
     }
   }
-  return { bodyComp, sleep };
+  return { bodyComp, sleep, recovery };
 }
 function importBiometrics(text, opts) {
   opts = opts || {};
   if (!opts.silent && roBlocked('import biometrics')) return null;
   const parsed = parseBiometrics(text);
-  if (!parsed || (!parsed.bodyComp.length && !parsed.sleep.length)) { if (!opts.silent) toast('No biometric rows found in that file'); return null; }
+  if (!parsed || (!parsed.bodyComp.length && !parsed.sleep.length && !(parsed.recovery || []).length)) { if (!opts.silent) toast('No biometric rows found in that file'); return null; }
   let added = 0;
   parsed.bodyComp.forEach(e => {
     state.bodyComp = state.bodyComp.filter(x => new Date(x.date).toDateString() !== new Date(e.date).toDateString());
@@ -18461,11 +18518,21 @@ function importBiometrics(text, opts) {
     const sess = state.sessions.find(x => dayKey(x.date) === k);
     if (sess) { const str = [s.score != null ? ('Score ' + s.score) : '', s.note || ''].filter(Boolean).join(' · '); if (str) { sess.sleep = str; sleepN++; } }
   });
+  // feat 339 — keep the FULL daily sleep & recovery log (every day, workout or not), upserting by calendar day.
+  let recoveryN = 0;
+  if (!Array.isArray(state.recoveryLog)) state.recoveryLog = [];
+  (parsed.recovery || []).forEach(r => {
+    const k = recoveryDayKey(r.date); if (!k) return;
+    const existing = state.recoveryLog.find(x => recoveryDayKey(x.date) === k);
+    if (existing) { Object.assign(existing, r, { date: existing.date, updatedAt: new Date().toISOString() }); }
+    else { state.recoveryLog.push({ ...r, updatedAt: new Date().toISOString() }); }
+    recoveryN++;
+  });
   saveState();
-  logInfo('Biometrics imported', added + ' measurements · ' + sleepN + ' sleep');
+  logInfo('Biometrics imported', added + ' measurements · ' + sleepN + ' sleep · ' + recoveryN + ' recovery days');
   if (typeof render === 'function') render();
-  if (!opts.silent) toast('Imported ' + added + ' measurement' + (added === 1 ? '' : 's') + (sleepN ? (' + ' + sleepN + ' sleep') : ''));
-  return { added, sleepN };
+  if (!opts.silent) toast('Imported ' + added + ' measurement' + (added === 1 ? '' : 's') + (sleepN ? (' + ' + sleepN + ' sleep') : '') + (recoveryN ? (' + ' + recoveryN + ' recovery') : ''));
+  return { added, sleepN, recoveryN };
 }
 
 /* ============================================================
@@ -21052,7 +21119,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 299 · 2026-06-23 13:09';
+const APP_BUILD = 'build 300 · 2026-06-23 14:40';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

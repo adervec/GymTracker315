@@ -1664,6 +1664,18 @@ They share variation **UUIDs**.
   archetype journey" timeline (newest first, latest tagged "now") once there are 2+ entries. `test/archshift.spec.mjs`
   (baseline/shift/no-change bookkeeping; ending a workout pops the dialog + appends; cross-device merge by timestamp; the
   journey renders).
+- **Daily Sleep & Recovery log from Garmin (feat 339):** sleep used to attach only to a workout on the same day (rest-day
+  sleep was dropped). Now `state.recoveryLog` keeps a **standalone per-day** entry — `{date, sleepScore, sleepNote,
+  bodyBattery, hrv, restingHr, stress}` — for EVERY day, synced (merged by calendar day, newest `updatedAt` wins) and
+  defaulted in `normalizeState`. `parseBiometrics` folds the existing `sleep` array plus a new optional `recovery` array
+  into one per-day entry; `importBiometrics` upserts `recoveryLog` (merging fields, no dup rows) and reports `recoveryN`,
+  while still attaching `session.sleep` to a workout that day (back-compat). The cowork **Garmin** channel asks for it:
+  the `garmin-output` schema gains a `recovery[]` block, and `context.json` reports `lastRecoveryDate` + `recentRecovery`
+  so the agent backfills every day since (rest days included). It's surfaced where you can see it: a "😴 Sleep & Recovery"
+  card on the **Body** page (recent days · sleep · 🔋 body battery · HRV · resting HR), and a latest-snapshot line on the
+  **Recovery** card so the per-muscle readiness view carries the Garmin context. `test/recoverylog.spec.mjs` (all-days
+  capture incl. rest days; workout-day sleep still attaches; re-import merge; cross-device merge; the Body section renders;
+  the cowork channel asks for + reports recovery).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
