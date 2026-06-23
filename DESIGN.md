@@ -1644,6 +1644,47 @@ They share variation **UUIDs**.
   gentle "No sets logged this time" line instead. Text only, in the popup; the long-press skip-confirm path is
   unaffected. `test/endcoach.spec.mjs` (`sessionPRCount` PR/first-ever/decline; grade-keyed phrasing + PR mention +
   empty case; the popup message carries the comment).
+- **Fitness Archetypes guide (feat 337):** the Fitness Focus page (feat 292) now links to a new **Archetypes guide**
+  (`archetypes` route, leaf under `focus`) that explains which focus-area combo embodies each of the 16 archetypes.
+  `archetypeFocusMix(a)` turns an archetype's 6-dim `vec` into per-dimension weights + the "defining" dims (within
+  0.7× of its peak); `renderArchetypesGuide` renders a card per archetype — emoji, name, blurb, a one-line "Defining
+  mix: 🏋️ Max Strength + …", and the six dimension bars sorted by weight — and flags the archetype the user's own
+  training currently matches with a "★ You" badge (via `fitnessFocus`→`fitnessArchetype`, shown only once the profile
+  is ready). The link sits in the Focus page intro (both the ready and not-ready states), so the guide is browsable
+  even before you have a profile. Reuses the existing `.focus-*` styles. `test/archetypesguide.spec.mjs`
+  (`archetypeFocusMix` shape + defining dim; a card per archetype with a defining mix; the user's archetype flagged
+  when ready; the Focus page links out and the route renders).
+- **Archetype shift history + end-workout popup (feat 338):** the fitness archetype is now historized. `state.archetypeHistory`
+  (synced — merged by timestamp in `applyImport`, defaulted in `normalizeState`) logs each change. `recordArchetypeShift()`
+  compares the current archetype (`fitnessFocus`→`fitnessArchetype`, once the profile is ready) to the last recorded one:
+  the first becomes a silent baseline, an unchanged read is a no-op, and a change appends `{at,id,name,emoji,from}` and
+  returns the shift. It's called from `finalizeEndWorkout`'s `finish()` — on a real shift it pops a celebratory
+  `showArchetypeShiftDialog` (from → to + the new archetype's blurb, with a "🎯 View profile" jump) — and silently from
+  `maybeAutoEndActive` (auto-end keeps the history complete without a popup). The **Fitness Focus** page gains a "🧬 Your
+  archetype journey" timeline (newest first, latest tagged "now") once there are 2+ entries. `test/archshift.spec.mjs`
+  (baseline/shift/no-change bookkeeping; ending a workout pops the dialog + appends; cross-device merge by timestamp; the
+  journey renders).
+- **Daily Sleep & Recovery log from Garmin (feat 339):** sleep used to attach only to a workout on the same day (rest-day
+  sleep was dropped). Now `state.recoveryLog` keeps a **standalone per-day** entry — `{date, sleepScore, sleepNote,
+  bodyBattery, hrv, restingHr, stress}` — for EVERY day, synced (merged by calendar day, newest `updatedAt` wins) and
+  defaulted in `normalizeState`. `parseBiometrics` folds the existing `sleep` array plus a new optional `recovery` array
+  into one per-day entry; `importBiometrics` upserts `recoveryLog` (merging fields, no dup rows) and reports `recoveryN`,
+  while still attaching `session.sleep` to a workout that day (back-compat). The cowork **Garmin** channel asks for it:
+  the `garmin-output` schema gains a `recovery[]` block, and `context.json` reports `lastRecoveryDate` + `recentRecovery`
+  so the agent backfills every day since (rest days included). It's surfaced where you can see it: a "😴 Sleep & Recovery"
+  card on the **Body** page (recent days · sleep · 🔋 body battery · HRV · resting HR), and a latest-snapshot line on the
+  **Recovery** card so the per-muscle readiness view carries the Garmin context. `test/recoverylog.spec.mjs` (all-days
+  capture incl. rest days; workout-day sleep still attaches; re-import merge; cross-device merge; the Body section renders;
+  the cowork channel asks for + reports recovery).
+- **Constellation filtering (feat 340):** the Constellation (feat 306) had only a mega filter. It now combines several
+  filters — the mega pills, a free-text **search** (movement / variation name), **Status** (✨ Explored / 🌑 Unexplored),
+  **Level** (Beginner → Expert), **Equipment** (derived from the families present), and an **⭐ Favourites** toggle, plus
+  a **✕ Clear** that appears when anything is active. `constNodeMatches(n)` ANDs all of them; matching stars stay bright
+  while the rest dim right down, and the SVG viewBox zooms to fit the matching subset (reusing `_constBBoxView`). A
+  "N of M match" line reports the count (and flags an empty result). Search is debounced (~220ms) and refocuses after the
+  re-render so typing flows. Each node carries its family `equip` for the equipment filter. `test/constfilter.spec.mjs`
+  (the predicate per dimension; the controls render + Clear appears/resets; filtering dims non-matches and zooms);
+  existing `constellation.spec.mjs` stays green.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
