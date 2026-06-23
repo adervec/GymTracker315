@@ -1535,6 +1535,11 @@ They share variation **UUIDs**.
   the coarse copy and keeping whichever side edited the profile more recently. `test/profilesync.spec.mjs` (a local
   edit survives a newer unrelated phone save; a newer remote profile edit is adopted even when the file is otherwise
   older; `touchProfile` stamps). Existing `sync` merge tests unaffected (no-op when `profileSavedAt` is absent).
+- **FAB doesn't leak an exercise with no workout (feat 325):** the "+ Log Set" FAB showed `Continue: <exercise>`
+  whenever leftover `pending` (an unsaved set buffer) existed — including when no workout was active. `updateFAB` now
+  gates the pending "Continue / Resume" states on `getActiveSession()`; with no active session it stays the plain
+  "+ Log Set" (the pending data is untouched — reopening the sheet still restores it). `test/fab.spec.mjs` (no session
+  + pending → "+ Log Set", no exercise name; active session + pending → the Continue prompt).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

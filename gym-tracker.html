@@ -9802,7 +9802,10 @@ function renderArchetypePage(main) {
    ============================================================ */
 function updateFAB() {
   const fab = document.getElementById('trk-fab');
-  if (hasPendingData() && pending.varUuid) {
+  // feat 325 — the "Continue: <exercise>" pending state only makes sense during an active workout. With no
+  // active session, leftover pending data must NOT surface an exercise name — show the plain "+ Log Set".
+  const _activeWorkout = (typeof getActiveSession === 'function') ? !!getActiveSession() : true;
+  if (_activeWorkout && hasPendingData() && pending.varUuid) {
     fab.className = 'fab pending';
     const name = displayName(pending.varUuid, pending.subUuid);
     const validSets = pending.sets.filter(s => isSetValid(s)).length;
@@ -9810,7 +9813,7 @@ function updateFAB() {
       <div>Continue: ${escapeHtml(name)}</div>
       <div class="fab-status">${validSets > 0 ? `${validSets} set${validSets===1?'':'s'} ready — tap to save` : 'tap to continue logging'}</div>
     </div>`;
-  } else if (hasPendingData() && !pending.varUuid) {
+  } else if (_activeWorkout && hasPendingData() && !pending.varUuid) {
     fab.className = 'fab pending';
     fab.innerHTML = `<div style="text-align:center;line-height:1.3;">
       <div>Resume logging</div>
@@ -20711,7 +20714,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 281 · 2026-06-22 23:56';
+const APP_BUILD = 'build 282 · 2026-06-22 23:59';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
