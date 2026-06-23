@@ -906,6 +906,17 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .summary-week-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
   .summary-week-when { font-size: 13.5px; font-weight: 800; }
   .summary-grade { font-size: 15px; font-weight: 800; padding: 0 9px; border: 1.5px solid; border-radius: 8px; line-height: 1.5; font-variant-numeric: tabular-nums; } /* feat 310 */
+  .summary-grade[data-grade-toggle] { cursor: pointer; -webkit-tap-highlight-color: transparent; } /* feat 313 */
+  .summary-grade[data-grade-toggle]::after { content: ' ⓘ'; font-size: 10px; opacity: 0.7; }
+  .summary-grade-detail { margin: 2px 0 10px; padding: 10px 11px; border-radius: 8px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); }
+  .sgd-head { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); margin-bottom: 8px; }
+  .sgd-row { display: flex; align-items: center; gap: 8px; }
+  .sgd-lbl { font-size: 11.5px; font-weight: 700; color: var(--text); min-width: 116px; }
+  .sgd-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--bg4, #222); overflow: hidden; }
+  .sgd-fill { height: 100%; background: var(--accent, #b48aff); }
+  .sgd-pts { font-size: 11px; font-weight: 700; color: var(--text2); min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+  .sgd-note { font-size: 10.5px; color: var(--text3); margin: 1px 0 8px 124px; line-height: 1.35; }
+  .sgd-total { font-size: 11.5px; color: var(--text2); margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--border2, #333); }
   /* feat 309 — Reflect quick-nav pills */
   .reflect-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
   .reflect-pill { font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); cursor: pointer; font-family: inherit; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
@@ -9040,21 +9051,25 @@ function weekSummary(weekOffset) {
     if (adh.done >= adh.scheduled) highlights.push(`✅ Hit all ${adh.scheduled} planned sessions`);
     else if (adh.missed > 0) lowlights.push(`⚠️ Missed ${adh.missed} of ${adh.scheduled} planned session${adh.scheduled === 1 ? '' : 's'}`);
   }
-  // feat 310 — an overall letter grade for the week, on the same S…D scale as session scores (gradeFor).
-  // Four weighted ingredients: work done (sessions), consistency/plan adherence, progression vs last week,
-  // and best-session quality. All available from the aggregates already computed above.
-  let gpts = Math.min(1, sessions.length / 4) * 45;                                                   // volume of work (4 sessions = full)
-  if (adh && adh.scheduled > 0) gpts += Math.min(1, adh.done / adh.scheduled) * 25;                   // adherence to the program…
-  else gpts += Math.min(1, sessions.length / 3) * 25;                                                 // …or raw consistency when no program
-  if (pAgg.volume > 0) { const pc = (agg.volume - pAgg.volume) / pAgg.volume; gpts += Math.max(0, Math.min(1, 0.5 + pc * 5)) * 20; } // progression vs last week (±10% spans the band)
-  else gpts += 12;                                                                                    // no baseline → neutral
-  gpts += (agg.bestScore && agg.bestScore.points ? agg.bestScore.points / 100 : 0.5) * 10;            // best-session quality
-  const gradePoints = Math.round(Math.max(0, Math.min(100, gpts)));
-  const grade = gradeFor(gradePoints);
-  return { weekOffset, start, end, label: dRange, sessions: sessions.length, sets: agg.sets, volume: agg.volume, empty: false, grade, gradePoints, highlights, lowlights };
+  // feat 310/313 — overall letter grade for the week + the weighting/rationale behind it (weekGradeBreakdown).
+  const gb = weekGradeBreakdown(sessions.length, agg, pAgg, adh);
+  return { weekOffset, start, end, label: dRange, sessions: sessions.length, sets: agg.sets, volume: agg.volume, empty: false, grade: gb.grade, gradePoints: gb.points, gradeParts: gb.parts, highlights, lowlights };
 }
 // feat 310 — letter-grade accent colour (S…D), reused by the weekly summary badge.
 function _gradeHue(g) { return ({ S: '#b48aff', A: '#3fb950', B: '#6ca0ff', C: '#d2bd2a', D: '#e0883a' })[String(g || '').charAt(0).toUpperCase()] || '#9aa0a6'; }
+// feat 313 — the weighting + rationale behind a week's grade. Same four ingredients/points as feat 310, but
+// itemised so the UI can show WHY. `earned` is summed unrounded (matching the grade) then rounded for display.
+function weekGradeBreakdown(sessions, agg, pAgg, adh) {
+  const parts = [];
+  parts.push({ key: 'work', label: 'Work done', earned: Math.min(1, sessions / 4) * 45, max: 45, note: `${sessions} session${sessions === 1 ? '' : 's'} logged · 4 = full marks` });
+  if (adh && adh.scheduled > 0) parts.push({ key: 'adherence', label: 'Program adherence', earned: Math.min(1, adh.done / adh.scheduled) * 25, max: 25, note: `${adh.done}/${adh.scheduled} planned sessions hit` });
+  else parts.push({ key: 'consistency', label: 'Consistency', earned: Math.min(1, sessions / 3) * 25, max: 25, note: `${sessions}/3 sessions · no program set` });
+  if (pAgg.volume > 0) { const pc = (agg.volume - pAgg.volume) / pAgg.volume; parts.push({ key: 'progression', label: 'Progression', earned: Math.max(0, Math.min(1, 0.5 + pc * 5)) * 20, max: 20, note: `volume ${pc >= 0 ? '+' : ''}${Math.round(pc * 100)}% vs last week · ±10% spans the band` }); }
+  else parts.push({ key: 'progression', label: 'Progression', earned: 12, max: 20, note: 'neutral — no prior week to compare' });
+  parts.push({ key: 'quality', label: 'Best session', earned: (agg.bestScore && agg.bestScore.points ? agg.bestScore.points / 100 : 0.5) * 10, max: 10, note: agg.bestScore && agg.bestScore.points ? `top session ${agg.bestScore.grade} (${agg.bestScore.points}/100)` : 'no scored session this week' });
+  const points = Math.round(Math.max(0, Math.min(100, parts.reduce((s, p) => s + p.earned, 0))));
+  return { points, grade: gradeFor(points), parts: parts.map(p => ({ key: p.key, label: p.label, earned: Math.round(p.earned), max: p.max, note: p.note })) };
+}
 // The complete weeks (most recent first) that fall within the user's training history, capped for the page.
 function summaryWeeks(maxWeeks) {
   const cap = maxWeeks || 12;
@@ -9083,13 +9098,26 @@ function renderSummaryPage(main) {
   const card = w => {
     const hi = w.highlights.map(h => `<li class="sm-hi">${escapeHtml(h)}</li>`).join('');
     const lo = w.lowlights.map(l => `<li class="sm-lo">${escapeHtml(l)}</li>`).join('');
+    // feat 313 — the weighting + rationale behind the grade, revealed on tap.
+    const detail = w.gradeParts ? `<div class="summary-grade-detail" hidden>
+      <div class="sgd-head">Why this grade — weighting &amp; rationale</div>
+      ${w.gradeParts.map(p => `<div class="sgd-row"><span class="sgd-lbl">${escapeHtml(p.label)}</span><div class="sgd-bar"><div class="sgd-fill" style="width:${Math.round(p.earned / p.max * 100)}%"></div></div><span class="sgd-pts">${p.earned}/${p.max}</span></div><div class="sgd-note">${escapeHtml(p.note)}</div>`).join('')}
+      <div class="sgd-total">Total <b>${w.gradePoints}/100</b> → grade <b style="color:${_gradeHue(w.grade)}">${escapeHtml(w.grade)}</b></div>
+    </div>` : '';
     return `<div class="card summary-week${w.empty ? ' rest' : ''}">
-      <div class="summary-week-head"><span class="summary-week-when">Week of ${escapeHtml(w.label)}</span>${w.grade ? `<span class="summary-grade" style="color:${_gradeHue(w.grade)};border-color:${_gradeHue(w.grade)}" title="Week grade ${escapeHtml(w.grade)} · ${w.gradePoints}/100">${escapeHtml(w.grade)}</span>` : ''}<span class="summary-week-meta">${w.empty ? 'rest week' : `${w.sessions} session${w.sessions === 1 ? '' : 's'} · ${w.sets} sets`}</span></div>
+      <div class="summary-week-head"><span class="summary-week-when">Week of ${escapeHtml(w.label)}</span>${w.grade ? `<span class="summary-grade" data-grade-toggle role="button" tabindex="0" style="color:${_gradeHue(w.grade)};border-color:${_gradeHue(w.grade)}" title="Tap for the grade weighting & rationale · ${escapeHtml(w.grade)} ${w.gradePoints}/100">${escapeHtml(w.grade)}</span>` : ''}<span class="summary-week-meta">${w.empty ? 'rest week' : `${w.sessions} session${w.sessions === 1 ? '' : 's'} · ${w.sets} sets`}</span></div>
+      ${detail}
       <ul class="summary-list">${hi}${lo}</ul>
     </div>`;
   };
   main.innerHTML = intro + weeks.map(card).join('')
     + (weeks.length >= 12 ? `<div class="card"><div class="summary-empty">Showing the last 12 weeks · older detail lives on the History &amp; Trends pages.</div></div>` : '');
+  // feat 313 — tap a grade badge to reveal/hide its breakdown
+  main.querySelectorAll('.summary-grade[data-grade-toggle]').forEach(b => {
+    const toggle = () => { const d = b.closest('.summary-week').querySelector('.summary-grade-detail'); if (d) { d.hidden = !d.hidden; b.classList.toggle('open', !d.hidden); } };
+    b.addEventListener('click', toggle);
+    b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  });
 }
 
 /* ============================================================
@@ -20156,7 +20184,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 267 · 2026-06-22 20:12';
+const APP_BUILD = 'build 268 · 2026-06-22 20:16';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -1417,6 +1417,14 @@ They share variation **UUIDs**.
   reverse-curl), and a **Single-Arm Triceps Extension Machine (Life Fitness)** (→ tricep-extension). `test/armvars.spec.mjs`
   (each loggable in the right family + standard mode + present in reference; findable by search — note the picker
   search is a *contiguous-substring* match, so test queries must be contiguous, e.g. "freemotion cable preacher").
+- **Grade weighting & rationale (feat 313):** each weekly grade (feat 310) can now show **why**. The grade math was
+  extracted into `weekGradeBreakdown(sessions, agg, pAgg, adh)` → `{points, grade, parts:[{label, earned, max, note}]}`
+  (identical points to feat 310 — unrounded sum then round). `weekSummary` carries `gradeParts`, and the Summary card's
+  grade badge is now a tap target (ⓘ) that reveals a per-week breakdown: each of the four ingredients (Work done 45 ·
+  Consistency/Program adherence 25 · Progression 20 · Best session 10) with a mini bar (earned/max) and a plain-language
+  note (e.g. "volume +18% vs last week", "3/4 planned sessions hit"), then the **Total → grade** line. Hidden by default
+  (it's an option), toggled per week. `test/weekgrade.spec.mjs` extended (breakdown itemises the four ingredients summing
+  to ≤100 and matching the grade; weekSummary carries gradeParts; tapping the badge reveals the 4-row breakdown + total).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
