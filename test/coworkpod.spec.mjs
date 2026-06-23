@@ -70,11 +70,12 @@ test('daily plans are pinned in their own category and run like any plan', async
     // it starts like any plan
     planUseForWorkout(daily.id);
     const active = getActiveSession();
-    return { cat, rank, headerShown: /Plans of the Day/.test(html), nameShown: /POD Legs/.test(html), planId: active && active.planId, expected: daily.id };
+    return { cat, rank, headerShown: /Plans of the Day/.test(html), nameShown: /POD Legs/.test(html), dayShown: /plan-day-tag/.test(html), planId: active && active.planId, expected: daily.id };
   });
   expect(r.cat).toBe('Plans of the Day');
   expect(r.rank).toBe(0);                 // pinned first
   expect(r.headerShown).toBe(true);
   expect(r.nameShown).toBe(true);
+  expect(r.dayShown).toBe(true);          // feat 322 — the row indicates the day
   expect(r.planId).toBe(r.expected);      // runs like a normal plan
 });

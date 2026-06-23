@@ -705,8 +705,9 @@ body.workout-active .topbar-shortcut-row { display: flex; }
 .pod-field input[type=range] { width: 100%; }
 .pod-field textarea, .pod-field select { width: 100%; margin-top: 4px; }
 .pod-field summary { cursor: pointer; font-weight: 700; color: var(--text); }
-.pod-chk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin-top: 6px; }
-.pod-chk { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text2); }
+.pod-chk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-top: 6px; align-items: start; }
+.pod-chk { display: flex; align-items: flex-start; gap: 6px; font-size: 11.5px; color: var(--text2); line-height: 1.35; min-width: 0; } /* feat 322 — top-align so wrapped labels keep the box on the first line */
+.pod-chk input { flex: 0 0 auto; margin: 1px 0 0; }
 .drawer-btn {
   padding: 8px 14px; background: var(--bg3); border: 1px solid var(--border2);
   border-radius: 8px; color: var(--text2); font-size: 12px; font-weight: 600;
@@ -1097,6 +1098,7 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .plan-cat-head { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text3); margin: 14px 0 2px; display: flex; align-items: baseline; gap: 7px; }
   .plan-cat-count { font-size: 10px; color: var(--text3); background: var(--bg3); border-radius: 999px; padding: 1px 7px; font-weight: 700; }
   .plan-cat-tag { color: var(--accent); font-weight: 700; }
+  .plan-day-tag { font-size: 10px; font-weight: 800; color: #0a0a0a; background: var(--accent, #b48aff); padding: 1px 7px; border-radius: 999px; } /* feat 322 — Plan-of-the-Day date badge */
   .plan-list-empty { font-size: 12.5px; color: var(--text3); padding: 18px 0; text-align: center; }
   .plan-clear-filters { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); border-radius: 7px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; margin-left: 4px; }
   /* feat 240 — plan-list pager */
@@ -6114,6 +6116,8 @@ function coworkImportPlanOfDay(payload) {
 // feat 321 — POD option controls persist to state on change (see the per-control handlers in renderSettingsDrawer);
 // this just persists + pushes options.json to the cowork folder.
 function coworkWritePodOptions() { saveState(); try { renderSettingsDrawer(); } catch (_) {} if (state.cowork && state.cowork.enabled) coworkExportNow(true).catch(() => {}); toast('🗓️ Plan-of-Day options saved'); }
+// feat 322 — short readable day for a Plan-of-the-Day badge (YYYY-MM-DD → "Sun Jun 22").
+function coworkFmtDay(ymd) { try { const d = /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? new Date(ymd + 'T12:00:00') : new Date(ymd); return isNaN(d.getTime()) ? String(ymd) : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); } catch (_) { return String(ymd); } }
 // The POD options editor (rendered inside the Cowork settings block when the hub is on).
 function renderPodOptionsForm() {
   const o = state.podOptions || {};
@@ -13286,7 +13290,7 @@ function renderPlansOverlay() {
 // feat 147 — the plan picker: a search box + category & length filter chips, then plans grouped under
 // category headers. Categories are derived (planCategory) so no hand-maintained field is needed.
 const _planRowHtml = (p) => `<div class="plan-row">
-    <div class="plan-row-main"><div class="plan-row-name">${escapeHtml(p.name)}</div>${p.desc?`<div class="plan-row-desc">${escapeHtml(p.desc)}</div>`:''}<div class="plan-row-sub"><span class="plan-cat-tag">${escapeHtml(planCategory(p))}</span> · <span class="plan-intensity" title="Intensity ${planIntensity(p)}/5">${intensityDots(p)}</span> · ~${estimatePlanMinutes(p)} min · ${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets</div></div>
+    <div class="plan-row-main"><div class="plan-row-name">${(p.source==='daily'&&p.dailyDate)?`<span class="plan-day-tag">🗓️ ${escapeHtml(coworkFmtDay(p.dailyDate))}</span> `:''}${escapeHtml(p.name)}</div>${p.desc?`<div class="plan-row-desc">${escapeHtml(p.desc)}</div>`:''}<div class="plan-row-sub"><span class="plan-cat-tag">${escapeHtml(planCategory(p))}</span> · <span class="plan-intensity" title="Intensity ${planIntensity(p)}/5">${intensityDots(p)}</span> · ~${estimatePlanMinutes(p)} min · ${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets</div></div>
     <div class="plan-row-actions">
       ${favStarHtml(isFavPlan(p.id), `data-fav-plan="${escapeAttr(p.id)}"`)}
       ${p.media ? `<button class="drawer-btn" data-plan-media="${p.id}" title="Watch attached video">🎬</button>` : ''}
@@ -20686,7 +20690,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 278 · 2026-06-22 23:43';
+const APP_BUILD = 'build 279 · 2026-06-22 23:49';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -1514,6 +1514,10 @@ They share variation **UUIDs**.
   `body`; the Save button now just pushes `options.json` (`coworkWritePodOptions`) rather than re-reading the form.
   `test/coworkpodui.spec.mjs` (clicking the Target pill changes the mode; slider/checkbox/focus all persist through the
   drawer re-render).
+- **Cowork UI polish (feat 322):** the POD option **checkboxes** now top-align (`.pod-chk` flex-start + a `1px`
+  box offset + `align-items:start` grid) so wrapped labels keep the box on the first line; and each **Plan of the Day**
+  row shows its **day** — a `🗓️ Sun Jun 22` badge (`coworkFmtDay`, `.plan-day-tag`) before the plan name in the pinned
+  section. `test/coworkpod.spec.mjs` asserts the row renders the day badge.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
