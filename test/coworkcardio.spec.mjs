@@ -9,7 +9,23 @@ test.beforeEach(async ({ page }) => {
   await page.goto(APP, { waitUntil: 'load' });
   await page.waitForFunction(() => typeof stravaSportToCardioVar === 'function' && typeof stravaActivityToCardioSession === 'function'
     && typeof coworkStravaOrphans === 'function' && typeof coworkInsertStravaOrphans === 'function'
-    && typeof cardioSystemicFatigue === 'function' && typeof trainingReadiness === 'function' && typeof recoveryReadiness === 'function', null, { timeout: 15000 });
+    && typeof cardioSystemicFatigue === 'function' && typeof trainingReadiness === 'function' && typeof recoveryReadiness === 'function'
+    && typeof stravaActivityUrl === 'function', null, { timeout: 15000 });
+});
+
+test('feat 323 — unknown sports map to the generic Other Cardio (not a wrong machine); + Strava link', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const GEN = 'b1a10013-0013-4013-8013-aaaaaaaa0013';
+    const kayak = stravaSportToCardioVar('Kayaking'), swim = stravaSportToCardioVar('Swim'), pickle = stravaSportToCardioVar('Pickleball');
+    const info = VAR_INDEX.get(kayak.varUuid);
+    return { kayak: kayak.varUuid, swim: swim.varUuid, pickle: pickle.varUuid, GEN, mega: info && info.family.mega, title: info && info.variation.title, url: stravaActivityUrl('123456') };
+  });
+  expect(r.kayak).toBe(r.GEN);     // kayaking is NOT forced to elliptical anymore
+  expect(r.swim).toBe(r.GEN);
+  expect(r.pickle).toBe(r.GEN);
+  expect(r.mega).toBe('cardio');   // still recovery-neutral
+  expect(r.title).toMatch(/Other/);
+  expect(r.url).toBe('https://www.strava.com/activities/123456');
 });
 
 test('stravaSportToCardioVar maps sports to real cardio variations', async ({ page }) => {

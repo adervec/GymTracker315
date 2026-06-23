@@ -1505,6 +1505,73 @@ They share variation **UUIDs**.
   itself is untouched (its contract/tests preserved); the trigger is bolted on at the call sites. `test/coworkloop.spec.mjs`
   (periodicMinutes default + timer arms cleanly; `coworkAfterPull` fires once for a new foreign ended workout and never
   for own-device / open / already-present / disabled / mid-import — proving convergence). Full suite **1504 passing**.
+- **Plan-of-the-Day options bugfix (feat 321):** the POD option controls didn't stick — the generic `.drawer-pill`
+  click handler ends with an **unconditional `renderSettingsDrawer()`**, which reset the Target pills and discarded any
+  unsaved form edits; and the checkbox handlers re-queried via the bind-time `body`, but the Data section is
+  **relocated out of `settings-drawer-body`**, so those queries found nothing. Fixed by persisting **every** control to
+  `state.podOptions` immediately on change (Target pills, time slider, group/injury/equipment checkboxes, fitness-focus,
+  notes) and querying the checkbox groups from their own form root (`closest('.pod-options')`) instead of the stale
+  `body`; the Save button now just pushes `options.json` (`coworkWritePodOptions`) rather than re-reading the form.
+  `test/coworkpodui.spec.mjs` (clicking the Target pill changes the mode; slider/checkbox/focus all persist through the
+  drawer re-render).
+- **Cowork UI polish (feat 322):** the POD option **checkboxes** now top-align (`.pod-chk` flex-start + a `1px`
+  box offset + `align-items:start` grid) so wrapped labels keep the box on the first line; and each **Plan of the Day**
+  row shows its **day** — a `🗓️ Sun Jun 22` badge (`coworkFmtDay`, `.plan-day-tag`) before the plan name in the pinned
+  section. `test/coworkpod.spec.mjs` asserts the row renders the day badge.
+- **Strava reconciliation polish (feat 323):** fixes two reports. (1) Unknown sports were mislabelled — a kayak
+  became "Steady Elliptical" because the fallback pointed at a real machine. Added a generic **"Other / Outdoor
+  Cardio"** variation (`EXTRA_VARIATIONS`, attached to the cardio `conditioning` family so it stays recovery-neutral)
+  and made it the `_STRAVA_CARDIO_FALLBACK`; anything not run/walk/ride/row/stair/ski/elliptical now lands there with
+  the original activity name in the notes. (2) **Links to the Strava activity:** `stravaActivityUrl(id)` →
+  `strava.com/activities/<id>`, shown as a 🔗 Strava chip in the History session header for any session carrying a
+  `stravaId` (linked workouts and inserted orphan cardio alike). `test/coworkcardio.spec.mjs` (kayak/swim/pickleball →
+  the generic var, still `mega:'cardio'`; URL format).
+- **Profile syncs independently (feat 324):** profile edits weren't reliably crossing devices — `profile` rode the
+  **coarse settings last-write-wins** (`applyImport` adopts the file's settings only when its `savedAt` is newer), but
+  the gym phone bumps `savedAt` on every logged set, so a desktop profile edit (older overall `savedAt`) never won, and
+  a read-merge-write push could clobber it. Fixed with a dedicated `state.profileSavedAt` timestamp (in SETTINGS_KEYS),
+  bumped by `touchProfile()` on every profile edit (name/dob/height/gender + the cloud-account name lock). `applyImport`
+  now resolves `profile` by **its own** timestamp, independent of the coarse gate — capturing the local profile before
+  the coarse copy and keeping whichever side edited the profile more recently. `test/profilesync.spec.mjs` (a local
+  edit survives a newer unrelated phone save; a newer remote profile edit is adopted even when the file is otherwise
+  older; `touchProfile` stamps). Existing `sync` merge tests unaffected (no-op when `profileSavedAt` is absent).
+- **FAB doesn't leak an exercise with no workout (feat 325):** the "+ Log Set" FAB showed `Continue: <exercise>`
+  whenever leftover `pending` (an unsaved set buffer) existed — including when no workout was active. `updateFAB` now
+  gates the pending "Continue / Resume" states on `getActiveSession()`; with no active session it stays the plain
+  "+ Log Set" (the pending data is untouched — reopening the sheet still restores it). `test/fab.spec.mjs` (no session
+  + pending → "+ Log Set", no exercise name; active session + pending → the Continue prompt).
+- **Body-composition trends (feat 326):** a **📈 Body trends** section on the Body page charts each metric over time.
+  `bodyCompSeries(field)` builds an ascending, non-null `[{t,val}]` series from the log; `_bodyTrendSvg` draws a compact
+  area+line sparkline (non-scaling stroke); `renderBodyTrends` renders a card per metric with the **start→latest delta**
+  (and span / point count) — Weight · Body fat · Muscle mass · Body water as primary cards, plus the tape measurements
+  in a collapsible. Delta colouring is honest: body fat / waist / hips are "lower is better" (green on a drop), muscle
+  is "more is better", and weight / water / other girths are neutral (no value judgment). Shown only with ≥2 data
+  points. `test/bodytrends.spec.mjs` (series ascending + skips null days; chart+delta per metric, empty below 2 points;
+  the Body page renders the section).
+- **Model-agnostic cowork wording (feat 327):** the hub is renamed **"AI Cowork hub"** in the user-facing copy
+  (Settings label + sub, the generated `README-COWORK.md`, and the AI-brief export text) and explicitly described as
+  model-agnostic — any agent that can read/write the folder (e.g. Claude or GPT), not Claude-specific. No behaviour
+  change; the internal feat name in this doc remains "Cowork hub" for continuity.
+- **Cloud sync carries all user data, never device settings (feat 328):** cross-device sync was dropping plans /
+  body measurements / Strava activities on the phone while *device* settings (theming, audio, folder locations) were
+  syncing — the opposite of what's wanted. Root cause: the **coarse settings last-write-wins** adopted ALL of
+  `SETTINGS_KEYS` (or none) gated by a single `savedAt`; the gym phone bumps `savedAt` on every logged set, so it almost
+  always "won" and the desktop's plans/body never propagated (only `sessions` synced, because they merge per-record
+  always — which is why Strava *cardio sessions* did show up). Generalising feat 324's per-domain approach: `SETTINGS_KEYS`
+  stays the persistence/full-backup allowlist, and sync gains its own policy. **`DEVICE_LOCAL_KEYS`** (theming · audio ·
+  folder/sync config · paired hardware · per-screen UI) are **never adopted on merge** and are **stripped from the pushed
+  payload** via `syncPayload(state)` (which also drops connection/identity: `cloudSync`, `coworkLocal`, `deviceId`).
+  **User-data collections** (`plans`, `bodyComp`, `stravaActivities`, `customVariations`, `gyms`, `seededPlanIds`, plus the
+  progress/flag maps `exerciseMedia`/`favoritePlans`/`hiddenVars`/`glossaryRead`/…) merge **per-record, independent of
+  `savedAt`** (`mergeKeyedArray`/`mergeIdSet`/`mergeMap`) — so neither device's constant saving can block the other's
+  data. `plans` keys by `id` (newest `rev`, tiebroken by latest revision `at`); `bodyComp` keys by **calendar day** with a
+  new per-entry `updatedAt` recency stamp. Deletions propagate via new tombstones `deletedPlans` / `deletedBody` (mirroring
+  `deletedSessions`: a delete wins only if at least as new as the record's last edit), wired into the plan-delete and
+  body-measurement-delete handlers + defaulted/pruned in `normalizeState`. Remaining small user-data scalars (`unit`,
+  `muscleWeights`, `program`, `podOptions`, …) keep coarse LWW, now restricted to non-device, non-collection keys; `profile`
+  still rides its own `profileSavedAt` (feat 324). `test/syncscope.spec.mjs` (plans/body/strava sync despite a newer local
+  `savedAt`; device-local kept while user scalars adopt; `syncPayload` strips the right keys; plan + body delete
+  tombstones; same-day body recency). All existing `sync`/`profilesync`/`dataexport` merge tests stay green.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

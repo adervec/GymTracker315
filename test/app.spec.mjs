@@ -208,7 +208,7 @@ test('feat 268 — active-workout recovery strip renders chips, gated by history
     const fv = (fid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fid) return u; return null; };
     const now = Date.now(), day = 86400000, bench = fv('flat-bench-press'), squat = fv('squat');
     state.sessions = [
-      { id: 'today', date: new Date(now - 1800000).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w: 100, r: 5 }, { w: 100, r: 5 }] }] }, // active (no endedAt)
+      { id: 'today', date: new Date(now).toISOString(), exercises: [{ varUuid: bench, subUuid: null, sets: [{ w: 100, r: 5 }, { w: 100, r: 5 }] }] }, // active (no endedAt); use `now` so it stays "today" even just after midnight
       { id: 'old', date: new Date(now - 2 * day).toISOString(), exercises: [{ varUuid: squat, subUuid: null, sets: [{ w: 140, r: 5 }] }] },
     ];
     saveState(); currentTab = 'log'; render();
