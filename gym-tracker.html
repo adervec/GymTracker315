@@ -4356,9 +4356,13 @@ function trainingReadiness(nowMs) {
   let score = rec * 100;
   score -= Math.min(24, plateauCount * 6);                            // each stalled lift dents it, capped at 4
   if (trend != null && trend > 0) score -= Math.min(15, trend * 15); // sessions feeling harder → fatigue tax
+  let cardioPenalty = 0; // feat 318 — opt-in: recent hard cardio adds a small SYSTEMIC tax (per-muscle recovery untouched)
+  if (state.cowork && state.cowork.cardioFatigue && typeof cardioSystemicFatigue === 'function') {
+    cardioPenalty = Math.min(12, cardioSystemicFatigue(nowMs) * 8); score -= cardioPenalty;
+  }
   score = Math.max(0, Math.min(100, Math.round(score)));
   const status = readinessStatus(score);
-  return { score, status, action: readinessAction(status.key, plateauCount), factors: { recoveryPct: Math.round(rec * 100), plateauCount, rpeTrend: trend } };
+  return { score, status, action: readinessAction(status.key, plateauCount), factors: { recoveryPct: Math.round(rec * 100), plateauCount, rpeTrend: trend, cardioPenalty: Math.round(cardioPenalty) } };
 }
 
 /* ============================================================
@@ -5890,7 +5894,8 @@ function coworkAutoLinkStrava(maxDeltaMin) {
 function coworkImportStrava(payload) {
   const r = importStravaActivities(JSON.stringify(payload || {}), { silent: true });
   const linked = coworkAutoLinkStrava(); // backfill HR/calories/duration on the matched workouts
-  return { handled: true, kind: 'strava', added: (r && r.added) || 0, updated: (r && r.updated) || 0, linked };
+  const orphansInserted = coworkInsertStravaOrphans(coworkStravaOrphans()); // feat 318 — non-strength activities → cardio history
+  return { handled: true, kind: 'strava', added: (r && r.added) || 0, updated: (r && r.updated) || 0, linked, orphansInserted };
 }
 // Route a parsed envelope to its importer. pod-output is handled once Phase 4 defines coworkImportPlanOfDay.
 function coworkApplyImport(kind, payload) {
@@ -5944,6 +5949,81 @@ function coworkStartPolling() { // desktop boot wiring (feat 317); periodic + on
   const mins = (state.cowork && state.cowork.pollMinutes) || 5;
   _coworkPollTimer = setInterval(() => coworkPollAll(false).catch(() => {}), Math.max(1, mins) * 60000);
   coworkPollAll(false).catch(() => {}); // an immediate first sweep
+}
+
+/* ============================================================
+   feat 318 — CLAUDE COWORK HUB (Phase 3: orphan Strava → cardio history + opt-in systemic fatigue). Strava
+   activities with no matching workout (outdoor runs, rides, …) are inserted into History as cardio bouts,
+   deduped by stravaId. Cardio stays out of the per-muscle recovery model; an opt-in toggle lets recent hard
+   cardio shave a few points off the composite Training Readiness only (a systemic, not muscle-specific, tax).
+   ============================================================ */
+const _STRAVA_CARDIO_MAP = [
+  [/run|jog|trail/i, '41cb3500-9d9d-40e1-ac39-3b3f05fdecc2'],       // Steady-State Run
+  [/walk|hike/i, '10e6a133-b61a-4cab-8c99-aab26149a669'],           // Brisk Walk
+  [/ride|bike|cycl/i, 'cb5464ea-e79d-43f0-bbb2-a7ffccb22d0e'],      // Steady-State Bike
+  [/row/i, 'd119b32b-6207-4576-b193-a34c62018719'],                 // Steady-State Row
+  [/stair|climb/i, '1df5066f-cb8f-42d1-8286-596dadeda51d'],         // Steady Climb (stairmaster)
+  [/ski/i, '3a802e5e-a11f-41b2-a83f-7d5e13c25fec'],                 // Ski Erg
+  [/elliptical/i, '11104a65-56db-4b58-8dc2-dc484a9f76fc'],          // Steady Elliptical
+];
+const _STRAVA_CARDIO_FALLBACK = '11104a65-56db-4b58-8dc2-dc484a9f76fc'; // neutral machine cardio for unknown sports
+function stravaSportToCardioVar(sportType) {
+  const t = String(sportType || '');
+  for (let i = 0; i < _STRAVA_CARDIO_MAP.length; i++) if (_STRAVA_CARDIO_MAP[i][0].test(t)) return { varUuid: _STRAVA_CARDIO_MAP[i][1], subUuid: null };
+  return { varUuid: _STRAVA_CARDIO_FALLBACK, subUuid: null };
+}
+// Build a cardio session (saveCardio shape) from a Strava activity. Accepts both the stored (normStravaActivity)
+// shape and raw Strava keys. Carries stravaId (dedupe + marks it linked) and origin (loop guard).
+function stravaActivityToCardioSession(activity) {
+  const a = activity || {};
+  const map = stravaSportToCardioVar(a.sportType || a.sport_type);
+  const startIso = a.startDate || a.start_date;
+  const elapsedSec = a.elapsedSec != null ? a.elapsedSec : (a.elapsed_time || 0);
+  const distM = a.distance != null ? a.distance : null; // Strava distance is metres
+  const unit = (state.cardioGoals && state.cardioGoals.distanceUnit) || 'km';
+  const dist = distM != null ? (unit === 'mi' ? +(distM / 1609.344).toFixed(2) : +(distM / 1000).toFixed(2)) : null;
+  const avgHr = a.avgHr != null ? a.avgHr : (a.average_heartrate != null ? a.average_heartrate : null);
+  const maxHr = a.maxHr != null ? a.maxHr : (a.max_heartrate != null ? a.max_heartrate : null);
+  const calories = a.calories != null ? a.calories : null;
+  const now = new Date().toISOString();
+  const s = {
+    id: newUuid(), date: startIso || now, updatedAt: now, origin: (state.deviceId || null),
+    stravaId: a.id, source: 'strava-import',
+    endedAt: (startIso && elapsedSec) ? new Date(new Date(startIso).getTime() + elapsedSec * 1000).toISOString() : undefined,
+    exercises: [{ varUuid: map.varUuid, subUuid: null, sets: [], cardio: {
+      elapsedMin: Math.max(1, Math.round(elapsedSec / 60)), distance: dist, distanceUnit: unit,
+      calories: calories, effort: null, setting: 'outdoor', notes: a.name || '', ts: now } }],
+  };
+  if (avgHr != null || calories != null) s.hr = { avg: avgHr, max: maxHr, calories: calories };
+  return s;
+}
+// Non-strength Strava activities not already linked to / inserted as a session.
+function coworkStravaOrphans() {
+  const linked = new Set();
+  (state.sessions || []).forEach(s => { if (s.stravaId) linked.add(s.stravaId); });
+  return (state.stravaActivities || []).filter(a => !isStrengthType(a.sportType) && !linked.has(a.id));
+}
+// Insert orphan activities as cardio sessions; dedupe by stravaId so re-runs never duplicate. Returns the count.
+function coworkInsertStravaOrphans(activities) {
+  const existing = new Set();
+  (state.sessions || []).forEach(s => { if (s.stravaId) existing.add(s.stravaId); });
+  let inserted = 0;
+  (activities || []).forEach(a => { if (!a || existing.has(a.id)) return; state.sessions.push(stravaActivityToCardioSession(a)); existing.add(a.id); inserted++; });
+  if (inserted) saveState();
+  return inserted;
+}
+// Opt-in (feat 318) systemic fatigue from recent cardio: effort×duration, decaying ~36h half-life. NOT attributed
+// to any muscle group — recoveryReadiness is unchanged; only trainingReadiness subtracts a capped few points.
+function cardioSystemicFatigue(nowMs) {
+  nowMs = nowMs || Date.now();
+  const HALF = 36; let f = 0;
+  (state.sessions || []).forEach(s => {
+    const t = new Date(s.date).getTime(), hrs = (nowMs - t) / 3600000; if (hrs < 0 || hrs > HALF * 4) return;
+    (s.exercises || []).forEach(ex => { if (!ex.cardio) return; const min = +ex.cardio.elapsedMin || 0; if (min <= 0) return;
+      const eff = (ex.cardio.effort != null ? ex.cardio.effort : 6); // default moderate effort
+      f += (min / 30) * (0.6 + 0.05 * eff) * Math.pow(0.5, hrs / HALF); }); // 30 min @ effort 8 ≈ 1.0
+  });
+  return f;
 }
 
 /* ---- feat 89 — Strava activities auto-load (mirrors biometrics auto-load; reuses the bioIdb* handle store) ---- */
@@ -8125,7 +8205,14 @@ function renderSettingsDrawer() {
           <button class="drawer-pill ${!state.cowork.enabled ? 'active' : ''}" data-cowork="off">Off</button>
         </div>
       </div>
-      ${state.cowork.enabled ? `<div class="drawer-data-row" style="flex-wrap:wrap;"><button class="drawer-btn" id="cowork-write-now">🤝 Write hub now</button></div>` : ''}
+      ${state.cowork.enabled ? `<div class="drawer-data-row" style="flex-wrap:wrap;"><button class="drawer-btn" id="cowork-write-now">🤝 Write hub now</button></div>
+      <div class="drawer-setting-row">
+        <div><div class="drawer-setting-label">Count cardio in recovery</div><div class="drawer-setting-sub">Let recent hard cardio (incl. imported Strava activities) gently lower your Training Readiness. Per-muscle recovery is unaffected.</div></div>
+        <div class="drawer-pill-group">
+          <button class="drawer-pill ${state.cowork.cardioFatigue ? 'active' : ''}" data-cardiofatigue="on">On</button>
+          <button class="drawer-pill ${!state.cowork.cardioFatigue ? 'active' : ''}" data-cardiofatigue="off">Off</button>
+        </div>
+      </div>` : ''}
     ` : `
       <div class="drawer-data-row" style="flex-wrap:wrap;">
         <button class="drawer-btn" id="ai-pick-folder-btn">📁 Pick export folder</button>
@@ -8484,6 +8571,7 @@ function renderSettingsDrawer() {
   body.querySelector('#ai-write-now-btn')?.addEventListener('click', () => { aiExportWriteNow(false, true).catch(() => {}); });
   body.querySelectorAll('[data-cowork]').forEach(b => b.addEventListener('click', () => { state.cowork.enabled = b.dataset.cowork === 'on'; saveState(); renderSettingsDrawer(); if (state.cowork.enabled) coworkExportNow(false).catch(() => {}); })); // feat 316
   body.querySelector('#cowork-write-now')?.addEventListener('click', () => coworkExportNow(false).catch(() => {})); // feat 316
+  body.querySelectorAll('[data-cardiofatigue]').forEach(b => b.addEventListener('click', () => { state.cowork.cardioFatigue = b.dataset.cardiofatigue === 'on'; saveState(); renderSettingsDrawer(); if (typeof render === 'function') render(); toast('Cardio in recovery: ' + (state.cowork.cardioFatigue ? 'on' : 'off')); })); // feat 318
   body.querySelector('#ai-disable-btn')?.addEventListener('click', aiExportDisable);
   body.querySelectorAll('[data-ai]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, [b.dataset.ai]: b.dataset.aiVal === 'on' }; saveState(); renderSettingsDrawer(); }));
   body.querySelectorAll('[data-aiscope]').forEach(b => b.addEventListener('click', () => { state.aiExport = { ...state.aiExport, scope: b.dataset.aiscope }; saveState(); renderSettingsDrawer(); }));
@@ -20476,7 +20564,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 274 · 2026-06-22 22:40';
+const APP_BUILD = 'build 275 · 2026-06-22 22:45';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

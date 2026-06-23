@@ -1468,6 +1468,18 @@ They share variation **UUIDs**.
   (debounced 30 s). `test/coworkimport.spec.mjs` (kind routing + graceful degrade; Garmin merges weight & matches
   sleep; Strava auto-links + backfills HR; the ≤90-min confidence window excludes a far-apart activity). Phase 3
   adds orphan-Strava→cardio insertion.
+- **Claude Cowork hub — Phase 3 orphan cardio + opt-in fatigue (feat 318):** Strava activities with no matching
+  workout (outdoor runs/rides/…) are now inserted into History as **cardio** bouts. `stravaSportToCardioVar` maps a
+  sport to a real cardio variation (run→Steady-State Run, walk→Brisk Walk, ride→Bike, row→Row, stair/climb→Stairmaster,
+  ski→Ski Erg, else a neutral machine cardio); `stravaActivityToCardioSession` builds a `saveCardio`-shaped session
+  (elapsedSec→min, metres→km/mi, HR/calories, `stravaId` + `origin`); `coworkStravaOrphans` returns non-strength,
+  unlinked activities and `coworkInsertStravaOrphans` inserts them **deduped by `stravaId`** (re-runs never duplicate).
+  Wired into `coworkImportStrava` after auto-linking. Cardio still stays **out of per-muscle recovery**
+  (`bpSessionLoad` unchanged); an **opt-in** "Count cardio in recovery" toggle (`state.cowork.cardioFatigue`, default
+  off) makes `cardioSystemicFatigue()` (effort×duration, ~36 h half-life) shave up to 12 **systemic** points off the
+  composite Training Readiness (feat 299) only — never any muscle group. `test/coworkcardio.spec.mjs` (sport→real
+  cardio var; field mapping; orphan insert + idempotency + linked-excluded; toggle leaves `recoveryReadiness`
+  byte-identical while lowering `trainingReadiness`). Phase 4 adds Plan of the Day.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
