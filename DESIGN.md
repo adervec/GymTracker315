@@ -1518,6 +1518,14 @@ They share variation **UUIDs**.
   box offset + `align-items:start` grid) so wrapped labels keep the box on the first line; and each **Plan of the Day**
   row shows its **day** — a `🗓️ Sun Jun 22` badge (`coworkFmtDay`, `.plan-day-tag`) before the plan name in the pinned
   section. `test/coworkpod.spec.mjs` asserts the row renders the day badge.
+- **Strava reconciliation polish (feat 323):** fixes two reports. (1) Unknown sports were mislabelled — a kayak
+  became "Steady Elliptical" because the fallback pointed at a real machine. Added a generic **"Other / Outdoor
+  Cardio"** variation (`EXTRA_VARIATIONS`, attached to the cardio `conditioning` family so it stays recovery-neutral)
+  and made it the `_STRAVA_CARDIO_FALLBACK`; anything not run/walk/ride/row/stair/ski/elliptical now lands there with
+  the original activity name in the notes. (2) **Links to the Strava activity:** `stravaActivityUrl(id)` →
+  `strava.com/activities/<id>`, shown as a 🔗 Strava chip in the History session header for any session carrying a
+  `stravaId` (linked workouts and inserted orphan cardio alike). `test/coworkcardio.spec.mjs` (kayak/swim/pickleball →
+  the generic var, still `mega:'cardio'`; URL format).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

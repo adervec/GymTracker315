@@ -1834,6 +1834,8 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .session-edit-hint { font-size: 10.5px; color: #666; font-style: italic; margin-top: 1px; }
   .session-time { font-size: 10.5px; color: #666; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
   .session-head-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .session-strava-link { font-size: 10px; font-weight: 800; color: #fc4c02; text-decoration: none; border: 1px solid #fc4c02; border-radius: 999px; padding: 1px 7px; white-space: nowrap; } /* feat 323 — link to the Strava activity */
+  .session-strava-link:active { opacity: 0.6; }
   /* feat 120 — grade chip, implicit-split badge, key deltas, long-rest gap */
   .session-grade { font-size: 12px; font-weight: 800; padding: 1px 8px; border-radius: 999px; line-height: 1.5; background: var(--bg4); color: var(--text2); }
   .session-grade.g-S { background: color-mix(in srgb, #ffd24a 26%, transparent); color: #ffd24a; box-shadow: 0 0 0 1px color-mix(in srgb, #ffd24a 45%, transparent) inset; } /* feat 158 — top tier */
@@ -3316,6 +3318,15 @@ const EXTRA_VARIATIONS = [
     mistakes:['Twisting the torso to help','Letting the elbow drift off the pad','Uneven reps left vs right'],
     programming:{'Hypertrophy':'3 × 10-15 per arm'},
     tip:'Train the weaker arm first and match it — single-arm work evens out a dominant side a two-handed machine hides.' },
+  // feat 323 — a generic catch-all cardio entry so any activity without a specific machine (kayaking, swimming,
+  // sports, …) — e.g. imported from Strava — lands honestly in History instead of being mislabelled.
+  { movementId:'conditioning', id:'other-cardio', uuid:'b1a10013-0013-4013-8013-aaaaaaaa0013', title:'Other / Outdoor Cardio', best:'Logged Cardio',
+    cue:'Catch-all for any cardio without a dedicated entry — kayaking, swimming, hiking, sports, classes. Log time, distance and effort; the specific activity stays in the notes.',
+    setup:['Use this when no specific machine/activity fits','The original activity name is kept in the session notes'],
+    movement:['Log elapsed time, distance and effort','Describe the activity in the notes'],
+    mistakes:['Forcing it into a machine entry that doesn’t match'],
+    programming:{'General':'Log duration + effort'},
+    tip:'Strava activities that aren’t a run / ride / row / etc. import here, tagged with the original activity name.' },
   // feat 90 — grip / digit-strength additions (attach to the existing Grip Training family → Forearms)
   { movementId:'grip-training', id:'plate-pinch-hold', uuid:'c0ac0031-0031-4031-8031-000000000031', title:'Plate Pinch Hold', best:'Pinch / Thumb',
     cue:'Pinch two plates smooth-side-out between thumb and fingers. Hold for time — log seconds as reps.',
@@ -6006,7 +6017,8 @@ const _STRAVA_CARDIO_MAP = [
   [/ski/i, '3a802e5e-a11f-41b2-a83f-7d5e13c25fec'],                 // Ski Erg
   [/elliptical/i, '11104a65-56db-4b58-8dc2-dc484a9f76fc'],          // Steady Elliptical
 ];
-const _STRAVA_CARDIO_FALLBACK = '11104a65-56db-4b58-8dc2-dc484a9f76fc'; // neutral machine cardio for unknown sports
+const _STRAVA_CARDIO_FALLBACK = 'b1a10013-0013-4013-8013-aaaaaaaa0013'; // feat 323 — generic "Other / Outdoor Cardio" (don't mislabel kayak/swim/etc. as a machine)
+function stravaActivityUrl(id) { return id != null ? ('https://www.strava.com/activities/' + encodeURIComponent(id)) : null; }
 function stravaSportToCardioVar(sportType) {
   const t = String(sportType || '');
   for (let i = 0; i < _STRAVA_CARDIO_MAP.length; i++) if (_STRAVA_CARDIO_MAP[i][0].test(t)) return { varUuid: _STRAVA_CARDIO_MAP[i][1], subUuid: null };
@@ -15108,6 +15120,7 @@ function renderSession(session, isToday) {
       <div class="session-date">${fmtDate(session.date)}${isToday ? '<div class="session-edit-hint">Tap an exercise to edit</div>' : ''}</div>
       <div class="session-head-right">
         ${gradeChip}
+        ${session.stravaId ? `<a class="session-strava-link" href="${escapeAttr(stravaActivityUrl(session.stravaId))}" target="_blank" rel="noopener" title="View this activity on Strava" aria-label="View on Strava">🔗 Strava</a>` : ''}
         <div class="session-time">${fmtTime(session.date)}</div>
         <button class="session-share-btn" data-share-session="${session.date}" title="Export / share this workout" aria-label="Export workout">⤴</button>
       </div>
@@ -20690,7 +20703,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 279 · 2026-06-22 23:49';
+const APP_BUILD = 'build 280 · 2026-06-22 23:52';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
