@@ -4571,7 +4571,7 @@ let state = {
     feedbackBeep: false,       // subtle WebAudio blip on rest-zone transitions
     restRecEnabled: true,      // show the recommended-rest band
     onScreenNumpad: true,      // feat 57/150 — in-app numpad for set entry (default ON; strongly recommended)
-    prefillFromHistory: false, // feat 58 — copy last session's set into the first set on exercise start
+    prefillFromHistory: false, // feat 58 — ARCHIVED (feat 331): no longer wired; first set always opens blank
     mixSubvariations: false,   // feat 88 — per-set sub-variation selection in one log (default off)
     rpeMode: 'off',            // feat 261 — RPE/RIR per-set logging: 'off' | 'rpe' | 'rir' (default off = fully hidden)
   },
@@ -7872,16 +7872,6 @@ function renderSettingsDrawer() {
       <div class="drawer-pill-group">
         <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad !== false ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="on">On ★</button>
         <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad === false ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="off">Off</button>
-      </div>
-    </div>
-    <div class="drawer-setting-row">
-      <div>
-        <div class="drawer-setting-label">Prefill from last session</div>
-        <div class="drawer-setting-sub">Copy your last set's weight & reps into the first set when you start an exercise</div>
-      </div>
-      <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).prefillFromHistory ? 'active' : ''}" data-wc="prefillFromHistory" data-wc-val="on">On</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).prefillFromHistory !== true ? 'active' : ''}" data-wc="prefillFromHistory" data-wc-val="off">Off</button>
       </div>
     </div>
     <div class="drawer-setting-row">
@@ -18527,10 +18517,10 @@ function startExerciseFromSuggestion(varUuid) {
   pending.subUuid = info.variation.subvariation ? info.variation.subvariation.options[0].uuid : null;
   pending.cardio = null;
   pending.defaultWeight = null;
-  const last = (state.workoutControls && state.workoutControls.prefillFromHistory) ? getLastSetForExercise(varUuid, pending.subUuid) : null;
-  pending.sets = last ? [{ w: last.w, r: last.r }] : [{ w: '', r: '' }];
-  // feat 82 — started from a plan step: seed the suggested weight (baseline × load) + pre-load the picker
-  if (_planLoadCtx) { const sug = suggestedWeightForVar(varUuid, _planLoadCtx); if (sug != null) { pending.sets = [{ w: sug, r: '' }]; seedSetupForWeight(varUuid, sug); } _planLoadCtx = null; }
+  // feat 331 — the first set always opens BLANK. Archived: prefill-from-last-session (feat 58) and the plan
+  // suggested-weight seed (feat 82). The suggested target still shows as the one-tap feat-234 prog-target hint.
+  pending.sets = [{ w: '', r: '' }];
+  _planLoadCtx = null;
   savePending();
   openLogModal();
 }
@@ -19104,12 +19094,7 @@ function bindPickerResults() {
         pending.cardio = freshCardio();
       } else {
         pending.cardio = null;
-        // feat 58 — only prefill from history when the user opts in (default off)
-        const lastSet = (state.workoutControls && state.workoutControls.prefillFromHistory) ? getLastSetForExercise(varUuid, pending.subUuid) : null;
-        if (lastSet && pending.sets.length === 1 && !pending.sets[0].w && !pending.sets[0].r) {
-          pending.sets = [{ w: lastSet.w, r: lastSet.r }];
-        }
-        if (_planLoadCtx) { const sug = suggestedWeightForVar(varUuid, _planLoadCtx); if (sug != null) { pending.sets = [{ w: sug, r: '' }]; seedSetupForWeight(varUuid, sug); } } // feat 82 — picked a variation for a plan step
+        // feat 331 — first set opens blank (archived prefill-from-history feat 58 + plan suggested-weight feat 82)
       }
       _planLoadCtx = null; // clear whether or not we used it
       savePending();
@@ -20194,12 +20179,7 @@ function bindSetsForm() {
   document.getElementById('trk-sub-select')?.addEventListener('change', e => {
     pending.subUuid = e.target.value;
     savePending();
-    // Re-render to update suggestion; feat 58 — prefill from history only when opted in
-    const lastSet = (state.workoutControls && state.workoutControls.prefillFromHistory) ? getLastSetForExercise(pending.varUuid, pending.subUuid) : null;
-    if (lastSet && pending.sets.length === 1 && !pending.sets[0].w && !pending.sets[0].r) {
-      pending.sets = [{ w: lastSet.w, r: lastSet.r }];
-    }
-    renderModal();
+    renderModal(); // feat 331 — no first-set prefill on sub-variation change (archived feat 58)
     updateFAB();
     updateSaveBtn();
   });
@@ -20871,7 +20851,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 290 · 2026-06-23 09:22';
+const APP_BUILD = 'build 291 · 2026-06-23 09:49';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

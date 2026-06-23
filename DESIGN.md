@@ -1587,6 +1587,16 @@ They share variation **UUIDs**.
   audio-on and always builds at least an intro segment, so it's available for any variation). Detailed view only — the
   compact tree/table views are click-to-drill summaries and stay uncluttered. `test/refbrief.spec.mjs` (the button renders
   with the right uuid; clicking it starts that variation's briefing; it sits alongside the media + trends actions).
+- **First set always opens blank — prepopulation archived (feat 331):** the first set of a newly-started exercise no
+  longer auto-fills. Two behaviors were archived: **prefill-from-last-session** (feat 58 — the Settings toggle that
+  copied your last set's weight/reps into the first set) and the **plan suggested-weight seed** (feat 82 — starting an
+  exercise from a plan step pre-filled the first set with baseline × load). All three history-prefill sites
+  (`startExerciseFromSuggestion`, `bindPickerResults`, the sub-variation `change` handler) and both plan-seed sites now
+  open `[{ w:'', r:'' }]`; the dead "Prefill from last session" drawer toggle is removed and `workoutControls.prefillFromHistory`
+  is retained but inert (dormant key, no UI, no behavior). The suggested target is **not** lost — it still shows as the
+  one-tap feat-234 `prog-target` hint in the log sheet, so the user opts in with a tap instead of getting it forced. The
+  explicit hold-to-copy gesture (`copyRepsToOpenSet`, feats 201/…) is unchanged. `test/firstsetblank.spec.mjs` (blank even
+  with prefill forced on + history present; blank from a plan step that has a suggestion; the toggle is gone).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
