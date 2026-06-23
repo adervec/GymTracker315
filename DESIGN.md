@@ -1411,6 +1411,12 @@ They share variation **UUIDs**.
   (`state.planDefaults.warmup` / `.cooldown`, default off). `test/planbookends.spec.mjs` (defaults reflect settings;
   blocks resolve to real movements; getActivePlan prepends/appends without mutating the stored plan; bookends don't gate
   completion; planUseForWorkout applies the defaults). Full suite stays green (getActivePlan augments only when opted in).
+- **More arm variations (feat 312):** six requested variations, all via `EXTRA_VARIATIONS` (each lands in both the
+  loggable FAMILIES and the reference docs): **Freemotion Cable** Preacher / Hammer / Reverse curls (→ bicep-curl /
+  hammer-curl / reverse-curl), **Hammer** and **Reverse** curls on the **Life Fitness Preacher** (→ hammer-curl /
+  reverse-curl), and a **Single-Arm Triceps Extension Machine (Life Fitness)** (→ tricep-extension). `test/armvars.spec.mjs`
+  (each loggable in the right family + standard mode + present in reference; findable by search — note the picker
+  search is a *contiguous-substring* match, so test queries must be contiguous, e.g. "freemotion cable preacher").
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
