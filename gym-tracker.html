@@ -19567,6 +19567,10 @@ function renderSetsForm() {
     if (mode === 'full') {
       const refEx = exercises.find(e => e.id === fam.id);
       if (refEx) {
+        // feat 334 — the collapsed "📐 Body Position & Setup" table from the full reference, near the top of the
+        // full tip (a 'trk-pos-' uid keeps it distinct from the Reference page's own copy if both are in the DOM).
+        const posHtml = renderPosition('trk-pos-' + (v.uuid || v.id), getPosition((refEx.variations || []).find(rv => rv.id === v.id) || v, refEx.id));
+        if (posHtml) tipBlocks += posHtml;
         // General movement tips (setup, movement, mistakes)
         if (refEx.general) {
           if (refEx.general.setup && refEx.general.setup.length) {
@@ -20893,7 +20897,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 293 · 2026-06-23 10:39';
+const APP_BUILD = 'build 294 · 2026-06-23 10:51';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

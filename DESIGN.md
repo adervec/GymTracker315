@@ -1617,6 +1617,14 @@ They share variation **UUIDs**.
   gets it — later sets keep the plain position cue. The just-started set (weight in, no reps) scores 0 e1RM, so it never
   skews the trend it's reporting. `test/anntrend.spec.mjs` (up/down/flat/empty phrasing; appended on set 1, absent on set
   2; silent when the start cue is off).
+- **Body Position & Setup table in the exercise-page full tip (feat 334):** the collapsed "📐 Body Position & Setup"
+  table from the full Reference (`renderPosition`/`getPosition` — body + equipment rows) now appears near the top of the
+  **FULL** tip on the exercise/log page, above the verbose general-movement text. It renders in its default collapsed
+  state (tap to expand) under a `trk-pos-<id>` uid namespace so it never clashes with the Reference page's own copy if
+  both are in the DOM. Only in `tipsMode === 'full'` — concise mode keeps the lighter cue set. Reuses the existing
+  reference variation lookup already done for the full tip; the global `.position-*` styles apply unchanged.
+  `test/tipposition.spec.mjs` (full tip has the collapsed table above general setup, with its own uid + real Body rows;
+  concise mode omits it).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
