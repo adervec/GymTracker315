@@ -1371,6 +1371,67 @@ They share variation **UUIDs**.
   prowess line — with **📚 Full reference** (`openReferenceFor`, the feat-204 deep-link) and **🎧 Brief** (feat 304).
   `test/constellation.spec.mjs` (registered under Reflect; one node per visible variation, in-bounds, fundamentals
   nearer the core; prowess tracks logged history; SVG renders clickable nodes; the popup deep-links to reference).
+- **Constellation pan / zoom + zoom-to-filter (feat 307):** the constellation is now navigable. A live SVG `viewBox`
+  (`_constView`, kept square) is driven by `_attachConstPanZoom` — drag / one-finger to **pan**, wheel / pinch to
+  **zoom** (anchored at the cursor/midpoint), clamped in-bounds by `_clampConstView` (`.cst-svg` is `touch-action:none`
+  so a drag pans instead of scrolling the page). Picking a **mega filter pill zooms onto that area**: `_constBBoxView`
+  computes a centered square that fully frames the filtered mega's nodes (capped at the canvas), and the page renders
+  with that as the initial viewBox (the **All** pill resets to the full view). `test/constellation.spec.mjs` extended
+  (full viewBox unfiltered; filtering zooms to a smaller square that frames every node of that mega; bbox/clamp helpers).
+- **Constellation core = exploration stats (feat 308):** the centre no longer reads a static "CORE" — it now shows
+  the user's **exploration**: a big count of **distinct variations logged at least once** out of the total visible, plus
+  the **rate** of exploration. `constellationStats()` walks the log once for each variation's *first*-logged date (counting
+  only uuids that resolve in `VAR_INDEX`), giving `{explored, total, pct, new30, new7, perWeek}`. The core renders three
+  lines — `explored` · "of N explored" · a rate line (`+K new · 30d` when there's recent activity, else `~P/wk pace`,
+  else a "tap a star to begin" nudge) — drawn on top of the nodes. `test/constellation.spec.mjs` (distinct count out of
+  total, new-in-30d excludes older first-logs, non-zero pace, empty state; the core renders the count+rate and no "CORE").
+- **Reflect quick-nav pills (feat 309):** an **optional** pill bar to hop between the Reflect pages, shown **only**
+  in the Reflect area. `renderCurrentPage` injects `_injectReflectPills` at the top of `#trk-main` whenever the current
+  page is a **Reflect leaf** (`def.parent === 'reflect'`) and the toggle is on — one pill per `PAGES.reflect.children`
+  (Log · Summary · Focus · History · Trends · Volume · Achievements · Constellation · Replay · Progression), current
+  highlighted, each → `navTo`. Gated by **Settings → Preferences → Reflect quick-nav pills** (`state.reflectPills`,
+  default on, in SETTINGS_KEYS). `test/reflectpills.spec.mjs` (one pill per child + active on the current page; absent
+  outside Reflect; a pill navigates; the setting hides them).
+- **Weekly summary grade (feat 310):** every weekly summary now carries an overall **letter grade** on the same
+  **S…D** scale as session scores (`gradeFor`). `weekSummary` computes `gradePoints` (0–100) from four weighted
+  ingredients already aggregated for the week — **work done** (sessions, 45), **consistency / program adherence**
+  (25), **progression vs last week** (±10% volume spans the band, 20), and **best-session quality** (10) — and returns
+  `{grade, gradePoints}`. The Summary card shows a colour-coded badge (`_gradeHue`, S…D) in its header; rest weeks stay
+  ungraded. `test/weekgrade.spec.mjs` (valid letter + points, busier/progressing weeks grade higher, rest weeks
+  ungraded, the badge renders on a complete week). `summary.spec` seed made week-aligned so it's deterministic on any weekday.
+- **Optional warm-up / cool-down blocks on plan start (feat 311):** a plan can now be **bookended** with a warm-up
+  (prepended) and a cool-down / finisher (appended) when you start it. `WARMUP_BLOCK` (light mobility + activation) and
+  `COOLDOWN_BLOCK` (a core finisher + static-stretch cool-down) are real movement steps (so the picker/HUD/tracking work),
+  built from the `mobility-warmup` / `static-stretch` / `abs-dynamic` / `core-stability` families. `planUseForWorkout`
+  stamps the active session with `session.bookends = {warmup, cooldown}` from the **plan defaults**, and `getActivePlan()`
+  augments the plan's steps via `_withBookends` (warm-up steps first, then the plan, then cool-down) — tagged `bookend`
+  and returned as a **copy** so the saved plan is never mutated. Bookend steps are excluded from the completion gate
+  (`planExecutionSummary.complete` now keys off non-bookend "main" steps, identical to before when there are none).
+  Toggled in **Settings → plan defaults → Auto warm-up block / Auto cool-down · finisher block**
+  (`state.planDefaults.warmup` / `.cooldown`, default off). `test/planbookends.spec.mjs` (defaults reflect settings;
+  blocks resolve to real movements; getActivePlan prepends/appends without mutating the stored plan; bookends don't gate
+  completion; planUseForWorkout applies the defaults). Full suite stays green (getActivePlan augments only when opted in).
+- **More arm variations (feat 312):** six requested variations, all via `EXTRA_VARIATIONS` (each lands in both the
+  loggable FAMILIES and the reference docs): **Freemotion Cable** Preacher / Hammer / Reverse curls (→ bicep-curl /
+  hammer-curl / reverse-curl), **Hammer** and **Reverse** curls on the **Life Fitness Preacher** (→ hammer-curl /
+  reverse-curl), and a **Single-Arm Triceps Extension Machine (Life Fitness)** (→ tricep-extension). `test/armvars.spec.mjs`
+  (each loggable in the right family + standard mode + present in reference; findable by search — note the picker
+  search is a *contiguous-substring* match, so test queries must be contiguous, e.g. "freemotion cable preacher").
+- **Grade weighting & rationale (feat 313):** each weekly grade (feat 310) can now show **why**. The grade math was
+  extracted into `weekGradeBreakdown(sessions, agg, pAgg, adh)` → `{points, grade, parts:[{label, earned, max, note}]}`
+  (identical points to feat 310 — unrounded sum then round). `weekSummary` carries `gradeParts`, and the Summary card's
+  grade badge is now a tap target (ⓘ) that reveals a per-week breakdown: each of the four ingredients (Work done 45 ·
+  Consistency/Program adherence 25 · Progression 20 · Best session 10) with a mini bar (earned/max) and a plain-language
+  note (e.g. "volume +18% vs last week", "3/4 planned sessions hit"), then the **Total → grade** line. Hidden by default
+  (it's an option), toggled per week. `test/weekgrade.spec.mjs` extended (breakdown itemises the four ingredients summing
+  to ≤100 and matching the grade; weekSummary carries gradeParts; tapping the badge reveals the 4-row breakdown + total).
+- **Quick-pick uses the whole time window (feat 314):** the recommender's time-fit score (`planTimeScore`, the
+  dominant 0.65-weighted term) previously gave an under-budget plan a gentle penalty (`0.55 + 0.45·ratio`), so a 45-min
+  plan still scored ~0.66 in a 3-hour window and could win. It now scales **proportionally** to the budget used
+  (`ratio` for ratio≤1 → a half-length plan ≈0.5, a quarter ≈0.25), so the recommender prefers the plan that best
+  **fills** the available time; over-budget still falls off (1.0 just over → 0 at 2×). `test/quickpicktime.spec.mjs`
+  (fuller-use plan outscores a quarter-budget one; recommendPlans picks a longer plan for a 180-min window than a 45-min
+  one). All existing `quickpick` / `plancoverage` ordering tests still pass (fits-over-overrun, the 30/120/180 cases).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

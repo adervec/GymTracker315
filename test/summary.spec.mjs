@@ -10,21 +10,22 @@ test.beforeEach(async ({ page }) => {
     && typeof renderSummaryPage === 'function' && typeof startOfWeek === 'function' && typeof navTo === 'function', null, { timeout: 15000 });
 });
 
-// build a session N days ago with a single exercise (uses the first standard variation), w×r sets.
+// Seed sessions anchored to whole Mon–Sun weeks (week-offset + day-in-week) so the fixture is deterministic
+// on any weekday — "days ago" was fragile (e.g. on a Monday, 8 days ago is two complete weeks back).
 const seedWeeks = (page) => page.evaluate(() => {
   let v = null; for (const [u] of VAR_INDEX) { if (exMode(u).mode === 'standard') { v = u; break; } }
-  const mk = (daysAgo, nSets, w, r, ended) => {
-    const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - daysAgo);
+  const day = 86400000, thisMon = +startOfWeek(new Date());
+  const at = (weekOff, dayInWeek, nSets, w, r) => {
+    const d = new Date(thisMon - weekOff * 7 * day + dayInWeek * day); d.setHours(12, 0, 0, 0);
     const e = new Date(d.getTime() + 40 * 60000);
-    return { id: 's' + daysAgo + '_' + Math.random(), date: d.toISOString(), updatedAt: e.toISOString(),
-      endedAt: ended ? e.toISOString() : undefined, finalScore: ended ? { points: 80, grade: 'A' } : undefined,
+    return { id: 's' + weekOff + '_' + dayInWeek + '_' + Math.random(), date: d.toISOString(), updatedAt: e.toISOString(),
+      endedAt: e.toISOString(), finalScore: { points: 80, grade: 'A' },
       exercises: [{ varUuid: v, subUuid: null, sets: Array.from({ length: nSets }, () => ({ w, r })) }] };
   };
-  // last complete week (≈8 days ago): a big week. The week before (≈15 days ago): a smaller week.
   state.program = null;
   state.sessions = [
-    mk(8, 5, 100, 5, true), mk(9, 4, 100, 5, true), mk(10, 4, 100, 5, true), // last week: 3 sessions, 13 sets
-    mk(15, 3, 80, 5, true),                                                   // week before: 1 session, 3 sets
+    at(1, 0, 5, 100, 5), at(1, 1, 4, 100, 5), at(1, 2, 4, 100, 5), // last complete week: 3 sessions, 13 sets
+    at(2, 0, 3, 80, 5),                                            // the week before: 1 session, 3 sets
   ];
   return v;
 });

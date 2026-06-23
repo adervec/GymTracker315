@@ -905,6 +905,22 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .summary-week.rest { opacity: 0.72; }
   .summary-week-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
   .summary-week-when { font-size: 13.5px; font-weight: 800; }
+  .summary-grade { font-size: 15px; font-weight: 800; padding: 0 9px; border: 1.5px solid; border-radius: 8px; line-height: 1.5; font-variant-numeric: tabular-nums; } /* feat 310 */
+  .summary-grade[data-grade-toggle] { cursor: pointer; -webkit-tap-highlight-color: transparent; } /* feat 313 */
+  .summary-grade[data-grade-toggle]::after { content: ' ⓘ'; font-size: 10px; opacity: 0.7; }
+  .summary-grade-detail { margin: 2px 0 10px; padding: 10px 11px; border-radius: 8px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); }
+  .sgd-head { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); margin-bottom: 8px; }
+  .sgd-row { display: flex; align-items: center; gap: 8px; }
+  .sgd-lbl { font-size: 11.5px; font-weight: 700; color: var(--text); min-width: 116px; }
+  .sgd-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--bg4, #222); overflow: hidden; }
+  .sgd-fill { height: 100%; background: var(--accent, #b48aff); }
+  .sgd-pts { font-size: 11px; font-weight: 700; color: var(--text2); min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+  .sgd-note { font-size: 10.5px; color: var(--text3); margin: 1px 0 8px 124px; line-height: 1.35; }
+  .sgd-total { font-size: 11.5px; color: var(--text2); margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--border2, #333); }
+  /* feat 309 — Reflect quick-nav pills */
+  .reflect-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .reflect-pill { font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); cursor: pointer; font-family: inherit; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+  .reflect-pill.active { background: var(--accent, #b48aff); border-color: var(--accent, #b48aff); color: #0a0a0a; }
   .summary-week-meta { font-size: 11px; color: var(--text3); white-space: nowrap; }
   .summary-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
   .summary-list li { font-size: 12.5px; line-height: 1.4; padding: 5px 9px; border-radius: 8px; border-left: 3px solid var(--border2); background: var(--bg3); }
@@ -1879,10 +1895,14 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .cst-pill.active { background: var(--accent, #b48aff); border-color: var(--accent, #b48aff); color: #0a0a0a; }
   .cst-pill.active[style*="--ch"] { background: var(--ch); border-color: var(--ch); }
   .cst-stage { width: 100%; border-radius: 10px; overflow: hidden; }
-  .cst-svg { width: 100%; height: auto; display: block; touch-action: manipulation; }
+  .cst-svg { width: 100%; height: auto; display: block; touch-action: none; cursor: grab; } /* feat 307 — touch-action:none so a drag pans instead of scrolling */
+  .cst-svg:active { cursor: grabbing; }
+  .cst-hint { font-size: 10px; color: var(--text3); margin-top: 6px; text-align: center; }
   .cst-node { cursor: pointer; transition: fill-opacity 0.12s; }
   .cst-node:hover { fill-opacity: 1 !important; }
-  .cst-core-lbl { fill: var(--accent, #b48aff); font-size: 13px; font-weight: 800; letter-spacing: 1px; font-family: inherit; opacity: 0.85; }
+  .cst-core-num { fill: var(--accent, #b48aff); font-size: 50px; font-weight: 800; font-family: inherit; }
+  .cst-core-sub { fill: var(--text3); font-size: 21px; font-weight: 600; font-family: inherit; }
+  .cst-core-rate { fill: var(--good, #3fb950); font-size: 20px; font-weight: 700; font-family: inherit; }
   .cst-mega-lbl { font-size: 15px; font-weight: 800; font-family: inherit; opacity: 0.85; }
   .cst-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 10.5px; color: var(--text3); }
   .cst-leg { display: inline-flex; align-items: center; gap: 4px; }
@@ -3242,6 +3262,49 @@ const EXTRA_VARIATIONS = [
     mistakes:['Letting the elbows drift off the pad','Leaning / using the shoulders to muscle the weight','Cutting the lockout short'],
     programming:{'Hypertrophy':'3-4 × 10-15','Strength':'4 × 6-8'},
     tip:'Progressively overload the triceps with zero stabiliser fatigue — pairs well after pressing or as a high-rep pump.' },
+  // feat 312 — a few missing arm variations (requested): Freemotion-cable curls + Life Fitness preacher / triceps variants.
+  { movementId:'bicep-curl', id:'freemotion-preacher-curl', uuid:'b1a1000d-000d-400d-800d-aaaaaaaa000d', title:'Freemotion Cable Preacher Curl', best:'Cable Peak-Contraction',
+    cue:'Freemotion functional trainer set low, elbows braced on a preacher pad (or knee/bench). Curl through a fixed cable line — constant tension top to bottom.',
+    setup:['Set both Freemotion pulleys to the lowest position','Brace the upper arms on a preacher pad in front of the column','Take the handle(s) with a supinated grip'],
+    movement:['Curl up, squeezing hard at the top where the cable keeps tension','Lower slowly to a full stretch','Keep the elbows pinned to the pad'],
+    mistakes:['Elbows drifting off the pad','Standing up to cheat the cable','Cutting the stretch short'],
+    programming:{'Hypertrophy':'3-4 × 10-15','Pump':'2-3 × 15-20'},
+    tip:'The cable angle keeps the biceps loaded at the top where a barbell preacher goes light — brutal peak contraction.' },
+  { movementId:'hammer-curl', id:'freemotion-hammer-curl', uuid:'b1a1000e-000e-400e-800e-aaaaaaaa000e', title:'Freemotion Cable Hammer Curl', best:'Cable Brachialis',
+    cue:'Freemotion pulleys low with rope or neutral handles. Curl with a neutral (thumbs-up) grip for the brachialis and forearms.',
+    setup:['Both pulleys low; attach ropes or neutral handles','Stand tall, elbows tucked at your sides'],
+    movement:['Curl with a neutral grip, keeping the wrists straight','Squeeze at the top','Lower under control to a full stretch'],
+    mistakes:['Swinging the torso','Letting the elbows drift forward','Rushing the negative'],
+    programming:{'Hypertrophy':'3 × 10-15'},
+    tip:'Constant cable tension makes the brachialis work the whole rep — great paired with a supinated cable curl.' },
+  { movementId:'reverse-curl', id:'freemotion-reverse-curl', uuid:'b1a1000f-000f-400f-800f-aaaaaaaa000f', title:'Freemotion Cable Reverse Curl', best:'Cable Brachioradialis',
+    cue:'Freemotion pulleys low with a straight bar. Curl with a pronated (palms-down) grip for the brachioradialis and forearm extensors.',
+    setup:['Both pulleys low; attach a straight or EZ bar','Pronated grip, elbows at your sides'],
+    movement:['Curl with palms down, wrists firm and neutral','Squeeze at the top','Lower slowly — the cable fights you the whole way'],
+    mistakes:['Letting the wrists flex','Using momentum','Going too heavy and losing the grip'],
+    programming:{'Hypertrophy':'3 × 12-15'},
+    tip:'Elbow-friendly forearm builder; the cable keeps tension where a free-weight reverse curl drops off.' },
+  { movementId:'hammer-curl', id:'lifefitness-preacher-hammer', uuid:'b1a10010-0010-4010-8010-aaaaaaaa0010', title:'Hammer Curl (Life Fitness Preacher)', best:'Machine Brachialis',
+    cue:'On the Life Fitness preacher machine, take a neutral (hammer) grip on the handles — upper arms locked on the pad, strict reps.',
+    setup:['Seat set so your armpits rest at the top of the angled pad','Neutral grip on the handles, upper arms flat on the pad'],
+    movement:['Curl up with a hammer grip, squeeze the brachialis','Lower under control to a full stretch','Keep the elbows planted'],
+    mistakes:['Lifting the elbows off the pad','Bouncing out of the bottom','Half reps'],
+    programming:{'Hypertrophy':'3-4 × 10-15'},
+    tip:'The machine fixes the path so you can hammer-curl heavy without stabiliser fatigue — pairs with the supinated preacher.' },
+  { movementId:'reverse-curl', id:'lifefitness-preacher-reverse', uuid:'b1a10011-0011-4011-8011-aaaaaaaa0011', title:'Reverse Curl (Life Fitness Preacher)', best:'Machine Forearms',
+    cue:'On the Life Fitness preacher machine, take a pronated (palms-down) grip — upper arms on the pad, curl strictly for the brachioradialis.',
+    setup:['Seat set so your armpits rest at the top of the angled pad','Pronated grip on the handles, upper arms flat on the pad'],
+    movement:['Curl with palms down, wrists firm','Squeeze at the top','Lower slowly to a full stretch — elbows stay planted'],
+    mistakes:['Wrists flexing under load','Elbows lifting off the pad','Going too heavy and breaking form'],
+    programming:{'Hypertrophy':'3 × 12-15'},
+    tip:'Loads the forearm extensors through a fixed arc — a joint-friendly way to overload reverse curls.' },
+  { movementId:'tricep-extension', id:'lifefitness-triceps-1arm', uuid:'b1a10012-0012-4012-8012-aaaaaaaa0012', title:'Single-Arm Triceps Extension Machine (Life Fitness)', best:'Unilateral Machine Triceps',
+    cue:'Life Fitness triceps extension machine worked one arm at a time — fixes side-to-side imbalances and lets you brace and focus.',
+    setup:['Set the seat so the working elbow sits on the pad in line with the pivot','One forearm/hand on its grip, the other resting','Brace the torso against the back pad'],
+    movement:['Extend the single arm to a firm lockout','Squeeze the triceps','Return under control to a full stretch — keep the elbow planted','Match reps on both sides'],
+    mistakes:['Twisting the torso to help','Letting the elbow drift off the pad','Uneven reps left vs right'],
+    programming:{'Hypertrophy':'3 × 10-15 per arm'},
+    tip:'Train the weaker arm first and match it — single-arm work evens out a dominant side a two-handed machine hides.' },
   // feat 90 — grip / digit-strength additions (attach to the existing Grip Training family → Forearms)
   { movementId:'grip-training', id:'plate-pinch-hold', uuid:'c0ac0031-0031-4031-8031-000000000031', title:'Plate Pinch Hold', best:'Pinch / Thumb',
     cue:'Pinch two plates smooth-side-out between thumb and fingers. Hold for time — log seconds as reps.',
@@ -4310,7 +4373,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
-  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','metronome','annunciation','plans','seededPlanIds','hrDevice',
+  'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
   'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
@@ -4516,10 +4579,13 @@ function normalizeState() {
   if (typeof state.coachPersona !== 'string' || !COACH_PERSONAS.some(p => p.id === state.coachPersona)) state.coachPersona = (state.ttsVoice === 'system') ? 'neutral' : 'gruff'; // feat 296 — derive from the legacy voice toggle
   if (!state.coachVoices || typeof state.coachVoices !== 'object') state.coachVoices = {}; // feat 297 — per-persona TTS voice (id → 'auto'|'system'|voiceURI)
   if (['off', 'random', 'vibe'].indexOf(state.coachAuto) === -1) state.coachAuto = 'off'; // feat 303 — auto-pick coach per workout
+  if (typeof state.reflectPills !== 'boolean') state.reflectPills = true; // feat 309 — Reflect quick-nav pills (on by default)
   if (state.ttsVoice && state.ttsVoice !== 'auto' && state.ttsVoice !== 'system' && !state.coachVoices[state.coachPersona]) { state.coachVoices[state.coachPersona] = state.ttsVoice; state.ttsVoice = 'auto'; } // migrate a legacy explicit voiceURI to the active coach
   if (typeof state.audioHeadphonesOnly !== 'boolean') state.audioHeadphonesOnly = true; // feat 105 — default on
   // feat 144 — default minimum completion % (0..100). 1% means "even 1 set counts the step as done".
   { const m = Number(state.planDefaults.minPct); state.planDefaults.minPct = isNaN(m) ? 1 : Math.min(100, Math.max(0, m)); }
+  state.planDefaults.warmup = !!state.planDefaults.warmup;     // feat 311 — auto-prepend a warm-up block on plan start
+  state.planDefaults.cooldown = !!state.planDefaults.cooldown; // feat 311 — auto-append a cool-down / finisher block
   state.metronome = { bpm:60, audio:true, haptic:false, freq:880, accentFreq:1320, accentEvery:0, vol:0.3, mantra:false, setActiveOnly:true, ...(state.metronome && typeof state.metronome === 'object' ? state.metronome : {}) };
   // feat 206 — set start/end annunciations (spoken position cues); off by default. startLimit/endLimit
   // (feat 208) bound them to the first/last X sets (0 = no limit); duck (feat 209) lowers other audio.
@@ -6931,6 +6997,16 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">Reflect quick-nav pills</div>
+        <div class="drawer-setting-sub">Show a pill bar to hop between the Reflect pages (Summary, Trends, Volume, Constellation…). Only appears in the Reflect area.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${reflectPillsEnabled() ? 'active' : ''}" data-pref-reflectpills="on">On</button>
+        <button class="drawer-pill ${!reflectPillsEnabled() ? 'active' : ''}" data-pref-reflectpills="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">Speak a tip on select</div>
         <div class="drawer-setting-sub">Read a random cue/tip aloud when you pick an exercise (text-to-speech)</div>
       </div>
@@ -7139,6 +7215,26 @@ function renderSettingsDrawer() {
       <input type="number" id="drawer-plan-minpct" value="${planMinPctDefault()}" min="0" max="100" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
                background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">🤸 Auto warm-up block</div>
+        <div class="drawer-setting-sub">Prepend a light mobility / activation warm-up to a plan when you start it.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.planDefaults||{}).warmup ? 'active' : ''}" data-pref-warmup="on">On</button>
+        <button class="drawer-pill ${!(state.planDefaults||{}).warmup ? 'active' : ''}" data-pref-warmup="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">🧊 Auto cool-down / finisher block</div>
+        <div class="drawer-setting-sub">Append a core finisher + static-stretch cool-down to a plan when you start it.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.planDefaults||{}).cooldown ? 'active' : ''}" data-pref-cooldown="on">On</button>
+        <button class="drawer-pill ${!(state.planDefaults||{}).cooldown ? 'active' : ''}" data-pref-cooldown="off">Off</button>
+      </div>
     </div>
     <div class="drawer-setting-row">
       <div>
@@ -7880,6 +7976,9 @@ function renderSettingsDrawer() {
       else if (btn.dataset.prefGlossView) { state.glossaryAsPage = btn.dataset.prefGlossView === 'page'; saveState(); toast('Glossary: ' + (state.glossaryAsPage ? 'full page' : 'slide-in')); }
       else if (btn.dataset.prefReadonly) { state.readonly = btn.dataset.prefReadonly === 'on'; saveState(); render(); toast('Read-only mode: ' + (state.readonly ? 'on' : 'off')); }
       else if (btn.dataset.prefTts) { state.ttsTips = btn.dataset.prefTts === 'on'; saveState(); if (state.ttsTips) toast('Tips will be read aloud'); else { try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} toast('Tip narration off'); } }
+      else if (btn.dataset.prefReflectpills) { state.reflectPills = btn.dataset.prefReflectpills === 'on'; saveState(); renderSettingsDrawer(); if (typeof renderCurrentPage === 'function') renderCurrentPage(); toast('Reflect pills: ' + (state.reflectPills ? 'on' : 'off')); } // feat 309
+      else if (btn.dataset.prefWarmup) { state.planDefaults = state.planDefaults || {}; state.planDefaults.warmup = btn.dataset.prefWarmup === 'on'; saveState(); renderSettingsDrawer(); toast('Auto warm-up: ' + (state.planDefaults.warmup ? 'on' : 'off')); } // feat 311
+      else if (btn.dataset.prefCooldown) { state.planDefaults = state.planDefaults || {}; state.planDefaults.cooldown = btn.dataset.prefCooldown === 'on'; saveState(); renderSettingsDrawer(); toast('Auto cool-down: ' + (state.planDefaults.cooldown ? 'on' : 'off')); } // feat 311
       else if (btn.dataset.prefVoice) { state.ttsVoice = btn.dataset.prefVoice === 'system' ? 'system' : 'auto'; _coachVoice = null; saveState(); annunce(state.ttsVoice === 'system' ? 'System voice' : 'Coach voice on. Get under the bar.'); toast('Voice: ' + (state.ttsVoice === 'system' ? 'system default' : 'gruff coach')); } // feat 210
       else if (btn.dataset.prefAnn) { const a = { ...annunciationCfg() }; const k = btn.dataset.prefAnn; if (k === 'start-on') a.start = true; else if (k === 'start-off') a.start = false; else if (k === 'end-on') a.end = true; else if (k === 'end-off') a.end = false; else if (k === 'duck-on') a.duck = true; else if (k === 'duck-off') { a.duck = false; if (typeof _annDuckOff === 'function') _annDuckOff(); } state.annunciation = a; saveState(); toast(/^start/.test(k) ? ('Set-start annunciation: ' + (a.start ? 'on' : 'off')) : /^end/.test(k) ? ('Set-end annunciation: ' + (a.end ? 'on' : 'off')) : ('Speech ducking: ' + (a.duck ? 'on' : 'off'))); } // feat 206/207/209
       else if (btn.dataset.prefHp) { state.audioHeadphonesOnly = btn.dataset.prefHp === 'on'; saveState(); if (state.audioHeadphonesOnly) probeAudioOutput(); refreshSoundIcon(); toast('Headphone-only audio: ' + (state.audioHeadphonesOnly ? 'on' : 'off')); }
@@ -8952,7 +9051,24 @@ function weekSummary(weekOffset) {
     if (adh.done >= adh.scheduled) highlights.push(`✅ Hit all ${adh.scheduled} planned sessions`);
     else if (adh.missed > 0) lowlights.push(`⚠️ Missed ${adh.missed} of ${adh.scheduled} planned session${adh.scheduled === 1 ? '' : 's'}`);
   }
-  return { weekOffset, start, end, label: dRange, sessions: sessions.length, sets: agg.sets, volume: agg.volume, empty: false, highlights, lowlights };
+  // feat 310/313 — overall letter grade for the week + the weighting/rationale behind it (weekGradeBreakdown).
+  const gb = weekGradeBreakdown(sessions.length, agg, pAgg, adh);
+  return { weekOffset, start, end, label: dRange, sessions: sessions.length, sets: agg.sets, volume: agg.volume, empty: false, grade: gb.grade, gradePoints: gb.points, gradeParts: gb.parts, highlights, lowlights };
+}
+// feat 310 — letter-grade accent colour (S…D), reused by the weekly summary badge.
+function _gradeHue(g) { return ({ S: '#b48aff', A: '#3fb950', B: '#6ca0ff', C: '#d2bd2a', D: '#e0883a' })[String(g || '').charAt(0).toUpperCase()] || '#9aa0a6'; }
+// feat 313 — the weighting + rationale behind a week's grade. Same four ingredients/points as feat 310, but
+// itemised so the UI can show WHY. `earned` is summed unrounded (matching the grade) then rounded for display.
+function weekGradeBreakdown(sessions, agg, pAgg, adh) {
+  const parts = [];
+  parts.push({ key: 'work', label: 'Work done', earned: Math.min(1, sessions / 4) * 45, max: 45, note: `${sessions} session${sessions === 1 ? '' : 's'} logged · 4 = full marks` });
+  if (adh && adh.scheduled > 0) parts.push({ key: 'adherence', label: 'Program adherence', earned: Math.min(1, adh.done / adh.scheduled) * 25, max: 25, note: `${adh.done}/${adh.scheduled} planned sessions hit` });
+  else parts.push({ key: 'consistency', label: 'Consistency', earned: Math.min(1, sessions / 3) * 25, max: 25, note: `${sessions}/3 sessions · no program set` });
+  if (pAgg.volume > 0) { const pc = (agg.volume - pAgg.volume) / pAgg.volume; parts.push({ key: 'progression', label: 'Progression', earned: Math.max(0, Math.min(1, 0.5 + pc * 5)) * 20, max: 20, note: `volume ${pc >= 0 ? '+' : ''}${Math.round(pc * 100)}% vs last week · ±10% spans the band` }); }
+  else parts.push({ key: 'progression', label: 'Progression', earned: 12, max: 20, note: 'neutral — no prior week to compare' });
+  parts.push({ key: 'quality', label: 'Best session', earned: (agg.bestScore && agg.bestScore.points ? agg.bestScore.points / 100 : 0.5) * 10, max: 10, note: agg.bestScore && agg.bestScore.points ? `top session ${agg.bestScore.grade} (${agg.bestScore.points}/100)` : 'no scored session this week' });
+  const points = Math.round(Math.max(0, Math.min(100, parts.reduce((s, p) => s + p.earned, 0))));
+  return { points, grade: gradeFor(points), parts: parts.map(p => ({ key: p.key, label: p.label, earned: Math.round(p.earned), max: p.max, note: p.note })) };
 }
 // The complete weeks (most recent first) that fall within the user's training history, capped for the page.
 function summaryWeeks(maxWeeks) {
@@ -8982,13 +9098,26 @@ function renderSummaryPage(main) {
   const card = w => {
     const hi = w.highlights.map(h => `<li class="sm-hi">${escapeHtml(h)}</li>`).join('');
     const lo = w.lowlights.map(l => `<li class="sm-lo">${escapeHtml(l)}</li>`).join('');
+    // feat 313 — the weighting + rationale behind the grade, revealed on tap.
+    const detail = w.gradeParts ? `<div class="summary-grade-detail" hidden>
+      <div class="sgd-head">Why this grade — weighting &amp; rationale</div>
+      ${w.gradeParts.map(p => `<div class="sgd-row"><span class="sgd-lbl">${escapeHtml(p.label)}</span><div class="sgd-bar"><div class="sgd-fill" style="width:${Math.round(p.earned / p.max * 100)}%"></div></div><span class="sgd-pts">${p.earned}/${p.max}</span></div><div class="sgd-note">${escapeHtml(p.note)}</div>`).join('')}
+      <div class="sgd-total">Total <b>${w.gradePoints}/100</b> → grade <b style="color:${_gradeHue(w.grade)}">${escapeHtml(w.grade)}</b></div>
+    </div>` : '';
     return `<div class="card summary-week${w.empty ? ' rest' : ''}">
-      <div class="summary-week-head"><span class="summary-week-when">Week of ${escapeHtml(w.label)}</span><span class="summary-week-meta">${w.empty ? 'rest week' : `${w.sessions} session${w.sessions === 1 ? '' : 's'} · ${w.sets} sets`}</span></div>
+      <div class="summary-week-head"><span class="summary-week-when">Week of ${escapeHtml(w.label)}</span>${w.grade ? `<span class="summary-grade" data-grade-toggle role="button" tabindex="0" style="color:${_gradeHue(w.grade)};border-color:${_gradeHue(w.grade)}" title="Tap for the grade weighting & rationale · ${escapeHtml(w.grade)} ${w.gradePoints}/100">${escapeHtml(w.grade)}</span>` : ''}<span class="summary-week-meta">${w.empty ? 'rest week' : `${w.sessions} session${w.sessions === 1 ? '' : 's'} · ${w.sets} sets`}</span></div>
+      ${detail}
       <ul class="summary-list">${hi}${lo}</ul>
     </div>`;
   };
   main.innerHTML = intro + weeks.map(card).join('')
     + (weeks.length >= 12 ? `<div class="card"><div class="summary-empty">Showing the last 12 weeks · older detail lives on the History &amp; Trends pages.</div></div>` : '');
+  // feat 313 — tap a grade badge to reveal/hide its breakdown
+  main.querySelectorAll('.summary-grade[data-grade-toggle]').forEach(b => {
+    const toggle = () => { const d = b.closest('.summary-week').querySelector('.summary-grade-detail'); if (d) { d.hidden = !d.hidden; b.classList.toggle('open', !d.hidden); } };
+    b.addEventListener('click', toggle);
+    b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  });
 }
 
 /* ============================================================
@@ -10368,6 +10497,52 @@ const _MEGA_LABEL = { push:'Push', pull:'Pull', lower:'Lower Body', core:'Core',
 function _megaHue(m) { return _MEGA_HUE[(m || 'other').toLowerCase()] || _MEGA_HUE.other; }
 function _megaLabel(m) { const k = (m || 'other').toLowerCase(); return _MEGA_LABEL[k] || (typeof BP_LABELS !== 'undefined' && BP_LABELS[k]) || (k.charAt(0).toUpperCase() + k.slice(1)); }
 let _constFilter = null; // active mega filter (null = all)
+let _constView = null;   // feat 307 — current square SVG viewBox {x,y,w,h} for pan/zoom
+// feat 307 — keep a square viewBox inside the content bounds.
+function _clampConstView(v, W, H) {
+  v.w = Math.max(140, Math.min(W, v.w)); v.h = v.w;
+  v.x = Math.max(0, Math.min(W - v.w, v.x));
+  v.y = Math.max(0, Math.min(H - v.h, v.y));
+  return v;
+}
+// feat 307 — a square viewBox that frames a subset of nodes (with padding) — used to zoom onto a filtered mega.
+function _constBBoxView(nodes, W, H) {
+  if (!nodes || !nodes.length) return { x: 0, y: 0, w: W, h: H };
+  let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+  nodes.forEach(n => { if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x; if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y; });
+  const padX = (maxX - minX) * 0.18 + 50, padY = (maxY - minY) * 0.18 + 50;
+  minX -= padX; maxX += padX; minY -= padY; maxY += padY;
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  // centered square ≥ the padded rect (so it fully frames the subset), capped at the canvas; position NOT
+  // clamped here — a slight margin beyond the edge is fine, and pan clamps separately.
+  const side = Math.min(W, Math.max(maxX - minX, maxY - minY, 200));
+  return { x: cx - side / 2, y: cy - side / 2, w: side, h: side };
+}
+// feat 307 — pan (drag / one-finger) + zoom (wheel / pinch) by mutating the live SVG viewBox.
+function _attachConstPanZoom(svg, W, H) {
+  if (!svg || !_constView) return;
+  const pts = new Map(); let pinch = null;
+  const setVB = () => svg.setAttribute('viewBox', `${_constView.x} ${_constView.y} ${_constView.w} ${_constView.h}`);
+  const anchorZoom = (cx, cy, side) => {
+    const r = svg.getBoundingClientRect(); if (!r.width) return;
+    const px = _constView.x + (cx - r.left) / r.width * _constView.w;
+    const py = _constView.y + (cy - r.top) / r.height * _constView.h;
+    side = Math.max(140, Math.min(W, side));
+    _constView.x = px - (cx - r.left) / r.width * side;
+    _constView.y = py - (cy - r.top) / r.height * side;
+    _constView.w = side; _constView.h = side; _clampConstView(_constView, W, H); setVB();
+  };
+  svg.addEventListener('wheel', e => { e.preventDefault(); anchorZoom(e.clientX, e.clientY, _constView.w * (e.deltaY < 0 ? 0.85 : 1 / 0.85)); }, { passive: false });
+  svg.addEventListener('pointerdown', e => { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, w: _constView.w }; } });
+  svg.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    const prev = pts.get(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size >= 2 && pinch) { const [a, b] = [...pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y) || 1; anchorZoom((a.x + b.x) / 2, (a.y + b.y) / 2, pinch.w * (pinch.d / d)); }
+    else if (pts.size === 1) { const r = svg.getBoundingClientRect(); if (!r.width) return; _constView.x -= (e.clientX - prev.x) / r.width * _constView.w; _constView.y -= (e.clientY - prev.y) / r.height * _constView.h; _clampConstView(_constView, W, H); setVB(); }
+  });
+  const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
+  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up); svg.addEventListener('pointerleave', up);
+}
 // One pass over the log → per-variation { sessions, lastMs, best e1RM } for prowess brightness.
 function buildProwessMap() {
   const m = new Map();
@@ -10428,11 +10603,42 @@ function constellationNodes() {
   });
   return { W, H, cx, cy, nodes, megas };
 }
+// feat 308 — exploration stats for the constellation core: how many distinct variations the user has logged
+// at least once, out of the total, plus the rate at which new ones are being explored (recent + lifetime pace).
+function constellationStats() {
+  const now = Date.now(), day = 86400000;
+  const first = new Map(); // varUuid → earliest session ms it was logged
+  (state.sessions || []).forEach(s => {
+    const t = new Date(s.date).getTime(); if (!(t > 0) || t > now) return;
+    (s.exercises || []).forEach(ex => {
+      if (ex.cardio || !ex.sets || !ex.sets.length) return;
+      const cur = first.get(ex.varUuid); if (cur == null || t < cur) first.set(ex.varUuid, t);
+    });
+  });
+  let total = 0; FAMILIES.forEach(f => (f.variations || []).forEach(v => { if (typeof varVisibleInPicker !== 'function' || varVisibleInPicker(f, v)) total++; }));
+  const firsts = []; first.forEach((t, u) => { if (VAR_INDEX.has(u)) firsts.push(t); }); // only count resolvable variations
+  const explored = firsts.length;
+  firsts.sort((a, b) => a - b);
+  const new30 = firsts.filter(t => now - t <= 30 * day).length;
+  const new7 = firsts.filter(t => now - t <= 7 * day).length;
+  let perWeek = 0;
+  if (explored >= 1) { const spanWk = Math.max(1, (now - firsts[0]) / (7 * day)); perWeek = explored / spanWk; }
+  return { explored, total, pct: total ? Math.round(explored / total * 100) : 0, new30, new7, perWeek: Math.round(perWeek * 10) / 10 };
+}
 function renderConstellationPage(main) {
   if (!main) return;
   const data = constellationNodes();
   const { W, H, cx, cy, nodes, megas } = data;
   const trainedCount = nodes.filter(n => n.trained).length;
+  _constView = _constFilter ? _constBBoxView(nodes.filter(n => n.mega === _constFilter), W, H) : { x: 0, y: 0, w: W, h: H }; // feat 307 — zoom onto the filtered mega, else show all
+  const vb = `${(+_constView.x).toFixed(1)} ${(+_constView.y).toFixed(1)} ${(+_constView.w).toFixed(1)} ${(+_constView.h).toFixed(1)}`;
+  const stats = constellationStats(); // feat 308 — exploration count + rate at the core
+  const rateLine = stats.new30 > 0 ? `+${stats.new30} new · 30d` : (stats.explored > 0 ? `~${stats.perWeek}/wk pace` : 'tap a star to begin');
+  const centerHtml = `
+      <circle cx="${cx}" cy="${cy}" r="66" fill="rgba(124,77,255,0.07)" stroke="var(--accent,#b48aff)" stroke-opacity="0.5" stroke-width="1.5"/>
+      <text x="${cx}" y="${cy - 12}" text-anchor="middle" class="cst-core-num">${stats.explored}</text>
+      <text x="${cx}" y="${cy + 10}" text-anchor="middle" class="cst-core-sub">of ${stats.total} explored</text>
+      <text x="${cx}" y="${cy + 32}" text-anchor="middle" class="cst-core-rate">${escapeHtml(rateLine)}</text>`;
   const arms = megas.map(m => {
     const pts = nodes.filter(n => n.mega === m).map(n => `${n.x},${n.y}`).join(' ');
     return pts ? `<polyline points="${pts}" fill="none" stroke="${_megaHue(m)}" stroke-opacity="0.16" stroke-width="1.4"/>` : '';
@@ -10454,19 +10660,20 @@ function renderConstellationPage(main) {
   main.innerHTML = `<div class="card cst-card">
     <div class="cst-head"><div class="card-title" style="margin:0;">✨ Constellation</div><div class="cst-sub">Every movement as a star — fundamentals at the core, the obscure &amp; advanced spiralling out. Brightness = your prowess (<b>${trainedCount}</b>/${nodes.length} lit). Tap a star for details.</div></div>
     <div class="cst-pills">${pills}</div>
-    <div class="cst-stage"><svg viewBox="0 0 ${W} ${H}" class="cst-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Constellation of exercise variations">
+    <div class="cst-stage"><svg viewBox="${vb}" class="cst-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Constellation of exercise variations">
       <defs><radialGradient id="cst-bg" cx="50%" cy="50%" r="60%"><stop offset="0%" stop-color="rgba(124,77,255,0.10)"/><stop offset="100%" stop-color="rgba(0,0,0,0)"/></radialGradient></defs>
       <rect x="0" y="0" width="${W}" height="${H}" fill="url(#cst-bg)"/>
       ${arms}
-      <circle cx="${cx}" cy="${cy}" r="22" fill="none" stroke="var(--accent,#b48aff)" stroke-opacity="0.6" stroke-width="1.5"/>
-      <text x="${cx}" y="${cy + 4}" text-anchor="middle" class="cst-core-lbl">CORE</text>
       ${circles}
+      ${centerHtml}
       ${megaLabels}
     </svg></div>
+    <div class="cst-hint">Drag to pan · scroll or pinch to zoom · pick a category to zoom in · tap a star for details</div>
     <div class="cst-legend">${megas.map(m => `<span class="cst-leg"><i style="background:${_megaHue(m)}"></i>${escapeHtml(_megaLabel(m))}</span>`).join('')}<span class="cst-leg cst-leg-bright">◐ brighter = stronger / more trained</span></div>
   </div>`;
   main.querySelectorAll('[data-cst-mega]').forEach(b => b.addEventListener('click', () => { _constFilter = b.dataset.cstMega === 'all' ? null : b.dataset.cstMega; renderConstellationPage(main); }));
   main.querySelectorAll('.cst-node').forEach(c => c.addEventListener('click', () => _constellationPopup(c.getAttribute('data-uuid'))));
+  _attachConstPanZoom(main.querySelector('.cst-svg'), W, H); // feat 307 — pan/zoom on the live viewBox
 }
 // Info popup for a tapped star: title, family, mega, importance/difficulty badges, prowess, + a reference link.
 function _constellationPopup(uuid) {
@@ -10674,6 +10881,18 @@ function renderMenu(main, ids) {
   main.innerHTML = `<div class="nav-menu">${(ids || []).map(id => { const d = PAGES[id]; if (!d) return ''; const n = (typeof _navUnreadCount === 'function') ? _navUnreadCount(id) : 0; const badge = n > 0 ? `<span class="nav-menu-badge" data-study-badge="${id}">${n}</span>` : ''; return `<button class="nav-menu-item" data-nav="${id}"><span class="nav-menu-emoji">${d.emoji}</span><span class="nav-menu-title">${escapeHtml(d.title)}</span>${badge}<span class="nav-menu-chev">›</span></button>`; }).join('')}</div>`;
   main.querySelectorAll('[data-nav]').forEach(b => b.addEventListener('click', () => navTo(b.dataset.nav)));
 }
+// feat 309 — an optional pill bar to hop between the Reflect pages, shown ONLY on Reflect leaves.
+function reflectPillsEnabled() { return state.reflectPills !== false; }
+function _injectReflectPills(main, cur) {
+  if (!main) return;
+  const kids = (PAGES.reflect && PAGES.reflect.children) || [];
+  if (!kids.length) return;
+  const bar = document.createElement('div');
+  bar.className = 'reflect-pills';
+  bar.innerHTML = kids.map(id => { const d = PAGES[id]; if (!d) return ''; return `<button class="reflect-pill ${id === cur ? 'active' : ''}" data-reflect-go="${escapeAttr(id)}">${d.emoji || ''} ${escapeHtml(d.title || id)}</button>`; }).join('');
+  main.insertBefore(bar, main.firstChild);
+  bar.querySelectorAll('[data-reflect-go]').forEach(b => b.addEventListener('click', () => navTo(b.dataset.reflectGo)));
+}
 function renderCurrentPage() {
   document.body.classList.toggle('readonly', isReadonly()); // feat 62
   applyBranding(); // feat 170
@@ -10689,6 +10908,7 @@ function renderCurrentPage() {
   if (def.kind === 'menu') renderMenu(main, def.children);
   else if (def.render) def.render(main);
   else if (def.open) { main.innerHTML = ''; def.open(); }
+  if (def.kind === 'leaf' && def.parent === 'reflect' && reflectPillsEnabled()) _injectReflectPills(main, currentPage); // feat 309
   const _exp = document.getElementById('trk-export-pdf'); // feat 133 — only the data-review views are exportable
   const _expShown = (currentPage === 'history' || currentPage === 'volume' || currentPage === 'trends');
   if (_exp) _exp.style.display = _expShown ? '' : 'none';
@@ -11070,7 +11290,31 @@ function cloneSeedPlan(sp) {
 }
 function cloneSeedPlans() { return SEED_PLANS.map(cloneSeedPlan); }
 function getPlan(id) { return (state.plans || []).find(p => p.id === id) || null; }
-function getActivePlan() { const s = getActiveSession(); return (s && s.planId) ? getPlan(s.planId) : null; }
+// feat 311 — optional warm-up / cool-down step blocks, prepended/appended to a plan at workout start. They're
+// real movement steps (so the picker/HUD/tracking work), tagged `bookend` so they don't gate plan completion.
+const WARMUP_BLOCK = [
+  _pstep(1, [_mvOpt('mobility-warmup')], 'Warm-up — 5 min of light cardio / dynamic mobility to raise the heart rate.', 'light'),
+  _pstep(1, [_mvOpt('mobility-warmup'), _mvOpt('iso-poses')], 'A few activation / dynamic-stretch moves for what you’re about to train.', 'light'),
+];
+const COOLDOWN_BLOCK = [
+  _pstep(2, [_mvOpt('abs-dynamic'), _mvOpt('core-stability')], 'Finisher — a couple of hard core sets while you’re still warm.', 'light'),
+  _pstep(1, [_mvOpt('static-stretch')], 'Cool-down — easy static stretching for the muscles you trained.', 'light'),
+];
+function planBookendDefaults() { const pd = state.planDefaults || {}; return { warmup: !!pd.warmup, cooldown: !!pd.cooldown }; }
+function _withBookends(plan, b) {
+  if (!b || (!b.warmup && !b.cooldown)) return plan;
+  const steps = [];
+  if (b.warmup) WARMUP_BLOCK.forEach(st => steps.push({ ...st, bookend: 'warmup' }));
+  (plan.steps || []).forEach(st => steps.push(st));
+  if (b.cooldown) COOLDOWN_BLOCK.forEach(st => steps.push({ ...st, bookend: 'cooldown' }));
+  return { ...plan, steps, _bookended: true };
+}
+function getActivePlan() {
+  const s = getActiveSession();
+  if (!s || !s.planId) return null;
+  const plan = getPlan(s.planId); if (!plan) return null;
+  return (s.bookends) ? _withBookends(plan, s.bookends) : plan; // feat 311 — augment with this session's warm-up/cool-down
+}
 function planTotalSets(p) { return (p.steps || []).reduce((n, s) => n + (s.sets || 0), 0); }
 // feat 277 — plan "siblings": plans whose steps hold the SAME exercises in the SAME order (ignoring set
 // counts / intensity / load / notes). Signature = per-step sorted exercise ids, in step order.
@@ -11430,13 +11674,15 @@ function planExecutionSummary(session, plan) {
   // feat 144 — `stepsDone` now counts steps that met their min-% threshold (ss.satisfied); `stepsFull`
   // counts steps taken all the way to target. `complete` (the 🎉 banner / popup) fires on min-% satisfied.
   let stepsDone = 0, stepsFull = 0, setsDone = 0, setsTarget = 0, effortHits = 0, effortApplicable = 0;
+  let mainTotal = 0, mainDone = 0; // feat 311 — warm-up/cool-down bookend steps don't gate completion
   (plan.steps || []).forEach(st => {
     const ss = stepStatus(session, st, plan); if (ss.satisfied) stepsDone++; if (ss.done) stepsFull++;
     setsDone += ss.logged; setsTarget += (st.sets || 0);
     const ef = stepEffort(session, st); if (ef.applicable) { effortApplicable++; if (ef.hit) effortHits++; }
+    if (!st.bookend) { mainTotal++; if (ss.satisfied) mainDone++; }
   });
   const total = (plan.steps || []).length;
-  return { stepsDone, stepsFull, stepsTotal: total, setsDone, setsTarget, effortHits, effortApplicable, complete: stepsDone >= total && total > 0 };
+  return { stepsDone, stepsFull, stepsTotal: total, setsDone, setsTarget, effortHits, effortApplicable, complete: mainDone >= mainTotal && mainTotal > 0 };
 }
 function _execSets(s) { return (s.exercises || []).reduce((c, e) => c + (e.sets || []).length, 0); }
 function _execScore(s) { return (s.finalScore && typeof s.finalScore.points === 'number') ? s.finalScore.points : -1; }
@@ -11670,10 +11916,12 @@ function recentMegaLoad(days) {
   });
   return mega;
 }
-// 0..1 — 1.0 when the plan exactly fills the budget; gentle penalty for finishing early, steeper for overrunning.
+// 0..1 — 1.0 when the plan exactly fills the budget; steeper penalty for finishing early, then for overrunning.
+// feat 314 — under budget now scales ~proportionally to time used (a half-length plan ≈0.5), so a short plan no
+// longer wins a long window — the recommender tries to USE as much of the available time as possible.
 function planTimeScore(plan, minutes) {
   const est = estimatePlanMinutes(plan), ratio = est / Math.max(5, minutes);
-  if (ratio <= 1) return 0.55 + 0.45 * ratio;          // fits — fuller use of the time scores higher
+  if (ratio <= 1) return ratio;                        // reward fuller use of the time (45 min of a 180 min window ≈ 0.25)
   return Math.max(0, 1 - (ratio - 1));                 // over budget — 1.0 just over → 0 at 2× the budget
 }
 // 0..1 — weighted by the plan's own mega mix; a mega you've recently saturated (~12+ sets) contributes ~0.
@@ -12518,7 +12766,9 @@ function planUseForWorkout(id) {
   if (!s) { startWorkout(); s = getActiveSession(); }   // start a workout if not already in one
   if (!s) return;
   s.planId = id; const _pl = getPlan(id); s.planRev = _pl ? (ensurePlanRevisioned(_pl), _pl.rev || 1) : 1; // feat 162 — record which revision this execution ran
-  saveState(); navTo('workout'); toast('Using plan for this workout'); // feat 184 — picking a plan takes you to the Workout page
+  const bk = planBookendDefaults(); s.bookends = (bk.warmup || bk.cooldown) ? bk : undefined; // feat 311 — optional warm-up / cool-down for this execution
+  saveState(); navTo('workout');
+  toast('Using plan for this workout' + (s.bookends ? ' (+' + [bk.warmup && 'warm-up', bk.cooldown && 'cool-down'].filter(Boolean).join(' & ') + ')' : '')); // feat 184 / 311
 }
 function renderPlansOverlay() {
   const body = (currentPage === 'plan-creator') ? document.getElementById('trk-main') : null; // feat 184 — only renders while on the plan-creator page
@@ -19936,7 +20186,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 262 · 2026-06-21 07:48';
+const APP_BUILD = 'build 269 · 2026-06-22 20:19';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
