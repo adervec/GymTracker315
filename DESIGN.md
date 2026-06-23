@@ -1457,6 +1457,17 @@ They share variation **UUIDs**.
   hub** toggle + "Write hub now", and to workout-end (`coworkOnWorkoutEnd`). `test/coworkexport.spec.mjs` (payload keys
   + vocab of real ids; INSTRUCTIONS document the envelope/inbox/schema per channel; context shapes; options round-trip;
   faceted injury list). Phase 2 adds inbox polling + Garmin/Strava import.
+- **Claude Cowork hub — Phase 2 poll + import (feat 317):** the desktop app now polls each channel's `inbox/`,
+  imports unconsumed files (idempotency ledger by content hash), and moves them to `processed/`. `coworkPollAll`
+  (desktop-only, `_coworkPolling` re-entry guard) routes by envelope kind via `coworkApplyImport`: **garmin-output**
+  → `coworkImportGarmin` (reuses `importBiometrics` → bodyComp merged by day + sleep matched to that day's workout);
+  **strava-output** → `coworkImportStrava` (reuses `importStravaActivities`, then `coworkAutoLinkStrava` links the
+  confidently-overlapping proposals ≤90 min and backfills HR/calories/duration — **logged sets/reps stay master**).
+  Imports run under `_coworkImporting` then `saveState()` (which already triggers the cloud push, so the phone
+  updates). Boot starts a `pollMinutes` interval (`coworkStartPolling`) + an immediate sweep, and tab-focus polls
+  (debounced 30 s). `test/coworkimport.spec.mjs` (kind routing + graceful degrade; Garmin merges weight & matches
+  sleep; Strava auto-links + backfills HR; the ≤90-min confidence window excludes a far-apart activity). Phase 3
+  adds orphan-Strava→cardio insertion.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
