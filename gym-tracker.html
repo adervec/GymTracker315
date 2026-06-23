@@ -20658,6 +20658,24 @@ function revealLastSetRow() {
   });
 }
 
+// feat 335 — a coach note for the save-sets confirm popup: how confirming will move this variation's e1RM trend.
+// Compares the best set being saved against the trend it's coming into (feat 332). Empty for non-e1RM sets
+// (time/bodyweight/cardio score 0). Phrased for a text dialog.
+function saveSetsTrendComment(varUuid, validSets) {
+  const inc = Math.round((validSets || []).reduce((m, s) => Math.max(m, estimated1RMSet(s)), 0));
+  if (!(inc > 0)) return '';
+  const t = variationTrend(varUuid); // the trend coming in (pending sets aren't saved yet, so they're excluded)
+  if (!t) return `📈 First tracked e1RM here (~${inc} ${state.unit}) — this sets your baseline.`;
+  if (inc > t.best) {
+    const pct = t.best > 0 ? Math.round((inc - t.best) / t.best * 100) : 0;
+    return `📈 Best set ~${inc} ${state.unit} e1RM — a new high${pct > 0 ? `, ${pct}% over your previous best` : ''}. Confirming pushes your trend up.`;
+  }
+  if (inc >= t.latest) {
+    return `📈 Best set ~${inc} ${state.unit} e1RM — in line with your recent best (${t.best}); keeps the trend ${t.dir === 'up' ? 'climbing' : 'steady'}.`;
+  }
+  const downPct = t.latest > 0 ? Math.round((t.latest - inc) / t.latest * 100) : 0;
+  return `📉 Best set ~${inc} ${state.unit} e1RM — ${downPct}% below your last (${t.latest}); this may nudge the trend down.`;
+}
 function saveSets(endingWorkout) {
   // feat 86 — returns a Promise<boolean> (themed confirm replaces native confirm()).
   // feat 114 — endingWorkout=true skips the post-save picker routing (the caller is ending the workout).
@@ -20748,6 +20766,8 @@ function saveSets(endingWorkout) {
       const setLines = validSets.map((s, i) => `  Set ${i+1}: ${s.w}${state.unit} × ${s.r} reps`).join('\n');
       msg = `Save ${validSets.length} set${validSets.length === 1 ? '' : 's'} for ${exName}?\n\n${setLines}`;
     }
+    const trendNote = saveSetsTrendComment(pending.varUuid, validSets); // feat 335 — coach's trend-impact note
+    if (trendNote) msg += `\n\n${trendNote}`;
     return confirmDialog(msg, { title, okLabel: 'Save', danger }).then(ok => ok ? commit() : false);
   }
   return Promise.resolve(commit());
@@ -20897,7 +20917,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 294 · 2026-06-23 10:51';
+const APP_BUILD = 'build 295 · 2026-06-23 11:15';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

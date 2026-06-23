@@ -1625,6 +1625,15 @@ They share variation **UUIDs**.
   reference variation lookup already done for the full tip; the global `.position-*` styles apply unchanged.
   `test/tipposition.spec.mjs` (full tip has the collapsed table above general setup, with its own uid + real Body rows;
   concise mode omits it).
+- **Save-sets popup previews the trend impact (feat 335):** the confirm popup that appears before saving sets (when
+  `alwaysConfirm` is on, or a weight is over the limit) now ends with a coach line on how confirming will move this
+  variation's e1RM trend. `saveSetsTrendComment(varUuid, validSets)` takes the best set being saved (max
+  `estimated1RMSet`) and compares it to the trend it's coming into (feat-332 `variationTrend`, which excludes the
+  still-pending sets): a new high → "📈 …a new high, N% over your previous best. Confirming pushes your trend up.";
+  at/above the latest → "…keeps the trend climbing/steady."; below the last → "📉 …N% below your last; this may nudge the
+  trend down."; no prior history → "…sets your baseline." Non-e1RM sets (time/bodyweight/cardio score 0) get no line.
+  Appended to the existing message for both the normal and over-limit variants; the hold-to-skip-confirm path is
+  unaffected. `test/savetrend.spec.mjs` (PR/dip/baseline/none phrasing; the popup message carries the note).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
