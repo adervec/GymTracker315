@@ -4374,13 +4374,13 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysCon
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions'];
 
 // Apply imported data to state, respecting merge vs overwrite semantics.
 // overwrite: replace everything (sessions + settings) with the file.
 // merge:     sessions are merged by date; settings from the file are ignored.
 // feat 95 — session identity + delete tombstones, for robust cross-device last-write-wins sync.
-function newSession(extra) { const now = new Date().toISOString(); return { id: newUuid(), date: now, updatedAt: now, exercises: [], ...(extra || {}) }; }
+function newSession(extra) { const now = new Date().toISOString(); return { id: newUuid(), date: now, updatedAt: now, origin: (typeof state !== 'undefined' && state && state.deviceId) || null, exercises: [], ...(extra || {}) }; } // feat 315 — origin = this device, for the cowork re-export loop guard
 function touchSession(s) { if (s) s.updatedAt = new Date().toISOString(); return s; }
 // Legacy (id-less) sessions key by date so two devices migrating the same session don't fork into duplicates.
 function sessionKey(s) { return s && (s.id || ('d:' + s.date)); }
@@ -4531,6 +4531,52 @@ let pending = {
 
 // Ensure nested config objects exist & merge defaults for forward-compat with
 // state saved by older versions of the app.
+// feat 315 — Claude Cowork hub: a versioned exchange protocol, an idempotency ledger, and the loop-guard detector.
+const COWORK_PROTOCOL = 'gymtracker-cowork';
+const COWORK_PROTOCOL_VERSION = 1;
+// Small synchronous content hash (djb2) — skip re-importing / re-exporting identical content. No async/crypto.
+function coworkHashText(text) {
+  let h = 5381; const s = String(text == null ? '' : text);
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+// Wrap a payload in the versioned envelope the cowork agent reads/writes.
+function buildCoworkEnvelope(kind, payload) {
+  return { protocol: COWORK_PROTOCOL, protocolVersion: COWORK_PROTOCOL_VERSION, kind: kind,
+    generatedAt: new Date().toISOString(), appBuild: (typeof APP_BUILD !== 'undefined' ? APP_BUILD : null),
+    payload: (payload == null ? {} : payload) };
+}
+// Validate + unwrap an envelope from disk. Tolerant: rejects (never throws) on bad/foreign/newer-than-known files.
+function parseCoworkEnvelope(text) {
+  let o; try { o = JSON.parse(text); } catch (_) { return { ok: false, reason: 'not JSON' }; }
+  if (!o || o.protocol !== COWORK_PROTOCOL) return { ok: false, reason: 'wrong protocol' };
+  if ((o.protocolVersion | 0) > COWORK_PROTOCOL_VERSION) return { ok: false, reason: 'newer protocol version ' + o.protocolVersion };
+  if (!o.kind) return { ok: false, reason: 'missing kind' };
+  return { ok: true, kind: o.kind, payload: o.payload || {}, generatedAt: o.generatedAt || null, protocolVersion: o.protocolVersion | 0 };
+}
+// Idempotency ledger (device-local): has this channel already consumed this exact content?
+function coworkLedgerHas(channel, hash) {
+  const led = (state.coworkLocal && state.coworkLocal.processed) || {};
+  return !!(led[channel] && led[channel][hash]);
+}
+function coworkLedgerAdd(channel, hash, meta) {
+  if (!state.coworkLocal) state.coworkLocal = { processed: {} };
+  if (!state.coworkLocal.processed) state.coworkLocal.processed = {};
+  const led = state.coworkLocal.processed;
+  if (!led[channel]) led[channel] = {};
+  led[channel][hash] = { at: new Date().toISOString(), ...(meta || {}) };
+  const keys = Object.keys(led[channel]); // prune to the most-recent ~200 per channel
+  if (keys.length > 200) {
+    keys.sort((a, b) => (led[channel][a].at || '').localeCompare(led[channel][b].at || ''));
+    keys.slice(0, keys.length - 200).forEach(k => delete led[channel][k]);
+  }
+}
+// THE loop guard (feat 315): after a cloud pull, re-export to the folder ONLY for a genuinely-new, finished
+// workout from ANOTHER device (the phone). Own-device or still-open sessions never trigger a re-export.
+function coworkNewWorkoutSince(prevKeys, sessions, deviceId) {
+  const prev = (prevKeys instanceof Set) ? prevKeys : new Set(prevKeys || []);
+  return (sessions || []).some(s => s && s.endedAt && (s.origin && s.origin !== deviceId) && !prev.has(sessionKey(s)));
+}
 function normalizeState() {
   const d = {
     profile: { name:'', dob:'', heightCm:null, gender:'' },
@@ -4543,7 +4589,10 @@ function normalizeState() {
     aiExport: { enabled:false, onWorkoutEnd:true, daily:true, scope:'last30', filename:'gymtracker-brief.md', lastWriteDay:null, lastWriteAt:null }, // feat 272 — per-device AI-ready digest auto-export to a folder
     planDefaults: { minPct:1 }, // feat 144 — default min % of a step's sets that counts the step as "done" (overridable per plan / per step)
     historyFilter: { range:'all', bp:'', family:'', varKey:'', q:'' }, // feat 102 — device-local view filter
-    cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{}, syncOnEnd:true }, // feat 124 — DEVICE-LOCAL (not synced); feat 272 — guaranteed push on workout end
+    cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{}, syncOnEnd:true, periodicMinutes:30 }, // feat 124 — DEVICE-LOCAL (not synced); feat 272 — guaranteed push on workout end; feat 315 — periodic desktop sync
+    cowork: { enabled:false, pollMinutes:5, minExportGapSec:120, podKeepDays:7, cardioFatigue:false }, // feat 315 — Claude Cowork hub (synced settings)
+    coworkLocal: { processed:{}, lastExportHash:null, lastExportAt:null, lastPollAt:null }, // feat 315 — DEVICE-LOCAL (not in SETTINGS_KEYS): processed-file ledger + export de-dup
+    podOptions: { notes:'', injuries:[], gyms:[], equipment:[], availableMinutes:60, targetMode:'recovered', targetGroups:[], fitnessFocus:'balance' }, // feat 315 — Plan-of-the-Day options (synced)
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   // feat 197 — the old 5-min abandon default proved ~3x too quick; migrate stored old-default values to 15.
@@ -4580,6 +4629,18 @@ function normalizeState() {
   if (!state.coachVoices || typeof state.coachVoices !== 'object') state.coachVoices = {}; // feat 297 — per-persona TTS voice (id → 'auto'|'system'|voiceURI)
   if (['off', 'random', 'vibe'].indexOf(state.coachAuto) === -1) state.coachAuto = 'off'; // feat 303 — auto-pick coach per workout
   if (typeof state.reflectPills !== 'boolean') state.reflectPills = true; // feat 309 — Reflect quick-nav pills (on by default)
+  // feat 315 — Claude Cowork hub: a stable per-device id (NOT synced — each device keeps its own), + bounds.
+  if (typeof state.deviceId !== 'string' || !state.deviceId) state.deviceId = newUuid();
+  state.cowork.pollMinutes = Math.max(1, Math.min(60, state.cowork.pollMinutes | 0 || 5));
+  state.cowork.minExportGapSec = Math.max(15, Math.min(3600, state.cowork.minExportGapSec | 0 || 120));
+  state.cowork.podKeepDays = Math.max(1, Math.min(60, state.cowork.podKeepDays | 0 || 7));
+  state.cowork.cardioFatigue = !!state.cowork.cardioFatigue;
+  if (!state.coworkLocal.processed || typeof state.coworkLocal.processed !== 'object') state.coworkLocal.processed = {};
+  if (!Array.isArray(state.podOptions.injuries)) state.podOptions.injuries = [];
+  if (!Array.isArray(state.podOptions.targetGroups)) state.podOptions.targetGroups = [];
+  state.podOptions.availableMinutes = Math.max(20, Math.min(180, state.podOptions.availableMinutes | 0 || 60));
+  if (['groups','recovered','rehab'].indexOf(state.podOptions.targetMode) === -1) state.podOptions.targetMode = 'recovered';
+  if (!(state.cloudSync.periodicMinutes >= 5)) state.cloudSync.periodicMinutes = 30;
   if (state.ttsVoice && state.ttsVoice !== 'auto' && state.ttsVoice !== 'system' && !state.coachVoices[state.coachPersona]) { state.coachVoices[state.coachPersona] = state.ttsVoice; state.ttsVoice = 'auto'; } // migrate a legacy explicit voiceURI to the active coach
   if (typeof state.audioHeadphonesOnly !== 'boolean') state.audioHeadphonesOnly = true; // feat 105 — default on
   // feat 144 — default minimum completion % (0..100). 1% means "even 1 set counts the step as done".
@@ -20186,7 +20247,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 269 · 2026-06-22 20:19';
+const APP_BUILD = 'build 272 · 2026-06-22 22:25';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

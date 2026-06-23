@@ -1432,6 +1432,19 @@ They share variation **UUIDs**.
   **fills** the available time; over-budget still falls off (1.0 just over → 0 at 2×). `test/quickpicktime.spec.mjs`
   (fuller-use plan outscores a quarter-budget one; recommendPlans picks a longer plan for a 180-min window than a 45-min
   one). All existing `quickpick` / `plancoverage` ordering tests still pass (fits-over-overrun, the 30/120/180 cases).
+- **Claude Cowork hub — Phase 0 foundations (feat 315):** groundwork for a two-way desktop folder where a Claude
+  "cowork" agent reconciles Garmin/Strava and generates a Plan of the Day (later phases). State: `state.cowork`
+  (synced settings: pollMinutes/minExportGapSec/podKeepDays/cardioFatigue), `state.coworkLocal` (device-local: the
+  processed-file ledger + export de-dup, NOT in SETTINGS_KEYS), `state.podOptions` (synced), `state.deviceId` (a
+  stable per-device id, NOT synced), and `cloudSync.periodicMinutes` (default 30). Every workout now carries
+  `session.origin = deviceId`. Pure helpers: a versioned exchange envelope (`buildCoworkEnvelope`/`parseCoworkEnvelope`,
+  `protocol gymtracker-cowork v1` — tolerantly rejects bad/foreign/newer files), a sync content hash (`coworkHashText`,
+  djb2), an idempotency ledger (`coworkLedgerHas`/`coworkLedgerAdd`, per-channel, pruned to 200), and the loop guard
+  `coworkNewWorkoutSince(prevKeys, sessions, deviceId)` — true only for a newly-arrived, **ended**, **foreign-origin**
+  workout (so the export→import→cloud→pull→re-export cycle can't run away). `test/cowork.spec.mjs` (envelope
+  round-trip/reject, hash stability, ledger record+prune, origin stamping, the loop-guard truth table, and that
+  merge+normalize never strip `origin`/`stravaId`/`source:'daily'`). Phases 1–5 build the folder I/O, importers,
+  orphan-cardio, Plan of the Day, and periodic-sync on top.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
