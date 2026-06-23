@@ -1540,6 +1540,14 @@ They share variation **UUIDs**.
   gates the pending "Continue / Resume" states on `getActiveSession()`; with no active session it stays the plain
   "+ Log Set" (the pending data is untouched — reopening the sheet still restores it). `test/fab.spec.mjs` (no session
   + pending → "+ Log Set", no exercise name; active session + pending → the Continue prompt).
+- **Body-composition trends (feat 326):** a **📈 Body trends** section on the Body page charts each metric over time.
+  `bodyCompSeries(field)` builds an ascending, non-null `[{t,val}]` series from the log; `_bodyTrendSvg` draws a compact
+  area+line sparkline (non-scaling stroke); `renderBodyTrends` renders a card per metric with the **start→latest delta**
+  (and span / point count) — Weight · Body fat · Muscle mass · Body water as primary cards, plus the tape measurements
+  in a collapsible. Delta colouring is honest: body fat / waist / hips are "lower is better" (green on a drop), muscle
+  is "more is better", and weight / water / other girths are neutral (no value judgment). Shown only with ≥2 data
+  points. `test/bodytrends.spec.mjs` (series ascending + skips null days; chart+delta per metric, empty below 2 points;
+  the Body page renders the section).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
