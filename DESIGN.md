@@ -1425,6 +1425,13 @@ They share variation **UUIDs**.
   note (e.g. "volume +18% vs last week", "3/4 planned sessions hit"), then the **Total → grade** line. Hidden by default
   (it's an option), toggled per week. `test/weekgrade.spec.mjs` extended (breakdown itemises the four ingredients summing
   to ≤100 and matching the grade; weekSummary carries gradeParts; tapping the badge reveals the 4-row breakdown + total).
+- **Quick-pick uses the whole time window (feat 314):** the recommender's time-fit score (`planTimeScore`, the
+  dominant 0.65-weighted term) previously gave an under-budget plan a gentle penalty (`0.55 + 0.45·ratio`), so a 45-min
+  plan still scored ~0.66 in a 3-hour window and could win. It now scales **proportionally** to the budget used
+  (`ratio` for ratio≤1 → a half-length plan ≈0.5, a quarter ≈0.25), so the recommender prefers the plan that best
+  **fills** the available time; over-budget still falls off (1.0 just over → 0 at 2×). `test/quickpicktime.spec.mjs`
+  (fuller-use plan outscores a quarter-budget one; recommendPlans picks a longer plan for a 180-min window than a 45-min
+  one). All existing `quickpick` / `plancoverage` ordering tests still pass (fits-over-overrun, the 30/120/180 cases).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

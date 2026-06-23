@@ -11916,10 +11916,12 @@ function recentMegaLoad(days) {
   });
   return mega;
 }
-// 0..1 — 1.0 when the plan exactly fills the budget; gentle penalty for finishing early, steeper for overrunning.
+// 0..1 — 1.0 when the plan exactly fills the budget; steeper penalty for finishing early, then for overrunning.
+// feat 314 — under budget now scales ~proportionally to time used (a half-length plan ≈0.5), so a short plan no
+// longer wins a long window — the recommender tries to USE as much of the available time as possible.
 function planTimeScore(plan, minutes) {
   const est = estimatePlanMinutes(plan), ratio = est / Math.max(5, minutes);
-  if (ratio <= 1) return 0.55 + 0.45 * ratio;          // fits — fuller use of the time scores higher
+  if (ratio <= 1) return ratio;                        // reward fuller use of the time (45 min of a 180 min window ≈ 0.25)
   return Math.max(0, 1 - (ratio - 1));                 // over budget — 1.0 just over → 0 at 2× the budget
 }
 // 0..1 — weighted by the plan's own mega mix; a mega you've recently saturated (~12+ sets) contributes ~0.
@@ -20184,7 +20186,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 268 · 2026-06-22 20:16';
+const APP_BUILD = 'build 269 · 2026-06-22 20:19';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
