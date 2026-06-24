@@ -1696,6 +1696,16 @@ They share variation **UUIDs**.
   Both added to the calf family (real unique uuids, cues/tips mirroring the Leg Press one). They flow through everywhere
   automatically (VAR_INDEX, picker, reference, constellation). `test/calfmachines.spec.mjs` (both exist in the family,
   resolve via VAR_INDEX, are pickable, the Leg-Press sibling is untouched, and no duplicate uuids).
+- **Comprehensive resistance-band coverage (feat 343):** band exercises were concentrated in two dedicated
+  "Resistance Band Work" catch-all families, so most movement families had no band option of their own. Added a band
+  variation **directly into each major movement family** that lacked one (20 in total): Band Biceps Curl, Hammer Curl,
+  Reverse Curl, Lateral Raise, Front Raise, Overhead Press, Lat Pulldown, Shrug, Squat, Romanian Deadlift, Banded Leg
+  Extension, Calf Raise, Chest Fly, Overhead Tricep Extension, Band-Resisted Push-Up, Band-Assisted Dip, Woodchopper,
+  Kneeling Crunch, Banded Lunge, Standing Kickback — each in its proper family (bicep-curl, squat, lat-pulldown, …) with
+  a real unique uuid, cue, tip and "best" tag, so a band option now surfaces when you pick/filter that movement (and on
+  the constellation's Equipment filter). Inserted via a guarded bracket-matching script (find family → match its
+  `variations` array → splice in). `test/bandcoverage.spec.mjs` (each lands in the right family with the right title;
+  all resolve via VAR_INDEX + are pickable; no duplicate uuids; a representative one is fully formed).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
