@@ -18213,13 +18213,20 @@ async function renderWorkoutTimelapseGif(session, opts) {
 }
 
 // Whether a real-time WebM recording of the timelapse is possible here (desktop Chromium yes; iOS Safari no).
+// MediaRecorder mime candidates, MP4/H.264 FIRST (Strava accepts MP4, not WebM), then WebM as a fallback.
+const TIMELAPSE_VIDEO_MIMES = ['video/mp4;codecs=avc1.640029,mp4a.40.2', 'video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=h264', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+function timelapseVideoMime() {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') return null;
+  return TIMELAPSE_VIDEO_MIMES.find(m => MediaRecorder.isTypeSupported(m)) || null;
+}
+function timelapseVideoExt(mime) { return (mime && mime.indexOf('mp4') >= 0) ? 'mp4' : 'webm'; }
 function timelapseVideoSupported() {
   return typeof window !== 'undefined' && typeof MediaRecorder !== 'undefined' && typeof HTMLCanvasElement !== 'undefined'
-    && !!HTMLCanvasElement.prototype.captureStream && typeof MediaRecorder.isTypeSupported === 'function'
-    && (MediaRecorder.isTypeSupported('video/webm;codecs=vp9') || MediaRecorder.isTypeSupported('video/webm;codecs=vp8') || MediaRecorder.isTypeSupported('video/webm'));
+    && !!HTMLCanvasElement.prototype.captureStream && !!timelapseVideoMime();
 }
-// Render the timelapse to a WebM Blob via a manual-frame captureStream + MediaRecorder (real-time playback;
-// each frame is held its own delay, so the file's timing matches the GIF). Returns null where unsupported.
+// Render the timelapse to an MP4 (preferred — Strava-friendly) or WebM Blob via a manual-frame captureStream +
+// MediaRecorder (real-time playback; each frame is held its own delay, so the file's timing matches the GIF).
+// Returns null where unsupported; read blob.type for the actual container.
 // onProgress(done,total) is optional. Bitrate is scaled to the canvas so the file is "no larger than required".
 async function renderWorkoutTimelapseVideo(session, opts, onProgress) {
   if (!timelapseVideoSupported()) return null;
@@ -18231,7 +18238,7 @@ async function renderWorkoutTimelapseVideo(session, opts, onProgress) {
   const C = readThemeColors();
   let stream; try { stream = canvas.captureStream(0); } catch (_) { return null; }
   const track = stream.getVideoTracks && stream.getVideoTracks()[0]; if (!track) return null;
-  const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+  const mime = timelapseVideoMime() || 'video/webm'; // MP4 (Strava-friendly) when available, else WebM
   const bitrate = Math.min(8000000, Math.max(250000, Math.round(W * H * 15 * 0.15))); // ~0.15 bpp · 15fps, capped
   let rec; try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate }); } catch (_) { return null; }
   const chunks = []; rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
@@ -18375,10 +18382,50 @@ async function renderExportPhaseB(modal, opts, sessions) {
 // feat 346 — timelapse wizard: choose which replay segments to include, the speed (32×/64×), then build.
 // Plan-steps + Heart-rate rows are disabled when the workout has no plan / no recorded HR. Choices persist
 // device-locally in state.timelapse so the next export remembers them.
-// Default replay time for a photo: where its file timestamp lands inside the workout, clamped to [0, span].
-function photoDefaultElapsedMs(lastModifiedMs, startMs, spanMs) {
-  if (!isFinite(lastModifiedMs) || !isFinite(startMs)) return 0;
-  return Math.max(0, Math.min(Math.max(0, spanMs || 0), lastModifiedMs - startMs));
+// Default replay time for a photo: where its capture timestamp lands inside the workout, clamped to [0, span].
+function photoDefaultElapsedMs(captureMs, startMs, spanMs) {
+  if (!isFinite(captureMs) || !isFinite(startMs)) return 0;
+  return Math.max(0, Math.min(Math.max(0, spanMs || 0), captureMs - startMs));
+}
+// EXIF "YYYY:MM:DD HH:MM:SS" (camera local wall-clock) → local epoch ms, or null.
+function exifDateStringToMs(s) {
+  if (typeof s !== 'string') return null;
+  const m = s.trim().match(/^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const y = +m[1], mo = +m[2], d = +m[3], h = +m[4], mi = +m[5], se = +m[6];
+  if (!y || mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const t = new Date(y, mo - 1, d, h, mi, se).getTime();
+  return isFinite(t) ? t : null;
+}
+// Read a JPEG's real capture time (EXIF DateTimeOriginal, else DateTimeDigitized/DateTime) from an ArrayBuffer.
+// Returns local epoch ms or null. This is the fix for photos synced to a service (file mtime = sync time, not capture).
+function parseExifDateTimeMs(buf) {
+  try {
+    const dv = new DataView(buf), len = dv.byteLength;
+    if (len < 4 || dv.getUint16(0) !== 0xFFD8) return null; // not JPEG
+    let off = 2;
+    while (off + 4 <= len) {
+      if (dv.getUint8(off) !== 0xFF) { off++; continue; }
+      const marker = dv.getUint8(off + 1);
+      if (marker === 0xD9 || marker === 0xDA) break; // EOI / start-of-scan
+      const size = dv.getUint16(off + 2); if (size < 2) break;
+      if (marker === 0xE1 && off + 4 + 6 <= len && dv.getUint32(off + 4) === 0x45786966 && dv.getUint16(off + 8) === 0x0000) {
+        const tiff = off + 10;                       // after "Exif\0\0"
+        const le = dv.getUint16(tiff) === 0x4949;    // II = little-endian
+        const u16 = o => dv.getUint16(o, le), u32 = o => dv.getUint32(o, le);
+        if (u16(tiff + 2) !== 0x002A) return null;
+        const readIFD = ifd => { const out = {}; if (ifd + 2 > len) return out; const n = u16(ifd); for (let i = 0; i < n; i++) { const e = ifd + 2 + i * 12; if (e + 12 > len) break; out[u16(e)] = { count: u32(e + 4), valOff: e + 8 }; } return out; };
+        const ascii = en => { const sz = en.count; let p = sz <= 4 ? en.valOff : tiff + u32(en.valOff), s = ''; for (let i = 0; i < sz && p + i < len; i++) { const c = dv.getUint8(p + i); if (!c) break; s += String.fromCharCode(c); } return s; };
+        const ifd0 = readIFD(tiff + u32(tiff + 4));
+        let str = null;
+        if (ifd0[0x8769]) { const ex = readIFD(tiff + u32(ifd0[0x8769].valOff)); if (ex[0x9003]) str = ascii(ex[0x9003]); else if (ex[0x9004]) str = ascii(ex[0x9004]); }
+        if (!str && ifd0[0x0132]) str = ascii(ifd0[0x0132]);
+        return exifDateStringToMs(str);
+      }
+      off += 2 + size;
+    }
+    return null;
+  } catch (_) { return null; }
 }
 function renderTimelapseWizard(modal, opts, session, baseName) {
   const tl = state.timelapse || {};
@@ -18417,7 +18464,7 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
     };
     const picRow = (p, i) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
         <img src="${p.url}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:5px;border:1px solid var(--border2);flex-shrink:0;">
-        <span style="flex:1;min-width:0;font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name || 'photo')}</span>
+        <span style="flex:1;min-width:0;display:flex;flex-direction:column;"><span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name || 'photo')}</span><span style="font-size:9.5px;color:${p.src === 'exif' ? 'var(--good)' : 'var(--warn)'};">${p.src === 'exif' ? '✓ capture time' : '⚠ file time — check'}</span></span>
         <label style="font-size:10.5px;color:var(--text3);">at <input type="number" data-pic-at="${i}" value="${(p.elapsedMs / 1000).toFixed(0)}" min="0" max="${Math.round(spanMs / 1000)}" step="1" style="width:54px;"> s</label>
         <button data-pic-del="${i}" class="export-btn" style="padding:2px 8px;">✕</button>
       </div>`;
@@ -18434,14 +18481,14 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 2px;">
         <span style="font-size:12px;color:var(--text2);font-weight:700;margin-right:2px;">Format</span>
         ${fmtBtns}
-        <span style="font-size:10.5px;color:var(--text3);width:100%;margin-top:2px;">${format === 'video' ? 'WebM video — smaller for long/photo-rich recaps; recording takes about the clip length.' : 'Animated GIF — plays anywhere; higher speed = shorter file.'}</span>
+        <span style="font-size:10.5px;color:var(--text3);width:100%;margin-top:2px;">${format === 'video' ? ((timelapseVideoExt(timelapseVideoMime()) === 'mp4' ? 'MP4 video' : 'WebM video') + ' — smaller for long/photo-rich recaps; recording takes about the clip length.') : 'Animated GIF — plays anywhere; higher speed = shorter file.'}</span>
       </div>
       <div style="margin:10px 0 2px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <span style="font-size:12px;color:var(--text2);font-weight:700;">📷 Photos${pics.length ? ' (' + pics.length + ')' : ''}</span>
           <label style="font-size:10.5px;color:var(--text3);">show each <input type="number" id="tl-photo-secs" value="${photoSecs}" min="0.5" max="10" step="0.5" style="width:50px;"> s</label>
         </div>
-        <div style="font-size:10.5px;color:var(--text3);margin:2px 0 6px;line-height:1.45;">Splice photos taken during the workout into the replay. Each appears at its file time (editable) — workout is ${mmss(spanMs)} long.</div>
+        <div style="font-size:10.5px;color:var(--text3);margin:2px 0 6px;line-height:1.45;">Splice photos into the replay at the moment they were taken — read from each photo's <b>capture time</b> (EXIF) when present, else its file time (editable). Workout is ${mmss(spanMs)} long.</div>
         <div id="tl-pics">${pics.map(picRow).join('')}</div>
         <button class="export-btn" id="tl-add-photos">＋ Add photos</button>
         <input type="file" id="tl-photo-input" accept="image/*" multiple style="display:none;">
@@ -18468,7 +18515,12 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
         const url = URL.createObjectURL(f); const img = new Image();
         try { await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; }); }
         catch (_) { try { URL.revokeObjectURL(url); } catch (_) {} continue; }
-        pics.push({ name: f.name, _img: img, url, elapsedMs: photoDefaultElapsedMs(f.lastModified || startMs, startMs, spanMs) });
+        // Prefer the photo's EXIF capture time — a synced photo's file mtime is the SYNC time, not when it was taken.
+        let captureMs = null;
+        try { captureMs = parseExifDateTimeMs(await f.arrayBuffer()); } catch (_) {}
+        const src = captureMs != null ? 'exif' : 'file';
+        const baseMs = captureMs != null ? captureMs : (f.lastModified || startMs);
+        pics.push({ name: f.name, _img: img, url, src, elapsedMs: photoDefaultElapsedMs(baseMs, startMs, spanMs) });
       }
       draw();
     });
@@ -18484,7 +18536,7 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
         if (format === 'video') {
           btn.textContent = '⏳ Recording…';
           const vid = await renderWorkoutTimelapseVideo(session, { speed, chapters, photos }, (d, t) => { btn.textContent = '⏳ ' + Math.round(d / t * 100) + '%'; });
-          if (vid) { downloadBlob(vid, baseName + '_timelapse.webm'); toast('🎬 Timelapse video exported'); }
+          if (vid) { downloadBlob(vid, baseName + '_timelapse.' + timelapseVideoExt(vid.type)); toast('🎬 Timelapse video exported'); }
           else toast('Video export not available here — try GIF');
         } else {
           btn.textContent = '⏳ Building…';
@@ -21963,7 +22015,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 314 · 2026-06-24 12:50';
+const APP_BUILD = 'build 316 · 2026-06-24 13:33';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

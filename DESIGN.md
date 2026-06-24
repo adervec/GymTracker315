@@ -1787,6 +1787,16 @@ They share variation **UUIDs**.
   are transient to the export. Tests: `test/timelapsemedia.spec.mjs` (tween smoothness, `photoDefaultElapsedMs`,
   photo-frame splicing at the right moment, `medianCut`, a spliced photo surviving into a decodable GIF, best-effort
   WebM export) plus the updated `timelapsegif`/`timelapsewizard` specs (keyframe-per-set + tweens, format + photo UI).
+- **Timelapse video → MP4 + photos use EXIF capture time (feat 352):** two fixes from real use.
+  **(MP4)** Strava rejects WebM, so `renderWorkoutTimelapseVideo` now records **MP4/H.264 first** (`TIMELAPSE_VIDEO_MIMES`
+  tries `video/mp4;codecs=avc1…` ahead of WebM via `MediaRecorder.isTypeSupported`), falling back to WebM only where
+  MP4 isn't available; the download extension follows `blob.type` (`timelapseVideoExt`). **(EXIF)** Photos were
+  defaulting to the workout's end because a photo synced to Google Photos has a file mtime = *sync* time, not capture
+  time. The wizard now reads the real **EXIF DateTimeOriginal** (`parseExifDateTimeMs` walks JPEG APP1→TIFF→Exif IFD,
+  little/big-endian; `exifDateStringToMs` converts the wall-clock string) and uses it for the default position,
+  falling back to file mtime only when there's no EXIF; each photo row shows whether its time came from **✓ capture
+  time** or **⚠ file time** (still editable). Covered in `test/timelapsemedia.spec.mjs`: `exifDateStringToMs` parsing,
+  `parseExifDateTimeMs` against a hand-built JPEG+EXIF buffer, and the MP4-preference + extension mapping.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
