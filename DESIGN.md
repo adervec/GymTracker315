@@ -1770,6 +1770,23 @@ They share variation **UUIDs**.
   the listener on boot when enabled. `test/shakenav.spec.mjs` covers the detector (vigorous fires / gentle doesn't /
   cooldown / window expiry), the support+enabled predicates, that a detected shake opens the sheet only when enabled and
   not already open, and the settings toggle + iOS note.
+- **Smoother replay + video export + photo splicing + title branding (feats 349–351):** three timelapse upgrades.
+  **(349) Smoothness** — instead of one composite per set, `buildWorkoutTimelapse` now keeps a keyframe at each set
+  but inserts **interpolated tween frames** across each gap so the clock, timeline playhead, HR trace and progress
+  bar sweep continuously (per-frame hold ≈ 100/fps cs; the whole run is capped to `maxFrames`, so tweens coarsen for
+  long/slow clips). Discrete panels (spotlight/cumulative/plan/wireframe) hold at the current set via a cache; the
+  global progress bar became time-based (continuous). **(350) GIF or video** — the wizard gains a **format chooser**;
+  `renderWorkoutTimelapseVideo` records a **WebM** via a manual-frame `canvas.captureStream(0)` + `MediaRecorder`
+  (each frame held its own delay → file timing matches the GIF), bitrate scaled to the canvas (~0.15 bpp) so the file
+  is no larger than required — a video is dramatically smaller than the GIF for long/photo-rich recaps. Speeds already
+  span 32×–1024×. Title card now shows **prominent GymTracker branding** (wordmark + accent underline). **(351) Photos**
+  — the wizard can **add photos** (file picker); each defaults to its file-time position in the workout
+  (`photoDefaultElapsedMs`, clamped + editable) and is **spliced full-frame for N seconds at the moment it occurred**
+  (sorted by time). GIF quality for photos comes from a `medianCut` of sampled photo pixels folded into the palette;
+  video draws them directly. Wizard prefs (`format`, `photoSecs`) persist in device-local `state.timelapse`; photos
+  are transient to the export. Tests: `test/timelapsemedia.spec.mjs` (tween smoothness, `photoDefaultElapsedMs`,
+  photo-frame splicing at the right moment, `medianCut`, a spliced photo surviving into a decodable GIF, best-effort
+  WebM export) plus the updated `timelapsegif`/`timelapsewizard` specs (keyframe-per-set + tweens, format + photo UI).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

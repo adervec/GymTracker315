@@ -17,7 +17,7 @@ const twoUuids = (page) => page.evaluate(() => {
   const out = []; for (const [u] of VAR_INDEX) { out.push(u); if (out.length === 2) break; } return out;
 });
 
-test('buildWorkoutTimelapse: title first, final last, one composite per set in time order, 32× delays', async ({ page }) => {
+test('buildWorkoutTimelapse: title first, final last, a keyframe per set + smooth tweens between them', async ({ page }) => {
   const [ua, ub] = await twoUuids(page);
   const r = await page.evaluate(([ua, ub]) => {
     const T = Date.parse('2026-06-20T10:00:00.000Z');
@@ -29,12 +29,15 @@ test('buildWorkoutTimelapse: title first, final last, one composite per set in t
     const p = buildWorkoutTimelapse(session, { speed: 32 });
     const kinds = p.frames.map(f => f.kind);
     const comp = p.frames.filter(f => f.kind === 'composite');
+    const setMap = {}; comp.forEach(f => { if (setMap[f.setNo] == null) setMap[f.setNo] = f.cumVolume; });
+    const setNos = Object.keys(setMap).map(Number).sort((a, b) => a - b);
+    // tweens: progress (time fraction) is non-decreasing across the whole run
+    let mono = true; for (let i = 1; i < comp.length; i++) if (comp[i].progress < comp[i - 1].progress - 1e-9) mono = false;
     return {
       width: p.width, height: p.height, speed: p.speed, synthetic: p.synthetic, totalSets: p.totalSets, panels: p.panels,
       firstKind: kinds[0], lastKind: kinds[kinds.length - 1], compCount: comp.length,
-      setNos: comp.map(f => f.setNo), cumVols: comp.map(f => f.cumVolume),
-      firstGapDelay: comp[0].delayCs, progressLast: comp[comp.length - 1].progress,
-      hasSpotlight: !!comp[0].panels.spotlight, titleVol: p.frames[0].totalVolume,
+      setNos, cumVols: [setMap[1], setMap[2], setMap[3]], progressLast: comp[comp.length - 1].progress,
+      hasSpotlight: !!comp[0].panels.spotlight, titleVol: p.frames[0].totalVolume, mono, frameCount: p.frameCount,
     };
   }, [ua, ub]);
   expect(r.width).toBe(480);   // 1 panel → single-cell canvas
@@ -45,11 +48,11 @@ test('buildWorkoutTimelapse: title first, final last, one composite per set in t
   expect(r.panels).toEqual(['spotlight']);
   expect(r.firstKind).toBe('title');
   expect(r.lastKind).toBe('final');
-  expect(r.compCount).toBe(3);
-  expect(r.setNos).toEqual([1, 2, 3]);
-  expect(r.cumVols).toEqual([500, 1000, 1400]); // 100×5, +100×5, +50×8
-  expect(r.firstGapDelay).toBe(100);            // 32s ÷ 32 = 1.0s
-  expect(r.progressLast).toBeCloseTo(1, 5);
+  expect(r.compCount).toBeGreaterThan(3);       // tweened → many more frames than sets (smooth)
+  expect(r.setNos).toEqual([1, 2, 3]);          // each set still has its own keyframe
+  expect(r.cumVols).toEqual([500, 1000, 1400]); // 100×5, +100×5, +50×8 (at each set keyframe)
+  expect(r.mono).toBe(true);                    // the clock/progress sweeps smoothly, never jumps back
+  expect(r.progressLast).toBeCloseTo(1, 2);
   expect(r.hasSpotlight).toBe(true);
   expect(r.titleVol).toBe(1400);
 });
@@ -62,11 +65,12 @@ test('buildWorkoutTimelapse: untimed sets fall back to an evenly-spread syntheti
       exercises: [{ varUuid: ua, subUuid: null, sets: [ { w: 100, r: 5 }, { w: 100, r: 4 }, { w: 100, r: 3 } ] }] };
     const p = buildWorkoutTimelapse(session);
     const comp = p.frames.filter(f => f.kind === 'composite');
-    return { synthetic: p.synthetic, compCount: comp.length, elapsed: comp.map(f => f.elapsedLabel) };
+    const setNos = [...new Set(comp.map(f => f.setNo))].sort((a, b) => a - b);
+    return { synthetic: p.synthetic, setNos, elapsedFirst: comp[0].elapsedLabel, elapsedLast: comp[comp.length - 1].elapsedLabel };
   }, ua);
   expect(r.synthetic).toBe(true);
-  expect(r.compCount).toBe(3);
-  expect(r.elapsed[0]).not.toBe(r.elapsed[2]);
+  expect(r.setNos).toEqual([1, 2, 3]);
+  expect(r.elapsedFirst).not.toBe(r.elapsedLast);
 });
 
 test('buildWorkoutTimelapse: a marathon session is evenly sampled with an honest note, totals stay exact', async ({ page }) => {
@@ -78,11 +82,12 @@ test('buildWorkoutTimelapse: a marathon session is evenly sampled with an honest
       exercises: [{ varUuid: ua, subUuid: null, sets }] };
     const p = buildWorkoutTimelapse(session, { maxSetFrames: 10 });
     const comp = p.frames.filter(f => f.kind === 'composite');
-    return { compCount: comp.length, note: p.sampledNote, lastCum: comp[comp.length - 1].cumVolume };
+    const distinctSets = new Set(comp.map(f => f.setNo)).size;
+    return { distinctSets, note: p.sampledNote, lastCum: comp[comp.length - 1].cumVolume };
   }, ua);
-  expect(r.compCount).toBe(10);
+  expect(r.distinctSets).toBe(10);                // sampled to 10 sets…
   expect(r.note).toBe('showing 10 of 50 sets');
-  expect(r.lastCum).toBe(50 * 100 * 10); // cumulative reflects the FULL 50 sets even though sampled
+  expect(r.lastCum).toBe(50 * 100 * 10);         // …but cumulative reflects the FULL 50 sets
 });
 
 test('buildWorkoutTimelapse: a workout with no strength sets yields an empty plan', async ({ page }) => {
