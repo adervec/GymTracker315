@@ -1842,6 +1842,21 @@ They share variation **UUIDs**.
   (goblet → Bulgarian split → sissy/ATG → Cossack → jump → pistol → bodyweight burnout) across `squat` / `lunge` /
   `atg-knees-over-toes` / `adductor` / `plyometrics`. `test/squatgauntlet.spec.mjs`: present, intensity 5, every step a
   lower-body family, squat-dominant, all families real + runnable.
+- **Replay Studio — clock, IG text/effects, media filters, custom music, video clips (feats 358–360):** a batch of
+  replay upgrades. **(358)** Composite frames now show the **live wall-clock time-of-day** (`clockLabel`) alongside
+  elapsed, and the title card shows the start time; a **custom headline + caption/handle** (`style.headline`/`caption`,
+  drawn on the title/final cards + as a composite watermark) and an optional **vignette** make it Instagram-ready;
+  spliced media take a per-item **filter** (`tlFilterCss`: vivid/warm/cool/B&W/noir/sepia/fade) and a **caption**.
+  **(359)** Music gains a **Custom…** option — the recorder `decodeAudioData`s the user's chosen audio file and loops
+  it under the SFX (video only). **(360)** The wizard now adds **video clips as well as photos**
+  (`accept="image/*,video/*"`): a clip is spliced as a `kind:'clip'` frame at its moment — in **video** export it
+  plays in real time with its **own audio** routed into the recording (`createMediaElementSource → dest`); in **GIF**
+  it's frame-sampled across its length (seek + draw). `drawTimelapseFrame` gained a `style` param + a `clip`/`photo`
+  branch (with filter + caption), both renderers thread `plan.style` and sample photo/clip colours (filtered) into the
+  GIF palette. Wizard: ✨ Polish (headline/caption/vignette), per-media filter + caption rows, Custom-music picker,
+  and photo+video adding. `test/replaystudio.spec.mjs` (clock, style threading, filter mapping, clip splicing, a
+  filtered photo + a clip-placeholder rendering into a decodable GIF, custom-music WAV into a video) + updated
+  `timelapseaudio.spec.mjs` (5 music options).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

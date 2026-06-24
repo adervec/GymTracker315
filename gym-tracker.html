@@ -4885,8 +4885,10 @@ function normalizeState() {
   state.timelapse.chapters = { spotlight: true, cumulative: false, wireframe: false, timeline: false, plan: false, hr: false, ...(state.timelapse.chapters || {}) };
   state.timelapse.format = (state.timelapse.format === 'video') ? 'video' : 'gif'; // feat 350
   state.timelapse.photoSecs = Math.max(0.5, Math.min(10, +state.timelapse.photoSecs || 2.5)); // feat 351
-  state.timelapse.music = ['off', 'upbeat', 'chill', 'epic'].indexOf(state.timelapse.music) >= 0 ? state.timelapse.music : 'off'; // feat 353
+  state.timelapse.music = ['off', 'upbeat', 'chill', 'epic', 'custom'].indexOf(state.timelapse.music) >= 0 ? state.timelapse.music : 'off'; // feat 353/359
   state.timelapse.sfx = !!state.timelapse.sfx;
+  state.timelapse.vignette = !!state.timelapse.vignette; // feat 358
+  state.timelapse.caption = (typeof state.timelapse.caption === 'string') ? state.timelapse.caption.slice(0, 48) : '';
 }
 
 function loadState() {
@@ -17903,7 +17905,8 @@ function buildWorkoutTimelapse(session, opts) {
   const base = { width: 480, height: 300, speed: SPEED, totalSets, synthetic: false, sampledNote: null, dateLabel,
     durationLabel: stats.elapsedDisplay, exerciseCount: stats.exerciseCount, totalVolume: stats.totalVolume,
     unit, plan: sessionPlanLabel(session), scoreGrade: score ? score.grade : null, scorePoints: score ? score.points : null,
-    planAvail, hrAvail, exRgbs: [], panels: ['spotlight'] };
+    planAvail, hrAvail, exRgbs: [], panels: ['spotlight'],
+    style: { headline: (opts.headline || '').slice(0, 48), caption: (opts.caption || '').slice(0, 48), vignette: !!opts.vignette } };
   if (!totalSets) return Object.assign(base, { frames: [], empty: true });
 
   const timed = evs.filter(e => e.ts != null);
@@ -17989,7 +17992,7 @@ function buildWorkoutTimelapse(session, opts) {
     const c = continuousAt(tMs);
     if (c.timeline) p.timeline = c.timeline;
     if (c.hr) p.hr = c.hr;
-    return { kind: 'composite', delayCs, setNo: e.setNo, totalSets, progress: Math.max(0, Math.min(1, tMs / spanMs)), elapsedLabel: fmtClock(tMs), cumVolume: e.cumVol, unit, speed: SPEED, tMs, panels: p };
+    return { kind: 'composite', delayCs, setNo: e.setNo, totalSets, progress: Math.max(0, Math.min(1, tMs / spanMs)), elapsedLabel: fmtClock(tMs), clockLabel: new Date(t0 + tMs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }), cumVolume: e.cumVol, unit, speed: SPEED, tMs, panels: p };
   };
 
   // ---- composite frames: a keyframe at each set + interpolated tweens so the clock/timeline/HR sweep SMOOTHLY.
@@ -18014,11 +18017,11 @@ function buildWorkoutTimelapse(session, opts) {
   photos.forEach((ph, idx) => {
     const secs = Math.max(0.5, Math.min(10, ph.seconds || 2.5));
     const at = comp.findIndex(f => f.tMs >= ph.elapsedMs);
-    comp.splice(at < 0 ? comp.length : at, 0, { kind: 'photo', delayCs: Math.round(secs * 100), photoIndex: idx, elapsedLabel: fmtClock(Math.max(0, ph.elapsedMs)), label: ph.label || '', tMs: ph.elapsedMs });
+    comp.splice(at < 0 ? comp.length : at, 0, { kind: ph.kind === 'clip' ? 'clip' : 'photo', delayCs: Math.round(secs * 100), photoIndex: idx, elapsedLabel: fmtClock(Math.max(0, ph.elapsedMs)), label: ph.label || '', tMs: ph.elapsedMs });
   });
 
   const frames = [];
-  frames.push({ kind: 'title', delayCs: TITLE_CS, dateLabel, exerciseCount: base.exerciseCount, totalSets,
+  frames.push({ kind: 'title', delayCs: TITLE_CS, dateLabel, startClock: new Date(t0).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }), exerciseCount: base.exerciseCount, totalSets,
     totalVolume: base.totalVolume, unit, durationLabel: base.durationLabel, speed: SPEED, synthetic: base.synthetic,
     sampledNote: base.sampledNote, plan: base.plan, panelNames: panels.map(c => TITLES[c]), photoCount: photos.length });
   comp.forEach(f => frames.push(f));
@@ -18134,7 +18137,21 @@ function buildTimelapsePalette(resolve, C, exRgbs, extraColors) {
   return pal.slice(0, 256);
 }
 // Draw one timelapse frame onto a 2D context (full-frame, palette-friendly flat fills + text).
-function drawTimelapseFrame(ctx, C, fr, W, H, photos) {
+// Map a media-filter name → a canvas ctx.filter string (Instagram-style looks for spliced photos/clips).
+function tlFilterCss(name) {
+  switch (name) {
+    case 'bw': return 'grayscale(1) contrast(1.05)';
+    case 'sepia': return 'sepia(0.7) contrast(1.05)';
+    case 'vivid': return 'saturate(1.6) contrast(1.1)';
+    case 'warm': return 'sepia(0.3) saturate(1.35) brightness(1.03)';
+    case 'cool': return 'saturate(1.2) hue-rotate(15deg) brightness(1.04)';
+    case 'noir': return 'grayscale(1) contrast(1.4) brightness(0.92)';
+    case 'fade': return 'contrast(0.85) brightness(1.08) saturate(0.85)';
+    default: return 'none';
+  }
+}
+function drawTimelapseFrame(ctx, C, fr, W, H, photos, style) {
+  style = style || {};
   const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
   const volK = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(v);
   const T = (s, x, y, fs, weight, color, align, maxW) => {
@@ -18144,6 +18161,13 @@ function drawTimelapseFrame(ctx, C, fr, W, H, photos) {
     ctx.fillText(str, x, y); return ctx.measureText(str).width;
   };
   const exCssOf = rgb => 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
+  // feat 358 — optional vignette (drawn last, over everything) for an IG-ready look.
+  const vignette = () => {
+    if (!style.vignette) return;
+    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.34, W / 2, H / 2, Math.max(W, H) * 0.62);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.42)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  };
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
 
   if (fr.kind === 'title') {
@@ -18151,26 +18175,32 @@ function drawTimelapseFrame(ctx, C, fr, W, H, photos) {
     T('GymTracker315', W / 2, 44, 25, 800, C.accent, 'center', W - 28);
     const uw = Math.min(W - 80, 190); roundRectPath(ctx, W / 2 - uw / 2, 52, uw, 3, 2); ctx.fillStyle = C.accent2; ctx.fill();
     if (fr.speed) T(fr.speed + '× TIMELAPSE', W / 2, 70, 10.5, 800, C.text3, 'center');
-    T(fr.dateLabel, W / 2, H / 2 - 24, 16, 700, C.text2, 'center', W - 40);
-    T('WORKOUT TIMELAPSE', W / 2, H / 2 + 6, 27, 800, C.text, 'center', W - 32);
+    T(fr.dateLabel + (fr.startClock ? ' · ' + fr.startClock : ''), W / 2, H / 2 - 24, 16, 700, C.text2, 'center', W - 40);
+    T(style.headline || 'WORKOUT TIMELAPSE', W / 2, H / 2 + 6, 27, 800, C.text, 'center', W - 32); // feat 358 — custom headline
     const sub = fr.exerciseCount + ' exercise' + (fr.exerciseCount === 1 ? '' : 's') + ' · ' + fr.totalSets + ' set' + (fr.totalSets === 1 ? '' : 's') + ' · ' + fr.durationLabel;
     T(sub, W / 2, H / 2 + 34, 14, 600, C.text, 'center', W - 32);
     T(Number(fr.totalVolume).toLocaleString() + ' ' + fr.unit + (fr.photoCount ? ' · ' + fr.photoCount + ' photo' + (fr.photoCount === 1 ? '' : 's') : ''), W / 2, H / 2 + 56, 12, 600, C.text3, 'center', W - 32);
     if (fr.panelNames && fr.panelNames.length) T(fr.panelNames.join(' · '), W / 2, H / 2 + 76, 11, 700, C.accent2, 'center', W - 32);
     const notes = []; if (fr.synthetic) notes.push('approx. timing'); if (fr.sampledNote) notes.push(fr.sampledNote);
-    if (notes.length) T(notes.join(' · '), W / 2, H - 14, 10.5, 600, C.text3, 'center', W - 32);
+    if (notes.length) T(notes.join(' · '), W / 2, H - 28, 10.5, 600, C.text3, 'center', W - 32);
+    if (style.caption) T(style.caption, W / 2, H - 12, 13, 800, C.accent2, 'center', W - 28); // handle / caption
+    vignette();
     return;
   }
-  if (fr.kind === 'photo') {
-    const ph = photos && photos[fr.photoIndex], img = ph && ph._img;
+  if (fr.kind === 'photo' || fr.kind === 'clip') {
+    const ph = photos && photos[fr.photoIndex], img = ph && (fr.kind === 'clip' ? ph._video : ph._img);
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);                 // letterbox
-    if (img && img.naturalWidth) {
-      const scale = Math.min((W - 20) / img.naturalWidth, (H - 52) / img.naturalHeight);
-      const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+    const iw = img && (img.naturalWidth || img.videoWidth), ih = img && (img.naturalHeight || img.videoHeight);
+    if (img && iw) {
+      const scale = Math.min((W - 20) / iw, (H - 52) / ih), dw = iw * scale, dh = ih * scale;
+      const filt = tlFilterCss(ph && ph.filter); if (filt !== 'none') ctx.filter = filt; // feat 358 — per-media filter
       try { ctx.drawImage(img, (W - dw) / 2, (H - 44 - dh) / 2 + 6, dw, dh); } catch (_) {}
-    } else { T('📷', W / 2, H / 2, 40, 400, C.text2, 'center'); }
+      ctx.filter = 'none';
+    } else { T(fr.kind === 'clip' ? '🎬' : '📷', W / 2, H / 2, 40, 400, C.text2, 'center'); }
     T('GymTracker315', 14, H - 13, 11, 800, C.text2, 'left');
-    T('📷 ' + fr.elapsedLabel + (fr.label ? ' · ' + fr.label : ''), W - 14, H - 13, 12, 700, '#ffffff', 'right', W - 130);
+    const tag = (fr.kind === 'clip' ? '🎬 ' : '📷 ') + fr.elapsedLabel + (fr.label ? ' · ' + fr.label : '');
+    T(tag, W - 14, H - 13, 12.5, 800, '#ffffff', 'right', W - 120); // feat 358 — caption text on the media
+    vignette();
     return;
   }
   if (fr.kind === 'final') {
@@ -18179,8 +18209,10 @@ function drawTimelapseFrame(ctx, C, fr, W, H, photos) {
     const cols = [['SETS', String(fr.totalSets)], ['VOLUME', volK(fr.totalVolume) + ' ' + fr.unit], ['TIME', fr.durationLabel]];
     const colW = (W - 80) / 3;
     cols.forEach((c, i) => { const cx = 40 + colW * (i + 0.5); T(c[1], cx, H / 2 + 6, 24, 800, C.text, 'center', colW - 6); T(c[0], cx, H / 2 + 27, 10.5, 700, C.text3, 'center', colW - 6); });
-    if (fr.scoreGrade) T('Grade ' + fr.scoreGrade + (fr.scorePoints != null ? ' · ' + fr.scorePoints + '/100' : ''), W / 2, H / 2 + 64, 14, 700, C.accent2, 'center', W - 32);
-    T('GymTracker315 · ' + (fr.speed || 32) + '× timelapse', W / 2, H - 16, 11, 600, C.text3, 'center', W - 32);
+    if (fr.scoreGrade) T('Grade ' + fr.scoreGrade + (fr.scorePoints != null ? ' · ' + fr.scorePoints + '/100' : ''), W / 2, H / 2 + 60, 14, 700, C.accent2, 'center', W - 32);
+    if (style.caption) T(style.caption, W / 2, H - 30, 13, 800, C.accent2, 'center', W - 28);
+    T('GymTracker315 · ' + (fr.speed || 32) + '× timelapse', W / 2, H - 14, 11, 600, C.text3, 'center', W - 32);
+    vignette();
     return;
   }
 
@@ -18188,7 +18220,8 @@ function drawTimelapseFrame(ctx, C, fr, W, H, photos) {
   const lay = tlLayout(Object.keys(fr.panels).length);
   T('GymTracker315', 14, 18, 12, 800, C.text2, 'left');
   T(fr.speed + '× TIMELAPSE', 14, 33, 10, 800, C.accent, 'left');
-  T('SET ' + fr.setNo + ' / ' + fr.totalSets, W / 2, 22, 14, 800, C.text2, 'center');
+  T('SET ' + fr.setNo + ' / ' + fr.totalSets, W / 2, 20, 13.5, 800, C.text2, 'center');
+  if (fr.clockLabel) { ctx.globalAlpha = 0.85; T(fr.clockLabel, W / 2, 33, 10, 700, C.text3, 'center'); ctx.globalAlpha = 1; } // feat 358 — live time-of-day
   T(fr.elapsedLabel, W - 14, 21, 18, 800, C.text, 'right');
   ctx.globalAlpha = 0.8; T('ELAPSED', W - 14, 33, 8.5, 700, C.text3, 'right'); ctx.globalAlpha = 1;
   const bx = 14, bw = W - 28, by = lay.headerH - 7, bh = 4;
@@ -18239,6 +18272,8 @@ function drawTimelapseFrame(ctx, C, fr, W, H, photos) {
     ctx.restore();
   };
   Object.keys(fr.panels).forEach((k, i) => { const c = lay.cells[i]; if (c) panel(k, fr.panels[k], c.x, c.y, c.w, c.h); });
+  if (style.caption) { ctx.globalAlpha = 0.85; T(style.caption, W / 2, H - 3, 9.5, 800, C.text3, 'center', W - 40); ctx.globalAlpha = 1; } // feat 358 — handle watermark
+  vignette();
 }
 // Render the whole timelapse to an animated-GIF Blob. Returns null where no 2D canvas exists (harness-safe).
 async function renderWorkoutTimelapseGif(session, opts) {
@@ -18253,17 +18288,31 @@ async function renderWorkoutTimelapseGif(session, opts) {
   const resolve = s => { ctx.fillStyle = s; ctx.fillRect(0, 0, 1, 1); const d = ctx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2]]; };
   // Spliced photos need real colours in the (small) GIF palette — sample each and median-cut them in.
   let photoColors = [];
-  if (plan.photos && plan.photos.some(p => p && p._img)) {
+  const mediaImg = p => p && (p._img || p._video);
+  if (plan.photos && plan.photos.some(p => mediaImg(p))) {
     const tmp = document.createElement('canvas'); tmp.width = 48; tmp.height = 48; const tctx = tmp.getContext && tmp.getContext('2d');
     const samples = [];
-    if (tctx) plan.photos.forEach(p => { if (!p._img || !p._img.naturalWidth) return; try { tctx.clearRect(0, 0, 48, 48); tctx.drawImage(p._img, 0, 0, 48, 48); const d = tctx.getImageData(0, 0, 48, 48).data; for (let i = 0; i < d.length; i += 8) samples.push([d[i], d[i + 1], d[i + 2]]); } catch (_) {} });
+    if (tctx) plan.photos.forEach(p => { const im = mediaImg(p); if (!im || !(im.naturalWidth || im.videoWidth)) return; try { tctx.clearRect(0, 0, 48, 48); tctx.filter = tlFilterCss(p.filter); tctx.drawImage(im, 0, 0, 48, 48); tctx.filter = 'none'; const d = tctx.getImageData(0, 0, 48, 48).data; for (let i = 0; i < d.length; i += 8) samples.push([d[i], d[i + 1], d[i + 2]]); } catch (_) {} });
     photoColors = medianCut(samples, 180);
   }
   const palette = buildTimelapsePalette(resolve, C, plan.exRgbs || [], photoColors);
   const cache = new Map(), frames = [];
+  const pushDrawn = delayCs => frames.push({ indices: quantizeToPalette(ctx.getImageData(0, 0, W, H).data, palette, cache), delayCs });
+  const seek = (v, t) => new Promise(res => { let done = false; const on = () => { if (done) return; done = true; try { v.removeEventListener('seeked', on); } catch (_) {} res(); }; try { v.addEventListener('seeked', on); v.currentTime = t; } catch (_) { on(); } setTimeout(on, 350); });
   for (const fr of plan.frames) {
-    drawTimelapseFrame(ctx, C, fr, W, H, plan.photos);
-    frames.push({ indices: quantizeToPalette(ctx.getImageData(0, 0, W, H).data, palette, cache), delayCs: fr.delayCs });
+    if (fr.kind === 'clip') {
+      // feat 360 — a spliced clip in a GIF: sample frames across the clip (no audio in GIF, naturally).
+      const ph = plan.photos && plan.photos[fr.photoIndex], v = ph && ph._video, cs = fr.delayCs | 0;
+      if (v && v.videoWidth) {
+        const dur = Math.min(v.duration || ph.seconds || 2, ph.seconds || 2);
+        const K = Math.max(2, Math.min(24, Math.round((ph.seconds || 2) * 8)));
+        try { v.pause(); } catch (_) {}
+        for (let k = 0; k < K; k++) { await seek(v, dur * (k / Math.max(1, K - 1))); drawTimelapseFrame(ctx, C, fr, W, H, plan.photos, plan.style); pushDrawn(Math.max(6, Math.round(cs / K))); }
+        continue;
+      }
+    }
+    drawTimelapseFrame(ctx, C, fr, W, H, plan.photos, plan.style);
+    pushDrawn(fr.delayCs);
   }
   return new Blob([encodeGif89a({ width: W, height: H, palette, frames, loop: 0 })], { type: 'image/gif' });
 }
@@ -18363,17 +18412,22 @@ async function renderWorkoutTimelapseVideo(session, opts, onProgress) {
   const mime = timelapseVideoMime() || 'video/webm'; // MP4 (Strava-friendly) when available, else WebM
   const bitrate = Math.min(8000000, Math.max(250000, Math.round(W * H * 15 * 0.15))); // ~0.15 bpp · 15fps, capped
 
-  // ---- optional audio: music + event SFX, mixed into the recorded stream (video only) ----
+  // ---- optional audio: music + event SFX + spliced-clip sound, mixed into the recorded stream (video only) ----
   const wantMusic = (opts && opts.music && opts.music !== 'off'), wantSfx = !!(opts && opts.sfx);
+  const hasClips = plan.frames.some(f => f.kind === 'clip'); // clips bring their own audio → need a graph too
   let actx = null, dest = null, music = null, evByFrame = null;
-  if ((wantMusic || wantSfx) && typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
+  if ((wantMusic || wantSfx || hasClips) && typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
     try {
       actx = new (window.AudioContext || window.webkitAudioContext)();
       if (actx.resume) await actx.resume().catch(() => {});
       dest = actx.createMediaStreamDestination();
       (dest.stream.getAudioTracks() || []).forEach(t => stream.addTrack(t)); // add BEFORE the recorder is created
       if (wantSfx) { evByFrame = {}; tlVideoEvents(plan.frames).forEach(e => { (evByFrame[e.i] = evByFrame[e.i] || []).push(e.type); }); }
-      if (wantMusic) { music = tlMusic(actx, dest, opts.music); }
+      if (wantMusic) {
+        if (opts.music === 'custom' && opts.musicFile) { // feat 359 — user's own track
+          try { const buf = await actx.decodeAudioData(opts.musicFile.slice(0)); const src = actx.createBufferSource(); src.buffer = buf; src.loop = true; const mg = actx.createGain(); mg.gain.value = 0.6; src.connect(mg); mg.connect(dest); music = { start: () => { try { src.start(); } catch (_) {} }, stop: () => { try { src.stop(); } catch (_) {} } }; } catch (_) { music = null; }
+        } else if (opts.music !== 'custom') { music = tlMusic(actx, dest, opts.music); }
+      }
     } catch (_) { actx = null; dest = null; music = null; evByFrame = null; }
   }
 
@@ -18383,14 +18437,29 @@ async function renderWorkoutTimelapseVideo(session, opts, onProgress) {
   try { rec.start(); } catch (_) { if (actx) try { actx.close(); } catch (_) {} return null; }
   if (music) try { music.start(); } catch (_) {}
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const pushFrame = () => { try { if (track.requestFrame) track.requestFrame(); else if (stream.requestFrame) stream.requestFrame(); } catch (_) {} };
+  // feat 360 — play a spliced video clip in real time: draw its frames + route its audio into the recording.
+  const playClip = async fr => {
+    const ph = plan.photos && plan.photos[fr.photoIndex], v = ph && ph._video, durMs = Math.max(300, (fr.delayCs | 0) * 10);
+    if (!v) { drawTimelapseFrame(ctx, C, fr, W, H, plan.photos, plan.style); pushFrame(); await sleep(durMs); return; }
+    try { if (actx && dest && !v._tlSrc) { v._tlSrc = actx.createMediaElementSource(v); const cg = actx.createGain(); cg.gain.value = 1.0; v._tlSrc.connect(cg); cg.connect(dest); } } catch (_) {}
+    v.muted = !actx; try { v.currentTime = 0; } catch (_) {}
+    try { await v.play(); } catch (_) {}
+    const startT = Date.now();
+    while (Date.now() - startT < durMs) { drawTimelapseFrame(ctx, C, fr, W, H, plan.photos, plan.style); pushFrame(); await sleep(66); }
+    try { v.pause(); } catch (_) {}
+  };
   const total = plan.frames.length;
   for (let i = 0; i < total; i++) {
     const fr = plan.frames[i];
-    drawTimelapseFrame(ctx, C, fr, W, H, plan.photos);
-    try { if (track.requestFrame) track.requestFrame(); else if (stream.requestFrame) stream.requestFrame(); } catch (_) {}
     if (evByFrame && actx && evByFrame[i]) evByFrame[i].forEach(type => { try { tlPlaySfx(actx, dest, type, actx.currentTime + 0.01); } catch (_) {} });
+    if (fr.kind === 'clip') { await playClip(fr); }
+    else {
+      drawTimelapseFrame(ctx, C, fr, W, H, plan.photos, plan.style);
+      pushFrame();
+      await sleep(Math.max(16, (fr.delayCs | 0) * 10));
+    }
     if (onProgress) try { onProgress(i + 1, total); } catch (_) {}
-    await sleep(Math.max(16, (fr.delayCs | 0) * 10));
   }
   await sleep(220); // let the last frame + final fanfare land
   if (music) try { music.stop(); } catch (_) {}
@@ -18591,10 +18660,13 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
   let speed = SPEEDS.indexOf(tl.speed) >= 0 ? tl.speed : 32;
   let format = (videoOk && tl.format === 'video') ? 'video' : 'gif';
   let photoSecs = Math.max(0.5, Math.min(10, +tl.photoSecs || 2.5));
-  let music = ['off', 'upbeat', 'chill', 'epic'].indexOf(tl.music) >= 0 ? tl.music : 'off'; // feat 353
+  let music = ['off', 'upbeat', 'chill', 'epic', 'custom'].indexOf(tl.music) >= 0 ? tl.music : 'off'; // feat 353/359
   let sfx = !!tl.sfx;
-  const MUSIC = [['off', 'Off'], ['upbeat', 'Upbeat'], ['chill', 'Chill'], ['epic', 'Epic']];
-  const pics = []; // transient for this wizard session: { name, _img, url, elapsedMs, src }
+  let vignette = !!tl.vignette, caption = tl.caption || '', headline = ''; // feat 358
+  let musicBuf = null, musicName = ''; // feat 359 — custom music file (ArrayBuffer)
+  const MUSIC = [['off', 'Off'], ['upbeat', 'Upbeat'], ['chill', 'Chill'], ['epic', 'Epic'], ['custom', 'Custom…']];
+  const FILTERS = [['none', 'None'], ['vivid', 'Vivid'], ['warm', 'Warm'], ['cool', 'Cool'], ['bw', 'B&W'], ['noir', 'Noir'], ['sepia', 'Sepia'], ['fade', 'Fade']];
+  const pics = []; // transient: { name, kind:'photo'|'clip', _img|_video, url, elapsedMs, src, filter, label, seconds? }
   const CH = [
     ['spotlight', '🎯 Set spotlight', 'each set, front & center', true],
     ['cumulative', '📜 Cumulative log', 'the workout list building up', true],
@@ -18615,12 +18687,26 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
         <span style="display:flex;flex-direction:column;min-width:0;"><span style="font-size:13px;font-weight:700;">${c[1]}</span><span style="font-size:11px;color:var(--text3);">${sub}</span></span>
       </button>`;
     };
-    const picRow = (p, i) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
-        <img src="${p.url}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:5px;border:1px solid var(--border2);flex-shrink:0;">
-        <span style="flex:1;min-width:0;display:flex;flex-direction:column;"><span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name || 'photo')}</span><span style="font-size:9.5px;color:${p.src === 'exif' ? 'var(--good)' : 'var(--warn)'};">${p.src === 'exif' ? '✓ capture time' : '⚠ file time — check'}</span></span>
-        <label style="font-size:10.5px;color:var(--text3);">at <input type="number" data-pic-at="${i}" value="${(p.elapsedMs / 1000).toFixed(0)}" min="0" max="${Math.round(spanMs / 1000)}" step="1" style="width:54px;"> s</label>
-        <button data-pic-del="${i}" class="export-btn" style="padding:2px 8px;">✕</button>
+    const picRow = (p, i) => {
+      const thumb = p.kind === 'clip'
+        ? `<span style="width:34px;height:34px;border-radius:5px;border:1px solid var(--border2);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--bg3);font-size:16px;">🎬</span>`
+        : `<img src="${p.url}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:5px;border:1px solid var(--border2);flex-shrink:0;">`;
+      const note = p.kind === 'clip' ? ('clip · ' + (p.seconds || 0).toFixed(0) + 's')
+        : (p.src === 'exif' ? '✓ capture time' : '⚠ file time — check');
+      const noteCol = p.kind === 'clip' ? 'var(--text3)' : (p.src === 'exif' ? 'var(--good)' : 'var(--warn)');
+      return `<div style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 7px;margin-bottom:5px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${thumb}
+          <span style="flex:1;min-width:0;display:flex;flex-direction:column;"><span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name || 'media')}</span><span style="font-size:9.5px;color:${noteCol};">${note}</span></span>
+          <label style="font-size:10.5px;color:var(--text3);">at <input type="number" data-pic-at="${i}" value="${(p.elapsedMs / 1000).toFixed(0)}" min="0" max="${Math.round(spanMs / 1000)}" step="1" style="width:48px;"> s</label>
+          <button data-pic-del="${i}" class="export-btn" style="padding:2px 8px;">✕</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:5px;">
+          <select data-pic-filter="${i}" style="font-size:10.5px;flex-shrink:0;">${FILTERS.map(f => `<option value="${f[0]}"${(p.filter || 'none') === f[0] ? ' selected' : ''}>${f[1]}</option>`).join('')}</select>
+          <input type="text" data-pic-cap="${i}" value="${escapeAttr(p.label || '')}" maxlength="40" placeholder="caption (optional)" style="flex:1;min-width:0;font-size:11px;">
+        </div>
       </div>`;
+    };
     const fmtBtns = `<button class="drawer-pill${format === 'gif' ? ' active' : ''}" data-fmt="gif">GIF</button>` +
       (videoOk ? `<button class="drawer-pill${format === 'video' ? ' active' : ''}" data-fmt="video">Video</button>` : '');
     modal.innerHTML = `
@@ -18642,17 +18728,30 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
         <span style="font-size:12px;color:var(--text2);font-weight:700;margin:0 2px 0 8px;">🔊 SFX</span>
         <button class="drawer-pill${sfx ? ' active' : ''}" data-sfx="on">On</button>
         <button class="drawer-pill${!sfx ? ' active' : ''}" data-sfx="off">Off</button>
-        <span style="font-size:10.5px;color:var(--text3);width:100%;margin-top:2px;">A built-in backing track + sound cues (a tick per set, a chime on a new exercise, a ding when a plan step completes, a shutter for photos, a finishing fanfare).</span>
+        ${music === 'custom' ? `<div style="width:100%;margin-top:4px;display:flex;align-items:center;gap:8px;">
+          <button class="export-btn" id="tl-music-pick" style="padding:4px 10px;">🎵 Choose audio file</button>
+          <span style="font-size:10.5px;color:${musicBuf ? 'var(--good)' : 'var(--text3)'};min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${musicBuf ? escapeHtml(musicName) : 'no file chosen — your own track plays under the SFX'}</span>
+          <input type="file" id="tl-music-input" accept="audio/*" style="display:none;">
+        </div>` : `<span style="font-size:10.5px;color:var(--text3);width:100%;margin-top:2px;">A built-in track + sound cues (tick per set, chime on a new exercise, ding on a completed plan step, shutter for photos, finishing fanfare). Pick <b>Custom…</b> for your own audio.</span>`}
       </div>` : ''}
       <div style="margin:10px 0 2px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <span style="font-size:12px;color:var(--text2);font-weight:700;">📷 Photos${pics.length ? ' (' + pics.length + ')' : ''}</span>
-          <label style="font-size:10.5px;color:var(--text3);">show each <input type="number" id="tl-photo-secs" value="${photoSecs}" min="0.5" max="10" step="0.5" style="width:50px;"> s</label>
+        <div style="font-size:12px;color:var(--text2);font-weight:700;margin-bottom:5px;">✨ Polish</div>
+        <input type="text" id="tl-headline" value="${escapeAttr(headline)}" maxlength="48" placeholder="Headline (default: WORKOUT TIMELAPSE)" style="width:100%;font-size:12px;margin-bottom:5px;">
+        <input type="text" id="tl-caption" value="${escapeAttr(caption)}" maxlength="48" placeholder="Caption / handle (e.g. @you 💪)" style="width:100%;font-size:12px;margin-bottom:5px;">
+        <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:11px;color:var(--text3);">Vignette</span>
+          <button class="drawer-pill${vignette ? ' active' : ''}" data-vig="on">On</button>
+          <button class="drawer-pill${!vignette ? ' active' : ''}" data-vig="off">Off</button>
         </div>
-        <div style="font-size:10.5px;color:var(--text3);margin:2px 0 6px;line-height:1.45;">Splice photos into the replay at the moment they were taken — read from each photo's <b>capture time</b> (EXIF) when present, else its file time (editable). Workout is ${mmss(spanMs)} long.</div>
+      </div>
+      <div style="margin:10px 0 2px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span style="font-size:12px;color:var(--text2);font-weight:700;">📷 Photos & video${pics.length ? ' (' + pics.length + ')' : ''}</span>
+          <label style="font-size:10.5px;color:var(--text3);">photos: show each <input type="number" id="tl-photo-secs" value="${photoSecs}" min="0.5" max="10" step="0.5" style="width:46px;"> s</label>
+        </div>
+        <div style="font-size:10.5px;color:var(--text3);margin:2px 0 6px;line-height:1.45;">Splice photos & clips into the replay at the moment they happened — from each photo's <b>capture time</b> (EXIF) when present, else file time (editable). Add a filter and caption to each. Workout is ${mmss(spanMs)} long.</div>
         <div id="tl-pics">${pics.map(picRow).join('')}</div>
-        <button class="export-btn" id="tl-add-photos">＋ Add photos</button>
-        <input type="file" id="tl-photo-input" accept="image/*" multiple style="display:none;">
+        <button class="export-btn" id="tl-add-photos">＋ Add photos / video</button>
+        <input type="file" id="tl-photo-input" accept="image/*,video/*" multiple style="display:none;">
       </div>
       <div class="export-actions export-result-actions">
         <button class="export-btn primary" id="tl-build">${format === 'video' ? '🎬 Build video' : '🎞 Build GIF'}</button>
@@ -18666,24 +18765,46 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
     modal.querySelectorAll('[data-fmt]').forEach(b => b.addEventListener('click', () => { format = b.dataset.fmt; draw(); }));
     modal.querySelectorAll('[data-music]').forEach(b => b.addEventListener('click', () => { music = b.dataset.music; draw(); }));
     modal.querySelectorAll('[data-sfx]').forEach(b => b.addEventListener('click', () => { sfx = b.dataset.sfx === 'on'; draw(); }));
+    modal.querySelectorAll('[data-vig]').forEach(b => b.addEventListener('click', () => { vignette = b.dataset.vig === 'on'; draw(); }));
+    modal.querySelector('#tl-headline')?.addEventListener('input', e => { headline = e.target.value; });
+    modal.querySelector('#tl-caption')?.addEventListener('input', e => { caption = e.target.value; });
+    const musicInput = modal.querySelector('#tl-music-input');
+    modal.querySelector('#tl-music-pick')?.addEventListener('click', () => musicInput && musicInput.click());
+    musicInput?.addEventListener('change', async e => {
+      const f = (e.target.files || [])[0]; if (!f) return;
+      try { musicBuf = await f.arrayBuffer(); musicName = f.name; } catch (_) { musicBuf = null; musicName = ''; toast('Could not read that audio file'); }
+      draw();
+    });
     modal.querySelector('#tl-photo-secs')?.addEventListener('change', e => { const v = parseFloat(e.target.value); if (!isNaN(v)) photoSecs = Math.max(0.5, Math.min(10, v)); });
     modal.querySelectorAll('[data-pic-at]').forEach(inp => inp.addEventListener('change', e => { const i = +e.target.dataset.picAt, v = parseFloat(e.target.value); if (pics[i] && !isNaN(v)) pics[i].elapsedMs = Math.max(0, Math.min(spanMs, v * 1000)); }));
+    modal.querySelectorAll('[data-pic-filter]').forEach(sel => sel.addEventListener('change', e => { const i = +e.target.dataset.picFilter; if (pics[i]) pics[i].filter = e.target.value; }));
+    modal.querySelectorAll('[data-pic-cap]').forEach(inp => inp.addEventListener('input', e => { const i = +e.target.dataset.picCap; if (pics[i]) pics[i].label = e.target.value; }));
     modal.querySelectorAll('[data-pic-del]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.picDel; const p = pics[i]; if (p && p.url) try { URL.revokeObjectURL(p.url); } catch (_) {} pics.splice(i, 1); draw(); }));
     const fileInput = modal.querySelector('#tl-photo-input');
     modal.querySelector('#tl-add-photos')?.addEventListener('click', () => fileInput && fileInput.click());
     fileInput?.addEventListener('change', async e => {
       const files = Array.from(e.target.files || []);
       for (const f of files) {
-        if (!/^image\//.test(f.type)) continue;
-        const url = URL.createObjectURL(f); const img = new Image();
-        try { await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; }); }
-        catch (_) { try { URL.revokeObjectURL(url); } catch (_) {} continue; }
-        // Prefer the photo's EXIF capture time — a synced photo's file mtime is the SYNC time, not when it was taken.
-        let captureMs = null;
-        try { captureMs = parseExifDateTimeMs(await f.arrayBuffer()); } catch (_) {}
-        const src = captureMs != null ? 'exif' : 'file';
-        const baseMs = captureMs != null ? captureMs : (f.lastModified || startMs);
-        pics.push({ name: f.name, _img: img, url, src, elapsedMs: photoDefaultElapsedMs(baseMs, startMs, spanMs) });
+        const isVideo = /^video\//.test(f.type), isImage = /^image\//.test(f.type);
+        if (!isVideo && !isImage) continue;
+        const url = URL.createObjectURL(f);
+        if (isVideo) {
+          // feat 360 — splice video clips: load metadata, default to file time, cap playback length.
+          const vid = document.createElement('video'); vid.muted = true; vid.playsInline = true; vid.preload = 'auto'; vid.src = url;
+          try { await new Promise((res, rej) => { vid.onloadedmetadata = res; vid.onerror = () => rej(new Error('video load failed')); }); }
+          catch (_) { try { URL.revokeObjectURL(url); } catch (_) {} continue; }
+          const dur = (vid.duration && isFinite(vid.duration)) ? vid.duration : 4;
+          pics.push({ name: f.name, kind: 'clip', _video: vid, url, src: 'file', filter: 'none', label: '', seconds: Math.max(1, Math.min(8, dur)), elapsedMs: photoDefaultElapsedMs(f.lastModified || startMs, startMs, spanMs) });
+        } else {
+          const img = new Image();
+          try { await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; }); }
+          catch (_) { try { URL.revokeObjectURL(url); } catch (_) {} continue; }
+          let captureMs = null;
+          try { captureMs = parseExifDateTimeMs(await f.arrayBuffer()); } catch (_) {}
+          const src = captureMs != null ? 'exif' : 'file';
+          const baseMs = captureMs != null ? captureMs : (f.lastModified || startMs);
+          pics.push({ name: f.name, kind: 'photo', _img: img, url, src, filter: 'none', label: '', elapsedMs: photoDefaultElapsedMs(baseMs, startMs, spanMs) });
+        }
       }
       draw();
     });
@@ -18692,18 +18813,19 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
     modal.querySelector('#tl-build').addEventListener('click', async e => {
       const chapters = CH.map(c => c[0]).filter(k => sel[k]);
       if (!chapters.length) { toast('Pick at least one segment'); return; }
-      state.timelapse = { speed, chapters: { ...sel }, format, photoSecs, music, sfx }; try { saveState(); } catch (_) {}
-      const photos = pics.map(p => ({ _img: p._img, elapsedMs: p.elapsedMs, seconds: photoSecs }));
+      state.timelapse = { speed, chapters: { ...sel }, format, photoSecs, music, sfx, vignette, caption }; try { saveState(); } catch (_) {}
+      const media = pics.map(p => ({ kind: p.kind, _img: p._img, _video: p._video, elapsedMs: p.elapsedMs, seconds: p.kind === 'clip' ? p.seconds : photoSecs, filter: p.filter || 'none', label: p.label || '' }));
+      const style = { headline: headline.trim(), caption: caption.trim(), vignette };
       const btn = e.currentTarget, orig = btn.textContent; btn.disabled = true;
       try {
         if (format === 'video') {
           btn.textContent = '⏳ Recording…';
-          const vid = await renderWorkoutTimelapseVideo(session, { speed, chapters, photos, music, sfx }, (d, t) => { btn.textContent = '⏳ ' + Math.round(d / t * 100) + '%'; });
+          const vid = await renderWorkoutTimelapseVideo(session, Object.assign({ speed, chapters, photos: media, music, sfx, musicFile: (music === 'custom' ? musicBuf : null) }, style), (d, t) => { btn.textContent = '⏳ ' + Math.round(d / t * 100) + '%'; });
           if (vid) { downloadBlob(vid, baseName + '_timelapse.' + timelapseVideoExt(vid.type)); toast('🎬 Timelapse video exported'); }
           else toast('Video export not available here — try GIF');
         } else {
           btn.textContent = '⏳ Building…';
-          const gif = await renderWorkoutTimelapseGif(session, { speed, chapters, photos });
+          const gif = await renderWorkoutTimelapseGif(session, Object.assign({ speed, chapters, photos: media }, style));
           if (gif) { downloadBlob(gif, baseName + '_timelapse.gif'); toast('🎞 Timelapse GIF exported'); }
           else toast('No sets to animate in this workout');
         }
@@ -22178,7 +22300,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 323 · 2026-06-24 18:17';
+const APP_BUILD = 'build 324 · 2026-06-24 18:41';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
