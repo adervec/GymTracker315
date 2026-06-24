@@ -1685,6 +1685,52 @@ They share variation **UUIDs**.
   re-render so typing flows. Each node carries its family `equip` for the equipment filter. `test/constfilter.spec.mjs`
   (the predicate per dimension; the controls render + Clear appears/resets; filtering dims non-matches and zooms);
   existing `constellation.spec.mjs` stays green.
+- **Constellation filtered-out stars stay barely visible (feat 341):** the dim opacity for non-matching nodes was 0.05
+  (effectively invisible). Raised to **0.12** so filtered-out stars remain a faint ghost — the overall constellation
+  shape is still readable while the matched subset clearly stands out. `test/constfilter.spec.mjs` asserts the dim band
+  (barely visible, < the matched brightness).
+- **Missing "machine for a different exercise" calf raises (feat 342):** an audit of machine-repurposing variations
+  (the spirit of the existing Calf-Machine Shrug, Leg-Press Calf Raise, Reverse Hack, Lat-Pulldown→Triceps/Crunch,
+  Smith→Shrug/Hip-Thrust/Inverted-Row, etc.) found the calf-raise family had **Leg Press** calf raises but not the
+  equally-common **Hack Squat Calf Raise** and **Smith Machine Calf Raise** — squat machines repurposed for calves.
+  Both added to the calf family (real unique uuids, cues/tips mirroring the Leg Press one). They flow through everywhere
+  automatically (VAR_INDEX, picker, reference, constellation). `test/calfmachines.spec.mjs` (both exist in the family,
+  resolve via VAR_INDEX, are pickable, the Leg-Press sibling is untouched, and no duplicate uuids).
+- **Comprehensive resistance-band coverage (feat 343):** band exercises were concentrated in two dedicated
+  "Resistance Band Work" catch-all families, so most movement families had no band option of their own. Added a band
+  variation **directly into each major movement family** that lacked one (20 in total): Band Biceps Curl, Hammer Curl,
+  Reverse Curl, Lateral Raise, Front Raise, Overhead Press, Lat Pulldown, Shrug, Squat, Romanian Deadlift, Banded Leg
+  Extension, Calf Raise, Chest Fly, Overhead Tricep Extension, Band-Resisted Push-Up, Band-Assisted Dip, Woodchopper,
+  Kneeling Crunch, Banded Lunge, Standing Kickback — each in its proper family (bicep-curl, squat, lat-pulldown, …) with
+  a real unique uuid, cue, tip and "best" tag, so a band option now surfaces when you pick/filter that movement (and on
+  the constellation's Equipment filter). Inserted via a guarded bracket-matching script (find family → match its
+  `variations` array → splice in). `test/bandcoverage.spec.mjs` (each lands in the right family with the right title;
+  all resolve via VAR_INDEX + are pickable; no duplicate uuids; a representative one is fully formed).
+- **Sport-specific seed plans (feat 344):** added 14 strength-&-conditioning templates tuned to a sport's demands to
+  `SEED_PLANS` — Basketball, Soccer/Football, Distance Running, Sprint/Track, Swimming, Cycling, Climbing/Bouldering,
+  Combat/MMA, Tennis/Racket, Golf, Volleyball, Skiing/Snowboarding, Baseball/Softball, Rowing. Each `seed-sport-*` plan
+  uses the existing `_pstep`/`_mvOpt` shape with an intensity and 5–7 steps drawn from real movement families
+  (power/plyo for jump sports, posterior-chain + single-leg for runners, rotational core for racket/throwing sports,
+  pull/grip for climbing, etc.), so they recommend, clone and run like any seed plan. Inserted before the array close
+  via a guarded anchor script. `test/sportplans.spec.mjs` (all 14 present + well-formed; every movement option
+  references a real family; unique ids; a representative plan is fully runnable).
+- **Workout timelapse GIF export (feat 345):** the per-workout export (📤, single-session scope) gains a **🎞 GIF**
+  option beside PNG/Text — a **32×-speed animated recap** of that workout. `buildWorkoutTimelapse(session)` (pure) flattens
+  the strength sets in completion-time order and builds a frame plan: a **title card**, **one frame per logged set**
+  (exercise name in its timeline hue, big weight×reps, a live elapsed clock, running volume + a progress bar) and a
+  **closing summary** (sets · volume · time · grade). Each set frame is held for `gapToNextSet ÷ speed` centiseconds
+  (clamped 0.08–1.4 s), so the workout's real pacing — long rests vs. quick supersets — survives in fast-forward.
+  Timing prefers real `set.ts`; a legacy session with no timestamps is spread evenly and flagged *approx. timing*; a
+  marathon session is evenly sampled to a frame budget with an honest *“showing N of M sets”* note (cumulative totals
+  always reflect the full set list). Rendering is a self-contained, dependency-free **GIF89a + LZW encoder**
+  (`encodeGif89a`/`gifLzwCompress`) fed by a canvas drawn with a small theme-derived palette
+  (`buildTimelapsePalette`) + per-RGB-cached nearest-colour quantization (`quantizeToPalette`); `renderWorkoutTimelapseGif`
+  returns an `image/gif` Blob (null where no 2D canvas exists, harness-safe like `renderWorkoutCard`). The LZW width
+  bump is checked at emit time against the not-yet-incremented free entry (the decoder's table lags the encoder's by
+  one — bumping a code early desyncs it). `test/timelapsegif.spec.mjs` covers the frame plan (order, 32× delays,
+  cumulative totals, synthetic + sampled fallbacks, empty plan), the encoder structure, a **pixel-exact round-trip
+  through the browser's own GIF decoder** (proves the LZW), the full render, and the export-dialog gating
+  (GIF only for a single workout).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
