@@ -1706,6 +1706,14 @@ They share variation **UUIDs**.
   the constellation's Equipment filter). Inserted via a guarded bracket-matching script (find family → match its
   `variations` array → splice in). `test/bandcoverage.spec.mjs` (each lands in the right family with the right title;
   all resolve via VAR_INDEX + are pickable; no duplicate uuids; a representative one is fully formed).
+- **Sport-specific seed plans (feat 344):** added 14 strength-&-conditioning templates tuned to a sport's demands to
+  `SEED_PLANS` — Basketball, Soccer/Football, Distance Running, Sprint/Track, Swimming, Cycling, Climbing/Bouldering,
+  Combat/MMA, Tennis/Racket, Golf, Volleyball, Skiing/Snowboarding, Baseball/Softball, Rowing. Each `seed-sport-*` plan
+  uses the existing `_pstep`/`_mvOpt` shape with an intensity and 5–7 steps drawn from real movement families
+  (power/plyo for jump sports, posterior-chain + single-leg for runners, rotational core for racket/throwing sports,
+  pull/grip for climbing, etc.), so they recommend, clone and run like any seed plan. Inserted before the array close
+  via a guarded anchor script. `test/sportplans.spec.mjs` (all 14 present + well-formed; every movement option
+  references a real family; unique ids; a representative plan is fully runnable).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
