@@ -164,7 +164,34 @@ test('renderWorkoutTimelapseGif produces a loadable image/gif at the planned dim
   expect(r.h).toBe(300);
 });
 
-test('export dialog offers the GIF button for a single workout but not for a multi-workout range', async ({ page }) => {
+test('Replay is a top-level export option (phase A), enabled only for a single workout', async ({ page }) => {
+  const [ua] = await twoUuids(page);
+  const r = await page.evaluate((ua) => {
+    const iso = (d, h) => new Date(Date.parse(d) + (h || 0) * 3600000).toISOString();
+    const mk = (day) => ({ id: 's' + day, date: iso(day + 'T10:00:00.000Z'), endedAt: iso(day + 'T10:00:00.000Z', 1),
+      exercises: [{ varUuid: ua, subUuid: null, sets: [{ w: 100, r: 5, ts: iso(day + 'T10:00:00.000Z') }] }] });
+    const one = mk('2026-06-20');
+    state.sessions = [one];
+    const div = document.createElement('div'); document.body.appendChild(div);
+    renderExportPhaseA(div, { opts: { preset: 'session', sessionDate: one.date }, from: '', to: '' });
+    const rb = div.querySelector('#export-replay-btn');
+    const present = !!rb, enabledSingle = rb && !rb.disabled, label = rb ? rb.textContent.trim() : '';
+    // a multi-workout scope disables Replay
+    state.sessions = [mk('2026-06-20'), mk('2026-06-19'), mk('2026-06-18')];
+    const div2 = document.createElement('div'); document.body.appendChild(div2);
+    renderExportPhaseA(div2, { opts: { preset: 'all' }, from: '', to: '' });
+    const rb2 = div2.querySelector('#export-replay-btn');
+    const disabledMulti = !!(rb2 && rb2.disabled);
+    div.remove(); div2.remove();
+    return { present, enabledSingle, label, disabledMulti };
+  }, ua);
+  expect(r.present).toBe(true);
+  expect(r.label).toContain('Replay');     // renamed from "GIF"
+  expect(r.enabledSingle).toBe(true);
+  expect(r.disabledMulti).toBe(true);
+});
+
+test('phase B keeps a Replay shortcut for a single workout, not for a range', async ({ page }) => {
   const [ua] = await twoUuids(page);
   const r = await page.evaluate(async (ua) => {
     const iso = (d, h) => new Date(Date.parse(d) + (h || 0) * 3600000).toISOString();
@@ -173,10 +200,10 @@ test('export dialog offers the GIF button for a single workout but not for a mul
     const one = mk('2026-06-20');
     const div = document.createElement('div'); document.body.appendChild(div);
     await renderExportPhaseB(div, { preset: 'session', sessionDate: one.date }, [one]);
-    const hasSingle = !!div.querySelector('#export-dl-gif');
+    const hasSingle = !!div.querySelector('#export-replay-b');
     const div2 = document.createElement('div'); document.body.appendChild(div2);
     await renderExportPhaseB(div2, { preset: 'week' }, [mk('2026-06-20'), mk('2026-06-19')]);
-    const hasMulti = !!div2.querySelector('#export-dl-gif');
+    const hasMulti = !!div2.querySelector('#export-replay-b');
     div.remove(); div2.remove();
     return { hasSingle, hasMulti };
   }, ua);
