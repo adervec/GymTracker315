@@ -1758,6 +1758,18 @@ They share variation **UUIDs**.
   segments are on. `test/timelapsegif.spec.mjs` + `test/timelapsewizard.spec.mjs` updated to the composite model:
   one-composite-per-set, all panels present on the same frame, `tlLayout` sizing, plan/HR gating + progression, the 64×
   halving + 1024× honoured, a full six-panel render decoding as a 760×430 GIF, and the wizard's 32×…1024× pills.
+- **Shake to open current exercise (feat 348):** an opt-in gesture — a **vigorous phone shake** jumps straight to the
+  current exercise's log sheet (`openLogModal` → the exercise you're logging now, else the picker). `makeShakeDetector`
+  is a pure stateful closure: it counts hard acceleration **spikes** (Δmagnitude > ~14 m/s² between `devicemotion`
+  samples) and fires once ≥3 land inside a ~900 ms rolling window, then enforces a ~1.5 s cooldown — so a single bump
+  or gentle handling never triggers, and one shake = one navigation. `_onShakeMotion` feeds it
+  `accelerationIncludingGravity`; `triggerShakeNav` (gated on the setting, skipped if the sheet is already open) gives a
+  short haptic + toast and opens the sheet. Toggle lives in Settings → workout controls (`state.workoutControls.shakeNav`,
+  device-local, **off by default**, shown only when `DeviceMotionEvent` exists); enabling it requests iOS 13+ motion
+  permission from the tap gesture (`DeviceMotionEvent.requestPermission`), Android needs none. `initShakeNav()` re-attaches
+  the listener on boot when enabled. `test/shakenav.spec.mjs` covers the detector (vigorous fires / gentle doesn't /
+  cooldown / window expiry), the support+enabled predicates, that a detected shake opens the sheet only when enabled and
+  not already open, and the settings toggle + iOS note.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

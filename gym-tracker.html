@@ -7901,6 +7901,16 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${(state.workoutControls||{}).keepAwake === false ? 'active' : ''}" data-wc="keepAwake" data-wc-val="off">Off</button>
       </div>
     </div>` : ''}
+    ${shakeNavSupported() ? `<div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">📳 Shake to open current exercise</div>
+        <div class="drawer-setting-sub">A vigorous shake of the phone jumps straight to the current exercise's log sheet (the one you're logging now, else the picker). On iOS you'll be asked once for motion access — and may need to re-enable after fully reopening the app.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${shakeNavEnabled() ? 'active' : ''}" data-shakenav="on">On</button>
+        <button class="drawer-pill ${!shakeNavEnabled() ? 'active' : ''}" data-shakenav="off">Off</button>
+      </div>
+    </div>` : ''}
     ${hrSupported() ? `<div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">💓 Auto-connect HR on start</div>
@@ -8621,6 +8631,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.dash) { state.dashboard[btn.dataset.dash] = btn.dataset.dashVal === 'on'; saveState(); }
       else if (btn.dataset.catVis) { state.hiddenCategories[btn.dataset.catVis] = btn.dataset.catVal === 'hide'; saveState(); render(); }
       else if (btn.dataset.wc) { ensureWC(); state.workoutControls[btn.dataset.wc] = btn.dataset.wcVal === 'on'; saveState(); if (typeof refreshRestBar === 'function') refreshRestBar(); if (typeof refreshWakeLock === 'function') refreshWakeLock(); if (typeof modalState !== 'undefined' && modalState.open) renderModal(); }
+      else if (btn.dataset.shakenav) { ensureWC(); const on = btn.dataset.shakenav === 'on'; state.workoutControls.shakeNav = on; saveState(); if (on) enableShakeNav(true); else disableShakeNav(); } // feat 348
       else if (btn.dataset.rpemode) { ensureWC(); state.workoutControls.rpeMode = ['off','rpe','rir'].indexOf(btn.dataset.rpemode) === -1 ? 'off' : btn.dataset.rpemode; saveState(); if (typeof modalState !== 'undefined' && modalState.open) renderModal(); if (typeof render === 'function') render(); toast('RPE / RIR: ' + (rpeMode() === 'off' ? 'hidden' : rpeMode().toUpperCase())); } // feat 261
       renderSettingsDrawer();
     });
@@ -14859,6 +14870,78 @@ async function acquireWakeLock() {
 }
 async function releaseWakeLock() { const w = _wakeLock; _wakeLock = null; try { if (w && w.release) await w.release(); } catch (_) {} }
 function refreshWakeLock() { if (getActiveSession() && wakeLockEnabled()) acquireWakeLock(); else releaseWakeLock(); }
+
+/* ============================================================
+   feat 348 — SHAKE TO OPEN CURRENT EXERCISE (opt-in)
+   A vigorous phone shake jumps straight to the current exercise's log sheet (openLogModal — the pending
+   exercise if any, else the picker). Uses DeviceMotion; on iOS 13+ motion access needs a one-time permission
+   granted from the toggle's tap. Detection requires several strong acceleration spikes in a short rolling
+   window (so a single bump won't fire) plus a cooldown. Device-local (state.workoutControls.shakeNav), off by default.
+   ============================================================ */
+function shakeNavSupported() { return typeof window !== 'undefined' && typeof DeviceMotionEvent !== 'undefined' && 'ondevicemotion' in window; }
+function shakeNavEnabled() { return !!(state.workoutControls || {}).shakeNav; }
+// Pure stateful spike detector — returns true once a "vigorous" shake is seen, then respects a cooldown.
+// Returned as a closure so it can be unit-tested with synthetic samples (no real accelerometer needed).
+function makeShakeDetector(cfg) {
+  cfg = cfg || {};
+  const SPIKE = cfg.spike || 14;        // m/s² jump between samples that counts as a hard spike
+  const NEED = cfg.need || 3;           // spikes required…
+  const WINDOW = cfg.windowMs || 900;   // …within this rolling window
+  const COOLDOWN = cfg.cooldownMs || 1500;
+  let lastMag = null, spikes = [], lastFire = -Infinity;
+  return function step(mag, nowMs) {
+    if (lastMag != null && Math.abs(mag - lastMag) > SPIKE) spikes.push(nowMs);
+    lastMag = mag;
+    spikes = spikes.filter(t => nowMs - t <= WINDOW);
+    if (spikes.length >= NEED && nowMs - lastFire >= COOLDOWN) { lastFire = nowMs; spikes = []; return true; }
+    return false;
+  };
+}
+let _shakeDetector = null, _shakeAttached = false;
+function _onShakeMotion(e) {
+  const g = (e && (e.accelerationIncludingGravity || e.acceleration)) || null; if (!g) return;
+  const mag = Math.sqrt((g.x || 0) * (g.x || 0) + (g.y || 0) * (g.y || 0) + (g.z || 0) * (g.z || 0));
+  if (!_shakeDetector) _shakeDetector = makeShakeDetector();
+  if (_shakeDetector(mag, Date.now())) triggerShakeNav();
+}
+function triggerShakeNav() {
+  if (!shakeNavEnabled()) return;
+  if (typeof modalState !== 'undefined' && modalState.open) return; // already on the exercise sheet
+  safeVibrate([0, 40, 30, 40]);
+  if (typeof toast === 'function') toast('💪 Current exercise');
+  if (typeof openLogModal === 'function') openLogModal();
+}
+function attachShakeNav() {
+  if (_shakeAttached || !shakeNavSupported()) return;
+  _shakeDetector = null; window.addEventListener('devicemotion', _onShakeMotion); _shakeAttached = true;
+}
+function detachShakeNav() {
+  if (!_shakeAttached) return;
+  try { window.removeEventListener('devicemotion', _onShakeMotion); } catch (_) {}
+  _shakeAttached = false; _shakeDetector = null;
+}
+// Turn the gesture on: request iOS motion permission (needs the tap gesture), then start listening.
+async function enableShakeNav(interactive) {
+  if (!shakeNavSupported()) { if (interactive && typeof toast === 'function') toast("This device doesn't report motion"); return false; }
+  try {
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res !== 'granted') {
+        if (state.workoutControls) state.workoutControls.shakeNav = false;
+        saveState();
+        if (typeof toast === 'function') toast('Motion access denied — shake disabled');
+        if (typeof renderSettingsDrawer === 'function') renderSettingsDrawer();
+        return false;
+      }
+    }
+  } catch (_) { /* requestPermission throws if not from a gesture — Android needs no permission, so attach anyway */ }
+  attachShakeNav();
+  if (interactive && typeof toast === 'function') toast('💪 Shake to open the current exercise');
+  return true;
+}
+function disableShakeNav() { detachShakeNav(); }
+// Boot: if previously enabled, start listening (Android fires immediately; iOS only after a re-enable tap re-grants).
+function initShakeNav() { if (shakeNavEnabled()) attachShakeNav(); }
 
 // Manually end the active workout with confirmation (feat 13).
 // skipConfirm=true when triggered via hold-to-confirm (feat 32) — the hold IS the confirm.
@@ -21695,7 +21778,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 311 · 2026-06-24 09:53';
+const APP_BUILD = 'build 312 · 2026-06-24 10:27';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -22943,6 +23026,7 @@ render();
 ensureRestTick(); // feat 51 — start the global rest-timer tick
 refreshSoundIcon(); // feat 74 — reflect saved audio/haptics state in the top-bar icon
 initTopbarShortcuts(); // feat 99 — long-press shortcuts on the top-bar icons
+initShakeNav(); // feat 348 — opt-in shake-to-open-current-exercise (no-op unless enabled)
 // feat 241 — always land on the Workout page on boot / refresh / PWA restart. The router (currentPage) is the
 // source of truth post nav-rework; the legacy gt_panel restore used to re-surface a stale non-tracker panel
 // (e.g. the Reference) on TOP of the router, leaving a blank / wrong screen until you tapped the brand. Land on
