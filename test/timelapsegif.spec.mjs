@@ -1,7 +1,7 @@
-// feat 345 — workout timelapse GIF export. A 32×-speed animated recap of one workout (title card, one frame
-// per logged set, closing summary), encoded by a self-contained GIF89a/LZW encoder. These specs exercise the
-// pure frame-plan builder, the encoder's structure + a real round-trip decode through Chromium (proves the LZW
-// is correct), the full canvas render, and the export-dialog gating (GIF only for a single workout).
+// feat 345/346 — workout timelapse GIF. A recap of one workout where the selected segments render in PARALLEL on
+// one composite image advancing through a single clock (title → one composite per set → final), encoded by a
+// self-contained GIF89a/LZW encoder. These specs exercise the composite frame plan, the encoder's structure + a
+// real round-trip decode through Chromium (proves the LZW), the full render, and the export-dialog gating.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -17,7 +17,7 @@ const twoUuids = (page) => page.evaluate(() => {
   const out = []; for (const [u] of VAR_INDEX) { out.push(u); if (out.length === 2) break; } return out;
 });
 
-test('buildWorkoutTimelapse: title first, final last, one frame per set in time order, 32× delays', async ({ page }) => {
+test('buildWorkoutTimelapse: title first, final last, one composite per set in time order, 32× delays', async ({ page }) => {
   const [ua, ub] = await twoUuids(page);
   const r = await page.evaluate(([ua, ub]) => {
     const T = Date.parse('2026-06-20T10:00:00.000Z');
@@ -28,28 +28,29 @@ test('buildWorkoutTimelapse: title first, final last, one frame per set in time 
     ] };
     const p = buildWorkoutTimelapse(session, { speed: 32 });
     const kinds = p.frames.map(f => f.kind);
-    const setFrames = p.frames.filter(f => f.kind === 'set');
+    const comp = p.frames.filter(f => f.kind === 'composite');
     return {
-      width: p.width, height: p.height, speed: p.speed, synthetic: p.synthetic, totalSets: p.totalSets,
-      firstKind: kinds[0], lastKind: kinds[kinds.length - 1], setCount: setFrames.length,
-      setNos: setFrames.map(f => f.setNo), cumVols: setFrames.map(f => f.cumVolume),
-      // gap set1->set2 is 32s; at 32× that's 1.0s = 100 centiseconds
-      firstGapDelay: setFrames[0].delayCs, progressLast: setFrames[setFrames.length - 1].progress,
-      titleVol: p.frames[0].totalVolume,
+      width: p.width, height: p.height, speed: p.speed, synthetic: p.synthetic, totalSets: p.totalSets, panels: p.panels,
+      firstKind: kinds[0], lastKind: kinds[kinds.length - 1], compCount: comp.length,
+      setNos: comp.map(f => f.setNo), cumVols: comp.map(f => f.cumVolume),
+      firstGapDelay: comp[0].delayCs, progressLast: comp[comp.length - 1].progress,
+      hasSpotlight: !!comp[0].panels.spotlight, titleVol: p.frames[0].totalVolume,
     };
   }, [ua, ub]);
-  expect(r.width).toBe(480);
-  expect(r.height).toBe(270);
+  expect(r.width).toBe(480);   // 1 panel → single-cell canvas
+  expect(r.height).toBe(300);
   expect(r.speed).toBe(32);
   expect(r.synthetic).toBe(false);
   expect(r.totalSets).toBe(3);
+  expect(r.panels).toEqual(['spotlight']);
   expect(r.firstKind).toBe('title');
   expect(r.lastKind).toBe('final');
-  expect(r.setCount).toBe(3);
+  expect(r.compCount).toBe(3);
   expect(r.setNos).toEqual([1, 2, 3]);
   expect(r.cumVols).toEqual([500, 1000, 1400]); // 100×5, +100×5, +50×8
   expect(r.firstGapDelay).toBe(100);            // 32s ÷ 32 = 1.0s
   expect(r.progressLast).toBeCloseTo(1, 5);
+  expect(r.hasSpotlight).toBe(true);
   expect(r.titleVol).toBe(1400);
 });
 
@@ -60,13 +61,11 @@ test('buildWorkoutTimelapse: untimed sets fall back to an evenly-spread syntheti
     const session = { id: 's', date: new Date(T).toISOString(), endedAt: new Date(T + 600000).toISOString(),
       exercises: [{ varUuid: ua, subUuid: null, sets: [ { w: 100, r: 5 }, { w: 100, r: 4 }, { w: 100, r: 3 } ] }] };
     const p = buildWorkoutTimelapse(session);
-    const setFrames = p.frames.filter(f => f.kind === 'set');
-    const elapsed = setFrames.map(f => f.elapsedLabel);
-    return { synthetic: p.synthetic, setCount: setFrames.length, elapsed };
+    const comp = p.frames.filter(f => f.kind === 'composite');
+    return { synthetic: p.synthetic, compCount: comp.length, elapsed: comp.map(f => f.elapsedLabel) };
   }, ua);
   expect(r.synthetic).toBe(true);
-  expect(r.setCount).toBe(3);
-  // spread across the 10-min session → strictly increasing elapsed clocks
+  expect(r.compCount).toBe(3);
   expect(r.elapsed[0]).not.toBe(r.elapsed[2]);
 });
 
@@ -78,10 +77,10 @@ test('buildWorkoutTimelapse: a marathon session is evenly sampled with an honest
     const session = { id: 's', date: new Date(T).toISOString(), endedAt: new Date(T + 50 * 30000).toISOString(),
       exercises: [{ varUuid: ua, subUuid: null, sets }] };
     const p = buildWorkoutTimelapse(session, { maxSetFrames: 10 });
-    const setFrames = p.frames.filter(f => f.kind === 'set');
-    return { setCount: setFrames.length, note: p.sampledNote, lastCum: setFrames[setFrames.length - 1].cumVolume };
+    const comp = p.frames.filter(f => f.kind === 'composite');
+    return { compCount: comp.length, note: p.sampledNote, lastCum: comp[comp.length - 1].cumVolume };
   }, ua);
-  expect(r.setCount).toBe(10);
+  expect(r.compCount).toBe(10);
   expect(r.note).toBe('showing 10 of 50 sets');
   expect(r.lastCum).toBe(50 * 100 * 10); // cumulative reflects the FULL 50 sets even though sampled
 });
@@ -114,7 +113,6 @@ test('encodeGif89a emits a well-formed GIF89a (header, global table, loop ext, t
 
 test('GIF round-trips through the browser decoder pixel-exact (LZW is correct)', async ({ page }) => {
   const r = await page.evaluate(async () => {
-    // top row red (idx 0), bottom row blue (idx 1)
     const bytes = encodeGif89a({ width: 4, height: 2, palette: [[255, 0, 0], [0, 128, 255]],
       frames: [{ indices: new Uint8Array([0, 0, 0, 0, 1, 1, 1, 1]), delayCs: 10 }], loop: 0 });
     const url = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
@@ -142,20 +140,23 @@ test('renderWorkoutTimelapseGif produces a loadable image/gif at the planned dim
       { varUuid: ua, subUuid: null, sets: [ { w: 135, r: 5, ts: iso(T) }, { w: 135, r: 5, ts: iso(T + 40000) } ] },
       { varUuid: ub, subUuid: null, sets: [ { w: 60, r: 10, ts: iso(T + 80000) } ] },
     ] };
+    const dims = buildWorkoutTimelapse(session); // default single panel
     const blob = await renderWorkoutTimelapseGif(session);
     if (!blob) return { ok: false };
     const url = URL.createObjectURL(blob);
     const img = new Image();
     await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('gif failed to decode')); img.src = url; });
-    const out = { ok: true, type: blob.type, size: blob.size, w: img.naturalWidth, h: img.naturalHeight };
+    const out = { ok: true, type: blob.type, size: blob.size, w: img.naturalWidth, h: img.naturalHeight, pw: dims.width, ph: dims.height };
     URL.revokeObjectURL(url);
     return out;
   }, [ua, ub]);
   expect(r.ok).toBe(true);
   expect(r.type).toBe('image/gif');
   expect(r.size).toBeGreaterThan(0);
+  expect(r.w).toBe(r.pw);
+  expect(r.h).toBe(r.ph);
   expect(r.w).toBe(480);
-  expect(r.h).toBe(270);
+  expect(r.h).toBe(300);
 });
 
 test('export dialog offers the GIF button for a single workout but not for a multi-workout range', async ({ page }) => {
