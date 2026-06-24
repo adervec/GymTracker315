@@ -4881,7 +4881,7 @@ function normalizeState() {
   if (!Array.isArray(state.recoveryLog)) state.recoveryLog = []; // feat 339 — daily sleep & recovery log from Garmin
   // feat 346 — timelapse-export wizard prefs (device-local; remembered between exports)
   if (!state.timelapse || typeof state.timelapse !== 'object') state.timelapse = {};
-  state.timelapse.speed = (state.timelapse.speed === 64) ? 64 : 32;
+  state.timelapse.speed = [32, 64, 128, 256, 512, 1024].indexOf(state.timelapse.speed) >= 0 ? state.timelapse.speed : 32;
   state.timelapse.chapters = { spotlight: true, cumulative: false, wireframe: false, timeline: false, plan: false, hr: false, ...(state.timelapse.chapters || {}) };
 }
 
@@ -17711,16 +17711,33 @@ function drawFigure(ctx, ox, oy, s, color, J) {
   ctx.beginPath(); ctx.arc(X(J.head[0]), Y(J.head[1]), J.hr * s, 0, Math.PI * 2); ctx.stroke();
 }
 
-// Pure frame PLAN for a single session's timelapse (no canvas). Returns
-// { width, height, speed, synthetic, sampledNote, totalSets, chapters, exRgbs, frames:[{kind,delayCs,...}], empty? }.
-// opts.chapters (array, canonical subset of spotlight|cumulative|wireframe|timeline|plan|hr) selects the segments;
-// default is ['spotlight']. plan/hr are dropped automatically when the session lacks a plan / recorded HR.
+// Grid layout for the parallel composite: N panels → canvas size + per-cell rects (deterministic from N).
+function tlLayout(n) {
+  n = Math.max(1, n);
+  const cols = n <= 1 ? 1 : (n <= 4 ? 2 : 3);
+  const rows = Math.ceil(n / cols);
+  const W = n <= 1 ? 480 : (cols === 2 ? 640 : 760);
+  const H = rows === 1 ? 300 : 430;
+  const headerH = 42, footH = 12, M = 14, G = 12;
+  const availH = H - headerH - footH;
+  const gw = (W - 2 * M - (cols - 1) * G) / cols;
+  const gh = (availH - (rows - 1) * G) / rows;
+  const cells = [];
+  for (let i = 0; i < n; i++) { const c = i % cols, r = Math.floor(i / cols); cells.push({ x: M + c * (gw + G), y: headerH + r * (gh + G), w: gw, h: gh }); }
+  return { W, H, cols, rows, headerH, cells };
+}
+
+// Pure frame PLAN for a single session's timelapse (no canvas). ALL selected segments run IN PARALLEL on one
+// composite image advancing through a single shared clock: title card → one composite per set → final summary.
+// Returns { width, height, speed, synthetic, sampledNote, totalSets, panels, exRgbs, frames, empty? }.
+// opts.chapters selects the panels (canonical subset of spotlight|cumulative|wireframe|timeline|plan|hr); plan/hr
+// drop automatically when unavailable. opts.speed ∈ {32,64,128,256,512,1024} × real time.
 function buildWorkoutTimelapse(session, opts) {
   opts = opts || {};
-  const SPEED = (opts.speed === 64) ? 64 : (opts.speed || 32);
-  const W = opts.width || 480, H = opts.height || 270;
-  const MAX_SET_FRAMES = opts.maxSetFrames || 120;
-  const MIN_CS = 8, MAX_CS = 140, LAST_CS = 110, TITLE_CS = 130, FINAL_CS = 360, DIV_CS = 90;
+  const SPEEDS = [32, 64, 128, 256, 512, 1024];
+  const SPEED = SPEEDS.indexOf(opts.speed) >= 0 ? opts.speed : 32;
+  const MAX_SET_FRAMES = opts.maxSetFrames || 160;
+  const MIN_CS = 6, MAX_CS = 140, LAST_CS = 120, TITLE_CS = 120, FINAL_CS = 340;
   const unit = (typeof state !== 'undefined' && state.unit) || 'lb';
   const stats = computeSessionStats(session);
   const score = (typeof sessionScore === 'function') ? sessionScore(session) : null;
@@ -17742,10 +17759,10 @@ function buildWorkoutTimelapse(session, opts) {
   });
   const totalSets = evs.length;
   const dateLabel = new Date(session.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-  const base = { width: W, height: H, speed: SPEED, totalSets, synthetic: false, sampledNote: null, dateLabel,
+  const base = { width: 480, height: 300, speed: SPEED, totalSets, synthetic: false, sampledNote: null, dateLabel,
     durationLabel: stats.elapsedDisplay, exerciseCount: stats.exerciseCount, totalVolume: stats.totalVolume,
     unit, plan: sessionPlanLabel(session), scoreGrade: score ? score.grade : null, scorePoints: score ? score.points : null,
-    planAvail, hrAvail, exRgbs: [], chapters: ['spotlight'] };
+    planAvail, hrAvail, exRgbs: [], panels: ['spotlight'] };
   if (!totalSets) return Object.assign(base, { frames: [], empty: true });
 
   const timed = evs.filter(e => e.ts != null);
@@ -17781,86 +17798,44 @@ function buildWorkoutTimelapse(session, opts) {
   const clampCs = cs => Math.max(MIN_CS, Math.min(MAX_CS, Math.round(cs)));
   const chosenDelay = i => (i < chosen.length - 1) ? clampCs((chosen[i + 1].ts - chosen[i].ts) / SPEED / 10) : LAST_CS;
 
-  // ---- chapter selection (canonical order; drop unavailable plan/hr) ----
+  // ---- panel selection (canonical order; drop unavailable plan/hr) → grid layout ----
   const ALL = ['spotlight', 'cumulative', 'wireframe', 'timeline', 'plan', 'hr'];
-  const TITLES = { spotlight: 'Set spotlight', cumulative: 'Cumulative log', wireframe: 'Wireframe replay', timeline: 'Timeline', plan: 'Plan steps', hr: 'Heart rate' };
+  const TITLES = { spotlight: 'Set spotlight', cumulative: 'Cumulative log', wireframe: 'Wireframe', timeline: 'Timeline', plan: 'Plan steps', hr: 'Heart rate' };
   let want = (Array.isArray(opts.chapters) && opts.chapters.length) ? opts.chapters.slice() : ['spotlight'];
   want = want.filter(c => ALL.indexOf(c) >= 0 && (c !== 'plan' || planAvail) && (c !== 'hr' || hrAvail));
-  let chapters = ALL.filter(c => want.indexOf(c) >= 0);
-  if (!chapters.length) chapters = ['spotlight'];
-  base.chapters = chapters;
+  let panels = ALL.filter(c => want.indexOf(c) >= 0);
+  if (!panels.length) panels = ['spotlight'];
+  base.panels = panels;
+  const lay = tlLayout(panels.length); base.width = lay.W; base.height = lay.H;
 
-  // HR helpers
-  const hrAt = ms => {
-    if (!hrAvail) return null;
-    if (ms <= hrSamples[0][0]) return hrSamples[0][1];
-    for (let i = 1; i < hrSamples.length; i++) if (hrSamples[i][0] >= ms) {
-      const a = hrSamples[i - 1], b = hrSamples[i]; return Math.round(a[1] + (b[1] - a[1]) * ((ms - a[0]) / Math.max(1, b[0] - a[0])));
-    }
-    return hrSamples[hrSamples.length - 1][1];
-  };
+  // plan-step machinery (only when the Plan panel is on)
+  let planSteps = [], planLabels = [], planTargets = [], stepIdxOf = () => -1;
+  if (panels.indexOf('plan') >= 0) {
+    planSteps = (plan.steps || []).slice(0, 14);
+    planLabels = planSteps.map(st => (st.options || []).map(optionLabel).join(' / ') || 'step');
+    planTargets = planSteps.map(st => st.sets || 0);
+    stepIdxOf = v => { for (let i = 0; i < planSteps.length; i++) if ((planSteps[i].options || []).some(o => optionMatchesVar(o, v))) return i; return -1; };
+  }
+  // HR machinery (interpolated bpm + fixed scale)
+  const hrAt = ms => { if (!hrAvail) return null; if (ms <= hrSamples[0][0]) return hrSamples[0][1]; for (let i = 1; i < hrSamples.length; i++) if (hrSamples[i][0] >= ms) { const a = hrSamples[i - 1], b = hrSamples[i]; return Math.round(a[1] + (b[1] - a[1]) * ((ms - a[0]) / Math.max(1, b[0] - a[0]))); } return hrSamples[hrSamples.length - 1][1]; };
   const hrStats = hrAvail ? (() => { const v = hrSamples.map(s => s[1]); let lo = Math.floor((Math.min.apply(null, v) - 5) / 10) * 10, hi = Math.ceil((Math.max.apply(null, v) + 5) / 10) * 10; if (hi - lo < 20) hi = lo + 20; return { lo, hi, avg: Math.round(v.reduce((a, b) => a + b, 0) / v.length), max: Math.max.apply(null, v) }; })() : null;
-  const SWEEP = Math.max(12, Math.min(40, totalSets * 3));
-  const sweepDelay = clampCs(spanMs / SPEED / SWEEP / 10);
+  const hrDenom = Math.max(1, lastTs - t0);
+  const tlEvsAll = evs.map(e => ({ p: (e.ts - t0) / spanMs, rgb: e.rgb }));
 
-  const buildChapter = ch => {
-    const out = [];
-    if (ch === 'spotlight') {
-      chosen.forEach((e, i) => out.push({ kind: 'set', chapter: ch, delayCs: chosenDelay(i), name: e.name, rgb: e.rgb,
-        w: e.w, r: e.r, setNo: e.setNo, totalSets, elapsedLabel: fmtClock(e.elapsedMs), cumVolume: e.cumVol, unit, progress: e.setNo / totalSets, speed: SPEED }));
-    } else if (ch === 'cumulative') {
-      chosen.forEach((e, i) => {
-        const upto = evs.filter(x => x.setNo <= e.setNo), tail = upto.slice(-9);
-        out.push({ kind: 'cumulative', chapter: ch, delayCs: chosenDelay(i),
-          lines: tail.map(x => ({ name: x.name, wr: x.w + '×' + x.r, rgb: x.rgb, hot: x.setNo === e.setNo })),
-          more: upto.length - tail.length, elapsedLabel: fmtClock(e.elapsedMs), setNo: e.setNo, totalSets, cumVolume: e.cumVol, unit, progress: e.setNo / totalSets, speed: SPEED });
-      });
-    } else if (ch === 'wireframe') {
-      chosen.forEach((e, i) => {
-        const half = Math.max(MIN_CS, Math.round(chosenDelay(i) / 2));
-        const common = { kind: 'wireframe', chapter: ch, pose: e.pose, name: e.name, rgb: e.rgb, w: e.w, r: e.r,
-          setNo: e.setNo, totalSets, elapsedLabel: fmtClock(e.elapsedMs), progress: e.setNo / totalSets, speed: SPEED };
-        out.push(Object.assign({ phase: 0, delayCs: half }, common));
-        out.push(Object.assign({ phase: 1, delayCs: half }, common));
-      });
-    } else if (ch === 'timeline') {
-      const tlEvs = evs.map(e => ({ p: (e.ts - t0) / spanMs, rgb: e.rgb }));
-      for (let k = 0; k < SWEEP; k++) {
-        const headP = SWEEP === 1 ? 1 : k / (SWEEP - 1);
-        out.push({ kind: 'timeline', chapter: ch, delayCs: sweepDelay, evs: tlEvs.filter(x => x.p <= headP + 1e-9), all: tlEvs.length, headP, elapsedLabel: fmtClock(spanMs * headP), totalSets, speed: SPEED });
-      }
-    } else if (ch === 'plan') {
-      const steps = (plan.steps || []).slice(0, 12);
-      const labels = steps.map(st => (st.options || []).map(optionLabel).join(' / ') || 'step');
-      const targets = steps.map(st => st.sets || 0);
-      const stepIdxOf = v => { for (let i = 0; i < steps.length; i++) if ((steps[i].options || []).some(o => optionMatchesVar(o, v))) return i; return -1; };
-      chosen.forEach((e, i) => {
-        const logged = steps.map(() => 0); let off = 0;
-        evs.filter(x => x.setNo <= e.setNo).forEach(x => { const si = stepIdxOf(x.varUuid); if (si >= 0) logged[si]++; else off++; });
-        const stepFrames = steps.map((st, si) => { const lg = logged[si], tg = targets[si] || 1; return { label: labels[si], logged: lg, target: targets[si] || 0, state: lg === 0 ? 'todo' : (lg >= tg ? 'done' : 'doing') }; });
-        const done = stepFrames.filter(s => s.state === 'done').length;
-        out.push({ kind: 'plan', chapter: ch, delayCs: chosenDelay(i), steps: stepFrames, off, done, total: steps.length, elapsedLabel: fmtClock(e.elapsedMs), setNo: e.setNo, totalSets, progress: e.setNo / totalSets, speed: SPEED });
-      });
-    } else if (ch === 'hr') {
-      const denom = Math.max(1, lastTs - t0);
-      for (let k = 0; k < SWEEP; k++) {
-        const headP = SWEEP === 1 ? 1 : k / (SWEEP - 1), headMs = spanMs * headP;
-        const pts = hrSamples.filter(s => s[0] <= headMs + 1e-9).map(s => [s[0] / denom, s[1]]);
-        if (!pts.length) pts.push([0, hrSamples[0][1]]);
-        out.push({ kind: 'hr', chapter: ch, delayCs: sweepDelay, pts, headP, curBpm: hrAt(headMs), lo: hrStats.lo, hi: hrStats.hi, avg: hrStats.avg, max: hrStats.max, elapsedLabel: fmtClock(headMs), speed: SPEED });
-      }
-    }
-    return out;
-  };
-
+  // ---- frames: title → one parallel composite per set (all panels at the same clock) → final ----
   const frames = [];
   frames.push({ kind: 'title', delayCs: TITLE_CS, dateLabel, exerciseCount: base.exerciseCount, totalSets,
     totalVolume: base.totalVolume, unit, durationLabel: base.durationLabel, speed: SPEED, synthetic: base.synthetic,
-    sampledNote: base.sampledNote, plan: base.plan, chapterNames: chapters.map(c => TITLES[c]) });
-  const multi = chapters.length > 1;
-  chapters.forEach(ch => {
-    if (multi) frames.push({ kind: 'divider', chapter: ch, delayCs: DIV_CS, title: TITLES[ch], speed: SPEED });
-    buildChapter(ch).forEach(f => frames.push(f));
+    sampledNote: base.sampledNote, plan: base.plan, panelNames: panels.map(c => TITLES[c]) });
+  chosen.forEach((e, i) => {
+    const p = {};
+    if (panels.indexOf('spotlight') >= 0) p.spotlight = { name: e.name, rgb: e.rgb, w: e.w, r: e.r };
+    if (panels.indexOf('cumulative') >= 0) { const upto = evs.filter(x => x.setNo <= e.setNo); p.cumulative = { items: upto.slice(-12).map(x => ({ name: x.name, wr: x.w + '×' + x.r, rgb: x.rgb, hot: x.setNo === e.setNo })), total: upto.length }; }
+    if (panels.indexOf('wireframe') >= 0) p.wireframe = { pose: e.pose, phase: i % 2, name: e.name, rgb: e.rgb, w: e.w, r: e.r };
+    if (panels.indexOf('timeline') >= 0) { const hp = e.elapsedMs / spanMs; p.timeline = { evs: tlEvsAll.filter(x => x.p <= hp + 1e-9), headP: hp, all: tlEvsAll.length }; }
+    if (panels.indexOf('plan') >= 0) { const logged = planSteps.map(() => 0); let off = 0; evs.filter(x => x.setNo <= e.setNo).forEach(x => { const si = stepIdxOf(x.varUuid); if (si >= 0) logged[si]++; else off++; }); const steps = planSteps.map((st, si) => { const lg = logged[si], tg = planTargets[si] || 1; return { label: planLabels[si], logged: lg, target: planTargets[si] || 0, state: lg === 0 ? 'todo' : (lg >= tg ? 'done' : 'doing') }; }); p.plan = { steps, off, done: steps.filter(s => s.state === 'done').length, total: planSteps.length }; }
+    if (panels.indexOf('hr') >= 0) { const pts = hrSamples.filter(s => s[0] <= e.elapsedMs + 1e-9).map(s => [s[0] / hrDenom, s[1]]); if (!pts.length) pts.push([0, hrSamples[0][1]]); p.hr = { pts, curBpm: hrAt(e.elapsedMs), lo: hrStats.lo, hi: hrStats.hi, avg: hrStats.avg, max: hrStats.max }; }
+    frames.push({ kind: 'composite', delayCs: chosenDelay(i), setNo: e.setNo, totalSets, progress: e.setNo / totalSets, elapsedLabel: fmtClock(e.elapsedMs), cumVolume: e.cumVol, unit, speed: SPEED, panels: p });
   });
   frames.push({ kind: 'final', delayCs: FINAL_CS, totalSets, totalVolume: base.totalVolume, unit,
     durationLabel: base.durationLabel, exerciseCount: base.exerciseCount, scoreGrade: base.scoreGrade, scorePoints: base.scorePoints, speed: SPEED });
@@ -17971,119 +17946,85 @@ function drawTimelapseFrame(ctx, C, fr, W, H) {
   const exCssOf = rgb => 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')';
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
 
-  if (fr.kind === 'divider') {
-    T('▸ ' + fr.title, W / 2, H / 2 + 2, 27, 800, C.accent, 'center', W - 40);
-    T('GymTracker315 · ' + (fr.speed || 32) + '×', W / 2, H - 18, 11, 600, C.text3, 'center');
-    return;
-  }
-
-  ctx.globalAlpha = 0.85; T('GymTracker315', 16, 24, 12.5, 800, C.text2, 'left'); ctx.globalAlpha = 1;
-  if (fr.speed) T(fr.speed + '× TIMELAPSE', W - 16, 24, 12, 800, C.accent, 'right');
-
   if (fr.kind === 'title') {
+    ctx.globalAlpha = 0.85; T('GymTracker315', 16, 24, 12.5, 800, C.text2, 'left'); ctx.globalAlpha = 1;
+    if (fr.speed) T(fr.speed + '× TIMELAPSE', W - 16, 24, 12, 800, C.accent, 'right');
     T(fr.dateLabel, W / 2, H / 2 - 46, 17, 700, C.text2, 'center', W - 40);
     T('WORKOUT TIMELAPSE', W / 2, H / 2 - 10, 30, 800, C.accent, 'center', W - 32);
     const sub = fr.exerciseCount + ' exercise' + (fr.exerciseCount === 1 ? '' : 's') + ' · ' + fr.totalSets + ' set' + (fr.totalSets === 1 ? '' : 's') + ' · ' + fr.durationLabel;
-    T(sub, W / 2, H / 2 + 24, 14.5, 600, C.text, 'center', W - 32);
-    T(Number(fr.totalVolume).toLocaleString() + ' ' + fr.unit + ' total volume', W / 2, H / 2 + 48, 12.5, 600, C.text3, 'center', W - 32);
-    if (fr.plan) T('Plan · ' + fr.plan, W / 2, H / 2 + 70, 12, 700, C.accent2, 'center', W - 32);
+    T(sub, W / 2, H / 2 + 22, 14.5, 600, C.text, 'center', W - 32);
+    T(Number(fr.totalVolume).toLocaleString() + ' ' + fr.unit + ' · ' + fr.speed + '× speed', W / 2, H / 2 + 46, 12.5, 600, C.text3, 'center', W - 32);
+    if (fr.panelNames && fr.panelNames.length) T(fr.panelNames.join(' · '), W / 2, H / 2 + 70, 11.5, 700, C.accent2, 'center', W - 32);
     const notes = []; if (fr.synthetic) notes.push('approx. timing'); if (fr.sampledNote) notes.push(fr.sampledNote);
     if (notes.length) T(notes.join(' · '), W / 2, H - 16, 10.5, 600, C.text3, 'center', W - 32);
     return;
   }
   if (fr.kind === 'final') {
-    T('WORKOUT COMPLETE', W / 2, H / 2 - 48, 26, 800, C.accent, 'center', W - 32);
+    ctx.globalAlpha = 0.85; T('GymTracker315', 16, 24, 12.5, 800, C.text2, 'left'); ctx.globalAlpha = 1;
+    T('WORKOUT COMPLETE', W / 2, H / 2 - 48, 28, 800, C.accent, 'center', W - 32);
     const cols = [['SETS', String(fr.totalSets)], ['VOLUME', volK(fr.totalVolume) + ' ' + fr.unit], ['TIME', fr.durationLabel]];
-    const colW = (W - 64) / 3;
-    cols.forEach((c, i) => { const cx = 32 + colW * (i + 0.5); T(c[1], cx, H / 2 + 4, 22, 800, C.text, 'center', colW - 6); T(c[0], cx, H / 2 + 24, 10.5, 700, C.text3, 'center', colW - 6); });
-    if (fr.scoreGrade) T('Grade ' + fr.scoreGrade + (fr.scorePoints != null ? ' · ' + fr.scorePoints + '/100' : ''), W / 2, H / 2 + 60, 14, 700, C.accent2, 'center', W - 32);
+    const colW = (W - 80) / 3;
+    cols.forEach((c, i) => { const cx = 40 + colW * (i + 0.5); T(c[1], cx, H / 2 + 6, 24, 800, C.text, 'center', colW - 6); T(c[0], cx, H / 2 + 27, 10.5, 700, C.text3, 'center', colW - 6); });
+    if (fr.scoreGrade) T('Grade ' + fr.scoreGrade + (fr.scorePoints != null ? ' · ' + fr.scorePoints + '/100' : ''), W / 2, H / 2 + 64, 14, 700, C.accent2, 'center', W - 32);
     T('GymTracker315 · ' + (fr.speed || 32) + '× timelapse', W / 2, H - 16, 11, 600, C.text3, 'center', W - 32);
     return;
   }
-  // shared progress bar + % footer for the per-set chapters
-  const progressBar = () => {
-    const barY = H - 44, barX = 16, barW = W - 32, barH = 8;
-    roundRectPath(ctx, barX, barY, barW, barH, 4); ctx.fillStyle = C.bg3; ctx.fill();
-    roundRectPath(ctx, barX, barY, Math.max(barH, barW * Math.min(1, fr.progress || 0)), barH, 4); ctx.fillStyle = C.accent; ctx.fill();
-    T(Math.round((fr.progress || 0) * 100) + '%', W - 16, H - 16, 11.5, 700, C.text2, 'right');
-  };
 
-  if (fr.kind === 'cumulative') {
-    T('SET ' + fr.setNo, 16, 56, 16, 800, C.text2, 'left');
-    T('of ' + fr.totalSets, 16, 70, 11, 600, C.text3, 'left');
-    T(fr.elapsedLabel, W - 16, 58, 22, 800, C.text, 'right');
-    ctx.globalAlpha = 0.8; T('ELAPSED', W - 16, 70, 9, 700, C.text3, 'right'); ctx.globalAlpha = 1;
-    let y = 92;
-    if (fr.more > 0) { T('+' + fr.more + ' earlier set' + (fr.more === 1 ? '' : 's'), 18, y, 10.5, 600, C.text3, 'left'); y += 16; }
-    fr.lines.forEach(ln => {
-      if (ln.hot) { roundRectPath(ctx, 12, y - 13, W - 24, 18, 4); ctx.fillStyle = C.bg3; ctx.fill(); }
-      const wrW = T(ln.wr, W - 18, y, 12.5, ln.hot ? 800 : 600, ln.hot ? C.text : C.text2, 'right', 120);
-      T(ln.name, 18, y, 12.5, ln.hot ? 700 : 500, ln.hot ? exCssOf(ln.rgb) : C.text2, 'left', W - 40 - wrW - 8);
-      y += 18;
-    });
-    progressBar();
-    T(Number(fr.cumVolume).toLocaleString() + ' ' + fr.unit + ' so far', 16, H - 16, 11.5, 600, C.text3, 'left', W - 80);
-    return;
-  }
-  if (fr.kind === 'wireframe') {
-    T(fr.name, 16, 56, 15, 700, exCssOf(fr.rgb), 'left', W - 120);
-    T(fr.elapsedLabel, W - 16, 56, 16, 800, C.text2, 'right');
-    drawFigure(ctx, W / 2 - 56, 64, 1.12, exCssOf(fr.rgb), tlPoseJoints(fr.pose, fr.phase));
-    T(fr.w + ' × ' + fr.r, W / 2, H - 50, 30, 800, C.text, 'center', W - 40);
-    T('SET ' + fr.setNo + ' / ' + fr.totalSets, W / 2, H - 28, 12, 700, C.text3, 'center');
-    return;
-  }
-  if (fr.kind === 'timeline') {
-    T('TIMELINE', 16, 58, 16, 800, C.text2, 'left');
-    T(fr.elapsedLabel, W - 16, 58, 22, 800, C.text, 'right');
-    const x0 = 24, x1 = W - 24, innerW = x1 - x0, top = H / 2 - 42, bot = H / 2 + 28;
-    ctx.strokeStyle = C.border2; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, bot); ctx.lineTo(x1, bot); ctx.stroke();
-    fr.evs.forEach(e => { const x = x0 + e.p * innerW; ctx.strokeStyle = exCssOf(e.rgb); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke(); });
-    const hx = x0 + fr.headP * innerW; ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(hx, top - 8); ctx.lineTo(hx, bot + 8); ctx.stroke();
-    T(fr.evs.length + ' / ' + fr.all + ' sets', W / 2, bot + 28, 12.5, 700, C.text2, 'center');
-    return;
-  }
-  if (fr.kind === 'hr') {
-    T('HEART RATE', 16, 58, 16, 800, C.text2, 'left');
-    T(fr.curBpm != null ? String(fr.curBpm) : '–', W - 16, 56, 24, 800, C.danger, 'right');
-    ctx.globalAlpha = 0.8; T('BPM', W - 16, 70, 9, 700, C.text3, 'right'); ctx.globalAlpha = 1;
-    const x0 = 30, x1 = W - 16, innerW = x1 - x0, top = H / 2 - 40, bot = H / 2 + 36, innerH = bot - top;
-    const yFor = bpm => top + (1 - (bpm - fr.lo) / Math.max(1, fr.hi - fr.lo)) * innerH;
-    ctx.strokeStyle = C.border2; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, bot); ctx.lineTo(x1, bot); ctx.stroke();
-    T(String(fr.hi), 26, top + 6, 9, 600, C.text3, 'right'); T(String(fr.lo), 26, bot, 9, 600, C.text3, 'right');
-    const ay = yFor(fr.avg); ctx.strokeStyle = C.text3; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, ay); ctx.lineTo(x1, ay); ctx.stroke();
-    ctx.strokeStyle = C.danger; ctx.lineWidth = 2.2; ctx.lineJoin = 'round'; ctx.beginPath();
-    fr.pts.forEach((p, idx) => { const x = x0 + p[0] * innerW, y = yFor(p[1]); if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke();
-    const lp = fr.pts[fr.pts.length - 1]; ctx.fillStyle = C.danger; ctx.beginPath(); ctx.arc(x0 + lp[0] * innerW, yFor(lp[1]), 3, 0, Math.PI * 2); ctx.fill();
-    T('avg ' + fr.avg + ' · max ' + fr.max + ' bpm', W / 2, bot + 24, 11.5, 600, C.text3, 'center');
-    return;
-  }
-  if (fr.kind === 'plan') {
-    T('PLAN', 16, 58, 16, 800, C.text2, 'left');
-    T(fr.elapsedLabel, W - 16, 58, 22, 800, C.text, 'right');
-    let y = 90; const rowH = Math.min(20, Math.max(15, (H - 130) / Math.max(1, fr.steps.length)));
-    fr.steps.forEach(st => {
-      const col = st.state === 'done' ? C.good : (st.state === 'doing' ? C.accent : C.text3);
-      T(st.state === 'done' ? '✓' : (st.state === 'doing' ? '▸' : '·'), 18, y, 13, 800, col, 'left');
-      T(st.label, 36, y, 12, st.state === 'todo' ? 500 : 700, st.state === 'todo' ? C.text3 : C.text, 'left', W - 120);
-      if (st.target) T(st.logged + '/' + st.target, W - 18, y, 11.5, 700, col, 'right');
-      y += rowH;
-    });
-    if (fr.off > 0) T('+' + fr.off + ' off-plan set' + (fr.off === 1 ? '' : 's'), 18, H - 30, 10.5, 600, C.warn, 'left');
-    progressBar();
-    T(fr.done + '/' + fr.total + ' steps', W - 16, H - 16, 11.5, 700, C.text2, 'right');
-    return;
-  }
-  // set frame (spotlight)
-  T(fr.elapsedLabel, W - 16, 58, 26, 800, C.text, 'right');
-  ctx.globalAlpha = 0.8; T('ELAPSED', W - 16, 72, 9, 700, C.text3, 'right'); ctx.globalAlpha = 1;
-  T(fr.name, 16, 100, 16, 700, exCssOf(fr.rgb), 'left', W - 32);
-  T(fr.w + ' × ' + fr.r, 16, 158, 46, 800, C.text, 'left', W - 130);
-  T(fr.unit, 16, 182, 13, 700, C.text3, 'left');
-  T('SET ' + fr.setNo, W - 16, 122, 18, 800, C.text2, 'right');
-  T('of ' + fr.totalSets, W - 16, 140, 12, 600, C.text3, 'right');
-  progressBar();
-  T(Number(fr.cumVolume).toLocaleString() + ' ' + fr.unit + ' so far', 16, H - 16, 11.5, 600, C.text3, 'left', W - 80);
+  // ---- composite: header (shared clock) + all panels in parallel ----
+  const lay = tlLayout(Object.keys(fr.panels).length);
+  T('GymTracker315', 14, 18, 12, 800, C.text2, 'left');
+  T(fr.speed + '× TIMELAPSE', 14, 33, 10, 800, C.accent, 'left');
+  T('SET ' + fr.setNo + ' / ' + fr.totalSets, W / 2, 22, 14, 800, C.text2, 'center');
+  T(fr.elapsedLabel, W - 14, 21, 18, 800, C.text, 'right');
+  ctx.globalAlpha = 0.8; T('ELAPSED', W - 14, 33, 8.5, 700, C.text3, 'right'); ctx.globalAlpha = 1;
+  const bx = 14, bw = W - 28, by = lay.headerH - 7, bh = 4;
+  roundRectPath(ctx, bx, by, bw, bh, 2); ctx.fillStyle = C.bg3; ctx.fill();
+  roundRectPath(ctx, bx, by, Math.max(bh, bw * Math.min(1, fr.progress || 0)), bh, 2); ctx.fillStyle = C.accent; ctx.fill();
+
+  const PL = { spotlight: 'SET', cumulative: 'LOG', wireframe: 'FORM', timeline: 'TIMELINE', plan: 'PLAN', hr: 'HR' };
+  const panel = (k, ps, x, y, w, h) => {
+    roundRectPath(ctx, x, y, w, h, 9); ctx.fillStyle = C.bg2; ctx.fill(); ctx.strokeStyle = C.border2; ctx.lineWidth = 1; ctx.stroke();
+    ctx.save(); roundRectPath(ctx, x, y, w, h, 9); ctx.clip();
+    T(PL[k] || k, x + 11, y + 16, 9.5, 800, C.text3, 'left', w - 20);
+    const ix = x + 11, iw = w - 22, ctop = y + 24, ih = h - 32;
+    if (k === 'spotlight') {
+      T(ps.name, ix, ctop + 14, 12.5, 700, exCssOf(ps.rgb), 'left', iw);
+      T(ps.w + ' × ' + ps.r, x + w / 2, y + h * 0.66, Math.min(36, w * 0.17), 800, C.text, 'center', iw);
+    } else if (k === 'cumulative') {
+      const lineH = 15, maxLines = Math.max(2, Math.floor((ih - 2) / lineH));
+      const items = ps.items.slice(-maxLines), more = ps.total - items.length;
+      let yy = ctop + 12;
+      if (more > 0) { T('+' + more + ' earlier', ix, yy, 9.5, 600, C.text3, 'left'); yy += lineH; }
+      items.forEach(ln => { if (ln.hot) { roundRectPath(ctx, x + 6, yy - 11, w - 12, 15, 3); ctx.fillStyle = C.bg3; ctx.fill(); } const ww = T(ln.wr, x + w - 12, yy, 11, ln.hot ? 800 : 600, ln.hot ? C.text : C.text2, 'right', w * 0.4); T(ln.name, ix, yy, 11, ln.hot ? 700 : 500, ln.hot ? exCssOf(ln.rgb) : C.text2, 'left', iw - ww - 8); yy += lineH; });
+    } else if (k === 'wireframe') {
+      const s = Math.min((iw - 6) / 100, (ih - 22) / 140), ox = x + (w - 100 * s) / 2, oy = ctop;
+      drawFigure(ctx, ox, oy, s, exCssOf(ps.rgb), tlPoseJoints(ps.pose, ps.phase));
+      T(ps.w + ' × ' + ps.r, x + w / 2, y + h - 9, 13, 800, C.text, 'center', iw);
+    } else if (k === 'timeline') {
+      const x0 = ix, x1 = x + w - 11, iwp = x1 - x0, ytop = ctop + 4, ybot = y + h - 20;
+      ctx.strokeStyle = C.border2; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, ybot); ctx.lineTo(x1, ybot); ctx.stroke();
+      ps.evs.forEach(e => { const xx = x0 + e.p * iwp; ctx.strokeStyle = exCssOf(e.rgb); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(xx, ytop); ctx.lineTo(xx, ybot); ctx.stroke(); });
+      const hx = x0 + ps.headP * iwp; ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(hx, ytop - 4); ctx.lineTo(hx, ybot + 4); ctx.stroke();
+      T(ps.evs.length + '/' + ps.all + ' sets', x + w / 2, y + h - 7, 9.5, 700, C.text3, 'center');
+    } else if (k === 'plan') {
+      const lineH = 14, maxRows = Math.max(2, Math.floor((ih - 12) / lineH)), rowsShown = ps.steps.slice(0, maxRows);
+      let yy = ctop + 11;
+      rowsShown.forEach(st => { const col = st.state === 'done' ? C.good : (st.state === 'doing' ? C.accent : C.text3); T(st.state === 'done' ? '✓' : (st.state === 'doing' ? '▸' : '·'), ix, yy, 11, 800, col, 'left'); const cc = st.target ? T(st.logged + '/' + st.target, x + w - 11, yy, 10, 700, col, 'right', w * 0.3) : 0; T(st.label, ix + 14, yy, 10.5, st.state === 'todo' ? 500 : 700, st.state === 'todo' ? C.text3 : C.text, 'left', iw - 14 - cc - 6); yy += lineH; });
+      if (ps.steps.length > maxRows) T('+' + (ps.steps.length - maxRows) + ' more', ix, yy, 9.5, 600, C.text3, 'left');
+      T(ps.done + '/' + ps.total + (ps.off ? ' · +' + ps.off + ' off' : ''), x + w - 11, y + h - 7, 9.5, 700, C.text2, 'right');
+    } else if (k === 'hr') {
+      T(ps.curBpm != null ? String(ps.curBpm) : '–', x + w - 11, ctop + 14, 18, 800, C.danger, 'right'); T('bpm', x + w - 11, ctop + 25, 8, 700, C.text3, 'right');
+      const x0 = ix + 2, x1 = x + w - 11, iwp = x1 - x0, ytop = ctop + 18, ybot = y + h - 20, ihp = ybot - ytop;
+      const yFor = bpm => ytop + (1 - (bpm - ps.lo) / Math.max(1, ps.hi - ps.lo)) * ihp;
+      ctx.strokeStyle = C.border2; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, ybot); ctx.lineTo(x1, ybot); ctx.stroke();
+      const ay = yFor(ps.avg); ctx.strokeStyle = C.text3; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, ay); ctx.lineTo(x1, ay); ctx.stroke();
+      ctx.strokeStyle = C.danger; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath(); ps.pts.forEach((pt, idx) => { const xx = x0 + pt[0] * iwp, yy = yFor(pt[1]); if (idx === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy); }); ctx.stroke();
+      const lp = ps.pts[ps.pts.length - 1]; ctx.fillStyle = C.danger; ctx.beginPath(); ctx.arc(x0 + lp[0] * iwp, yFor(lp[1]), 2.5, 0, Math.PI * 2); ctx.fill();
+      T('avg ' + ps.avg + ' · max ' + ps.max, ix, y + h - 7, 9.5, 600, C.text3, 'left', iw);
+    }
+    ctx.restore();
+  };
+  Object.keys(fr.panels).forEach((k, i) => { const c = lay.cells[i]; if (c) panel(k, fr.panels[k], c.x, c.y, c.w, c.h); });
 }
 // Render the whole timelapse to an animated-GIF Blob. Returns null where no 2D canvas exists (harness-safe).
 async function renderWorkoutTimelapseGif(session, opts) {
@@ -18232,7 +18173,8 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
   const hrAvail = Array.isArray(session.hrSamples) && session.hrSamples.filter(s => Array.isArray(s) && s.length >= 2).length >= 3;
   const sel = { spotlight: true, cumulative: false, wireframe: false, timeline: false, plan: false, hr: false, ...(tl.chapters || {}) };
   if (!planAvail) sel.plan = false; if (!hrAvail) sel.hr = false;
-  let speed = (tl.speed === 64) ? 64 : 32;
+  const SPEEDS = [32, 64, 128, 256, 512, 1024];
+  let speed = SPEEDS.indexOf(tl.speed) >= 0 ? tl.speed : 32;
   const CH = [
     ['spotlight', '🎯 Set spotlight', 'each set, front & center', true],
     ['cumulative', '📜 Cumulative log', 'the workout list building up', true],
@@ -18256,11 +18198,10 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
       <div class="export-modal-head">🎞 Timelapse options</div>
       <div style="font-size:12px;color:var(--text3);margin:2px 0 10px;line-height:1.5;">An animated recap of this workout. Pick the segments to include and the playback speed.</div>
       <div>${CH.map(row).join('')}</div>
-      <div style="display:flex;align-items:center;gap:8px;margin:10px 0 2px;">
-        <span style="font-size:12px;color:var(--text2);font-weight:700;">Speed</span>
-        <button class="drawer-pill${speed === 32 ? ' active' : ''}" data-sp="32">32×</button>
-        <button class="drawer-pill${speed === 64 ? ' active' : ''}" data-sp="64">64×</button>
-        <span style="font-size:10.5px;color:var(--text3);">higher = shorter GIF</span>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 2px;">
+        <span style="font-size:12px;color:var(--text2);font-weight:700;margin-right:2px;">Speed</span>
+        ${SPEEDS.map(sp => `<button class="drawer-pill${speed === sp ? ' active' : ''}" data-sp="${sp}">${sp}×</button>`).join('')}
+        <span style="font-size:10.5px;color:var(--text3);width:100%;margin-top:2px;">All segments play together; higher speed = shorter GIF.</span>
       </div>
       <div class="export-actions export-result-actions">
         <button class="export-btn primary" id="tl-build">🎞 Build GIF</button>
@@ -21754,7 +21695,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 309 · 2026-06-24 07:51';
+const APP_BUILD = 'build 311 · 2026-06-24 09:53';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
