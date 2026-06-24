@@ -1816,6 +1816,17 @@ They share variation **UUIDs**.
   `renderTimelapseWizard`; the wizard header is now "🎞 Replay" and its Back returns to phase A. A renamed Replay
   shortcut stays on phase B for a single workout too. `test/timelapsegif.spec.mjs` updated: Replay present + labelled
   on phase A, enabled only for one workout, plus the phase-B shortcut gating.
+- **Profession seed plans (feat 355):** 14 strength-&-conditioning templates tuned to physically demanding jobs,
+  added to `SEED_PLANS` as `seed-job-*` — Firefighter, Military/Tactical, Police, Construction/Labor, Farming,
+  Nursing/Caregiving, Warehouse/Mover, Lineman/Utility climber, Logging/Forestry, Mining, Commercial Fishing/Deckhand,
+  Roofing/Scaffolding, Masonry, and Dance/Performance. Each uses the existing `_pstep`/`_mvOpt` shape with an intensity
+  and 6–7 steps drawn from real movement families, leaning on occupational staples the sport plans didn't —
+  `loaded-carries` (farmer's walks / drags), `strongman` (odd-object/sandbag), `conditioning`/`stairmaster` (work
+  capacity), `kettlebell-specific`/`olympic-lifts` (power), `mace-club-work` (rotational saw/axe), plus back-endurance
+  (`back-extension`/`roman-chair`) and `grip-training` for the lifting trades; the Nursing plan is deliberately lighter
+  and hinge/anti-rotation focused for safe patient handling. Inserted via a guarded anchor script after the sport
+  plans. `test/jobplans.spec.mjs`: all 14 present + well-formed, intensity 1–5, every movement option references a real
+  family, unique ids, and every plan is runnable (each step resolves to a family with variations).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
