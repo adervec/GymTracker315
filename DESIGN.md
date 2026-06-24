@@ -1714,6 +1714,23 @@ They share variation **UUIDs**.
   pull/grip for climbing, etc.), so they recommend, clone and run like any seed plan. Inserted before the array close
   via a guarded anchor script. `test/sportplans.spec.mjs` (all 14 present + well-formed; every movement option
   references a real family; unique ids; a representative plan is fully runnable).
+- **Workout timelapse GIF export (feat 345):** the per-workout export (📤, single-session scope) gains a **🎞 GIF**
+  option beside PNG/Text — a **32×-speed animated recap** of that workout. `buildWorkoutTimelapse(session)` (pure) flattens
+  the strength sets in completion-time order and builds a frame plan: a **title card**, **one frame per logged set**
+  (exercise name in its timeline hue, big weight×reps, a live elapsed clock, running volume + a progress bar) and a
+  **closing summary** (sets · volume · time · grade). Each set frame is held for `gapToNextSet ÷ speed` centiseconds
+  (clamped 0.08–1.4 s), so the workout's real pacing — long rests vs. quick supersets — survives in fast-forward.
+  Timing prefers real `set.ts`; a legacy session with no timestamps is spread evenly and flagged *approx. timing*; a
+  marathon session is evenly sampled to a frame budget with an honest *“showing N of M sets”* note (cumulative totals
+  always reflect the full set list). Rendering is a self-contained, dependency-free **GIF89a + LZW encoder**
+  (`encodeGif89a`/`gifLzwCompress`) fed by a canvas drawn with a small theme-derived palette
+  (`buildTimelapsePalette`) + per-RGB-cached nearest-colour quantization (`quantizeToPalette`); `renderWorkoutTimelapseGif`
+  returns an `image/gif` Blob (null where no 2D canvas exists, harness-safe like `renderWorkoutCard`). The LZW width
+  bump is checked at emit time against the not-yet-incremented free entry (the decoder's table lags the encoder's by
+  one — bumping a code early desyncs it). `test/timelapsegif.spec.mjs` covers the frame plan (order, 32× delays,
+  cumulative totals, synthetic + sampled fallbacks, empty plan), the encoder structure, a **pixel-exact round-trip
+  through the browser's own GIF decoder** (proves the LZW), the full render, and the export-dialog gating
+  (GIF only for a single workout).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

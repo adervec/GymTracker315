@@ -17625,6 +17625,273 @@ function renderWorkoutCard(sessions, opts) {
   });
 }
 
+/* ============================================================
+   feat 345 — WORKOUT TIMELAPSE GIF EXPORT
+   A 32×-speed animated recap of ONE workout: a title card, one frame per logged set (exercise,
+   weight×reps, a live elapsed clock, running totals + progress) and a closing summary. Each frame is
+   held for the real gap to the next set ÷ speed, so the workout's actual pacing survives in fast-forward.
+   Ships a self-contained GIF89a encoder (LZW) — no third-party deps. Pure helpers are top-level so the
+   Playwright suite can exercise them; the renderer needs a 2D canvas and returns null where none exists
+   (harness-safe, exactly like renderWorkoutCard).
+   ============================================================ */
+
+// HSL→RGB (h:0-360, s/l:0-100) → [r,g,b].
+function hslToRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+// Same hash/curve as colorForExercise(), but returns [r,g,b] so the GIF palette matches the timeline hues.
+function exerciseRgb(varUuid, subUuid) {
+  const seed = (varUuid || '') + '::' + (subUuid || '');
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return hslToRgb((h >>> 0) % 360, 55 + ((h >>> 8) % 25), 55 + ((h >>> 16) % 13));
+}
+
+// Pure frame PLAN for a single session's timelapse (no canvas). Returns
+// { width, height, speed, synthetic, sampledNote, totalSets, frames:[{kind,delayCs,...}], empty? }.
+function buildWorkoutTimelapse(session, opts) {
+  opts = opts || {};
+  const SPEED = opts.speed || 32;
+  const W = opts.width || 480, H = opts.height || 270;
+  const MAX_SET_FRAMES = opts.maxSetFrames || 120;
+  const MIN_CS = 8, MAX_CS = 140, LAST_CS = 110, TITLE_CS = 130, FINAL_CS = 360;
+  const unit = (typeof state !== 'undefined' && state.unit) || 'lb';
+  const stats = computeSessionStats(session);
+  const score = (typeof sessionScore === 'function') ? sessionScore(session) : null;
+  const start = new Date(session.date).getTime();
+
+  // Flatten strength sets in completion-time order (cardio has no weight×reps cadence to animate).
+  const evs = [];
+  (session.exercises || []).forEach(ex => {
+    if (ex.cardio) return;
+    (ex.sets || []).forEach(set => {
+      evs.push({ varUuid: ex.varUuid, subUuid: ex.subUuid || null, w: set.w, r: set.r,
+        ts: set.ts ? new Date(set.ts).getTime() : null,
+        vol: (parseFloat(set.w) || 0) * (parseInt(set.r) || 0) });
+    });
+  });
+  const totalSets = evs.length;
+  const base = { width: W, height: H, speed: SPEED, totalSets, synthetic: false, sampledNote: null,
+    dateLabel: new Date(session.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }),
+    durationLabel: stats.elapsedDisplay, exerciseCount: stats.exerciseCount, totalVolume: stats.totalVolume,
+    unit, plan: sessionPlanLabel(session), scoreGrade: score ? score.grade : null, scorePoints: score ? score.points : null };
+  if (!totalSets) return Object.assign(base, { frames: [], empty: true });
+
+  // Timing: prefer real timestamps; otherwise spread evenly across the session span (flagged synthetic).
+  const timed = evs.filter(e => e.ts != null);
+  if (timed.length >= 2) {
+    evs.sort((a, b) => (a.ts == null ? Infinity : a.ts) - (b.ts == null ? Infinity : b.ts));
+    const last = evs[evs.length - 1].ts;
+    evs.forEach(e => { if (e.ts == null) e.ts = last; });
+  } else {
+    base.synthetic = true;
+    const end = session.endedAt ? new Date(session.endedAt).getTime() : start + totalSets * 45000;
+    const span = Math.max(totalSets * 1000, end - start);
+    evs.forEach((e, i) => { e.ts = start + Math.round(span * (i + 0.5) / totalSets); });
+  }
+  const t0 = Math.min(start, evs[0].ts);
+
+  // Running totals across the FULL list (so sampling never distorts cumulative numbers).
+  let cumVol = 0;
+  evs.forEach((e, i) => { cumVol += e.vol; e.setNo = i + 1; e.cumVol = cumVol; e.elapsedMs = Math.max(0, e.ts - t0); });
+
+  // Even-sample if a marathon session would blow the frame budget (kept honest via sampledNote).
+  let chosen = evs;
+  if (totalSets > MAX_SET_FRAMES) {
+    chosen = [];
+    for (let i = 0; i < MAX_SET_FRAMES; i++) chosen.push(evs[Math.floor((i + 0.5) * totalSets / MAX_SET_FRAMES)]);
+    chosen[chosen.length - 1] = evs[evs.length - 1];
+    base.sampledNote = 'showing ' + MAX_SET_FRAMES + ' of ' + totalSets + ' sets';
+  }
+
+  const fmtClock = ms => { const s = Math.round(ms / 1000), m = Math.floor(s / 60); return m + ':' + String(s % 60).padStart(2, '0'); };
+  const frames = [];
+  frames.push({ kind: 'title', delayCs: TITLE_CS, dateLabel: base.dateLabel, exerciseCount: base.exerciseCount,
+    totalSets, totalVolume: base.totalVolume, unit, durationLabel: base.durationLabel, speed: SPEED,
+    synthetic: base.synthetic, sampledNote: base.sampledNote, plan: base.plan });
+  chosen.forEach((e, i) => {
+    const nextTs = (i < chosen.length - 1) ? chosen[i + 1].ts : null;
+    const delayCs = nextTs != null ? Math.max(MIN_CS, Math.min(MAX_CS, Math.round((nextTs - e.ts) / SPEED / 10))) : LAST_CS;
+    frames.push({ kind: 'set', delayCs, name: displayName(e.varUuid, e.subUuid), rgb: exerciseRgb(e.varUuid, e.subUuid),
+      w: e.w, r: e.r, setNo: e.setNo, totalSets, elapsedLabel: fmtClock(e.elapsedMs),
+      cumVolume: e.cumVol, unit, progress: e.setNo / totalSets, speed: SPEED });
+  });
+  frames.push({ kind: 'final', delayCs: FINAL_CS, totalSets, totalVolume: base.totalVolume, unit,
+    durationLabel: base.durationLabel, exerciseCount: base.exerciseCount,
+    scoreGrade: base.scoreGrade, scorePoints: base.scorePoints, speed: SPEED });
+  return Object.assign(base, { frames });
+}
+
+// ---- Self-contained GIF89a encoder (animated, single global palette, LZW). ----
+function gifLzwCompress(indices, minCodeSize) {
+  // Standard GIF LZW. The width bump is checked at EMIT time against the not-yet-incremented free entry,
+  // because the decoder's dictionary always lags the encoder's by one — bumping a code earlier desyncs it.
+  const clear = 1 << minCodeSize, eoi = clear + 1;
+  let codeSize, maxcode, dict, next;
+  const out = []; let cur = 0, bits = 0;
+  const emit = code => { cur |= code << bits; bits += codeSize; while (bits >= 8) { out.push(cur & 0xff); cur >>>= 8; bits -= 8; } };
+  const put = code => { emit(code); if (next > maxcode && codeSize < 12) { codeSize++; maxcode = (1 << codeSize) - 1; } };
+  const reset = () => { dict = new Map(); next = clear + 2; codeSize = minCodeSize + 1; maxcode = (1 << codeSize) - 1; };
+  reset();
+  put(clear);
+  if (!indices.length) { put(eoi); if (bits > 0) out.push(cur & 0xff); return Uint8Array.from(out); }
+  let prefix = indices[0];
+  for (let i = 1; i < indices.length; i++) {
+    const k = indices[i], key = (prefix << 8) | k;
+    if (dict.has(key)) { prefix = dict.get(key); continue; }
+    put(prefix);
+    if (next < 4096) { dict.set(key, next); next++; }
+    else { put(clear); reset(); }
+    prefix = k;
+  }
+  put(prefix); put(eoi);
+  if (bits > 0) out.push(cur & 0xff);
+  return Uint8Array.from(out);
+}
+function encodeGif89a(spec) {
+  const W = spec.width, H = spec.height;
+  let pal = spec.palette.slice(0, 256);
+  let size = 2; while (size < pal.length) size <<= 1;
+  while (pal.length < size) pal.push([0, 0, 0]);
+  const gctBits = Math.round(Math.log2(size)) - 1;
+  const out = [];
+  const u8 = v => out.push(v & 0xff);
+  const u16 = v => { out.push(v & 0xff, (v >> 8) & 0xff); };
+  const str = s => { for (let i = 0; i < s.length; i++) out.push(s.charCodeAt(i) & 0xff); };
+  str('GIF89a');
+  u16(W); u16(H);
+  u8(0x80 | (0x7 << 4) | gctBits); u8(0); u8(0);
+  for (let i = 0; i < size; i++) { u8(pal[i][0]); u8(pal[i][1]); u8(pal[i][2]); }
+  u8(0x21); u8(0xFF); u8(0x0B); str('NETSCAPE2.0'); u8(0x03); u8(0x01); u16(spec.loop == null ? 0 : spec.loop); u8(0x00);
+  const minCode = Math.max(2, gctBits + 1);
+  (spec.frames || []).forEach(f => {
+    u8(0x21); u8(0xF9); u8(0x04); u8(0x00); u16(f.delayCs | 0); u8(0x00); u8(0x00); // graphic control ext
+    u8(0x2C); u16(0); u16(0); u16(W); u16(H); u8(0x00);                             // image descriptor
+    u8(minCode);
+    const data = gifLzwCompress(f.indices, minCode);
+    for (let p = 0; p < data.length; p += 255) {
+      const n = Math.min(255, data.length - p);
+      u8(n);
+      for (let i = 0; i < n; i++) u8(data[p + i]);
+    }
+    u8(0x00);
+  });
+  u8(0x3B);
+  return new Uint8Array(out);
+}
+function nearestPaletteIndex(r, g, b, palette) {
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < palette.length; i++) {
+    const p = palette[i], dr = r - p[0], dg = g - p[1], db = b - p[2], d = dr * dr + dg * dg + db * db;
+    if (d < bd) { bd = d; best = i; if (!d) break; }
+  }
+  return best;
+}
+function quantizeToPalette(rgba, palette, cache) {
+  const n = rgba.length >> 2, out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const o = i << 2, key = (rgba[o] << 16) | (rgba[o + 1] << 8) | rgba[o + 2];
+    let idx = cache.get(key);
+    if (idx === undefined) { idx = nearestPaletteIndex(rgba[o], rgba[o + 1], rgba[o + 2], palette); cache.set(key, idx); }
+    out[i] = idx;
+  }
+  return out;
+}
+// Build a compact (<=256) palette from theme colors + per-exercise hues + a few anti-aliasing blend ramps.
+function buildTimelapsePalette(resolve, C, exRgbs) {
+  const mix = (a, b, t) => [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)];
+  const bg = resolve(C.bg), bg2 = resolve(C.bg2), bg3 = resolve(C.bg3), bg4 = resolve(C.bg4);
+  const text = resolve(C.text), text2 = resolve(C.text2), text3 = resolve(C.text3);
+  const accent = resolve(C.accent), accent2 = resolve(C.accent2), onAccent = resolve(C.onAccent);
+  const border = resolve(C.border2), good = resolve(C.good), warn = resolve(C.warn);
+  const seen = new Set(), pal = [];
+  const add = c => { if (!c) return; const k = c[0] + ',' + c[1] + ',' + c[2]; if (!seen.has(k)) { seen.add(k); pal.push(c); } };
+  [bg, bg2, bg3, bg4, border, text, text2, text3, accent, accent2, onAccent, good, warn, [255, 255, 255], [0, 0, 0]].forEach(add);
+  (exRgbs || []).forEach(add);
+  [[bg, text], [bg, text2], [bg, accent], [bg, accent2], [accent, onAccent], [bg, good], [bg2, text], [bg3, text]]
+    .forEach(pair => { for (let i = 1; i <= 4; i++) add(mix(pair[0], pair[1], i / 5)); });
+  (exRgbs || []).forEach(ex => { for (let i = 1; i <= 3; i++) add(mix(bg, ex, i / 4)); });
+  return pal.slice(0, 256);
+}
+// Draw one timelapse frame onto a 2D context (full-frame, palette-friendly flat fills + text).
+function drawTimelapseFrame(ctx, C, fr, W, H) {
+  const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+  const volK = v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(v);
+  const T = (s, x, y, fs, weight, color, align, maxW) => {
+    ctx.font = weight + ' ' + fs + 'px ' + FONT;
+    ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic';
+    let str = String(s); if (maxW) str = fitText(ctx, str, maxW);
+    ctx.fillText(str, x, y); return ctx.measureText(str).width;
+  };
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 0.85; T('GymTracker315', 16, 24, 12.5, 800, C.text2, 'left'); ctx.globalAlpha = 1;
+  if (fr.speed) T(fr.speed + '× TIMELAPSE', W - 16, 24, 12, 800, C.accent, 'right');
+
+  if (fr.kind === 'title') {
+    T(fr.dateLabel, W / 2, H / 2 - 46, 17, 700, C.text2, 'center', W - 40);
+    T('WORKOUT TIMELAPSE', W / 2, H / 2 - 10, 30, 800, C.accent, 'center', W - 32);
+    const sub = fr.exerciseCount + ' exercise' + (fr.exerciseCount === 1 ? '' : 's') + ' · ' + fr.totalSets + ' set' + (fr.totalSets === 1 ? '' : 's') + ' · ' + fr.durationLabel;
+    T(sub, W / 2, H / 2 + 24, 14.5, 600, C.text, 'center', W - 32);
+    T(Number(fr.totalVolume).toLocaleString() + ' ' + fr.unit + ' total volume', W / 2, H / 2 + 48, 12.5, 600, C.text3, 'center', W - 32);
+    if (fr.plan) T('Plan · ' + fr.plan, W / 2, H / 2 + 70, 12, 700, C.accent2, 'center', W - 32);
+    const notes = []; if (fr.synthetic) notes.push('approx. timing'); if (fr.sampledNote) notes.push(fr.sampledNote);
+    if (notes.length) T(notes.join(' · '), W / 2, H - 16, 10.5, 600, C.text3, 'center', W - 32);
+    return;
+  }
+  if (fr.kind === 'final') {
+    T('WORKOUT COMPLETE', W / 2, H / 2 - 48, 26, 800, C.accent, 'center', W - 32);
+    const cols = [['SETS', String(fr.totalSets)], ['VOLUME', volK(fr.totalVolume) + ' ' + fr.unit], ['TIME', fr.durationLabel]];
+    const colW = (W - 64) / 3;
+    cols.forEach((c, i) => { const cx = 32 + colW * (i + 0.5); T(c[1], cx, H / 2 + 4, 22, 800, C.text, 'center', colW - 6); T(c[0], cx, H / 2 + 24, 10.5, 700, C.text3, 'center', colW - 6); });
+    if (fr.scoreGrade) T('Grade ' + fr.scoreGrade + (fr.scorePoints != null ? ' · ' + fr.scorePoints + '/100' : ''), W / 2, H / 2 + 60, 14, 700, C.accent2, 'center', W - 32);
+    T('GymTracker315 · ' + (fr.speed || 32) + '× timelapse', W / 2, H - 16, 11, 600, C.text3, 'center', W - 32);
+    return;
+  }
+  // set frame
+  T(fr.elapsedLabel, W - 16, 58, 26, 800, C.text, 'right');
+  ctx.globalAlpha = 0.8; T('ELAPSED', W - 16, 72, 9, 700, C.text3, 'right'); ctx.globalAlpha = 1;
+  const exCss = 'rgb(' + fr.rgb[0] + ',' + fr.rgb[1] + ',' + fr.rgb[2] + ')';
+  T(fr.name, 16, 100, 16, 700, exCss, 'left', W - 32);
+  T(fr.w + ' × ' + fr.r, 16, 158, 46, 800, C.text, 'left', W - 130);
+  T(fr.unit, 16, 182, 13, 700, C.text3, 'left');
+  T('SET ' + fr.setNo, W - 16, 122, 18, 800, C.text2, 'right');
+  T('of ' + fr.totalSets, W - 16, 140, 12, 600, C.text3, 'right');
+  const barY = H - 44, barX = 16, barW = W - 32, barH = 8;
+  roundRectPath(ctx, barX, barY, barW, barH, 4); ctx.fillStyle = C.bg3; ctx.fill();
+  const pw = Math.max(barH, barW * Math.min(1, fr.progress));
+  roundRectPath(ctx, barX, barY, pw, barH, 4); ctx.fillStyle = C.accent; ctx.fill();
+  T(Number(fr.cumVolume).toLocaleString() + ' ' + fr.unit + ' so far', 16, H - 16, 11.5, 600, C.text3, 'left', W - 80);
+  T(Math.round(fr.progress * 100) + '%', W - 16, H - 16, 11.5, 700, C.text2, 'right');
+}
+// Render the whole timelapse to an animated-GIF Blob. Returns null where no 2D canvas exists (harness-safe).
+async function renderWorkoutTimelapseGif(session, opts) {
+  const plan = buildWorkoutTimelapse(session, opts);
+  if (!plan || !plan.frames || !plan.frames.length) return null;
+  const W = plan.width, H = plan.height;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext && canvas.getContext('2d');
+  if (!ctx) return null;
+  canvas.width = W; canvas.height = H;
+  const C = readThemeColors();
+  const resolve = s => { ctx.fillStyle = s; ctx.fillRect(0, 0, 1, 1); const d = ctx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2]]; };
+  const exRgbs = [], seenEx = new Set();
+  plan.frames.forEach(f => { if (f.kind === 'set' && f.rgb) { const k = f.rgb.join(','); if (!seenEx.has(k)) { seenEx.add(k); exRgbs.push(f.rgb); } } });
+  const palette = buildTimelapsePalette(resolve, C, exRgbs);
+  const cache = new Map(), frames = [];
+  for (const fr of plan.frames) {
+    drawTimelapseFrame(ctx, C, fr, W, H);
+    frames.push({ indices: quantizeToPalette(ctx.getImageData(0, 0, W, H).data, palette, cache), delayCs: fr.delayCs });
+  }
+  return new Blob([encodeGif89a({ width: W, height: H, palette, frames, loop: 0 })], { type: 'image/gif' });
+}
+
 /* ---- Export dialog (body-level overlay; works from the Log tab or the drawer) ---- */
 function closeExportDialog() {
   const b = document.getElementById('export-backdrop');
@@ -17696,12 +17963,14 @@ function renderExportPhaseA(modal, st) {
 async function renderExportPhaseB(modal, opts, sessions) {
   const text = buildWorkoutText(sessions, opts);
   const baseName = exportBaseName(opts, sessions);
+  const single = sessions.length === 1; // feat 345 — a timelapse is per-workout, so only offer it for one session
   modal.innerHTML = `
     <div class="export-modal-head">📤 ${escapeHtml(exportScopeLabel(opts, sessions))}</div>
     <div class="export-preview-wrap"><div class="export-building">Building image…</div><img id="export-preview" alt="Workout summary" style="display:none;"></div>
     <div class="export-actions export-result-actions">
       <button class="export-btn primary" id="export-dl-png" disabled>⬇ PNG</button>
       <button class="export-btn" id="export-dl-txt">⬇ Text</button>
+      ${single ? '<button class="export-btn" id="export-dl-gif" title="Animated 32× recap of this workout">🎞 GIF</button>' : ''}
       <button class="export-btn" id="export-copy">⧉ Copy</button>
       ${('share' in navigator) ? '<button class="export-btn" id="export-share">↗ Share</button>' : ''}
     </div>
@@ -17735,6 +18004,20 @@ async function renderExportPhaseB(modal, opts, sessions) {
   }
   const shareBtn = modal.querySelector('#export-share');
   if (shareBtn) shareBtn.addEventListener('click', () => shareExport(text, blob, baseName));
+
+  // feat 345 — animated 32× timelapse of this workout (built on demand; can be a couple seconds for big sessions).
+  const gifBtn = modal.querySelector('#export-dl-gif');
+  if (gifBtn) gifBtn.addEventListener('click', async () => {
+    if (gifBtn.disabled) return;
+    const orig = gifBtn.textContent;
+    gifBtn.disabled = true; gifBtn.textContent = '⏳ Building…';
+    try {
+      const gif = await renderWorkoutTimelapseGif(sessions[0]);
+      if (gif) { downloadBlob(gif, baseName + '_timelapse.gif'); toast('🎞 Timelapse GIF exported'); }
+      else toast('No sets to animate in this workout');
+    } catch (e) { toast('Could not build the timelapse'); }
+    finally { if (document.body.contains(gifBtn)) { gifBtn.disabled = false; gifBtn.textContent = orig; } }
+  });
 }
 
 /* --------- SETTINGS TAB --------- */
@@ -21201,7 +21484,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 306 · 2026-06-23 20:51';
+const APP_BUILD = 'build 307 · 2026-06-23 22:07';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
