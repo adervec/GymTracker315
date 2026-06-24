@@ -4885,6 +4885,8 @@ function normalizeState() {
   state.timelapse.chapters = { spotlight: true, cumulative: false, wireframe: false, timeline: false, plan: false, hr: false, ...(state.timelapse.chapters || {}) };
   state.timelapse.format = (state.timelapse.format === 'video') ? 'video' : 'gif'; // feat 350
   state.timelapse.photoSecs = Math.max(0.5, Math.min(10, +state.timelapse.photoSecs || 2.5)); // feat 351
+  state.timelapse.music = ['off', 'upbeat', 'chill', 'epic'].indexOf(state.timelapse.music) >= 0 ? state.timelapse.music : 'off'; // feat 353
+  state.timelapse.sfx = !!state.timelapse.sfx;
 }
 
 function loadState() {
@@ -18213,13 +18215,86 @@ async function renderWorkoutTimelapseGif(session, opts) {
 }
 
 // Whether a real-time WebM recording of the timelapse is possible here (desktop Chromium yes; iOS Safari no).
+// MediaRecorder mime candidates, MP4/H.264 FIRST (Strava accepts MP4, not WebM), then WebM as a fallback.
+const TIMELAPSE_VIDEO_MIMES = ['video/mp4;codecs=avc1.640029,mp4a.40.2', 'video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=h264', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+function timelapseVideoMime() {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') return null;
+  return TIMELAPSE_VIDEO_MIMES.find(m => MediaRecorder.isTypeSupported(m)) || null;
+}
+function timelapseVideoExt(mime) { return (mime && mime.indexOf('mp4') >= 0) ? 'mp4' : 'webm'; }
 function timelapseVideoSupported() {
   return typeof window !== 'undefined' && typeof MediaRecorder !== 'undefined' && typeof HTMLCanvasElement !== 'undefined'
-    && !!HTMLCanvasElement.prototype.captureStream && typeof MediaRecorder.isTypeSupported === 'function'
-    && (MediaRecorder.isTypeSupported('video/webm;codecs=vp9') || MediaRecorder.isTypeSupported('video/webm;codecs=vp8') || MediaRecorder.isTypeSupported('video/webm'));
+    && !!HTMLCanvasElement.prototype.captureStream && !!timelapseVideoMime();
 }
-// Render the timelapse to a WebM Blob via a manual-frame captureStream + MediaRecorder (real-time playback;
-// each frame is held its own delay, so the file's timing matches the GIF). Returns null where unsupported.
+// feat 353 — optional video audio. Which sound fires on which frame (pure → testable without an AudioContext).
+// start (title) · tick (a set logged) · chime (a new exercise begins) · ding (a plan step completes) ·
+// shutter (a spliced photo) · fanfare (the final card).
+function tlVideoEvents(frames) {
+  const ev = []; let lastSet = -1, lastEx = null, lastDone = 0;
+  (frames || []).forEach((f, i) => {
+    if (f.kind === 'title') ev.push({ i, type: 'start' });
+    else if (f.kind === 'photo') ev.push({ i, type: 'shutter' });
+    else if (f.kind === 'final') ev.push({ i, type: 'fanfare' });
+    else if (f.kind === 'composite') {
+      if (f.setNo !== lastSet) {
+        const p = f.panels || {};
+        const nm = (p.spotlight && p.spotlight.name) || (p.wireframe && p.wireframe.name)
+          || (p.cumulative && p.cumulative.items && p.cumulative.items.length && p.cumulative.items[p.cumulative.items.length - 1].name) || null;
+        ev.push({ i, type: (nm && nm !== lastEx) ? 'chime' : 'tick' });
+        lastSet = f.setNo; if (nm) lastEx = nm;
+      }
+      if (f.panels && f.panels.plan && f.panels.plan.done > lastDone) { ev.push({ i, type: 'ding' }); lastDone = f.panels.plan.done; }
+    }
+  });
+  return ev;
+}
+// Synthesize a short event sound on a Web Audio graph (routed to `dest`, the recorder's audio destination).
+function tlPlaySfx(actx, dest, type, when) {
+  when = when || actx.currentTime;
+  const bus = actx.createGain(); bus.gain.value = 0.5; bus.connect(dest);
+  const tone = (freq, t0, dur, wave, peak) => { const o = actx.createOscillator(), og = actx.createGain(); o.type = wave || 'triangle'; o.frequency.setValueAtTime(freq, t0); og.gain.setValueAtTime(0.0001, t0); og.gain.linearRampToValueAtTime(peak || 0.3, t0 + 0.006); og.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(og); og.connect(bus); o.start(t0); o.stop(t0 + dur + 0.02); };
+  const noise = (t0, dur, peak) => { const n = Math.max(1, Math.floor(actx.sampleRate * dur)), buf = actx.createBuffer(1, n, actx.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2); const s = actx.createBufferSource(), ng = actx.createGain(); s.buffer = buf; ng.gain.value = peak || 0.2; s.connect(ng); ng.connect(bus); s.start(t0); };
+  if (type === 'tick') tone(880, when, 0.08, 'square', 0.16);
+  else if (type === 'chime') { tone(659, when, 0.18, 'triangle', 0.24); tone(988, when + 0.06, 0.24, 'triangle', 0.2); }
+  else if (type === 'ding') tone(1319, when, 0.45, 'sine', 0.3);
+  else if (type === 'shutter') { noise(when, 0.05, 0.3); tone(180, when, 0.03, 'square', 0.18); noise(when + 0.06, 0.04, 0.18); }
+  else if (type === 'fanfare') [523, 659, 784, 1047].forEach((f, k) => tone(f, when + k * 0.12, 0.5, 'sawtooth', 0.2));
+  else if (type === 'start') { const o = actx.createOscillator(), og = actx.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(200, when); o.frequency.exponentialRampToValueAtTime(820, when + 0.5); og.gain.setValueAtTime(0.0001, when); og.gain.linearRampToValueAtTime(0.16, when + 0.05); og.gain.exponentialRampToValueAtTime(0.0001, when + 0.6); o.connect(og); og.connect(bus); o.start(when); o.stop(when + 0.66); }
+}
+const TL_MUSIC_STYLES = ['off', 'upbeat', 'chill', 'epic'];
+// A simple looping procedural backing track (chords + kick + arpeggio) via a lookahead scheduler. {start,stop}.
+function tlMusic(actx, dest, style) {
+  const g = actx.createGain(); g.gain.value = 0.15; g.connect(dest);
+  const STYLES = {
+    upbeat: { bpm: 124, root: 220, wave: 'triangle', prog: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [2, 5, 9]] },
+    chill: { bpm: 90, root: 174, wave: 'sine', prog: [[0, 3, 7], [-2, 2, 5], [3, 7, 10], [5, 8, 12]] },
+    epic: { bpm: 140, root: 110, wave: 'sawtooth', prog: [[0, 3, 7], [8, 12, 15], [3, 7, 10], [10, 14, 17]] },
+  };
+  const cfg = STYLES[style] || STYLES.upbeat, beat = 60 / cfg.bpm, semis = n => cfg.root * Math.pow(2, n / 12);
+  let timer = null, next = 0, step = 0;
+  const env = (node, t, peak, dur) => { const eg = actx.createGain(); eg.gain.setValueAtTime(0.0001, t); eg.gain.linearRampToValueAtTime(peak, t + 0.02); eg.gain.exponentialRampToValueAtTime(0.001, t + dur); node.connect(eg); eg.connect(g); };
+  const voice = (freq, t, dur, peak) => { const o = actx.createOscillator(); o.type = cfg.wave; o.frequency.value = freq; env(o, t, peak, dur); o.start(t); o.stop(t + dur + 0.03); };
+  const kick = t => { const o = actx.createOscillator(), kg = actx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(50, t + 0.12); kg.gain.setValueAtTime(0.5, t); kg.gain.exponentialRampToValueAtTime(0.001, t + 0.16); o.connect(kg); kg.connect(g); o.start(t); o.stop(t + 0.18); };
+  const tick = () => {
+    const ahead = actx.currentTime + 0.25;
+    while (next < ahead) {
+      const chord = cfg.prog[Math.floor(step / 2) % cfg.prog.length];
+      if (step % 2 === 0) chord.forEach(n => voice(semis(n), next, beat * 1.8, 0.06));
+      kick(next);
+      voice(semis(chord[step % chord.length] + 12), next, beat * 0.5, 0.05); // arpeggio
+      next += beat; step++;
+    }
+  };
+  return {
+    start: () => { next = actx.currentTime + 0.1; step = 0; tick(); timer = setInterval(tick, 60); },
+    stop: () => { if (timer) clearInterval(timer); timer = null; try { g.gain.setTargetAtTime(0, actx.currentTime, 0.08); } catch (_) {} },
+  };
+}
+
+// Render the timelapse to an MP4 (preferred — Strava-friendly) or WebM Blob via a manual-frame captureStream +
+// MediaRecorder (real-time playback; each frame is held its own delay, so the file's timing matches the GIF).
+// opts.music ('off'|'upbeat'|'chill'|'epic') + opts.sfx (bool) add an audio track (video only).
+// Returns null where unsupported; read blob.type for the actual container.
 // onProgress(done,total) is optional. Bitrate is scaled to the canvas so the file is "no larger than required".
 async function renderWorkoutTimelapseVideo(session, opts, onProgress) {
   if (!timelapseVideoSupported()) return null;
@@ -18231,25 +18306,44 @@ async function renderWorkoutTimelapseVideo(session, opts, onProgress) {
   const C = readThemeColors();
   let stream; try { stream = canvas.captureStream(0); } catch (_) { return null; }
   const track = stream.getVideoTracks && stream.getVideoTracks()[0]; if (!track) return null;
-  const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+  const mime = timelapseVideoMime() || 'video/webm'; // MP4 (Strava-friendly) when available, else WebM
   const bitrate = Math.min(8000000, Math.max(250000, Math.round(W * H * 15 * 0.15))); // ~0.15 bpp · 15fps, capped
-  let rec; try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate }); } catch (_) { return null; }
+
+  // ---- optional audio: music + event SFX, mixed into the recorded stream (video only) ----
+  const wantMusic = (opts && opts.music && opts.music !== 'off'), wantSfx = !!(opts && opts.sfx);
+  let actx = null, dest = null, music = null, evByFrame = null;
+  if ((wantMusic || wantSfx) && typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.resume) await actx.resume().catch(() => {});
+      dest = actx.createMediaStreamDestination();
+      (dest.stream.getAudioTracks() || []).forEach(t => stream.addTrack(t)); // add BEFORE the recorder is created
+      if (wantSfx) { evByFrame = {}; tlVideoEvents(plan.frames).forEach(e => { (evByFrame[e.i] = evByFrame[e.i] || []).push(e.type); }); }
+      if (wantMusic) { music = tlMusic(actx, dest, opts.music); }
+    } catch (_) { actx = null; dest = null; music = null; evByFrame = null; }
+  }
+
+  let rec; try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate }); } catch (_) { if (actx) try { actx.close(); } catch (_) {} return null; }
   const chunks = []; rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   const stopped = new Promise(res => { rec.onstop = res; });
-  try { rec.start(); } catch (_) { return null; }
+  try { rec.start(); } catch (_) { if (actx) try { actx.close(); } catch (_) {} return null; }
+  if (music) try { music.start(); } catch (_) {}
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const total = plan.frames.length;
   for (let i = 0; i < total; i++) {
     const fr = plan.frames[i];
     drawTimelapseFrame(ctx, C, fr, W, H, plan.photos);
     try { if (track.requestFrame) track.requestFrame(); else if (stream.requestFrame) stream.requestFrame(); } catch (_) {}
+    if (evByFrame && actx && evByFrame[i]) evByFrame[i].forEach(type => { try { tlPlaySfx(actx, dest, type, actx.currentTime + 0.01); } catch (_) {} });
     if (onProgress) try { onProgress(i + 1, total); } catch (_) {}
     await sleep(Math.max(16, (fr.delayCs | 0) * 10));
   }
-  await sleep(140); // let the last frame land
+  await sleep(220); // let the last frame + final fanfare land
+  if (music) try { music.stop(); } catch (_) {}
   try { rec.stop(); } catch (_) {}
   await stopped;
   try { track.stop(); } catch (_) {}
+  if (actx) try { await actx.close(); } catch (_) {}
   if (!chunks.length) return null;
   return new Blob(chunks, { type: mime });
 }
@@ -18375,10 +18469,50 @@ async function renderExportPhaseB(modal, opts, sessions) {
 // feat 346 — timelapse wizard: choose which replay segments to include, the speed (32×/64×), then build.
 // Plan-steps + Heart-rate rows are disabled when the workout has no plan / no recorded HR. Choices persist
 // device-locally in state.timelapse so the next export remembers them.
-// Default replay time for a photo: where its file timestamp lands inside the workout, clamped to [0, span].
-function photoDefaultElapsedMs(lastModifiedMs, startMs, spanMs) {
-  if (!isFinite(lastModifiedMs) || !isFinite(startMs)) return 0;
-  return Math.max(0, Math.min(Math.max(0, spanMs || 0), lastModifiedMs - startMs));
+// Default replay time for a photo: where its capture timestamp lands inside the workout, clamped to [0, span].
+function photoDefaultElapsedMs(captureMs, startMs, spanMs) {
+  if (!isFinite(captureMs) || !isFinite(startMs)) return 0;
+  return Math.max(0, Math.min(Math.max(0, spanMs || 0), captureMs - startMs));
+}
+// EXIF "YYYY:MM:DD HH:MM:SS" (camera local wall-clock) → local epoch ms, or null.
+function exifDateStringToMs(s) {
+  if (typeof s !== 'string') return null;
+  const m = s.trim().match(/^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const y = +m[1], mo = +m[2], d = +m[3], h = +m[4], mi = +m[5], se = +m[6];
+  if (!y || mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const t = new Date(y, mo - 1, d, h, mi, se).getTime();
+  return isFinite(t) ? t : null;
+}
+// Read a JPEG's real capture time (EXIF DateTimeOriginal, else DateTimeDigitized/DateTime) from an ArrayBuffer.
+// Returns local epoch ms or null. This is the fix for photos synced to a service (file mtime = sync time, not capture).
+function parseExifDateTimeMs(buf) {
+  try {
+    const dv = new DataView(buf), len = dv.byteLength;
+    if (len < 4 || dv.getUint16(0) !== 0xFFD8) return null; // not JPEG
+    let off = 2;
+    while (off + 4 <= len) {
+      if (dv.getUint8(off) !== 0xFF) { off++; continue; }
+      const marker = dv.getUint8(off + 1);
+      if (marker === 0xD9 || marker === 0xDA) break; // EOI / start-of-scan
+      const size = dv.getUint16(off + 2); if (size < 2) break;
+      if (marker === 0xE1 && off + 4 + 6 <= len && dv.getUint32(off + 4) === 0x45786966 && dv.getUint16(off + 8) === 0x0000) {
+        const tiff = off + 10;                       // after "Exif\0\0"
+        const le = dv.getUint16(tiff) === 0x4949;    // II = little-endian
+        const u16 = o => dv.getUint16(o, le), u32 = o => dv.getUint32(o, le);
+        if (u16(tiff + 2) !== 0x002A) return null;
+        const readIFD = ifd => { const out = {}; if (ifd + 2 > len) return out; const n = u16(ifd); for (let i = 0; i < n; i++) { const e = ifd + 2 + i * 12; if (e + 12 > len) break; out[u16(e)] = { count: u32(e + 4), valOff: e + 8 }; } return out; };
+        const ascii = en => { const sz = en.count; let p = sz <= 4 ? en.valOff : tiff + u32(en.valOff), s = ''; for (let i = 0; i < sz && p + i < len; i++) { const c = dv.getUint8(p + i); if (!c) break; s += String.fromCharCode(c); } return s; };
+        const ifd0 = readIFD(tiff + u32(tiff + 4));
+        let str = null;
+        if (ifd0[0x8769]) { const ex = readIFD(tiff + u32(ifd0[0x8769].valOff)); if (ex[0x9003]) str = ascii(ex[0x9003]); else if (ex[0x9004]) str = ascii(ex[0x9004]); }
+        if (!str && ifd0[0x0132]) str = ascii(ifd0[0x0132]);
+        return exifDateStringToMs(str);
+      }
+      off += 2 + size;
+    }
+    return null;
+  } catch (_) { return null; }
 }
 function renderTimelapseWizard(modal, opts, session, baseName) {
   const tl = state.timelapse || {};
@@ -18394,7 +18528,10 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
   let speed = SPEEDS.indexOf(tl.speed) >= 0 ? tl.speed : 32;
   let format = (videoOk && tl.format === 'video') ? 'video' : 'gif';
   let photoSecs = Math.max(0.5, Math.min(10, +tl.photoSecs || 2.5));
-  const pics = []; // transient for this wizard session: { name, _img, url, elapsedMs }
+  let music = ['off', 'upbeat', 'chill', 'epic'].indexOf(tl.music) >= 0 ? tl.music : 'off'; // feat 353
+  let sfx = !!tl.sfx;
+  const MUSIC = [['off', 'Off'], ['upbeat', 'Upbeat'], ['chill', 'Chill'], ['epic', 'Epic']];
+  const pics = []; // transient for this wizard session: { name, _img, url, elapsedMs, src }
   const CH = [
     ['spotlight', '🎯 Set spotlight', 'each set, front & center', true],
     ['cumulative', '📜 Cumulative log', 'the workout list building up', true],
@@ -18417,7 +18554,7 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
     };
     const picRow = (p, i) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
         <img src="${p.url}" alt="" style="width:34px;height:34px;object-fit:cover;border-radius:5px;border:1px solid var(--border2);flex-shrink:0;">
-        <span style="flex:1;min-width:0;font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name || 'photo')}</span>
+        <span style="flex:1;min-width:0;display:flex;flex-direction:column;"><span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name || 'photo')}</span><span style="font-size:9.5px;color:${p.src === 'exif' ? 'var(--good)' : 'var(--warn)'};">${p.src === 'exif' ? '✓ capture time' : '⚠ file time — check'}</span></span>
         <label style="font-size:10.5px;color:var(--text3);">at <input type="number" data-pic-at="${i}" value="${(p.elapsedMs / 1000).toFixed(0)}" min="0" max="${Math.round(spanMs / 1000)}" step="1" style="width:54px;"> s</label>
         <button data-pic-del="${i}" class="export-btn" style="padding:2px 8px;">✕</button>
       </div>`;
@@ -18434,14 +18571,22 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 2px;">
         <span style="font-size:12px;color:var(--text2);font-weight:700;margin-right:2px;">Format</span>
         ${fmtBtns}
-        <span style="font-size:10.5px;color:var(--text3);width:100%;margin-top:2px;">${format === 'video' ? 'WebM video — smaller for long/photo-rich recaps; recording takes about the clip length.' : 'Animated GIF — plays anywhere; higher speed = shorter file.'}</span>
+        <span style="font-size:10.5px;color:var(--text3);width:100%;margin-top:2px;">${format === 'video' ? ((timelapseVideoExt(timelapseVideoMime()) === 'mp4' ? 'MP4 video' : 'WebM video') + ' — smaller for long/photo-rich recaps; recording takes about the clip length.') : 'Animated GIF — plays anywhere; higher speed = shorter file. (Sound is video-only.)'}</span>
       </div>
+      ${format === 'video' ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 2px;">
+        <span style="font-size:12px;color:var(--text2);font-weight:700;margin-right:2px;">🎵 Music</span>
+        ${MUSIC.map(m => `<button class="drawer-pill${music === m[0] ? ' active' : ''}" data-music="${m[0]}">${m[1]}</button>`).join('')}
+        <span style="font-size:12px;color:var(--text2);font-weight:700;margin:0 2px 0 8px;">🔊 SFX</span>
+        <button class="drawer-pill${sfx ? ' active' : ''}" data-sfx="on">On</button>
+        <button class="drawer-pill${!sfx ? ' active' : ''}" data-sfx="off">Off</button>
+        <span style="font-size:10.5px;color:var(--text3);width:100%;margin-top:2px;">A built-in backing track + sound cues (a tick per set, a chime on a new exercise, a ding when a plan step completes, a shutter for photos, a finishing fanfare).</span>
+      </div>` : ''}
       <div style="margin:10px 0 2px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <span style="font-size:12px;color:var(--text2);font-weight:700;">📷 Photos${pics.length ? ' (' + pics.length + ')' : ''}</span>
           <label style="font-size:10.5px;color:var(--text3);">show each <input type="number" id="tl-photo-secs" value="${photoSecs}" min="0.5" max="10" step="0.5" style="width:50px;"> s</label>
         </div>
-        <div style="font-size:10.5px;color:var(--text3);margin:2px 0 6px;line-height:1.45;">Splice photos taken during the workout into the replay. Each appears at its file time (editable) — workout is ${mmss(spanMs)} long.</div>
+        <div style="font-size:10.5px;color:var(--text3);margin:2px 0 6px;line-height:1.45;">Splice photos into the replay at the moment they were taken — read from each photo's <b>capture time</b> (EXIF) when present, else its file time (editable). Workout is ${mmss(spanMs)} long.</div>
         <div id="tl-pics">${pics.map(picRow).join('')}</div>
         <button class="export-btn" id="tl-add-photos">＋ Add photos</button>
         <input type="file" id="tl-photo-input" accept="image/*" multiple style="display:none;">
@@ -18456,6 +18601,8 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
     modal.querySelectorAll('[data-ch]').forEach(b => b.addEventListener('click', () => { sel[b.dataset.ch] = !sel[b.dataset.ch]; draw(); }));
     modal.querySelectorAll('[data-sp]').forEach(b => b.addEventListener('click', () => { speed = +b.dataset.sp; draw(); }));
     modal.querySelectorAll('[data-fmt]').forEach(b => b.addEventListener('click', () => { format = b.dataset.fmt; draw(); }));
+    modal.querySelectorAll('[data-music]').forEach(b => b.addEventListener('click', () => { music = b.dataset.music; draw(); }));
+    modal.querySelectorAll('[data-sfx]').forEach(b => b.addEventListener('click', () => { sfx = b.dataset.sfx === 'on'; draw(); }));
     modal.querySelector('#tl-photo-secs')?.addEventListener('change', e => { const v = parseFloat(e.target.value); if (!isNaN(v)) photoSecs = Math.max(0.5, Math.min(10, v)); });
     modal.querySelectorAll('[data-pic-at]').forEach(inp => inp.addEventListener('change', e => { const i = +e.target.dataset.picAt, v = parseFloat(e.target.value); if (pics[i] && !isNaN(v)) pics[i].elapsedMs = Math.max(0, Math.min(spanMs, v * 1000)); }));
     modal.querySelectorAll('[data-pic-del]').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.picDel; const p = pics[i]; if (p && p.url) try { URL.revokeObjectURL(p.url); } catch (_) {} pics.splice(i, 1); draw(); }));
@@ -18468,7 +18615,12 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
         const url = URL.createObjectURL(f); const img = new Image();
         try { await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; }); }
         catch (_) { try { URL.revokeObjectURL(url); } catch (_) {} continue; }
-        pics.push({ name: f.name, _img: img, url, elapsedMs: photoDefaultElapsedMs(f.lastModified || startMs, startMs, spanMs) });
+        // Prefer the photo's EXIF capture time — a synced photo's file mtime is the SYNC time, not when it was taken.
+        let captureMs = null;
+        try { captureMs = parseExifDateTimeMs(await f.arrayBuffer()); } catch (_) {}
+        const src = captureMs != null ? 'exif' : 'file';
+        const baseMs = captureMs != null ? captureMs : (f.lastModified || startMs);
+        pics.push({ name: f.name, _img: img, url, src, elapsedMs: photoDefaultElapsedMs(baseMs, startMs, spanMs) });
       }
       draw();
     });
@@ -18477,14 +18629,14 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
     modal.querySelector('#tl-build').addEventListener('click', async e => {
       const chapters = CH.map(c => c[0]).filter(k => sel[k]);
       if (!chapters.length) { toast('Pick at least one segment'); return; }
-      state.timelapse = { speed, chapters: { ...sel }, format, photoSecs }; try { saveState(); } catch (_) {}
+      state.timelapse = { speed, chapters: { ...sel }, format, photoSecs, music, sfx }; try { saveState(); } catch (_) {}
       const photos = pics.map(p => ({ _img: p._img, elapsedMs: p.elapsedMs, seconds: photoSecs }));
       const btn = e.currentTarget, orig = btn.textContent; btn.disabled = true;
       try {
         if (format === 'video') {
           btn.textContent = '⏳ Recording…';
-          const vid = await renderWorkoutTimelapseVideo(session, { speed, chapters, photos }, (d, t) => { btn.textContent = '⏳ ' + Math.round(d / t * 100) + '%'; });
-          if (vid) { downloadBlob(vid, baseName + '_timelapse.webm'); toast('🎬 Timelapse video exported'); }
+          const vid = await renderWorkoutTimelapseVideo(session, { speed, chapters, photos, music, sfx }, (d, t) => { btn.textContent = '⏳ ' + Math.round(d / t * 100) + '%'; });
+          if (vid) { downloadBlob(vid, baseName + '_timelapse.' + timelapseVideoExt(vid.type)); toast('🎬 Timelapse video exported'); }
           else toast('Video export not available here — try GIF');
         } else {
           btn.textContent = '⏳ Building…';
@@ -21963,7 +22115,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 314 · 2026-06-24 12:50';
+const APP_BUILD = 'build 317 · 2026-06-24 13:50';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

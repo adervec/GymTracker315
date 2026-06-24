@@ -1787,6 +1787,28 @@ They share variation **UUIDs**.
   are transient to the export. Tests: `test/timelapsemedia.spec.mjs` (tween smoothness, `photoDefaultElapsedMs`,
   photo-frame splicing at the right moment, `medianCut`, a spliced photo surviving into a decodable GIF, best-effort
   WebM export) plus the updated `timelapsegif`/`timelapsewizard` specs (keyframe-per-set + tweens, format + photo UI).
+- **Timelapse video → MP4 + photos use EXIF capture time (feat 352):** two fixes from real use.
+  **(MP4)** Strava rejects WebM, so `renderWorkoutTimelapseVideo` now records **MP4/H.264 first** (`TIMELAPSE_VIDEO_MIMES`
+  tries `video/mp4;codecs=avc1…` ahead of WebM via `MediaRecorder.isTypeSupported`), falling back to WebM only where
+  MP4 isn't available; the download extension follows `blob.type` (`timelapseVideoExt`). **(EXIF)** Photos were
+  defaulting to the workout's end because a photo synced to Google Photos has a file mtime = *sync* time, not capture
+  time. The wizard now reads the real **EXIF DateTimeOriginal** (`parseExifDateTimeMs` walks JPEG APP1→TIFF→Exif IFD,
+  little/big-endian; `exifDateStringToMs` converts the wall-clock string) and uses it for the default position,
+  falling back to file mtime only when there's no EXIF; each photo row shows whether its time came from **✓ capture
+  time** or **⚠ file time** (still editable). Covered in `test/timelapsemedia.spec.mjs`: `exifDateStringToMs` parsing,
+  `parseExifDateTimeMs` against a hand-built JPEG+EXIF buffer, and the MP4-preference + extension mapping.
+- **Timelapse video music + event SFX (feat 353):** the **video** export gains optional sound (GIF has none). A Web
+  Audio graph is mixed into the recorded stream via `actx.createMediaStreamDestination()` + `stream.addTrack(...)`
+  **before** the MediaRecorder is created, so the MP4/WebM carries an audio track. **Music**: a built-in procedural
+  backing track (`tlMusic` — chords + kick + arpeggio on a lookahead scheduler) in three styles (Upbeat / Chill /
+  Epic) at low volume under the cues, or Off. **Event SFX** (`tlPlaySfx`, synthesized): a *tick* per set, a *chime*
+  when a new exercise starts, a *ding* when a plan step completes, a *shutter* when a spliced photo appears, a riser
+  at the *title*, and a *fanfare* on the final card. Which cue fires on which frame is a pure function
+  (`tlVideoEvents`) so it's unit-tested without audio; they're triggered live during the real-time record loop. The
+  AudioContext is resumed from the Build tap (gesture) and closed when done. Wizard exposes **🎵 Music** pills + a
+  **🔊 SFX** toggle, shown only for the video format; both persist in device-local `state.timelapse` (`music`/`sfx`).
+  `test/timelapseaudio.spec.mjs`: the event mapping, the synth helpers running against a real AudioContext (with an
+  audio track present), the normalize defaults, and the video-only wizard controls.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
