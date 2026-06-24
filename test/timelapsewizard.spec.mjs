@@ -33,7 +33,7 @@ test('default panels stay spotlight-only (back-compat) and carry exercise colour
   expect(r.h).toBe(300);
 });
 
-test('all selected segments render in parallel on each composite (one frame per set, no series)', async ({ page }) => {
+test('all selected segments render in parallel on each composite (smooth, no series)', async ({ page }) => {
   const [ua] = await twoUuids(page);
   const r = await page.evaluate((ua) => {
     const T = Date.parse('2026-06-20T10:00:00Z'), iso = ms => new Date(ms).toISOString();
@@ -43,14 +43,16 @@ test('all selected segments render in parallel on each composite (one frame per 
     const comp = p.frames.filter(f => f.kind === 'composite');
     const last = comp[comp.length - 1];
     const phases = [...new Set(comp.map(f => f.panels.wireframe.phase))].sort();
-    return { panels: p.panels, dividers: p.frames.filter(f => f.kind === 'divider').length, compCount: comp.length,
+    const distinctSets = new Set(comp.map(f => f.setNo)).size;
+    return { panels: p.panels, dividers: p.frames.filter(f => f.kind === 'divider').length, compCount: comp.length, distinctSets,
       firstHasAll: ['spotlight', 'cumulative', 'wireframe', 'timeline'].every(k => !!comp[0].panels[k]),
       cumLastItems: last.panels.cumulative.items.length, cumLastHot: last.panels.cumulative.items.slice(-1)[0].hot,
       tlLastShown: last.panels.timeline.evs.length, tlAll: last.panels.timeline.all, phases };
   }, ua);
   expect(r.panels).toEqual(['spotlight', 'cumulative', 'wireframe', 'timeline']);
   expect(r.dividers).toBe(0);            // parallel, not series
-  expect(r.compCount).toBe(3);           // one composite per set
+  expect(r.compCount).toBeGreaterThan(3); // tweened between the 3 set keyframes → smooth
+  expect(r.distinctSets).toBe(3);
   expect(r.firstHasAll).toBe(true);      // every panel present on the SAME frame
   expect(r.cumLastItems).toBe(3);
   expect(r.cumLastHot).toBe(true);
@@ -84,12 +86,12 @@ test('plan panel is gated, then checks steps off as the workout progresses', asy
       { varUuid: ua, subUuid: null, sets: [{ w: 100, r: 5, ts: iso(T) }, { w: 100, r: 5, ts: iso(T + 30000) }] },
       { varUuid: ub, subUuid: null, sets: [{ w: 50, r: 8, ts: iso(T + 60000) }] } ] };
     const comp = buildWorkoutTimelapse(s, { chapters: ['plan'] }).frames.filter(f => f.kind === 'composite');
-    return { gatedOff, hasPlan: !!comp[0].panels.plan, n: comp.length,
+    return { gatedOff, hasPlan: !!comp[0].panels.plan, distinctSets: new Set(comp.map(f => f.setNo)).size,
       firstDone: comp[0].panels.plan.done, lastDone: comp[comp.length - 1].panels.plan.done, total: comp[0].panels.plan.total };
   }, [ua, ub]);
   expect(r.gatedOff).toEqual(['spotlight']);
   expect(r.hasPlan).toBe(true);
-  expect(r.n).toBe(3);
+  expect(r.distinctSets).toBe(3);
   expect(r.total).toBe(2);
   expect(r.lastDone).toBe(2);
   expect(r.lastDone).toBeGreaterThanOrEqual(r.firstDone);
@@ -106,27 +108,28 @@ test('heart-rate panel is gated on recorded samples, then traces a growing curve
     const s = { id: 's', date: iso(T), endedAt: iso(T + 60000), hrSamples, exercises: [{ varUuid: ua, subUuid: null, sets: [{ w: 100, r: 5, ts: iso(T) }, { w: 100, r: 5, ts: iso(T + 30000) }, { w: 100, r: 5, ts: iso(T + 58000) }] }] };
     const comp = buildWorkoutTimelapse(s, { chapters: ['hr'] }).frames.filter(f => f.kind === 'composite');
     const first = comp[0].panels.hr, last = comp[comp.length - 1].panels.hr;
-    return { gatedOff, hasHr: !!first, n: comp.length, firstPts: first.pts.length, lastPts: last.pts.length,
+    return { gatedOff, hasHr: !!first, distinctSets: new Set(comp.map(f => f.setNo)).size, firstPts: first.pts.length, lastPts: last.pts.length,
       curOk: last.curBpm >= 80 && last.curBpm <= 150, lo: first.lo, hi: first.hi };
   }, ua);
   expect(r.gatedOff).toEqual(['spotlight']);
   expect(r.hasHr).toBe(true);
-  expect(r.n).toBe(3);
+  expect(r.distinctSets).toBe(3);
   expect(r.lastPts).toBeGreaterThan(r.firstPts); // the trace fills in as the clock advances
   expect(r.curOk).toBe(true);
   expect(r.hi).toBeGreaterThan(r.lo);
 });
 
-test('speed scales the per-set hold: 64× halves 32×, 1024× is honoured', async ({ page }) => {
+test('higher speed makes a shorter clip; 1024× is honoured', async ({ page }) => {
   const [ua] = await twoUuids(page);
   const r = await page.evaluate((ua) => {
     const T = Date.parse('2026-06-20T10:00:00Z'), iso = ms => new Date(ms).toISOString();
     const s = { id: 's', date: iso(T), endedAt: iso(T + 40000), exercises: [{ varUuid: ua, subUuid: null, sets: [{ w: 100, r: 5, ts: iso(T) }, { w: 100, r: 5, ts: iso(T + 32000) }] }] };
-    const at = sp => buildWorkoutTimelapse(s, { speed: sp }).frames.filter(f => f.kind === 'composite')[0].delayCs;
-    return { d32: at(32), d64: at(64), speed1024: buildWorkoutTimelapse(s, { speed: 1024 }).speed };
+    const comp = sp => buildWorkoutTimelapse(s, { speed: sp }).frames.filter(f => f.kind === 'composite');
+    const dur = sp => comp(sp).reduce((a, f) => a + f.delayCs, 0);
+    return { dur32: dur(32), dur64: dur(64), frames32: comp(32).length, frames1024: comp(1024).length, speed1024: buildWorkoutTimelapse(s, { speed: 1024 }).speed };
   }, ua);
-  expect(r.d32).toBe(100); // 32s ÷ 32 = 1.0s
-  expect(r.d64).toBe(50);  // 32s ÷ 64 = 0.5s
+  expect(r.dur64).toBeLessThan(r.dur32);        // 64× → roughly half the playback time
+  expect(r.frames32).toBeGreaterThan(r.frames1024); // low speed → more tween frames (smoother)
   expect(r.speed1024).toBe(1024);
 });
 
@@ -189,8 +192,10 @@ test('the wizard offers 32×…1024× and gates Plan/HR rows by availability', a
     const cumBtn = div2.querySelector('[data-ch="cumulative"]');
     const before = cumBtn.textContent.includes('☑'); cumBtn.click();
     const after = div2.querySelector('[data-ch="cumulative"]').textContent.includes('☑');
+    const hasGifFmt = !!div1.querySelector('[data-fmt="gif"]');
+    const hasAddPhotos = !!div1.querySelector('#tl-add-photos');
     div1.remove(); div2.remove();
-    return { rows, speeds, planDisBare, hrDisBare, hasBuild, planDisRich, hrDisRich, toggled: before !== after };
+    return { rows, speeds, planDisBare, hrDisBare, hasBuild, planDisRich, hrDisRich, toggled: before !== after, hasGifFmt, hasAddPhotos };
   }, ua);
   expect(r.rows).toBe(6);
   expect(r.speeds).toEqual(['32', '64', '128', '256', '512', '1024']);
@@ -200,11 +205,15 @@ test('the wizard offers 32×…1024× and gates Plan/HR rows by availability', a
   expect(r.planDisRich).toBe(false);
   expect(r.hrDisRich).toBe(false);
   expect(r.toggled).toBe(true);
+  expect(r.hasGifFmt).toBe(true);   // format chooser present
+  expect(r.hasAddPhotos).toBe(true); // photo splicing entry point present
 });
 
 test('state.timelapse is normalized with sane defaults', async ({ page }) => {
-  const r = await page.evaluate(() => ({ speed: state.timelapse.speed, spotlight: state.timelapse.chapters.spotlight, hr: state.timelapse.chapters.hr }));
+  const r = await page.evaluate(() => ({ speed: state.timelapse.speed, spotlight: state.timelapse.chapters.spotlight, hr: state.timelapse.chapters.hr, format: state.timelapse.format, photoSecs: state.timelapse.photoSecs }));
   expect(r.speed).toBe(32);
   expect(r.spotlight).toBe(true);
   expect(r.hr).toBe(false);
+  expect(r.format).toBe('gif');
+  expect(r.photoSecs).toBe(2.5);
 });
