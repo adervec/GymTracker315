@@ -1809,6 +1809,13 @@ They share variation **UUIDs**.
   **🔊 SFX** toggle, shown only for the video format; both persist in device-local `state.timelapse` (`music`/`sfx`).
   `test/timelapseaudio.spec.mjs`: the event mapping, the synth helpers running against a real AudioContext (with an
   audio track present), the normalize defaults, and the video-only wizard controls.
+- **Replay promoted to a top-level export option (feat 354):** the animated recap was buried in the export *result*
+  screen as a "🎞 GIF" button; it's now a first-class **🎞 Replay** action on the **first** export screen (phase A),
+  next to "Build export", and renamed (it makes GIF *or* video, so "Replay" fits). It's enabled only when the scope is
+  a single workout (`selectSessionsForExport(...).length === 1`) and opens the wizard directly via
+  `renderTimelapseWizard`; the wizard header is now "🎞 Replay" and its Back returns to phase A. A renamed Replay
+  shortcut stays on phase B for a single workout too. `test/timelapsegif.spec.mjs` updated: Replay present + labelled
+  on phase A, enabled only for one workout, plus the phase-B shortcut gating.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

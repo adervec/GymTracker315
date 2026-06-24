@@ -18386,7 +18386,8 @@ function renderExportPhaseA(modal, st) {
     </div>
     <div id="export-count" class="export-count"></div>
     <div class="export-actions">
-      <button class="export-btn primary" id="export-build-btn">Build export</button>
+      <button class="export-btn primary" id="export-replay-btn" title="Animated recap (GIF or video) of a single workout">🎞 Replay</button>
+      <button class="export-btn" id="export-build-btn">Build export</button>
       <button class="export-btn" id="export-cancel-btn">Cancel</button>
     </div>`;
   const currentOpts = () => Object.assign({}, st.opts, { from: st.from, to: st.to });
@@ -18397,6 +18398,8 @@ function renderExportPhaseA(modal, st) {
       ? `${sessions.length} workout${sessions.length===1?'':'s'} · ${sets} set${sets===1?'':'s'}`
       : 'No workouts in this range';
     modal.querySelector('#export-build-btn').disabled = !sessions.length;
+    const rb = modal.querySelector('#export-replay-btn');
+    if (rb) { rb.disabled = sessions.length !== 1; rb.title = sessions.length === 1 ? 'Animated recap (GIF or video) of this workout' : 'A replay is for a single workout — pick one'; }
   };
   modal.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
     st.opts.preset = b.dataset.preset;
@@ -18413,20 +18416,26 @@ function renderExportPhaseA(modal, st) {
     if (!sessions.length) { toast('No workouts in this range'); return; }
     renderExportPhaseB(modal, opts, sessions);
   });
+  modal.querySelector('#export-replay-btn').addEventListener('click', () => {
+    const opts = currentOpts();
+    const sessions = selectSessionsForExport(opts);
+    if (sessions.length !== 1) { toast('Pick a single workout for a replay'); return; }
+    renderTimelapseWizard(modal, opts, sessions[0], exportBaseName(opts, sessions));
+  });
   updateCount();
 }
 
 async function renderExportPhaseB(modal, opts, sessions) {
   const text = buildWorkoutText(sessions, opts);
   const baseName = exportBaseName(opts, sessions);
-  const single = sessions.length === 1; // feat 345 — a timelapse is per-workout, so only offer it for one session
+  const single = sessions.length === 1; // feat 354 — Replay moved up to phase A; offer a shortcut back to it here too
   modal.innerHTML = `
     <div class="export-modal-head">📤 ${escapeHtml(exportScopeLabel(opts, sessions))}</div>
     <div class="export-preview-wrap"><div class="export-building">Building image…</div><img id="export-preview" alt="Workout summary" style="display:none;"></div>
     <div class="export-actions export-result-actions">
       <button class="export-btn primary" id="export-dl-png" disabled>⬇ PNG</button>
       <button class="export-btn" id="export-dl-txt">⬇ Text</button>
-      ${single ? '<button class="export-btn" id="export-dl-gif" title="Animated 32× recap of this workout">🎞 GIF</button>' : ''}
+      ${single ? '<button class="export-btn" id="export-replay-b" title="Animated recap (GIF or video) of this workout">🎞 Replay</button>' : ''}
       <button class="export-btn" id="export-copy">⧉ Copy</button>
       ${('share' in navigator) ? '<button class="export-btn" id="export-share">↗ Share</button>' : ''}
     </div>
@@ -18461,9 +18470,9 @@ async function renderExportPhaseB(modal, opts, sessions) {
   const shareBtn = modal.querySelector('#export-share');
   if (shareBtn) shareBtn.addEventListener('click', () => shareExport(text, blob, baseName));
 
-  // feat 345/346 — animated timelapse: opens the wizard to pick replay segments + speed.
-  const gifBtn = modal.querySelector('#export-dl-gif');
-  if (gifBtn) gifBtn.addEventListener('click', () => renderTimelapseWizard(modal, opts, sessions[0], baseName));
+  // feat 354 — Replay (animated GIF/video recap) — opens the wizard.
+  const replayBtn = modal.querySelector('#export-replay-b');
+  if (replayBtn) replayBtn.addEventListener('click', () => renderTimelapseWizard(modal, opts, sessions[0], baseName));
 }
 
 // feat 346 — timelapse wizard: choose which replay segments to include, the speed (32×/64×), then build.
@@ -18561,7 +18570,7 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
     const fmtBtns = `<button class="drawer-pill${format === 'gif' ? ' active' : ''}" data-fmt="gif">GIF</button>` +
       (videoOk ? `<button class="drawer-pill${format === 'video' ? ' active' : ''}" data-fmt="video">Video</button>` : '');
     modal.innerHTML = `
-      <div class="export-modal-head">🎞 Timelapse options</div>
+      <div class="export-modal-head">🎞 Replay</div>
       <div style="font-size:12px;color:var(--text3);margin:2px 0 10px;line-height:1.5;">An animated recap of this workout — all chosen segments play together on one image.</div>
       <div>${CH.map(row).join('')}</div>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 2px;">
@@ -18624,7 +18633,7 @@ function renderTimelapseWizard(modal, opts, session, baseName) {
       }
       draw();
     });
-    modal.querySelector('#tl-back').addEventListener('click', () => renderExportPhaseB(modal, opts, [session]));
+    modal.querySelector('#tl-back').addEventListener('click', () => renderExportPhaseA(modal, { opts: Object.assign({}, opts), from: opts.from || '', to: opts.to || '' }));
     modal.querySelector('#tl-cancel').addEventListener('click', closeExportDialog);
     modal.querySelector('#tl-build').addEventListener('click', async e => {
       const chapters = CH.map(c => c[0]).filter(k => sel[k]);
@@ -22115,7 +22124,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 317 · 2026-06-24 13:50';
+const APP_BUILD = 'build 319 · 2026-06-24 15:55';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
