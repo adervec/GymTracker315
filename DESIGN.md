@@ -1731,6 +1731,20 @@ They share variation **UUIDs**.
   cumulative totals, synthetic + sampled fallbacks, empty plan), the encoder structure, a **pixel-exact round-trip
   through the browser's own GIF decoder** (proves the LZW), the full render, and the export-dialog gating
   (GIF only for a single workout).
+- **Timelapse wizard — selectable replay segments + speed (feat 346):** the 🎞 GIF button now opens a wizard instead
+  of building a fixed clip. You pick any combination of six **replay segments**, all driven by the same workout
+  timeline: **Set spotlight** (the feat-345 per-set card), **Cumulative log** (the set list building up, newest
+  highlighted), **Wireframe replay** (a stick figure repping each set — `tlPose` infers the movement pattern from the
+  exercise name, `tlPoseJoints`/`drawFigure` animate a 2-phase rep), **Timeline** (an animated playhead sweeping the
+  set ticks, mirroring `renderWorkoutTimeline`), **Plan steps** (each plan step checking off ✓ as its sets are logged,
+  with an off-plan tally — gated on a live plan), and **Heart rate** (the real `session.hrSamples` trace drawing in
+  with a live BPM head — gated on ≥3 recorded samples), plus a **32× / 64×** speed. `buildWorkoutTimelapse(session,
+  {speed, chapters})` builds a title card, a divider before each chapter (when >1), the chapter frames, and a final
+  summary; unavailable plan/HR chapters are dropped automatically (never a zero-segment GIF), and per-set chapters
+  share one sampled event list so cumulative totals stay exact. The wizard greys out Plan/HR when absent and remembers
+  the last selection in device-local `state.timelapse` (added to `SETTINGS_KEYS` + `DEVICE_LOCAL_KEYS` + `normalizeState`).
+  `test/timelapsewizard.spec.mjs` covers chapter assembly + dividers, plan/HR gating + progression, the 64× halving,
+  `tlPose` mapping, a full six-segment render decoding as a 480×270 GIF, and the wizard's availability gating + toggles.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
