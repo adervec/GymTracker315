@@ -1827,6 +1827,16 @@ They share variation **UUIDs**.
   and hinge/anti-rotation focused for safe patient handling. Inserted via a guarded anchor script after the sport
   plans. `test/jobplans.spec.mjs`: all 14 present + well-formed, intensity 1–5, every movement option references a real
   family, unique ids, and every plan is runnable (each step resolves to a family with variations).
+- **Historical-warrior seed plans (feat 356):** 12 `seed-warrior-*` templates themed on the *physical training* of
+  classic warrior archetypes — Spartan Hoplite, Roman Legionary, Medieval Knight, Samurai, Norse Raider, Mongol Horse
+  Archer, Gladiator, Shinobi, Longbow Archer, Celtic Warrior, Persian Immortal, and (legendary) Amazon Warrior. Kept
+  deliberately apolitical: each is framed around the athletic attributes of the archetype, not conquest or any
+  modern-political/religious affiliation (e.g. a generic medieval Knight, not a Crusader). Built on the same
+  `_pstep`/`_mvOpt` shape with intensity + 6–7 steps from real families, themed via the broad movement library —
+  `landmine-work` (spear/gladius thrusts), `mace-club-work` (sword/axe arcs), `loaded-carries` (shield/march),
+  `kettlebell-specific` + `strongman` (raider/Celt power), `adductor` (horse archer's seat), `gymnastics-core` +
+  bodyweight pull/press (shinobi), heavy `row`/`lat-pulldown` (the archer's draw). `test/warriorplans.spec.mjs`: all 12
+  present + well-formed, intensity 1–5, every movement option references a real family, unique ids, every plan runnable.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
