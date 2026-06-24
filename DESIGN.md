@@ -1837,6 +1837,11 @@ They share variation **UUIDs**.
   `kettlebell-specific` + `strongman` (raider/Celt power), `adductor` (horse archer's seat), `gymnastics-core` +
   bodyweight pull/press (shinobi), heavy `row`/`lat-pulldown` (the archer's draw). `test/warriorplans.spec.mjs`: all 12
   present + well-formed, intensity 1–5, every movement option references a real family, unique ids, every plan runnable.
+- **Squat Gauntlet seed plan (feat 357):** a single intensity-5, minimal-equipment, squat-only lower-body punisher
+  (`seed-squat-gauntlet`) — bodyweight plus at most one dumbbell/kettlebell, working through odd squat variations
+  (goblet → Bulgarian split → sissy/ATG → Cossack → jump → pistol → bodyweight burnout) across `squat` / `lunge` /
+  `atg-knees-over-toes` / `adductor` / `plyometrics`. `test/squatgauntlet.spec.mjs`: present, intensity 5, every step a
+  lower-body family, squat-dominant, all families real + runnable.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
