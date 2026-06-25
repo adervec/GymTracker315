@@ -91,6 +91,6 @@ test('the wizard exposes music + SFX controls only for the video format', async 
   }, ua);
   expect(r.gifHasMusic).toBe(false);
   if (!r.supported) { test.skip(true, 'video not supported here'); return; }
-  expect(r.videoHasMusic).toBe(4);  // Off / Upbeat / Chill / Epic
+  expect(r.videoHasMusic).toBe(5);  // Off / Upbeat / Chill / Epic / Custom…
   expect(r.videoHasSfx).toBe(2);    // On / Off
 });
