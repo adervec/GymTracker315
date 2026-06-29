@@ -69,23 +69,52 @@ test('each section carries its real content (help text, family cues, coaching ca
   expect(r.counts).toBe(true); // the as-of count/timestamp metadata
 });
 
-test('the Data page UI: five checked picks; export downloads with the dated filename', async ({ page }) => {
+test('the Data page UI: all picks checked by default; export downloads with the dated filename', async ({ page }) => {
   const r = await page.evaluate(() => {
     window._dl = null;
     window.downloadText = (text, fn, mime) => { window._dl = { len: text.length, fn, mime }; };
     renderSettingsDrawer();
     const boxes = [...document.querySelectorAll('#info-export-picks [data-info-sec]')];
-    const allChecked = boxes.length === 5 && boxes.every(b => b.checked);
+    const allChecked = boxes.length === INFO_EXPORT_SECTIONS.length && boxes.every(b => b.checked); // default: ALL
     boxes.find(b => b.dataset.infoSec === 'help').checked = false;
     boxes.find(b => b.dataset.infoSec === 'glossary').checked = false;
     document.querySelector('#data-page-body #info-export-html-btn').click();
-    return { allChecked, picks: _infoExportPicks(), dl: window._dl };
+    return { count: boxes.length, allChecked, picks: _infoExportPicks(), dl: window._dl };
   });
-  expect(r.allChecked).toBe(true);
-  expect(r.picks).toEqual(['about', 'quickref', 'coaching']);
+  expect(r.count).toBe(7);            // help · about · quickref · reference · briefs · coaching · glossary
+  expect(r.allChecked).toBe(true);    // default is all-on
+  expect(r.picks).toEqual(['about', 'quickref', 'reference', 'briefs', 'coaching']);
   expect(r.dl.fn).toMatch(/^gymtracker315-info-\d{4}-\d{2}-\d{2}\.html$/);
   expect(r.dl.mime).toContain('text/html');
   expect(r.dl.len).toBeGreaterThan(5000);
+});
+
+test('feat 366 — the full exercise reference + coach brief transcripts are selectable sections (default all)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    // a variation with rich docs + a buildable brief
+    const fam = exercises.find(e => e.id === 'chest-fly');
+    const v = fam.variations.find(x => x.id === 'freemotion-chest-fly');
+    const full = buildInfoExportHtml();                              // default = everything
+    const refOnly = buildInfoExportHtml(['reference']);
+    const briefsOnly = buildInfoExportHtml(['briefs']);
+    const built = (typeof variationPodcast === 'function') ? variationPodcast(v.uuid) : null;
+    // the brief transcript is HTML-escaped in the doc, so compare against the app's own escapeHtml output
+    const briefChunk = built ? escapeHtml(built.segs[0].text).slice(0, 40) : null;
+    return {
+      hasRefHead: full.includes('📚 Full exercise reference'),
+      hasBriefHead: full.includes('🎧 Coach brief transcripts'),
+      // the full reference carries the rich docs (a setup/movement bullet), not just the title
+      refHasDetail: refOnly.includes(v.title) && /Setup|Movement/.test(refOnly),
+      // the briefs section carries the spoken transcript text + the variation title + the coach label
+      briefHasTranscript: !!built && briefsOnly.includes(briefChunk) && briefsOnly.includes(escapeHtml(built.title)) && briefsOnly.includes('coach</span>'),
+      refExcludesBriefs: refOnly.includes('📚 Full exercise reference') && !refOnly.includes('🎧 Coach brief transcripts'),
+    };
+  });
+  expect(r.hasRefHead).toBe(true);
+  expect(r.hasBriefHead).toBe(true);
+  expect(r.refHasDetail).toBe(true);
+  expect(r.briefHasTranscript).toBe(true);
+  expect(r.refExcludesBriefs).toBe(true);
 });
 
 test('the print path stages the document in #print-root and calls print()', async ({ page }) => {

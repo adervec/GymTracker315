@@ -187,40 +187,43 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
   flex-direction: column; /* feat 182 — centered brand row on top, controls row below */
   box-shadow: 0 2px 12px var(--shadow);
 }
-/* feat 182 — topmost centered brand row */
-.topbar-brand-row { position: relative; display: flex; align-items: center; justify-content: center; height: 38px; flex-shrink: 0; border-bottom: 1px solid var(--nav-border); }
-/* feat 244 — live HR + elapsed pinned to the right of the centered brand */
-.topbar-live { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums; pointer-events: none; max-width: 46%; overflow: hidden; }
+/* feat 182 / 363 — topmost brand row: a 3-column grid (identity · brand · live) so the brand stays centered and the
+   side items get their own track instead of absolute-overlapping it (the equal 1fr tracks keep the brand centred even
+   when a side is empty). */
+.topbar-brand-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 6px; padding: 0 8px; height: 38px; flex-shrink: 0; border-bottom: 1px solid var(--nav-border); }
+#app-brand-btn { grid-column: 2; }
+/* feat 244 — live HR + elapsed in the right-hand track (the item fills the 1fr track and pins its content right, so a
+   wide stat string clips inside the track instead of overflowing into the brand). */
+.topbar-live { grid-column: 3; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 9px; font-size: 12px; color: var(--text2); font-variant-numeric: tabular-nums; pointer-events: none; overflow: hidden; }
 .topbar-live:empty { display: none; }
 .topbar-live b { font-weight: 800; color: var(--text); margin-left: 2px; }
 .tbl-hr { display: inline-flex; align-items: center; gap: 1px; color: #ff5d6c; white-space: nowrap; }
 .tbl-hr b { color: #ff5d6c; }
 .tbl-hr .spark { width: 46px; height: 16px; display: block; margin-left: 4px; }
 .tbl-elapsed { display: inline-flex; align-items: center; gap: 1px; white-space: nowrap; }
-/* feat 244 — on narrow screens the centered brand + live stats collide; de-center the brand (drop the 315 badge,
-   shrink it) and lay the row out as brand-left / stats-right so both fit. Desktop keeps the centered brand. */
+/* feat 244 — on narrow screens the three tracks get tight; shrink the brand and drop the 315 badge so the
+   identity + live stats keep their room (the grid already prevents overlap). */
 @media (max-width: 560px) {
-  body.has-topbar-live .topbar-brand-row { justify-content: space-between; padding: 0 10px; }
-  body.has-topbar-live .topbar-live { position: static; transform: none; margin-left: auto; max-width: 64%; }
   body.has-topbar-live .gt-brand { font-size: 15px; }
   body.has-topbar-live .gt-brand-num { display: none; }
 }
 body.brand-hidden .topbar-brand-row { display: none; }
 body.brand-hidden { --topbar-h: 44px; } /* brand hidden → just the controls row; offsets shrink with it */
-/* feat 188 — a contextual shortcut row appears only while a workout is active; it grows --topbar-h by 40px so
-   every fixed offset (panel padding, rest/step bars, log sheet) keys off the taller bar automatically. */
-body.workout-active { --topbar-h: 122px; }              /* 82 + 40 */
-body.brand-hidden.workout-active { --topbar-h: 84px; }  /* 44 + 40 (two-class selector wins by specificity) */
+/* feat 188 — a contextual shortcut row appears while a workout is active AND you're on one of its pages (feat 367 —
+   workout / exercise / plan-detail); it grows --topbar-h by 40px so every fixed offset (panel padding, rest/step bars,
+   log sheet) keys off the taller bar automatically. */
+body.workout-active.on-workout-page { --topbar-h: 122px; }              /* 82 + 40 */
+body.brand-hidden.workout-active.on-workout-page { --topbar-h: 84px; }  /* 44 + 40 (more-specific selector wins) */
 .topbar-brand-btn { background: none; border: none; cursor: pointer; padding: 3px 12px; display: flex; align-items: center; -webkit-tap-highlight-color: transparent; }
-/* feat 290 — top-bar identity: profile name + synced-account avatar, pinned left (mirrors topbar-live on the right) */
-.topbar-identity { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 5px; background: none; border: none; cursor: pointer; padding: 2px 4px; max-width: 34%; overflow: hidden; -webkit-tap-highlight-color: transparent; }
+/* feat 290 / 363 — top-bar identity: profile name + synced-account avatar in the left-hand grid track (mirrors
+   topbar-live on the right); the 1fr track + min-width:0 truncates a long name instead of overlapping the brand. */
+.topbar-identity { grid-column: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-start; gap: 5px; background: none; border: none; cursor: pointer; padding: 2px 4px; overflow: hidden; -webkit-tap-highlight-color: transparent; }
 .topbar-identity .ti-pfp { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border2); flex-shrink: 0; background: var(--bg3); }
 .topbar-identity .ti-name { font-size: 12px; font-weight: 700; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-identity .ti-lock { font-size: 9px; opacity: 0.65; flex-shrink: 0; }
-body.has-topbar-live .topbar-identity { max-width: 26%; } /* leave room for the live HR/elapsed stats */
 .topbar-ctrl-row { display: flex; align-items: stretch; height: 44px; flex-shrink: 0; }
 .topbar-shortcut-row { display: none; height: 40px; flex-shrink: 0; border-top: 1px solid var(--nav-border); }
-body.workout-active .topbar-shortcut-row { display: flex; }
+body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* feat 367 — only on workout/exercise/plan pages */
 .wbar-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; background: none; border: none; border-right: 1px solid var(--nav-border); color: var(--text2); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .wbar-btn:last-child { border-right: none; }
 .wbar-btn.active { color: var(--accent); background: var(--bg3); }
@@ -931,6 +934,21 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .reflect-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
   .reflect-pill { font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); cursor: pointer; font-family: inherit; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
   .reflect-pill.active { background: var(--accent, #b48aff); border-color: var(--accent, #b48aff); color: #0a0a0a; }
+  /* feat 370 — self-contained gym map (OpenStreetMap raster tiles, no library) */
+  .gym-map { position: relative; width: 100%; height: 300px; border-radius: 10px; overflow: hidden; background: #a7d3e8; border: 1px solid var(--border2); touch-action: none; user-select: none; margin: 4px 0 12px; }
+  .gmap-tiles, .gmap-markers { position: absolute; inset: 0; }
+  .gmap-tiles img { position: absolute; width: 256px; height: 256px; pointer-events: none; }
+  .gmap-pin { position: absolute; transform: translate(-50%, -100%); font-size: 22px; line-height: 1; cursor: grab; filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); z-index: 2; }
+  .gmap-pin.active { font-size: 28px; z-index: 3; }
+  .gmap-pin .gmap-lbl { position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); margin-bottom: 1px; background: var(--bg2); color: var(--text); font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 6px; white-space: nowrap; border: 1px solid var(--border2); }
+  .gmap-me { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #2a7fff; border: 2px solid #fff; transform: translate(-50%, -50%); box-shadow: 0 0 0 4px rgba(42,127,255,.3); z-index: 1; pointer-events: none; }
+  .gmap-wo { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: rgba(255,140,0,.75); border: 1px solid #fff; transform: translate(-50%, -50%); z-index: 1; pointer-events: none; }
+  .gmap-ctrl { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 5px; z-index: 5; }
+  .gmap-ctrl button { width: 32px; height: 32px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+  .gmap-ctrl button.on { background: var(--accent); color: #0a0a0a; border-color: var(--accent); }
+  .gym-map.adding { cursor: crosshair; }
+  .gmap-hint:not(:empty) { position: absolute; left: 8px; bottom: 8px; z-index: 5; background: rgba(0,0,0,.6); color: #fff; font-size: 10.5px; padding: 3px 8px; border-radius: 6px; pointer-events: none; }
+  .gmap-attr { position: absolute; right: 3px; bottom: 2px; z-index: 4; font-size: 8.5px; color: #222; background: rgba(255,255,255,.65); padding: 0 3px; border-radius: 3px; pointer-events: none; }
   .summary-week-meta { font-size: 11px; color: var(--text3); white-space: nowrap; }
   .summary-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
   .summary-list li { font-size: 12.5px; line-height: 1.4; padding: 5px 9px; border-radius: 8px; border-left: 3px solid var(--border2); background: var(--bg3); }
@@ -1107,6 +1125,18 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .pill.fav-pill.active { background: #e8b339; border-color: #e8b339; color: #0a0a0a; }
   .plan-chip-n { font-size: 10px; opacity: 0.7; font-weight: 700; }
   .plan-filter-note { font-size: 10.5px; color: var(--text3); margin: 2px 2px 8px; }
+  /* feat 374 — dual-thumb length range slider (two overlaid native range inputs) */
+  .len-filter { margin: 2px 2px 10px; }
+  .len-filter-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 2px; }
+  .len-filter-val { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .len-slider { position: relative; height: 26px; }
+  .len-track { position: absolute; left: 9px; right: 9px; top: 11px; height: 4px; border-radius: 2px; background: var(--border2); }
+  .len-track-fill { position: absolute; top: 11px; height: 4px; border-radius: 2px; background: var(--accent); pointer-events: none; }
+  .len-slider input[type=range] { position: absolute; left: 0; right: 0; top: 4px; width: 100%; height: 18px; margin: 0; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
+  .len-slider input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); box-shadow: 0 1px 3px rgba(0,0,0,.5); cursor: pointer; }
+  .len-slider input[type=range]::-moz-range-thumb { pointer-events: auto; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); box-shadow: 0 1px 3px rgba(0,0,0,.5); cursor: pointer; }
+  .len-slider input[type=range]::-webkit-slider-runnable-track { background: none; }
+  .len-slider input[type=range]::-moz-range-track { background: none; }
   .plan-cat-head { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text3); margin: 14px 0 2px; display: flex; align-items: baseline; gap: 7px; }
   .plan-cat-count { font-size: 10px; color: var(--text3); background: var(--bg3); border-radius: 999px; padding: 1px 7px; font-weight: 700; }
   .plan-cat-tag { color: var(--accent); font-weight: 700; }
@@ -1674,6 +1704,13 @@ body.workout-active .topbar-shortcut-row { display: flex; }
   .gt-brand-num .gt-brand-d:nth-child(2).sparkle { animation-delay: 1.6s; }
   .gt-brand-num .gt-brand-d:nth-child(3).sparkle { animation-delay: 3.2s; }
   @media (prefers-reduced-motion: reduce) { .gt-brand-d.sparkle { animation: none; color: #ffe09a; text-shadow: 0 0 5px #ffd86b; } }
+  /* feat 376 — prestige badge: the 315 club levels up to 405 → 495 → 585 with escalating gold / platinum / diamond glow */
+  .gt-brand-num.prestige { color: #2a1a00 !important; border: none; letter-spacing: 0.3px; background: linear-gradient(135deg, #ffe08a, #f5a623); box-shadow: 0 0 8px rgba(255,200,90,.6); animation: gt-prestige 3.2s ease-in-out infinite; }
+  .gt-brand-num.prestige[data-prestige="495"] { color: #10243a !important; background: linear-gradient(135deg, #eaf2ff, #9ec3ff); box-shadow: 0 0 9px rgba(150,190,255,.7); }
+  .gt-brand-num.prestige[data-prestige="585"] { color: #2a0a3a !important; background: linear-gradient(135deg, #f3d9ff, #c07bff); box-shadow: 0 0 11px rgba(200,130,255,.8); }
+  .gt-prestige-star { font-size: 0.72em; margin-left: 1px; vertical-align: top; }
+  @keyframes gt-prestige { 0%,100% { filter: brightness(1); box-shadow: 0 0 6px rgba(255,200,90,.45); } 50% { filter: brightness(1.18); box-shadow: 0 0 13px rgba(255,200,90,.9); } }
+  @media (prefers-reduced-motion: reduce) { .gt-brand-num.prestige { animation: none; } }
   /* feat 250 — brand emoji picker in Cosmetic settings */
   .brand-emoji-pick { display: flex; flex-wrap: wrap; gap: 6px; }
   .brand-emoji { font-size: 20px; width: 40px; height: 40px; line-height: 1; background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; cursor: pointer; }
@@ -2711,6 +2748,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .session-item, .eh-row, .ex-summary, .trend-card, .session-stat, .stat-tile, .legend-item {
   background: var(--card-bg) !important; border-color: var(--border) !important;
 }
+/* feat 372 — mildly alternate workout backgrounds on the Log so adjacent sessions read as distinct (light + dark themes) */
+.session-item.alt { background: color-mix(in srgb, var(--card-bg) 92%, var(--text) 8%) !important; }
 .session-date, .session-name { color: var(--text) !important; }
 
 /* Misc backgrounds */
@@ -3416,6 +3455,117 @@ const EXTRA_VARIATIONS = [
     mistakes:['Snapping open and closed','Skipping it (extensors get neglected)','Only using one band tension'],
     programming:{'Prehab':'3 × 20-25, most sessions'},
     tip:'Trains the finger extensors — the antagonist work that wards off elbow tendinopathy from heavy gripping.' },
+  // feat 361 — rotating push-up handles ("Perfect Pushup") → the full set of uses, all on the flat-bench-press family
+  // where push-ups live (so they read as chest/push, mode auto-resolves to bodyweight via the title).
+  { movementId:'flat-bench-press', id:'perfect-pushup-rotating', uuid:'b6a1ac4f-d90b-4404-a0d5-4128d68a9c49', title:'Rotating Push-Up (Perfect Pushup)', best:'Rotating-Handle Push-Up',
+    cue:'Rotating push-up handles let the hands turn as you press — palms face in at the bottom, rotate out toward the top. The neutral-grip start spares the wrists and the rotation pulls in more chest and triceps at lockout.',
+    setup:['A pair of rotating push-up handles (Perfect Pushup or similar), shoulder-width','Neutral grip, body in a straight plank line','Core braced, glutes tight'],
+    movement:['Lower under control, letting the handles rotate so the elbows tuck ~45°','Chest to handle height','Press up and let the handles rotate outward, squeezing the chest hard at lockout'],
+    mistakes:['Fighting the rotation instead of letting it flow','Flaring the elbows wide','Sagging hips','Half reps'],
+    programming:{'Hypertrophy':'3-4 × to near failure','Strength':'add a weight vest or pause reps'},
+    tip:'The free rotation is the whole point — wrist-friendly and a stronger chest/triceps contraction than a fixed-hand push-up. Track it apart from floor push-ups.' },
+  { movementId:'flat-bench-press', id:'perfect-pushup-wide', uuid:'2d331c75-62b1-433e-a30a-e99f167fa19d', title:'Wide Rotating Push-Up (Perfect Pushup)', best:'Chest-Biased Rotation',
+    cue:'Set the rotating handles wider than shoulders. The wider base shifts the load onto the chest while the rotation keeps the shoulders happy.',
+    setup:['Rotating handles set ~1.5× shoulder-width','Plank line, core braced'],
+    movement:['Lower wide, elbows flaring a touch more than standard','Deep stretch across the chest','Press and rotate the handles out, squeezing the pecs'],
+    mistakes:['Going so wide the shoulders pinch','Letting the chest sag painfully below the handles','Rushing the negative'],
+    programming:{'Hypertrophy':'3-4 × 10-20'},
+    tip:'Wide hands plus free rotation = a chest-focused push-up a fixed wide push-up can\'t match without straining the wrists.' },
+  { movementId:'flat-bench-press', id:'perfect-pushup-close', uuid:'5f3eef3b-6673-4fa7-b2c1-5f174aaa28a1', title:'Close Rotating Push-Up (Perfect Pushup)', best:'Triceps Rotation',
+    cue:'Bring the rotating handles close together under the chest. Elbows stay tucked — the triceps do the work, the rotation protects the wrists.',
+    setup:['Handles set close, just inside shoulder-width','Plank line, elbows pinned to the sides'],
+    movement:['Lower with elbows brushing the ribs','Handles rotate as you descend','Press to a hard triceps lockout, rotating out at the top'],
+    mistakes:['Elbows flaring out (turns it into a chest push-up)','Hips piking up','Short lockout'],
+    programming:{'Hypertrophy':'3 × 8-15'},
+    tip:'The close, wrist-friendly answer to a diamond push-up — keep the elbows glued in for the triceps.' },
+  { movementId:'flat-bench-press', id:'perfect-pushup-deep', uuid:'42398147-e5bd-4d3b-976d-c28705801226', title:'Deep Rotating Push-Up (Perfect Pushup)', best:'Extended-ROM Stretch',
+    cue:'The handles raise your hands off the floor, so the chest sinks below hand level for a deeper stretch — plus the rotation. The biggest range a push-up offers.',
+    setup:['Rotating handles (their height already lifts the hands)','Plank line, shoulder-width','Brace before descending'],
+    movement:['Lower until the chest drops below the handles — full stretch','Let the handles rotate, elbows ~45°','Press all the way to lockout with the rotation'],
+    mistakes:['Bouncing out of the deep stretch','Letting the shoulders roll forward at the bottom','Cutting the depth short'],
+    programming:{'Hypertrophy':'3-4 × 8-12, slow eccentric'},
+    tip:'The deficit plus rotation loads the chest in the lengthened position — where growth lives. Ease in; the bottom stretch is demanding.' },
+  // feat 361 — the mace's NON-rotational strength work (requested): straight-plane curls/extensions/push-ups that use the
+  // offset ball as a long-lever load, distinct from the 360s/casts already in the family. All on mace-club-work.
+  { movementId:'mace-club-work', id:'mace-curl', uuid:'6e360bd9-e2d0-468f-8fad-902b8815ef17', title:'Mace Curl', best:'Long-Lever Biceps',
+    cue:'Grip the mace handle near the END, weighted ball hanging low. Curl — the long lever makes a light mace feel brutal and loads the biceps hard.',
+    setup:['Steel mace, supinated grip low on the handle (further from the ball = harder)','Stand tall, elbows pinned to the sides'],
+    movement:['Curl the weighted end up by flexing the elbows','Squeeze the biceps at the top','Lower under control — the lever fights you'],
+    mistakes:['Swinging the torso','Letting the elbows drift forward','Gripping too close to the ball (kills the challenge)'],
+    programming:{'Hypertrophy':'3 × 8-12','Progression':'slide the grip further from the ball'},
+    tip:'Offset leverage means you progress by moving your grip, not just adding weight — a whole different curl stimulus.' },
+  { movementId:'mace-club-work', id:'mace-reverse-curl', uuid:'40a7940d-1dce-43a1-98f2-f3648534bc87', title:'Mace Reverse Curl', best:'Forearm / Brachioradialis',
+    cue:'Same mace curl but palms-down (pronated). Smashes the brachioradialis and forearm extensors through the long lever.',
+    setup:['Pronated (overhand) grip low on the mace handle','Elbows at the sides, wrists firm'],
+    movement:['Curl with palms down, wrists locked neutral','Squeeze at the top','Lower slowly under the lever'],
+    mistakes:['Wrists collapsing under the load','Using momentum','Grip slipping (chalk up)'],
+    programming:{'Hypertrophy':'3 × 10-15'},
+    tip:'The leverage exposes a weak grip fast — go lighter than you think and own the wrist position.' },
+  { movementId:'mace-club-work', id:'mace-hammer-curl', uuid:'a4b1a516-3193-4f1e-8ff6-e894c56f8d9a', title:'Mace Hammer Curl', best:'Brachialis',
+    cue:'Hold the mace like a hammer — neutral wrist, handle roughly vertical — and curl. The offset ball hits the brachialis and forearms.',
+    setup:['Neutral grip on the mace handle, ball offset to one side','Elbow tucked, stand tall'],
+    movement:['Curl with a neutral (thumb-up) wrist','Squeeze the brachialis at the top','Lower controlled, fighting the offset'],
+    mistakes:['Letting the ball pull the wrist sideways','Swinging','Half reps'],
+    programming:{'Hypertrophy':'3 × 8-12 per side'},
+    tip:'The off-centre ball adds an anti-rotation demand a dumbbell hammer curl doesn\'t — brace the wrist.' },
+  { movementId:'mace-club-work', id:'mace-ballistic-curl', uuid:'a953c1d3-5851-40e9-adce-045af8b72a8c', title:'Mace Ballistic Curl', best:'Explosive Curl Flow',
+    cue:'A rhythmic, slightly explosive curl — pop the mace head up and catch it, flowing rep to rep. Power-endurance for the arms and grip.',
+    setup:['Lighter mace, comfortable grip on the handle','Tall stance, soft knees','Open space (the head travels)'],
+    movement:['Drive the weighted end up with a quick curl','Decelerate and catch it under control','Flow straight into the next rep, breathing in rhythm'],
+    mistakes:['Going heavy (this is speed / endurance work)','Losing control of the head','Holding the breath'],
+    programming:{'Power-Endurance':'3-4 × 15-25 fast, clean reps'},
+    tip:'A classic mace flow move — train it for grip endurance and rhythm, not max load. Keep it smooth.' },
+  { movementId:'mace-club-work', id:'mace-triceps-extension', uuid:'040be35a-f13f-4f23-87d6-bbd935c8e5de', title:'Mace Triceps Extension', best:'Overhead Long-Lever Triceps',
+    cue:'Mace overhead, weighted end behind the head. Extend the elbows to press it up — the lever loads the triceps long head through a big stretch.',
+    setup:['Both hands on the mace handle, weight overhead / behind the head','Elbows pointing forward, core braced'],
+    movement:['Lower the ball behind the head by bending the elbows','Feel the triceps stretch','Extend to lockout, keeping the elbows in'],
+    mistakes:['Elbows flaring wide','Arching the low back','Letting the ball drop too fast behind the head'],
+    programming:{'Hypertrophy':'3 × 8-12'},
+    tip:'French-press pattern with offset leverage — go light, the stretched position under load is no joke.' },
+  { movementId:'mace-club-work', id:'mace-grip-pushup', uuid:'b2f8948e-8517-4b87-b6fd-ae035486bbeb', title:'Mace-Grip Push-Up', best:'Grip + Wrist Push-Up',
+    cue:'Hands on the mace shaft on the floor for push-ups. The round, unstable handle hammers the grip, wrists and stabilizers on every rep.',
+    setup:['Lay the mace flat, grip the shaft shoulder-width','Plank line, brace hard — the bar wants to roll'],
+    movement:['Lower into a push-up, fighting to keep the shaft steady','Chest toward the bar','Press up, grip locked the whole time'],
+    mistakes:['Letting the mace roll / wrists wobbling','Going too deep before the grip can hold it','Sagging hips'],
+    programming:{'Strength':'3 × 6-12'},
+    tip:'A grip- and wrist-builder disguised as a push-up — start on your knees if the bar is hard to control.' },
+  // feat 362 — a few canonical isometric holds the catalogue was missing. All carry a hold/hang/plank keyword so
+  // exMode auto-resolves them to TIME mode (logged as seconds). (Pistol Squat / Spanish Squat / Cossack already exist.)
+  { movementId:'core-stability', id:'reverse-plank-hold', uuid:'840bc157-da9a-4d40-9761-7ca6dcbde055', title:'Reverse Plank Hold', best:'Posterior-Chain Iso',
+    cue:'Face-up plank — hands under shoulders (or on forearms), body a straight line from heels to head, hips driven UP. The anti-plank: glutes, hams, low back and rear delts.',
+    setup:['Sit with legs straight, hands planted behind the hips, fingers forward','Press the hips up to a straight line','Squeeze the glutes, open the chest'],
+    movement:['Hold the bridge line — heels, hips, shoulders aligned','Drive the hips up, don\'t let them sag','Keep breathing; hold for time'],
+    mistakes:['Hips dropping','Letting the head hang back hard','Shrugging into the shoulders'],
+    programming:{'Iso':'3-4 × 20-45s'},
+    tip:'The posterior-chain answer to the front plank — pairs perfectly with it for a balanced core.' },
+  { movementId:'core-stability', id:'bear-plank-hold', uuid:'aaa48013-5d75-4072-8aaa-6c92061498bd', title:'Bear Plank Hold', best:'Anti-Extension Iso',
+    cue:'Quadruped, knees hovering a couple of inches off the floor, back flat as a table. Brutal deep-core anti-extension hold.',
+    setup:['Hands under shoulders, knees under hips, toes tucked','Lift the knees ~5 cm off the floor','Flat back, ribs down, core braced'],
+    movement:['Hold the hover — knees low, back flat','Don\'t let the hips pike up or the low back arch','Breathe shallow and steady'],
+    mistakes:['Hips rising toward downward dog','Low back sagging','Holding the breath'],
+    programming:{'Iso':'3-4 × 15-30s'},
+    tip:'A regression from the plank with a savage deep-core demand — keep the knees barely off the floor.' },
+  { movementId:'gymnastics-core', id:'wall-handstand-hold', uuid:'5f824e49-918b-4c75-8d5b-6f58c37c83bc', title:'Wall Handstand Hold', best:'Inverted Shoulder Iso',
+    cue:'Kick up to a handstand against a wall and hold. Stacked, straight body — shoulders, core and wrists under big static load.',
+    setup:['Hands ~15 cm from the wall, shoulder-width','Kick up (chest-to-wall or back-to-wall) into an inverted hold','Push the floor away, ribs tucked, legs together'],
+    movement:['Hold the stacked line — wrists, shoulders, hips, heels','Actively press tall, don\'t sink into the shoulders','Come down under control before form breaks'],
+    mistakes:['Banana back (ribs flared, hips arched)','Sinking into the shoulders','Holding past the point of clean position'],
+    programming:{'Iso':'3-5 × 20-40s'},
+    warning:'Wrist & shoulder demanding. Build wrist prep first; bail by cartwheeling out or walking down. Use back-to-wall to start.' },
+  { movementId:'gymnastics-core', id:'parallette-support-hold', uuid:'b70f4c1e-b697-41b7-87f6-e8d9820d1ea4', title:'Support Hold (Parallettes / Dip Bars)', best:'Straight-Arm Support Iso',
+    cue:'Straight-arm support on parallettes or dip bars — shoulders depressed, elbows locked, body hollow. The foundation for L-sits, dips and ring work.',
+    setup:['Grip parallettes or dip bars, press to straight arms','Depress the shoulders (push DOWN away from the ears)','Hollow body, legs together and slightly in front'],
+    movement:['Hold tall on locked arms, shoulders packed down','Keep the body hollow, not arched','Hold for time'],
+    mistakes:['Shrugging — shoulders riding up to the ears','Bent elbows','Arched, loose body'],
+    programming:{'Iso':'3-5 × 20-45s'},
+    tip:'Master a clean support hold before chasing the L-sit — depressed, locked-out support is the whole foundation.' },
+  { movementId:'pull-up', id:'flexed-arm-hang', uuid:'6ec110ab-4d1e-4e67-a609-0e47eb354783', title:'Flexed-Arm Hang (Chin-Up Hold)', best:'Top-Position Pull Iso',
+    cue:'Hold the top of a chin-up — chin over the bar, elbows bent — for time. The classic pulling isometric (and fitness-test staple).',
+    setup:['Jump or step up to the top of a chin-up, palms facing you','Chin above the bar, chest up','Shoulders pulled down and back'],
+    movement:['Hold chin-over-bar as long as you can','Keep the shoulders packed, elbows driving down','Lower under control when you can\'t hold the height'],
+    mistakes:['Letting the chin drop below the bar','Shrugging up to the ears','Kipping / swinging to cheat the height'],
+    programming:{'Iso':'3-4 × max hold','Test':'one max-effort hold'},
+    tip:'A great bridge to your first pull-up and a brutal grip / biceps / lat hold on its own. Add load once 30s is easy.' },
 ];
 
 function applyExtraVariations() {
@@ -4018,6 +4168,22 @@ function pingLocationSelectGym(silent) {
     }
   }, err => { if (!silent) toast('Location error: ' + err.message); logWarn('GPS error', err.message); }, { timeout: 8000 });
 }
+// feat 371 — record the RAW GPS location at workout start (independent of any gym) so a session always carries where it
+// happened and can be reconciled to a gym later. Also auto-selects the nearest saved gym within 2 km (was feat 38).
+function captureWorkoutStartLocation(session) {
+  if (!navigator.geolocation || !session) return;
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude, longitude, accuracy } = pos.coords;
+    const s = (state.sessions || []).find(x => x.id === session.id) || session;
+    s.startLoc = { lat: latitude, lng: longitude, acc: accuracy != null ? Math.round(accuracy) : null, at: new Date().toISOString() };
+    if (typeof touchSession === 'function') touchSession(s);
+    let best = null, bestD = Infinity;
+    (state.gyms || []).forEach(g => { const d = gpsDistanceKm(latitude, longitude, g.lat, g.lng); if (d < bestD) { bestD = d; best = g; } });
+    if (best && bestD <= 2) { setActiveGym(best.id); logInfo('Auto-selected gym by GPS', best.name + ' (' + bestD.toFixed(2) + ' km)'); toast('📍 ' + best.name + ' selected'); }
+    saveState();
+    if (typeof render === 'function') render();
+  }, err => { logWarn('GPS error at workout start', err.message); }, { timeout: 8000, enableHighAccuracy: true });
+}
 
 // Mega categories with display labels
 const MEGA_LABELS = { all: 'All', push: 'Push', pull: 'Pull', lower: 'Lower', core: 'Core', full: 'Full' };
@@ -4440,7 +4606,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 // Keys that are considered "settings" (everything except sessions).
 // On merge imports, these are preserved from local state.
 // On overwrite imports, these are replaced with the file's values.
-const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
+const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','maxWeightHard','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
@@ -4461,7 +4627,7 @@ const DEVICE_LOCAL_KEYS = new Set(['theme','sound','metronome','annunciation','t
   'autoSave','autoLoad','bioAutoLoad','stravaAutoLoad','aiExport','cowork','hrDevice','activeGymId',
   'dashboard','workoutControls','settingsCollapse','refView','glossaryAsPage','glossaryHighlight','spUI','holdCue',
   'anatomyChart','tipsExpanded','tipsMode','calcMode','alwaysConfirm','longPressConfirm','lang','readonly',
-  'brandMark','hideBranding','maxWeightLb','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','studyNudge','timelapse']);
+  'brandMark','hideBranding','maxWeightLb','maxWeightHard','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','studyNudge','timelapse']);
 // User-data collections merged per-record below (so the coarse savedAt race can't block them).
 const SYNC_COLLECTION_KEYS = new Set(['plans','bodyComp','stravaActivities','customVariations','gyms','seededPlanIds',
   'exerciseMedia','exerciseSetup','cardioGoals','favoritePlans','favoriteVars','hiddenVars','hiddenMovements',
@@ -4580,6 +4746,7 @@ let state = {
   tipsExpanded: false, // default: tips section collapsed
   tipsMode: 'concise', // 'concise' | 'full'
   maxWeightLb: 1500, // configurable weight limit; weights above this shown in red
+  maxWeightHard: false, // feat 364 — false = soft (warn, save anyway); true = hard (block over-limit saves)
   alwaysConfirm: true, // show confirmation popup before saving sets
   theme: 'dark', // 'dark' | 'light' | 'midnight' | 'forest' | 'ember'
   autoSave: {
@@ -6846,12 +7013,12 @@ function cloudSyncCardHtml() {
     const pLabel = CLOUD_PROVIDERS[cs.provider].label;
     const acct = cloudAccount(); // feat 290 — synced account name + avatar (same will apply to other providers)
     const acctRow = acct && (acct.name || acct.picture) ? `
-        <div style="display:flex;align-items:center;gap:9px;margin-top:8px;padding-top:8px;border-top:1px solid var(--accent-border);">
+        <div onclick="navTo('set-profile')" role="button" tabindex="0" title="Open your profile" style="display:flex;align-items:center;gap:9px;margin-top:8px;padding-top:8px;border-top:1px solid var(--accent-border);cursor:pointer;">
           ${acct.picture ? `<img src="${escapeAttr(acct.picture)}" alt="" referrerpolicy="no-referrer" loading="lazy" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border2);flex-shrink:0;">` : '<span style="font-size:22px;flex-shrink:0;">👤</span>'}
           <div style="min-width:0;">
-            <div style="font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(acct.name || 'Synced account')}</div>
+            <div style="font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(acct.name || 'Synced account')} <span style="color:var(--text3);font-weight:400;font-size:10px;">›</span></div>
             ${acct.email ? `<div style="color:var(--text3);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(acct.email)}</div>` : ''}
-            <div style="color:var(--text3);font-size:10.5px;">🔒 Your profile name is locked to this account</div>
+            <div style="color:var(--text3);font-size:10.5px;">🔒 Your profile name is locked to this account · tap to open Profile</div>
           </div>
         </div>` : '';
     return `
@@ -7412,13 +7579,9 @@ function renderGymEditor(g) {
       <button class="drawer-btn" data-gym-pin="${g.id}">📍 Pin here</button>
       ${g.lat!=null?`<button class="drawer-btn" data-gym-unpin="${g.id}">Clear</button>`:''}
     </div>
-    <div class="vw-row" style="margin-top:6px;">
-      <div class="vw-label">Google Maps</div>
-      <a class="drawer-btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(g.name || 'gym near me')}" target="_blank" rel="noopener" style="text-decoration:none;">🔎 Search</a>
-    </div>
-    <input type="text" data-gym-maps="${g.id}" placeholder="Paste a Google Maps link or 'lat, lng'" style="width:100%;box-sizing:border-box;margin-top:6px;padding:6px 8px;font-size:12px;border-radius:6px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    <input type="text" data-gym-maps="${g.id}" placeholder="Or paste coordinates: lat, lng" style="width:100%;box-sizing:border-box;margin-top:6px;padding:6px 8px;font-size:12px;border-radius:6px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     <div style="font-size:10.5px;color:var(--text3);margin-top:8px;line-height:1.5;">
-      Grab coordinates from Google Maps (or paste any "lat, lng"). To force-show a globally-hidden exercise only at this gym, set it active, then use 📍 in the Reference (or it shows automatically when its equipment is available).
+      Set this gym's spot on the <b>map above</b> — drag its pin, or tap ➕ then the map. 📍 Pin here uses your current GPS; or paste any "lat, lng". To force-show a globally-hidden exercise only at this gym, set it active, then use 📍 in the Reference (or it shows automatically when its equipment is available).
     </div>
     ${renderGymStableEditor(g)}
     <div class="drawer-data-row" style="margin-top:8px;"><button class="drawer-btn" data-gym-done="${g.id}">Done</button></div>
@@ -7526,12 +7689,143 @@ function bindGymsSection(body, refresh) {
   body.querySelectorAll('[data-gym-stable-reset]').forEach(b => b.addEventListener('click', () => { const g = state.gyms.find(x => x.id === b.dataset.gymStableReset); if (!g) return; delete g.stable; saveState(); refresh(); toast('Stable reset to defaults'); }));
 }
 
+// feat 370 — a self-contained slippy map (OpenStreetMap raster tiles, no library, no API key) to view / add / move /
+// delete gyms. Web-Mercator projection; degrades gracefully (markers still place on a blank canvas when offline).
+let _gmap = null; // { lat, lng, z, addMode, me } — view state, persists across re-renders so pan/zoom survive
+const _GM_TILE = 256;
+function _gmProj(z) {
+  const n = _GM_TILE * Math.pow(2, z);
+  return {
+    n,
+    x: lng => (lng + 180) / 360 * n,
+    y: lat => { const s = Math.max(-0.9999, Math.min(0.9999, Math.sin(lat * Math.PI / 180))); return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n; },
+    lng: x => x / n * 360 - 180,
+    lat: y => { const t = Math.PI - 2 * Math.PI * y / n; return 180 / Math.PI * Math.atan(0.5 * (Math.exp(t) - Math.exp(-t))); },
+  };
+}
+function _gmInit() {
+  if (_gmap) return;
+  const withCoords = (state.gyms || []).filter(g => g.lat != null && g.lng != null);
+  const act = getActiveGym();
+  const c = (act && act.lat != null) ? act : withCoords[0];
+  _gmap = { lat: c ? c.lat : 20, lng: c ? c.lng : 0, z: c ? 14 : 2, addMode: false, me: null };
+}
+function gymMapHtml() {
+  _gmInit();
+  return `<div class="gym-map" id="gym-map">
+    <div class="gmap-tiles" id="gmap-tiles"></div>
+    <div class="gmap-markers" id="gmap-markers"></div>
+    <div class="gmap-attr">© OpenStreetMap</div>
+    <div class="gmap-ctrl">
+      <button data-gm="in" title="Zoom in" aria-label="Zoom in">+</button>
+      <button data-gm="out" title="Zoom out" aria-label="Zoom out">−</button>
+      <button data-gm="me" title="Center on my location" aria-label="My location">📍</button>
+      <button data-gm="add" title="Add a gym — then tap the map" aria-label="Add a gym">➕</button>
+    </div>
+    <div class="gmap-hint" id="gmap-hint"></div>
+  </div>`;
+}
+function _gmRender() {
+  const map = document.getElementById('gym-map'); if (!map || !_gmap) return;
+  const w = map.clientWidth || 320, h = map.clientHeight || 300;
+  const P = _gmProj(_gmap.z), cx = P.x(_gmap.lng), cy = P.y(_gmap.lat);
+  const ox = w / 2 - cx, oy = h / 2 - cy;          // world-pixel → screen offset
+  const maxT = Math.pow(2, _gmap.z);
+  const x0 = Math.floor((cx - w / 2) / _GM_TILE), x1 = Math.floor((cx + w / 2) / _GM_TILE);
+  const y0 = Math.floor((cy - h / 2) / _GM_TILE), y1 = Math.floor((cy + h / 2) / _GM_TILE);
+  let timg = '';
+  for (let ty = y0; ty <= y1; ty++) {
+    if (ty < 0 || ty >= maxT) continue;
+    for (let tx = x0; tx <= x1; tx++) {
+      const wx = ((tx % maxT) + maxT) % maxT;       // wrap longitude
+      timg += `<img src="https://tile.openstreetmap.org/${_gmap.z}/${wx}/${ty}.png" style="left:${tx * _GM_TILE + ox}px;top:${ty * _GM_TILE + oy}px" loading="lazy" alt="" onerror="this.style.visibility='hidden'">`;
+    }
+  }
+  document.getElementById('gmap-tiles').innerHTML = timg;
+  let mh = '';
+  (state.gyms || []).forEach(g => {
+    if (g.lat == null || g.lng == null) return;
+    const sx = P.x(g.lng) + ox, sy = P.y(g.lat) + oy;
+    if (sx < -50 || sx > w + 50 || sy < -50 || sy > h + 50) return;
+    mh += `<div class="gmap-pin ${g.id === state.activeGymId ? 'active' : ''}" data-gm-pin="${g.id}" style="left:${sx}px;top:${sy}px"><span class="gmap-lbl">${escapeHtml(g.name)}</span>📍</div>`;
+  });
+  // feat 371 — faint dots for recorded workout start locations, so you can SEE where you've trained and drop a gym
+  // there (tap ➕) to reconcile them. Skipped for sessions already at a saved gym's spot (within 100 m).
+  (state.sessions || []).forEach(ss => {
+    const L = ss.startLoc; if (!L || L.lat == null) return;
+    if ((state.gyms || []).some(g => gpsDistanceKm(L.lat, L.lng, g.lat, g.lng) < 0.1)) return;
+    const sx = P.x(L.lng) + ox, sy = P.y(L.lat) + oy;
+    if (sx < -20 || sx > w + 20 || sy < -20 || sy > h + 20) return;
+    mh += `<div class="gmap-wo" style="left:${sx}px;top:${sy}px" title="Workout start — not yet at a gym"></div>`;
+  });
+  if (_gmap.me) { const sx = P.x(_gmap.me.lng) + ox, sy = P.y(_gmap.me.lat) + oy; mh += `<div class="gmap-me" style="left:${sx}px;top:${sy}px"></div>`; }
+  document.getElementById('gmap-markers').innerHTML = mh;
+  const hint = document.getElementById('gmap-hint'); if (hint) hint.textContent = _gmap.addMode ? 'Tap the map to drop a new gym' : '';
+  map.classList.toggle('adding', _gmap.addMode);
+  const addBtn = map.querySelector('[data-gm="add"]'); if (addBtn) addBtn.classList.toggle('on', _gmap.addMode);
+}
+function bindGymMap(refresh) {
+  const map = document.getElementById('gym-map'); if (!map) return;
+  _gmRender();
+  const setZ = z => { _gmap.z = Math.max(2, Math.min(19, z)); _gmRender(); };
+  map.querySelector('[data-gm="in"]').addEventListener('click', () => setZ(_gmap.z + 1));
+  map.querySelector('[data-gm="out"]').addEventListener('click', () => setZ(_gmap.z - 1));
+  map.querySelector('[data-gm="add"]').addEventListener('click', () => { _gmap.addMode = !_gmap.addMode; _gmRender(); });
+  map.querySelector('[data-gm="me"]').addEventListener('click', () => {
+    if (!navigator.geolocation) { toast('Geolocation not available'); return; }
+    toast('Locating…');
+    navigator.geolocation.getCurrentPosition(p => { _gmap.me = { lat: p.coords.latitude, lng: p.coords.longitude }; _gmap.lat = _gmap.me.lat; _gmap.lng = _gmap.me.lng; if (_gmap.z < 14) _gmap.z = 15; _gmRender(); },
+      e => toast('Location error: ' + e.message), { timeout: 8000 });
+  });
+  // screen point → world coords at the current view
+  const ptToLatLng = (clientX, clientY) => {
+    const r = map.getBoundingClientRect(), P = _gmProj(_gmap.z);
+    const wx = P.x(_gmap.lng) - r.width / 2 + (clientX - r.left), wy = P.y(_gmap.lat) - r.height / 2 + (clientY - r.top);
+    return { lat: P.lat(wy), lng: P.lng(wx) };
+  };
+  let mode = null, sx0 = 0, sy0 = 0, lat0 = 0, lng0 = 0, dragGym = null, moved = false;
+  map.addEventListener('pointerdown', e => {
+    if (e.target.closest('.gmap-ctrl')) { mode = null; return; }  // let the control buttons handle their own clicks
+    moved = false; sx0 = e.clientX; sy0 = e.clientY;
+    const pin = e.target.closest('[data-gm-pin]');
+    if (pin) { mode = 'pin'; dragGym = pin.dataset.gmPin; }
+    else { mode = 'pan'; lat0 = _gmap.lat; lng0 = _gmap.lng; }
+    try { map.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  map.addEventListener('pointermove', e => {
+    if (!mode) return;
+    const dx = e.clientX - sx0, dy = e.clientY - sy0;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+    if (mode === 'pan') { const P = _gmProj(_gmap.z); _gmap.lng = P.lng(P.x(lng0) - dx); _gmap.lat = P.lat(P.y(lat0) - dy); _gmRender(); }
+    else if (mode === 'pin' && moved) { const g = (state.gyms || []).find(x => x.id === dragGym); if (g) { const ll = ptToLatLng(e.clientX, e.clientY); g.lat = ll.lat; g.lng = ll.lng; _gmRender(); } }
+  });
+  map.addEventListener('pointerup', e => {
+    try { map.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (mode === 'pin') {
+      const g = (state.gyms || []).find(x => x.id === dragGym);
+      if (g && !moved) { gymEditId = (gymEditId === g.id ? null : g.id); refresh(); }       // tap a pin → toggle its editor
+      else if (g) { saveState(); render(); toast('📍 ' + g.name + ' moved'); refresh(); }    // dragged → persist coords
+    } else if (mode === 'pan' && !moved && _gmap.addMode) {
+      const ll = ptToLatLng(e.clientX, e.clientY);
+      promptDialog({ title: 'New gym here', message: `${ll.lat.toFixed(4)}, ${ll.lng.toFixed(4)}`, placeholder: 'Gym name', okLabel: '+ Add' }).then(name => {
+        if (name == null) return;
+        const g = newGym(name, 'everything'); g.lat = ll.lat; g.lng = ll.lng; saveState();
+        _gmap.addMode = false; gymEditId = g.id; toast('🏋 Gym added'); refresh();
+      });
+    }
+    mode = null; dragGym = null;
+  });
+  map.addEventListener('wheel', e => { e.preventDefault(); setZ(_gmap.z + (e.deltaY < 0 ? 1 : -1)); }, { passive: false });
+}
+
 // Gym management as its own tracker tab (feat 46)
 function renderGymsTab(main) {
+  const refresh = () => renderGymsTab(main);
   main.innerHTML = `<div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:6px;">
     Define your gyms by the equipment they stock. The <b>active</b> gym overrides hidden flags — it can even force-show an exercise you've hidden everywhere else.
-  </div>` + renderGymsSection();
-  bindGymsSection(main, () => renderGymsTab(main));
+  </div>` + gymMapHtml() + renderGymsSection();
+  bindGymsSection(main, refresh);
+  bindGymMap(refresh); // feat 370 — interactive map: tap ➕ then the map to add, drag a pin to move, tap a pin to edit
 }
 
 function renderSettingsDrawer() {
@@ -7630,8 +7924,8 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Reflect quick-nav pills</div>
-        <div class="drawer-setting-sub">Show a pill bar to hop between the Reflect pages (Summary, Trends, Volume, Constellation…). Only appears in the Reflect area.</div>
+        <div class="drawer-setting-label">Section quick-nav pills</div>
+        <div class="drawer-setting-sub">Show a pill bar to hop between sibling pages in a section — Reflect, Prepare, Study and Settings.</div>
       </div>
       <div class="drawer-pill-group">
         <button class="drawer-pill ${reflectPillsEnabled() ? 'active' : ''}" data-pref-reflectpills="on">On</button>
@@ -7828,6 +8122,16 @@ function renderSettingsDrawer() {
       <input type="number" id="drawer-max-weight" value="${state.maxWeightLb || 1500}" min="100" max="10000" step="100"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
                background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Limit enforcement</div>
+        <div class="drawer-setting-sub">Soft: warn but save anyway · Hard: block over-limit saves</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${!state.maxWeightHard ? 'active' : ''}" data-pref-wlimit="soft">Soft</button>
+        <button class="drawer-pill ${state.maxWeightHard ? 'active' : ''}" data-pref-wlimit="hard">Hard</button>
+      </div>
     </div>
 
     <div class="drawer-section-title">Workout Session</div>
@@ -8472,8 +8776,21 @@ function renderSettingsDrawer() {
         <button class="drawer-btn" id="ai-repick-btn">📁 Change folder</button>
         <button class="drawer-btn danger" id="ai-disable-btn">✕ Disable</button>
       </div>
-      <div class="drawer-setting-row" style="margin-top:8px;">
-        <div><div class="drawer-setting-label">🤝 AI Cowork hub</div><div class="drawer-setting-sub">Also write the machine export + task folders (Garmin / Strava / Plan-of-the-Day) into this folder for an <b>AI cowork agent</b> — model-agnostic: any agent that can read/write the folder (e.g. Claude or GPT) — and import its results.</div></div>
+    ` : `
+      <div class="drawer-data-row" style="flex-wrap:wrap;">
+        <button class="drawer-btn" id="ai-pick-folder-btn">📁 Pick export folder</button>
+      </div>
+    `}
+
+    <div class="drawer-section-title" style="margin-top:18px;">🤝 AI Cowork</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+      A two-way bridge for an <b>AI cowork agent</b> (model-agnostic — Claude, GPT, anything that reads/writes a folder):
+      the app writes the machine export + task folders (Garmin / Strava / Plan-of-the-Day) and imports the agent's results.
+      Built on the <b>AI Brief Export</b> folder above${(state.aiExport && state.aiExport.enabled) ? '' : ' — set that up first to enable the hub'}.
+    </div>
+    ${(state.aiExport && state.aiExport.enabled) ? `
+      <div class="drawer-setting-row">
+        <div><div class="drawer-setting-label">Enable the hub</div><div class="drawer-setting-sub">Write the cowork folders into the AI export folder and import agent results.</div></div>
         <div class="drawer-pill-group">
           <button class="drawer-pill ${state.cowork.enabled ? 'active' : ''}" data-cowork="on">On</button>
           <button class="drawer-pill ${!state.cowork.enabled ? 'active' : ''}" data-cowork="off">Off</button>
@@ -8487,11 +8804,7 @@ function renderSettingsDrawer() {
           <button class="drawer-pill ${!state.cowork.cardioFatigue ? 'active' : ''}" data-cardiofatigue="off">Off</button>
         </div>
       </div>${renderPodOptionsForm()}` : ''}
-    ` : `
-      <div class="drawer-data-row" style="flex-wrap:wrap;">
-        <button class="drawer-btn" id="ai-pick-folder-btn">📁 Pick export folder</button>
-      </div>
-    `}
+    ` : ''}
     ` : `
     <div class="drawer-section-title" style="margin-top:18px;">Auto-Save / Auto-Load</div>
     <div style="font-size:11px;color:var(--text3);line-height:1.5;">
@@ -8616,6 +8929,7 @@ function renderSettingsDrawer() {
       if (btn.dataset.prefBrand) { state.hideBranding = btn.dataset.prefBrand === 'hide'; saveState(); applyBranding(); } // feat 170
       else if (btn.dataset.prefUnit) { state.unit = btn.dataset.prefUnit; saveState(); toast('Unit: ' + state.unit.toUpperCase()); }
       else if (btn.dataset.prefConfirm) { state.alwaysConfirm = btn.dataset.prefConfirm === 'on'; saveState(); toast('Confirmation: ' + (state.alwaysConfirm ? 'on' : 'off')); }
+      else if (btn.dataset.prefWlimit) { state.maxWeightHard = btn.dataset.prefWlimit === 'hard'; saveState(); toast('Weight limit: ' + (state.maxWeightHard ? 'hard (blocks over-limit saves)' : 'soft (warns only)')); } // feat 364
       else if (btn.dataset.prefTipsMode) { state.tipsMode = btn.dataset.prefTipsMode; saveState(); toast('Tips: ' + state.tipsMode); }
       else if (btn.dataset.prefTipsExp) { state.tipsExpanded = btn.dataset.prefTipsExp === 'expanded'; saveState(); }
       else if (btn.dataset.prefGender) { state.profile.gender = btn.dataset.prefGender; touchProfile(); saveState(); }
@@ -9140,6 +9454,8 @@ const INFO_EXPORT_SECTIONS = [
   { id: 'help', label: '❓ Help' },
   { id: 'about', label: 'ℹ️ About' },
   { id: 'quickref', label: '📋 Quick reference' },
+  { id: 'reference', label: '📚 Full exercise reference' }, // feat 366 — the full per-variation docs
+  { id: 'briefs', label: '🎧 Coach brief transcripts' },    // feat 366 — every variation's spoken brief, written out
   { id: 'coaching', label: '🧭 Coaching guides' },
   { id: 'glossary', label: '📖 Glossary' },
 ];
@@ -9176,6 +9492,38 @@ function _infoGlossaryHtml() {
       `<dt>${escapeHtml(g.term)}${g.aka ? ` <span class="muted">(${escapeHtml(g.aka)})</span>` : ''}</dt><dd>${escapeHtml(g.def)}</dd>`).join('')}</dl>`;
   }).join('');
 }
+// feat 366 — the FULL per-variation reference (rich docs: cue / setup / movement / mistakes / programming / tip / warning).
+function _infoReferenceHtml() {
+  const esc = escapeHtml;
+  const li = a => (Array.isArray(a) && a.length) ? `<ul>${a.map(x => `<li>${esc(String(x))}</li>`).join('')}</ul>` : '';
+  const prog = p => (p && typeof p === 'object' && Object.keys(p).length)
+    ? `<ul>${Object.entries(p).map(([k, v]) => `<li><b>${esc(k)}:</b> ${esc(String(v))}</li>`).join('')}</ul>` : '';
+  return exercises.map(ex => `<div class="ref-fam">
+    <h3>${esc(ex.title)} <span class="muted">${esc(ex.tag || '')}</span></h3>
+    ${ex.quickCue ? `<p class="qr-cue">💡 ${esc(ex.quickCue)}</p>` : ''}
+    ${(ex.variations || []).map(v => `<div class="ref-var">
+      <h4>${esc(v.title)}${v.best ? ` <span class="muted">— ${esc(v.best)}</span>` : ''}</h4>
+      ${v.cue ? `<p class="qr-cue">${esc(v.cue)}</p>` : ''}
+      ${(Array.isArray(v.setup) && v.setup.length) ? `<p><b>Setup</b></p>${li(v.setup)}` : ''}
+      ${(Array.isArray(v.movement) && v.movement.length) ? `<p><b>Movement</b></p>${li(v.movement)}` : ''}
+      ${(Array.isArray(v.mistakes) && v.mistakes.length) ? `<p><b>Common mistakes</b></p>${li(v.mistakes)}` : ''}
+      ${v.programming ? `<p><b>Programming</b></p>${prog(v.programming)}` : ''}
+      ${v.tip ? `<p>💡 ${esc(v.tip)}</p>` : ''}
+      ${v.warning ? `<p>⚠️ ${esc(v.warning)}</p>` : ''}
+    </div>`).join('')}
+  </div>`).join('');
+}
+// feat 366 — every variation's spoken coach brief (feat 304), written out as a transcript.
+function _infoBriefsHtml() {
+  const esc = escapeHtml;
+  const out = [];
+  for (const [uuid] of VAR_INDEX) {
+    let built = null; try { built = variationPodcast(uuid); } catch (_) {}
+    if (!built || !built.segs || !built.segs.length) continue;
+    out.push(`<div class="ref-var"><h4>${esc(built.title)} <span class="muted">— ${esc(built.persona)} coach</span></h4><p>${built.segs.map(s => esc(s.text)).join(' ')}</p></div>`);
+  }
+  return out.join('');
+}
 // The assembled document body (shared by the file export and the print path).
 function buildInfoExportBody(ids) {
   const want = (id) => !ids || !ids.length || ids.includes(id);
@@ -9190,6 +9538,8 @@ function buildInfoExportBody(ids) {
     help: () => `<section><h2>❓ Help</h2>${_infoHelpHtml()}</section>`,
     about: () => `<section><h2>ℹ️ About</h2>${_infoAboutHtml()}</section>`,
     quickref: () => `<section><h2>📋 Quick reference <span class="muted">(${exercises.length} movements, as of ${escapeHtml(when)})</span></h2>${_infoQuickRefHtml()}</section>`,
+    reference: () => `<section><h2>📚 Full exercise reference <span class="muted">(${exercises.length} movements, as of ${escapeHtml(when)})</span></h2>${_infoReferenceHtml()}</section>`,
+    briefs: () => `<section><h2>🎧 Coach brief transcripts</h2>${_infoBriefsHtml()}</section>`,
     coaching: () => `<section><h2>🧭 Coaching guides</h2>${_infoCoachingHtml()}</section>`,
     glossary: () => `<section><h2>📖 Glossary <span class="muted">(${glossary.length} terms)</span></h2>${_infoGlossaryHtml()}</section>`,
   };
@@ -9219,6 +9569,7 @@ function buildInfoExportHtml(ids) {
   .muted { color: #888; font-weight: 400; font-size: 11px; }
   .qr-cue { color: #555; font-style: italic; margin: 2px 0; }
   .qr-vars { color: #666; font-size: 11.5px; margin: 2px 0 0; }
+  .ref-var { margin: 4px 0 12px 14px; padding-left: 10px; border-left: 2px solid #eee; }
   .ip-legal { background: #f6f4fc; border: 1px solid #e2dcf5; border-radius: 8px; padding: 4px 16px 10px; margin-top: 36px; }
   .ip-foot { margin-top: 26px; font-size: 10.5px; color: #999; border-top: 1px solid #eee; padding-top: 8px; }
   .help-kbd { border: 1px solid #ccc; border-radius: 4px; padding: 0 4px; font-size: 11px; }
@@ -11158,10 +11509,12 @@ function isSetFeasible(set, varUuid) {
   return true;
 }
 
-function isSetValid(set, varUuid) {
+// feat 364 — ignoreCap lets the SAVE path keep an over-limit set so a SOFT limit can warn-and-save (and a HARD limit
+// can refuse it) instead of silently dropping it; reps/format are still validated. Callers gating UI omit it (cap applies).
+function isSetValid(set, varUuid, ignoreCap) {
   const mode = exMode(varUuid || pending.varUuid).mode;
   const w = parseFloat(set.w), r = parseFloat(set.r);
-  const maxWeight = state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb;
+  const maxWeight = ignoreCap ? Infinity : (state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb);
   if (mode === 'bodyweight') {
     const wOk = (set.w === '' || set.w == null) || (!isNaN(w) && Math.abs(w) <= maxWeight);
     return wOk && r > 0 && r <= 999 && Number.isInteger(r);
@@ -11673,14 +12026,27 @@ function renderMenu(main, ids) {
 }
 // feat 309 — an optional pill bar to hop between the Reflect pages, shown ONLY on Reflect leaves.
 function reflectPillsEnabled() { return state.reflectPills !== false; }
-function _injectReflectPills(main, cur) {
-  if (!main) return;
-  const kids = (PAGES.reflect && PAGES.reflect.children) || [];
+// feat 309/368 — section quick-nav pills: one pill per sibling page in a group, current highlighted. Injected by
+// renderCurrentPage for leaves of these groups, into whichever surface that page actually renders into.
+const PILL_GROUPS = ['reflect', 'prepare', 'study', 'settings'];
+function _groupPillTarget(pageId) {
+  // most pages render into #trk-main; a few live on their own panel/overlay surface
+  const alt = { 'set-data': '#data-page-body', reference: '#panel-reference', glossary: '#ref-gloss-panel', anatomy: '#ref-gloss-panel' };
+  return document.querySelector(alt[pageId] || '#trk-main');
+}
+function _injectGroupPills(pageId) {
+  if (!reflectPillsEnabled()) return;
+  const def = PAGES[pageId];
+  if (!def || def.kind !== 'leaf' || PILL_GROUPS.indexOf(def.parent) === -1) return;
+  const kids = (PAGES[def.parent] && PAGES[def.parent].children) || [];
   if (!kids.length) return;
+  const target = _groupPillTarget(pageId);
+  if (!target) return;
+  target.querySelectorAll(':scope > .reflect-pills').forEach(n => n.remove()); // no dupes across re-renders / alt surfaces
   const bar = document.createElement('div');
   bar.className = 'reflect-pills';
-  bar.innerHTML = kids.map(id => { const d = PAGES[id]; if (!d) return ''; return `<button class="reflect-pill ${id === cur ? 'active' : ''}" data-reflect-go="${escapeAttr(id)}">${d.emoji || ''} ${escapeHtml(d.title || id)}</button>`; }).join('');
-  main.insertBefore(bar, main.firstChild);
+  bar.innerHTML = kids.map(id => { const d = PAGES[id]; if (!d) return ''; return `<button class="reflect-pill ${id === pageId ? 'active' : ''}" data-reflect-go="${escapeAttr(id)}">${d.emoji || ''} ${escapeHtml(d.title || id)}</button>`; }).join('');
+  target.insertBefore(bar, target.firstChild);
   bar.querySelectorAll('[data-reflect-go]').forEach(b => b.addEventListener('click', () => navTo(b.dataset.reflectGo)));
 }
 function renderCurrentPage() {
@@ -11698,7 +12064,7 @@ function renderCurrentPage() {
   if (def.kind === 'menu') renderMenu(main, def.children);
   else if (def.render) def.render(main);
   else if (def.open) { main.innerHTML = ''; def.open(); }
-  if (def.kind === 'leaf' && def.parent === 'reflect' && reflectPillsEnabled()) _injectReflectPills(main, currentPage); // feat 309
+  if (def.kind === 'leaf') _injectGroupPills(currentPage); // feat 309/368 — section quick-nav pills (reflect/prepare/study/settings)
   const _exp = document.getElementById('trk-export-pdf'); // feat 133 — only the data-review views are exportable
   const _expShown = (currentPage === 'history' || currentPage === 'volume' || currentPage === 'trends');
   if (_exp) _exp.style.display = _expShown ? '' : 'none';
@@ -11744,16 +12110,27 @@ function brandLogoHtml(forExport) {
 }
 // feat 250 — custom brand mark + the 315-club sparkle easter egg.
 function brandMark() { return (state.brandMark && /\S/.test(state.brandMark)) ? state.brandMark.trim() : '🏋️'; }
-// Has the user put 315 lb (≈142.9 kg) on the bar for any variation of this movement, for at least 1 rep?
-function lift315(familyId) {
+// Has the user put `lb` on the bar for any variation of this movement, for at least 1 rep? (weights compared in the
+// current unit, mirroring how sets are logged.)
+function liftHit(familyId, lb) {
   if (!familyId) return false;
   const fam = FAMILIES.find(f => f.id === familyId); if (!fam) return false;
-  const thr = state.unit === 'kg' ? (315 / 2.205) : 315;
+  const thr = state.unit === 'kg' ? (lb / 2.205) : lb;
   const uuids = new Set((fam.variations || []).map(v => v.uuid).filter(Boolean));
   return (state.sessions || []).some(s => (s.exercises || []).some(ex =>
     uuids.has(ex.varUuid) && (ex.sets || []).some(set => { const w = parseFloat(set.w), r = parseFloat(set.r); return w >= thr && r >= 1; })));
 }
+function lift315(familyId) { return liftHit(familyId, 315); } // feat 250 — the 315 club (kept for the per-digit sparkle)
 const _BRAND_DIGIT_LIFT = { bench: 'flat-bench-press', dead: 'deadlift', squat: 'squat' }; // 3 · 1 · 5 → bench · deadlift · squat
+// feat 376 — once ALL three core lifts clear the next plate milestones, the "315" badge PRESTIGES to that value:
+// 315 → 405 → 495 → 585 (4 · 5 · 6 plates a side). Returns the highest tier every core lift has hit (315 = base).
+const PRESTIGE_TIERS = [405, 495, 585];
+function prestigeTier() {
+  const cores = Object.values(_BRAND_DIGIT_LIFT);
+  let tier = 315;
+  for (const T of PRESTIGE_TIERS) { if (cores.every(fid => liftHit(fid, T))) tier = T; else break; }
+  return tier;
+}
 // feat 290 — the top-bar identity: the current (or synced) profile name + the synced-account avatar. Mandatory
 // branding means this row is always present for a consistent layout; the identity shows when a name/avatar exists.
 function refreshIdentity() {
@@ -11769,8 +12146,27 @@ function applyBranding() {
   try { document.body.classList.remove('brand-hidden'); state.hideBranding = false; } catch (_) {} // feat 290 — branding is mandatory (consistent layout)
   try { const m = document.querySelector('#app-brand .gt-brand-mark'); if (m && m.textContent !== brandMark()) m.textContent = brandMark(); } catch (_) {} // feat 250 — custom emoji
   try { refreshIdentity(); } catch (_) {} // feat 290
-  // feat 250 — each digit of "315" sparkles once you've hit 315 in the matching lift (3=bench, 1=deadlift, 5=squat)
-  try { document.querySelectorAll('#app-brand .gt-brand-d').forEach(el => el.classList.toggle('sparkle', lift315(_BRAND_DIGIT_LIFT[el.dataset.lift]))); } catch (_) {}
+  // feat 250/376 — the "315" badge: each digit sparkles once you've hit 315 in the matching lift; once ALL core lifts
+  // clear the next milestone the whole badge PRESTIGES to 405 → 495 → 585 (rebuilt only on a tier change, to keep the
+  // sparkle animation from restarting every render).
+  try {
+    const sup = document.querySelector('#app-brand .gt-brand-num');
+    if (sup) {
+      const tier = prestigeTier();
+      if (String(tier) !== sup.dataset.tier) {
+        sup.dataset.tier = String(tier);
+        if (tier === 315) {
+          sup.classList.remove('prestige'); sup.removeAttribute('data-prestige'); sup.removeAttribute('title');
+          sup.innerHTML = `<span class="gt-brand-d" data-lift="bench">3</span><span class="gt-brand-d" data-lift="dead">1</span><span class="gt-brand-d" data-lift="squat">5</span>`;
+        } else {
+          sup.classList.add('prestige'); sup.dataset.prestige = String(tier);
+          sup.setAttribute('title', `Prestige — all core lifts at ${tier} lb`);
+          sup.innerHTML = `${tier}<span class="gt-prestige-star" aria-hidden="true">★</span>`;
+        }
+      }
+      if (tier === 315) sup.querySelectorAll('.gt-brand-d').forEach(el => el.classList.toggle('sparkle', lift315(_BRAND_DIGIT_LIFT[el.dataset.lift])));
+    }
+  } catch (_) {}
 }
 function exportCurrentViewPdf() {
   const main = document.getElementById('trk-main'); if (!main) return;
@@ -13588,7 +13984,10 @@ let _plansEditId = null, _plansAddOptStep = null, _plansOptSearch = '';
 let _plansViewMode = false; // feat 276 — open the editor read-only (same layout, no inputs/commit) to view a plan safely
 let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Execution View mode (which plan + which session)
 let _plansRevView = false; // feat 162 — when editing a plan, show its revision history instead of the form
-let _plansSearch = '', _plansCatFilter = 'all', _plansLenFilter = 'all'; // feat 147 — plan picker search + filters
+// feat 373/374 — plan picker filters: category is a MULTI-select set (empty = all); length is a 2-thumb minute RANGE.
+const PLAN_LEN_MIN = 5, PLAN_LEN_MAX = 120, PLAN_LEN_STEP = 5;
+let _plansSearch = '', _plansCatFilter = new Set(), _plansLenRange = { min: PLAN_LEN_MIN, max: PLAN_LEN_MAX };
+const _plansLenActive = () => _plansLenRange.min > PLAN_LEN_MIN || _plansLenRange.max < PLAN_LEN_MAX;
 let _plansFavOnly = false; // feat 178 — show only favorited plans
 let _plansPage = 0; // feat 240 — paginate the (filtered) plan list
 let _plansDeepLink = false; // feat 184 — openPlanFull sets this so the page render opens straight to the editor
@@ -13600,7 +13999,7 @@ function renderPlanCreatorPage(main) {
   _plansDeepLink = false;
   renderPlansOverlay();
 }
-function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; _plansDeepLink = false; navTo('plan-creator'); }
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = false; _plansSearch = ''; _plansCatFilter = new Set(); _plansLenRange = { min: PLAN_LEN_MIN, max: PLAN_LEN_MAX }; _plansFavOnly = false; _plansPage = 0; _plansDeepLink = false; navTo('plan-creator'); }
 function openPlanPicker() { openPlansOverlay(); }
 function openPlanFull(id) { // feat 138/184 — open the plan editor as a page, focused on one plan's steps
   _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = false; _plansDeepLink = true; navTo('plan-creator');
@@ -13696,19 +14095,34 @@ function renderPlansList(body) {
   const matches = (p) => {
     if (_plansFavOnly && !isFavPlan(p.id)) return false; // feat 178
     if (q && !(p.name.toLowerCase().includes(q) || (p.desc || '').toLowerCase().includes(q))) return false;
-    if (_plansCatFilter !== 'all' && planCategory(p) !== _plansCatFilter) return false;
-    if (_plansLenFilter !== 'all' && planLengthBucket(p) !== _plansLenFilter) return false;
+    if (_plansCatFilter.size && !_plansCatFilter.has(planCategory(p))) return false; // feat 373 — multi-select (empty = all)
+    if (_plansLenActive()) { // feat 374 — minute range; a thumb at the slider extreme means "open-ended" on that side
+      const m = estimatePlanMinutes(p);
+      if (_plansLenRange.min > PLAN_LEN_MIN && m < _plansLenRange.min) return false;
+      if (_plansLenRange.max < PLAN_LEN_MAX && m > _plansLenRange.max) return false;
+    }
     return true;
   };
   const filtered = plans.filter(matches);
   // group the filtered plans by category
   const groups = {};
   filtered.forEach(p => { const c = planCategory(p); (groups[c] = groups[c] || []).push(p); });
-  Object.keys(groups).forEach(c => groups[c].sort((a, b) => (isFavPlan(b.id) ? 1 : 0) - (isFavPlan(a.id) ? 1 : 0))); // feat 178 — favorites float to the top of each group
+  Object.keys(groups).forEach(c => groups[c].sort((a, b) => {
+    if (c === 'Plans of the Day') return (b.dailyDate || '').localeCompare(a.dailyDate || ''); // feat 375 — newest day first
+    return (isFavPlan(b.id) ? 1 : 0) - (isFavPlan(a.id) ? 1 : 0); // feat 178 — favorites float to the top of each group
+  }));
   const groupCats = Object.keys(groups).sort((a, b) => planCatRank(a) - planCatRank(b));
-  const LEN = [['all','Any length'],['quick','Quick'],['standard','Standard'],['long','Long']];
-  const catChip = (val, label, n) => `<button class="plan-chip ${_plansCatFilter===val?'active':''}" data-plan-cat="${escapeAttr(val)}">${escapeHtml(label)}${n!=null?` <span class="plan-chip-n">${n}</span>`:''}</button>`;
-  const lenChip = (val, label) => `<button class="plan-chip ${_plansLenFilter===val?'active':''}" data-plan-len="${val}">${label}</button>`;
+  const catChip = (val, label, n) => `<button class="plan-chip ${(val === 'all' ? _plansCatFilter.size === 0 : _plansCatFilter.has(val)) ? 'active' : ''}" data-plan-cat="${escapeAttr(val)}">${escapeHtml(label)}${n != null ? ` <span class="plan-chip-n">${n}</span>` : ''}</button>`;
+  // feat 374 — a 2-thumb (min/max) length slider built from two overlaid native range inputs (no library)
+  const lenLabel = !_plansLenActive() ? 'Any length' : `${_plansLenRange.min}${_plansLenRange.max >= PLAN_LEN_MAX ? '+' : '–' + _plansLenRange.max} min`;
+  const lenSliderHtml = `<div class="len-filter">
+    <div class="len-filter-head"><span>Length</span><span class="len-filter-val" id="len-filter-val">${lenLabel}</span></div>
+    <div class="len-slider" id="len-slider">
+      <div class="len-track"></div><div class="len-track-fill" id="len-fill"></div>
+      <input type="range" id="len-min" min="${PLAN_LEN_MIN}" max="${PLAN_LEN_MAX}" step="${PLAN_LEN_STEP}" value="${_plansLenRange.min}" aria-label="Minimum length">
+      <input type="range" id="len-max" min="${PLAN_LEN_MIN}" max="${PLAN_LEN_MAX}" step="${PLAN_LEN_STEP}" value="${_plansLenRange.max}" aria-label="Maximum length">
+    </div>
+  </div>`;
   const favN = favPlanCount(); // feat 178
   // feat 240 — paginate the (filtered) list so a big plan library stays scannable. Page over the
   // category-rank-ordered, favourites-first flat list; re-emit a category head whenever it changes on a page.
@@ -13729,12 +14143,12 @@ function renderPlansList(body) {
       ? '<div class="plan-list-empty">No plans match. <button class="plan-clear-filters" id="plan-clear-filters">Clear filters</button></div>'
       : `${pagerHtml}${pageRows}${pagerHtml}`);
   // feat 226 — Quick Pick only on the unfiltered landing view (hidden once you search/filter/favourite-only).
-  const showQuickPick = plans.length > 0 && !q && _plansCatFilter === 'all' && _plansLenFilter === 'all' && !_plansFavOnly;
+  const showQuickPick = plans.length > 0 && !q && _plansCatFilter.size === 0 && !_plansLenActive() && !_plansFavOnly;
   body.innerHTML = `${showQuickPick ? quickPickHtml() : ''}<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
     <input type="search" id="plans-search" class="plans-search" placeholder="🔍 Search plans by name or theme…" value="${escapeAttr(_plansSearch)}" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="plan-chips">${favN ? `<button class="plan-chip fav-chip ${_plansFavOnly?'active':''}" data-plan-fav="1" title="Show favorites only">★ Favorites <span class="plan-chip-n">${favN}</span></button>` : ''}${catChip('all','All',plans.length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
-    <div class="plan-chips">${LEN.map(([v,l]) => lenChip(v,l)).join('')}</div>
-    ${(_plansCatFilter!=='all'||_plansLenFilter!=='all'||q||_plansFavOnly) ? `<div class="plan-filter-note">${filtered.length} of ${plans.length} plans</div>` : ''}
+    ${lenSliderHtml}
+    ${(_plansCatFilter.size || _plansLenActive() || q || _plansFavOnly) ? `<div class="plan-filter-note">${filtered.length} of ${plans.length} plans</div>` : ''}
     ${listHtml}
     <div class="plan-new-row"><button class="drawer-btn" id="plan-new-btn">＋ New plan</button>${_freestyleSessions().length ? `<button class="drawer-btn" id="plan-new-from-workout">＋ From a past workout</button>` : ''}</div>`;
   bindPlansList(body);
@@ -13744,11 +14158,31 @@ function bindPlansList(body) {
   if (search) search.addEventListener('input', () => { _plansSearch = search.value; _plansPage = 0; const pos = search.selectionStart; renderPlansOverlay(); const s2 = document.getElementById('plans-search'); if (s2) { s2.focus(); try { s2.setSelectionRange(pos, pos); } catch (_) {} } });
   body.querySelectorAll('[data-pick-min]').forEach(b => b.addEventListener('click', () => { state.planPickMinutes = +b.dataset.pickMin; saveState(); renderPlansOverlay(); })); // feat 226 — quick-pick time budget
   body.querySelectorAll('[data-plan-page]').forEach(b => b.addEventListener('click', () => { _plansPage += (b.dataset.planPage === 'next' ? 1 : -1); renderPlansOverlay(); })); // feat 240 — paginate (render re-clamps)
-  body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { _plansCatFilter = b.dataset.planCat; _plansPage = 0; renderPlansOverlay(); }));
-  body.querySelectorAll('[data-plan-len]').forEach(b => b.addEventListener('click', () => { _plansLenFilter = b.dataset.planLen; _plansPage = 0; renderPlansOverlay(); }));
+  body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { // feat 373 — multi-select
+    const v = b.dataset.planCat;
+    if (v === 'all') _plansCatFilter.clear();
+    else if (_plansCatFilter.has(v)) _plansCatFilter.delete(v); else _plansCatFilter.add(v);
+    _plansPage = 0; renderPlansOverlay();
+  }));
+  // feat 374 — dual-thumb length slider: live label/fill on input (no re-render mid-drag), commit + re-filter on release
+  const minI = body.querySelector('#len-min'), maxI = body.querySelector('#len-max');
+  if (minI && maxI) {
+    const fill = body.querySelector('#len-fill'), valEl = body.querySelector('#len-filter-val');
+    const paint = () => {
+      let lo = +minI.value, hi = +maxI.value; if (lo > hi) { const t = lo; lo = hi; hi = t; }
+      const span = PLAN_LEN_MAX - PLAN_LEN_MIN;
+      if (fill) { fill.style.left = (lo - PLAN_LEN_MIN) / span * 100 + '%'; fill.style.width = (hi - lo) / span * 100 + '%'; }
+      if (valEl) valEl.textContent = (lo <= PLAN_LEN_MIN && hi >= PLAN_LEN_MAX) ? 'Any length' : `${lo}${hi >= PLAN_LEN_MAX ? '+' : '–' + hi} min`;
+    };
+    const onInput = which => { if (+minI.value > +maxI.value) { if (which === 'min') maxI.value = minI.value; else minI.value = maxI.value; } paint(); };
+    const commit = () => { _plansLenRange = { min: Math.min(+minI.value, +maxI.value), max: Math.max(+minI.value, +maxI.value) }; _plansPage = 0; renderPlansOverlay(); };
+    minI.addEventListener('input', () => onInput('min')); maxI.addEventListener('input', () => onInput('max'));
+    minI.addEventListener('change', commit); maxI.addEventListener('change', commit);
+    paint();
+  }
   body.querySelector('[data-plan-fav]')?.addEventListener('click', () => { _plansFavOnly = !_plansFavOnly; _plansPage = 0; renderPlansOverlay(); }); // feat 178
   body.querySelectorAll('[data-fav-plan]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); toggleFavPlan(b.dataset.favPlan); renderPlansOverlay(); })); // feat 178
-  body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0; renderPlansOverlay(); });
+  body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = new Set(); _plansLenRange = { min: PLAN_LEN_MIN, max: PLAN_LEN_MAX }; _plansFavOnly = false; _plansPage = 0; renderPlansOverlay(); });
   body.querySelectorAll('[data-plan-media]').forEach(b => b.addEventListener('click', () => openPlanMedia(b.dataset.planMedia)));
   body.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
   body.querySelectorAll('[data-plan-view]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planView; _plansViewMode = true; _plansRevView = false; renderPlansOverlay(); })); // feat 276 — read-only view
@@ -14166,7 +14600,7 @@ function renderSessionsLog(main) {
       <div class="stat-tile"><div class="stat-label">Total Sets</div><div class="stat-value">${totalSets}</div></div>
     </div>
     <div class="slog-range">${escapeHtml(fmtDate(all[total - 1].date))} → ${escapeHtml(fmtDate(all[0].date))}</div>`;
-    pageSessions.forEach(s => { html += renderSession(s, new Date(s.date).toDateString() === todayStr); });
+    pageSessions.forEach((s, i) => { html += renderSession(s, new Date(s.date).toDateString() === todayStr, i); }); // feat 372 — mild per-workout alternation
     if (pages > 1) {
       html += `<div class="slog-pager">
         <button class="drawer-btn" id="slog-prev" ${_sessionsLogPage === 0 ? 'disabled' : ''}>← Newer</button>
@@ -14907,8 +15341,8 @@ function startWorkout() {
   if (warns.length) { toast('⚠️ Workout started — ' + warns.join(' · ')); logWarn('Stale/missing biometrics at workout start', warns.join('; ')); }
   else toast('💪 Workout started' + coachTag);
   logInfo('Workout started');
-  // feat 38 — ping location to auto-select the nearest saved gym, if any have coords
-  if ((state.gyms || []).some(g => g.lat != null)) pingLocationSelectGym(true);
+  // feat 371 — always record where the workout started (and reconcile to the nearest gym if one is within 2 km)
+  captureWorkoutStartLocation(session);
   refreshWakeLock(); // feat 160 — keep the screen awake so cues keep firing
 }
 
@@ -15020,7 +15454,7 @@ function endWorkout(skipConfirm) {
         { label: 'Continue workout', value: 'continue' },
       ],
     }).then(choice => {
-      if (choice === 'save') { saveSets(true).then(ok => { if (ok) finalizeEndWorkout(active, true); }); return; } // feat 86/114 — save (no picker reroute) async; end only if it saved
+      if (choice === 'save') { saveSets(true).then(() => finalizeEndWorkout(active, true)); return; } // feat 86/114/369 — save (no picker reroute), then END regardless: an incomplete/over-limit save must NOT strand the workout open with its timers running
       if (choice === 'discard') { clearPending(); render(); finalizeEndWorkout(active, true); return; }
       // 'continue' or dismissed → stay in the workout
     });
@@ -15525,7 +15959,7 @@ function sessionGapTagHtml(session) {
   return `<div class="session-gap" title="Time since your previous logged workout">🛌 ${formatRestGap(gap)} since your last workout</div>`;
 }
 
-function renderSession(session, isToday) {
+function renderSession(session, isToday, idx) {
   // feat 71/120 — show the plan (explicit when attached, else an inferred split) + a grade + key deltas.
   const _plan = session.planId ? getPlan(session.planId) : null;
   let planBadge = '';
@@ -15593,7 +16027,7 @@ function renderSession(session, isToday) {
       <div class="session-ex-vol" style="white-space:nowrap;"><b>${vol.toLocaleString()}</b> ${state.unit}</div>
     </div>`;
   }).join('');
-  return `<div class="session-item">
+  return `<div class="session-item${idx % 2 ? ' alt' : ''}">
     ${sessionGapTagHtml(session)}
     <div class="session-head">
       <div class="session-date">${fmtDate(session.date)}${isToday ? '<div class="session-edit-hint">Tap an exercise to edit</div>' : ''}</div>
@@ -19898,6 +20332,7 @@ let modalState = {
   pickerMega: 'all',
   pickerSub: 'all',
   pickerEquip: 'all',
+  pickerExplored: 'all', // feat 378 — 'all' | 'explored' (trained before) | 'unexplored' (never trained)
   tipsExpanded: false, // session-level — inherits from state.tipsExpanded on modal open
   tipsMode: 'concise', // session-level — inherits from state.tipsMode on modal open
   exNoteEditing: false, // feat 54 — per-exercise note editor open in the header
@@ -20237,6 +20672,11 @@ function resetPickerNormalFilters() {
 function filterVariations() {
   const q = modalState.pickerSearch.trim().toLowerCase();
   const stepSet = activePlanStepFilterSet(); // feat 112/115 — limits to the step's variations; feat 179 — the mega/sub/equip pills STACK with it
+  // feat 378 — explored / unexplored filter: a variation is "explored" once you've actually logged it (it's in the
+  // touch map). Build the map only when the filter is active.
+  const exploredMode = modalState.pickerExplored || 'all';
+  const touch = exploredMode !== 'all' ? buildTouchMap() : null;
+  const failsExplored = (uuid) => exploredMode === 'explored' ? !touch.has(uuid) : (exploredMode === 'unexplored' ? touch.has(uuid) : false);
   const results = [];
   FAMILIES.forEach(f => {
     const matchesMega = modalState.pickerMega === 'all' || f.mega === modalState.pickerMega;
@@ -20247,6 +20687,7 @@ function filterVariations() {
     const matchingVars = f.variations.filter(v => {
       if (!varVisibleInPicker(f, v)) return false; // feat 23 + 36 (hide flags + active gym) + 167 (suppressed duplicate)
       if (favOnly && !isFavVar(v.uuid)) return false; // feat 178 — favorites-only filter
+      if (touch && failsExplored(v.uuid)) return false; // feat 378 — explored / unexplored
       if (stepSet && !stepSet.has(v.uuid)) return false; // restrict to exactly the step's exercises
       if (!q) return true;
       return v.title.toLowerCase().includes(q) || f.title.toLowerCase().includes(q);
@@ -20259,6 +20700,7 @@ function filterVariations() {
       const v = i.variation;
       if (!varVisibleInPicker(i.family, v)) return; // honor hide flags via its PRIMARY family
       if (favOnly && !isFavVar(uuid)) return; // feat 178
+      if (touch && failsExplored(uuid)) return; // feat 378 — explored / unexplored
       if (stepSet && !stepSet.has(uuid)) return;
       if (q && !(v.title.toLowerCase().includes(q) || f.title.toLowerCase().includes(q) || (primaryTitle || '').toLowerCase().includes(q))) return;
       secondaryVars.push({ v, primaryId, primaryTitle });
@@ -20304,6 +20746,8 @@ function renderPicker() {
       <div class="pill-row">
         ${MEGA_ORDER.map(m => `<div class="pill ${modalState.pickerMega === m ? 'active' : ''}" data-mega="${m}">${MEGA_LABELS[m]}</div>`).join('')}
         <div class="pill fav-pill ${modalState.pickerFavOnly ? 'active' : ''}" id="trk-picker-fav" title="Show favorites only">★</div>
+        <div class="pill ${modalState.pickerExplored === 'explored' ? 'active' : ''}" data-explored="explored" title="Only exercises you've trained before">✓ Explored</div>
+        <div class="pill ${modalState.pickerExplored === 'unexplored' ? 'active' : ''}" data-explored="unexplored" title="Only exercises you've never trained">✨ New</div>
       </div>
       ${subFilters.length > 1 ? `<div class="pill-row">
         ${subFilters.map(s => `<div class="pill ${modalState.pickerSub === s.id ? 'active' : ''}" data-sub="${s.id}">${s.label}</div>`).join('')}
@@ -20483,6 +20927,11 @@ function bindPicker() {
     });
   });
   document.getElementById('trk-picker-fav')?.addEventListener('click', () => { modalState.pickerFavOnly = !modalState.pickerFavOnly; renderModal(); }); // feat 178
+  document.querySelectorAll('.pill[data-explored]').forEach(p => p.addEventListener('click', () => { // feat 378 — toggle explored / unexplored (click again to clear)
+    const v = p.dataset.explored;
+    modalState.pickerExplored = modalState.pickerExplored === v ? 'all' : v;
+    renderModal();
+  }));
   // Obscure superset (feat 43): enter / cancel / pick the two exercises
   document.getElementById('trk-ss2-start')?.addEventListener('click', () => {
     modalState.supersetMode = true; modalState.supersetPick = 'a';
@@ -21495,6 +21944,7 @@ function renderNumpad() {
     <div class="np-display">${escapeHtml(disp)}</div>
     ${(!isW && (M.mode === 'standard' || M.mode === 'bodyweight')) ? `<div class="np-rep-hint">🎯 Strength <b>1–5</b> · Hypertrophy <b>6–12</b> · Pump <b>15–20+</b></div>` : ''}
     ${calc ? `<div class="np-ops">${key('lparen','(')}${key('rparen',')')}${key('div','÷')}${key('mul','×')}${key('sub','−')}${key('add','+')}</div>` : ''}
+    ${(calc && isW) ? `<div class="np-ops np-conv">${key('kg2lb','kg→lb')}${key('lb2kg','lb→kg')}</div>` : ''}
     <div class="np-grid">
       ${['1','2','3','4','5','6','7','8','9'].map(d => key(d, d)).join('')}
       ${timeR && !calc ? key('colon', ':') : (decimal || calc) ? key('.', '.') : '<span class="np-key np-key-empty"></span>'}
@@ -21525,6 +21975,16 @@ function numpadHandleKey(k) {
   if (!np) return;
   if (k === 'calctoggle') { state.calcMode = !state.calcMode; saveState(); renderNumpad(); return; }   // feat 65 — persistent
   const calc = state.calcMode === true;
+  if (k === 'kg2lb' || k === 'lb2kg') { // feat 365 — convert the current calculator value between kg and lb in place
+    const v = evalExpr(np.buf);
+    if (v == null) { try { toast('Enter a number to convert'); } catch (_) {} return; }
+    const out = k === 'kg2lb' ? kgToLb(v) : lbToKg(v);
+    np.buf = String(Math.round(out * 10) / 10);
+    try { toast(`${v} ${k === 'kg2lb' ? 'kg → ' + np.buf + ' lb' : 'lb → ' + np.buf + ' kg'}`); } catch (_) {}
+    const d = sheet ? sheet.querySelector('.np-display') : null;
+    if (d) d.textContent = formatCalcDisplay(np.buf);
+    return;
+  }
   if (k === 'done') { closeNumpad(); return; }   // feat 279 — closeNumpad flushes the buffer into the field
   if (k === 'next') { numpadNext(); return; }    // feat 279 — Next flushes (via openNumpad/closeNumpad) then advances
   const M = exMode(pending.varUuid), isW = np.field === 'w';
@@ -22071,7 +22531,7 @@ function saveSets(endingWorkout) {
   const mix = !!(info0 && info0.variation.subvariation && state.workoutControls && state.workoutControls.mixSubvariations && !modalState.isEditing);
   // Filter to valid sets, preserving each set's last-edit timestamp (fallback to save time)
   const validSets = pending.sets
-    .filter(s => isSetValid(s))
+    .filter(s => isSetValid(s, undefined, true)) // feat 364 — keep over-limit sets here; the soft confirm / hard block below decides their fate
     .map(s => ({ w: s.w, r: s.r, wTs: s.wTs || undefined, ts: s.ts || nowIso, rpe: (s.rpe === '' || s.rpe == null) ? undefined : s.rpe, _sub: (mix ? (s.subUuid || pending.subUuid) : pending.subUuid) || null }));
   if (validSets.length === 0) { toast('Enter at least one set'); return Promise.resolve(false); }
   // feat 63 — a bodyweight exercise needs a recorded bodyweight to be meaningful; block until one exists.
@@ -22138,12 +22598,23 @@ function saveSets(endingWorkout) {
   // feat 199 — a press-and-hold on 💾 Save sets _saveSkipConfirm for this one invocation, skipping the
   // popup entirely (the feat-108 End-Workout pattern: tap asks, hold acts).
   const hasInfeasible = validSets.some(s => !isSetFeasible(s));
+  // feat 364 — a HARD weight limit refuses the save outright (no "save anyway"); soft mode keeps the old warn-and-confirm.
+  if (state.maxWeightHard) {
+    const maxW = state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb;
+    const overLimit = validSets.some(s => { const w = parseFloat(s.w); return !isNaN(w) && Math.abs(w) > maxW; });
+    if (overLimit) {
+      return choiceDialog({ title: 'Hard weight limit', danger: true,
+        message: `⛔ A weight exceeds your hard limit (${maxW} ${state.unit}). The hard limit can't be overridden — lower the weight (or switch to a soft limit in Settings) to save.`,
+        choices: [{ label: 'OK', value: true, style: 'primary' }] }).then(() => false);
+    }
+  }
   if ((hasInfeasible || state.alwaysConfirm) && !_saveSkipConfirm) {
     const info = VAR_INDEX.get(pending.varUuid);
     const exName = info ? info.variation.title : 'this exercise';
     let msg, title = 'Save sets', danger = false;
     if (hasInfeasible) {
-      msg = `⚠️ One or more weights exceed the limit (${state.maxWeightLb} ${state.unit}).\n\nSave ${validSets.length} set${validSets.length === 1 ? '' : 's'} for ${exName} anyway?`;
+      const maxW = state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb;
+      msg = `⚠️ One or more weights exceed the limit (${maxW} ${state.unit}).\n\nSave ${validSets.length} set${validSets.length === 1 ? '' : 's'} for ${exName} anyway?`;
       title = 'Over the weight limit'; danger = true;
     } else {
       const setLines = validSets.map((s, i) => `  Set ${i+1}: ${s.w}${state.unit} × ${s.r} reps`).join('\n');
@@ -22300,7 +22771,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 324 · 2026-06-24 18:41';
+const APP_BUILD = 'build 326 · 2026-06-29 08:01';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -23321,6 +23792,8 @@ function restBarNextExercise(prevUuid, prevSub) {
 function updateWorkoutBar() {
   const active = !!getActiveSession();
   document.body.classList.toggle('workout-active', active);
+  // feat 367 — the contextual row only belongs on its own pages; hide it everywhere else (even mid-workout).
+  document.body.classList.toggle('on-workout-page', ['workout', 'exercise', 'plan-detail'].includes(currentPage));
   const w = document.getElementById('wbar-workout-btn'), e = document.getElementById('wbar-exercise-btn');
   if (w) w.classList.toggle('active', active && currentPage === 'workout');
   if (e) e.classList.toggle('active', active && currentPage === 'exercise');

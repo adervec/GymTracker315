@@ -14,18 +14,22 @@ test('the brand is the topmost, centered element inside the top bar', async ({ p
     const bar = document.getElementById('app-topbar');
     const brand = document.getElementById('app-brand');
     const brandRow = bar.firstElementChild;
+    const bb = brand.getBoundingClientRect(), br = brandRow.getBoundingClientRect();
     return {
       inBar: !!brand.closest('#app-topbar'),
       rowIsFirst: brandRow.classList.contains('topbar-brand-row'),
       brandInRow: brandRow.contains(brand),
-      centered: getComputedStyle(brandRow).justifyContent,
+      display: getComputedStyle(brandRow).display,
+      // feat 363 — centred via a 3-col grid (identity · brand · live), so check the geometry, not justify-content
+      centerOffset: Math.abs((bb.left + bb.right) / 2 - (br.left + br.right) / 2),
       hasNum: !!brand.querySelector('.gt-brand-num'),
     };
   });
   expect(r.inBar).toBe(true);
   expect(r.rowIsFirst).toBe(true);   // the brand row is the FIRST (topmost) child of the bar
   expect(r.brandInRow).toBe(true);
-  expect(r.centered).toBe('center'); // horizontally centered
+  expect(r.display).toBe('grid');    // 3-column grid layout
+  expect(r.centerOffset).toBeLessThan(2); // brand horizontally centred in the row
   expect(r.hasNum).toBe(true);       // wordmark intact (branding.spec contract)
 });
 

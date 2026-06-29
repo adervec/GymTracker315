@@ -88,6 +88,30 @@ test('ending the workout hides the row and restores the bar height', async ({ pa
   expect(r.h).toBe('82px');            // back to the two-row height
 });
 
+test('feat 367 — the row only shows on workout/exercise/plan pages, hidden elsewhere even mid-workout', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const row = document.querySelector('.topbar-shortcut-row');
+    const shown = () => getComputedStyle(row).display !== 'none';
+    const h = () => getComputedStyle(document.body).getPropertyValue('--topbar-h').trim();
+    startWorkout();
+    const onWorkout = { shown: shown(), h: h() };          // on the Workout page
+    navTo('plan-detail');
+    const onPlan = { shown: shown() };                     // still a workout page
+    navTo('history');                                       // wander off (workout still active)
+    const offPage = { shown: shown(), h: h(), active: document.body.classList.contains('workout-active') };
+    navTo('exercise');
+    const backOnExercise = { shown: shown() };
+    return { onWorkout, onPlan, offPage, backOnExercise };
+  });
+  expect(r.onWorkout.shown).toBe(true);
+  expect(r.onWorkout.h).toBe('122px');
+  expect(r.onPlan.shown).toBe(true);
+  expect(r.offPage.active).toBe(true);     // workout is still active…
+  expect(r.offPage.shown).toBe(false);     // …but the row is hidden off its pages
+  expect(r.offPage.h).toBe('82px');        // and the bar shrinks back (no reserved gap)
+  expect(r.backOnExercise.shown).toBe(true);
+});
+
 test('the rest-bar deep-link opens the Workout page', async ({ page }) => {
   const r = await page.evaluate(() => {
     startWorkout();

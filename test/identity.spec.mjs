@@ -54,6 +54,26 @@ test('feat 290 — refreshIdentity renders the avatar + name + lock into the top
   expect(r.lock).toBe(true);
 });
 
+test('feat 363 — identity, brand and live stats never overlap (even with a long name + live stats)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.cloudSync = { provider: null, enabled: false };
+    state.profile.name = 'Maximilian Featherstonehaugh III';   // a deliberately long name
+    refreshIdentity();
+    // force the right-hand live track to render too (HR + elapsed)
+    const live = document.getElementById('topbar-live');
+    live.innerHTML = '<span class="tbl-hr">💓<b>148</b></span><span class="tbl-elapsed">⏱<b>1:02:33</b></span>';
+    document.body.classList.add('has-topbar-live');
+    const rect = id => { const e = document.getElementById(id); const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width }; };
+    const out = { id: rect('app-identity'), brand: rect('app-brand-btn'), live: rect('topbar-live') };
+    document.body.classList.remove('has-topbar-live'); live.innerHTML = '';
+    return out;
+  });
+  // left-to-right, no horizontal overlap between the three tracks (a 0.5px fudge for sub-pixel rounding)
+  expect(r.id.r).toBeLessThanOrEqual(r.brand.l + 0.5);
+  expect(r.brand.r).toBeLessThanOrEqual(r.live.l + 0.5);
+  expect(r.brand.w).toBeGreaterThan(0);   // the brand still has width (wasn't squeezed to nothing)
+});
+
 test('feat 290 — the Profile page disables the name input and shows a lock note when cloud-synced', async ({ page }) => {
   await setCloudAccount(page, { name: 'Jane Lifter', picture: '' });
   const r = await page.evaluate(() => {
@@ -73,4 +93,19 @@ test('feat 290 — the Data sync card shows the synced account name, email and a
   expect(html).toContain('jane@example.com');
   expect(html).toContain('https://example.com/p.png');
   expect(html).toContain('locked to this account');
+});
+
+test('feat 377 — clicking the synced account name opens the Profile page (the topbar identity already does too)', async ({ page }) => {
+  await setCloudAccount(page, { name: 'Jane Lifter', email: 'jane@example.com', picture: 'https://example.com/p.png' });
+  const r = await page.evaluate(() => {
+    // the Data card account row is a profile link
+    const cardLinks = /onclick="navTo\('set-profile'\)"/.test(cloudSyncCardHtml());
+    // and the topbar identity navigates there on click
+    state.profile = state.profile || {}; state.profile.name = 'Jane Lifter'; refreshIdentity();
+    navTo('workout', { replace: true });
+    document.getElementById('app-identity').click();
+    return { cardLinks, topbarPage: currentPage };
+  });
+  expect(r.cardLinks).toBe(true);       // the synced username row links to Profile
+  expect(r.topbarPage).toBe('set-profile'); // the topbar username also goes to Profile
 });

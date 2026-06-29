@@ -177,9 +177,9 @@ test('Quick Pick shows on the landing list but hides once you filter', async ({ 
   const r = await page.evaluate(() => {
     openPlansOverlay();
     const before = !!document.getElementById('quick-pick');
-    _plansCatFilter = 'Push'; renderPlansOverlay();
+    _plansCatFilter = new Set(['Push']); renderPlansOverlay();
     const after = !!document.getElementById('quick-pick');
-    _plansCatFilter = 'all';
+    _plansCatFilter = new Set();
     return { before, after, inKeys: SETTINGS_KEYS.includes('planPickMinutes') };
   });
   expect(r.before).toBe(true);   // a starting point on the unfiltered view

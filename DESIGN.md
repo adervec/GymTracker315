@@ -1857,6 +1857,113 @@ They share variation **UUIDs**.
   and photo+video adding. `test/replaystudio.spec.mjs` (clock, style threading, filter mapping, clip splicing, a
   filtered photo + a clip-placeholder rendering into a decodable GIF, custom-music WAV into a video) + updated
   `timelapseaudio.spec.mjs` (5 music options).
+- **Perfect Pushup handles + non-rotational mace work (feat 361):** two requested catalogue additions, both via
+  `EXTRA_VARIATIONS` (so each lands in the loggable `FAMILIES` *and* the reference docs). **Rotating push-up handles
+  ("Perfect Pushup") — the full set of uses** → `flat-bench-press` (where push-ups live): standard / wide (chest) /
+  close (triceps) / deep (extended-ROM) rotating push-ups; the "push-up" title auto-resolves `exMode` to **bodyweight**.
+  **The mace's non-rotational strength work** → `mace-club-work` (alongside the existing 360s/casts): **Mace Curl,
+  Reverse Curl, Hammer Curl, Ballistic Curl, Triceps Extension** (loaded reps → **standard** mode) and a **Mace-Grip
+  Push-Up** (bodyweight) — all using the offset ball as a long-lever load. `test/maceperfectpushup.spec.mjs` (each
+  loggable in the right family + correct mode + present in reference; all four Perfect-Pushup uses + the mace moves
+  findable by contiguous-substring search).
+- **Missing canonical isometrics (feat 362):** an audit of iso holds / hangs / planks surfaced five gaps, all added via
+  `EXTRA_VARIATIONS` and all auto-resolving to **time** mode (logged as seconds, via a hold/hang/plank keyword in the
+  title): **Reverse Plank Hold** + **Bear Plank Hold** (→ `core-stability`), **Wall Handstand Hold** + **Support Hold
+  (Parallettes / Dip Bars)** (→ `gymnastics-core`), and **Flexed-Arm Hang (Chin-Up Hold)** (→ `pull-up`). Pistol Squat,
+  Spanish Squat, Cossack Squat, Wall Sit, L-Sit, Hollow Body / Arch holds, Dead Hang and the plank family were already
+  present. Covered by `test/maceperfectpushup.spec.mjs` (extended: each in the right family + **time** mode + in
+  reference; handstand / reverse-plank / flexed-arm findable by search).
+- **Top-bar overlap fix — identity vs brand (feat 363):** the profile name/avatar (left) and live HR/elapsed (right)
+  were `position:absolute`, so the centred brand ignored them and they **overlapped** it on narrow screens. The brand
+  row is now a 3-column **grid** (`1fr auto 1fr`): identity in track 1, brand (`#app-brand-btn`) centred in track 2,
+  live stats in track 3. The side items **stretch to fill** their `1fr` track with `min-width:0` + `overflow:hidden`
+  and align their content inward (identity flex-start, live flex-end), so a long name or wide stat string **clips inside
+  its track** instead of spilling over the brand. Equal `1fr` side tracks keep the brand centred even when a side is
+  empty, so the old `has-topbar-live` de-centering hack is gone (narrow screens still drop the 315 badge to save room).
+  `test/identity.spec.mjs` gains a bounding-box regression: with a deliberately long name **and** live stats showing,
+  identity.right ≤ brand.left ≤ … ≤ live.left (no horizontal overlap) and the brand keeps non-zero width.
+- **Soft vs hard weight limit (feat 364):** the weight limit gains an enforcement mode (`state.maxWeightHard`, default
+  **false** = soft). **Soft** keeps the warn-and-save behaviour: an over-limit set turns the field red and, on save,
+  prompts *"Over the weight limit — save anyway?"* and saves it when confirmed. **Hard** refuses outright — an over-limit
+  save is blocked with a *"Hard weight limit"* dialog (single OK) and nothing is written; the only way through is to lower
+  the weight or switch back to soft. Implementation: the save filter now keeps over-limit sets (`isSetValid(set, uuid,
+  ignoreCap=true)` — reps/format still validated) so they reach the soft confirm / hard block instead of being **silently
+  dropped** as before (the old soft "save anyway" branch was unreachable). Toggle in **Settings → Weight limit → Limit
+  enforcement (Soft · Hard)**; persisted + device-local. The over-limit messages now show the unit-correct cap (kg/lb).
+  `test/weightlimit.spec.mjs` (default soft + persisted; hard refuses an over-limit save and writes nothing but still
+  saves under-limit; soft warns then saves the over-limit set on confirm; the drawer toggle persists).
+- **UOM conversion in the weight calculator (feat 365):** the on-screen numpad's calculator mode (feat 65) gains one-tap
+  unit conversion — **kg→lb** and **lb→kg** keys (rendered only on the **weight** field, only when the 🧮 calculator is
+  on). Tapping evaluates the current buffer (a plain number *or* a full BEDMAS expression like `45+45`) via `evalExpr`,
+  converts it with the existing `kgToLb`/`lbToKg` helpers (factor `LB_PER_KG = 2.2046226218`), rounds to one decimal,
+  and replaces the buffer in place (with a confirming toast, e.g. *"100 kg → 220.5 lb"*); an empty buffer is a no-op.
+  Reuses the `.np-ops` operator-row styling (no new CSS). `test/calcconv.spec.mjs` (keys show on weight/calc only, not
+  reps and not when calc is off; kg→lb and lb→kg round-trips; conversion respects a full expression; empty = no-op).
+- **Fuller reference export — full docs + brief transcripts (feat 366):** the Info-pack export (feat 216) only carried a
+  *Quick reference* (family titles + cues). It now offers two richer, selectable sections so "how much info" is the user's
+  call (default **all** — every checkbox starts checked): **📚 Full exercise reference** (`_infoReferenceHtml` — every
+  variation's cue / setup / movement / common-mistakes / programming / tip / warning, straight from the `exercises`
+  docs) and **🎧 Coach brief transcripts** (`_infoBriefsHtml` — each variation's spoken coach brief, feat 304, written
+  out via `variationPodcast(uuid)`). Both are entries in `INFO_EXPORT_SECTIONS` (now 7) with matching `SEC` builders, so
+  they ride the existing all-or-subset checkbox UI, the HTML/print paths and the always-on disclaimer unchanged; a small
+  `.ref-var` style indents each variation block. `test/infoexport.spec.mjs` updated (7 checkboxes, all checked by
+  default; the new picks order) + a feat-366 case (both sections present and selectable; the reference carries real
+  per-variation detail; the briefs section carries the actual transcript text; a single-section export excludes the other).
+- **Contextual workout row only on its own pages (feat 367):** the 🔥 Workout · ✍️ Exercise · 🗺️ Plan shortcut row (feat
+  188) used to show on **every** page while a workout was active. It now requires both `body.workout-active` **and** a new
+  `body.on-workout-page` class (toggled in `updateWorkoutBar` for `currentPage ∈ {workout, exercise, plan-detail}`); the
+  `--topbar-h` +40px is gated on the same two-class selector, so off its pages the row hides and the bar shrinks back (no
+  reserved gap). `workoutshortcuts.spec` gains a feat-367 case (row shows on workout/plan/exercise, hidden on history
+  mid-workout with --topbar-h back to 82px).
+- **Section quick-nav pills across all groups (feat 368):** the Reflect-only quick-nav pills (feat 309) are generalised to
+  **Reflect, Prepare, Study and Settings**. `_injectReflectPills` → `_injectGroupPills(pageId)`: for any leaf whose parent
+  is in `PILL_GROUPS`, it injects one pill per sibling (current highlighted) into that page's **actual surface** —
+  `#trk-main` for most, `#data-page-body` for the Data overlay, `#panel-reference` for Reference, `#ref-gloss-panel` for
+  Glossary/Anatomy (`_groupPillTarget`); it de-dupes (`:scope > .reflect-pills` removed first) so re-renders/alt-surfaces
+  don't stack bars. Still gated on the one toggle (relabelled **Section quick-nav pills**, default on). `reflectpills.spec`
+  extended (each group's leaves get sibling pills in their own surface; no duplicate bars).
+- **End-workout no longer stranded by an unsaveable open set (feat 369):** ending with unsaved sets offers *Save & end*;
+  it ran `saveSets(true).then(ok => { if (ok) finalizeEndWorkout() })`, so when the open set **couldn't** be saved (an
+  incomplete set with no reps — the common case — or an over-limit one), `ok` was false and the workout **stayed active**:
+  the dialog closed but the rest timer, workout-elapsed timer and ⏹ End Workout button all kept running. The save is
+  best-effort; the user chose to *end*, so it now ends regardless: `saveSets(true).then(() => finalizeEndWorkout(active,
+  true))`. `endtimer.spec` gains a feat-369 case (Save & end with an incomplete open set → workout ends, all timers + the
+  End button clear).
+- **Self-contained gym map (feat 370):** the Gyms page gains an interactive **OpenStreetMap** slippy map (raster tiles,
+  **no library, no API key** — hand-rolled Web-Mercator projection in `_gmProj`/`_gmRender`/`bindGymMap`, ~one screen of
+  code; degrades gracefully — pins still place on a blank canvas offline). View all gyms as pins (active highlighted),
+  **➕ tap-to-add**, **drag a pin to move**, tap a pin to open its editor, ＋/− zoom, 📍 locate-me, drag/wheel to pan. The
+  Google-Maps *search link* is gone; a "lat, lng" paste box remains as a precise fallback. `test/gymmap.spec.mjs`.
+- **Record each workout's start location (feat 371):** `startWorkout` now always calls `captureWorkoutStartLocation`,
+  which stores the raw GPS `session.startLoc = {lat,lng,acc,at}` (independent of any gym) and still auto-selects the
+  nearest saved gym within 2 km. The gym map dots un-reconciled start locations (faint orange) so you can drop a gym on
+  them later — reconciliation. Covered by `gymmap.spec` (startLoc recorded + dotted; a workout at a gym's spot isn't).
+- **Mildly alternating workout backgrounds on the Log (feat 372):** `renderSession(session, isToday, idx)` adds an `.alt`
+  class to every other session; `.session-item.alt` tints the card via `color-mix(in srgb, var(--card-bg) 92%, var(--text)
+  8%)` (works light + dark). Only the Log list passes an index (the single "today" card stays plain). `test/logalt.spec.mjs`.
+- **AI Cowork is its own settings section (feat —):** the Cowork hub was a sub-row buried under *AI Brief Export*; it's
+  now its own **🤝 AI Cowork** titled section (still built on the AI-export folder, with an inline "set that up first"
+  hint when the folder isn't configured).
+- **Plan filters — multi-select type + range-slider length (feats 373/374):** the category chips are now **multi-select**
+  (`_plansCatFilter` is a `Set`, empty = all; clicking toggles membership, "All" clears). The 4 length pills become a
+  **2-thumb min/max minute slider** (`_plansLenRange`, two overlaid native range inputs — no library; a thumb at an
+  extreme = open-ended that side; live label/fill on drag, re-filter on release). `test/planlist.spec.mjs` updated +
+  multi-select / range cases; `coworkpod`/`favorites`/`quickpick` reset sites updated.
+- **Plans of the Day list newest-first (feat 375):** the "Plans of the Day" group now sorts by `dailyDate` **descending**
+  (other groups keep favourites-first). Covered by a `planlist.spec` case.
+- **Brand prestige 315 → 405 → 495 → 585 (feat 376):** once **all three** core lifts (bench · deadlift · squat) clear the
+  next plate milestone, the "315" badge **prestiges** to that value with escalating gold / platinum / diamond styling + a
+  ★. `liftHit(familyId, lb)` generalises the old `lift315`; `prestigeTier()` returns the highest tier every core lift has
+  hit (315 = base, falls back to the sparkly 3-digit badge). `applyBranding` rebuilds the badge only on a tier change (no
+  animation restart). `test/prestige.spec.mjs`.
+- **Username → Profile (feat 377):** the synced-account row in the Data → Cloud Sync card is now a tap target that opens
+  the Profile page (the top-bar identity already did). `identity.spec` extended.
+- **Explored / unexplored filter in the exercise picker (feat 378):** two picker pills — **✓ Explored** (only movements
+  you've actually logged) and **✨ New** (only ones you've never trained) — toggle `modalState.pickerExplored`
+  ('all' | 'explored' | 'unexplored'); clicking the active pill clears it. Reuses `buildTouchMap()` (feat 121) — a
+  variation is "explored" iff it's in the map — and stacks with the existing mega/sub/equip/fav/search filters and the
+  plan-step set. The map is built only when the filter is active. `test/pickerexplored.spec.mjs` (history-based filtering
+  both ways + the pills toggle/clear).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

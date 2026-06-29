@@ -44,6 +44,34 @@ test('feat 287 — ending a workout hides the rest bar and the elapsed timer imm
   expect(r.afterTick.elapsed).toBe(false);
 });
 
+test('feat 369 — "Save sets & end" still ends the workout when the open set can\'t be saved', async ({ page }) => {
+  await seedActive(page);
+  const r = await page.evaluate(async () => {
+    const v = (() => { for (const [u, i] of VAR_INDEX) if (exMode(u).mode === 'standard') return u; })();
+    // an INCOMPLETE open set (weight, no reps) — hasUnsavedSets() is true but it can't be saved as a valid set
+    pending = { varUuid: v, subUuid: null, sets: [{ w: '100', r: '' }] };
+    modalState.open = true;
+    navTo('workout', { replace: true });
+    refreshRestBar(); refreshTopbarLive();
+    const before = { active: !!getActiveSession(), endBtn: !!document.getElementById('wc-end-btn') };
+    endWorkout(false);                                   // tap → the "Unsaved sets" dialog
+    await new Promise(r => setTimeout(r, 20));
+    const dlg = [...document.querySelectorAll('.choice-title')].some(t => /Unsaved sets/.test(t.textContent));
+    const saveBtn = [...document.querySelectorAll('.choice-actions .choice-btn')].find(b => /Save sets & end/.test(b.textContent));
+    saveBtn?.click();                                    // "💾 Save sets & end" — the save no-ops (incomplete), but it must still END
+    await new Promise(r => setTimeout(r, 30));
+    const bar = document.getElementById('rest-bar');
+    return { before, dlg, after: { active: !!getActiveSession(), endBtn: !!document.getElementById('wc-end-btn'), rest: bar.style.display !== 'none', elapsed: !!document.querySelector('#topbar-live .tbl-elapsed'), workoutClass: document.body.classList.contains('workout-active') } };
+  });
+  expect(r.before.active).toBe(true);
+  expect(r.dlg).toBe(true);              // the unsaved-sets prompt showed
+  expect(r.after.active).toBe(false);    // …and the workout actually ended (the bug: it used to stay active)
+  expect(r.after.endBtn).toBe(false);    // End Workout button gone
+  expect(r.after.rest).toBe(false);      // rest timer cleared
+  expect(r.after.elapsed).toBe(false);   // workout timer cleared
+  expect(r.after.workoutClass).toBe(false);
+});
+
 test('feat 287 — with no active session the rest bar stays hidden even with past logged sets', async ({ page }) => {
   const r = await page.evaluate(() => {
     const now = Date.now();

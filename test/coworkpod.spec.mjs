@@ -64,7 +64,7 @@ test('daily plans are pinned in their own category and run like any plan', async
     const daily = state.plans.find(p => p.source === 'daily');
     const cat = planCategory(daily), rank = planCatRank('Plans of the Day');
     // render the list and confirm the pinned section header appears
-    _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all'; _plansFavOnly = false; _plansPage = 0;
+    _plansSearch = ''; _plansCatFilter = new Set(); _plansLenRange = { min: 5, max: 120 }; _plansFavOnly = false; _plansPage = 0;
     const el = document.getElementById('trk-main'); renderPlansList(el);
     const html = el.innerHTML;
     // it starts like any plan

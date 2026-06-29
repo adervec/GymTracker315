@@ -55,22 +55,22 @@ test('feat 245 — the active-workout dashboard renders the gym chip above the c
   expect(r.aboveControls).toBe(true);
 });
 
-test('feat 245 — startWorkout GPS-locates only when a saved gym has coordinates', async ({ page }) => {
+test('feat 245/371 — startWorkout ALWAYS records the start location (even with no saved gym coords)', async ({ page }) => {
   const r = await page.evaluate(() => {
     state.readonly = false;
     state.workoutControls = { ...(state.workoutControls || {}), hrAutoConnect: false }; // skip the BT reconnect in test
-    let calls = 0; window.pingLocationSelectGym = () => { calls++; };
-    // no gym has coords → no GPS attempt
+    let calls = 0; window.captureWorkoutStartLocation = () => { calls++; }; // feat 371 — startWorkout records raw GPS on every start
+    // no gym has coords → location is STILL recorded (and reconciled to a gym later)
     state.sessions = []; state.activeGymId = null;
     state.gyms = [{ id: 'g1', name: 'A', lat: null, lng: null, equip: {}, show: {}, hide: {} }];
     startWorkout(); const withoutCoords = calls; endWorkout(true);
-    // a gym has coords → GPS-locate on start
+    // a gym has coords → also recorded (and auto-selects the nearest within 2 km)
     calls = 0; state.sessions = [];
     state.gyms = [{ id: 'g2', name: 'B', lat: 49.2, lng: -123.1, equip: {}, show: {}, hide: {} }];
     startWorkout(); const withCoords = calls; endWorkout(true);
     return { withoutCoords, withCoords };
   });
-  expect(r.withoutCoords).toBe(0);
+  expect(r.withoutCoords).toBe(1); // feat 371 — recorded even without any saved gym coordinates
   expect(r.withCoords).toBe(1);
 });
 

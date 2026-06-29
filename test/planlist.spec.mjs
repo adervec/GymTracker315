@@ -59,7 +59,7 @@ test('the picker renders a search box, category + length chips, and grouped head
     return {
       hasSearch: !!body.querySelector('#plans-search'),
       catChips: [...body.querySelectorAll('[data-plan-cat]')].map(c => c.dataset.planCat),
-      lenChips: [...body.querySelectorAll('[data-plan-len]')].map(c => c.dataset.planLen),
+      lenSlider: !!body.querySelector('#len-slider') && !!body.querySelector('#len-min') && !!body.querySelector('#len-max'),
       cats,
       rows: body.querySelectorAll('.plan-row').length,
     };
@@ -69,7 +69,7 @@ test('the picker renders a search box, category + length chips, and grouped head
   expect(r.catChips).toContain('Push');
   expect(r.catChips).toContain('Legs');
   expect(r.catChips).toContain('Full Body');
-  expect(r.lenChips).toEqual(['all', 'quick', 'standard', 'long']);
+  expect(r.lenSlider).toBe(true);   // feat 374 — the length filter is now a 2-thumb range slider
   expect(r.cats).toContain('Push'); // grouped headers
   expect(r.cats).toContain('Legs');
   expect(r.rows).toBe(4); // all plans shown initially
@@ -96,13 +96,13 @@ test('a category chip filters to that category only', async ({ page }) => {
     body.querySelector('[data-plan-cat="Push"]').click(); // filter to Push
     const body2 = document.getElementById('trk-main');
     return {
-      filter: _plansCatFilter,
+      filter: [..._plansCatFilter],
       rows: body2.querySelectorAll('.plan-row').length,
       heads: [...body2.querySelectorAll('.plan-cat-head')].map(h => h.firstChild.textContent.trim()),
       note: body2.querySelector('.plan-filter-note')?.textContent,
     };
   });
-  expect(r.filter).toBe('Push');
+  expect(r.filter).toEqual(['Push']);     // feat 373 — multi-select set holds the picked category
   expect(r.rows).toBe(2);                 // the two Push plans
   expect(r.heads).toEqual(['Push']);      // only the Push group
   expect(r.note).toContain('2 of 4');
@@ -161,22 +161,56 @@ test('feat 240 — changing the search/filter resets to page 1', async ({ page }
   expect(r.ind).toContain('Page 1 / 3'); // the search reset the page index
 });
 
-test('the length filter selects by duration bucket, and Clear resets everything', async ({ page }) => {
+test('feat 374 — the length range slider selects by duration, and Clear resets everything', async ({ page }) => {
   await seedPlans(page);
   const r = await page.evaluate(() => {
     openPlansOverlay();
-    _plansLenFilter = 'long'; renderPlansOverlay(); // only the long Full Body plan
+    _plansLenRange = { min: 90, max: PLAN_LEN_MAX }; renderPlansOverlay(); // ≥90 min → only the long Full Body plan
     const longRows = document.getElementById('trk-main').querySelectorAll('.plan-row').length;
     // a filter that matches nothing -> empty state with a Clear button
-    _plansCatFilter = 'Legs'; renderPlansOverlay(); // Legs + long = none
+    _plansCatFilter = new Set(['Legs']); renderPlansOverlay(); // Legs + ≥90 = none
     const empty = !!document.getElementById('trk-main').querySelector('.plan-list-empty');
     document.getElementById('plan-clear-filters').click();
-    return { longRows, empty, cat: _plansCatFilter, len: _plansLenFilter, search: _plansSearch, rowsAfter: document.getElementById('trk-main').querySelectorAll('.plan-row').length };
+    return { longRows, empty, cat: [..._plansCatFilter], len: _plansLenRange, search: _plansSearch, rowsAfter: document.getElementById('trk-main').querySelectorAll('.plan-row').length };
   });
-  expect(r.longRows).toBe(1);       // only the marathon plan is "long"
-  expect(r.empty).toBe(true);       // Legs ∩ long = nothing
-  expect(r.cat).toBe('all');        // Clear reset the filters
-  expect(r.len).toBe('all');
+  expect(r.longRows).toBe(1);       // only the marathon plan is ≥90 min
+  expect(r.empty).toBe(true);       // Legs ∩ ≥90 = nothing
+  expect(r.cat).toEqual([]);        // Clear reset the category set
+  expect(r.len).toEqual({ min: 5, max: 120 }); // …and the length range
   expect(r.search).toBe('');
   expect(r.rowsAfter).toBe(4);
+});
+
+test('feat 375 — "Plans of the Day" list newest date first', async ({ page }) => {
+  const { push } = await megaVars(page);
+  const order = await page.evaluate(({ push }) => {
+    const step = (u) => ({ id: 's' + Math.random(), sets: 3, options: [{ type: 'variation', uuid: u }] });
+    state.plans = [
+      { id: 'd1', name: 'POD Mon', source: 'daily', dailyDate: '2026-06-22', steps: [step(push)] },
+      { id: 'd3', name: 'POD Wed', source: 'daily', dailyDate: '2026-06-24', steps: [step(push)] },
+      { id: 'd2', name: 'POD Tue', source: 'daily', dailyDate: '2026-06-23', steps: [step(push)] },
+    ];
+    state.seededPlanIds = state.plans.map(p => p.id);
+    openPlansOverlay();
+    return [...document.getElementById('trk-main').querySelectorAll('.plan-row-name')].map(n => (n.textContent.match(/POD \w+/) || [''])[0]);
+  }, { push });
+  expect(order.slice(0, 3)).toEqual(['POD Wed', 'POD Tue', 'POD Mon']); // 24 → 23 → 22, descending
+});
+
+test('feat 373 — the category filter is multi-select (two categories show both groups)', async ({ page }) => {
+  await seedPlans(page);
+  const r = await page.evaluate(() => {
+    openPlansOverlay();
+    const body = document.getElementById('trk-main');
+    body.querySelector('[data-plan-cat="Push"]').click();
+    document.getElementById('trk-main').querySelector('[data-plan-cat="Legs"]').click(); // add Legs too
+    const heads = [...document.getElementById('trk-main').querySelectorAll('.plan-cat-head')].map(h => h.firstChild.textContent.trim());
+    const sel = [..._plansCatFilter];
+    document.getElementById('trk-main').querySelector('[data-plan-cat="Push"]').click(); // toggle Push back off
+    return { heads, sel, afterToggle: [..._plansCatFilter] };
+  });
+  expect(r.sel.sort()).toEqual(['Legs', 'Push']);     // both selected
+  expect(r.heads).toContain('Push');
+  expect(r.heads).toContain('Legs');
+  expect(r.afterToggle).toEqual(['Legs']);            // clicking an active chip removes it
 });

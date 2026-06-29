@@ -63,7 +63,7 @@ test('the picker shows a ★ per row, floats favorites to the top, and filters t
 test('the plan list shows a ★ per row, a Favorites chip, and a favorites-only filter', async ({ page }) => {
   const r = await page.evaluate(() => {
     state.favoritePlans = {}; toggleFavPlan('seed-push');
-    _plansFavOnly = false; _plansSearch = ''; _plansCatFilter = 'all'; _plansLenFilter = 'all';
+    _plansFavOnly = false; _plansSearch = ''; _plansCatFilter = new Set(); _plansLenRange = { min: 5, max: 120 };
     const body = document.createElement('div'); renderPlansList(body);
     const hasStar = !!body.querySelector('[data-fav-plan]');
     const hasChip = !!body.querySelector('[data-plan-fav]');
