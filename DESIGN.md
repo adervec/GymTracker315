@@ -1964,6 +1964,21 @@ They share variation **UUIDs**.
   variation is "explored" iff it's in the map — and stacks with the existing mega/sub/equip/fav/search filters and the
   plan-step set. The map is built only when the filter is active. `test/pickerexplored.spec.mjs` (history-based filtering
   both ways + the pills toggle/clear).
+- **Always-visible compact section pills (feat 379):** the section quick-nav pills (feat 368) are now a **sticky**,
+  single-row horizontal scroller that stays in view while the page scrolls, and each pill shows just its **emoji + a very
+  short abbreviation** (`PILL_ABBR`, e.g. Summary→"Sum", Preferences→"Prefs", Reference→"Ref"; the full name rides as the
+  `title` tooltip) so the bar stays small. `.reflect-pills` is `position:sticky; top:var(--topbar-h)` (and `top:0` inside
+  the full-screen Data overlay), `flex-nowrap` + `overflow-x:auto` (hidden scrollbar); the active pill is auto-scrolled
+  into view. `reflectpills.spec` gains a feat-379 case (compact label "📋 Sum" + tooltip "Summary" + sticky/nowrap/scroll).
+- **Coach Voice is its own settings page (feat 380):** every spoken-coach setting moved off the crowded *Preferences*
+  list onto a dedicated **🗣️ Coach Voice** page (`set-coach`, a Settings leaf): coach **personality** picker + per-coach
+  **voice**, **auto-pick coach per workout**, **set-start / set-end annunciations** + cue limits, **audio ducking**, tip
+  narration, and the **timed-hold "ready · set · go" cue**. Done by carving three drawer sections via title inserts —
+  `🗣 Coach voice` (`coach-voice`), `⏱ Timed-hold cue` (`coach-hold-cue`), and a `More preferences` continuation
+  (`more-preferences`, kept on `set-prefs`) — then `SETTINGS_PAGE_SECS['set-coach'] = ['coach-voice','coach-hold-cue']`
+  projects them into `#trk-main` (bindings ride along, like the other settings pages). Added to the Settings menu /
+  nav pills (`PILL_ABBR` "Coach"). `test/coachpage.spec.mjs` (page exists with a unique emoji; all coach controls
+  project to the page and selecting a persona works; Preferences no longer carries them but keeps its general controls).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

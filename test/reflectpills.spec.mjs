@@ -72,6 +72,27 @@ test('feat 368 — Prepare / Study / Settings leaves all get sibling pills, in t
   }
 });
 
+test('feat 379 — pills are compact (emoji + short abbreviation) and the bar is sticky / single-row', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    navTo('summary', { replace: true });
+    const bar = document.querySelector('#trk-main .reflect-pills');
+    const cs = getComputedStyle(bar);
+    const summaryPill = [...bar.querySelectorAll('.reflect-pill')].find(p => p.dataset.reflectGo === 'summary');
+    return {
+      label: summaryPill.textContent.trim(),
+      title: summaryPill.getAttribute('title'),
+      position: cs.position,
+      noWrap: cs.flexWrap,
+      scrolls: cs.overflowX,
+    };
+  });
+  expect(r.label).toBe('📋 Sum');     // emoji + very short abbreviation, not "Summary"
+  expect(r.title).toBe('Summary');    // full name kept as the tooltip
+  expect(r.position).toBe('sticky');  // always visible
+  expect(r.noWrap).toBe('nowrap');    // single row…
+  expect(r.scrolls).toBe('auto');     // …that scrolls horizontally
+});
+
 test('feat 368 — no duplicate pill bars after re-rendering the same page', async ({ page }) => {
   const bars = await page.evaluate(() => {
     navTo('set-data', { replace: true });
