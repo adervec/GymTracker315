@@ -74,17 +74,57 @@ test('bookend steps do not gate plan completion', async ({ page }) => {
   expect(r.stepsTotal).toBeGreaterThan(r.mainSteps);   // bookends are counted in the total but don't gate completion
 });
 
-test('planUseForWorkout applies the planDefaults bookends to the session', async ({ page }) => {
-  const r = await page.evaluate(() => {
+test('planUseForWorkout seeds the confirmation dialog from planDefaults and applies the choice', async ({ page }) => {
+  const r = await page.evaluate(async () => {
     state.readonly = false;
     state.planDefaults = { ...(state.planDefaults || {}), warmup: true, cooldown: false };
     state.plans = [{ id: 'p3', name: 'T3', intensity: 3, steps: [{ sets: 3, options: [{ type: 'movement', familyId: 'squat' }], load: 'heavy' }] }];
     state.sessions = [];
-    planUseForWorkout('p3');                            // starts a workout + attaches the plan + bookends
+    const p = planUseForWorkout('p3');                  // opens the confirm sheet (feat 398)
+    const dlgWarmup = document.getElementById('pud-warmup').checked;   // seeded from planDefaults
+    const dlgCooldown = document.getElementById('pud-cooldown').checked;
+    document.querySelector('[data-pud="ok"]').click();  // accept the defaults (warm-up on, cool-down off, 1× volume)
+    await p;
     const s = getActiveSession();
-    return { has: !!s, bk: s && s.bookends, warmupInPlan: getActivePlan().steps.some(st => st.bookend === 'warmup') };
+    return { dlgWarmup, dlgCooldown, has: !!s, bk: s && s.bookends, scale: s && s.planScale, warmupInPlan: getActivePlan().steps.some(st => st.bookend === 'warmup') };
   });
+  expect(r.dlgWarmup).toBe(true);     // the dialog reflects the planDefaults
+  expect(r.dlgCooldown).toBe(false);
   expect(r.has).toBe(true);
   expect(r.bk).toEqual({ warmup: true, cooldown: false });
+  expect(r.scale).toBeUndefined();    // 1× → no scale stored
   expect(r.warmupInPlan).toBe(true);
+});
+
+test('feat 398 — the dialog can halve or double the plan volume, and cancel does nothing', async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    // each open() clears any lingering (already-resolved) sheet, then drives the current one
+    const open = async (planId, pick) => {
+      document.querySelectorAll('.choice-backdrop').forEach(b => b.remove());
+      state.sessions = [];
+      const p = planUseForWorkout(planId);
+      const back = [...document.querySelectorAll('.choice-backdrop')].pop();
+      if (typeof pick === 'number') back.querySelector(`#pud-scale button[data-scale="${pick}"]`).click();
+      back.querySelector(`[data-pud="${pick === 'cancel' ? 'cancel' : 'ok'}"]`).click();
+      await p;
+    };
+    state.readonly = false;
+    state.planDefaults = { warmup: false, cooldown: false };
+    state.plans = [{ id: 'p4', name: 'T4', intensity: 3, steps: [
+      { sets: 4, options: [{ type: 'movement', familyId: 'squat' }], load: 'heavy' },
+      { sets: 3, options: [{ type: 'movement', familyId: 'flat-bench-press' }], load: 'heavy' } ] }];
+    await open('p4', 2);
+    const doubled = getActivePlan().steps.filter(st => !st.bookend).map(st => st.sets);
+    await open('p4', 0.5);
+    const halved = getActivePlan().steps.filter(st => !st.bookend).map(st => st.sets);
+    const halvedScale = getActiveSession().planScale;
+    await open('p4', 'cancel');
+    const afterCancel = getActiveSession();
+    return { doubled, halved, halvedScale, storedUnchanged: getPlan('p4').steps.map(s => s.sets), cancelledNoSession: !afterCancel };
+  });
+  expect(r.doubled).toEqual([8, 6]);            // 4→8, 3→6
+  expect(r.halved).toEqual([2, 2]);             // 4→2, 3→2 (rounds, min 1)
+  expect(r.halvedScale).toBe(0.5);
+  expect(r.storedUnchanged).toEqual([4, 3]);    // the saved plan is never mutated
+  expect(r.cancelledNoSession).toBe(true);      // cancel = no workout started
 });

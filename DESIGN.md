@@ -2091,6 +2091,33 @@ They share variation **UUIDs**.
   cycles through `EQUIPMENT`; the sub toggle appears only once a category is chosen) + the feat 378/383 specs rewritten
   to the toggle. NB: the Reference tab's many-option `.mega-pill` filters are intentionally left as pill rows (a 10-way
   cycle is slower to reach a specific category than a direct tap) — convert later if desired.
+- **"Use plan" confirmation sheet (feat 398):** tapping **Use** on any plan now opens a confirm sheet (built on the
+  `choice-backdrop`/`choice-sheet` dialog) with **warm-up** and **cool-down** toggles (seeded from the feat 311
+  plan-defaults) and a **½× / 1× / 2× volume** segment. `planUseForWorkout` became async — it awaits `planUseDialog`
+  and applies the choice: `s.bookends` for the warm-up/cool-down and `s.planScale` (0.5/2, omitted at 1×) for the
+  volume. `_scalePlan(plan, scale)` multiplies every step's set count (min 1, rounded) and is applied at every
+  session→plan resolution — the live HUD (`getActivePlan`), the execution view, and the scoring/finalize paths — so the
+  HUD, completion gating and score all reflect the scaled volume; the saved plan is never mutated, and bookends are
+  added *after* scaling so they stay fixed. `test/planbookends.spec.mjs` extended (the dialog seeds from planDefaults and
+  applies the choice; ½/2× produce the right per-step counts; Cancel starts nothing) + the cowork POD spec updated to
+  accept the sheet.
+- **12h location cache + missing-location backfill (feat 399):** `captureWorkoutStartLocation` now passes
+  `maximumAge: 12h` to `getCurrentPosition` (a device-cached fix may be reused, but never one older than 12 hours) and
+  stamps the fix's *own* timestamp (`pos.timestamp`) so staleness is honest. When the live read **fails / is denied /
+  is unavailable**, it looks for a missing location: `recentCachedLocation()` returns the most recent still-fresh (≤12h)
+  `startLoc` from another session and backfills it (marked `cached:true`), so a session still records roughly where it
+  happened — but a real fix is never overwritten, and a >12h-old fix is ignored. `LOCATION_MAX_AGE_MS` / `_locationFresh`
+  centralise the 12h rule. `test/locationcache.spec.mjs` (freshness boundary; maximumAge = 12h; backfill from a 3h-old
+  session but not a 13h-old one; a live fix is never clobbered).
+- **Idle workout-page review slideshow (feat 400):** when **no workout has been started today**, the workout page shows
+  a compact auto-rotating card (`#wo-review`) cycling through review info — **Today's Readiness** (feat 299),
+  **Recovery** (fresh vs recovering groups, feat 262/266), **weekly Volume** (muscles behind/ahead of target, feat 383),
+  **ready-to-progress** lifts (feat 215), **last workout** (date · grade · sets), and **program streak** (feat 282).
+  `workoutReviewSlides()` builds only the slides that have data; `bindWorkoutReview` rotates every 6s (self-clearing once
+  off-screen so timers never stack), dots jump between cards, and tapping opens that card's detail view
+  (`navTo` volume/log/progression). Gated on `todaySessions.length === 0`, so it disappears the moment a workout starts.
+  `test/workoutreview.spec.mjs` (slides build from history incl. Recovery; shows idle with one active slide + a dot each;
+  hidden once a session exists today; dots switch slides; tapping navigates).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

@@ -57,7 +57,7 @@ test('coworkImportPlanOfDay imports as source:daily, rejects bad, replaces same-
 });
 
 test('daily plans are pinned in their own category and run like any plan', async ({ page }) => {
-  const r = await page.evaluate(() => {
+  const r = await page.evaluate(async () => {
     state.readonly = false; state.sessions = [];
     const today = new Date().toISOString().slice(0, 10);
     coworkImportPlanOfDay({ date: today, plans: [{ name: 'POD Legs', intensity: 4, steps: [{ sets: 4, options: [{ type: 'movement', familyId: 'squat' }] }] }] });
@@ -67,8 +67,10 @@ test('daily plans are pinned in their own category and run like any plan', async
     _plansSearch = ''; _plansCatFilter = new Set(); _plansLenRange = { min: 5, max: 120 }; _plansFavOnly = false; _plansPage = 0;
     const el = document.getElementById('trk-main'); renderPlansList(el);
     const html = el.innerHTML;
-    // it starts like any plan
-    planUseForWorkout(daily.id);
+    // it starts like any plan — confirm the feat 398 "Use" sheet, then accept it
+    const p = planUseForWorkout(daily.id);
+    [...document.querySelectorAll('.choice-backdrop')].pop().querySelector('[data-pud="ok"]').click();
+    await p;
     const active = getActiveSession();
     return { cat, rank, headerShown: /Plans of the Day/.test(html), nameShown: /POD Legs/.test(html), dayShown: /plan-day-tag/.test(html), planId: active && active.planId, expected: daily.id };
   });

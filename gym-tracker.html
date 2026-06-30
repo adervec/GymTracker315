@@ -1410,6 +1410,16 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .choice-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   .choice-btn.danger { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
   .choice-btn:active { transform: scale(0.98); }
+  /* feat 398 — "Use plan" confirmation: warm-up/cool-down toggles + a ½/1×/2× volume segment */
+  .pud-tgls { display: flex; gap: 8px; margin-bottom: 12px; }
+  .pud-tgl { flex: 1; display: flex; align-items: center; gap: 7px; padding: 9px 11px; border: 1px solid var(--border2); border-radius: 9px; background: var(--bg3); font-size: 12.5px; font-weight: 600; color: var(--text2); cursor: pointer; }
+  .pud-tgl input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .pud-tgl:has(input:checked) { border-color: var(--accent); color: var(--text); background: var(--accent-bg); }
+  .pud-seg { display: flex; gap: 6px; margin-bottom: 16px; }
+  .pud-seg button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 9px 4px; border: 1px solid var(--border2); border-radius: 9px; background: var(--bg3); color: var(--text2); font-family: inherit; cursor: pointer; }
+  .pud-seg button b { font-size: 15px; }
+  .pud-seg button span { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+  .pud-seg button.active { background: var(--accent-bg); border-color: var(--accent); color: var(--text); }
   /* feat 152/153 — data-op progress / result popup */
   .dataop-sheet { text-align: center; max-width: 340px; }
   .dataop-spin { width: 34px; height: 34px; margin: 6px auto 12px; border: 3px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: dataop-spin 0.8s linear infinite; }
@@ -2047,6 +2057,21 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
 
   /* Workout controls — start/end buttons, score, pace */
   .workout-controls { display: flex; gap: 8px; margin-bottom: 10px; }
+  /* feat 400 — idle workout-page review slideshow */
+  .wo-review { cursor: pointer; padding: 12px 14px; }
+  .wo-rev-head { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); margin-bottom: 9px; }
+  .wo-rev-dots { display: flex; gap: 5px; margin-left: auto; }
+  .wo-rev-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border2); cursor: pointer; transition: background 0.2s; }
+  .wo-rev-dot.active { background: var(--accent); }
+  .wo-rev-slide { display: none; align-items: center; gap: 12px; }
+  .wo-rev-slide.active { display: flex; animation: wo-rev-fade 0.35s ease; }
+  @keyframes wo-rev-fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  .wo-rev-icon { font-size: 24px; line-height: 1; flex-shrink: 0; }
+  .wo-rev-body { min-width: 0; }
+  .wo-rev-big { font-size: 17px; font-weight: 800; color: var(--text); }
+  .wo-rev-big span { font-size: 12px; font-weight: 600; color: var(--text3); }
+  .wo-rev-sub { font-size: 12.5px; color: var(--text2); line-height: 1.5; }
+  .wo-rev-sub b { color: var(--text); font-weight: 700; }
   /* feat 245 — current-gym context strip on the active workout */
   .workout-gym { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text2); background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 7px 11px; margin-bottom: 10px; }
   .workout-gym .wg-pin { flex-shrink: 0; }
@@ -4335,21 +4360,55 @@ function pingLocationSelectGym(silent) {
     }
   }, err => { if (!silent) toast('Location error: ' + err.message); logWarn('GPS error', err.message); }, { timeout: 8000 });
 }
+// feat 399 — never trust a location fix older than 12 hours, whether it's the device's own cached fix (maximumAge)
+// or one we backfill from a recent session.
+const LOCATION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+function _locationFresh(loc) {
+  if (!loc || loc.lat == null || !loc.at) return false;
+  const age = Date.now() - new Date(loc.at).getTime();
+  return age >= 0 && age <= LOCATION_MAX_AGE_MS;
+}
+// The most recent still-fresh (≤12h) start location from any other session — used to fill in a missing location when
+// the live GPS read fails or is denied, so a session still carries roughly where it happened.
+function recentCachedLocation(exceptSessionId) {
+  let best = null;
+  (state.sessions || []).forEach(s => {
+    if (s.id === exceptSessionId) return;
+    if (_locationFresh(s.startLoc) && (!best || new Date(s.startLoc.at) > new Date(best.at))) best = s.startLoc;
+  });
+  return best;
+}
 // feat 371 — record the RAW GPS location at workout start (independent of any gym) so a session always carries where it
 // happened and can be reconciled to a gym later. Also auto-selects the nearest saved gym within 2 km (was feat 38).
 function captureWorkoutStartLocation(session) {
-  if (!navigator.geolocation || !session) return;
+  if (!session) return;
+  // feat 399 — if GPS is unavailable / fails / is denied, look for a recent cached location (≤12h) to fill the gap.
+  const fallbackToCache = (why) => {
+    const s = (state.sessions || []).find(x => x.id === session.id) || session;
+    if (s.startLoc) return; // a real fix already landed
+    const cached = recentCachedLocation(session.id);
+    if (!cached) { logWarn('No location at workout start', why); return; }
+    s.startLoc = { lat: cached.lat, lng: cached.lng, acc: cached.acc != null ? cached.acc : null, at: cached.at, cached: true };
+    if (typeof touchSession === 'function') touchSession(s);
+    logInfo('Backfilled workout location from a recent fix', why + ' · ' + cached.at);
+    saveState();
+    if (typeof render === 'function') render();
+  };
+  if (!navigator.geolocation) { fallbackToCache('geolocation unavailable'); return; }
   navigator.geolocation.getCurrentPosition(pos => {
     const { latitude, longitude, accuracy } = pos.coords;
     const s = (state.sessions || []).find(x => x.id === session.id) || session;
-    s.startLoc = { lat: latitude, lng: longitude, acc: accuracy != null ? Math.round(accuracy) : null, at: new Date().toISOString() };
+    // the fix's own age (maximumAge may have returned a device-cached one) — honest timestamp, never older than 12h
+    const at = pos.timestamp ? new Date(pos.timestamp).toISOString() : new Date().toISOString();
+    s.startLoc = { lat: latitude, lng: longitude, acc: accuracy != null ? Math.round(accuracy) : null, at };
     if (typeof touchSession === 'function') touchSession(s);
     let best = null, bestD = Infinity;
     (state.gyms || []).forEach(g => { const d = gpsDistanceKm(latitude, longitude, g.lat, g.lng); if (d < bestD) { bestD = d; best = g; } });
     if (best && bestD <= 2) { setActiveGym(best.id); logInfo('Auto-selected gym by GPS', best.name + ' (' + bestD.toFixed(2) + ' km)'); toast('📍 ' + best.name + ' selected'); }
     saveState();
     if (typeof render === 'function') render();
-  }, err => { logWarn('GPS error at workout start', err.message); }, { timeout: 8000, enableHighAccuracy: true });
+  }, err => { logWarn('GPS error at workout start', err.message); fallbackToCache('GPS error: ' + err.message); },
+    { timeout: 8000, enableHighAccuracy: true, maximumAge: LOCATION_MAX_AGE_MS }); // feat 399 — reuse a device fix up to 12h old, never older
 }
 
 // Mega categories with display labels
@@ -12966,10 +13025,17 @@ function _withBookends(plan, b) {
   if (b.cooldown) COOLDOWN_BLOCK.forEach(st => steps.push({ ...st, bookend: 'cooldown' }));
   return { ...plan, steps, _bookended: true };
 }
+// feat 398 — half/double a plan's volume for this execution by scaling every step's set count (min 1). Bookends are
+// added AFTER scaling so the warm-up / cool-down stay fixed. Applied at every session→plan resolution (HUD + scoring).
+function _scalePlan(plan, scale) {
+  if (!plan || !scale || scale === 1) return plan;
+  return { ...plan, steps: (plan.steps || []).map(st => ({ ...st, sets: Math.max(1, Math.round((st.sets || 0) * scale)) })) };
+}
 function getActivePlan() {
   const s = getActiveSession();
   if (!s || !s.planId) return null;
-  const plan = getPlan(s.planId); if (!plan) return null;
+  let plan = getPlan(s.planId); if (!plan) return null;
+  plan = _scalePlan(plan, s.planScale); // feat 398 — this run's volume scale (½ / 1 / 2)
   return (s.bookends) ? _withBookends(plan, s.bookends) : plan; // feat 311 — augment with this session's warm-up/cool-down
 }
 function planTotalSets(p) { return (p.steps || []).reduce((n, s) => n + (s.sets || 0), 0); }
@@ -14432,19 +14498,58 @@ function renderPlanDetailPage(main) {
   let sess = _plansExecSessionDate ? (state.sessions || []).find(s => s.date === _plansExecSessionDate) : null;
   if (!plan) plan = getActivePlan();
   if (!sess) sess = getActiveSession();
-  if (plan && sess) { renderPlanExecutionView(main, planAtRevision(plan, sess.planRev), sess); return; }
+  if (plan && sess) { renderPlanExecutionView(main, _scalePlan(planAtRevision(plan, sess.planRev), sess.planScale), sess); return; }
   main.innerHTML = `<div class="card"><div class="card-title">No plan to show</div><div style="color:var(--text3);font-size:13px;line-height:1.5;">Start a workout and pick a plan (Train › Execute › Workout, then “Use a plan”) — the live plan guide appears here, and the workout tab keeps a compact summary strip.</div></div>`;
 }
 function closePlansOverlay() { _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; if (currentPage === 'plan-creator' || currentPage === 'plan-detail') navBack(); } // feat 184 — overlay retired; Back leaves the page
-function planUseForWorkout(id) {
+// feat 398 — a confirmation sheet shown when you tap "Use": pick warm-up / cool-down and the volume (½ / normal / 2×).
+// Resolves to { warmup, cooldown, scale } or null if cancelled.
+function planUseDialog(plan) {
+  const def = planBookendDefaults();
+  return new Promise(resolve => {
+    const back = document.createElement('div'); back.className = 'choice-backdrop';
+    const sheet = document.createElement('div'); sheet.className = 'choice-sheet';
+    const scales = [[0.5, '½×', 'Halved'], [1, '1×', 'Normal'], [2, '2×', 'Doubled']];
+    sheet.innerHTML = `<div class="choice-title">Start “${escapeHtml(plan.name)}”</div>
+      <div class="choice-msg">Add a warm-up / cool-down and choose the volume for this session.</div>
+      <div class="pud-tgls">
+        <label class="pud-tgl"><input type="checkbox" id="pud-warmup" ${def.warmup ? 'checked' : ''}> <span>🔥 Warm-up</span></label>
+        <label class="pud-tgl"><input type="checkbox" id="pud-cooldown" ${def.cooldown ? 'checked' : ''}> <span>🧊 Cool-down</span></label>
+      </div>
+      <div class="pud-seg" id="pud-scale" role="group" aria-label="Volume">
+        ${scales.map(([v, big, lbl]) => `<button type="button" class="${v === 1 ? 'active' : ''}" data-scale="${v}"><b>${big}</b><span>${lbl}</span></button>`).join('')}
+      </div>
+      <div class="choice-actions"><button class="choice-btn primary" data-pud="ok">Start workout</button><button class="choice-btn" data-pud="cancel">Cancel</button></div>`;
+    let scale = 1, done = false;
+    const finish = (val) => { if (done) return; done = true; back.classList.remove('open'); setTimeout(() => back.remove(), 200); resolve(val); };
+    sheet.querySelectorAll('#pud-scale button').forEach(b => b.addEventListener('click', () => {
+      scale = parseFloat(b.dataset.scale);
+      sheet.querySelectorAll('#pud-scale button').forEach(x => x.classList.toggle('active', x === b));
+    }));
+    sheet.querySelector('[data-pud="ok"]').addEventListener('click', () => finish({
+      warmup: sheet.querySelector('#pud-warmup').checked, cooldown: sheet.querySelector('#pud-cooldown').checked, scale,
+    }));
+    sheet.querySelector('[data-pud="cancel"]').addEventListener('click', () => finish(null));
+    back.appendChild(sheet);
+    back.addEventListener('click', e => { if (e.target === back) finish(null); });
+    document.body.appendChild(back);
+    requestAnimationFrame(() => back.classList.add('open'));
+  });
+}
+async function planUseForWorkout(id) {
   if (roBlocked('start a workout')) return;
+  const plan = getPlan(id); if (!plan) return;
+  const choice = await planUseDialog(plan); // feat 398 — confirm warm-up / cool-down / volume before starting
+  if (!choice) return; // cancelled
   let s = getActiveSession();
   if (!s) { startWorkout(); s = getActiveSession(); }   // start a workout if not already in one
   if (!s) return;
   s.planId = id; const _pl = getPlan(id); s.planRev = _pl ? (ensurePlanRevisioned(_pl), _pl.rev || 1) : 1; // feat 162 — record which revision this execution ran
-  const bk = planBookendDefaults(); s.bookends = (bk.warmup || bk.cooldown) ? bk : undefined; // feat 311 — optional warm-up / cool-down for this execution
+  s.bookends = (choice.warmup || choice.cooldown) ? { warmup: choice.warmup, cooldown: choice.cooldown } : undefined; // feat 311
+  s.planScale = (choice.scale && choice.scale !== 1) ? choice.scale : undefined; // feat 398 — ½ / 2× volume for this run
   saveState(); navTo('workout');
-  toast('Using plan for this workout' + (s.bookends ? ' (+' + [bk.warmup && 'warm-up', bk.cooldown && 'cool-down'].filter(Boolean).join(' & ') + ')' : '')); // feat 184 / 311
+  const extras = [choice.warmup && 'warm-up', choice.cooldown && 'cool-down', s.planScale === 0.5 && 'halved', s.planScale === 2 && 'doubled'].filter(Boolean);
+  toast('Using plan for this workout' + (extras.length ? ' (' + extras.join(', ') + ')' : '')); // feat 184 / 311 / 398
 }
 function renderPlansOverlay() {
   const body = (currentPage === 'plan-creator') ? document.getElementById('trk-main') : null; // feat 184 — only renders while on the plan-creator page
@@ -14452,7 +14557,7 @@ function renderPlansOverlay() {
   if (_plansExecId) { // feat 145 — Plan Execution View (what was actually done, per step)
     const execPlan = getPlan(_plansExecId);
     const sess = _plansExecSessionDate ? (state.sessions || []).find(s => s.date === _plansExecSessionDate) : getActiveSession();
-    if (execPlan && sess) { renderPlanExecutionView(body, planAtRevision(execPlan, sess.planRev), sess); return; } // feat 162 — judge against the revision it ran
+    if (execPlan && sess) { renderPlanExecutionView(body, _scalePlan(planAtRevision(execPlan, sess.planRev), sess.planScale), sess); return; } // feat 162 — judge against the revision it ran
     _plansExecId = null; // plan/session gone → fall through to the list
   }
   const plan = _plansEditId ? getPlan(_plansEditId) : null;
@@ -15253,6 +15358,94 @@ function workoutGymHtml() {
     <span class="wg-actions">${relocate}<button class="wg-btn" id="wg-change">Pick a gym</button></span>
   </div>`;
 }
+// feat 400 — when NO workout has been started today, the workout page shows a compact auto-rotating slideshow of
+// review info (recovery, readiness, weekly volume, what's ready to progress, last session, streak) so the idle
+// landing state is useful at a glance. Each slide is built only when it has something to say.
+let _reviewSlide = 0, _reviewInt = null;
+function workoutReviewSlides() {
+  const slides = [], sessions = state.sessions || [], now = Date.now();
+  // Today's Readiness (feat 299)
+  const tr = (typeof trainingReadiness === 'function') ? trainingReadiness() : null;
+  if (tr) slides.push({ icon: '🎯', label: 'Readiness', nav: 'volume',
+    html: `<div class="wo-rev-big">${tr.score}<span>/100</span> ${tr.status.emoji} ${escapeHtml(tr.status.label)}</div><div class="wo-rev-sub">${escapeHtml(tr.action)}</div>` });
+  // Recovery (feat 262/266)
+  if (sessions.length >= 2 && typeof recoveryReadiness === 'function') {
+    const rec = recoveryReadiness();
+    const rows = RECOVERY_BPS.map(bp => rec[bp]).filter(r => r.lastMs != null && (now - r.lastMs) <= 10 * 86400000);
+    if (rows.length) {
+      const fresh = rows.filter(r => r.readiness >= 0.8).map(r => BP_LABELS[r.bp] || r.bp);
+      const tired = rows.filter(r => r.readiness < 0.8).sort((a, b) => a.readiness - b.readiness);
+      const freshTxt = fresh.length ? `🟢 Fresh: <b>${fresh.slice(0, 4).map(escapeHtml).join(', ')}</b>` : '';
+      const tiredTxt = tired.length ? `🔴 Recovering: <b>${tired.slice(0, 3).map(r => `${escapeHtml(BP_LABELS[r.bp] || r.bp)} ${Math.round(r.readiness * 100)}%`).join(', ')}</b>` : '';
+      slides.push({ icon: '🔄', label: 'Recovery', nav: 'volume',
+        html: `<div class="wo-rev-sub">${[freshTxt, tiredTxt].filter(Boolean).join('<br>') || 'Everything recently trained has recovered.'}</div>` });
+    }
+  }
+  // Weekly volume vs target (feat 383) — what's behind / ahead this week
+  if (sessions.length >= 3 && typeof muscleVolStatusMap === 'function') {
+    const map = muscleVolStatusMap('muscle');
+    const lagging = Object.keys(map).filter(id => map[id] === 'lagging');
+    const leadingN = Object.keys(map).filter(id => map[id] === 'leading').length;
+    if (lagging.length || leadingN) {
+      const names = lagging.slice(0, 4).map(id => (MUSCLE_INDEX[id] && MUSCLE_INDEX[id].label) || id);
+      slides.push({ icon: '📊', label: 'Volume', nav: 'volume',
+        html: `<div class="wo-rev-sub">${names.length ? `📉 Behind target: <b>${names.map(escapeHtml).join(', ')}</b>${lagging.length > 4 ? ` +${lagging.length - 4}` : ''}` : '✅ Nothing behind target'}${leadingN ? `<br>📈 Already covered: <b>${leadingN}</b> muscle${leadingN === 1 ? '' : 's'}` : ''}</div>` });
+    }
+  }
+  // Ready to progress (feat 215)
+  if (typeof progressionList === 'function') {
+    const prog = progressionList(120).filter(p => p.action === 'add-load' || p.action === 'add-reps');
+    if (prog.length) {
+      const eg = prog[0];
+      const name = (typeof displayName === 'function') ? displayName(eg.varUuid) : '';
+      slides.push({ icon: '⬆', label: 'Progress', nav: 'progression',
+        html: `<div class="wo-rev-big">${prog.length}<span> lift${prog.length === 1 ? '' : 's'} ready</span></div><div class="wo-rev-sub">e.g. <b>${escapeHtml(name)}</b> — ${eg.action === 'add-load' ? 'add load' : 'add a rep'}.</div>` });
+    }
+  }
+  // Last workout
+  const lastEnded = sessions.filter(s => s.endedAt).sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  if (lastEnded) {
+    const sc = (typeof computeWorkoutScore === 'function') ? computeWorkoutScore(lastEnded) : null;
+    const st = (typeof computeSessionStats === 'function') ? computeSessionStats(lastEnded) : null;
+    const grade = sc && typeof gradeFor === 'function' ? gradeFor(sc.points) : null;
+    const bits = [grade && `grade ${grade}`, st && `${st.totalSets} set${st.totalSets === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
+    slides.push({ icon: '📅', label: 'Last', nav: 'log',
+      html: `<div class="wo-rev-sub">Last workout <b>${escapeHtml(fmtDate(lastEnded.date))}</b>${bits ? `<br>${bits}` : ''}</div>` });
+  }
+  // Program streak (feat 282)
+  const streak = (typeof programAdherenceStreak === 'function') ? programAdherenceStreak() : 0;
+  if (streak > 0) slides.push({ icon: '🔥', label: 'Streak',
+    html: `<div class="wo-rev-big">${streak}<span> day${streak === 1 ? '' : 's'}</span></div><div class="wo-rev-sub">Program-adherence streak — don't break the chain.</div>` });
+  return slides;
+}
+function workoutReviewHtml() {
+  const slides = workoutReviewSlides();
+  if (!slides.length) return '';
+  if (_reviewSlide >= slides.length) _reviewSlide = 0;
+  const dots = slides.length > 1 ? `<div class="wo-rev-dots">${slides.map((s, i) => `<span class="wo-rev-dot ${i === _reviewSlide ? 'active' : ''}" data-rev-dot="${i}" title="${escapeAttr(s.label)}"></span>`).join('')}</div>` : '';
+  return `<div class="card wo-review" id="wo-review" role="button" tabindex="0" title="Tap to open · auto-rotates">
+    <div class="wo-rev-head">📋 While you're here${dots}</div>
+    ${slides.map((s, i) => `<div class="wo-rev-slide ${i === _reviewSlide ? 'active' : ''}" data-rev-nav="${s.nav || ''}"><span class="wo-rev-icon">${s.icon}</span><div class="wo-rev-body">${s.html}</div></div>`).join('')}
+  </div>`;
+}
+function bindWorkoutReview(main) {
+  if (_reviewInt) { clearInterval(_reviewInt); _reviewInt = null; } // never stack timers across renders
+  const root = main && main.querySelector('#wo-review'); if (!root) return;
+  const slides = root.querySelectorAll('.wo-rev-slide'), dots = root.querySelectorAll('.wo-rev-dot');
+  const show = (i) => {
+    _reviewSlide = ((i % slides.length) + slides.length) % slides.length;
+    slides.forEach((el, k) => el.classList.toggle('active', k === _reviewSlide));
+    dots.forEach((d, k) => d.classList.toggle('active', k === _reviewSlide));
+  };
+  if (slides.length > 1) _reviewInt = setInterval(() => {
+    if (!document.body.contains(root)) { clearInterval(_reviewInt); _reviewInt = null; return; } // self-clean once off-screen
+    show(_reviewSlide + 1);
+  }, 6000);
+  dots.forEach((d, i) => d.addEventListener('click', e => { e.stopPropagation(); show(i); })); // jump to a card
+  const open = () => { const nav = slides[_reviewSlide] && slides[_reviewSlide].dataset.revNav; if (nav && typeof navTo === 'function') navTo(nav); };
+  root.addEventListener('click', open);
+  root.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+}
 function renderLog(main) {
   // Check whether the today session should be auto-ended due to inactivity
   maybeAutoEndActive();
@@ -15280,6 +15473,9 @@ function renderLog(main) {
       <button class="wc-btn plans" id="wc-plans-btn">📋 Plans</button>
     </div>`;
   }
+
+  // feat 400 — no workout started today → a compact rotating review slideshow (recovery, readiness, volume, etc.)
+  if (todaySessions.length === 0) html += workoutReviewHtml();
 
   if (todaySessions.length > 0) {
     const today = todaySessions[0];
@@ -15443,6 +15639,7 @@ function renderLog(main) {
   const startBtn = main.querySelector('#wc-start-btn');
   if (startBtn) startBtn.addEventListener('click', startWorkout);
   main.querySelector('#wc-plans-btn')?.addEventListener('click', openPlansOverlay);
+  bindWorkoutReview(main); // feat 400 — auto-rotating idle review slideshow
   // feat 108 — End Workout: a tap asks for confirmation; a long-press skips the confirm popup and
   // ends immediately (reusing the tracker-press two-phase progress indicator). Works regardless of
   // the global hold-to-confirm setting.
@@ -15966,7 +16163,7 @@ function planIncompleteSkipped(detail) {
 function finalizePlanExecution(session) {
   if (!session || !session.planId) { if (session) delete session.planExec; return null; }
   const plan = getPlan(session.planId);
-  const evalPlan = plan ? planAtRevision(plan, session.planRev) : null;
+  const evalPlan = plan ? _scalePlan(planAtRevision(plan, session.planRev), session.planScale) : null; // feat 398 — score against the scaled volume actually run
   if (!evalPlan) return session.planExec || null; // plan deleted — keep any earlier snapshot
   const detail = computePlanExecutionDetail(session, evalPlan);
   const sum = planExecutionSummary(session, evalPlan);
@@ -16432,7 +16629,7 @@ function renderSession(session, isToday, idx) {
   if (_plan) {
     // feat 162/164 — judge a past run at the revision it ran; prefer the historized snapshot when present.
     const snap = session.planExec;
-    const evalPlan = planAtRevision(_plan, session.planRev);
+    const evalPlan = _scalePlan(planAtRevision(_plan, session.planRev), session.planScale); // feat 398
     const total = (snap && snap.summary) ? snap.summary.stepsTotal : evalPlan.steps.length;
     // feat 144 — a step counts as done at its min-% threshold; "✓ full" only when every step hit its full target.
     const doneSteps = (snap && snap.summary) ? snap.summary.stepsDone : (evalPlan.steps || []).reduce((n, st) => n + (stepStatus(session, st, evalPlan).satisfied ? 1 : 0), 0);
@@ -23311,7 +23508,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 331 · 2026-06-30 10:53';
+const APP_BUILD = 'build 332 · 2026-06-30 12:15';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
