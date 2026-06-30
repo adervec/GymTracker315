@@ -2051,6 +2051,24 @@ They share variation **UUIDs**.
   and **Drop-Set Dungeon** (leg-extension pre-exhaust → squats on dead legs → triple drop sets → a VMO head-target
   sniper). `test/cruellegs.spec.mjs` (seed, intensity 5, satisfiable incl. muscle-target steps, read as Legs, the
   widowmaker is one set, no dup ids/names).
+- **"Inventive cruelty" upper-body plans (feat 392):** the same treatment for the push/pull/arms/shoulders — four
+  intensity-5 punishers: **Press to Pieces** (chest-fly pre-exhaust → bench drops → burnout dips), **Back
+  Annihilation** (pulldown rest-pause → 100-rep row → lats/rear-delt/lower-trap targets), **Gun Show Suicide** (21s
+  curls → mechanical drop → brachialis/triceps targets → a *curl*-wildcard finisher), and **Delt Roast** (slow heavy
+  press → lateral triple-drop → all three delt heads → shrugs). Reuses the muscle/head/regex step model (feat 387).
+- **Equipment-constrained plan steps (feat 393):** a movement- or muscle-targeted step can now also pin an **equipment
+  category** (BB/DB/KB/cable/machine/BW) — `_mvOpt(fam, equip)` / `_muscleOpt(id, level, sec, equip)` carry an optional
+  `o.equip`, and `stepQualifyingVarSet`/`optionMatchesVar` filter the qualifying set through `varMatchesEquip`. Equipment
+  is family-level, so the matcher is a title-keyword heuristic ("…DB…", "goblet", "cable") with a family-`equip`
+  fallback for un-hinted names. The option-picker gains an "equipment" `<select>` (movement & muscle modes; a specific
+  variation already implies its gear). The **Dumbbell Corner / Bench + Dumbbells** plans are now DB-locked and the
+  **Kettlebell** plans KB-lock their carry/core steps (the bell moves were already family-locked).
+- **Gym sub-area confinement plans (feat 394):** seed plans that never leave one zone, built from regex steps (finer
+  than the six equipment buckets) and equip-constrained movements — **Turf Zone Only** (sleds/ropes/carries),
+  **Preacher Stand Lockdown** (every angle the pad allows + the off-label triceps/rear-delt tricks), **Squat Rack &
+  Barbell** (barbell-locked squat/press/pull/curl), **Roc-It Circuit** (the whole plate-loaded line), and **Smith
+  Machine Solo**. `test/equipsubarea.spec.mjs` covers both 393 & 394 (equip step is strictly narrower and all-matching;
+  DB/KB plans still satisfiable + constraint present; sub-area plans seed + satisfiable + no cross-zone leaks; no dups).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

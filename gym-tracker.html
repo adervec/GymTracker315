@@ -4578,6 +4578,26 @@ function muscleTargetLabel(muscleId, level) {
   if (level === 'group') { const g = MUSCLE_GROUPS_MODEL.find(x => x.group === muscleId); return g ? g.label : muscleId; }
   const mu = MUSCLE_INDEX[muscleId]; return mu ? mu.label : muscleId;
 }
+// feat 393 — constrain a step to an EQUIPMENT category. A variation matches if its name names that equipment, or — when
+// the name gives no equipment hint at all — its family is capable of it. Lets a movement/muscle step say "DB only" etc.
+const EQUIP_MATCH = {
+  barbell:    /\b(barbell|bb)\b|smith|landmine|trap.?bar|ez.?bar/i,
+  dumbbell:   /\b(dumbbell|db|dbs)\b/i,
+  kettlebell: /\b(kettlebell|kb|kbs)\b|goblet/i,
+  cable:      /cable|freemotion|pulley|\brope\b|crossover|push-?down|face.?pull/i,
+  machine:    /machine|roc-?it|hammer ?strength|selectoriz|plate-?loaded|leg press|pec ?deck|\bmts\b|nautilus|hack|preacher (machine|station|curl)|pin ?(press|lift)|smith/i,
+  bodyweight: /bodyweight|body-?weight|push-?up|pull-?up|chin-?up|\bdip\b|pistol|nordic|dead ?hang|\bplank\b|sit-?up|hindu|prisoner|sissy|cossack|inverted|muscle-?up|handstand|l-?sit|burpee|air squat|hollow|superman/i,
+};
+const EQUIP_SHORT = { barbell:'BB', dumbbell:'DB', kettlebell:'KB', cable:'Cable', machine:'Machine', bodyweight:'BW' };
+function varMatchesEquip(varUuid, equipId) {
+  if (!equipId || equipId === 'all') return true;
+  const i = VAR_INDEX.get(varUuid); if (!i) return false;
+  const re = EQUIP_MATCH[equipId]; if (!re) return true;
+  const t = (i.variation.title || '') + ' ' + (i.variation.id || '');
+  if (re.test(t)) return true;
+  const anyHint = Object.keys(EQUIP_MATCH).some(k => EQUIP_MATCH[k].test(t)); // the name names SOME other equipment
+  return !anyHint && (i.family.equip || []).includes(equipId); // unmarked variation in a family capable of this equipment
+}
 // Muscle weighting (feat 10/11): 1.0 default; null state → all defaults.
 function muscleWeight(muscleId) {
   if (!state.muscleWeights) return 1;
@@ -12466,11 +12486,11 @@ function exportCurrentViewPdf() {
    session.planId; it can be changed or abandoned mid-workout. Auto PUSH/PULL/LOWER/CORE suggestions still
    run whenever no plan is attached.
    ============================================================ */
-function _mvOpt(familyId) { return { type:'movement', familyId }; }
+function _mvOpt(familyId, equip) { const o = { type:'movement', familyId }; if (equip && equip !== 'all') o.equip = equip; return o; } // feat 393 — optional equipment constraint
 function _vrOpt(uuid) { return { type:'variation', uuid }; }
 // feat 387 — richer step targets: a muscle group / muscle / head (with an optional secondary-target allowance), or a
 // regex over the movement / variation English name.
-function _muscleOpt(muscleId, level, sec) { return { type:'muscle', muscleId, level: level || 'muscle', sec: !!sec }; }
+function _muscleOpt(muscleId, level, sec, equip) { const o = { type:'muscle', muscleId, level: level || 'muscle', sec: !!sec }; if (equip && equip !== 'all') o.equip = equip; return o; } // feat 387/393
 function _regexOpt(pattern, flags) { return { type:'regex', pattern: String(pattern || ''), flags: flags || 'i' }; }
 function _safeRegex(pattern, flags) { try { return new RegExp(pattern, flags || 'i'); } catch (_) { return null; } }
 function _pstep(sets, options, desc, load) { return { sets: sets || 3, options: options || [], desc: desc || '', load: load || 'moderate' }; }
@@ -12498,11 +12518,11 @@ const SEED_PLANS = [
   { id:'seed-rack', name:'Squat Rack Strength', intensity:5, desc:'One power rack, one barbell, zero wandering. Squat, hinge, press and row all from the same station — perfect when the floor is packed and you want to stay posted up in one zone.', steps:[
     _pstep(4,[_mvOpt('squat')],'Rack the bar and back-squat.','heavy'), _pstep(3,[_mvOpt('deadlift')],'Same bar — RDL or pull from the pins.','heavy'), _pstep(3,[_mvOpt('shoulder-press')],'Strict barbell OHP in the rack.'), _pstep(3,[_mvOpt('row')],'Bent-over barbell row.'), _pstep(2,[_mvOpt('shrugs')],'Barbell shrugs to finish.'), _pstep(3,[_mvOpt('calf-raise')],'Standing calf raises holding the bar.','light') ] },
   { id:'seed-db', name:'Dumbbell Corner', intensity:3, desc:'One pair of dumbbells in one corner — a complete full-body session without touching a machine or barbell. Ideal when every rack and station is taken.', steps:[
-    _pstep(3,[_mvOpt('flat-bench-press')],'DB bench or floor press.','heavy'), _pstep(3,[_mvOpt('row')],'One-arm DB row.','heavy'), _pstep(3,[_mvOpt('shoulder-press')],'Seated or standing DB press.'), _pstep(3,[_mvOpt('lunge')],'Walking or stationary DB lunges.'), _pstep(2,[_mvOpt('bicep-curl')],'','light'), _pstep(2,[_mvOpt('tricep-extension')],'','light'), _pstep(2,[_mvOpt('lateral-raise')],'','light') ] },
+    _pstep(3,[_mvOpt('flat-bench-press','dumbbell')],'DB bench or floor press.','heavy'), _pstep(3,[_mvOpt('row','dumbbell')],'One-arm DB row.','heavy'), _pstep(3,[_mvOpt('shoulder-press','dumbbell')],'Seated or standing DB press.'), _pstep(3,[_mvOpt('lunge','dumbbell')],'Walking or stationary DB lunges.'), _pstep(2,[_mvOpt('bicep-curl','dumbbell')],'','light'), _pstep(2,[_mvOpt('tricep-extension','dumbbell')],'','light'), _pstep(2,[_mvOpt('lateral-raise','dumbbell')],'','light') ] },
   { id:'seed-cable', name:'One Cable Station', intensity:3, desc:'Set up at a single cable stack and flow through the whole upper body — push, pull and arms — without ever stepping away. Constant tension, tiny footprint.', steps:[
     _pstep(3,[_mvOpt('lat-pulldown')],'High pulley.','heavy'), _pstep(3,[_mvOpt('row')],'Seated cable row.','heavy'), _pstep(3,[_mvOpt('chest-fly')],'Cable crossover.'), _pstep(3,[_mvOpt('rear-delt')],'Cable face pulls.','light'), _pstep(2,[_mvOpt('tricep-extension')],'Rope pushdowns.','light'), _pstep(2,[_mvOpt('bicep-curl')],'Cable curls.','light'), _pstep(2,[_mvOpt('lateral-raise')],'','light') ] },
   { id:'seed-bench-db', name:'Bench + Dumbbells', intensity:3, desc:'A flat bench and one pair of dumbbells — claim that single spot and stay. Press, fly, row and curl all from the bench.', steps:[
-    _pstep(4,[_mvOpt('flat-bench-press')],'','heavy'), _pstep(3,[_mvOpt('chest-fly')],'','light'), _pstep(3,[_mvOpt('row')],'Chest-supported or one-arm row off the bench.'), _pstep(3,[_mvOpt('shoulder-press')]), _pstep(2,[_mvOpt('tricep-extension')],'Lying DB extensions.','light'), _pstep(2,[_mvOpt('bicep-curl')],'Seated DB curls.','light') ] },
+    _pstep(4,[_mvOpt('flat-bench-press','dumbbell')],'','heavy'), _pstep(3,[_mvOpt('chest-fly','dumbbell')],'','light'), _pstep(3,[_mvOpt('row','dumbbell')],'Chest-supported or one-arm row off the bench.'), _pstep(3,[_mvOpt('shoulder-press','dumbbell')]), _pstep(2,[_mvOpt('tricep-extension','dumbbell')],'Lying DB extensions.','light'), _pstep(2,[_mvOpt('bicep-curl','dumbbell')],'Seated DB curls.','light') ] },
   // —— Focus / specialty ——
   { id:'seed-arms', name:'Arms Blaster', intensity:2, desc:'A dedicated biceps + triceps pump you can superset in one corner with dumbbells or a single cable. Big arms, minimal footprint.', steps:[
     _pstep(3,[_mvOpt('bicep-curl')],'Superset A — curl…','light'), _pstep(3,[_mvOpt('tricep-extension')],'…straight into a triceps extension.','light'), _pstep(3,[_mvOpt('hammer-curl')],'Superset B — hammers…','light'), _pstep(3,[_mvOpt('tricep-extension')],'…paired with pushdowns.','light'), _pstep(2,[_mvOpt('reverse-curl'),_mvOpt('wrist-curl')],'Forearm finisher.','light') ] },
@@ -12575,7 +12595,7 @@ const SEED_PLANS = [
   // cardio engines (HIIT / zone 2 / HYROX-style), joint health (knees / cuff / posture) and specialty (grip / climbing).
   // Variation options pin REAL uuids probed from FAMILIES (feat-175 lesson: truncated uuids silently no-op).
   { id:'seed-kettlebell', name:'Kettlebell Complete', intensity:4, desc:'One kettlebell, every muscle. Ballistic swings for power, grinds for strength, a carry for the grip and a get-up to tie it together — the classic hardstyle session in under an hour.', steps:[
-    _pstep(4,[_mvOpt('kettlebell-specific')],'Hardstyle swings — snap the hips, float the bell.'), _pstep(3,[_mvOpt('kettlebell-specific')],'Clean and press — strength up top.','heavy'), _pstep(3,[_mvOpt('kettlebell-specific')],'Goblet squats — upright and deep.'), _pstep(3,[_mvOpt('core-stability')],'Get-up or windmill — slow and owned.','light'), _pstep(3,[_mvOpt('loaded-carries')],'Farmer or rack carry.','heavy'), _pstep(2,[_mvOpt('abs-dynamic')],'Core wrap-up.','light') ] },
+    _pstep(4,[_mvOpt('kettlebell-specific')],'Hardstyle swings — snap the hips, float the bell.'), _pstep(3,[_mvOpt('kettlebell-specific')],'Clean and press — strength up top.','heavy'), _pstep(3,[_mvOpt('kettlebell-specific')],'Goblet squats — upright and deep.'), _pstep(3,[_mvOpt('core-stability','kettlebell')],'Get-up or windmill — slow and owned.','light'), _pstep(3,[_mvOpt('loaded-carries','kettlebell')],'Farmer or rack carry.','heavy'), _pstep(2,[_mvOpt('abs-dynamic')],'Core wrap-up.','light') ] },
   { id:'seed-landmine', name:'Landmine One-Bar', intensity:3, desc:'A barbell in a corner sleeve is a whole gym — press, row, squat and rotate around one pivot point. Smooth arcs that are easy on the shoulders and wrists, all from a single station.', steps:[
     _pstep(3,[_mvOpt('landmine-work')],'Landmine press — each arm.'), _pstep(3,[_mvOpt('landmine-work')],'Meadows or T-bar style row.','heavy'), _pstep(3,[_mvOpt('landmine-work')],'Goblet-grip landmine squat.'), _pstep(3,[_mvOpt('landmine-work')],'RDL or single-leg hinge off the sleeve.'), _pstep(2,[_vrOpt('dbcf6956-0816-4c58-81d6-c2ebf5ff5ef8')],'Landmine 180s — rotational core.','light'), _pstep(2,[_mvOpt('landmine-work')],'Lateral raise or rollout — your pick.','light') ] },
   { id:'seed-strongman', name:'Strongman Saturday', intensity:5, desc:'Pick heavy things up and carry them — event-style training with loaded carries, a big pull, overhead work and grip. Builds the kind of total-body strength you feel on moving day.', steps:[
@@ -12613,7 +12633,7 @@ const SEED_PLANS = [
   { id:'seed-athletic-power', name:'Athletic Power 30', intensity:4, desc:'Throw, slam, jump — ballistic med-ball work and plyometrics for fast hips and a springy frame. Every rep explosive, every landing quiet; stop while you are still crisp.', steps:[
     _pstep(3,[_vrOpt('947cb508-3c9b-4e81-a5b8-4a210cff410e')],'Ball slams — full body, full intent.','light'), _pstep(3,[_vrOpt('844e7c89-8aee-4f03-aa25-bdac127e44e3')],'Rotational throws — hips lead, arms follow.','light'), _pstep(3,[_vrOpt('0012af71-e609-422f-8ebc-6a46d19beadf')],'Box jumps — step down between reps.','light'), _pstep(3,[_mvOpt('medicine-ball')],'Chest pass or overhead throw.','light') ] },
   { id:'seed-kb-90', name:'Kettlebell Builder (90m)', intensity:4, desc:'A full ninety-minute bell session — swings, presses, squats, snatch work, lunges, carries and core. High volume with a cannonball; pace the rests and own every rep.', steps:[
-    _pstep(6,[_mvOpt('kettlebell-specific')],'Swings — sharp hips every set.'), _pstep(5,[_mvOpt('kettlebell-specific')],'Clean and press ladders.','heavy'), _pstep(5,[_mvOpt('kettlebell-specific')],'Goblet or front-rack squats.'), _pstep(5,[_mvOpt('kettlebell-specific')],'Snatch or high pull — crisp technique.'), _pstep(5,[_mvOpt('lunge')],'Rack lunges.'), _pstep(4,[_mvOpt('loaded-carries')],'Carry medley.','heavy'), _pstep(4,[_mvOpt('core-stability')],'Get-ups and windmills.','light') ] },
+    _pstep(6,[_mvOpt('kettlebell-specific')],'Swings — sharp hips every set.'), _pstep(5,[_mvOpt('kettlebell-specific')],'Clean and press ladders.','heavy'), _pstep(5,[_mvOpt('kettlebell-specific')],'Goblet or front-rack squats.'), _pstep(5,[_mvOpt('kettlebell-specific')],'Snatch or high pull — crisp technique.'), _pstep(5,[_mvOpt('lunge','kettlebell')],'Rack lunges.'), _pstep(4,[_mvOpt('loaded-carries','kettlebell')],'Carry medley.','heavy'), _pstep(4,[_mvOpt('core-stability','kettlebell')],'Get-ups and windmills.','light') ] },
   // —— Tranche 7 (feat 225) — aesthetics, specialization, hypertrophy splits, quick hits & conditioning.
   // More short options especially, so the feat-226 quick-pick recommender has range to match any time budget.
   { id:'seed-express-10', name:'Express 10', intensity:3, desc:'The bare minimum that still counts — three big compounds, two brisk sets each. Ten focused minutes beats a skipped session every time.', steps:[
@@ -12874,6 +12894,49 @@ const SEED_PLANS = [
     _pstep(4,[_mvOpt('lunge')],'Bulgarian split squats — rear foot elevated, deep, per leg.','heavy'), _pstep(3,[_mvOpt('squat')],'Pistol / single-leg press — one leg, full depth (assist if needed).'), _pstep(3,[_mvOpt('atg-knees-over-toes')],'ATG split squat / sissy — knees over toes, painfully slow.'), _pstep(3,[_mvOpt('leg-curl'),_muscleOpt('hamstrings','muscle',false)],'Single-leg RDL or single-leg curl — hamstrings, one side at a time.'), _pstep(3,[_mvOpt('lunge')],'Step-ups — knee-height box, drive through the top foot, per leg.'), _pstep(2,[_muscleOpt('glute-med-min','muscle',false)],'Single-leg abduction — the limpy little glute med.','light'), _pstep(3,[_mvOpt('calf-raise')],'Single-leg calf raise — one foot, full range, both sides.','light') ] },
   { id:'seed-cruel-dropset', name:'Drop-Set Dungeon — Quad Pre-Exhaust', intensity:5, desc:'Cook the quads BEFORE the big lift so they fail first — not your grip, not your breath. Leg extensions to failure straight into squats on dead legs, then strip-the-stack drop sets and a teardrop sniper to finish off what is left.', steps:[
     _pstep(3,[_mvOpt('leg-extension')],'Pre-exhaust — leg extensions to true failure. Quads only; no rest before the squat.','light'), _pstep(4,[_mvOpt('squat'),_mvOpt('leg-press')],'Squat / leg press on already-fried quads — the cruelty of pre-exhaust.','heavy'), _pstep(3,[_mvOpt('leg-press')],'Triple drop set — to failure, strip ~20%, repeat ×2 with no rest.','moderate'), _pstep(3,[_mvOpt('atg-knees-over-toes')],'Sissy squats — slow, deep, knee-over-toe burn.','light'), _pstep(2,[_muscleOpt('vastus-medialis','head',true)],'Teardrop sniper — toes-out / deep partials for the VMO.','light') ] },
+
+  // ── feat 392 — the same "inventive cruelty" applied to the UPPER groups: push, pull, arms and shoulders. ──
+  { id:'seed-cruel-push', name:'Press to Pieces — Push Pre-Exhaust', intensity:5, desc:'Pre-fatigue the chest with flyes so the pecs fail before the triceps can save the press, then bury them under drop sets and burnout dips. The shoulders and triceps get the leftovers — and there are no leftovers.', steps:[
+    _pstep(3,[_mvOpt('chest-fly')],'Pre-exhaust — flyes to failure. Chest only; straight into the press, no rest.','light'), _pstep(4,[_mvOpt('flat-bench-press'),_mvOpt('incline-bench-press')],'Press on pre-fried pecs — last set a double drop (strip ~20% twice).','heavy'), _pstep(3,[_mvOpt('dips')],'Weighted dips → bodyweight burnout in the same set.'), _pstep(3,[_muscleOpt('upper-chest','muscle',true)],'Upper-chest sniper — high incline / low-cable flyes.','light'), _pstep(3,[_mvOpt('lateral-raise')],'Lateral raise — drop set down the rack, then partials to failure.','light'), _pstep(3,[_muscleOpt('tri-long','head',true)],'Triceps LONG head — overhead extensions, rest-pause.','light') ] },
+  { id:'seed-cruel-pull', name:'Back Annihilation — Rest-Pause Pull', intensity:5, desc:'Rest-pause pulldowns to three failures in one breathless set, a hundred reps of rows, then the lats, lower traps and rear delts nobody trains on purpose. The biceps are just collateral damage.', steps:[
+    _pstep(3,[_mvOpt('lat-pulldown'),_mvOpt('pull-up')],'Rest-pause — to failure, 15s, failure, 15s, failure. One brutal set.','heavy'), _pstep(3,[_mvOpt('row')],'Rows — the 100-rep challenge: as few sets as possible to 100.','moderate'), _pstep(3,[_muscleOpt('lats','muscle',false)],'Lats, stretched — pullovers / straight-arm, slow and deep.','light'), _pstep(3,[_mvOpt('rear-delt')],'Rear delts — high-rep burnout, no swinging.','light'), _pstep(2,[_muscleOpt('traps-lower','head',true)],'The forgotten one — lower traps, Y-raises / prone work.','light'), _pstep(3,[_muscleOpt('biceps-long','head',true)],'Collateral biceps — long-head curls to finish.','light') ] },
+  { id:'seed-cruel-arms', name:'Gun Show Suicide — Arm Cruelty', intensity:5, desc:'A pump so vicious you can’t scratch your nose afterward. Twenty-ones, mechanical drop sets and bi/tri supersets with no rest. Ends on a wildcard — anything with the word in its name.', steps:[
+    _pstep(3,[_mvOpt('bicep-curl')],'21s — 7 bottom-half, 7 top-half, 7 full. Every set.'), _pstep(3,[_muscleOpt('biceps-long','head',true)],'Mechanical drop — incline → standing → drag, no rest. Long-head peak.','light'), _pstep(3,[_muscleOpt('brachialis','muscle',false)],'Brachialis — hammer / reverse curls, slow.','light'), _pstep(3,[_mvOpt('tricep-extension')],'Triceps extension — drop set down the stack.'), _pstep(3,[_muscleOpt('tri-long','head',true)],'Long-head overhead — stretch hard, rest-pause.','light'), _pstep(3,[_mvOpt('dips')],'Bodyweight dip burnout — triceps to failure.','light'), _pstep(2,[_regexOpt('curl','i')],'Wildcard finisher — superset anything with “curl” in the name.','light') ] },
+  { id:'seed-cruel-shoulders', name:'Delt Roast — Shoulder Cruelty', intensity:5, desc:'Boulder shoulders the hard way: a slow heavy press, then a lateral-raise burnout that sets all three delts on fire — drop sets and partials until the arms won’t lift past the hips. Traps take the closing shift.', steps:[
+    _pstep(4,[_mvOpt('shoulder-press')],'Overhead press — 4s eccentric, paused at the bottom. Heavy and slow.','heavy'), _pstep(4,[_mvOpt('lateral-raise')],'Lateral raise — triple drop down the rack, then partials to failure.','light'), _pstep(3,[_muscleOpt('side-delt','muscle',false)],'More side delt — cables / lean-aways, high rep.','light'), _pstep(3,[_mvOpt('rear-delt')],'Rear delts — reverse flyes / face pulls, squeeze and hold.','light'), _pstep(3,[_muscleOpt('front-delt','muscle',false)],'Front delt — strict raises / presses, no swing.','light'), _pstep(3,[_mvOpt('shrugs')],'Trap finisher — heavy shrugs, 2s hold at the top.') ] },
+  // —— feat 394 — gym sub-area confinement: a whole session that never leaves one zone ——
+  { id:'seed-area-turf', name:'Turf Zone Only', intensity:4, desc:'Stay on the turf strip — sleds, ropes and carries, no machines and no benches. Drag, push, whip and walk until the lane is yours.', steps:[
+    _pstep(4,[_regexOpt('sled.*push|prowler','i')],'Sled / prowler pushes — heavy, low, drive through the turf.','heavy'),
+    _pstep(4,[_regexOpt('sled.*drag|backward.*sled|backwards sled','i')],'Backward sled drags — quads and knees.','moderate'),
+    _pstep(3,[_regexOpt('battle ?rope','i')],'Battle ropes — waves to failure, 30s on.','light'),
+    _pstep(3,[_regexOpt('carry|farmer|suitcase|yoke','i')],'Loaded-carry medley — grip and posture.','heavy') ] },
+  { id:'seed-area-preacher', name:'Preacher Stand Lockdown', intensity:3, desc:'Park at the preacher bench and never stand up — every angle of curl the pad allows, plus the off-label triceps and rear-delt tricks the stand hides.', steps:[
+    _pstep(4,[_regexOpt('preacher.*curl|curl.*preacher','i')],'Preacher curls — strict, full stretch at the bottom.','moderate'),
+    _pstep(3,[_regexOpt('hammer.*preacher|preacher.*hammer','i')],'Hammer preacher — brachialis.','light'),
+    _pstep(3,[_regexOpt('reverse.*preacher|preacher.*reverse','i')],'Reverse preacher — forearms.','light'),
+    _pstep(3,[_regexOpt('preacher.*(skull|crusher)','i')],'Anchored skull crushers off the pad — triceps.','light'),
+    _pstep(2,[_regexOpt('preacher.*(fly|reverse fly)','i')],'Rear-delt flyes braced on the pad — the off-label finisher.','light') ] },
+  { id:'seed-area-rack', name:'Squat Rack & Barbell', intensity:4, desc:'One rack, one barbell, the whole body. Squat, press, pull and curl without ever stepping out of the cage — claim it and stay.', steps:[
+    _pstep(5,[_mvOpt('squat','barbell')],'Back squats — the reason you took the rack.','heavy'),
+    _pstep(4,[_mvOpt('shoulder-press','barbell')],'Standing barbell press out of the rack.','heavy'),
+    _pstep(4,[_mvOpt('deadlift','barbell')],'Rack pulls / RDLs off the pins.','heavy'),
+    _pstep(3,[_mvOpt('row','barbell')],'Barbell bent-over rows.','moderate'),
+    _pstep(3,[_mvOpt('lunge','barbell')],'Barbell rack lunges.','moderate'),
+    _pstep(2,[_mvOpt('bicep-curl','barbell')],'Barbell curls to finish.','light') ] },
+  { id:'seed-area-rocit', name:'Roc-It Circuit', intensity:3, desc:'A full lap of the plate-loaded Roc-It line — every rocking machine in order, push to pull to legs to core. Load the pins, sit, rock, repeat.', steps:[
+    _pstep(4,[_regexOpt('roc-?it.*chest','i')],'Roc-It chest press — flat / incline / decline.','heavy'),
+    _pstep(3,[_regexOpt('roc-?it.*row','i')],'Roc-It row — chest-supported pull.','moderate'),
+    _pstep(3,[_regexOpt('roc-?it.*shoulder','i')],'Roc-It shoulder press.','moderate'),
+    _pstep(4,[_regexOpt('roc-?it.*leg press','i')],'Roc-It leg press.','heavy'),
+    _pstep(3,[_regexOpt('roc-?it.*leg (ext|curl)','i')],'Roc-It leg extension + curl.','moderate'),
+    _pstep(3,[_regexOpt('roc-?it.*(curl|dip)','i')],'Roc-It arms — curls and dips.','light'),
+    _pstep(2,[_regexOpt('roc-?it.*(crunch|oblique|ab)','i')],'Roc-It crunch / obliques.','light') ] },
+  { id:'seed-area-smith', name:'Smith Machine Solo', intensity:3, desc:'Training alone and want to push heavy safely? The Smith machine is a whole gym on rails — squat, press, row, thrust and shrug, no spotter required.', steps:[
+    _pstep(4,[_regexOpt('smith.*squat','i')],'Smith squats — heavy and safe, no spotter.','heavy'),
+    _pstep(4,[_regexOpt('smith.*(flat|bench|incline|decline)','i')],'Smith bench press.','heavy'),
+    _pstep(3,[_regexOpt('smith.*row','i')],'Smith bent / inverted rows.','moderate'),
+    _pstep(3,[_regexOpt('smith.*hip','i')],'Smith hip thrusts.','heavy'),
+    _pstep(2,[_regexOpt('smith.*shrug','i')],'Smith shrugs to finish.','moderate') ] },
 ];
 function cloneSeedPlan(sp) {
   return { id:sp.id, name:sp.name, desc:sp.desc||'', intensity:sp.intensity||3, steps:sp.steps.map(s => ({ id:newUuid(), sets:s.sets, desc:s.desc||'', load:s.load||'moderate', options:s.options.map(o => ({ ...o })) })) };
@@ -13017,24 +13080,24 @@ function planAtRevision(plan, rev) {
 }
 function optionLabel(o) {
   if (!o) return '?';
-  if (o.type === 'variation') { const i = VAR_INDEX.get(o.uuid); return i ? i.variation.title : 'Variation'; }
-  if (o.type === 'movement') { const f = FAMILIES.find(x => x.id === o.familyId); return f ? f.title : 'Movement'; }
-  if (o.type === 'muscle') return `💪 ${muscleTargetLabel(o.muscleId, o.level)}${o.level === 'group' ? ' (group)' : o.level === 'head' ? ' (head)' : ''}${o.sec ? ' +2°' : ''}`; // feat 387
-  if (o.type === 'regex') return `🔤 /${o.pattern}/${o.flags || ''}`; // feat 387
+  if (o.type === 'variation') { const i = VAR_INDEX.get(o.uuid); return i ? i.variation.title : 'Variation'; } // equipment is intrinsic to a specific variation
+  const eq = o.equip ? ` · ${EQUIP_SHORT[o.equip] || o.equip}` : ''; // feat 393
+  if (o.type === 'movement') { const f = FAMILIES.find(x => x.id === o.familyId); return (f ? f.title : 'Movement') + eq; }
+  if (o.type === 'muscle') return `💪 ${muscleTargetLabel(o.muscleId, o.level)}${o.level === 'group' ? ' (group)' : o.level === 'head' ? ' (head)' : ''}${o.sec ? ' +2°' : ''}${eq}`; // feat 387/393
+  if (o.type === 'regex') return `🔤 /${o.pattern}/${o.flags || ''}${eq}`; // feat 387
   return '?';
 }
 function optionMatchesVar(o, varUuid) {
   if (!o) return false;
-  if (o.type === 'variation') return o.uuid === varUuid;
-  if (o.type === 'movement') {
-    const i = VAR_INDEX.get(varUuid); if (!i) return false;
-    const fam = resolveFamilyId(o.familyId);          // feat 166 — honor merged-family aliases
-    if (i.family.id === fam) return true;             // primary parent
-    return secondaryParentsOf(varUuid).includes(fam); // feat 167 — a secondary parent movement satisfies the step too
+  let typeOk = false;
+  if (o.type === 'variation') typeOk = o.uuid === varUuid;
+  else if (o.type === 'movement') {
+    const i = VAR_INDEX.get(varUuid);
+    if (i) { const fam = resolveFamilyId(o.familyId); typeOk = i.family.id === fam || secondaryParentsOf(varUuid).includes(fam); } // feat 166/167
   }
-  if (o.type === 'muscle') return varHitsMuscle(varUuid, o.muscleId, o.level, o.sec); // feat 387
-  if (o.type === 'regex') { const re = _safeRegex(o.pattern, o.flags); const i = VAR_INDEX.get(varUuid); return !!(re && i && (re.test(i.variation.title) || re.test(i.family.title))); } // feat 387
-  return false;
+  else if (o.type === 'muscle') typeOk = varHitsMuscle(varUuid, o.muscleId, o.level, o.sec); // feat 387
+  else if (o.type === 'regex') { const re = _safeRegex(o.pattern, o.flags); const i = VAR_INDEX.get(varUuid); typeOk = !!(re && i && (re.test(i.variation.title) || re.test(i.family.title))); } // feat 387
+  return typeOk && (!o.equip || varMatchesEquip(varUuid, o.equip)); // feat 393 — equipment constraint
 }
 // feat 213 — "duplicate" steps: steps whose qualifying pools OVERLAP, i.e. one single variation could
 // satisfy two or more steps of the same plan (two row steps, a curl step plus an arms step, …). Built on
@@ -14310,7 +14373,7 @@ function startExerciseFromPlanOption(o, load) {
 
 /* ---- Plans overlay (list + builder) ---- */
 let _plansEditId = null, _plansAddOptStep = null, _plansOptSearch = '';
-let _plansOptMode = 'mv', _plansOptRegex = ''; // feat 387 — option-picker sub-mode: movement/variation · muscle · name regex
+let _plansOptMode = 'mv', _plansOptRegex = '', _plansOptEquip = 'all'; // feat 387/393 — option-picker sub-mode + equipment constraint
 let _plansViewMode = false; // feat 276 — open the editor read-only (same layout, no inputs/commit) to view a plan safely
 let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Execution View mode (which plan + which session)
 let _plansRevView = false; // feat 162 — when editing a plan, show its revision history instead of the form
@@ -14775,6 +14838,11 @@ function renderOptionPicker(body, plan) {
   const mode = _plansOptMode || 'mv';
   const tabs = [['mv', 'Movement / variation'], ['muscle', 'Muscle'], ['regex', 'Name match']]
     .map(([m, l]) => `<button class="plan-chip ${mode === m ? 'active' : ''}" data-opt-mode="${m}">${l}</button>`).join('');
+  // feat 393 — optional equipment constraint (movement & muscle modes; a specific variation already implies its equipment)
+  const equipSel = `<select id="optpick-equip" class="vw-select" style="width:100%;margin-bottom:8px;">
+      <option value="all"${_plansOptEquip === 'all' ? ' selected' : ''}>Any equipment</option>
+      ${Object.keys(EQUIP_SHORT).map(k => `<option value="${k}"${_plansOptEquip === k ? ' selected' : ''}>${escapeHtml(EQUIP_SHORT[k])} only</option>`).join('')}
+    </select>`;
   let inner = '';
   if (mode === 'muscle') {
     const grp = MUSCLE_GROUPS_MODEL.map(g => `<option value="grp:${g.group}">${escapeHtml(g.label)}</option>`).join('');
@@ -14787,6 +14855,7 @@ function renderOptionPicker(body, plan) {
         <optgroup label="Muscle heads">${heads}</optgroup>
       </select>
       <label class="pod-chk" style="margin-bottom:10px;display:flex;gap:7px;align-items:center;"><input type="checkbox" id="optpick-muscle-sec"> Include secondary-target variations</label>
+      ${equipSel}
       <div id="optpick-muscle-count" style="font-size:11px;color:var(--text3);margin-bottom:8px;"></div>
       <button class="drawer-btn" id="optpick-muscle-add">+ Add muscle option</button>`;
   } else if (mode === 'regex') {
@@ -14797,7 +14866,8 @@ function renderOptionPicker(body, plan) {
   } else {
     const q = (_plansOptSearch || '').trim().toLowerCase();
     const fams = FAMILIES.filter(f => !q || f.title.toLowerCase().includes(q) || (f.variations || []).some(v => v.title.toLowerCase().includes(q))).slice(0, q ? 40 : 16);
-    inner = `<div style="font-size:11px;color:var(--text3);margin:8px 0;">Add a whole <b>movement</b> (any variation counts) or a specific <b>variation</b>.</div>
+    inner = `<div style="font-size:11px;color:var(--text3);margin:8px 0;">Add a whole <b>movement</b> (any variation counts) or a specific <b>variation</b>. The equipment filter applies to <b>+ movement</b> only.</div>
+      ${equipSel}
       <input type="text" id="optpick-search" placeholder="Search movements / variations…" value="${escapeAttr(_plansOptSearch)}" autocomplete="off" style="width:100%;margin-bottom:8px;padding:9px 11px;font-size:14px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
       <div id="optpick-list">${fams.map(f => `<div class="optpick-fam">
           <div class="optpick-fam-head"><span>${escapeHtml(f.title)}</span><button class="optpick-add" data-pick-mv="${f.id}">+ movement</button></div>
@@ -14807,20 +14877,23 @@ function renderOptionPicker(body, plan) {
   body.innerHTML = `<button class="drawer-btn" id="optpick-back">← Back to plan</button>
     <div class="plan-chips" style="margin:8px 0;">${tabs}</div>
     ${inner}`;
-  const addOpt = (o) => { const plan2 = getPlan(_plansEditId); if (plan2 && plan2.steps[_plansAddOptStep]) { plan2.steps[_plansAddOptStep].options.push(o); saveState(); } _plansAddOptStep = null; _plansOptMode = 'mv'; renderPlansOverlay(); };
-  body.querySelector('#optpick-back')?.addEventListener('click', () => { _plansAddOptStep = null; _plansOptMode = 'mv'; renderPlansOverlay(); });
+  const addOpt = (o) => { const plan2 = getPlan(_plansEditId); if (plan2 && plan2.steps[_plansAddOptStep]) { plan2.steps[_plansAddOptStep].options.push(o); saveState(); } _plansAddOptStep = null; _plansOptMode = 'mv'; _plansOptEquip = 'all'; renderPlansOverlay(); };
+  body.querySelector('#optpick-back')?.addEventListener('click', () => { _plansAddOptStep = null; _plansOptMode = 'mv'; _plansOptEquip = 'all'; renderPlansOverlay(); });
   body.querySelectorAll('[data-opt-mode]').forEach(b => b.addEventListener('click', () => { _plansOptMode = b.dataset.optMode; renderOptionPicker(body, plan); }));
+  // feat 393 — equipment constraint select (no re-render; read live on add)
+  const eqsel = body.querySelector('#optpick-equip');
+  if (eqsel) eqsel.addEventListener('change', () => { _plansOptEquip = eqsel.value; });
   // movement / variation
   const si = body.querySelector('#optpick-search');
   if (si) { si.addEventListener('input', () => { _plansOptSearch = si.value; renderOptionPicker(body, plan); document.getElementById('optpick-search')?.focus(); }); setTimeout(() => si.focus(), 50); }
-  body.querySelectorAll('[data-pick-mv]').forEach(b => b.addEventListener('click', () => addOpt(_mvOpt(b.dataset.pickMv))));
+  body.querySelectorAll('[data-pick-mv]').forEach(b => b.addEventListener('click', () => addOpt(_mvOpt(b.dataset.pickMv, _plansOptEquip))));
   body.querySelectorAll('[data-pick-vr]').forEach(b => b.addEventListener('click', () => addOpt(_vrOpt(b.dataset.pickVr))));
   // muscle
   const msel = body.querySelector('#optpick-muscle'), msec = body.querySelector('#optpick-muscle-sec'), mcount = body.querySelector('#optpick-muscle-count');
   const parseMuscle = () => { const [lvl, id] = (msel.value || '').split(':'); return { level: lvl === 'grp' ? 'group' : lvl === 'head' ? 'head' : 'muscle', id }; };
   const refreshMcount = () => { if (!msel || !mcount) return; const m = parseMuscle(); let n = 0; for (const [uuid] of VAR_INDEX) if (varHitsMuscle(uuid, m.id, m.level, msec.checked)) n++; mcount.textContent = `${n} matching variation${n === 1 ? '' : 's'}`; };
   if (msel) { msel.addEventListener('change', refreshMcount); msec?.addEventListener('change', refreshMcount); refreshMcount(); }
-  body.querySelector('#optpick-muscle-add')?.addEventListener('click', () => { const m = parseMuscle(); if (m.id) addOpt(_muscleOpt(m.id, m.level, msec.checked)); });
+  body.querySelector('#optpick-muscle-add')?.addEventListener('click', () => { const m = parseMuscle(); if (m.id) addOpt(_muscleOpt(m.id, m.level, msec.checked, _plansOptEquip)); });
   // name regex
   const rin = body.querySelector('#optpick-regex'), rcount = body.querySelector('#optpick-regex-count');
   const refreshRcount = () => { if (!rin || !rcount) return; const re = _safeRegex(rin.value, 'i'); if (!re) { rcount.textContent = '⚠ invalid regular expression'; return; } let n = 0; for (const [, info] of VAR_INDEX) if (re.test(info.variation.title) || re.test(info.family.title)) n++; rcount.textContent = `${n} matching variation${n === 1 ? '' : 's'}`; };
@@ -21020,20 +21093,27 @@ function renderModal() {
 }
 
 /* ----- Picker ----- */
-// feat 112/115 — the exact set of variation UUIDs that satisfy a plan step (its options' union).
+// feat 387 — the base variation uuids an option resolves to (before any equipment constraint).
+function _optionBaseUuids(o) {
+  if (o.type === 'variation') return o.uuid ? [o.uuid] : [];
+  if (o.type === 'movement') {
+    const fid = resolveFamilyId(o.familyId), f = FAMILIES.find(x => x.id === fid), out = []; // feat 166
+    if (f) (f.variations || []).forEach(v => { if (v.uuid) out.push(v.uuid); });
+    secondaryVarsForFamily(fid).forEach(({ uuid }) => out.push(uuid)); // feat 167
+    return out;
+  }
+  if (o.type === 'muscle') { const out = []; for (const [uuid] of VAR_INDEX) if (varHitsMuscle(uuid, o.muscleId, o.level, o.sec)) out.push(uuid); return out; }
+  if (o.type === 'regex') { const re = _safeRegex(o.pattern, o.flags), out = []; if (re) for (const [uuid, info] of VAR_INDEX) if (re.test(info.variation.title) || re.test(info.family.title)) out.push(uuid); return out; }
+  return [];
+}
+// feat 112/115 — the exact set of variation UUIDs that satisfy a plan step (its options' union), feat 393 — each option
+// optionally narrowed to an equipment category.
 function stepQualifyingVarSet(step) {
   const set = new Set();
   (step && step.options || []).forEach(o => {
-    if (o.type === 'variation' && o.uuid) set.add(o.uuid);
-    else if (o.type === 'movement') {
-      const fid = resolveFamilyId(o.familyId); // feat 166 — honor merged-family aliases
-      const f = FAMILIES.find(x => x.id === fid); if (f) (f.variations || []).forEach(v => { if (v.uuid) set.add(v.uuid); });
-      secondaryVarsForFamily(fid).forEach(({ uuid }) => set.add(uuid)); // feat 167 — variations cross-listed (secondary) into this family qualify too
-    } else if (o.type === 'muscle') { // feat 387 — any variation training this group / muscle / head
-      for (const [uuid] of VAR_INDEX) if (varHitsMuscle(uuid, o.muscleId, o.level, o.sec)) set.add(uuid);
-    } else if (o.type === 'regex') { // feat 387 — variation / movement name matches a regex
-      const re = _safeRegex(o.pattern, o.flags); if (re) for (const [uuid, info] of VAR_INDEX) if (re.test(info.variation.title) || re.test(info.family.title)) set.add(uuid);
-    }
+    let uuids = _optionBaseUuids(o);
+    if (o.equip) uuids = uuids.filter(u => varMatchesEquip(u, o.equip)); // feat 393
+    uuids.forEach(u => set.add(u));
   });
   return set;
 }
@@ -23220,7 +23300,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 329 · 2026-06-30 02:03';
+const APP_BUILD = 'build 330 · 2026-06-30 08:06';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
