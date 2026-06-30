@@ -2012,6 +2012,45 @@ They share variation **UUIDs**.
   to **always include at least one plan that uses most of the maximum** (don't return only short plans — e.g. 75 + 45 for
   a 180-min max — even when recovery is low; bias the long option toward volume/accessory work). `coworkpodui.spec`
   updated (dual-thumb live display + the {min,max} persists) and `coworkexport.spec` (range round-trips through the file).
+- **Richer plan-step targets — muscle / head / name-regex (feat 387):** a plan step's `options` could only be a `movement`
+  (familyId) or a specific `variation` (uuid). Two new option types broaden what satisfies a step: **`muscle`**
+  (`{type:'muscle', muscleId, level:'group'|'muscle'|'head', sec}`) — any variation that trains the chosen muscle group /
+  muscle / head, where `sec` decides whether variations that hit it only as a **secondary** target also count (default:
+  primary only); and **`regex`** (`{type:'regex', pattern, flags}`) — any variation whose movement/variation **name**
+  matches the expression. Helpers `_muscleOpt` / `_regexOpt` / `_safeRegex`; resolution via `muscleLeafIds(id, level)`
+  (handles the group-vs-muscle id collision like `biceps`) + `varHitsMuscle(uuid, id, level, sec)` over the head-level
+  contribution map. Wired through `stepQualifyingVarSet` (the picker filter + satisfiability), `optionMatchesVar` (step
+  allocation / completion), and `optionLabel` (`💪 Chest (group) +2°`, `🔤 /curl/i`). The plan-creator option picker gains
+  a 3-way sub-mode toggle (**Movement / variation · Muscle · Name match**): the muscle mode is a grouped group/muscle/head
+  `<select>` + a "include secondary" checkbox + a live match count; the name-match mode is a regex input with a live count
+  and invalid-pattern guard. `test/steptargets.spec.mjs`.
+- **"Exhaustive — every muscle head" seed plans (feat 388):** nine `seed-exh-*` plans (Full Body · Upper · Lower · Push ·
+  Pull · Shoulders&Arms · Chest&Back · Anterior · Posterior) that hit **every relevant leaf muscle head** for their split,
+  efficiently — big compounds carry the load, isolation only fills the heads the compounds under-stimulate (long by
+  design). Also fixed the one head no movement reached: **lower traps** now get contribution from the `rear-delt` family
+  (face pulls / Y-raises) in `MUSCLE_CONTRIB`. `test/exhaustive.spec.mjs` proves coverage head-by-head from
+  `MUSCLE_CONTRIB`/`toHeadContrib`, using the **intersection** of each step's options so coverage holds no matter which
+  variation the lifter picks (+ seed, satisfiability, no dup ids/names).
+- **Comprehensive Jump Rope family (feat 389):** a dedicated loggable **`jump-rope-skills`** family (via `EXTRA_FAMILIES`,
+  `mega:'cardio'` so it logs through the cardio form) with 15 variations — basic bounce, boxer/alternate-foot skip, high
+  knees, skier & bell footwork, criss-cross, single-leg, **double & triple unders**, side swing, **heavy/weighted rope**,
+  the new **cordless / ropeless rope**, speed-rope intervals, Tabata/EMOM, and freestyle. Straddles cardio and plyo
+  (footwork + power). A distinct id avoids colliding with the existing reference-only `jump-rope` (outdoor) family.
+  `test/jumprope.spec.mjs` (loggable + cardio + in reference + searchable incl. cordless).
+- **Jump-rope plans + broad-to-specific mix plans (feat 390):** six new seed plans. Two **jump-rope** plans
+  (`seed-rope-conditioning` — a pure skip circuit; `seed-rope-iron-hybrid` — lift/skip alternating) built on the feat-389
+  `jump-rope-skills` family. Four **mix** plans (`seed-mix-push-funnel`, `seed-mix-pull-hunt`, `seed-mix-arms-zoom`,
+  `seed-mix-legs-sweep`) that playfully bounce **movement** steps ("any heavy press") and **muscle / head / regex** steps
+  (feat 387: "now the side delt", "the lower traps", "anything with *curl* in the name") from broad to specific toward a
+  goal. `planMegaDist` now categorises a muscle-targeted step by its group's training mega (so the mixes land sensibly).
+  `test/mixplans.spec.mjs` (seed + every step incl. muscle/regex satisfiable; rope plans use the family; the mixes
+  genuinely mix option types incl. a regex; categorisation/estimation don't choke; no dup ids/names).
+- **"Inventive cruelty" lower-body plans (feat 391):** four intensity-5 leg punishers in the Squat-Gauntlet spirit —
+  **Widowmaker** (the 20-rep breathing-squat protocol, one savage set), **Tempo Torture** (5s eccentrics + dead-bottom
+  pauses, constant tension), **Unilateral Inferno** (all single-leg — split squats, pistols, single-leg hinges/calves),
+  and **Drop-Set Dungeon** (leg-extension pre-exhaust → squats on dead legs → triple drop sets → a VMO head-target
+  sniper). `test/cruellegs.spec.mjs` (seed, intensity 5, satisfiable incl. muscle-target steps, read as Legs, the
+  widowmaker is one set, no dup ids/names).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
