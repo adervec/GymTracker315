@@ -2589,6 +2589,9 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .picker-family-group { border-bottom: 1px solid #1f1f1f; }
   .picker-family-group:last-child { border-bottom: none; }
   .picker-family-header { padding: 8px 11px; background: #181020; color: #b48aff; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pill-row-lbl { font-size: 10px; color: var(--text3); align-self: center; margin-right: 1px; white-space: nowrap; } /* feat 383 */
+  .pill-dice { border-color: var(--accent) !important; color: var(--accent) !important; font-size: 14px; line-height: 1; padding: 4px 8px; } /* feat 384 — random-pick action pill */
+  .pill-dice:active { background: var(--accent) !important; }
   .picker-var { padding: 9px 12px 9px 18px; border-top: 1px solid #1a1a1a; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
   .picker-var:active, .picker-var.selected { background: #2a1f3a; }
   .picker-var-main { flex: 1; min-width: 0; }
@@ -2614,6 +2617,10 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .picker-trend.pt-up { color: var(--good); }
   .picker-trend.pt-down { color: var(--warn); }
   .picker-trend.pt-flat { color: var(--text3); }
+  /* feat 381 — which variation you used last / the time before, for this movement */
+  .lastdone-badge { display: inline-flex; align-items: center; gap: 2px; font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 999px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.3px; }
+  .lastdone-badge.last { color: #0a0a0a; background: var(--accent); border: 1px solid var(--accent); }
+  .lastdone-badge.prev { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
   /* feat 122 — injury autocomplete chips in the session notes modal */
   .injury-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
   .injury-suggest:empty { display: none; }
@@ -3568,6 +3575,42 @@ const EXTRA_VARIATIONS = [
     mistakes:['Letting the chin drop below the bar','Shrugging up to the ears','Kipping / swinging to cheat the height'],
     programming:{'Iso':'3-4 × max hold','Test':'one max-effort hold'},
     tip:'A great bridge to your first pull-up and a brutal grip / biceps / lat hold on its own. Add load once 30s is easy.' },
+  // feat 382 — a few requested machines: LF dual-pulley pulldown, padded pec deck, behind-the-back cable shrug, Roc-It biceps (+ reverse).
+  { movementId:'lat-pulldown', id:'lf-dual-pulley-pulldown', uuid:'3471afdd-b534-45d6-a223-fa40b9d8c3e7', title:'Lat Pulldown (Life Fitness Dual Pulley)', best:'Independent-Arm Pulldown',
+    cue:'Life Fitness dual-pulley pulldown — each arm runs on its own cable, so the lats work independently and you can\'t let the strong side carry the weak one.',
+    setup:['Set the thigh pad so you\'re pinned down','Take a handle on each cable, arms overhead','Chest up, slight lean back, shoulders down'],
+    movement:['Pull both handles to the upper chest, driving the elbows down and back','Squeeze the lats at the bottom','Control the stretch back overhead — keep both arms even'],
+    mistakes:['Letting the dominant arm out-pull the other','Leaning way back to heave it down','Shrugging the traps instead of depressing the scapula'],
+    programming:{'Hypertrophy':'3-4 × 10-15'},
+    tip:'The independent cables expose (and fix) a left/right imbalance a fixed bar hides — match the reps and ROM on both sides.' },
+  { movementId:'chest-fly', id:'padded-pec-deck', uuid:'f4176dd7-7340-4684-b63e-0bcba833c686', title:'Padded Pec Deck', best:'Forearm-Pad Fly',
+    cue:'Pec deck with vertical forearm pads (not handles). Press the forearms together in a hugging arc — pure chest, no biceps/grip involvement.',
+    setup:['Set the seat so the pads sit at mid-chest height','Forearms flat against the pads, elbows slightly below shoulders','Back flat on the pad, feet planted'],
+    movement:['Drive the pads together in front of the chest','Squeeze the pecs hard where they meet','Open slowly to a deep but pain-free stretch'],
+    mistakes:['Pushing with the hands/arms instead of the chest','Going so wide the shoulders pinch at the stretch','Letting the back arch off the pad'],
+    programming:{'Hypertrophy':'3-4 × 12-15'},
+    tip:'The forearm pads take the arms out of it, so it isolates the chest better than a handle pec deck — a great burnout/stretch finisher.' },
+  { movementId:'shrugs', id:'behind-back-cable-shrug', uuid:'d1e0ffa6-6d95-45ea-b6d7-72410d712218', title:'Behind-the-Back Cable Shrug', best:'Upper-Trap Cable',
+    cue:'Stand in front of a low pulley with the cable/bar behind your thighs. Shrug straight up — the behind-the-back line keeps constant tension and opens the chest.',
+    setup:['Low pulley with a straight bar (or rope), standing just in front of it','Bar held behind the glutes/thighs, arms straight','Tall posture, shoulders relaxed down to start'],
+    movement:['Shrug the shoulders straight up toward the ears','Pause and squeeze the traps at the top','Lower under control to a full stretch'],
+    mistakes:['Rolling the shoulders (straight up-and-down is enough)','Bending the elbows to cheat','Rushing — no pause at the top'],
+    programming:{'Hypertrophy':'3-4 × 12-20'},
+    tip:'The behind-the-back cable keeps tension on the traps the whole rep and clears the bar from your legs — a cleaner pump than a front cable shrug.' },
+  { movementId:'bicep-curl', id:'roc-it-biceps-curl', uuid:'c82778e0-7d3e-4341-bea4-469de5b919a6', title:'Roc-It Biceps Curl (Machine)', best:'Rocking Cable Biceps',
+    cue:'Hoist Roc-It biceps machine — the seat rocks with you to drive a fuller curl. Upper arms on the pad, supinated grip, strict cable-smooth reps.',
+    setup:['Set the seat so your armpits rest at the top of the pad','Upper arms flat on the pad, supinated (palms-up) grip on the handles','Chest tall'],
+    movement:['Curl the handles up, letting the seat rock with you','Squeeze the biceps hard at the top','Lower under control to a full stretch — keep the upper arms planted'],
+    mistakes:['Lifting the elbows off the pad','Fighting the rocking motion','Half reps that skip the stretch'],
+    programming:{'Hypertrophy':'3-4 × 10-15'},
+    tip:'The rock adds ROM at the peak vs a fixed preacher; the same machine does reverse curls — just flip to a pronated grip.' },
+  { movementId:'reverse-curl', id:'roc-it-reverse-curl', uuid:'7815a34f-8c77-4c93-92b4-e5c57dea8213', title:'Roc-It Reverse Curl (Machine)', best:'Rocking Brachioradialis',
+    cue:'The same Roc-It biceps machine with a pronated (palms-down) grip — loads the brachioradialis and forearm extensors through a fixed, rocking arc.',
+    setup:['Seat set so your armpits rest at the top of the pad','Upper arms flat on the pad, pronated (palms-down) grip','Wrists firm and neutral'],
+    movement:['Curl up with palms down, letting the seat rock','Squeeze at the top','Lower slowly to a full stretch — elbows stay planted'],
+    mistakes:['Wrists flexing under load','Elbows lifting off the pad','Going too heavy and losing the grip'],
+    programming:{'Hypertrophy':'3 × 12-15'},
+    tip:'A joint-friendly way to overload reverse curls — the machine fixes the path so you can focus on the forearms.' },
 ];
 
 function applyExtraVariations() {
@@ -4413,6 +4456,37 @@ function getWeeklyMuscleVolume(weekOffset = 0, level = 'muscle') {
   });
   return acc;
 }
+// feat 383 — classify each muscle (or head) as lagging / neutral / leading from RECENT weekly volume vs its target.
+// Average the last `weeks` weeks (incl. the current) for stability; an untrained muscle reads as lagging.
+function recentMuscleWeekly(level = 'muscle', weeks = 3) {
+  const acc = {};
+  for (let w = 0; w < weeks; w++) { const v = getWeeklyMuscleVolume(w, level); for (const id in v) acc[id] = (acc[id] || 0) + v[id]; }
+  for (const id in acc) acc[id] /= weeks;
+  return acc;
+}
+function muscleVolStatusMap(level = 'muscle') {
+  const recent = recentMuscleWeekly(level, 3);
+  const out = {};
+  const ids = level === 'head'
+    ? Object.keys(MUSCLE_INDEX)
+    : MUSCLE_GROUPS_MODEL.flatMap(g => g.muscles.map(m => m.id));
+  ids.forEach(id => {
+    const mu = MUSCLE_INDEX[id]; if (!mu) return;
+    const target = (mu.mav || 0) * muscleWeight(id);
+    if (target <= 0) { out[id] = 'neutral'; return; }
+    const sets = recent[id] || 0;
+    out[id] = sets < target * 0.55 ? 'lagging' : (sets > target ? 'leading' : 'neutral'); // < MEV · > MAV · between
+  });
+  return out;
+}
+// The volume status of the muscle a variation PRIMARILY trains (its dominant contribution, rolled to muscle level).
+function varVolStatus(varUuid, statusMap) {
+  let contrib = muscleContribForVar(varUuid); if (!contrib) return null;
+  contrib = toMuscleContrib(contrib);
+  let dom = null, max = -1;
+  for (const id in contrib) if (contrib[id] > max) { max = contrib[id]; dom = id; }
+  return dom ? (statusMap[dom] || 'neutral') : null;
+}
 // Alternate weighting presets (feat 11) — imbalanced starting points.
 const MUSCLE_WEIGHT_PRESETS = {
   default:        { label:'Balanced (AI default)', weights:null },
@@ -4913,7 +4987,7 @@ function normalizeState() {
     cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{}, syncOnEnd:true, periodicMinutes:30 }, // feat 124 — DEVICE-LOCAL (not synced); feat 272 — guaranteed push on workout end; feat 315 — periodic desktop sync
     cowork: { enabled:false, pollMinutes:5, minExportGapSec:120, podKeepDays:7, cardioFatigue:false }, // feat 315 — Claude Cowork hub (synced settings)
     coworkLocal: { processed:{}, lastExportHash:null, lastExportAt:null, lastPollAt:null }, // feat 315 — DEVICE-LOCAL (not in SETTINGS_KEYS): processed-file ledger + export de-dup
-    podOptions: { notes:'', injuries:[], gyms:[], equipment:[], availableMinutes:60, targetMode:'recovered', targetGroups:[], fitnessFocus:'balance' }, // feat 315 — Plan-of-the-Day options (synced)
+    podOptions: { notes:'', injuries:[], gyms:[], equipment:[], availableMinutes:{ min:30, max:60 }, targetMode:'recovered', targetGroups:[], fitnessFocus:'balance' }, // feat 315/386 — Plan-of-the-Day options (synced); time is a {min,max} range
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   // feat 197 — the old 5-min abandon default proved ~3x too quick; migrate stored old-default values to 15.
@@ -4960,7 +5034,14 @@ function normalizeState() {
   if (!state.coworkLocal.processed || typeof state.coworkLocal.processed !== 'object') state.coworkLocal.processed = {};
   if (!Array.isArray(state.podOptions.injuries)) state.podOptions.injuries = [];
   if (!Array.isArray(state.podOptions.targetGroups)) state.podOptions.targetGroups = [];
-  state.podOptions.availableMinutes = Math.max(20, Math.min(180, state.podOptions.availableMinutes | 0 || 60));
+  // feat 386 — available time is a {min,max} range (migrate the old single value → {min:30, max:V})
+  let _am = state.podOptions.availableMinutes;
+  if (typeof _am === 'number') _am = { min: 30, max: _am };
+  if (!_am || typeof _am !== 'object') _am = { min: 30, max: 60 };
+  const _clampMin = (v, d) => Math.max(20, Math.min(180, (v | 0) || d));
+  _am = { min: _clampMin(_am.min, 30), max: _clampMin(_am.max, 60) };
+  if (_am.min > _am.max) _am.min = _am.max;
+  state.podOptions.availableMinutes = _am;
   if (['groups','recovered','rehab'].indexOf(state.podOptions.targetMode) === -1) state.podOptions.targetMode = 'recovered';
   if (!(state.cloudSync.periodicMinutes >= 5)) state.cloudSync.periodicMinutes = 30;
   if (state.ttsVoice && state.ttsVoice !== 'auto' && state.ttsVoice !== 'system' && !state.coachVoices[state.coachPersona]) { state.coachVoices[state.coachPersona] = state.ttsVoice; state.ttsVoice = 'auto'; } // migrate a legacy explicit voiceURI to the active coach
@@ -6159,7 +6240,7 @@ function buildInstructionsMd(channel) {
   if (channel === 'strava') return head +
 `## kind: \`strava-output\`\nProvide Strava activities so the app can link them to workouts and insert orphan cardio. Payload:\n\n\`\`\`json\n{ "activities": [ { "id": "123", "name": "Evening Run", "sport_type": "Run", "start_date": "ISO", "elapsed_time": 2400, "distance": 6000, "average_heartrate": 150, "calories": 480 } ] }\n\`\`\`\n\n- The app time-matches each activity to a workout (±${(typeof STRAVA_MATCH_WINDOW_MIN !== 'undefined' ? STRAVA_MATCH_WINDOW_MIN : 120)} min) and backfills HR/calories/duration; **the logged sets/reps stay the master data**.\n- Activities with no matching workout (e.g. outdoor runs) are inserted into History as cardio.\n- \`context.json\` has the current activities + reconciliation buckets (linked / proposed / gymOnly / stravaOnly).\n`;
   return head +
-`## kind: \`pod-output\`\nGenerate one or more "Plan of the Day" plans. Honour \`options.json\` (notes, injuries to avoid, available gyms/equipment, available minutes, target mode, fitness focus) and \`context.json\` (recovery readiness, recent split, equipment, focus). Payload:\n\n\`\`\`json\n{ "date": "YYYY-MM-DD", "rationale": "why these",\n  "plans": [ { "name": "...", "desc": "...", "intensity": 4,\n    "steps": [ { "sets": 4, "load": "heavy", "desc": "...", "options": [ { "type": "movement", "familyId": "squat" } ] } ] } ] }\n\`\`\`\n\n- **Reference only REAL ids** from \`app-export.json\` → \`vocab\` (\`movementFamilies[].id\` for \`familyId\`, \`cardioVariations[].uuid\` for \`{type:"variation",uuid}\`). The importer drops unknown options and rejects empty plans.\n- Avoid anything contraindicated by the selected injuries. Fit the total within the available minutes.\n`;
+`## kind: \`pod-output\`\nGenerate one or more "Plan of the Day" plans. Honour \`options.json\` (notes, injuries to avoid, available gyms/equipment, available minutes, target mode, fitness focus) and \`context.json\` (recovery readiness, recent split, equipment, focus). Payload:\n\n\`\`\`json\n{ "date": "YYYY-MM-DD", "rationale": "why these",\n  "plans": [ { "name": "...", "desc": "...", "intensity": 4,\n    "steps": [ { "sets": 4, "load": "heavy", "desc": "...", "options": [ { "type": "movement", "familyId": "squat" } ] } ] } ] }\n\`\`\`\n\n- **Reference only REAL ids** from \`app-export.json\` → \`vocab\` (\`movementFamilies[].id\` for \`familyId\`, \`cardioVariations[].uuid\` for \`{type:"variation",uuid}\`). The importer drops unknown options and rejects empty plans.\n- Avoid anything contraindicated by the selected injuries.\n- \`options.availableMinutes\` is a **range** \`{ min, max }\`. Keep every plan's estimated time within it, and offer a few options spanning the range — but **always include at least one plan that uses most of the available maximum** (close to \`max\`). Don't return only short plans when lots of time is available (e.g. for a 180-min max, don't propose just 75 and 45-min plans), even if recovery is low — bias the longer option toward volume/accessory work, not heavier load.\n`;
 }
 function buildCoworkReadme() {
   return `# GymTracker315 — AI Cowork hub\n\nThis folder is a two-way bridge between the GymTracker315 web app (desktop) and an **AI cowork agent**. It is model-agnostic — any agent that can read and write this folder (e.g. Claude or GPT) can do the work.\n\n- \`app-export.json\` — the app's current state + context (read this first). Versioned envelope, protocol \`${COWORK_PROTOCOL}\` v${COWORK_PROTOCOL_VERSION}.\n- \`garmin-reconciliation/\`, \`strava-reconciliation/\`, \`plan-of-the-day/\` — one task each. See each folder's \`INSTRUCTIONS.md\` + \`context.json\`.\n- Drop your results as JSON in each channel's \`inbox/\`. The app imports them, moves them to \`processed/\`, and cloud-syncs so the phone is up to date.\n\nThe app re-writes these files after each workout and on a schedule. Don't edit \`app-export.json\`/\`context.json\` by hand.\n`;
@@ -6457,7 +6538,14 @@ function renderPodOptionsForm() {
   return `<div class="pod-options">
     <div class="drawer-setting-label" style="margin-top:8px;">🗓️ Plan of the Day options</div>
     <div class="drawer-setting-sub">Shapes the daily plans the cowork agent writes (saved to options.json).</div>
-    <label class="pod-field">Available time: <b id="pod-min-val">${o.availableMinutes || 60}</b> min<input type="range" id="pod-minutes" min="20" max="180" step="5" value="${o.availableMinutes || 60}"></label>
+    ${(() => { const am = o.availableMinutes || { min: 30, max: 60 }; return `<div class="pod-field" style="flex-direction:column;align-items:stretch;gap:2px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;"><span>Available time</span><b id="pod-time-val" style="color:var(--accent);">${am.min}–${am.max} min</b></div>
+      <div class="len-slider" id="pod-time-slider">
+        <div class="len-track"></div><div class="len-track-fill" id="pod-time-fill"></div>
+        <input type="range" id="pod-min" min="20" max="180" step="5" value="${am.min}" aria-label="Minimum available time">
+        <input type="range" id="pod-max" min="20" max="180" step="5" value="${am.max}" aria-label="Maximum available time">
+      </div>
+    </div>`; })()}
     <div class="pod-field"><span>Target</span><div class="drawer-pill-group">${[['recovered', 'Most recovered'], ['groups', 'Specific groups'], ['rehab', 'Recovery & rehab']].map(([v, l]) => `<button type="button" class="drawer-pill pod-mode ${(o.targetMode || 'recovered') === v ? 'active' : ''}" data-pod-mode="${v}">${l}</button>`).join('')}</div></div>
     <div class="pod-field" id="pod-groups-wrap" style="${(o.targetMode === 'groups') ? '' : 'display:none;'}"><div class="pod-chk-grid">${groups}</div></div>
     <label class="pod-field">Fitness focus <select id="pod-focus" class="vw-select">${FOCUS.map(([v, l]) => `<option value="${v}" ${(o.fitnessFocus || 'balance') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
@@ -9170,7 +9258,19 @@ function renderSettingsDrawer() {
   // feat 321 — POD options controls persist IMMEDIATELY to state (the generic drawer-pill handler below
   // re-renders the drawer on every pill click, which would otherwise discard unsaved form edits / reset pills).
   body.querySelectorAll('[data-pod-mode]').forEach(b => b.addEventListener('click', () => { state.podOptions.targetMode = b.dataset.podMode; saveState(); renderSettingsDrawer(); }));
-  { const pmin = body.querySelector('#pod-minutes'); if (pmin) { pmin.addEventListener('input', () => { const v = body.querySelector('#pod-min-val'); if (v) v.textContent = pmin.value; }); pmin.addEventListener('change', () => { state.podOptions.availableMinutes = Math.max(20, Math.min(180, +pmin.value || 60)); saveState(); }); } }
+  // feat 386 — dual-thumb available-time range; live-update BOTH displayed values on either thumb, commit on release
+  { const lo = body.querySelector('#pod-min'), hi = body.querySelector('#pod-max');
+    if (lo && hi) {
+      const fill = body.querySelector('#pod-time-fill'), val = body.querySelector('#pod-time-val');
+      const paint = () => { let a = +lo.value, b = +hi.value; if (a > b) { const t = a; a = b; b = t; } const span = 180 - 20;
+        if (fill) { fill.style.left = (a - 20) / span * 100 + '%'; fill.style.width = (b - a) / span * 100 + '%'; }
+        if (val) val.textContent = `${a}–${b} min`; };
+      const onInput = which => { if (+lo.value > +hi.value) { if (which === 'min') hi.value = lo.value; else lo.value = hi.value; } paint(); };
+      const commit = () => { state.podOptions.availableMinutes = { min: Math.min(+lo.value, +hi.value), max: Math.max(+lo.value, +hi.value) }; saveState(); };
+      lo.addEventListener('input', () => onInput('min')); hi.addEventListener('input', () => onInput('max'));
+      lo.addEventListener('change', commit); hi.addEventListener('change', commit);
+      paint();
+    } }
   { const pf = body.querySelector('#pod-focus'); if (pf) pf.addEventListener('change', () => { state.podOptions.fitnessFocus = pf.value || 'balance'; saveState(); }); }
   { const pn = body.querySelector('#pod-notes'); if (pn) pn.addEventListener('change', () => { state.podOptions.notes = pn.value || ''; saveState(); }); }
   const _podRoot = c => (c.closest('.pod-options') || document); // feat 321 — the form is relocated out of `body`; query from its own root
@@ -14742,6 +14842,14 @@ function e1rmTrend(series) {
   const latest = recent[recent.length - 1], firstShown = recent[0];
   const pct = firstShown > 0 ? Math.round((latest - firstShown) / firstShown * 100) : 0;
   return { dir: pct > 1 ? 'up' : pct < -1 ? 'down' : 'flat', pct, latest, best: Math.max.apply(null, s), recent };
+}
+// feat 385 — direction of the LAST training session's e1RM vs the one before it (did this variation go up or down last
+// time?). null if there aren't 2 training days, or it was flat. Operates on a chronological best-per-day series.
+function varLastTrendDir(series) {
+  const s = (series || []).filter(v => typeof v === 'number' && v > 0);
+  if (s.length < 2) return null;
+  const last = s[s.length - 1], prev = s[s.length - 2];
+  return last > prev ? 'up' : (last < prev ? 'down' : null);
 }
 function renderTrendPeek(varUuid, subUuid) {
   if (!varUuid) return '';
@@ -20353,6 +20461,8 @@ let modalState = {
   pickerSub: 'all',
   pickerEquip: 'all',
   pickerExplored: 'all', // feat 378 — 'all' | 'explored' (trained before) | 'unexplored' (never trained)
+  pickerVolStatus: 'all', // feat 383 — 'all' | 'lagging' | 'neutral' | 'leading' (the primary muscle's recent-volume status)
+  pickerTrend: 'all', // feat 385 — 'all' | 'up' | 'down' (which way the variation's e1RM moved last session)
   tipsExpanded: false, // session-level — inherits from state.tipsExpanded on modal open
   tipsMode: 'concise', // session-level — inherits from state.tipsMode on modal open
   exNoteEditing: false, // feat 54 — per-exercise note editor open in the header
@@ -20697,6 +20807,12 @@ function filterVariations() {
   const exploredMode = modalState.pickerExplored || 'all';
   const touch = exploredMode !== 'all' ? buildTouchMap() : null;
   const failsExplored = (uuid) => exploredMode === 'explored' ? !touch.has(uuid) : (exploredMode === 'unexplored' ? touch.has(uuid) : false);
+  // feat 383 — lagging / neutral / leading filter by the variation's primary-muscle recent-volume status
+  const volMode = modalState.pickerVolStatus || 'all';
+  const volStatus = volMode !== 'all' ? muscleVolStatusMap('muscle') : null;
+  // feat 385 — filter by which way the variation trended last session (e1RM up / down)
+  const trendMode = modalState.pickerTrend || 'all';
+  const trendMap = trendMode !== 'all' ? buildVarTrendMap() : null;
   const results = [];
   FAMILIES.forEach(f => {
     const matchesMega = modalState.pickerMega === 'all' || f.mega === modalState.pickerMega;
@@ -20708,6 +20824,8 @@ function filterVariations() {
       if (!varVisibleInPicker(f, v)) return false; // feat 23 + 36 (hide flags + active gym) + 167 (suppressed duplicate)
       if (favOnly && !isFavVar(v.uuid)) return false; // feat 178 — favorites-only filter
       if (touch && failsExplored(v.uuid)) return false; // feat 378 — explored / unexplored
+      if (volStatus && varVolStatus(v.uuid, volStatus) !== volMode) return false; // feat 383 — lagging/neutral/leading
+      if (trendMap && varLastTrendDir(trendMap.get(v.uuid)) !== trendMode) return false; // feat 385 — trended up/down last time
       if (stepSet && !stepSet.has(v.uuid)) return false; // restrict to exactly the step's exercises
       if (!q) return true;
       return v.title.toLowerCase().includes(q) || f.title.toLowerCase().includes(q);
@@ -20721,6 +20839,8 @@ function filterVariations() {
       if (!varVisibleInPicker(i.family, v)) return; // honor hide flags via its PRIMARY family
       if (favOnly && !isFavVar(uuid)) return; // feat 178
       if (touch && failsExplored(uuid)) return; // feat 378 — explored / unexplored
+      if (volStatus && varVolStatus(uuid, volStatus) !== volMode) return; // feat 383
+      if (trendMap && varLastTrendDir(trendMap.get(uuid)) !== trendMode) return; // feat 385
       if (stepSet && !stepSet.has(uuid)) return;
       if (q && !(v.title.toLowerCase().includes(q) || f.title.toLowerCase().includes(q) || (primaryTitle || '').toLowerCase().includes(q))) return;
       secondaryVars.push({ v, primaryId, primaryTitle });
@@ -20768,6 +20888,18 @@ function renderPicker() {
         <div class="pill fav-pill ${modalState.pickerFavOnly ? 'active' : ''}" id="trk-picker-fav" title="Show favorites only">★</div>
         <div class="pill ${modalState.pickerExplored === 'explored' ? 'active' : ''}" data-explored="explored" title="Only exercises you've trained before">✓ Explored</div>
         <div class="pill ${modalState.pickerExplored === 'unexplored' ? 'active' : ''}" data-explored="unexplored" title="Only exercises you've never trained">✨ New</div>
+        <div class="pill pill-dice" id="trk-picker-random" title="Pick a random exercise from the filtered list" aria-label="Random pick">🎲</div>
+      </div>
+      <div class="pill-row">
+        <span class="pill-row-lbl" title="Filter by how much you've trained each muscle lately vs its weekly target (MEV–MAV)">Muscle volume:</span>
+        <div class="pill ${modalState.pickerVolStatus === 'lagging' ? 'active' : ''}" data-volstatus="lagging" title="Exercises for muscles BELOW your weekly target lately — bring them up">📉 Lagging</div>
+        <div class="pill ${modalState.pickerVolStatus === 'neutral' ? 'active' : ''}" data-volstatus="neutral" title="Muscles on target (in the MEV–MAV window)">⚖ Neutral</div>
+        <div class="pill ${modalState.pickerVolStatus === 'leading' ? 'active' : ''}" data-volstatus="leading" title="Muscles ABOVE target lately — already well covered">📈 Leading</div>
+      </div>
+      <div class="pill-row">
+        <span class="pill-row-lbl" title="Which way each exercise's e1RM moved at your last session for it">Last session:</span>
+        <div class="pill ${modalState.pickerTrend === 'up' ? 'active' : ''}" data-trend="up" title="Variations whose e1RM went UP last time you did them">▲ Trended up</div>
+        <div class="pill ${modalState.pickerTrend === 'down' ? 'active' : ''}" data-trend="down" title="Variations whose e1RM went DOWN last time you did them">▼ Trended down</div>
       </div>
       ${subFilters.length > 1 ? `<div class="pill-row">
         ${subFilters.map(s => `<div class="pill ${modalState.pickerSub === s.id ? 'active' : ''}" data-sub="${s.id}">${s.label}</div>`).join('')}
@@ -20815,6 +20947,31 @@ function spotterMatch(v, fam) {
 function needsSpotter(uuid) { const i = VAR_INDEX.get(uuid); return !!(i && spotterMatch(i.variation, i.family)); }
 function spotterBadge(v, fam) { return spotterMatch(v, fam) ? `<span class="spotter-badge" title="The bar can trap you at failure — use a spotter (or safety arms) on heavy sets">🦺 spot</span>` : ''; }
 
+// feat 381 — for each movement (family), which VARIATION did you do last time, and the time before that? One pass over
+// history, keyed by family → { last, prev } variation uuids (newest training day first; within a day, the last-logged).
+function buildFamilyLastVarMap() {
+  const fam = new Map(); // famId -> Map<dayStr, { ms, uuid }>
+  (state.sessions || []).forEach(s => {
+    const day = new Date(s.date).toDateString(), ms = new Date(s.date).getTime();
+    (s.exercises || []).forEach(ex => {
+      if (!ex.varUuid || !((ex.sets && ex.sets.length) || ex.cardio)) return;
+      const info = VAR_INDEX.get(ex.varUuid); if (!info) return;
+      const fid = info.family.id;
+      let dm = fam.get(fid); if (!dm) { dm = new Map(); fam.set(fid, dm); }
+      const cur = dm.get(day);
+      if (!cur || ms >= cur.ms) dm.set(day, { ms, uuid: ex.varUuid }); // the variation of this movement used that day
+    });
+  });
+  const out = new Map();
+  fam.forEach((dm, fid) => { const days = [...dm.values()].sort((a, b) => b.ms - a.ms); out.set(fid, { last: days[0] ? days[0].uuid : null, prev: days[1] ? days[1].uuid : null }); });
+  return out;
+}
+function lastDoneBadge(uuid, lv) {
+  if (!uuid || !lv) return '';
+  if (uuid === lv.last) return `<span class="lastdone-badge last" title="The variation you did this movement with last time">↺ Last</span>`;
+  if (uuid === lv.prev) return `<span class="lastdone-badge prev" title="The variation you used the time before last">↺ Prev</span>`;
+  return '';
+}
 function touchBadgeHtml(t) {
   if (!t || !t.days || !t.days.size) return `<span class="touch-badge new" title="Never trained — new to you">new</span>`;
   const n = t.days.size;
@@ -20859,6 +21016,7 @@ function renderPickerResults() {
   const results = filterVariations();
   const touch = buildTouchMap(); // feat 121
   const trend = buildVarTrendMap(); // feat 332 — discrete e1RM trend per variation
+  const lastVar = buildFamilyLastVarMap(); // feat 381 — the variation used last / the time before, per movement
   const shown = results.reduce((s, r) => s + r.variations.length + (r.secondaryVars ? r.secondaryVars.length : 0), 0);
   // feat 179 — with a plan step active the pills STACK with the step set, so report how many of the step's
   // compatible variations are currently visible: "X of Y step-compatible variations shown".
@@ -20883,7 +21041,7 @@ function renderPickerResults() {
                 <div class="picker-var-main">
                   <div class="picker-var-name">${escapeHtml(v.title)}${v._custom ? '<span class="manual-tag">manual</span>' : ''}${v.subvariation ? `<span class="sub-tag">${escapeHtml(v.subvariation.label)}</span>` : ''}</div>
                 </div>
-                <div class="picker-var-right">${v.uuid ? favStarHtml(isFavVar(v.uuid), `data-fav-var="${v.uuid}"`) : ''}${spotterBadge(v, r.family)}${v.uuid ? pickerTrendBadge(trend.get(v.uuid)) : ''}${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
+                <div class="picker-var-right">${v.uuid ? lastDoneBadge(v.uuid, lastVar.get(r.family.id)) : ''}${v.uuid ? favStarHtml(isFavVar(v.uuid), `data-fav-var="${v.uuid}"`) : ''}${spotterBadge(v, r.family)}${v.uuid ? pickerTrendBadge(trend.get(v.uuid)) : ''}${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
               </div>
             `).join('')}
             ${(r.secondaryVars || []).map(s => `
@@ -20892,7 +21050,7 @@ function renderPickerResults() {
                   <div class="picker-var-name">${escapeHtml(s.v.title)}</div>
                   <div class="picker-var-secfrom">↳ primarily a <span class="sec-jump" data-sec-jump="${escapeAttr(s.primaryTitle)}">${escapeHtml(s.primaryTitle)}</span> exercise</div>
                 </div>
-                <div class="picker-var-right">${favStarHtml(isFavVar(s.v.uuid), `data-fav-var="${s.v.uuid}"`)}${spotterBadge(s.v, VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family : r.family)}${pickerTrendBadge(trend.get(s.v.uuid))}${touchBadgeHtml(touch.get(s.v.uuid))}<div class="picker-var-arrow">›</div></div>
+                <div class="picker-var-right">${lastDoneBadge(s.v.uuid, lastVar.get(VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family.id : r.family.id))}${favStarHtml(isFavVar(s.v.uuid), `data-fav-var="${s.v.uuid}"`)}${spotterBadge(s.v, VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family : r.family)}${pickerTrendBadge(trend.get(s.v.uuid))}${touchBadgeHtml(touch.get(s.v.uuid))}<div class="picker-var-arrow">›</div></div>
               </div>
             `).join('')}
             <div class="picker-add-var" data-add-var-fam="${r.family.id}">+ Add custom variation</div>
@@ -20952,6 +21110,24 @@ function bindPicker() {
     modalState.pickerExplored = modalState.pickerExplored === v ? 'all' : v;
     renderModal();
   }));
+  document.querySelectorAll('.pill[data-volstatus]').forEach(p => p.addEventListener('click', () => { // feat 383 — lagging/neutral/leading
+    const v = p.dataset.volstatus;
+    modalState.pickerVolStatus = modalState.pickerVolStatus === v ? 'all' : v;
+    renderModal();
+  }));
+  document.querySelectorAll('.pill[data-trend]').forEach(p => p.addEventListener('click', () => { // feat 385 — trended up/down last time
+    const v = p.dataset.trend;
+    modalState.pickerTrend = modalState.pickerTrend === v ? 'all' : v;
+    renderModal();
+  }));
+  document.getElementById('trk-picker-random')?.addEventListener('click', () => { // feat 384 — random pick from the filtered list (for the indecisive)
+    const rows = [...document.querySelectorAll('#trk-picker-results-wrap .picker-var')];
+    if (!rows.length) { toast('No exercises match — loosen the filters'); return; }
+    const pick = rows[Math.floor(Math.random() * rows.length)];
+    const info = VAR_INDEX.get(pick.dataset.varuuid);
+    if (info) toast('🎲 ' + info.variation.title);
+    pick.click(); // reuse the normal selection path (sets pending, opens the sets form)
+  });
   // Obscure superset (feat 43): enter / cancel / pick the two exercises
   document.getElementById('trk-ss2-start')?.addEventListener('click', () => {
     modalState.supersetMode = true; modalState.supersetPick = 'a';
@@ -22791,7 +22967,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 327 · 2026-06-29 16:23';
+const APP_BUILD = 'build 328 · 2026-06-29 21:18';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

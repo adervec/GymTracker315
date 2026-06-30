@@ -1979,6 +1979,39 @@ They share variation **UUIDs**.
   projects them into `#trk-main` (bindings ride along, like the other settings pages). Added to the Settings menu /
   nav pills (`PILL_ABBR` "Coach"). `test/coachpage.spec.mjs` (page exists with a unique emoji; all coach controls
   project to the page and selecting a persona works; Preferences no longer carries them but keeps its general controls).
+- **"Last / Prev" variation markers in the picker (feat 381):** each movement (family) in the exercise picker now marks
+  which **variation** you used **last time** (`↺ Last`) and the **time before that** (`↺ Prev`), so you can see your
+  rotation at a glance. `buildFamilyLastVarMap()` does one pass over history → `famId → {last, prev}` variation uuids
+  (newest training day first; within a day, the last-logged variation); `lastDoneBadge(uuid, lv)` renders the pill in the
+  picker row's badge strip (primary rows keyed by their family, secondary rows by their primary family). If the same
+  variation was used both sessions only `↺ Last` shows; never-trained rows get nothing. `test/lastvar.spec.mjs`
+  (map returns last/prev across 3 sessions; the picker renders the two badges; same-variation collapses to Last + an
+  untrained row has no badge).
+- **Requested missing machines (feat 382):** five via `EXTRA_VARIATIONS` (loggable + reference): **Lat Pulldown (Life
+  Fitness Dual Pulley)** (→ lat-pulldown), **Padded Pec Deck** (→ chest-fly), **Behind-the-Back Cable Shrug** (→ shrugs),
+  and the **Roc-It Biceps Curl** + **Roc-It Reverse Curl** (the one rocking machine does both → bicep-curl / reverse-curl).
+  `test/machinegaps.spec.mjs`.
+- **Picker: lagging / neutral / leading muscle-volume filter (feat 383):** a row of pills filters the exercise picker by
+  the recent-volume status of the muscle a variation **primarily** trains. `muscleVolStatusMap('muscle')` averages the last
+  3 weeks of `getWeeklyMuscleVolume` per muscle and classifies it vs its (weighted) target — **lagging** (< MEV),
+  **neutral** (MEV–MAV), **leading** (> MAV); `varVolStatus(uuid, map)` rolls a variation's contribution to muscle level
+  and returns its dominant muscle's status. Stacks with the other picker filters; the map is built only when a status
+  pill is active. `test/pickerextras.spec.mjs` (status thresholds; the picker filters by status + the pill toggles).
+- **Picker: 🎲 random pick (feat 384):** a dice pill picks a random exercise from the **currently-filtered** list and
+  starts it (reuses the normal `.picker-var` click path) — for the indecisive; a no-op toast when nothing matches.
+  Covered by `pickerextras.spec`.
+- **Picker: trended-up / trended-down filter (feat 385):** a simpler variation-level dimension than tracking "neglect" —
+  a **Last session:** pill row filters to variations whose **e1RM moved up** (`▲ Trended up`) or **down** (`▼ Trended
+  down`) at the most recent session you logged them. `varLastTrendDir(series)` compares the last two training-day bests
+  from `buildVarTrendMap`; the filter stacks with muscle-volume + the rest and only builds the map when active.
+  `pickerextras.spec` extended (a bench that went up and a squat that went down sort into the right buckets).
+- **Cowork POD time becomes a min/max range (feat 386):** the Plan-of-the-Day "Available time" control (cowork hub) is now
+  a **2-thumb min/max slider** (`state.podOptions.availableMinutes = {min,max}`, migrated from the old scalar in
+  `normalizeState`). Either thumb live-updates the displayed `min–max min` value (paint on `input`, persist on release);
+  reuses the feat-374 `.len-slider` styles. The POD channel `INSTRUCTIONS.md` now tells the agent the time is a range and
+  to **always include at least one plan that uses most of the maximum** (don't return only short plans — e.g. 75 + 45 for
+  a 180-min max — even when recovery is low; bias the long option toward volume/accessory work). `coworkpodui.spec`
+  updated (dual-thumb live display + the {min,max} persists) and `coworkexport.spec` (range round-trips through the file).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

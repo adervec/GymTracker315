@@ -67,7 +67,7 @@ test('buildChannelContext returns the right shape per channel', async ({ page })
 
 test('POD options file round-trips, README mentions the channels, injury list is faceted', async ({ page }) => {
   const r = await page.evaluate(() => {
-    state.podOptions = { notes: 'go heavy', injuries: ['joint:knee', 'pattern:overhead-press'], availableMinutes: 90, targetMode: 'recovered', targetGroups: [], fitnessFocus: 'balance' };
+    state.podOptions = { notes: 'go heavy', injuries: ['joint:knee', 'pattern:overhead-press'], availableMinutes: { min: 45, max: 90 }, targetMode: 'recovered', targetGroups: [], fitnessFocus: 'balance' };
     const file = buildPodOptionsFile();
     state.podOptions = { notes: '', injuries: [], availableMinutes: 60, targetMode: 'recovered', targetGroups: [], fitnessFocus: 'balance' };
     const applied = applyPodOptionsFile(file.payload);
@@ -80,7 +80,7 @@ test('POD options file round-trips, README mentions the channels, injury list is
   expect(r.kind).toBe('pod-options');
   expect(r.notes).toBe('go heavy');
   expect(r.injuries).toEqual(['joint:knee', 'pattern:overhead-press']);
-  expect(r.minutes).toBe(90);
+  expect(r.minutes).toEqual({ min: 45, max: 90 }); // feat 386 — time is a {min,max} range
   expect(r.readmeOk).toBe(true);
   expect(r.injCount).toBeGreaterThan(20);
   expect(r.facets).toEqual(['joint', 'pattern', 'region']);
