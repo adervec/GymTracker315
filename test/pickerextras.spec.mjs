@@ -48,23 +48,24 @@ test('feat 383 — the picker pills filter the list by status (and the bench lan
     modalState.pickerMega = 'all'; modalState.pickerSub = 'all'; modalState.pickerEquip = 'all'; modalState.pickerSearch = '';
     modalState.pickerFavOnly = false; modalState.pickerExplored = 'all'; modalState.planStepFilter = null;
     renderModal();
-    const pills = document.querySelectorAll('.pill[data-volstatus]').length;
+    const single = document.querySelectorAll('[id="cyc-volstatus"]').length; // one toggle now, not three pills
+    const oldPills = document.querySelectorAll('.pill[data-volstatus]').length;
     const has = (st) => { modalState.pickerVolStatus = st; const w = document.createElement('div'); w.innerHTML = renderPickerResults(); return { count: w.querySelectorAll('.picker-var').length, bench: !!w.querySelector(`.picker-var[data-varuuid="${bench}"]`) }; };
     const lagging = has('lagging'), leading = has('leading');
-    // toggle via the pill
+    // cycle via the single toggle: all → lagging → neutral → leading
     modalState.pickerVolStatus = 'all'; renderModal();
-    document.querySelector('.pill[data-volstatus="leading"]').click();
-    const afterClick = modalState.pickerVolStatus;
-    document.querySelector('.pill[data-volstatus="leading"]').click(); // click active → clears
-    const afterToggleOff = modalState.pickerVolStatus;
-    return { pills, lagging, leading, afterClick, afterToggleOff };
+    const tap = () => { const b = document.getElementById('cyc-volstatus'); b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); };
+    tap(); const afterTap1 = modalState.pickerVolStatus;
+    tap(); tap(); const afterCycle = modalState.pickerVolStatus;
+    return { single, oldPills, lagging, leading, afterTap1, afterCycle };
   }, bench);
-  expect(r.pills).toBe(3);
+  expect(r.single).toBe(1);
+  expect(r.oldPills).toBe(0);
   expect(r.leading.bench).toBe(true);
   expect(r.lagging.bench).toBe(false);
   expect(r.lagging.count).toBeGreaterThan(0);  // all the untrained movements read as lagging
-  expect(r.afterClick).toBe('leading');
-  expect(r.afterToggleOff).toBe('all');
+  expect(r.afterTap1).toBe('lagging');         // all → lagging
+  expect(r.afterCycle).toBe('leading');        // …→ neutral → leading
 });
 
 test('feat 385 — filter variations by last-session e1RM direction (trended up / down)', async ({ page }) => {

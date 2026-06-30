@@ -2069,6 +2069,28 @@ They share variation **UUIDs**.
   Barbell** (barbell-locked squat/press/pull/curl), **Roc-It Circuit** (the whole plate-loaded line), and **Smith
   Machine Solo**. `test/equipsubarea.spec.mjs` covers both 393 & 394 (equip step is strictly narrower and all-matching;
   DB/KB plans still satisfiable + constraint present; sub-area plans seed + satisfiable + no cross-zone leaks; no dups).
+- **Quick Pick reshuffle + usage (feat 395):** the ⚡ Quick Pick block (feat 226) gains a **🔀 Shuffle** button and a
+  per-suggestion **usage line** ("3× done · last 4 days ago" / "Not run yet"). `recommendPlans(minutes, limit, offset)`
+  now rotates a `limit`-wide window through the score-ranked list (wrapping) so each shuffle reveals the next-best-fitting
+  plans instead of re-showing the same three; the offset (`_qpShuffle`) resets when the time budget changes or the
+  overlay reopens. The usage line reuses `findPlanExecutions` (count + most-recent completed session) and `fmtDate`.
+  `test/quickpickshuffle.spec.mjs` (rotation yields distinct triples; the block has the shuffle button + usage line;
+  a seeded pair of completed sessions surfaces as "2× done" with the newer run as last).
+- **Mega filter as one cycling toggle (feat 396):** the picker's six All/Push/Pull/Lower/Core/Full pills collapse to a
+  **single toggle button** — a tap cycles to the next category (wraps All→Push→…→Full→All) and a **long-press reverts to
+  All**. Reuses `attachTrackerPress` (short tap = cycle, hold = reset, with the existing fill-ring feedback) and
+  `MEGA_ORDER`; the button label shows the current category (with a ▸ when filtered). Only the Tracker picker's
+  `.pill[data-mega]` changes — the Reference/cardio `.mega-pill` rows are a separate control, untouched.
+  `test/megatoggle.spec.mjs` (one pill not six; tap advances the category + label; a 2s hold resets to All).
+- **Every picker filter is a cycling toggle (feat 397):** the same philosophy applied across the whole exercise picker —
+  **sub-group, equipment, explored/new, muscle-volume status, and last-session trend** each collapse from a pill group
+  to a single toggle (tap = next state, hold = reset to "off"). One `PICKER_CYCLES` config drives both render
+  (`pickerCyclePillHtml`) and wiring (`bindPickerCycles` → `attachTrackerPress`); dynamic dimensions (sub/equip) read
+  their states from `SUB_FILTERS`/`EQUIPMENT`, and a dimension with only the "all" option (e.g. Sub when Mega = All)
+  renders nothing. Five pill rows collapse to two. `test/pickercycles.spec.mjs` (no old multi-pill rows remain; equip
+  cycles through `EQUIPMENT`; the sub toggle appears only once a category is chosen) + the feat 378/383 specs rewritten
+  to the toggle. NB: the Reference tab's many-option `.mega-pill` filters are intentionally left as pill rows (a 10-way
+  cycle is slower to reach a specific category than a direct tap) — convert later if desired.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

@@ -39,23 +39,25 @@ test('feat 378 — explored / unexplored filters the picker by training history'
   expect(r.unexploredHasOther).toBe(true);      // untrained ones show under "New"
 });
 
-test('feat 378 — the picker renders Explored / New pills that toggle (click active = clear)', async ({ page }) => {
+test('feat 378/397 — the explored filter is one cycling toggle (tap: all→Explored→New→all)', async ({ page }) => {
   const r = await page.evaluate(() => {
     pending.varUuid = null; modalState.showPicker = true; modalState.open = true; modalState.supersetMode = false;
+    modalState.pickerMega = 'all'; modalState.pickerExplored = 'all';
     renderModal();
-    const hasEx = !!document.querySelector('.pill[data-explored="explored"]');
-    const hasNew = !!document.querySelector('.pill[data-explored="unexplored"]');
-    document.querySelector('.pill[data-explored="explored"]').click(); const m1 = modalState.pickerExplored;
-    document.querySelector('.pill[data-explored="explored"]').click(); const m2 = modalState.pickerExplored; // toggle off
-    document.querySelector('.pill[data-explored="unexplored"]').click(); const m3 = modalState.pickerExplored;
-    const activeNew = !!document.querySelector('.pill[data-explored="unexplored"].active');
+    const oldPills = document.querySelectorAll('.pill[data-explored]').length; // the two separate pills are gone
+    const toggle = document.getElementById('cyc-explored');
+    const tap = () => { const b = document.getElementById('cyc-explored'); b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); };
+    const has = !!toggle;
+    tap(); const m1 = modalState.pickerExplored, l1 = document.getElementById('cyc-explored').textContent.trim();
+    tap(); const m2 = modalState.pickerExplored;
+    tap(); const m3 = modalState.pickerExplored; // wraps back to all
     modalState.pickerExplored = 'all';
-    return { hasEx, hasNew, m1, m2, m3, activeNew };
+    return { oldPills, has, m1, l1, m2, m3 };
   });
-  expect(r.hasEx).toBe(true);
-  expect(r.hasNew).toBe(true);
+  expect(r.oldPills).toBe(0);
+  expect(r.has).toBe(true);
   expect(r.m1).toBe('explored');
-  expect(r.m2).toBe('all');         // clicking the active pill clears it
-  expect(r.m3).toBe('unexplored');
-  expect(r.activeNew).toBe(true);   // …and the chosen pill renders active
+  expect(r.l1).toContain('Explored');   // the active label shows the current state
+  expect(r.m2).toBe('unexplored');
+  expect(r.m3).toBe('all');             // a full cycle returns to "off"
 });

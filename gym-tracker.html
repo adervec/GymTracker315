@@ -874,7 +874,10 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .quick-pick { background: linear-gradient(135deg, var(--accent-bg), var(--bg2)); border: 1px solid var(--accent-border); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
   .qp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
   .qp-title { font-size: 14px; font-weight: 800; color: var(--text); }
-  .qp-q { font-size: 11px; color: var(--text3); }
+  .qp-q { font-size: 11px; color: var(--text3); margin-bottom: 7px; }
+  .qp-shuffle { font-size: 11px; font-weight: 700; background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); padding: 5px 11px; border-radius: 8px; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+  .qp-shuffle:active { background: var(--accent-bg); }
+  .qp-rec-usage { font-size: 10.5px; color: var(--text3); margin-top: 2px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .qp-times { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 11px; }
   .qp-time { flex: 1; min-width: 44px; padding: 7px 4px; border-radius: 9px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
   .qp-time-u { font-size: 10px; font-weight: 600; opacity: 0.7; }
@@ -2582,6 +2585,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .pill-row { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 6px; -webkit-overflow-scrolling: touch; }
   .pill { flex-shrink: 0; padding: 6px 10px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 6px; color: #888; font-size: 10.5px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
   .pill.active { background: #2a1f3a; color: #fff; border-color: #5a3a7d; }
+  .mega-toggle { min-width: 52px; text-align: center; } /* feat 396 — single cycling category toggle; min-width keeps it from jumping as the label changes */
   .pill.equip.active { background: #2d3a1f; color: #fff; border-color: #5d7a3a; }
 
   /* Picker list */
@@ -13630,7 +13634,7 @@ function planFatiguedGroup(plan, rec) {
 }
 // Rank plans for the available time + recent activity + muscle-group recovery. Returns
 // [{ plan, score, time, fresh, recov, reason }] best-first.
-function recommendPlans(minutes, limit) {
+function recommendPlans(minutes, limit, offset) {
   minutes = (minutes >= 5 && minutes <= 240) ? minutes : planPickMinutes();
   const recent = recentMegaLoad(4);
   const rec = recoveryReadiness(); // feat 266 — compute once, reuse across plans
@@ -13641,7 +13645,12 @@ function recommendPlans(minutes, limit) {
     return { plan, time, fresh, recov, score: time * 0.65 + fresh * 0.2 + recov * 0.15 + favBump };
   });
   scored.sort((a, b) => b.score - a.score || estimatePlanMinutes(a.plan) - estimatePlanMinutes(b.plan));
-  return scored.slice(0, limit || 3).map(x => ({ ...x, reason: planRecReason(x.plan, minutes, recent, rec) }));
+  // feat 395 — reshuffle: rotate a `limit`-wide window through the ranked list (wraps), so each tap shows the
+  // next-best-fitting plans rather than re-running the same top three.
+  const lim = limit || 3, n = scored.length;
+  let picks = scored.slice(0, lim);
+  if (offset && n > lim) { const start = (offset * lim) % n; picks = []; for (let i = 0; i < lim; i++) picks.push(scored[(start + i) % n]); }
+  return picks.map(x => ({ ...x, reason: planRecReason(x.plan, minutes, recent, rec) }));
 }
 const PLAN_CAT_ORDER = ['Plans of the Day','Full Body','Upper','Push','Pull','Legs','Core','Mixed','Mobility','Recovery','Other']; // feat 319 — daily plans pinned first
 /* ============================================================
@@ -14373,6 +14382,7 @@ function startExerciseFromPlanOption(o, load) {
 
 /* ---- Plans overlay (list + builder) ---- */
 let _plansEditId = null, _plansAddOptStep = null, _plansOptSearch = '';
+let _qpShuffle = 0; // feat 395 — Quick Pick reshuffle offset (rotates the recommendation window)
 let _plansOptMode = 'mv', _plansOptRegex = '', _plansOptEquip = 'all'; // feat 387/393 — option-picker sub-mode + equipment constraint
 let _plansViewMode = false; // feat 276 — open the editor read-only (same layout, no inputs/commit) to view a plan safely
 let _plansExecId = null, _plansExecSessionDate = null; // feat 145 — Plan Execution View mode (which plan + which session)
@@ -14392,7 +14402,7 @@ function renderPlanCreatorPage(main) {
   _plansDeepLink = false;
   renderPlansOverlay();
 }
-function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = false; _plansSearch = ''; _plansCatFilter = new Set(); _plansLenRange = { min: PLAN_LEN_MIN, max: PLAN_LEN_MAX }; _plansFavOnly = false; _plansPage = 0; _plansDeepLink = false; navTo('plan-creator'); }
+function openPlansOverlay() { _plansEditId = null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = false; _plansSearch = ''; _plansCatFilter = new Set(); _plansLenRange = { min: PLAN_LEN_MIN, max: PLAN_LEN_MAX }; _plansFavOnly = false; _plansPage = 0; _plansDeepLink = false; _qpShuffle = 0; navTo('plan-creator'); }
 function openPlanPicker() { openPlansOverlay(); }
 function openPlanFull(id) { // feat 138/184 — open the plan editor as a page, focused on one plan's steps
   _plansEditId = id || null; _plansAddOptStep = null; _plansOptSearch = ''; _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; _plansViewMode = false; _plansDeepLink = true; navTo('plan-creator');
@@ -14467,15 +14477,20 @@ const _planRowHtml = (p) => `<div class="plan-row">
 // for that budget and your recent training. Shown only on the unfiltered list (it's a starting point).
 function quickPickHtml() {
   const mins = planPickMinutes();
-  const recs = recommendPlans(mins, 3);
+  const recs = recommendPlans(mins, 3, _qpShuffle);
   if (!recs.length) return '';
   const times = PLAN_PICK_TIMES.map(m => `<button class="qp-time ${mins === m ? 'active' : ''}" data-pick-min="${m}" aria-pressed="${mins === m}">${m}<span class="qp-time-u">m</span></button>`).join('');
-  const recCards = recs.map(r => `<div class="qp-rec">
-      <div class="qp-rec-main"><div class="qp-rec-name">${escapeHtml(r.plan.name)}${isFavPlan(r.plan.id) ? ' <span class="qp-fav">★</span>' : ''}</div><div class="qp-rec-reason">${escapeHtml(r.reason)}</div></div>
+  const recCards = recs.map(r => {
+    const ex = findPlanExecutions(r.plan.id); // feat 395 — show how often / how recently you've run it
+    const usage = ex.count ? `${ex.count}× done · last ${escapeHtml(fmtDate(ex.recent.date))}` : 'Not run yet';
+    return `<div class="qp-rec">
+      <div class="qp-rec-main"><div class="qp-rec-name">${escapeHtml(r.plan.name)}${isFavPlan(r.plan.id) ? ' <span class="qp-fav">★</span>' : ''}</div><div class="qp-rec-reason">${escapeHtml(r.reason)}</div><div class="qp-rec-usage">${usage}</div></div>
       <button class="qp-use" data-plan-use="${escapeAttr(r.plan.id)}">Use</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   return `<div class="quick-pick" id="quick-pick">
-    <div class="qp-head"><span class="qp-title">⚡ Quick Pick</span><span class="qp-q">How long have you got?</span></div>
+    <div class="qp-head"><span class="qp-title">⚡ Quick Pick</span><button class="qp-shuffle" id="qp-shuffle" title="Show me other options">🔀 Shuffle</button></div>
+    <div class="qp-q">How long have you got?</div>
     <div class="qp-times" id="qp-times">${times}</div>
     <div class="qp-recs">${recCards}</div>
   </div>`;
@@ -14549,7 +14564,8 @@ function renderPlansList(body) {
 function bindPlansList(body) {
   const search = body.querySelector('#plans-search');
   if (search) search.addEventListener('input', () => { _plansSearch = search.value; _plansPage = 0; const pos = search.selectionStart; renderPlansOverlay(); const s2 = document.getElementById('plans-search'); if (s2) { s2.focus(); try { s2.setSelectionRange(pos, pos); } catch (_) {} } });
-  body.querySelectorAll('[data-pick-min]').forEach(b => b.addEventListener('click', () => { state.planPickMinutes = +b.dataset.pickMin; saveState(); renderPlansOverlay(); })); // feat 226 — quick-pick time budget
+  body.querySelectorAll('[data-pick-min]').forEach(b => b.addEventListener('click', () => { state.planPickMinutes = +b.dataset.pickMin; _qpShuffle = 0; saveState(); renderPlansOverlay(); })); // feat 226/395 — time budget (reset the shuffle window)
+  body.querySelector('#qp-shuffle')?.addEventListener('click', () => { _qpShuffle++; renderPlansOverlay(); }); // feat 395 — show the next batch of suggestions
   body.querySelectorAll('[data-plan-page]').forEach(b => b.addEventListener('click', () => { _plansPage += (b.dataset.planPage === 'next' ? 1 : -1); renderPlansOverlay(); })); // feat 240 — paginate (render re-clamps)
   body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { // feat 373 — multi-select
     const v = b.dataset.planCat;
@@ -21183,6 +21199,40 @@ function filterVariations() {
   return results;
 }
 
+// feat 397 — apply the feat 396 mega-toggle philosophy to EVERY picker filter: each is a single CYCLING toggle —
+// tap advances to the next state, long-press resets to the first ("off"/All) state. One config drives render + bind.
+function _pickerCycleStates(c) {
+  if (c.id === 'equip') return EQUIPMENT.map(e => [e.id, e.label]);
+  if (c.id === 'sub') return (SUB_FILTERS[modalState.pickerMega] || [{ id: 'all', label: 'All' }]).map(s => [s.id, s.label]);
+  return c.states;
+}
+const PICKER_CYCLES = [
+  { id: 'sub', field: 'pickerSub', off: '▦ Sub-group', title: 'Sub-group — tap to cycle · hold to reset' },
+  { id: 'equip', field: 'pickerEquip', off: '🏋 Equipment', title: 'Equipment — tap to cycle · hold to reset' },
+  { id: 'explored', field: 'pickerExplored', off: '✓✨ Trained?', title: 'Trained before? — tap to cycle · hold to reset',
+    states: [['all', '✓✨ Trained?'], ['explored', '✓ Explored'], ['unexplored', '✨ New']] },
+  { id: 'volstatus', field: 'pickerVolStatus', off: '📊 Volume', title: 'Recent muscle volume vs target — tap to cycle · hold to reset',
+    states: [['all', '📊 Volume'], ['lagging', '📉 Lagging'], ['neutral', '⚖ Neutral'], ['leading', '📈 Leading']] },
+  { id: 'trend', field: 'pickerTrend', off: '↕ Last time', title: 'Last-session e1RM direction — tap to cycle · hold to reset',
+    states: [['all', '↕ Last time'], ['up', '▲ Up last'], ['down', '▼ Down last']] },
+];
+function pickerCyclePillHtml(id) {
+  const c = PICKER_CYCLES.find(x => x.id === id); if (!c) return '';
+  const states = _pickerCycleStates(c);
+  if (states.length <= 1) return ''; // a dimension with only the "all" option (e.g. Sub when Mega = All) collapses away
+  const offId = states[0][0], cur = modalState[c.field], active = cur !== offId, st = states.find(s => s[0] === cur);
+  return `<div class="pill cyc-toggle ${active ? 'active' : ''}" id="cyc-${c.id}" title="${escapeAttr(c.title)}">${active && st ? st[1] : c.off}</div>`;
+}
+function bindPickerCycles() {
+  PICKER_CYCLES.forEach(c => {
+    const el = document.getElementById('cyc-' + c.id); if (!el) return;
+    const ids = _pickerCycleStates(c).map(s => s[0]), offId = ids[0];
+    attachTrackerPress(el,
+      () => { const i = ids.indexOf(modalState[c.field]); modalState[c.field] = ids[(i + 1) % ids.length]; renderModal(); },
+      () => { if (modalState[c.field] === offId) return; modalState[c.field] = offId; renderModal(); },
+      'Reset');
+  });
+}
 function renderPicker() {
   const subFilters = SUB_FILTERS[modalState.pickerMega] || [{id:'all',label:'All'}];
   // feat 107 — escape hatch: if you misclicked "Change exercise", get back to the current one.
@@ -21217,28 +21267,16 @@ function renderPicker() {
         <button class="picker-clear-btn ${modalState.pickerSearch ? 'show' : ''}" id="trk-picker-clear-search">✕</button>
       </div>
       <div class="pill-row">
-        ${MEGA_ORDER.map(m => `<div class="pill ${modalState.pickerMega === m ? 'active' : ''}" data-mega="${m}">${MEGA_LABELS[m]}</div>`).join('')}
+        <div class="pill mega-toggle ${modalState.pickerMega !== 'all' ? 'active' : ''}" id="trk-picker-mega" data-mega="${modalState.pickerMega}" title="Category — tap to cycle · hold to reset to All">${escapeHtml(MEGA_LABELS[modalState.pickerMega] || modalState.pickerMega)}${modalState.pickerMega === 'all' ? '' : ' ▸'}</div>
+        ${pickerCyclePillHtml('sub')}
+        ${pickerCyclePillHtml('equip')}
+      </div>
+      <div class="pill-row">
         <div class="pill fav-pill ${modalState.pickerFavOnly ? 'active' : ''}" id="trk-picker-fav" title="Show favorites only">★</div>
-        <div class="pill ${modalState.pickerExplored === 'explored' ? 'active' : ''}" data-explored="explored" title="Only exercises you've trained before">✓ Explored</div>
-        <div class="pill ${modalState.pickerExplored === 'unexplored' ? 'active' : ''}" data-explored="unexplored" title="Only exercises you've never trained">✨ New</div>
+        ${pickerCyclePillHtml('explored')}
+        ${pickerCyclePillHtml('volstatus')}
+        ${pickerCyclePillHtml('trend')}
         <div class="pill pill-dice" id="trk-picker-random" title="Pick a random exercise from the filtered list" aria-label="Random pick">🎲</div>
-      </div>
-      <div class="pill-row">
-        <span class="pill-row-lbl" title="Filter by how much you've trained each muscle lately vs its weekly target (MEV–MAV)">Muscle volume:</span>
-        <div class="pill ${modalState.pickerVolStatus === 'lagging' ? 'active' : ''}" data-volstatus="lagging" title="Exercises for muscles BELOW your weekly target lately — bring them up">📉 Lagging</div>
-        <div class="pill ${modalState.pickerVolStatus === 'neutral' ? 'active' : ''}" data-volstatus="neutral" title="Muscles on target (in the MEV–MAV window)">⚖ Neutral</div>
-        <div class="pill ${modalState.pickerVolStatus === 'leading' ? 'active' : ''}" data-volstatus="leading" title="Muscles ABOVE target lately — already well covered">📈 Leading</div>
-      </div>
-      <div class="pill-row">
-        <span class="pill-row-lbl" title="Which way each exercise's e1RM moved at your last session for it">Last session:</span>
-        <div class="pill ${modalState.pickerTrend === 'up' ? 'active' : ''}" data-trend="up" title="Variations whose e1RM went UP last time you did them">▲ Trended up</div>
-        <div class="pill ${modalState.pickerTrend === 'down' ? 'active' : ''}" data-trend="down" title="Variations whose e1RM went DOWN last time you did them">▼ Trended down</div>
-      </div>
-      ${subFilters.length > 1 ? `<div class="pill-row">
-        ${subFilters.map(s => `<div class="pill ${modalState.pickerSub === s.id ? 'active' : ''}" data-sub="${s.id}">${s.label}</div>`).join('')}
-      </div>` : ''}
-      <div class="pill-row">
-        ${EQUIPMENT.map(e => `<div class="pill equip ${modalState.pickerEquip === e.id ? 'active' : ''}" data-equip="${e.id}">${e.label}</div>`).join('')}
       </div>
     </div>
     <div id="trk-picker-results-wrap">${renderPickerResults()}</div>
@@ -21418,41 +21456,14 @@ function bindPicker() {
     if (modalState.planStepFilter != null) { resetPickerNormalFilters(); const plan = getActivePlan(); const st = plan && plan.steps[modalState.planStepFilter]; _planLoadCtx = st ? (st.load || 'moderate') : null; } // feat 179 — switching to a step resets the pills/search (they then stack)
     renderModal();
   }));
-  document.querySelectorAll('.pill[data-mega]').forEach(p => {
-    p.addEventListener('click', () => {
-      modalState.pickerMega = p.dataset.mega;
-      modalState.pickerSub = 'all';
-      renderModal();
-    });
-  });
-  document.querySelectorAll('.pill[data-sub]').forEach(p => {
-    p.addEventListener('click', () => {
-      modalState.pickerSub = p.dataset.sub;
-      renderModal();
-    });
-  });
-  document.querySelectorAll('.pill[data-equip]').forEach(p => {
-    p.addEventListener('click', () => {
-      modalState.pickerEquip = p.dataset.equip;
-      renderModal();
-    });
-  });
+  // feat 396 — the mega filter is one toggle: tap cycles All→Push→Pull→Lower→Core→Full→All; hold reverts to All
+  const megaBtn = document.getElementById('trk-picker-mega');
+  if (megaBtn) attachTrackerPress(megaBtn,
+    () => { const i = MEGA_ORDER.indexOf(modalState.pickerMega); modalState.pickerMega = MEGA_ORDER[(i + 1) % MEGA_ORDER.length]; modalState.pickerSub = 'all'; renderModal(); },
+    () => { if (modalState.pickerMega === 'all') return; modalState.pickerMega = 'all'; modalState.pickerSub = 'all'; renderModal(); },
+    'Reset to All');
+  bindPickerCycles(); // feat 397 — sub · equip · explored · volume · trend are all single cycling toggles (tap = next, hold = reset)
   document.getElementById('trk-picker-fav')?.addEventListener('click', () => { modalState.pickerFavOnly = !modalState.pickerFavOnly; renderModal(); }); // feat 178
-  document.querySelectorAll('.pill[data-explored]').forEach(p => p.addEventListener('click', () => { // feat 378 — toggle explored / unexplored (click again to clear)
-    const v = p.dataset.explored;
-    modalState.pickerExplored = modalState.pickerExplored === v ? 'all' : v;
-    renderModal();
-  }));
-  document.querySelectorAll('.pill[data-volstatus]').forEach(p => p.addEventListener('click', () => { // feat 383 — lagging/neutral/leading
-    const v = p.dataset.volstatus;
-    modalState.pickerVolStatus = modalState.pickerVolStatus === v ? 'all' : v;
-    renderModal();
-  }));
-  document.querySelectorAll('.pill[data-trend]').forEach(p => p.addEventListener('click', () => { // feat 385 — trended up/down last time
-    const v = p.dataset.trend;
-    modalState.pickerTrend = modalState.pickerTrend === v ? 'all' : v;
-    renderModal();
-  }));
   document.getElementById('trk-picker-random')?.addEventListener('click', () => { // feat 384 — random pick from the filtered list (for the indecisive)
     const rows = [...document.querySelectorAll('#trk-picker-results-wrap .picker-var')];
     if (!rows.length) { toast('No exercises match — loosen the filters'); return; }
@@ -23300,7 +23311,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 330 · 2026-06-30 08:06';
+const APP_BUILD = 'build 331 · 2026-06-30 10:53';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
