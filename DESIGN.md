@@ -2152,6 +2152,17 @@ They share variation **UUIDs**.
   Biometrics/AI sections in the same `autoSaveSupported()` branch are unaffected). `openDataPage`/`closeDataPage`/
   `_syncDataOverlay` are shims. Specs updated across datapage / dataexport / sync / infoexport / reflectpills /
   settingspages; `set-analytics` emoji changed 📊→📉 to stay unique (router test).
+- **Preferences kitchen-sink split: Session / Metronome & Cues / Library pages (feat 406):** the last oversized
+  settings page — `set-prefs` still bucketed 8 drawer sections — is split down to just *Language / Preferences /
+  More preferences* (general app behaviour: units, read-only, confirmations, press timings, tips, weight limit).
+  Three new `renderSettingsPage` sub-pages take the rest: **💪 Session** (`set-workout` → the whole *Workout Session*
+  section: auto-end, plan bookends, rest timer, wake-lock, numpad, RPE/RIR, rest cues, abandon), **🎵 Metronome & Cues**
+  (`set-metronome` → *Metronome* + *Rest timer cues*) and **🗂️ Library** (`set-library` → *Categories* visibility +
+  *Reference*: glossary view, hidden movements, custom variations). Same mechanics as feats 187/402/405 — only
+  `SETTINGS_PAGE_SECS`, the Settings menu children (ordered Profile · Cosmetic · Prefs · Session · Metronome · Coach ·
+  Device · Analytics · Library · Data · Cowork · Help · About), the `PAGES` leaves and `PILL_ABBR` changed; the drawer
+  template and bindings are untouched. `settingspages.spec` updated (prefs bucket shrunk; new pages carry exactly
+  their buckets; a moved control — auto-end minutes — still wires).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

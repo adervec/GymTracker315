@@ -9583,7 +9583,10 @@ function _syncDataOverlay() {}
 const SETTINGS_PAGE_SECS = {
   'set-profile':  ['profile', 'biometrics'],
   'set-cosmetic': ['theme', 'branding'],
-  'set-prefs':    ['language', 'preferences', 'more-preferences', 'workout-session', 'metronome', 'rest-timer-cues', 'categories', 'reference'],
+  'set-prefs':    ['language', 'preferences', 'more-preferences'],
+  'set-workout':  ['workout-session'],                // feat 406 — in-session behaviour (auto-end, bookends, rest timer, numpad, RPE…)
+  'set-metronome':['metronome', 'rest-timer-cues'],   // feat 406 — timing audio: metronome + rest-target cues
+  'set-library':  ['categories', 'reference'],        // feat 406 — the exercise library: category visibility, glossary view, hidden/custom variations
   'set-coach':    ['coach-voice', 'coach-hold-cue'], // feat 380 — all the spoken-coach settings on their own page
   'set-device':   ['device'],                        // feat 402 — phone sensors + connected hardware (shake, HR monitor)
   'set-analytics':['analytics', 'live-dashboard'],   // feat 402 — live in-session analytics (pace, live score, dashboard cards)
@@ -12184,7 +12187,7 @@ const PAGES = {
   execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail','hiit'], primary:'workout' },
   prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator','split-planner'], primary:'gyms' },
   study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','media-gallery','glossary','anatomy','advice'], primary:'reference' },
-  settings:{ title:'Settings',emoji:'⚙️', kind:'menu', parent:'home',  children:['set-profile','set-cosmetic','set-prefs','set-device','set-analytics','set-coach','set-data','set-cowork','set-help','set-about'], primary:'set-prefs' },
+  settings:{ title:'Settings',emoji:'⚙️', kind:'menu', parent:'home',  children:['set-profile','set-cosmetic','set-prefs','set-workout','set-metronome','set-coach','set-device','set-analytics','set-library','set-data','set-cowork','set-help','set-about'], primary:'set-prefs' },
   // leaf pages that already render into a container (reused unchanged)
   workout:     { title:'Workout',          emoji:'🔥', kind:'leaf', parent:'execute', tab:'log',      render:m=>renderLog(m) },
   log:         { title:'Log',              emoji:'📅', kind:'leaf', parent:'reflect', tab:'sessions', render:m=>renderSessionsLog(m) },
@@ -12216,6 +12219,9 @@ const PAGES = {
   'set-profile': { title:'Profile',      emoji:'👤', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
   'set-cosmetic':{ title:'Cosmetic',     emoji:'🎨', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
   'set-prefs':   { title:'Preferences',  emoji:'🎛️', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
+  'set-workout': { title:'Session',      emoji:'💪', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 406 — in-session behaviour
+  'set-metronome':{ title:'Metronome & Cues', emoji:'🎵', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 406 — metronome + rest cues
+  'set-library': { title:'Library',      emoji:'🗂️', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 406 — categories, glossary view, hidden/custom variations
   'set-device':  { title:'Device',       emoji:'📱', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 402
   'set-analytics':{ title:'Analytics',   emoji:'📉', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 402
   'set-coach':   { title:'Coach Voice',  emoji:'🗣️', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 380
@@ -12366,7 +12372,7 @@ const PILL_ABBR = {
   achievements: 'Ach', constellation: 'Const', progression: 'Prog',
   equipment: 'Equip', 'plan-creator': 'Plans', 'split-planner': 'Split',
   reference: 'Ref', 'media-gallery': 'Media', glossary: 'Gloss', anatomy: 'Anat',
-  'set-profile': 'Prof', 'set-cosmetic': 'Cosm', 'set-prefs': 'Prefs', 'set-device': 'Device', 'set-analytics': 'Stats', 'set-coach': 'Coach', 'set-data': 'Data', 'set-cowork': 'Cowork', 'set-about': 'About',
+  'set-profile': 'Prof', 'set-cosmetic': 'Cosm', 'set-prefs': 'Prefs', 'set-workout': 'Sess', 'set-metronome': 'Metro', 'set-library': 'Libr', 'set-device': 'Device', 'set-analytics': 'Stats', 'set-coach': 'Coach', 'set-data': 'Data', 'set-cowork': 'Cowork', 'set-about': 'About',
 };
 function _pillAbbr(id, def) { return PILL_ABBR[id] || def.title || id; }
 function _groupPillTarget(pageId) {
@@ -23508,7 +23514,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 333 · 2026-06-30 23:10';
+const APP_BUILD = 'build 334 · 2026-07-01 17:13';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

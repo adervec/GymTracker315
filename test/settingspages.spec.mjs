@@ -33,8 +33,10 @@ test('each Settings sub-page renders its own disjoint bucket of sections into #t
   expect(prefs).toBe('set-prefs');
   const prefSecs = await secIdsOf(page);
   expect(prefSecs).toContain('preferences');
-  expect(prefSecs).toContain('categories');
-  expect(prefSecs).toContain('reference');
+  expect(prefSecs).toContain('more-preferences');
+  expect(prefSecs).not.toContain('workout-session'); // feat 406 — moved to the Session page
+  expect(prefSecs).not.toContain('categories');      // feat 406 — moved to the Library page
+  expect(prefSecs).not.toContain('reference');
 
   // buckets are disjoint
   expect(prefSecs).not.toContain('profile');
@@ -148,6 +150,30 @@ test('feat 405 — Data is a normal settings page and Cowork/Strava split onto t
   expect(r.dataSecs).not.toContain('strava-reconcile'); // reconciliation moved off too
   expect(r.coworkSecs).toContain('strava-reconcile');  // …onto the Cowork page
   expect(r.coworkSecs.some(s => s === 'ai-cowork' || s === 'cowork-autoload-na')).toBe(true);
+});
+
+// feat 406 — the set-prefs kitchen sink split: Session / Metronome & Cues / Library pages.
+test('feat 406 — Session, Metronome and Library pages carry their buckets and controls stay wired', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const inMenu = ['set-workout', 'set-metronome', 'set-library'].every(id =>
+      !!PAGES[id] && PAGES[id].parent === 'settings' && PAGES.settings.children.includes(id));
+    navTo('set-workout');
+    const woSecs = [...document.querySelectorAll('#trk-main .drawer-section')].map(s => s.dataset.sec);
+    // a moved control still wires: auto-end minutes lives on the Session page now
+    const inp = document.querySelector('#trk-main #drawer-auto-end');
+    inp.value = '55'; inp.dispatchEvent(new Event('change', { bubbles: true }));
+    const wired = (state.workoutControls || {}).autoEndMinutes;
+    navTo('set-metronome');
+    const metroSecs = [...document.querySelectorAll('#trk-main .drawer-section')].map(s => s.dataset.sec);
+    navTo('set-library');
+    const libSecs = [...document.querySelectorAll('#trk-main .drawer-section')].map(s => s.dataset.sec);
+    return { inMenu, woSecs, wired, metroSecs, libSecs };
+  });
+  expect(r.inMenu).toBe(true);
+  expect(r.woSecs).toEqual(['workout-session']);
+  expect(r.wired).toBe(55);
+  expect(r.metroSecs).toEqual(['metronome', 'rest-timer-cues']);
+  expect(r.libSecs).toEqual(['categories', 'reference']);
 });
 
 test('feat 402 — the Device page carries the shake / HR section', async ({ page }) => {
