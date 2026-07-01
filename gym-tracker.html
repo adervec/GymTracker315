@@ -2877,6 +2877,15 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .gloss-panel.chart-open .gloss-chart { display: block; width: 210px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid var(--border2); padding: 8px 8px 24px; background: var(--bg3); }
 .gloss-chart-hint { font-size: 10px; color: var(--text3); margin: 2px 2px 8px; line-height: 1.4; }
 .anat-svg { width: 100%; height: auto; display: block; margin-bottom: 8px; }
+/* feat 408 — reference motion animation panel (replay figure + equipment, per-view pills) */
+.motion-panel { background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; padding: 8px 10px; margin: 8px 0 10px; }
+.motion-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.motion-title { font-size: 11px; font-weight: 700; color: var(--text2); }
+.motion-views { display: flex; gap: 4px; }
+.motion-view { font-size: 10px; padding: 3px 9px; border-radius: 20px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text3); cursor: pointer; font-family: inherit; }
+.motion-view.active { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.motion-stage { display: flex; justify-content: center; }
+.motion-stage svg { width: 100%; max-width: 210px; height: auto; display: block; }
 .anat-fig-label { font-size: 9px; fill: var(--text2); font-weight: 700; text-anchor: middle; }
 .amus { cursor: pointer; fill: var(--bg4); stroke: var(--border2); stroke-width: 0.8; transition: fill 0.15s; }
 .amus:hover { fill: var(--accent2); }
@@ -18943,18 +18952,303 @@ function tlPoseJoints(pose, phase) {
   } else if (phase) { set({ head: [50, 12], sh: [50, 28], lh: [38, 64], rh: [62, 64] }); } // generic bob
   return J;
 }
-// Stroke a stick figure from tlPoseJoints into a box at (ox,oy) scaled by s.
+/* ============================================================
+   feat 407 — SHARED VOLUMETRIC FIGURE ENGINE
+   One body model for every wireframe consumer: the anatomy/heatmap outline, the timelapse
+   replay figure and the reference motion animations all build the same primitive shapes
+   (torso polygon + tapered limb CAPSULES with real width) from the same joints + the same
+   avatarProportions. Shapes carry SVG path strings, so the SVG renderer (figSvg) and the
+   canvas renderer (figCanvas, via Path2D) draw byte-identical geometry.
+   ============================================================ */
+function figDefaultP() { return { shoulder: 12, chest: 11.2, waist: 10.6, hip: 10, thigh: 1, calf: 1, armW: 1, neck: 1 }; }
+function figP() { const p = (typeof avatarProportions === 'function') ? avatarProportions() : null; return p || figDefaultP(); }
+function _figLerp(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+function _figPerp(a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1; return [-dy / L, dx / L]; }
+const _figN = n => Math.round(n * 10) / 10;
+// 2-bone IK: elbow/knee for root a → end c with bone lengths l1,l2; bend=±1 picks which side the joint pops.
+function figIk(a, c, l1, l2, bend) {
+  let dx = c[0] - a[0], dy = c[1] - a[1], d = Math.hypot(dx, dy) || 0.01;
+  const max = l1 + l2 - 0.4, min = Math.abs(l1 - l2) + 0.4, cl = Math.max(min, Math.min(max, d));
+  dx *= cl / d; dy *= cl / d; d = cl;
+  const q = (l1 * l1 - l2 * l2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, l1 * l1 - q * q));
+  const ux = dx / d, uy = dy / d;
+  return [_figN(a[0] + ux * q - uy * h * (bend || 1)), _figN(a[1] + uy * q + ux * h * (bend || 1))];
+}
+// Outline path of a round-capped segment of width w — a limb with real girth, drawn as a wireframe outline.
+function figCapsulePath(a, b, w) {
+  const r = w / 2, n = _figPerp(a, b), f = p => _figN(p[0]) + ' ' + _figN(p[1]);
+  const p1 = [a[0] + n[0] * r, a[1] + n[1] * r], p2 = [b[0] + n[0] * r, b[1] + n[1] * r];
+  const p3 = [b[0] - n[0] * r, b[1] - n[1] * r], p4 = [a[0] - n[0] * r, a[1] - n[1] * r];
+  return `M ${f(p1)} L ${f(p2)} A ${_figN(r)} ${_figN(r)} 0 0 1 ${f(p3)} L ${f(p4)} A ${_figN(r)} ${_figN(r)} 0 0 1 ${f(p1)} Z`;
+}
+// Two-segment limb (upper + lower), tapered: two capsule outlines sharing the middle joint.
+function figLimb(j1, j2, j3, w1, w2, cls, dim) {
+  return [{ t: 'path', d: figCapsulePath(j1, j2, w1), cls, dim }, { t: 'path', d: figCapsulePath(j2, j3, w2), cls, dim }];
+}
+// Torso outline along an arbitrary spine (shoulder-centre → hip-centre) with the avatar's half-widths.
+// k scales width for side-view body depth. Used for posed (lying / leaning) torsos.
+function figTorsoStrip(shC, hipC, p, k) {
+  k = k || 1;
+  const ws = [[0, p.shoulder], [0.35, p.chest], [0.7, p.waist], [1, p.hip]];
+  const n = _figPerp(shC, hipC);
+  const L = ws.map(([f, w]) => { const c = _figLerp(shC, hipC, f); return [c[0] + n[0] * w * k, c[1] + n[1] * w * k]; });
+  const R = ws.map(([f, w]) => { const c = _figLerp(shC, hipC, f); return [c[0] - n[0] * w * k, c[1] - n[1] * w * k]; });
+  const ax = _figLerp(shC, hipC, 1.12); // pelvis point past the hip line closes the trunk with a crotch vertex
+  const pts = L.concat([[ax[0], ax[1]]], R.reverse());
+  return { t: 'path', d: 'M ' + pts.map(q => _figN(q[0]) + ' ' + _figN(q[1])).join(' L ') + ' Z', cls: 'av-body fig-torso' };
+}
+// Standing torso for the front/back anatomy figure: the feat-220 shaped chest/waist/hip outline
+// with its neck dip, now closed at the pelvis (legs are volumetric capsules of their own).
+function figStandingTorsoPath(cx, p) {
+  const S = p.shoulder, Ch = p.chest, W = p.waist, H = p.hip;
+  const neckY = _figN(Math.max(21, Math.min(27, 24 + (1 - p.neck) * 4)));
+  return `M ${_figN(cx - S)} 30 Q ${cx} ${neckY} ${_figN(cx + S)} 30 L ${_figN(cx + Ch)} 55 L ${_figN(cx + W)} 75 L ${_figN(cx + H)} 95 L ${_figN(cx + H * 0.6)} 101 L ${cx} 106 L ${_figN(cx - H * 0.6)} 101 L ${_figN(cx - H)} 95 L ${_figN(cx - W)} 75 L ${_figN(cx - Ch)} 55 Z`;
+}
+// Neutral standing joints in the 100×192 anatomy box, centred at cx (heatmap ellipses key off these landmarks).
+function figStandingJoints(cx, p) {
+  const S = p.shoulder, H = p.hip;
+  return {
+    head: [cx, 12], shC: [cx, 31], hipC: [cx, 95], torsoPath: figStandingTorsoPath(cx, p),
+    arms: [{ sh: [cx - S, 33], el: [cx - S - 5.5, 64], wr: [cx - S - 9, 93] },
+           { sh: [cx + S, 33], el: [cx + S + 5.5, 64], wr: [cx + S + 9, 93] }],
+    legs: [{ hip: [cx - H * 0.55, 98], kn: [cx - H * 0.55 - 1, 138], an: [cx - H * 0.62 - 2, 178] },
+           { hip: [cx + H * 0.55, 98], kn: [cx + H * 0.55 + 1, 138], an: [cx + H * 0.62 + 2, 178] }],
+  };
+}
+// Joints (+ optional torsoPath) → ordered shape list: far (dimmed) limbs, torso, near limbs, head.
+function figBodyShapes(J, p, o) {
+  o = o || {}; p = p || figDefaultP();
+  const k = o.depth || 1;
+  const aw1 = 5.5 * p.armW * (o.limbScale || 1), aw2 = 4.2 * p.armW * (o.limbScale || 1);
+  const lw1 = 8.5 * p.thigh * (o.limbScale || 1), lw2 = 6 * p.calf * (o.limbScale || 1);
+  const far = [], near = [];
+  (J.legs || []).forEach(l => (l.dim ? far : near).push(...figLimb(l.hip, l.kn, l.an, lw1, lw2, 'fig-leg', l.dim), ...(l.foot ? [{ t: 'path', d: figCapsulePath(l.an, l.foot, lw2 * 0.7), cls: 'fig-foot', dim: l.dim }] : [])));
+  (J.arms || []).forEach(a => (a.dim ? far : near).push(...figLimb(a.sh, a.el, a.wr, aw1, aw2, 'av-arms fig-arm', a.dim)));
+  const torso = J.torsoPath ? { t: 'path', d: J.torsoPath, cls: 'av-body fig-torso' } : figTorsoStrip(J.shC, J.hipC, p, k);
+  const parts = far.concat([torso]);
+  if (!J.torsoPath) parts.push({ t: 'path', d: figCapsulePath(J.shC, _figLerp(J.shC, J.head, 0.55), 3.6 * (p.neck || 1)), cls: 'fig-neck' }); // posed torsos get a connecting neck
+  return parts.concat(near).concat([{ t: 'circle', c: J.head, r: J.hr || 7, cls: 'fig-head' }]);
+}
+// SVG renderer — one element per shape; stroke defaults to the wireframe border colour.
+function figShapeSvg(s) {
+  const st = s.stroke || 'var(--border2)', cls = s.cls ? ` class="${s.cls}"` : '', op = s.dim ? ' opacity="0.45"' : '';
+  const sw = s.w ? ` stroke-width="${s.w}"` : '';
+  if (s.t === 'path') return `<path${cls} d="${s.d}" fill="${s.fill || 'none'}" stroke="${st}"${sw}${op}/>`;
+  if (s.t === 'line') return `<line${cls} x1="${_figN(s.a[0])}" y1="${_figN(s.a[1])}" x2="${_figN(s.b[0])}" y2="${_figN(s.b[1])}" stroke="${st}"${sw || ' stroke-width="1.4"'} stroke-linecap="round"${op}/>`;
+  if (s.t === 'circle') return `<circle${cls} cx="${_figN(s.c[0])}" cy="${_figN(s.c[1])}" r="${_figN(s.r)}" fill="${s.fill || 'none'}" stroke="${st}"${sw}${op}/>`;
+  return '';
+}
+function figSvg(shapes) { return (shapes || []).map(figShapeSvg).join(''); }
+// Canvas renderer — the SAME shapes via Path2D, so replay frames match the SVG figure exactly.
+function figCanvas(ctx, shapes, ox, oy, s, color) {
+  ctx.save(); ctx.translate(ox, oy); ctx.scale(s, s);
+  ctx.lineJoin = ctx.lineCap = 'round'; ctx.strokeStyle = color;
+  (shapes || []).forEach(sh => {
+    ctx.globalAlpha = sh.dim ? 0.45 : 1;
+    ctx.lineWidth = (sh.w || 1.3) / Math.sqrt(s);
+    if (sh.t === 'path') { try { ctx.stroke(new Path2D(sh.d)); } catch (_) {} }
+    else if (sh.t === 'line') { ctx.beginPath(); ctx.moveTo(sh.a[0], sh.a[1]); ctx.lineTo(sh.b[0], sh.b[1]); ctx.stroke(); }
+    else if (sh.t === 'circle') { ctx.beginPath(); ctx.arc(sh.c[0], sh.c[1], sh.r, 0, Math.PI * 2); ctx.stroke(); }
+  });
+  ctx.globalAlpha = 1; ctx.restore();
+}
+
+/* ============================================================
+   feat 408 — EXERCISE MOTION LIBRARY
+   Per-variation replay animations built on the shared figure engine: full two-keyframe-free
+   PARAMETRIC motion (t ∈ 0..1 bottom-of-rep), 2-bone IK elbows/knees, equipment drawn to
+   scale (barbell + plates, dumbbells, cable + pulley + bar, bench, seat + thigh pad) and the
+   front/side/back profiles each motion needs to fully communicate the movement.
+   Initial coverage (dev set): bench press, biceps curl, lat pulldown.
+   ============================================================ */
+const _EQ = (d, w, cls) => ({ t: 'path', d, w: w || 1.4, cls: cls || 'fig-equip', stroke: 'var(--text3)' });
+const _EQC = (c, r, cls) => ({ t: 'circle', c, r, cls: cls || 'fig-equip', stroke: 'var(--text3)' });
+const _EQL = (a, b, w, cls) => ({ t: 'line', a, b, w: w || 1.4, cls: cls || 'fig-equip', stroke: 'var(--text3)' });
+// Side-view load in the hands: barbell/cable = plate disc seen edge-on as a circle; dumbbell = smaller discs.
+function _figSideLoad(wr, equip) {
+  if (equip === 'dumbbell') return [_EQC(wr, 5.5, 'fig-db'), _EQC(wr, 1.8, 'fig-db')];
+  if (equip === 'cable') return [_EQC(wr, 2, 'fig-bar'), _EQL([wr[0] - 3, wr[1]], [wr[0] + 5, wr[1]], 2, 'fig-bar')];
+  return [_EQC(wr, 10, 'fig-plate'), _EQC(wr, 2.2, 'fig-bar')];
+}
+const MOTIONS = {
+  'bench-press': {
+    label: 'Bench Press', views: ['side', 'front'],
+    viewLabel: { side: 'Side', front: 'Front (above)' },
+    box: { side: [150, 110], front: [110, 150] },
+    build(view, u, equip, p) {
+      if (view === 'side') {
+        // Lying supine, feet planted; the bar traces a J-curve — over the shoulder at lockout, mid-chest at the bottom.
+        const shC = [58, 53], hipC = [92, 60];
+        const wr = [62 + 5 * u, 17 + 26 * u];
+        const arm = (off, dim) => ({ sh: [shC[0] + off, shC[1] - 2 + (dim ? 2 : 0)], el: figIk([shC[0] + off, shC[1] - 2], wr, 17, 17, 1), wr, dim });
+        const J = {
+          head: [44, 50], shC, hipC,
+          arms: [arm(3, true), arm(0, false)],
+          legs: [{ hip: hipC, kn: [114, 82], an: [111, 98], foot: [121, 98], dim: true },
+                 { hip: [hipC[0] - 2, hipC[1]], kn: [110, 84], an: [107, 100], foot: [117, 100] }],
+        };
+        const bench = [_EQ('M 34 64 L 104 64 L 104 70 L 34 70 Z'), _EQL([42, 70], [42, 100]), _EQL([96, 70], [96, 100]),
+                       _EQL([24, 12], [24, 100], 2), _EQ('M 24 28 L 31 28 L 31 33', 1.4), _EQL([10, 100], [140, 100], 1, 'fig-floor')];
+        const load = equip === 'dumbbell'
+          ? [..._figSideLoad(wr, 'dumbbell'), ..._figSideLoad([wr[0] + 4, wr[1] + 2], 'dumbbell').map(s => ({ ...s, dim: true }))]
+          : _figSideLoad(wr, 'barbell');
+        return { J, behind: bench, front: load, o: { depth: 0.72 } };
+      }
+      // Front (from above): fixed barbell grip — the ELBOWS flare at the chest and the arms foreshorten at
+      // lockout (they point up at the viewer); dumbbells converge at the top. The bar drifts face-ward locked out.
+      const cx = 55, g = equip === 'dumbbell' ? 16 + 14 * u : 28, barY = 32 + 22 * u;
+      const L = 10 + 7 * u; // apparent (foreshortened) bone length from above
+      const arm = sgn => { const sh = [cx + 12 * sgn, 38], wr = [cx + g * sgn, barY]; return { sh, el: figIk(sh, wr, L, L, sgn > 0 ? 1 : -1), wr }; };
+      const J = {
+        head: [cx, 18], shC: [cx, 36], hipC: [cx, 98],
+        arms: [arm(-1), arm(1)],
+        legs: [{ hip: [cx - 6, 100], kn: [cx - 16, 118], an: [cx - 22, 142] }, { hip: [cx + 6, 100], kn: [cx + 16, 118], an: [cx + 22, 142] }],
+      };
+      const bench = [{ ..._EQ(`M ${cx - 8} 8 L ${cx + 8} 8 L ${cx + 8} 122 L ${cx - 8} 122 Z`, 1.2, 'fig-bench'), dim: true }];
+      const load = equip === 'dumbbell'
+        ? [-1, 1].map(sgn => [_EQL([cx + (g - 6) * sgn, barY], [cx + (g + 6) * sgn, barY], 2, 'fig-bar'), _EQC([cx + (g - 5) * sgn, barY], 3.6, 'fig-db'), _EQC([cx + (g + 5) * sgn, barY], 3.6, 'fig-db')]).flat()
+        : [_EQL([cx - 40, barY], [cx + 40, barY], 2, 'fig-bar'),
+           _EQ(figCapsulePath([cx - 45, barY], [cx - 40, barY], 9), 1.2, 'fig-plate'), _EQ(figCapsulePath([cx + 40, barY], [cx + 45, barY], 9), 1.2, 'fig-plate')];
+      return { J, behind: bench, front: load };
+    },
+  },
+  'biceps-curl': {
+    label: 'Biceps Curl', views: ['side', 'front'],
+    viewLabel: { side: 'Side', front: 'Front' },
+    box: { side: [110, 150], front: [110, 150] },
+    build(view, u, equip, p) {
+      if (view === 'side') {
+        // Standing; elbow pinned at the side, forearm arcs from full hang to above horizontal, slight lean-back at the top.
+        const shC = [54 - 2 * u, 34], hipC = [56, 88];
+        const el = [shC[0] + 2 + 3 * u, 62 - u];
+        const a = 0.14 + 2.13 * u, wr = [_figN(el[0] + 24 * Math.sin(a)), _figN(el[1] + 24 * Math.cos(a))];
+        const J = {
+          head: [shC[0] - 2, 16], shC, hipC,
+          arms: [{ sh: [shC[0] - 3, shC[1] + 2], el: [el[0] - 3, el[1] + 1], wr: [wr[0] - 3, wr[1] + 1], dim: true }, { sh: shC, el, wr }],
+          legs: [{ hip: [hipC[0] - 4, 90], kn: [hipC[0] - 6, 116], an: [hipC[0] - 6, 140], foot: [hipC[0] + 2, 140], dim: true },
+                 { hip: hipC, kn: [hipC[0] - 2, 116], an: [hipC[0] - 2, 140], foot: [hipC[0] + 6, 140] }],
+        };
+        return { J, behind: [_EQL([20, 140], [96, 140], 1, 'fig-floor')], front: _figSideLoad(wr, equip === 'dumbbell' ? 'dumbbell' : 'barbell'), o: { depth: 0.72 } };
+      }
+      // Front: both forearms rise (foreshortened), bar/dumbbells track the wrists.
+      const cx = 55, wrY = 90 - 48 * u, wrX = 16 - 2 * u;
+      const arm = sgn => ({ sh: [cx + 13 * sgn, 36], el: [cx + 15 * sgn, 64], wr: [cx + wrX * sgn, wrY] });
+      const J = {
+        head: [cx, 16], shC: [cx, 34], hipC: [cx, 92],
+        arms: [arm(-1), arm(1)],
+        legs: [{ hip: [cx - 6, 96], kn: [cx - 7, 120], an: [cx - 8, 144] }, { hip: [cx + 6, 96], kn: [cx + 7, 120], an: [cx + 8, 144] }],
+      };
+      const load = equip === 'dumbbell'
+        ? [-1, 1].map(sgn => [_EQL([cx + (wrX - 6) * sgn, wrY], [cx + (wrX + 6) * sgn, wrY], 2, 'fig-bar'), _EQC([cx + (wrX - 5) * sgn, wrY], 3.4, 'fig-db'), _EQC([cx + (wrX + 5) * sgn, wrY], 3.4, 'fig-db')]).flat()
+        : [_EQL([cx - 26, wrY], [cx + 26, wrY], 2, 'fig-bar'), _EQ(figCapsulePath([cx - 30, wrY], [cx - 26, wrY], 8), 1.2, 'fig-plate'), _EQ(figCapsulePath([cx + 26, wrY], [cx + 30, wrY], 8), 1.2, 'fig-plate')];
+      return { J, behind: [], front: load };
+    },
+  },
+  'lat-pulldown': {
+    label: 'Lat Pulldown', views: ['back', 'side'],
+    viewLabel: { back: 'Back', side: 'Side' },
+    box: { back: [110, 160], side: [130, 160] },
+    build(view, u, equip, p) {
+      if (view === 'back') {
+        // Seated from behind: wide bar overhead pulled to the upper chest, elbows driving down and out.
+        const cx = 55, barY = 12 + 34 * u, g = 31 - 4 * u;
+        const arm = sgn => { const sh = [cx + 12 * sgn, 46], wr = [cx + g * sgn, barY]; return { sh, el: figIk(sh, wr, 17, 17, sgn > 0 ? 1 : -1), wr }; };
+        const J = {
+          head: [cx, 30], shC: [cx, 48], hipC: [cx, 100],
+          arms: [arm(-1), arm(1)],
+          legs: [{ hip: [cx - 6, 102], kn: [cx - 9, 110], an: [cx - 9, 140], foot: [cx - 13, 144] }, { hip: [cx + 6, 102], kn: [cx + 9, 110], an: [cx + 9, 140], foot: [cx + 13, 144] }],
+        };
+        const machine = [_EQ(`M ${cx - 4} 0 L ${cx + 4} 0 L ${cx + 4} 6 L ${cx - 4} 6 Z`), _EQL([cx, 6], [cx, barY - 2], 1, 'fig-cable'),
+                         _EQ(`M ${cx - 34} ${barY} Q ${cx} ${barY + 5} ${cx + 34} ${barY}`, 2, 'fig-bar'),
+                         _EQ(`M ${cx - 13} 108 L ${cx + 13} 108 L ${cx + 13} 113 L ${cx - 13} 113 Z`), _EQL([cx, 113], [cx, 150]), _EQL([30, 150], [80, 150], 1, 'fig-floor')];
+        return { J, behind: machine, front: [] };
+      }
+      // Side: lean-back through the pull, thighs locked under the pad, cable from the high pulley.
+      const hipC = [70, 100], shC = [64 - 7 * u, 54 - u];
+      const wr = [96 - 12 * u, 14 + 38 * u];
+      const arm = (off, dim) => ({ sh: [shC[0] + off, shC[1]], el: figIk([shC[0] + off, shC[1]], [wr[0] + off, wr[1] + (dim ? 2 : 0)], 17, 17, 1), wr: [wr[0] + off, wr[1] + (dim ? 2 : 0)], dim });
+      const J = {
+        head: [shC[0] + 3, shC[1] - 19], shC, hipC,
+        arms: [arm(3, true), arm(0, false)],
+        legs: [{ hip: hipC, kn: [92, 97], an: [89, 146], foot: [98, 146], dim: true }, { hip: [hipC[0] - 2, hipC[1]], kn: [90, 98], an: [87, 148], foot: [96, 148] }],
+      };
+      const machine = [_EQL([112, 2], [112, 150], 2, 'fig-tower'), _EQ('M 104 2 L 112 2 L 112 8 L 104 8 Z'), _EQL([106, 8], [wr[0] + 1, wr[1] - 2], 1, 'fig-cable'),
+                       _EQ('M 58 104 L 92 104 L 92 109 L 58 109 Z'), _EQL([74, 109], [74, 150]), _EQ('M 80 88 L 98 88 L 98 93 L 80 93 Z'),
+                       _EQL([20, 150], [124, 150], 1, 'fig-floor')];
+      return { J, behind: machine, front: _figSideLoad(wr, 'cable') };
+    },
+  },
+};
+// Variation → motion mapping (dev set: bench press, biceps curl, standard lat pulldown; equipment-accurate).
+const MOTION_VARS = {
+  'bb-flat-bench': ['bench-press', 'barbell'], 'db-flat-bench': ['bench-press', 'dumbbell'],
+  'bb-curl': ['biceps-curl', 'barbell'], 'db-curl': ['biceps-curl', 'dumbbell'],
+  'standard-pulldown': ['lat-pulldown', 'cable'],
+};
+let _motionByUuid = null;
+function motionForVariation(uuid) {
+  if (!uuid) return null;
+  if (!_motionByUuid) {
+    _motionByUuid = {};
+    ((typeof FAMILIES !== 'undefined' && FAMILIES) || []).forEach(f => (f.variations || []).forEach(v => {
+      const mv = MOTION_VARS[v.id]; if (mv && v.uuid) _motionByUuid[v.uuid] = { motion: mv[0], equip: mv[1] };
+    }));
+  }
+  return _motionByUuid[uuid] || null;
+}
+// Motion + view + rep position u (0 = top/start, 1 = bottom/contracted) → drawable shapes in the motion's box.
+function motionPoseShapes(mid, view, u, equip, p) {
+  const m = MOTIONS[mid]; if (!m) return null;
+  view = m.views.indexOf(view) >= 0 ? view : m.views[0];
+  p = p || figP();
+  const r = m.build(view, Math.max(0, Math.min(1, +u || 0)), equip || 'barbell', p);
+  return { shapes: (r.behind || []).concat(figBodyShapes(r.J, p, r.o)).concat(r.front || []), box: m.box[view], view };
+}
+// ---- reference-page animation stages: a self-stopping rAF loop repaints every visible .motion-stage ----
+function motionPhase(ts, period) { period = period || 2400; const tau = ((+ts || 0) % period) / period; return 0.5 - 0.5 * Math.cos(tau * 2 * Math.PI); }
+function motionRenderStage(st, u) {
+  const ps = motionPoseShapes(st.dataset.motion, st.dataset.view, u, st.dataset.equip);
+  if (!ps) return;
+  st.innerHTML = `<svg viewBox="0 0 ${ps.box[0]} ${ps.box[1]}" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1.1">${figSvg(ps.shapes)}</svg>`;
+}
+let _motionRaf = null;
+function _motionLoop(ts) {
+  const stages = document.querySelectorAll('.motion-stage');
+  if (!stages.length) { _motionRaf = null; return; }
+  const u = motionPhase(ts);
+  stages.forEach(st => { if (st.offsetParent) motionRenderStage(st, u); });
+  _motionRaf = requestAnimationFrame(_motionLoop);
+}
+function motionEnsureLoop() { if (!_motionRaf && typeof requestAnimationFrame === 'function' && document.querySelector('.motion-stage')) _motionRaf = requestAnimationFrame(_motionLoop); }
+function motionSetView(btn) {
+  const panel = btn.closest('.motion-panel'); if (!panel) return;
+  panel.querySelectorAll('.motion-view').forEach(b => b.classList.toggle('active', b === btn));
+  const st = panel.querySelector('.motion-stage'); st.dataset.view = btn.dataset.mv;
+  motionRenderStage(st, motionPhase(performance.now())); motionEnsureLoop();
+}
+// The reference-page panel: animated stage + one pill per profile the motion needs.
+function motionPanelHtml(uuid) {
+  const mv = motionForVariation(uuid); if (!mv) return '';
+  const m = MOTIONS[mv.motion];
+  const pills = m.views.map((v, i) => `<button type="button" class="motion-view ${i === 0 ? 'active' : ''}" data-mv="${v}" onclick="event.stopPropagation();motionSetView(this)">${(m.viewLabel && m.viewLabel[v]) || v}</button>`).join('');
+  return `<div class="motion-panel" onclick="event.stopPropagation()">
+    <div class="motion-head"><span class="motion-title">🏃 Motion — ${m.label}${mv.equip !== 'barbell' ? ' · ' + mv.equip : ''}</span><div class="motion-views">${pills}</div></div>
+    <div class="motion-stage" data-motion="${mv.motion}" data-equip="${mv.equip}" data-view="${m.views[0]}"></div>
+  </div>`;
+}
+
+// Stroke the replay figure into a box at (ox,oy) scaled by s — volumetric via the shared engine (feat 407/409):
+// a matched motion draws its full side-view pose + equipment; generic exercises get the tlPoseJoints skeleton
+// fleshed out with the same torso strip + limb capsules.
 function drawFigure(ctx, ox, oy, s, color, J) {
-  const X = nx => ox + nx * s, Y = ny => oy + ny * s;
-  ctx.strokeStyle = color; ctx.lineWidth = Math.max(2, 3.2 * s); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.beginPath(); ctx.moveTo(X(J.sh[0]), Y(J.sh[1])); ctx.lineTo(X(J.hip[0]), Y(J.hip[1])); ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(X(J.sh[0]), Y(J.sh[1])); ctx.lineTo(X(J.lh[0]), Y(J.lh[1]));
-  ctx.moveTo(X(J.sh[0]), Y(J.sh[1])); ctx.lineTo(X(J.rh[0]), Y(J.rh[1])); ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(X(J.hip[0]), Y(J.hip[1])); ctx.lineTo(X(J.lk[0]), Y(J.lk[1])); ctx.lineTo(X(J.lf[0]), Y(J.lf[1]));
-  ctx.moveTo(X(J.hip[0]), Y(J.hip[1])); ctx.lineTo(X(J.rk[0]), Y(J.rk[1])); ctx.lineTo(X(J.rf[0]), Y(J.rf[1])); ctx.stroke();
-  ctx.beginPath(); ctx.arc(X(J.head[0]), Y(J.head[1]), J.hr * s, 0, Math.PI * 2); ctx.stroke();
+  const p = figDefaultP();
+  const mid = k => _figLerp(J.sh, J[k], 0.52);
+  const pose = {
+    head: J.head, hr: J.hr, shC: J.sh, hipC: J.hip,
+    arms: [{ sh: J.sh, el: mid('lh'), wr: J.lh }, { sh: J.sh, el: mid('rh'), wr: J.rh }],
+    legs: [{ hip: J.hip, kn: J.lk, an: J.lf }, { hip: J.hip, kn: J.rk, an: J.rf }],
+  };
+  figCanvas(ctx, figBodyShapes(pose, p, { depth: 0.8, limbScale: 0.85 }), ox, oy, s, color);
 }
 
 // Grid layout for the parallel composite: N panels → canvas size + per-cell rects (deterministic from N).
@@ -19028,7 +19322,8 @@ function buildWorkoutTimelapse(session, opts) {
 
   let cumVol = 0;
   evs.forEach((e, i) => { cumVol += e.vol; e.setNo = i + 1; e.cumVol = cumVol; e.elapsedMs = Math.max(0, e.ts - t0);
-    e.name = displayName(e.varUuid, e.subUuid); e.rgb = exerciseRgb(e.varUuid, e.subUuid); e.pose = tlPose(e.name); });
+    e.name = displayName(e.varUuid, e.subUuid); e.rgb = exerciseRgb(e.varUuid, e.subUuid); e.pose = tlPose(e.name);
+    e.mv = (typeof motionForVariation === 'function') ? motionForVariation(e.varUuid) : null; }); // feat 409 — rich per-variation motion
   const seenC = new Set();
   evs.forEach(e => { const k = e.rgb.join(','); if (!seenC.has(k)) { seenC.add(k); base.exRgbs.push(e.rgb); } });
 
@@ -19075,7 +19370,7 @@ function buildWorkoutTimelapse(session, opts) {
     const d = {};
     if (panels.indexOf('spotlight') >= 0) d.spotlight = { name: e.name, rgb: e.rgb, w: e.w, r: e.r };
     if (panels.indexOf('cumulative') >= 0) { const upto = evs.filter(x => x.setNo <= e.setNo); d.cumulative = { items: upto.slice(-12).map(x => ({ name: x.name, wr: x.w + '×' + x.r, rgb: x.rgb, hot: x.setNo === e.setNo })), total: upto.length }; }
-    if (panels.indexOf('wireframe') >= 0) d.wireframe = { pose: e.pose, name: e.name, rgb: e.rgb, w: e.w, r: e.r };
+    if (panels.indexOf('wireframe') >= 0) d.wireframe = { pose: e.pose, mv: e.mv, name: e.name, rgb: e.rgb, w: e.w, r: e.r };
     if (panels.indexOf('plan') >= 0) { const logged = planSteps.map(() => 0); let off = 0; evs.filter(x => x.setNo <= e.setNo).forEach(x => { const si = stepIdxOf(x.varUuid); if (si >= 0) logged[si]++; else off++; }); const steps = planSteps.map((st, si) => { const lg = logged[si], tg = planTargets[si] || 1; return { label: planLabels[si], logged: lg, target: planTargets[si] || 0, state: lg === 0 ? 'todo' : (lg >= tg ? 'done' : 'doing') }; }); d.plan = { steps, off, done: steps.filter(s => s.state === 'done').length, total: planSteps.length }; }
     discreteCache[e.setNo] = d; return d;
   };
@@ -19091,7 +19386,7 @@ function buildWorkoutTimelapse(session, opts) {
     if (d.spotlight) p.spotlight = d.spotlight;
     if (d.cumulative) p.cumulative = d.cumulative;
     if (d.plan) p.plan = d.plan;
-    if (d.wireframe) p.wireframe = { pose: d.wireframe.pose, name: d.wireframe.name, rgb: d.wireframe.rgb, w: d.wireframe.w, r: d.wireframe.r, phase: frameIdx % 2 };
+    if (d.wireframe) p.wireframe = { pose: d.wireframe.pose, mv: d.wireframe.mv, name: d.wireframe.name, rgb: d.wireframe.rgb, w: d.wireframe.w, r: d.wireframe.r, phase: frameIdx % 2 };
     const c = continuousAt(tMs);
     if (c.timeline) p.timeline = c.timeline;
     if (c.hr) p.hr = c.hr;
@@ -19347,8 +19642,14 @@ function drawTimelapseFrame(ctx, C, fr, W, H, photos, style) {
       if (more > 0) { T('+' + more + ' earlier', ix, yy, 9.5, 600, C.text3, 'left'); yy += lineH; }
       items.forEach(ln => { if (ln.hot) { roundRectPath(ctx, x + 6, yy - 11, w - 12, 15, 3); ctx.fillStyle = C.bg3; ctx.fill(); } const ww = T(ln.wr, x + w - 12, yy, 11, ln.hot ? 800 : 600, ln.hot ? C.text : C.text2, 'right', w * 0.4); T(ln.name, ix, yy, 11, ln.hot ? 700 : 500, ln.hot ? exCssOf(ln.rgb) : C.text2, 'left', iw - ww - 8); yy += lineH; });
     } else if (k === 'wireframe') {
-      const s = Math.min((iw - 6) / 100, (ih - 22) / 140), ox = x + (w - 100 * s) / 2, oy = ctop;
-      drawFigure(ctx, ox, oy, s, exCssOf(ps.rgb), tlPoseJoints(ps.pose, ps.phase));
+      if (ps.mv && typeof motionPoseShapes === 'function') { // feat 409 — matched exercises replay their full motion + equipment
+        const mp = motionPoseShapes(ps.mv.motion, 'side', ps.phase, ps.mv.equip);
+        const s = Math.min((iw - 6) / mp.box[0], (ih - 22) / mp.box[1]);
+        figCanvas(ctx, mp.shapes, x + (w - mp.box[0] * s) / 2, ctop, s, exCssOf(ps.rgb));
+      } else {
+        const s = Math.min((iw - 6) / 100, (ih - 22) / 140), ox = x + (w - 100 * s) / 2, oy = ctop;
+        drawFigure(ctx, ox, oy, s, exCssOf(ps.rgb), tlPoseJoints(ps.pose, ps.phase));
+      }
       T(ps.w + ' × ' + ps.r, x + w / 2, y + h - 9, 13, 800, C.text, 'center', iw);
     } else if (k === 'timeline') {
       const x0 = ix, x1 = x + w - 11, iwp = x1 - x0, ytop = ctop + 4, ybot = y + h - 20;
@@ -23514,7 +23815,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 334 · 2026-07-01 17:13';
+const APP_BUILD = 'build 335 · 2026-07-01 18:04';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -31147,6 +31448,7 @@ function renderRef() {
                   </div>
                   <div class="variation-body">
                     ${v.cue ? `<div class="var-cue">${v.cue}</div>` : ''}
+                    ${typeof motionPanelHtml === 'function' ? motionPanelHtml(v.uuid) : ''}
                     ${sub ? `<div class="var-subvariation">
                       <label class="var-sub-label">${sub.label}</label>
                       <select class="var-sub-select" onclick="event.stopPropagation()" onchange="onSubChange(this, '${v.uuid || ''}')">
@@ -31189,6 +31491,7 @@ function renderRef() {
       </div>
     </div>
   `).join('');
+  if (typeof motionEnsureLoop === 'function') motionEnsureLoop(); // feat 408 — animate any motion stages just rendered
 }
 
 function toggleEx(id) { document.querySelector(`.exercise[data-id="ref-${id}"]`).classList.toggle('open'); }
@@ -32293,22 +32596,15 @@ function avatarHeadgear(cx, av) {
   if (av.hat && HATS[av.hat]) out += `<g class="av-hat" fill="none" stroke="var(--accent)">${HATS[av.hat]}</g>`;
   return out;
 }
+// feat 407 — both styles now share the volumetric figure engine (torso polygon + limb capsules with real
+// width). 'classic' is simply the default build; 'profile' feeds the gender/BMI/tape proportions in. All
+// landmarks (head 12r7, shoulders 30-33, hips 95, knees 138, ankles 178) are unchanged, so the heatmap
+// ellipse regions and the replay figure line up with the exact same body.
 function anatomyOutline(cx, p) {
   if (p === undefined) p = (typeof avatarProportions === 'function') ? avatarProportions() : null;
   const gear = (typeof avatarHeadgear === 'function') ? avatarHeadgear(cx, avatarCfg()) : '';
-  if (!p) { // classic — the original wireframe, unchanged
-    return `<circle cx="${cx}" cy="12" r="7" fill="none" stroke="var(--border2)"/>
-    <path d="M ${cx-12} 30 Q ${cx} 24 ${cx+12} 30 L ${cx+10} 95 L ${cx+13} 182 L ${cx+5} 184 L ${cx+2} 100 L ${cx-2} 100 L ${cx-5} 184 L ${cx-13} 182 L ${cx-10} 95 Z" fill="none" stroke="var(--border2)"/>
-    <path d="M ${cx-12} 33 L ${cx-21} 96 M ${cx+12} 33 L ${cx+21} 96" fill="none" stroke="var(--border2)"/>` + gear;
-  }
-  const r1 = n => Math.round(n * 10) / 10;
-  const S = p.shoulder, Ch = p.chest, W = p.waist, H = p.hip;
-  const neckY = r1(Math.max(21, Math.min(27, 24 + (1 - p.neck) * 4)));   // thick neck → shallower dip
-  const thighX = r1(2 + 9.5 * p.thigh), calfX = r1(4 + 8.3 * p.calf), ankleX = r1(6 + 7 * p.calf);
-  const armW = r1(p.armW);
-  return `<circle cx="${cx}" cy="12" r="7" fill="none" stroke="var(--border2)"/>
-    <path class="av-body" d="M ${cx-S} 30 Q ${cx} ${neckY} ${cx+S} 30 L ${cx+Ch} 55 L ${cx+W} 75 L ${cx+H} 95 L ${cx+thighX} 138 L ${cx+calfX} 162 L ${cx+ankleX} 182 L ${cx+5} 184 L ${cx+2} 100 L ${cx-2} 100 L ${cx-5} 184 L ${cx-ankleX} 182 L ${cx-calfX} 162 L ${cx-thighX} 138 L ${cx-H} 95 L ${cx-W} 75 L ${cx-Ch} 55 Z" fill="none" stroke="var(--border2)"/>
-    <path class="av-arms" d="M ${cx-S} 33 L ${cx-S-9} 96 M ${cx+S} 33 L ${cx+S+9} 96" fill="none" stroke="var(--border2)" stroke-width="${armW}"/>` + gear;
+  p = p || figDefaultP();
+  return figSvg(figBodyShapes(figStandingJoints(cx, p), p)) + gear;
 }
 /* ============================================================
    feat 118 — CUSTOM HI-RES ANATOMY CHART. Upload a detailed labelled chart (stored in IndexedDB) to

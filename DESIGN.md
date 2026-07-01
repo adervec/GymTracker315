@@ -2163,6 +2163,34 @@ They share variation **UUIDs**.
   Device · Analytics · Library · Data · Cowork · Help · About), the `PAGES` leaves and `PILL_ABBR` changed; the drawer
   template and bindings are untouched. `settingspages.spec` updated (prefs bucket shrunk; new pages carry exactly
   their buckets; a moved control — auto-end minutes — still wires).
+- **Shared volumetric figure engine (feat 407):** one body model now drives every wireframe consumer. The engine
+  (`figBodyShapes` + friends, script #1) turns joints + `avatarProportions` into primitive shapes — a torso polygon
+  (spine strip with shoulder/chest/waist/hip half-widths, pelvis crotch vertex, connecting neck capsule on posed
+  torsos) and **tapered limb capsules with real width** (`figCapsulePath` outlines; upper/forearm scale with `armW`,
+  thigh/shin with `thigh`/`calf`) plus 2-bone IK (`figIk`) for elbows/knees. Shapes carry SVG path strings, so
+  `figSvg` (SVG) and `figCanvas` (canvas, via `Path2D`) draw byte-identical geometry — the heat maps and the replay
+  animation are literally the same body. `anatomyOutline` is rebuilt on it: **classic = the default-proportioned
+  volumetric build** (stick arms/legs are gone), profile feeds gender/BMI/tape in; all landmarks (head 12r7,
+  shoulders 30-33, hips 95, knees 138, ankles 178) are unchanged so `ANATOMY_REGIONS` ellipses and headgear stay
+  aligned. `avatar.spec` updated (classic torso prefix survives; 4 arm + 4 leg capsules; old stick path gone);
+  `test/motionfigure.spec.mjs` covers the engine.
+- **Exercise motion library + reference animations (feat 408):** `MOTIONS` holds full parametric per-view motions
+  (t ∈ 0..1 across the rep, IK joints, equipment to scale): **bench-press** (side: lying on the bench + rack,
+  J-curve bar path, plate disc edge-on; front-from-above: fixed barbell grip, elbows flare at the chest and the
+  arms foreshorten at lockout — dumbbells converge instead), **biceps-curl** (side: pinned elbow, forearm arc,
+  lean-back cheat; front: bar/dumbbells track the rising wrists) and **lat-pulldown** (back: wide bar from the
+  overhead pulley to the upper chest, elbows driving down-out, seat below; side: lean-back through the pull, thigh
+  pad, cable + tower). `motionForVariation` maps the dev set — `bb-flat-bench`/`db-flat-bench`, `bb-curl`/`db-curl`,
+  `standard-pulldown` — equipment-accurate. The **full reference** embeds a `motionPanelHtml` card in each mapped
+  variation body (`🏃 Motion` + one pill per profile; `motionSetView` switches); a self-stopping rAF loop
+  (`_motionLoop`, cosine rep cycle via `motionPhase`) repaints every **visible** `.motion-stage` and re-arms on
+  `renderRef`. More variations onboard by adding a `MOTION_VARS` row (+ a motion if the pattern is new).
+- **Timelapse replay rides the same engine (feat 409):** the wireframe panel state carries `mv = motionForVariation`
+  per set event; matched exercises replay their full **side-view motion with equipment** on the GIF/video composite
+  (`motionPoseShapes` → `figCanvas`), still alternating rep extremes frame-to-frame (`phase` 0/1). Generic exercises
+  keep `tlPose`/`tlPoseJoints` buckets but `drawFigure` now fleshes the skeleton out volumetrically through the same
+  `figBodyShapes`, so the replay figure matches the heat-map body everywhere. `motionfigure.spec` (engine, registry,
+  equipment, mapping, reference embed, timelapse threading + painted-pixel canvas check).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

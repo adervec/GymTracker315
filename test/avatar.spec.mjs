@@ -10,25 +10,31 @@ test.beforeEach(async ({ page }) => {
   await page.waitForFunction(() => typeof anatomyOutline === 'function' && typeof avatarProportions === 'function', null, { timeout: 15000 });
 });
 
-test('defaults stay classic: original outline, no headgear, avatar travels with settings', async ({ page }) => {
+// feat 407 — classic is now the volumetric build at default proportions: same torso landmarks,
+// but arms + legs are tapered capsule outlines with real width instead of stick strokes.
+test('defaults stay classic: default-proportioned volumetric outline, no headgear, avatar travels with settings', async ({ page }) => {
   const r = await page.evaluate(() => {
     normalizeState();
     const out = anatomyOutline(50);
     return {
       av: state.avatar,
       inKeys: SETTINGS_KEYS.includes('avatar'),
-      classicPath: out.includes('M 38 30 Q 50 24 62 30'),
-      legacyLegs: out.includes('L 60 95 L 63 182'),
+      classicTorso: out.includes('M 38 30 Q 50 24 62 30'),      // the feat-220 torso shoulders/neck-dip survive
+      volumetricArms: (out.match(/fig-arm/g) || []).length === 4, // 2 arms × upper+forearm capsules
+      volumetricLegs: (out.match(/fig-leg/g) || []).length === 4, // 2 legs × thigh+shin capsules
+      stickArms: out.includes(`M 38 33 L 29 96`),                 // the old 1px arm strokes are gone
       hasGear: /av-hat|av-hair/.test(out),
-      reshaped: out.includes('av-body'),
+      deterministic: out === anatomyOutline(50),
     };
   });
   expect(r.av).toEqual({ style: 'classic', hat: 'none', hair: 'none' });
   expect(r.inKeys).toBe(true);
-  expect(r.classicPath).toBe(true);   // byte-for-byte the pre-feat-220 torso
-  expect(r.legacyLegs).toBe(true);
+  expect(r.classicTorso).toBe(true);
+  expect(r.volumetricArms).toBe(true);
+  expect(r.volumetricLegs).toBe(true);
+  expect(r.stickArms).toBe(false);
   expect(r.hasGear).toBe(false);
-  expect(r.reshaped).toBe(false);
+  expect(r.deterministic).toBe(true);
 });
 
 test('girths save from the Body form (inch → cm), show on the page, and round-trip on edit', async ({ page }) => {
