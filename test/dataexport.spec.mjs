@@ -87,11 +87,11 @@ test('re-importing a category JSON merges it back via applyImport', async ({ pag
   expect(r).toBe(2);                                  // body composition restored from its own JSON
 });
 
-test('data page renders the category summary + export buttons (feat 129/130)', async ({ page }) => {
+test('feat 405 — the Data page (now a normal settings page) renders the category summary + export buttons (feat 129/130)', async ({ page }) => {
   await seed(page);
   const r = await page.evaluate(() => {
-    renderSettingsDrawer();
-    const dp = document.getElementById('data-page-body');
+    navTo('set-data');                                  // feat 405 — projects the data sections into #trk-main
+    const dp = document.getElementById('trk-main');
     return {
       hasTitle: /By category/.test(dp.innerHTML),
       workoutsJson: !!dp.querySelector('[data-cat-json="workouts"]'),
@@ -99,6 +99,7 @@ test('data page renders the category summary + export buttons (feat 129/130)', a
       mediaCsv: !!dp.querySelector('[data-cat-csv="media"]'),     // media = JSON only
       settingsJson: !!dp.querySelector('[data-cat-json="settings"]'),
       showsRange: /2026-05-01 → 2026-06-01/.test(dp.innerHTML),
+      noOverlay: !document.getElementById('data-page'),           // the old full-screen overlay is gone
     };
   });
   expect(r.hasTitle).toBe(true);
@@ -106,18 +107,27 @@ test('data page renders the category summary + export buttons (feat 129/130)', a
   expect(r.mediaCsv).toBe(false);
   expect(r.settingsJson).toBe(true);
   expect(r.showsRange).toBe(true);                    // the summary shows date ranges
+  expect(r.noOverlay).toBe(true);
 });
 
-test('auto-save / auto-load is archived behind a collapsed disclosure, and openDataPage exists (feat 134)', async ({ page }) => {
+test('feat 405 — archived legacy file auto-save/load is NOT exposed unless already in use', async ({ page }) => {
   const r = await page.evaluate(() => {
+    // not enabled → the archived disclosure must not render at all
+    if (state.autoSave) state.autoSave.enabled = false;
+    if (state.autoLoad) state.autoLoad.enabled = false;
     renderSettingsDrawer();
-    const html = document.getElementById('data-page-body').innerHTML;
-    return {
-      openDataPageFn: typeof openDataPage === 'function',     // the Settings long-press target
-      supported: typeof autoSaveSupported === 'function' ? autoSaveSupported() : false,
-      archivedWrapsAutoSave: /drawer-archived[\s\S]*?Auto-Save[\s\S]*?Auto-Load[\s\S]*?<\/details>/.test(html),
-    };
+    const bodyOff = document.getElementById('settings-drawer-body').innerHTML;
+    const hiddenWhenUnused = !/drawer-archived/.test(bodyOff);
+    // enabled → it renders so the user can still see / disable it
+    state.autoSave = { ...(state.autoSave || {}), enabled: true, mode: 'file' };
+    renderSettingsDrawer();
+    const shownWhenUsed = /drawer-archived/.test(document.getElementById('settings-drawer-body').innerHTML);
+    if (state.autoSave) state.autoSave.enabled = false;
+    return { openDataPageFn: typeof openDataPage === 'function', supported: typeof autoSaveSupported === 'function' ? autoSaveSupported() : false, hiddenWhenUnused, shownWhenUsed };
   });
   expect(r.openDataPageFn).toBe(true);
-  if (r.supported) expect(r.archivedWrapsAutoSave).toBe(true); // legacy File-System sync tucked away to promote Cloud Sync
+  if (r.supported) {
+    expect(r.hiddenWhenUnused).toBe(true);   // archived setting not exposed to users who don't use it
+    expect(r.shownWhenUsed).toBe(true);      // …but still reachable to turn off if you had it on
+  }
 });

@@ -186,12 +186,12 @@ test('cloud: disabled by default, and cloudActive() reflects connection state', 
 });
 
 // The data sections (incl. the Cloud Sync card) are relocated by renderSettingsDrawer() out of the
-// settings drawer into the full-screen Data Management page container (#data-page-body, feat 109).
+// settings drawer into the full-screen Data Management page container (#settings-drawer-body, feat 109).
 test('cloud: Settings card renders the one-time-setup state when unconfigured', async ({ page }) => {
   const r = await page.evaluate(() => {
     SYNC_CLIENTS.google = '';      // unconfigured
     renderSettingsDrawer();
-    const dp = document.getElementById('data-page-body');
+    const dp = document.getElementById('settings-drawer-body');
     return {
       hasCard: /☁ Cloud Sync/.test(dp.innerHTML),
       connectDisabled: !!dp.querySelector('#cloud-connect-google-btn[disabled]'),
@@ -208,7 +208,7 @@ test('cloud: Settings card shows the connected state when configured & enabled',
     SYNC_CLIENTS.google = 'x.apps.googleusercontent.com';
     state.cloudSync = { provider: 'google', enabled: true, lastSync: '2026-06-07T12:00:00.000Z', lastError: null, perProvider: {} };
     renderSettingsDrawer();
-    const dp = document.getElementById('data-page-body');
+    const dp = document.getElementById('settings-drawer-body');
     return {
       connected: /Google Drive connected/.test(dp.innerHTML),
       hasSyncNow: !!dp.querySelector('#cloud-sync-now-btn'),
@@ -243,7 +243,7 @@ test('cloud: Settings card lists all backends + custom endpoint inputs when unco
     SYNC_CLIENTS.google = ''; SYNC_CLIENTS.dropbox = ''; SYNC_CLIENTS.onedrive = '';
     state.cloudSync = { provider: null, enabled: false, lastSync: null, lastError: null, perProvider: {} };
     renderSettingsDrawer();
-    const dp = document.getElementById('data-page-body');
+    const dp = document.getElementById('settings-drawer-body');
     return {
       google: !!dp.querySelector('#cloud-connect-google-btn'),
       dropbox: !!dp.querySelector('#cloud-connect-dropbox-btn'),
@@ -363,7 +363,7 @@ test('cloud: OAuth buttons are enabled on an authorized origin when configured (
     SYNC_CLIENTS.google = 'x.apps.googleusercontent.com';
     state.cloudSync = { provider: null, enabled: false, lastSync: null, lastError: null, perProvider: {} };
     renderSettingsDrawer();
-    const dp = document.getElementById('data-page-body');
+    const dp = document.getElementById('settings-drawer-body');
     return {
       originOk: cloudOriginAllowed(),
       googleDisabled: !!dp.querySelector('#cloud-connect-google-btn[disabled]'),
@@ -383,7 +383,7 @@ test('cloud: OAuth buttons are disabled (with a note) on a non-authorized origin
     window.cloudOriginAllowed = () => false;              // ...but pretend this origin isn't authorized
     state.cloudSync = { provider: null, enabled: false, lastSync: null, lastError: null, perProvider: {} };
     renderSettingsDrawer();
-    const dp = document.getElementById('data-page-body');
+    const dp = document.getElementById('settings-drawer-body');
     const out = {
       googleDisabled: !!dp.querySelector('#cloud-connect-google-btn[disabled]'),
       dropboxDisabled: !!dp.querySelector('#cloud-connect-dropbox-btn[disabled]'),

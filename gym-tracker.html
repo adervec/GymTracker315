@@ -3074,15 +3074,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
   </div>
 </div>
 
-<!-- ====== DATA MANAGEMENT PAGE (feat 109) — the data sections are rendered in the settings drawer
-     then relocated here, so their existing bindings move with the DOM nodes. ====== -->
-<div id="data-page" role="dialog" aria-label="Data management">
-  <div id="data-page-header">
-    <div id="data-page-title">📦 Data Management</div>
-    <button id="data-page-close" onclick="closeDataPage()">Done</button>
-  </div>
-  <div id="data-page-body"><!-- data sections relocated here by renderSettingsDrawer() --></div>
-</div>
+<!-- feat 405 — Data Management is now an ordinary Settings sub-page (renderSettingsPage → #trk-main); the old
+     full-screen overlay + its "Done" header were removed. -->
 
 <!-- ====== BULK MEDIA WIZARD (feat 110) — desktop power-tool for reference-link management ====== -->
 <div id="media-wizard" role="dialog" aria-label="Bulk media wizard">
@@ -3439,6 +3432,14 @@ const EXTRA_VARIATIONS = [
     mistakes:['Twisting the torso to help','Letting the elbow drift off the pad','Uneven reps left vs right'],
     programming:{'Hypertrophy':'3 × 10-15 per arm'},
     tip:'Train the weaker arm first and match it — single-arm work evens out a dominant side a two-handed machine hides.' },
+  // feat 401 — Life Fitness plate-loaded / selectorized glute kickback machine (requested) — attaches to Glute Accessories.
+  { movementId:'glute-accessories', id:'lifefitness-glute-kickback', uuid:'b1a10014-0014-4014-8014-aaaaaaaa0014', title:'Glute Kickback Machine (Life Fitness)', best:'Machine Glute Max',
+    cue:'On the Life Fitness glute machine: chest on the pad, one foot on the pedal, drive it straight back and up — squeeze the glute, no lower-back arch.',
+    setup:['Set the pad height so your torso rests flat and hips sit at the pivot','Plant one foot on the driving pedal / platform, hands on the grips','Brace the core so the movement comes from the hip, not the spine'],
+    movement:['Drive the working leg back and slightly up against the resistance','Squeeze the glute hard 1-2s at full extension','Return under control to a full hip-flexion stretch','Match reps on both legs'],
+    mistakes:['Arching the lower back to push higher','Using momentum / bouncing out of the bottom','Half reps that skip the stretch','Uneven reps left vs right'],
+    programming:{'Hypertrophy':'3-4 × 10-15 per leg','Pump':'2-3 × 15-20 per leg'},
+    tip:'The fixed path lets you overload the glute max unilaterally with zero balance demand — brutal squeeze at lockout, and it evens out a weaker side.' },
   // feat 323 — a generic catch-all cardio entry so any activity without a specific machine (kayaking, swimming,
   // sports, …) — e.g. imported from Strava — lands honestly in History instead of being mislabelled.
   { movementId:'conditioning', id:'other-cardio', uuid:'b1a10013-0013-4013-8013-aaaaaaaa0013', title:'Other / Outdoor Cardio', best:'Logged Cardio',
@@ -7729,9 +7730,9 @@ function decorateSettingsSections(body) {
       const sec = document.createElement('div');
       sec.className = 'drawer-section';
       sec.dataset.sec = id;
-      // feat 289 — sections default COLLAPSED; only an explicit `false` (the user expanded it) keeps it open,
-      // and that choice is remembered across navigation + reloads via state.settingsCollapse.
-      if (((state.settingsCollapse || {})[id]) !== false) sec.classList.add('collapsed');
+      // feat 402 — sections now default EXPANDED (settings are spread across more pages, so open is more useful);
+      // only an explicit `true` (the user collapsed it) closes it, remembered across navigation + reloads.
+      if (((state.settingsCollapse || {})[id]) === true) sec.classList.add('collapsed');
       const header = document.createElement('button');
       header.type = 'button';
       header.className = 'drawer-section-header';
@@ -7770,7 +7771,7 @@ function applySettingsFilter(q) {
     const rows = sec.querySelectorAll('.drawer-setting-row');
     if (!q) {
       sec.style.display = '';
-      sec.classList.toggle('collapsed', ((state.settingsCollapse || {})[id]) !== false); // feat 289 — default collapsed
+      sec.classList.toggle('collapsed', ((state.settingsCollapse || {})[id]) === true); // feat 402 — default expanded
       rows.forEach(r => r.style.display = '');
       anyVisible = true;
       return;
@@ -8500,24 +8501,6 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Live score after</div>
-        <div class="drawer-setting-sub">Minutes before showing rough live score (chunky)</div>
-      </div>
-      <input type="number" id="drawer-live-score-after" value="${(state.workoutControls||{}).showLiveScoreAfterMin || 45}" min="10" max="180" step="5"
-        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
-               background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
-    </div>
-    <div class="drawer-setting-row">
-      <div>
-        <div class="drawer-setting-label">Pace analysis after</div>
-        <div class="drawer-setting-sub">Minutes before pace status pill appears</div>
-      </div>
-      <input type="number" id="drawer-pace-start" value="${(state.workoutControls||{}).paceAnalysisStartMin || 20}" min="5" max="120" step="5"
-        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
-               background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
-    </div>
-    <div class="drawer-setting-row">
-      <div>
         <div class="drawer-setting-label">Rest timer</div>
         <div class="drawer-setting-sub">Live colour-coded rest/set timer + a global bar while training</div>
       </div>
@@ -8534,26 +8517,6 @@ function renderSettingsDrawer() {
       <div class="drawer-pill-group">
         <button class="drawer-pill ${(state.workoutControls||{}).keepAwake !== false ? 'active' : ''}" data-wc="keepAwake" data-wc-val="on">On</button>
         <button class="drawer-pill ${(state.workoutControls||{}).keepAwake === false ? 'active' : ''}" data-wc="keepAwake" data-wc-val="off">Off</button>
-      </div>
-    </div>` : ''}
-    ${shakeNavSupported() ? `<div class="drawer-setting-row">
-      <div>
-        <div class="drawer-setting-label">📳 Shake to open current exercise</div>
-        <div class="drawer-setting-sub">A vigorous shake of the phone jumps straight to the current exercise's log sheet (the one you're logging now, else the picker). On iOS you'll be asked once for motion access — and may need to re-enable after fully reopening the app.</div>
-      </div>
-      <div class="drawer-pill-group">
-        <button class="drawer-pill ${shakeNavEnabled() ? 'active' : ''}" data-shakenav="on">On</button>
-        <button class="drawer-pill ${!shakeNavEnabled() ? 'active' : ''}" data-shakenav="off">Off</button>
-      </div>
-    </div>` : ''}
-    ${hrSupported() ? `<div class="drawer-setting-row">
-      <div>
-        <div class="drawer-setting-label">💓 Auto-connect HR on start</div>
-        <div class="drawer-setting-sub">When a workout starts, silently reconnect your last heart-rate monitor (no chooser)</div>
-      </div>
-      <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect !== false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="on">On</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect === false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="off">Off</button>
       </div>
     </div>` : ''}
     <div class="drawer-setting-row">
@@ -8623,6 +8586,50 @@ function renderSettingsDrawer() {
         <div class="drawer-setting-sub">Delete an unfinished set (weight in, no reps) after this long</div>
       </div>
       <input type="number" id="drawer-abandon-min" value="${(state.workoutControls||{}).abandonMinutes || 15}" min="1" max="30" step="1"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
+               background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+
+    <div class="drawer-section-title" data-sec-id="device">📱 Device</div>
+    <div class="drawer-setting-sub" style="padding:4px 0 2px;">Phone sensors and connected hardware — motion gestures and your heart-rate monitor.</div>
+    ${shakeNavSupported() ? `<div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">📳 Shake to open current exercise</div>
+        <div class="drawer-setting-sub">A vigorous shake of the phone jumps straight to the current exercise's log sheet (the one you're logging now, else the picker). On iOS you'll be asked once for motion access — and may need to re-enable after fully reopening the app.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${shakeNavEnabled() ? 'active' : ''}" data-shakenav="on">On</button>
+        <button class="drawer-pill ${!shakeNavEnabled() ? 'active' : ''}" data-shakenav="off">Off</button>
+      </div>
+    </div>` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">📳 Shake to open current exercise</div><div class="drawer-setting-sub">This device doesn't report motion, so shake-to-open isn't available here.</div></div></div>`}
+    ${hrSupported() ? `<div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">💓 Auto-connect HR on start</div>
+        <div class="drawer-setting-sub">When a workout starts, silently reconnect your last heart-rate monitor (no chooser)</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect !== false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="on">On</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect === false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="off">Off</button>
+      </div>
+    </div>${state.hrDevice ? `<div class="drawer-setting-row"><div><div class="drawer-setting-label">Paired monitor</div><div class="drawer-setting-sub">Last connected: <b>${escapeHtml(state.hrDevice.name || 'HR monitor')}</b> — connect from the workout dashboard.</div></div></div>` : ''}` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">💓 Heart-rate monitor</div><div class="drawer-setting-sub">This browser doesn't support Web Bluetooth, so an HR strap can't be connected here.</div></div></div>`}
+
+    <div class="drawer-section-title" data-sec-id="analytics">📊 Analytics</div>
+    <div class="drawer-setting-sub" style="padding:4px 0 2px;">When live in-session analytics appear while you train.</div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Live score after</div>
+        <div class="drawer-setting-sub">Minutes before showing rough live score (chunky)</div>
+      </div>
+      <input type="number" id="drawer-live-score-after" value="${(state.workoutControls||{}).showLiveScoreAfterMin || 45}" min="10" max="180" step="5"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
+               background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">Pace analysis after</div>
+        <div class="drawer-setting-sub">Minutes before pace status pill appears</div>
+      </div>
+      <input type="number" id="drawer-pace-start" value="${(state.workoutControls||{}).paceAnalysisStartMin || 20}" min="5" max="120" step="5"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
                background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
@@ -8867,11 +8874,7 @@ function renderSettingsDrawer() {
       }).join('')}
     ` : '<div class="drawer-setting-sub" style="margin-top:6px;">No custom variations yet — add them from the exercise picker (+ Add custom variation).</div>'}
 
-    <div class="drawer-section-title" data-sec-id="data-mgmt">Data management</div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Backups, import/export, auto-save/load, biometrics, Strava, bulk media &amp; reset — on their own page.</div>
-    <div class="drawer-data-row"><button class="drawer-btn" id="open-data-page-btn">📦 Open Data Management →</button></div>
-    <div id="drawer-data-wrap">
-    <div class="drawer-section-title">Data</div>
+    <div class="drawer-section-title" data-sec-id="data">Data</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">${sessionCount} sessions · ${setsCount} sets · ${(dataSize/1024).toFixed(1)} KB</div>
     <div class="drawer-data-row">
       <button class="drawer-btn" id="drawer-export-btn">⬆ Export JSON</button>
@@ -8884,7 +8887,7 @@ function renderSettingsDrawer() {
     </div>
     ${dataCategoryTableHtml()}
 
-    <div class="drawer-section-title">Info pack export</div>
+    <div class="drawer-section-title" data-sec-id="info-pack">Info pack export</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">
       A branded, dated, build-stamped document of the app's information sections — pick all or a subset.
       The HTML file is self-contained; 🖨 prints it (choose "Save as PDF").
@@ -8898,7 +8901,7 @@ function renderSettingsDrawer() {
       <button class="drawer-btn" id="info-export-print-btn">🖨 Print / PDF</button>
     </div>
 
-    <div class="drawer-section-title">Activity &amp; Error Log</div>
+    <div class="drawer-section-title" data-sec-id="activity-log">Activity &amp; Error Log</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">
       ${_eventLog.length} entr${_eventLog.length===1?'y':'ies'} (last ${LOG_MAX}). Kept separate from your data — never written into the export JSON.
     </div>
@@ -8915,9 +8918,10 @@ function renderSettingsDrawer() {
     </div>
 
     ${autoSaveSupported() ? `
-    <details class="drawer-archived"${((state.autoSave&&state.autoSave.enabled)||(state.autoLoad&&state.autoLoad.enabled))?' open':''} style="margin-top:18px;border:1px solid var(--border2);border-radius:8px;padding:8px 11px;background:var(--bg3);">
+    ${((state.autoSave&&state.autoSave.enabled)||(state.autoLoad&&state.autoLoad.enabled)) ? `
+    <details class="drawer-archived" open style="margin-top:18px;border:1px solid var(--border2);border-radius:8px;padding:8px 11px;background:var(--bg3);">
     <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text2);padding:2px 0;">🗄️ Legacy file auto-save / load <span style="font-weight:400;color:var(--text3);">— archived; use ☁ Cloud Sync instead</span></summary>
-    <div class="drawer-section-title" style="margin-top:10px;">Auto-Save</div>
+    <div class="drawer-section-title" data-sec-id="auto-save" style="margin-top:10px;">Auto-Save</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Writes your data to a file or folder automatically after every save.
       File handles reset on page reload — re-pick after reopening the app.
@@ -8983,7 +8987,7 @@ function renderSettingsDrawer() {
       </div>
     ` : ''}
 
-    <div class="drawer-section-title" style="margin-top:18px;">Auto-Load</div>
+    <div class="drawer-section-title" data-sec-id="auto-load" style="margin-top:18px;">Auto-Load</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Reads from a file or the newest .json in a folder on page load.
       For folders, picks the lexicographically newest <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">overload-tracker_*.json</code> file.
@@ -9036,8 +9040,9 @@ function renderSettingsDrawer() {
       </div>
     `}
     </details>
+    ` : ''}
 
-    <div class="drawer-section-title" style="margin-top:18px;">Biometrics Auto-Load (Garmin)</div>
+    <div class="drawer-section-title" data-sec-id="biometrics-autoload" style="margin-top:18px;">Biometrics Auto-Load (Garmin)</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Auto-imports body composition + sleep from a biometrics JSON/CSV (e.g. written by
       <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/garmin-sync.py</code>)
@@ -9066,7 +9071,7 @@ function renderSettingsDrawer() {
       </div>
     `}
 
-    <div class="drawer-section-title" style="margin-top:18px;">AI Brief Export (this device)</div>
+    <div class="drawer-section-title" data-sec-id="ai-brief" style="margin-top:18px;">AI Brief Export (this device)</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Writes the <b>AI-ready training digest</b> (the same content as “Copy for Claude”) to a folder on <b>this device</b> —
       so a desktop can drop the latest brief into e.g. an AI cowork folder for a morning strength-progress analysis.
@@ -9108,7 +9113,7 @@ function renderSettingsDrawer() {
       </div>
     `}
 
-    <div class="drawer-section-title" style="margin-top:18px;">🤝 AI Cowork</div>
+    <div class="drawer-section-title" data-sec-id="ai-cowork" style="margin-top:18px;">🤝 AI Cowork</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       A two-way bridge for an <b>AI cowork agent</b> (model-agnostic — Claude, GPT, anything that reads/writes a folder):
       the app writes the machine export + task folders (Garmin / Strava / Plan-of-the-Day) and imports the agent's results.
@@ -9132,13 +9137,13 @@ function renderSettingsDrawer() {
       </div>${renderPodOptionsForm()}` : ''}
     ` : ''}
     ` : `
-    <div class="drawer-section-title" style="margin-top:18px;">Auto-Save / Auto-Load</div>
+    <div class="drawer-section-title" data-sec-id="cowork-autoload-na" style="margin-top:18px;">Auto-Save / Auto-Load</div>
     <div style="font-size:11px;color:var(--text3);line-height:1.5;">
       Not available — requires Chrome or Edge on desktop (File System Access API).
     </div>
     `}
 
-    <div class="drawer-section-title" style="margin-top:18px;">Strava reconciliation</div>
+    <div class="drawer-section-title" data-sec-id="strava-reconcile" style="margin-top:18px;">Strava reconciliation</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Match your logged workouts to Strava strength activities (e.g. auto-synced from your watch). A browser can't reach
       Strava directly, so import a file from <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/strava-sync.py</code>
@@ -9172,7 +9177,7 @@ function renderSettingsDrawer() {
     `}
     ` : ''}
 
-    <div class="drawer-section-title" style="margin-top:18px;">☁ Cloud Sync</div>
+    <div class="drawer-section-title" data-sec-id="cloud-sync" style="margin-top:18px;">☁ Cloud Sync</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Sync your log across phone &amp; desktop automatically. Every change is <b>merged</b> (last-write-wins per
       session, with delete tracking), so no device clobbers another — and it works on the phone, unlike the
@@ -9180,7 +9185,7 @@ function renderSettingsDrawer() {
     </div>
     ${cloudSyncCardHtml()}
 
-    <div class="drawer-section-title" style="margin-top:18px;">Exercise media (bulk)</div>
+    <div class="drawer-section-title" data-sec-id="exercise-media" style="margin-top:18px;">Exercise media (bulk)</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Attach reference videos to many exercises at once. The easiest way: <b>📝 Media sheet</b> exports a plain,
       human-readable list with a blank for each exercise — have <b>Claude</b> (chat or cowork) fill in good form clips,
@@ -9200,11 +9205,10 @@ function renderSettingsDrawer() {
     ${isDesktopWizard() ? `<div class="drawer-data-row" style="margin-top:6px;"><button class="drawer-btn" id="open-media-wizard-btn">🖥️ Bulk media wizard…</button></div>
     <div style="font-size:11px;color:var(--text3);margin-top:4px;">Desktop tool to add, reassign, test &amp; delete reference links across every exercise.</div>` : ''}
 
-    <div class="drawer-section-title">Danger Zone</div>
+    <div class="drawer-section-title" data-sec-id="danger-zone">Danger Zone</div>
     <div class="drawer-data-row" style="margin-top:6px;">
       <button class="drawer-btn danger" id="drawer-reset-btn">🗑 Reset All Data</button>
     </div>
-    </div><!-- /#drawer-data-wrap (relocated to the Data Management page) -->
 
     <div class="drawer-section-title">About</div>
     <div style="font-size:12px;color:var(--text2);line-height:1.6;">
@@ -9560,38 +9564,16 @@ function renderSettingsDrawer() {
     });
   });
 
-  // feat 109 — relocate the data sections into the standalone Data Management page. Their bindings were
-  // already attached above and ride along with the DOM nodes, so no binding code needs to move.
-  body.querySelector('#open-data-page-btn')?.addEventListener('click', openDataPage);
-  const _dataWrap = body.querySelector('#drawer-data-wrap');
-  const _dpb = document.getElementById('data-page-body');
-  if (_dataWrap && _dpb) { _dpb.innerHTML = ''; _dpb.appendChild(_dataWrap); }
   applySettingsFilter(_settingsSearch); // re-apply active search + collapse state after a full re-render
-  _relocateSettingsPage(); // feat 187 — if a Settings sub-page is open, project its sections into #trk-main
+  _relocateSettingsPage(); // feat 187/405 — if a Settings sub-page is open (incl. Data / Cowork), project its sections into #trk-main
 }
 
-// feat 109 — open/close the full-screen Data Management page (the data sections were relocated here).
-// feat 195 — Data Management is a router page (Settings › Data). The full-screen #data-page overlay is shown via
-// the router (openDataPage → navTo('set-data')); the #drawer-data-wrap relocation into #data-page-body is unchanged.
-// ✕/Done + leaving go through navBack, and _syncDataOverlay (renderCurrentPage) hides it when you navigate elsewhere.
+// feat 405 — Data Management is now an ordinary Settings sub-page (renderSettingsPage projects its sections into
+// #trk-main like Preferences), so the old full-screen overlay + its "Done" header are gone. These shims keep the few
+// legacy callers working: opening = navigate to the page; closing = no-op (there's no overlay to hide).
 function openDataPage() { navTo('set-data'); }
-function renderDataPage(main) {
-  if (main) main.innerHTML = '';
-  if (!document.querySelector('#data-page-body #drawer-data-wrap')) renderSettingsDrawer(); // build + relocate once
-  closeSettingsDrawer();
-  document.getElementById('data-page')?.classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function closeDataPage() {
-  if (currentPage === 'set-data') { navBack(); return; } // feat 195 — Back through the router (hide handled by _syncDataOverlay)
-  document.getElementById('data-page')?.classList.remove('open');
-  document.body.style.overflow = '';
-}
-function _syncDataOverlay() { // feat 195 — hide the Data overlay when navigating off its page
-  if (currentPage === 'set-data') return;
-  const dp = document.getElementById('data-page');
-  if (dp && dp.classList.contains('open')) { dp.classList.remove('open'); document.body.style.overflow = ''; }
-}
+function closeDataPage() {}
+function _syncDataOverlay() {}
 
 /* feat 187 — Settings split: Profile / Cosmetic / Preferences are router pages. Each is a *bucket* of the
    existing settings drawer sections, relocated (DOM nodes + their live bindings ride along) into #trk-main —
@@ -9601,8 +9583,13 @@ function _syncDataOverlay() { // feat 195 — hide the Data overlay when navigat
 const SETTINGS_PAGE_SECS = {
   'set-profile':  ['profile', 'biometrics'],
   'set-cosmetic': ['theme', 'branding'],
-  'set-prefs':    ['language', 'preferences', 'more-preferences', 'workout-session', 'metronome', 'rest-timer-cues', 'live-dashboard', 'categories', 'reference'],
+  'set-prefs':    ['language', 'preferences', 'more-preferences', 'workout-session', 'metronome', 'rest-timer-cues', 'categories', 'reference'],
   'set-coach':    ['coach-voice', 'coach-hold-cue'], // feat 380 — all the spoken-coach settings on their own page
+  'set-device':   ['device'],                        // feat 402 — phone sensors + connected hardware (shake, HR monitor)
+  'set-analytics':['analytics', 'live-dashboard'],   // feat 402 — live in-session analytics (pace, live score, dashboard cards)
+  // feat 405 — Data is now a normal settings page (no more full-screen overlay); cowork + Strava reconciliation split off.
+  'set-data':     ['data', 'data-categories', 'info-pack', 'activity-log', 'biometrics-autoload', 'cloud-sync', 'exercise-media', 'danger-zone'],
+  'set-cowork':   ['ai-brief', 'ai-cowork', 'cowork-autoload-na', 'strava-reconcile'], // AI brief sits above AI Cowork so its "folder above" note holds
 };
 function _relocateSettingsPage() {
   const secs = SETTINGS_PAGE_SECS[currentPage];
@@ -9610,9 +9597,9 @@ function _relocateSettingsPage() {
   const main = document.getElementById('trk-main'), body = document.getElementById('settings-drawer-body');
   if (!main || !body) return;
   main.innerHTML = '';
-  // feat 289 — honour each section's remembered collapse state (default COLLAPSED; the moved header's bound
-  // toggle persists changes to state.settingsCollapse), instead of force-expanding every section.
-  secs.forEach(id => { const sec = body.querySelector('.drawer-section[data-sec="' + id + '"]'); if (sec) { sec.classList.toggle('collapsed', ((state.settingsCollapse || {})[id]) !== false); main.appendChild(sec); } });
+  // feat 402 — honour each section's remembered collapse state (default EXPANDED now that settings span more pages;
+  // the moved header's bound toggle persists changes to state.settingsCollapse), instead of force-expanding every one.
+  secs.forEach(id => { const sec = body.querySelector('.drawer-section[data-sec="' + id + '"]'); if (sec) { sec.classList.toggle('collapsed', ((state.settingsCollapse || {})[id]) === true); main.appendChild(sec); } });
   if (!main.children.length) main.innerHTML = '<div class="card"><div class="card-title">No settings here</div></div>';
 }
 function renderSettingsPage(main) {
@@ -12197,7 +12184,7 @@ const PAGES = {
   execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail','hiit'], primary:'workout' },
   prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator','split-planner'], primary:'gyms' },
   study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','media-gallery','glossary','anatomy','advice'], primary:'reference' },
-  settings:{ title:'Settings',emoji:'⚙️', kind:'menu', parent:'home',  children:['set-profile','set-cosmetic','set-prefs','set-coach','set-data','set-help','set-about'], primary:'set-prefs' },
+  settings:{ title:'Settings',emoji:'⚙️', kind:'menu', parent:'home',  children:['set-profile','set-cosmetic','set-prefs','set-device','set-analytics','set-coach','set-data','set-cowork','set-help','set-about'], primary:'set-prefs' },
   // leaf pages that already render into a container (reused unchanged)
   workout:     { title:'Workout',          emoji:'🔥', kind:'leaf', parent:'execute', tab:'log',      render:m=>renderLog(m) },
   log:         { title:'Log',              emoji:'📅', kind:'leaf', parent:'reflect', tab:'sessions', render:m=>renderSessionsLog(m) },
@@ -12229,8 +12216,11 @@ const PAGES = {
   'set-profile': { title:'Profile',      emoji:'👤', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
   'set-cosmetic':{ title:'Cosmetic',     emoji:'🎨', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
   'set-prefs':   { title:'Preferences',  emoji:'🎛️', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 187
+  'set-device':  { title:'Device',       emoji:'📱', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 402
+  'set-analytics':{ title:'Analytics',   emoji:'📉', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 402
   'set-coach':   { title:'Coach Voice',  emoji:'🗣️', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 380
-  'set-data':    { title:'Data',         emoji:'📦', kind:'leaf', parent:'settings', render:m=>renderDataPage(m) }, // feat 195
+  'set-data':    { title:'Data',         emoji:'📦', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 405 — now a normal settings page
+  'set-cowork':  { title:'Cowork & Sync',emoji:'🤝', kind:'leaf', parent:'settings', render:m=>renderSettingsPage(m) }, // feat 405 — AI cowork + Strava reconciliation
   'set-help':    { title:'Help',         emoji:'❓', kind:'leaf', parent:'settings', render:m=>renderHelpPage(m) }, // feat 186
   'set-about':   { title:'About',        emoji:'ℹ️', kind:'leaf', parent:'settings', render:m=>renderAboutPage(m) }, // feat 185
 };
@@ -12376,12 +12366,12 @@ const PILL_ABBR = {
   achievements: 'Ach', constellation: 'Const', progression: 'Prog',
   equipment: 'Equip', 'plan-creator': 'Plans', 'split-planner': 'Split',
   reference: 'Ref', 'media-gallery': 'Media', glossary: 'Gloss', anatomy: 'Anat',
-  'set-profile': 'Prof', 'set-cosmetic': 'Cosm', 'set-prefs': 'Prefs', 'set-coach': 'Coach', 'set-about': 'About',
+  'set-profile': 'Prof', 'set-cosmetic': 'Cosm', 'set-prefs': 'Prefs', 'set-device': 'Device', 'set-analytics': 'Stats', 'set-coach': 'Coach', 'set-data': 'Data', 'set-cowork': 'Cowork', 'set-about': 'About',
 };
 function _pillAbbr(id, def) { return PILL_ABBR[id] || def.title || id; }
 function _groupPillTarget(pageId) {
   // most pages render into #trk-main; a few live on their own panel/overlay surface
-  const alt = { 'set-data': '#data-page-body', reference: '#panel-reference', glossary: '#ref-gloss-panel', anatomy: '#ref-gloss-panel' };
+  const alt = { reference: '#panel-reference', glossary: '#ref-gloss-panel', anatomy: '#ref-gloss-panel' }; // feat 405 — set-data renders into #trk-main now
   return document.querySelector(alt[pageId] || '#trk-main');
 }
 function _injectGroupPills(pageId) {
@@ -12426,6 +12416,7 @@ function renderCurrentPage() {
   if (typeof updateTopbarChrome === 'function') updateTopbarChrome(def); // feat 182 (no-op until then)
   updateFAB();
   if (typeof refreshRestBar === 'function') refreshRestBar(); // feat 51
+  if (typeof refreshTopbarLive === 'function') refreshTopbarLive(); // feat 403 — keep the ⏱ elapsed stat in sync on every render, not just the 1 s tick
 }
 function render() {
   // feat 181 — honor a direct `currentTab = X` change (legacy code/tests) by syncing the page to it.
@@ -15953,10 +15944,19 @@ function maybeAutoEndActive() {
     const last = lastSetTs(active);
     active.endedAt = new Date(last).toISOString(); // end timestamp = last set time
     active.endReason = 'auto-inactivity';
+    // feat 403 — an auto-end is a real end: run the same wrap-up as finalizeEndWorkout so the live timers, metronome
+    // and wake-lock don't linger (previously it only stamped endedAt, so the rest/elapsed bars kept showing).
+    try { finalizePlanExecution(active); } catch (_) {} // feat 164
+    if (typeof stopMetronome === 'function') stopMetronome();
+    if (typeof releaseWakeLock === 'function') releaseWakeLock();
     saveState();
     try { recordArchetypeShift(); } catch (_) {} // feat 338 — keep the archetype history complete (silent on auto-end)
+    if (typeof refreshRestBar === 'function') refreshRestBar();
+    if (typeof refreshTopbarLive === 'function') refreshTopbarLive();
     toast('Workout auto-ended (no activity)');
+    return true;
   }
+  return false;
 }
 
 // feat 51 — delete an open set (weight entered, no reps) left longer than
@@ -20116,7 +20116,7 @@ function exportCategoryCsv(key) {
 function dataCategoryTableHtml() {
   const cell = 'font-size:11px;color:var(--text3);';
   return `
-    <div class="drawer-section-title" style="margin-top:14px;">By category — summary &amp; export</div>
+    <div class="drawer-section-title" data-sec-id="data-categories" style="margin-top:14px;">By category — summary &amp; export</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">How much of each data type you have, and its date range. Export any one as app-readable <b>JSON</b> (re-imports via Import JSON) or a <b>CSV</b> spreadsheet.</div>
     <div style="display:flex;flex-direction:column;gap:6px;">
     ${dataCats().map(c => {
@@ -23508,7 +23508,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 332 · 2026-06-30 12:15';
+const APP_BUILD = 'build 333 · 2026-06-30 23:10';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -24160,6 +24160,8 @@ const HIIT_BLOCKS = [
   { id:'bodyweight-hiit', name:'Bodyweight HIIT 30/30', emoji:'⚡', tag:'9 rounds · 30s on / 30s off', blurb:'No equipment, no excuses — burpees, mountain climbers and jump rope on a thirty/thirty clock, three times through. A full conditioning hit anywhere.', prep:10, work:30, rest:30, rounds:9, exercises:['7483a88e-9369-4751-a0d2-97727a6c6c97','5b23b98b-5b11-482f-bd98-fffb2f435d44','c4ba4621-e379-40a0-871f-f7f672e4273b'] },
   { id:'sprint-intervals', name:'Sprint Intervals', emoji:'🏃', tag:'6 × 30s sprint / 90s easy', blurb:'Classic sprint conditioning — thirty seconds near-max, ninety seconds easy to recover, six rounds. Treadmill, track or bike. Honest efforts only.', prep:15, work:30, rest:90, rounds:6, exercises:['e0216af0-a278-4299-ad45-817ff88e88a1'] },
   { id:'amrap-six', name:'AMRAP 6:00 Burner', emoji:'💥', tag:'6 min · as many as possible', blurb:'One clock, six minutes, no rest — as many quality reps as you can hold. Pace it: go out too hot and you will pay. Burpees the whole way.', prep:10, work:360, rest:0, rounds:1, exercises:['7483a88e-9369-4751-a0d2-97727a6c6c97'] },
+  // feat 404 — an all-jump-rope HIIT block (requested), cycling four rope techniques on the classic Tabata clock.
+  { id:'jumprope-hiit', name:'Jump Rope Tabata', emoji:'🪢', tag:'8 rounds · 20s on / 10s off', blurb:'All rope, all gas — cycle boxer skip, high knees, skier hops and basic bounce on the classic twenty/ten Tabata clock. Wrists fast, feet light, lungs loud.', prep:10, work:20, rest:10, rounds:8, exercises:['829ae031-7347-45ae-8681-d30d12b17665','9aa71b6c-8e58-4644-adb1-a004e136798c','3961a144-db1c-41df-9790-047f28bb2bc2','44e30e6d-698e-4c58-a6dc-4ff8805209cf'] },
 ];
 function hiitBlock(id) { return HIIT_BLOCKS.find(b => b.id === id) || null; }
 // Expand a block's rounds into a flat step list: [prep?, (work, rest) × rounds] (no rest after the last round).
@@ -24177,10 +24179,34 @@ function hiitFlatten(block) {
 let _hiit = null;
 function hiitActive() { return !!_hiit; }
 function hiitState() { return _hiit; }
-function startHiitBlock(id) {
+// feat 404 — scale a block to a Small / Medium / Large size. Multi-round blocks scale their ROUND count; a single-round
+// block (AMRAP-style) scales its WORK duration instead. Medium (factor 1) returns the block unchanged.
+function _hiitSized(block, factor) {
+  if (!factor || factor === 1) return block;
+  if ((block.rounds || 1) > 1) return { ...block, rounds: Math.max(1, Math.round(block.rounds * factor)) };
+  return { ...block, work: Math.max(10, Math.round((block.work || 0) * factor)) };
+}
+function hiitSizeLabel(block, factor) { const b = _hiitSized(block, factor); return (b.rounds || 1) > 1 ? `${b.rounds} rounds` : `${b.work}s`; }
+// feat 404 — a confirmation sheet before a block starts, offering a Small / Medium / Large size.
+function hiitStartDialog(id) {
+  const block = hiitBlock(id);
+  if (!block || typeof choiceDialog !== 'function') { startHiitBlock(id); return; }
+  choiceDialog({
+    title: `${block.emoji} ${block.name}`,
+    message: `${block.blurb}\n\nPick a size:`,
+    choices: [
+      { label: `🟢 Small · ${hiitSizeLabel(block, 0.5)}`, value: 0.5 },
+      { label: `🟡 Medium · ${hiitSizeLabel(block, 1)}`, value: 1, style: 'primary' },
+      { label: `🔴 Large · ${hiitSizeLabel(block, 1.5)}`, value: 1.5 },
+      { label: 'Cancel', value: null },
+    ],
+  }).then(f => { if (f) startHiitBlock(id, f); });
+}
+function startHiitBlock(id, sizeFactor) {
   if (typeof roBlocked === 'function' && roBlocked('start a HIIT block')) return;
-  const block = (id && typeof id === 'object') ? id : hiitBlock(id);
+  let block = (id && typeof id === 'object') ? id : hiitBlock(id);
   if (!block) return;
+  block = _hiitSized(block, sizeFactor); // feat 404 — Small / Medium / Large
   if (_hiit) hiitFinish(false);                 // replace any running block
   if (typeof cancelHoldCue === 'function') cancelHoldCue();
   const steps = hiitFlatten(block);
@@ -24296,7 +24322,7 @@ function renderHiitPage(main) {
     </div>`).join('');
   main.innerHTML = `<div class="card"><div class="card-title">⏱️ HIIT Blocks</div>
     <div class="summary-intro">Coach-driven interval workouts — a fixed series of timed work and rest. The voice calls every round; you just move. <b>Pause any time — it's recorded.</b> Time-based conditioning only.</div></div>${cards}`;
-  main.querySelectorAll('[data-hiit-start]').forEach(b => b.addEventListener('click', () => startHiitBlock(b.dataset.hiitStart)));
+  main.querySelectorAll('[data-hiit-start]').forEach(b => b.addEventListener('click', () => hiitStartDialog(b.dataset.hiitStart))); // feat 404 — confirm size first
 }
 function changeMetroBpm(delta) {
   const next = Math.max(20, Math.min(300, (metroCfg().bpm || 60) + delta));
@@ -24711,6 +24737,9 @@ function restCueTick() {
 let _restTickId = null;
 function restTick() {
   try {
+    // feat 403 — auto-end an inactive workout from the 1 s tick too, not only when the workout page renders, so the
+    // rest/elapsed bars can't keep counting on other pages after you've stopped training.
+    if (typeof maybeAutoEndActive === 'function' && maybeAutoEndActive()) { if (typeof render === 'function') render(); }
     if (typeof refreshTopbarLive === 'function') refreshTopbarLive(); // feat 244 — tick the topbar HR/elapsed every second
     if (!getActiveSession()) { refreshRestBar(); _lastRestCueSec = -1; return; }
     reapAbandonedSet();

@@ -72,6 +72,32 @@ test('feat 369 — "Save sets & end" still ends the workout when the open set ca
   expect(r.after.workoutClass).toBe(false);
 });
 
+test('feat 403 — auto-inactivity end clears the timers (from the 1 s tick, even off the workout page)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const v = (() => { for (const [u, i] of VAR_INDEX) if (exMode(u).mode === 'standard') return u; })();
+    const now = Date.now();
+    state.workoutControls = { ...(state.workoutControls || {}), restTimer: true, autoEndMinutes: 40 };
+    // an active workout whose last set was 90 min ago → past the auto-end threshold
+    state.sessions = [{ id: 's', date: new Date(now - 100 * 60000).toISOString(),
+      exercises: [{ varUuid: v, subUuid: null, sets: [{ w: 100, r: 5, wTs: new Date(now - 92 * 60000).toISOString(), ts: new Date(now - 90 * 60000).toISOString() }] }] }];
+    pending = { varUuid: null, subUuid: null, sets: [{ w: '', r: '' }] };
+    const bar = document.getElementById('rest-bar'); bar.style.display = 'flex'; bar.innerHTML = 'STALE ⏱';
+    const activeBefore = !!getActiveSession();
+    restTick();   // the 1 s tick should auto-end the stale workout and clear the bars
+    return {
+      activeBefore, activeAfter: !!getActiveSession(),
+      endReason: state.sessions[0].endReason,
+      rest: bar.style.display !== 'none',
+      elapsed: !!document.querySelector('#topbar-live .tbl-elapsed'),
+    };
+  });
+  expect(r.activeBefore).toBe(true);
+  expect(r.activeAfter).toBe(false);          // the tick auto-ended it…
+  expect(r.endReason).toBe('auto-inactivity');
+  expect(r.rest).toBe(false);                 // …and the timer bars cleared, not lingered
+  expect(r.elapsed).toBe(false);
+});
+
 test('feat 287 — with no active session the rest bar stays hidden even with past logged sets', async ({ page }) => {
   const r = await page.evaluate(() => {
     const now = Date.now();

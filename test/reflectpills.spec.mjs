@@ -60,7 +60,7 @@ test('feat 368 — Prepare / Study / Settings leaves all get sibling pills, in t
     return {
       gyms:      probe('gyms', 'prepare', '#trk-main'),        // Prepare, in #trk-main
       prefs:     probe('set-prefs', 'settings', '#trk-main'),  // Settings, relocated into #trk-main
-      data:      probe('set-data', 'settings', '#data-page-body'), // Settings, Data overlay surface
+      data:      probe('set-data', 'settings', '#trk-main'),   // feat 405 — Data is now a normal #trk-main settings page
       advice:    probe('advice', 'study', '#trk-main'),        // Study, in #trk-main
       reference: probe('reference', 'study', '#panel-reference'),  // Study, Reference panel surface
       glossary:  probe('glossary', 'study', '#ref-gloss-panel'),   // Study, Glossary overlay surface
@@ -97,7 +97,7 @@ test('feat 368 — no duplicate pill bars after re-rendering the same page', asy
   const bars = await page.evaluate(() => {
     navTo('set-data', { replace: true });
     renderCurrentPage(); renderCurrentPage();              // re-render twice
-    return document.querySelectorAll('#data-page-body > .reflect-pills').length;
+    return document.querySelectorAll('#trk-main > .reflect-pills').length;
   });
   expect(bars).toBe(1);
 });

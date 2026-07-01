@@ -81,24 +81,56 @@ test('feat 295 — pausing is recorded (count + seconds) in the block summary', 
   expect(r.pausedSec).toBeGreaterThanOrEqual(4);   // the pause is recorded
 });
 
-test('feat 295 — the launcher lists every block; starting opens the runner and stop closes it', async ({ page }) => {
-  const r = await page.evaluate(() => {
+test('feat 295/404 — the launcher lists every block; starting confirms a size, then opens the runner', async ({ page }) => {
+  const r = await page.evaluate(async () => {
     state.readonly = false;
     navTo('hiit');
     const main = document.getElementById('trk-main');
     const cards = main.querySelectorAll('.hiit-card').length, starts = main.querySelectorAll('[data-hiit-start]').length;
-    main.querySelector('[data-hiit-start]').click();      // start the first block
+    main.querySelector('[data-hiit-start]').click();      // feat 404 — opens the size sheet, NOT the runner directly
+    await new Promise(r => setTimeout(r, 10));
+    const sawSizes = ['Small', 'Medium', 'Large'].every(s => [...document.querySelectorAll('.choice-btn')].some(b => b.textContent.includes(s)));
+    const runnerBeforePick = document.getElementById('hiit-runner').classList.contains('open');
+    [...document.querySelectorAll('.choice-actions .choice-btn')].find(b => /Medium/.test(b.textContent)).click(); // pick a size
+    await new Promise(r => setTimeout(r, 10));
     const runner = document.getElementById('hiit-runner');
     const open = runner.classList.contains('open'), hasTimer = !!runner.querySelector('.hiit-timer'), active = hiitActive();
     hiitStop();
-    return { page: currentPage, cards, starts, open, hasTimer, active, closed: !document.getElementById('hiit-runner').classList.contains('open'), stillActive: hiitActive() };
+    return { page: currentPage, cards, starts, sawSizes, runnerBeforePick, open, hasTimer, active, closed: !document.getElementById('hiit-runner').classList.contains('open'), stillActive: hiitActive() };
   });
   expect(r.page).toBe('hiit');
-  expect(r.cards).toBe(6);
-  expect(r.starts).toBe(6);
+  expect(r.cards).toBe(7);
+  expect(r.starts).toBe(7);
+  expect(r.sawSizes).toBe(true);         // the size sheet offers Small / Medium / Large
+  expect(r.runnerBeforePick).toBe(false); // the runner doesn't start until a size is picked
   expect(r.open).toBe(true);
   expect(r.hasTimer).toBe(true);
   expect(r.active).toBe(true);
   expect(r.closed).toBe(true);
   expect(r.stillActive).toBe(false);
+});
+
+test('feat 404 — the all-jump-rope Tabata block exists and uses only jump-rope variations', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const b = HIIT_BLOCKS.find(x => x.id === 'jumprope-hiit');
+    const fam = (u) => { const i = VAR_INDEX.get(u); return i ? i.family.id : null; };
+    return { exists: !!b, name: b && b.name, allRope: !!b && b.exercises.every(u => fam(u) === 'jump-rope-skills'), count: b && b.exercises.length };
+  });
+  expect(r.exists).toBe(true);
+  expect(r.name).toMatch(/Jump Rope/);
+  expect(r.allRope).toBe(true);          // every work exercise is a jump-rope variation
+  expect(r.count).toBeGreaterThanOrEqual(3);
+});
+
+test('feat 404 — Small / Medium / Large scale the block (rounds, or work seconds for a single-round AMRAP)', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const tab = HIIT_BLOCKS.find(x => x.id === 'jumprope-hiit'); // 8 rounds
+    const amrap = HIIT_BLOCKS.find(x => x.id === 'amrap-six');   // 1 round, 360s work
+    return {
+      s: _hiitSized(tab, 0.5).rounds, m: _hiitSized(tab, 1).rounds, l: _hiitSized(tab, 1.5).rounds,
+      amrapS: _hiitSized(amrap, 0.5).work, amrapM: _hiitSized(amrap, 1).work, amrapL: _hiitSized(amrap, 1.5).work,
+    };
+  });
+  expect(r.s).toBe(4); expect(r.m).toBe(8); expect(r.l).toBe(12);       // multi-round → rounds scale
+  expect(r.amrapS).toBe(180); expect(r.amrapM).toBe(360); expect(r.amrapL).toBe(540); // single-round → work scales
 });

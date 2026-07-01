@@ -78,7 +78,7 @@ test('the Data page UI: all picks checked by default; export downloads with the 
     const allChecked = boxes.length === INFO_EXPORT_SECTIONS.length && boxes.every(b => b.checked); // default: ALL
     boxes.find(b => b.dataset.infoSec === 'help').checked = false;
     boxes.find(b => b.dataset.infoSec === 'glossary').checked = false;
-    document.querySelector('#data-page-body #info-export-html-btn').click();
+    document.querySelector('#settings-drawer-body #info-export-html-btn').click();
     return { count: boxes.length, allChecked, picks: _infoExportPicks(), dl: window._dl };
   });
   expect(r.count).toBe(7);            // help · about · quickref · reference · briefs · coaching · glossary

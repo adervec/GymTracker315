@@ -130,9 +130,12 @@ test('feat 240 — a 3h (180m) budget chip is offered, selectable, and lets a lo
 
 test('a recommended Use button starts/attaches that plan to the workout', async ({ page }) => {
   await seed(page);
-  const planId = await page.evaluate(() => {
+  const planId = await page.evaluate(async () => {
+    state.readonly = false;
     openPlansOverlay();
-    document.querySelector('#quick-pick .qp-use').click(); // the top rec (legs)
+    document.querySelector('#quick-pick .qp-use').click(); // the top rec (legs) → feat 398 confirm sheet
+    [...document.querySelectorAll('.choice-backdrop')].pop()?.querySelector('[data-pud="ok"]')?.click();
+    await new Promise(r => setTimeout(r, 20));
     const s = getActiveSession();
     return s ? s.planId : null;
   });

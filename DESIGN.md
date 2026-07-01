@@ -2118,6 +2118,40 @@ They share variation **UUIDs**.
   (`navTo` volume/log/progression). Gated on `todaySessions.length === 0`, so it disappears the moment a workout starts.
   `test/workoutreview.spec.mjs` (slides build from history incl. Recovery; shows idle with one active slide + a dot each;
   hidden once a session exists today; dots switch slides; tapping navigates).
+- **Life Fitness glute kickback machine (feat 401):** requested missing machine — a plate-loaded/selectorized standing
+  glute kickback added via `EXTRA_VARIATIONS` on the **Glute Accessories** family (loggable + mirrored into the
+  reference docs), distinct from the existing Cable Glute Kickback. `test/glutekickback.spec.mjs`.
+- **Settings default-expanded + Device / Analytics pages (feat 402):** two changes to the multi-page settings split.
+  (1) Settings sections now default **EXPANDED** (reversing feat 289) — with settings spread across more pages, an
+  undefined collapse state opens the section; only an explicit `true` (user collapsed it) closes it. The rule lives in
+  three spots — `decorateSettingsSections`, `applySettingsFilter`, and `_relocateSettingsPage` — all flipped to
+  `=== true`. (2) Two new settings pages carved out of Preferences: **📱 Device** (`set-device` → shake-to-open + HR
+  auto-connect, phone sensors/hardware) and **📊 Analytics** (`set-analytics` → live-score-after, pace-analysis-after,
+  and the Live Dashboard cards). The shake/HR/live-score/pace rows moved into new `device`/`analytics` drawer sections;
+  `SETTINGS_PAGE_SECS`, the Settings menu children, the `PAGES` leaf defs and the breadcrumb abbreviations gained both.
+  Moved rows keep their live bindings (per-element, not delegated, so relocation preserves them). `settingscollapse.spec`
+  reversed to the expanded default; `settingspages.spec` extended (pages registered; default expanded; live-score/pace
+  on Analytics not Preferences and still wired; Device page has the shake/HR section).
+- **Auto-end fully clears the live timers (feat 403):** the auto-inactivity end (`maybeAutoEndActive`) previously only
+  stamped `endedAt` — it skipped the wrap-up a manual end does, so the rest-timer bar and ⏱ elapsed stat could linger.
+  It now runs `finalizePlanExecution` + `stopMetronome` + `releaseWakeLock` + `refreshRestBar`/`refreshTopbarLive`, and
+  the 1 s `restTick` calls it too (not just the workout page render), so an inactive workout auto-ends and its timers
+  clear even from another page. `render()` also refreshes the topbar-live stat each pass. `endtimer.spec` extended.
+- **All-jump-rope HIIT + Small/Medium/Large size sheet (feat 404):** a new **Jump Rope Tabata** HIIT block (20s/10s × 8,
+  cycling boxer skip · high knees · skier · basic bounce — all `jump-rope-skills`). Starting any block now opens a
+  confirmation sheet offering **Small / Medium / Large**: `_hiitSized(block, factor)` scales the round count (or, for a
+  single-round AMRAP, the work seconds); `hiitStartDialog` presents it via `choiceDialog`. `test/hiit.spec.mjs` updated
+  (7 blocks; start confirms a size then opens the runner; all-rope block; S/M/L scaling incl. AMRAP work).
+- **Data page becomes a normal settings page; Cowork/Strava split off; archived settings hidden (feat 405):** the Data
+  Management full-screen overlay (`#data-page` + its "Done" header + the `#drawer-data-wrap` relocation) is gone —
+  `set-data` is now an ordinary `renderSettingsPage` sub-page that projects its data sections into `#trk-main` like
+  Preferences (via `SETTINGS_PAGE_SECS` + stable `data-sec-id`s on each section). **AI Cowork + Strava reconciliation**
+  (plus the AI Brief Export it builds on) moved to a new **🤝 Cowork & Sync** page (`set-cowork`). The archived
+  **legacy file auto-save/load** disclosure now renders **only when it's actually enabled** — new users never see the
+  retired setting, but anyone still using it can turn it off (gated by an inner conditional so the surrounding
+  Biometrics/AI sections in the same `autoSaveSupported()` branch are unaffected). `openDataPage`/`closeDataPage`/
+  `_syncDataOverlay` are shims. Specs updated across datapage / dataexport / sync / infoexport / reflectpills /
+  settingspages; `set-analytics` emoji changed 📊→📉 to stay unique (router test).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

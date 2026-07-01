@@ -106,12 +106,15 @@ test('the page renders inputs, recommended days, and coverage bars; chips persis
 });
 
 test('a recommended day Use button attaches that plan to the workout', async ({ page }) => {
-  const planId = await page.evaluate(() => {
+  const planId = await page.evaluate(async () => {
+    state.readonly = false;
     state.splitPlan = { sessions: 3, days: 3, minutes: 60 };
     navTo('split-planner');
     const btn = document.querySelector('#trk-main .sp-use');
     const want = btn.dataset.planUse;
-    btn.click();
+    btn.click();                                          // feat 398 — opens the "Use plan" confirm sheet
+    [...document.querySelectorAll('.choice-backdrop')].pop()?.querySelector('[data-pud="ok"]')?.click();
+    await new Promise(r => setTimeout(r, 20));
     const s = getActiveSession();
     return { want, got: s ? s.planId : null };
   });

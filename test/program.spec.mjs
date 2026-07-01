@@ -123,8 +123,9 @@ test('tapping an agenda day reassigns it; the planner re-renders', async ({ page
 });
 
 test('the dashboard plan bar surfaces the session scheduled for today with a Start button', async ({ page }) => {
-  const r = await page.evaluate(() => {
+  const r = await page.evaluate(async () => {
     normalizeState();
+    state.readonly = false;
     const pid = state.plans[0].id;
     state.program = { name: 't', createdAt: '', sessions: 3, minutes: 60, pool: [pid], week: [null, null, null, null, null, null, null] };
     state.program.week[new Date().getDay()] = pid;                 // schedule TODAY
@@ -133,7 +134,9 @@ test('the dashboard plan bar surfaces the session scheduled for today with a Sta
     navTo('workout');
     const btn = document.querySelector('#trk-main #plan-today-btn');
     const planId = btn ? btn.dataset.todayPlan : null;
-    if (btn) btn.click();
+    if (btn) btn.click();                                          // feat 398 — opens the "Use plan" confirm sheet
+    [...document.querySelectorAll('.choice-backdrop')].pop()?.querySelector('[data-pud="ok"]')?.click();
+    await new Promise(r => setTimeout(r, 20));
     return { hasBtn: !!btn, planId, sessionPlan: getActiveSession()?.planId, pid };
   });
   expect(r.hasBtn).toBe(true);

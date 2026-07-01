@@ -1,70 +1,59 @@
-// feat 109 — data management moved to its own full-screen page. The data sections render in the
-// settings drawer then get relocated (DOM nodes + their live bindings) into #data-page-body, leaving
-// only an entry button in Settings.
+// feat 405 — Data Management is now an ordinary Settings sub-page: renderSettingsPage projects its data sections
+// (DOM nodes + their live bindings) into #trk-main like Preferences. The old full-screen overlay + its "Done"
+// header are gone, and AI Cowork + Strava reconciliation split onto their own Cowork & Sync page.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
 
 test.beforeEach(async ({ page }) => {
   await page.goto(APP, { waitUntil: 'load' });
-  await page.waitForFunction(() => typeof window.renderSettingsDrawer === 'function' && typeof window.openDataPage === 'function', null, { timeout: 15000 });
+  await page.waitForFunction(() => typeof window.renderSettingsPage === 'function' && typeof window.navTo === 'function' && typeof PAGES !== 'undefined', null, { timeout: 15000 });
 });
 
-test('data sections are relocated out of Settings into the Data page', async ({ page }) => {
+test('feat 405 — the Data page renders its sections into #trk-main; the overlay is gone', async ({ page }) => {
   const r = await page.evaluate(() => {
     normalizeState();
-    renderSettingsDrawer();
-    const sb = document.getElementById('settings-drawer-body');
-    const dpb = document.getElementById('data-page-body');
+    navTo('set-data');
+    const main = document.getElementById('trk-main');
     return {
-      entryInSettings: !!sb.querySelector('#open-data-page-btn'),
-      wrapInSettings: !!sb.querySelector('#drawer-data-wrap'),
-      wrapInPage: !!dpb.querySelector('#drawer-data-wrap'),
-      exportInPage: !!dpb.querySelector('#drawer-export-btn'),
-      resetInPage: !!dpb.querySelector('#drawer-reset-btn'),
-      stravaInPage: !!dpb.querySelector('#strava-import-btn'),
-      exmediaInPage: !!dpb.querySelector('#exmedia-export-btn'),
+      isRender: typeof PAGES['set-data'].render === 'function', noOpen: !PAGES['set-data'].open,
+      overlayGone: !document.getElementById('data-page'),          // no #data-page overlay element
+      doneGone: !document.getElementById('data-page-close'),        // no "Done" button
+      exportIn: !!main.querySelector('#drawer-export-btn'),
+      resetIn: !!main.querySelector('#drawer-reset-btn'),
+      exmediaIn: !!main.querySelector('#exmedia-export-btn'),
+      cloudIn: /☁ Cloud Sync/.test(main.innerHTML),
     };
   });
-  expect(r.entryInSettings).toBe(true);
-  expect(r.wrapInSettings).toBe(false);  // not in Settings anymore
-  expect(r.wrapInPage).toBe(true);
-  expect(r.exportInPage && r.resetInPage && r.stravaInPage && r.exmediaInPage).toBe(true);
+  expect(r.isRender).toBe(true);
+  expect(r.noOpen).toBe(true);
+  expect(r.overlayGone).toBe(true);
+  expect(r.doneGone).toBe(true);
+  expect(r.exportIn && r.resetIn && r.exmediaIn).toBe(true);
+  expect(r.cloudIn).toBe(true);
 });
 
-test('openDataPage / closeDataPage toggle the page', async ({ page }) => {
-  const r = await page.evaluate(() => {
-    renderSettingsDrawer();
-    openDataPage();
-    const opened = document.getElementById('data-page').classList.contains('open');
-    closeDataPage();
-    const closed = !document.getElementById('data-page').classList.contains('open');
-    return { opened, closed };
-  });
-  expect(r.opened).toBe(true);
-  expect(r.closed).toBe(true);
-});
-
-test('Settings → Data is a router page; Done/Back hides the overlay (feat 195)', async ({ page }) => {
-  const r = await page.evaluate(() => {
-    navTo('settings'); navTo('set-data');
-    const onPage = { page: currentPage, open: document.getElementById('data-page').classList.contains('open'), isRender: typeof PAGES['set-data'].render === 'function' };
-    document.getElementById('data-page-close').click(); // Done → navBack through the router
-    return { onPage, afterPage: currentPage, afterOpen: document.getElementById('data-page').classList.contains('open') };
-  });
-  expect(r.onPage.isRender).toBe(true);      // set-data is a render page now (feat 195)
-  expect(r.onPage.page).toBe('set-data');
-  expect(r.onPage.open).toBe(true);          // the overlay shows
-  expect(r.afterOpen).toBe(false);           // Done closed it
-  expect(r.afterPage).toBe('set-prefs');     // ...and returned to Preferences (feat 221: 'settings' forwards there)
-});
-
-test('relocated buttons keep their bindings (Export JSON still calls exportData)', async ({ page }) => {
+test('feat 405 — projected buttons keep their bindings (Export JSON still calls exportData)', async ({ page }) => {
   const calls = await page.evaluate(() => {
     let n = 0; window.exportData = () => { n++; };   // spy BEFORE bind so addEventListener captures it
-    renderSettingsDrawer();
-    document.querySelector('#data-page-body #drawer-export-btn').click();
+    navTo('set-data');
+    document.querySelector('#trk-main #drawer-export-btn').click();
     return n;
   });
-  expect(calls).toBe(1);
+  expect(calls).toBe(1);   // the relocated node's live binding survived the projection into #trk-main
+});
+
+test('feat 405 — Cowork & Sync is its own page with the Strava reconciliation section', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    navTo('set-cowork');
+    const main = document.getElementById('trk-main');
+    return {
+      isPage: !!PAGES['set-cowork'] && typeof PAGES['set-cowork'].render === 'function',
+      hasStrava: !!main.querySelector('#strava-import-btn'),
+      dataHasStrava: (() => { navTo('set-data'); return !!document.querySelector('#trk-main #strava-import-btn'); })(),
+    };
+  });
+  expect(r.isPage).toBe(true);
+  expect(r.hasStrava).toBe(true);        // reconciliation lives here now
+  expect(r.dataHasStrava).toBe(false);   // …and NOT on the Data page
 });

@@ -82,3 +82,81 @@ test('the legacy settings drawer still renders every section (compat)', async ({
   expect(r.hasProfile).toBe(true);
   expect(r.hasBranding).toBe(true);
 });
+
+// feat 402 — two new settings pages (Device, Analytics) + sections now default EXPANDED.
+test('feat 402 — Device and Analytics pages are registered and in the Settings menu', async ({ page }) => {
+  const r = await page.evaluate(() => ({
+    device: !!PAGES['set-device'], analytics: !!PAGES['set-analytics'],
+    inMenu: PAGES.settings.children.includes('set-device') && PAGES.settings.children.includes('set-analytics'),
+    deviceSecs: SETTINGS_PAGE_SECS['set-device'], analyticsSecs: SETTINGS_PAGE_SECS['set-analytics'],
+    prefsSecs: SETTINGS_PAGE_SECS['set-prefs'],
+  }));
+  expect(r.device).toBe(true);
+  expect(r.analytics).toBe(true);
+  expect(r.inMenu).toBe(true);
+  expect(r.deviceSecs).toContain('device');
+  expect(r.analyticsSecs).toContain('analytics');
+  expect(r.prefsSecs).not.toContain('live-dashboard'); // moved onto the Analytics page
+});
+
+test('feat 402 — settings sections default to EXPANDED with no remembered collapse state', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.settingsCollapse = {};
+    navTo('set-analytics');
+    const secs = [...document.querySelectorAll('#trk-main .drawer-section')];
+    return { count: secs.length, anyCollapsed: secs.some(s => s.classList.contains('collapsed')) };
+  });
+  expect(r.count).toBeGreaterThan(0);
+  expect(r.anyCollapsed).toBe(false);
+});
+
+test('feat 402 — the live-score + pace settings live on Analytics, not Preferences, and still wire up', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    navTo('set-analytics');
+    const onAnalytics = !!document.querySelector('#trk-main #drawer-live-score-after') && !!document.querySelector('#trk-main #drawer-pace-start');
+    const inp = document.querySelector('#trk-main #drawer-pace-start');
+    inp.value = '35'; inp.dispatchEvent(new Event('change', { bubbles: true }));
+    const wired = (state.workoutControls || {}).paceAnalysisStartMin;
+    navTo('set-prefs');
+    const onPrefs = !!document.querySelector('#trk-main #drawer-live-score-after') || !!document.querySelector('#trk-main #drawer-pace-start');
+    return { onAnalytics, wired, onPrefs };
+  });
+  expect(r.onAnalytics).toBe(true);
+  expect(r.wired).toBe(35);        // the moved input's handler still fires
+  expect(r.onPrefs).toBe(false);   // no longer duplicated on Preferences
+});
+
+test('feat 405 — Data is a normal settings page and Cowork/Strava split onto their own page', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const dataRender = typeof PAGES['set-data'].render === 'function' && !PAGES['set-data'].open;
+    const coworkReg = !!PAGES['set-cowork'] && PAGES.settings.children.includes('set-cowork');
+    // Data page: no cowork/strava sections, no overlay
+    navTo('set-data');
+    const dataSecs = [...document.querySelectorAll('#trk-main .drawer-section')].map(s => s.dataset.sec);
+    const overlayGone = !document.getElementById('data-page');
+    // Cowork page: carries the cowork + reconciliation sections
+    navTo('set-cowork');
+    const coworkSecs = [...document.querySelectorAll('#trk-main .drawer-section')].map(s => s.dataset.sec);
+    return { dataRender, coworkReg, dataSecs, overlayGone, coworkSecs };
+  });
+  expect(r.dataRender).toBe(true);            // renders into #trk-main like the others (no overlay opener)
+  expect(r.coworkReg).toBe(true);
+  expect(r.overlayGone).toBe(true);           // the old Data overlay + its "Done" header are gone
+  expect(r.dataSecs).toContain('data');
+  expect(r.dataSecs).toContain('danger-zone');
+  expect(r.dataSecs).not.toContain('ai-cowork');       // cowork moved off the Data page
+  expect(r.dataSecs).not.toContain('strava-reconcile'); // reconciliation moved off too
+  expect(r.coworkSecs).toContain('strava-reconcile');  // …onto the Cowork page
+  expect(r.coworkSecs.some(s => s === 'ai-cowork' || s === 'cowork-autoload-na')).toBe(true);
+});
+
+test('feat 402 — the Device page carries the shake / HR section', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    navTo('set-device');
+    const sec = document.querySelector('#trk-main .drawer-section[data-sec="device"]');
+    return { hasSection: !!sec, mentionsShake: !!sec && /Shake to open/i.test(sec.textContent), mentionsHr: !!sec && /heart-rate|HR/i.test(sec.textContent) };
+  });
+  expect(r.hasSection).toBe(true);
+  expect(r.mentionsShake).toBe(true);
+  expect(r.mentionsHr).toBe(true);
+});
