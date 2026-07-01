@@ -2206,6 +2206,16 @@ They share variation **UUIDs**.
   same. The anatomy/heatmap outline stays undecorated and unfilled — no face/cap/shoes (`J.face` unset) and no
   activation (heat maps already encode training volume). `motionfigure.spec` +3 tests (decorations incl. clean
   anatomy, curved bellies/trunk, activation pulse + zone placement + unlit legs).
+- **Major commercial languages + Croatian (feat 411):** nine new `I18N` dictionaries — **Spanish, German,
+  Italian, Portuguese, Russian, Chinese (simplified), Japanese, Korean and Croatian** — on the feat-61/222
+  machinery, each covering the exact French key set (UI chrome, navigation `page.*` titles, the Body page;
+  the reference/coaching corpus deliberately stays English, flagged in `settings.languageSub`). French was
+  topped up with the pages added since feat 222 (`set-workout`/`set-metronome`/`set-library`/`set-device`/
+  `set-analytics`/`set-coach`/`set-cowork`, hiit, summary, focus, split-planner, media-gallery) — the same
+  keys ship in all ten dictionaries. The Language picker builds from `LANGUAGES`, so nothing else changed.
+  **RTL languages (Arabic, Hebrew) are deliberately excluded** — the layout has no `dir="rtl"` support; adding
+  them means mirroring work first. `i18n.spec` gained a feat-411 case (registration, per-dictionary key parity
+  vs French, live switching incl. Croatian + Chinese, picker options).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

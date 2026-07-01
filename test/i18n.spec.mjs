@@ -115,6 +115,43 @@ test('the drawer Language picker lists Français and switching persists via sett
   expect(r.persisted).toBe('fr');
 });
 
+// feat 411 — the major commercial languages + Croatian, same scope as French (chrome / nav / Body page).
+test('feat 411 — es/de/it/pt/ru/zh/ja/ko/hr are registered, complete vs the French key set, and switch live', async ({ page }) => {
+  const NEW = ['es', 'de', 'it', 'pt', 'ru', 'zh', 'ja', 'ko', 'hr'];
+  const r = await page.evaluate((NEW) => {
+    const frKeys = Object.keys(I18N.fr);
+    const out = { registered: true, missing: {}, settingsWord: {}, pickerHas: {} };
+    for (const code of NEW) {
+      if (!LANGUAGES.some(l => l.code === code && l.native)) out.registered = false;
+      const miss = frKeys.filter(k => !(k in (I18N[code] || {})));
+      if (miss.length) out.missing[code] = miss;
+      state.lang = code;
+      out.settingsWord[code] = t('app.settings');
+    }
+    state.lang = 'en';
+    renderSettingsDrawer();
+    const sel = document.getElementById('drawer-lang-select');
+    for (const code of NEW) out.pickerHas[code] = !!sel.querySelector(`option[value="${code}"]`);
+    // spot-check a switch end-to-end incl. pageTitle + Croatian specifically
+    setLang('hr');
+    out.hrCrumbWorks = pageTitle('body') === 'Tijelo' && t('common.save') === 'Spremi';
+    setLang('zh');
+    out.zhWorks = pageTitle('settings') === '设置';
+    setLang('en');
+    return out;
+  }, NEW);
+  expect(r.registered).toBe(true);
+  expect(r.missing).toEqual({});                 // every new dictionary covers the full French key set
+  expect(r.settingsWord.es).toBe('Ajustes');
+  expect(r.settingsWord.de).toBe('Einstellungen');
+  expect(r.settingsWord.ru).toBe('Настройки');
+  expect(r.settingsWord.ja).toBe('設定');
+  expect(r.settingsWord.hr).toBe('Postavke');
+  expect(Object.values(r.pickerHas).every(Boolean)).toBe(true);
+  expect(r.hrCrumbWorks).toBe(true);
+  expect(r.zhWorks).toBe(true);
+});
+
 test('English is untouched by default — fresh state speaks English everywhere', async ({ page }) => {
   const r = await page.evaluate(() => {
     normalizeState();
