@@ -155,6 +155,67 @@ test('feat 408 — the full reference embeds an animated motion stage per mapped
   expect(r.switched).toBe(true);
 });
 
+// feat 410 — head/foot cues (cap, face, shoes), muscle-shaped silhouettes, and activation colour.
+test('feat 410 — cap, facial features and shoes orient the figure; the anatomy outline stays undecorated', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const cls = ps => ps.shapes.map(s => s.cls || '').join(' ');
+    const benchSide = cls(motionPoseShapes('bench-press', 'side', 0.5, 'barbell'));
+    const curlFront = motionPoseShapes('biceps-curl', 'front', 0.5, 'barbell');
+    const pullBack = cls(motionPoseShapes('lat-pulldown', 'back', 0.5, 'cable'));
+    const anat = anatomyOutline(50);
+    return {
+      benchDeco: ['fig-cap', 'fig-eye', 'fig-nose', 'fig-shoe'].every(c => benchSide.includes(c)),
+      curlEyes: curlFront.shapes.filter(s => (s.cls || '') === 'fig-eye').length,
+      curlMouth: cls(curlFront).includes('fig-mouth'),
+      backNoFace: pullBack.includes('fig-cap') && !pullBack.includes('fig-eye'), // seen from behind: cap, no eyes
+      anatClean: !/fig-cap|fig-eye|fig-shoe|fig-act/.test(anat) && !anat.includes('hsla'),
+    };
+  });
+  expect(r.benchDeco).toBe(true);
+  expect(r.curlEyes).toBe(2);
+  expect(r.curlMouth).toBe(true);
+  expect(r.backNoFace).toBe(true);
+  expect(r.anatClean).toBe(true);   // heatmap figure keeps the avatar's own hat/hair system, no motion decorations
+});
+
+test('feat 410 — limbs and trunk are muscle-shaped (curved bellies), not rectangles', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const side = motionPoseShapes('biceps-curl', 'side', 0.5, 'barbell');
+    const arm = side.shapes.find(s => (s.cls || '').includes('fig-arm'));
+    const torso = side.shapes.find(s => (s.cls || '').includes('fig-torso'));
+    return { armCurved: /Q /.test(arm.d), torsoCurved: /Q /.test(torso.d), standingCurved: /55 Q/.test(figStandingTorsoPath(50, figDefaultP()).replace(/\s+/g, ' ')) || (figStandingTorsoPath(50, figDefaultP()).match(/Q/g) || []).length >= 6 };
+  });
+  expect(r.armCurved).toBe(true);       // biceps belly bows the segment sides
+  expect(r.torsoCurved).toBe(true);     // chest/waist curve through the strip
+  expect(r.standingCurved).toBe(true);  // the anatomy torso got pec bulge / waist pinch / hip flare curves
+});
+
+test('feat 410 — working muscles glow with colour, scaled by rep position and placed at the right zone', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const alphaOf = col => col ? +col.match(/([\d.]+)\)$/)[1] : null;
+    const upArmFill = (mid, view, u) => alphaOf(motionPoseShapes(mid, view, u, 'barbell').shapes.find(s => (s.cls || '').includes('fig-arm')).fillCol);
+    const curlLo = upArmFill('biceps-curl', 'side', 0.05), curlHi = upArmFill('biceps-curl', 'side', 1);
+    const bench = motionPoseShapes('bench-press', 'side', 1, 'barbell');
+    const pull = motionPoseShapes('lat-pulldown', 'back', 1, 'cable');
+    const curl = motionPoseShapes('biceps-curl', 'front', 1, 'barbell');
+    const zones = ps => ps.shapes.filter(s => (s.cls || '') === 'fig-act');
+    const legs = bench.shapes.filter(s => (s.cls || '').includes('fig-leg'));
+    return {
+      curlLo, curlHi,
+      benchZones: zones(bench).length, pullZones: zones(pull).length, curlZones: zones(curl).length,
+      pullZoneLowerThanBench: zones(pull)[0].c[1] > 48 + (100 - 48) * 0.3, // lats sit mid-back, pecs up top
+      legsUnlit: legs.every(s => !s.fillCol),
+    };
+  });
+  expect(r.curlHi).toBeGreaterThan(r.curlLo);  // activation pulses toward contraction
+  expect(r.curlLo).toBeGreaterThan(0);
+  expect(r.benchZones).toBe(2);                // bilateral pec glow
+  expect(r.pullZones).toBe(2);                 // bilateral lat glow
+  expect(r.curlZones).toBe(0);                 // curls light the arms, not the trunk
+  expect(r.pullZoneLowerThanBench).toBe(true);
+  expect(r.legsUnlit).toBe(true);
+});
+
 test('feat 409 — the timelapse replay uses the same motion (with equipment) for matched exercises', async ({ page }) => {
   const bbUuid = await uuidOf(page, 'bb-flat-bench');
   const r = await page.evaluate((bbUuid) => {

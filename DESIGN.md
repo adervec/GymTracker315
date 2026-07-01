@@ -2191,6 +2191,21 @@ They share variation **UUIDs**.
   keep `tlPose`/`tlPoseJoints` buckets but `drawFigure` now fleshes the skeleton out volumetrically through the same
   `figBodyShapes`, so the replay figure matches the heat-map body everywhere. `motionfigure.spec` (engine, registry,
   equipment, mapping, reference embed, timelapse threading + painted-pixel canvas check).
+- **Figure polish: faces, caps, shoes, muscle silhouettes, activation colour (feat 410):** four upgrades to the
+  shared figure engine. (1) **Muscle shape** — `figMusclePath` replaces straight capsules: segments taper toward the
+  wrist/ankle with the belly bowing out at 42% length (biceps/thigh/calf silhouettes); `figTorsoStrip` smooths its
+  sides through the chest/waist points and `figStandingTorsoPath` gains pec-bulge / waist-pinch / hip-flare curves
+  (the `M 38 30 Q 50 24 62 30` neck-dip prefix is untouched, so heatmap alignment + avatar.spec hold). (2) **Head
+  orientation** — `figHeadDeco` puts a baseball cap (crown arc + brim pointing where the face points), an eye, a nose
+  wedge (front views: two eyes + mouth; back views: cap only) on any pose that declares `J.face`
+  (front|back|left|right|up). (3) **Shoes** — leg `foot` points render as thicker shoe capsules on decorated poses.
+  (4) **Muscle activation colour** — each motion declares `act` ({torso+torsoZone, upArm, foreArm…}); active limb
+  segments fill with `hsla(6,78%,55%,α)` and the trunk gets **bilateral zone blobs** along the spine (pecs at 0.26
+  for bench, lats at 0.45 for pulldown), with α scaling toward contraction (`o.pulse` = u). Both renderers honour
+  `fillCol` (SVG fill attr; canvas `Path2D` fill), so the reference animations AND the timelapse replay glow the
+  same. The anatomy/heatmap outline stays undecorated and unfilled — no face/cap/shoes (`J.face` unset) and no
+  activation (heat maps already encode training volume). `motionfigure.spec` +3 tests (decorations incl. clean
+  anatomy, curved bellies/trunk, activation pulse + zone placement + unlit legs).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

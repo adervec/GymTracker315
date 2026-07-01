@@ -18981,9 +18981,20 @@ function figCapsulePath(a, b, w) {
   const p3 = [b[0] - n[0] * r, b[1] - n[1] * r], p4 = [a[0] - n[0] * r, a[1] - n[1] * r];
   return `M ${f(p1)} L ${f(p2)} A ${_figN(r)} ${_figN(r)} 0 0 1 ${f(p3)} L ${f(p4)} A ${_figN(r)} ${_figN(r)} 0 0 1 ${f(p1)} Z`;
 }
-// Two-segment limb (upper + lower), tapered: two capsule outlines sharing the middle joint.
+// feat 410 — muscle-shaped segment: tapered (wA → wB) with the belly bowing out to bulge× at 42% length,
+// so limbs read as biceps/thigh/calf silhouettes instead of straight rectangles. Round-capped like a capsule.
+function figMusclePath(a, b, wA, wB, bulge) {
+  const rA = wA / 2, rB = wB / 2, n = _figPerp(a, b), f = p => _figN(p[0]) + ' ' + _figN(p[1]);
+  const W = Math.max(wA, wB) * (bulge || 1.2) / 2, belly = _figLerp(a, b, 0.42);
+  const A1 = [a[0] + n[0] * rA, a[1] + n[1] * rA], B1 = [b[0] + n[0] * rB, b[1] + n[1] * rB];
+  const B2 = [b[0] - n[0] * rB, b[1] - n[1] * rB], A2 = [a[0] - n[0] * rA, a[1] - n[1] * rA];
+  const C1 = [belly[0] + n[0] * W, belly[1] + n[1] * W], C2 = [belly[0] - n[0] * W, belly[1] - n[1] * W];
+  return `M ${f(A1)} Q ${f(C1)} ${f(B1)} A ${_figN(rB)} ${_figN(rB)} 0 0 1 ${f(B2)} Q ${f(C2)} ${f(A2)} A ${_figN(rA)} ${_figN(rA)} 0 0 1 ${f(A1)} Z`;
+}
+// Two-segment limb (upper + lower), muscle-shaped and tapering toward the wrist/ankle.
 function figLimb(j1, j2, j3, w1, w2, cls, dim) {
-  return [{ t: 'path', d: figCapsulePath(j1, j2, w1), cls, dim }, { t: 'path', d: figCapsulePath(j2, j3, w2), cls, dim }];
+  return [{ t: 'path', d: figMusclePath(j1, j2, w1, w2 * 0.92, 1.28), cls, dim },
+          { t: 'path', d: figMusclePath(j2, j3, w2, w2 * 0.58, 1.18), cls, dim }];
 }
 // Torso outline along an arbitrary spine (shoulder-centre → hip-centre) with the avatar's half-widths.
 // k scales width for side-view body depth. Used for posed (lying / leaning) torsos.
@@ -18994,15 +19005,23 @@ function figTorsoStrip(shC, hipC, p, k) {
   const L = ws.map(([f, w]) => { const c = _figLerp(shC, hipC, f); return [c[0] + n[0] * w * k, c[1] + n[1] * w * k]; });
   const R = ws.map(([f, w]) => { const c = _figLerp(shC, hipC, f); return [c[0] - n[0] * w * k, c[1] - n[1] * w * k]; });
   const ax = _figLerp(shC, hipC, 1.12); // pelvis point past the hip line closes the trunk with a crotch vertex
-  const pts = L.concat([[ax[0], ax[1]]], R.reverse());
-  return { t: 'path', d: 'M ' + pts.map(q => _figN(q[0]) + ' ' + _figN(q[1])).join(' L ') + ' Z', cls: 'av-body fig-torso' };
+  // feat 410 — smooth the sides through the chest/waist points so the trunk reads as pecs + waist, not a slab
+  const f = q => _figN(q[0]) + ' ' + _figN(q[1]);
+  const edgeDown = e => `Q ${f(e[1])} ${f(_figLerp(e[1], e[2], 0.5))} Q ${f(e[2])} ${f(e[3])}`;
+  const edgeUp = e => `Q ${f(e[2])} ${f(_figLerp(e[2], e[1], 0.5))} Q ${f(e[1])} ${f(e[0])}`;
+  return { t: 'path', d: `M ${f(L[0])} ${edgeDown(L)} L ${f(ax)} L ${f(R[3])} ${edgeUp(R)} Z`, cls: 'av-body fig-torso' };
 }
 // Standing torso for the front/back anatomy figure: the feat-220 shaped chest/waist/hip outline
 // with its neck dip, now closed at the pelvis (legs are volumetric capsules of their own).
 function figStandingTorsoPath(cx, p) {
   const S = p.shoulder, Ch = p.chest, W = p.waist, H = p.hip;
   const neckY = _figN(Math.max(21, Math.min(27, 24 + (1 - p.neck) * 4)));
-  return `M ${_figN(cx - S)} 30 Q ${cx} ${neckY} ${_figN(cx + S)} 30 L ${_figN(cx + Ch)} 55 L ${_figN(cx + W)} 75 L ${_figN(cx + H)} 95 L ${_figN(cx + H * 0.6)} 101 L ${cx} 106 L ${_figN(cx - H * 0.6)} 101 L ${_figN(cx - H)} 95 L ${_figN(cx - W)} 75 L ${_figN(cx - Ch)} 55 Z`;
+  // feat 410 — curved edges: pec/delt bulge (shoulder→chest), waist pinch (chest→waist), hip flare (waist→hip)
+  const q = (c, x, y) => `Q ${_figN(c[0])} ${c[1]} ${_figN(x)} ${y}`;
+  return `M ${_figN(cx - S)} 30 Q ${cx} ${neckY} ${_figN(cx + S)} 30 `
+    + q([cx + (S + Ch) / 2 + 1.6, 43], cx + Ch, 55) + q([cx + (Ch + W) / 2 - 1.6, 65], cx + W, 75) + q([cx + (W + H) / 2 + 1.3, 85], cx + H, 95)
+    + ` L ${_figN(cx + H * 0.6)} 101 L ${cx} 106 L ${_figN(cx - H * 0.6)} 101 L ${_figN(cx - H)} 95 `
+    + q([cx - (W + H) / 2 - 1.3, 85], cx - W, 75) + q([cx - (Ch + W) / 2 + 1.6, 65], cx - Ch, 55) + q([cx - (S + Ch) / 2 - 1.6, 43], cx - S, 30) + ' Z';
 }
 // Neutral standing joints in the 100×192 anatomy box, centred at cx (heatmap ellipses key off these landmarks).
 function figStandingJoints(cx, p) {
@@ -19015,27 +19034,73 @@ function figStandingJoints(cx, p) {
            { hip: [cx + H * 0.55, 98], kn: [cx + H * 0.55 + 1, 138], an: [cx + H * 0.62 + 2, 178] }],
   };
 }
-// Joints (+ optional torsoPath) → ordered shape list: far (dimmed) limbs, torso, near limbs, head.
+// feat 410 — facial features + baseball cap on the head so its position/orientation reads instantly.
+// face ∈ front|back|left|right|up. Side/up faces get an eye, a nose wedge and a forward-pointing brim.
+function figHeadDeco(head, hr, face) {
+  const hx = head[0], hy = head[1], out = [];
+  if (face === 'front' || face === 'back') {
+    out.push({ t: 'path', d: `M ${_figN(hx - hr * 0.93)} ${_figN(hy - 2.2)} A ${_figN(hr * 0.96)} ${_figN(hr * 0.96)} 0 0 1 ${_figN(hx + hr * 0.93)} ${_figN(hy - 2.2)}`, cls: 'fig-cap' });
+    if (face === 'front') {
+      out.push({ t: 'path', d: `M ${_figN(hx - 4.4)} ${_figN(hy - 2.2)} Q ${hx} ${_figN(hy - 0.2)} ${_figN(hx + 4.4)} ${_figN(hy - 2.2)}`, cls: 'fig-cap' });
+      out.push({ t: 'circle', c: [hx - 2.4, hy + 1], r: 0.75, cls: 'fig-eye' }, { t: 'circle', c: [hx + 2.4, hy + 1], r: 0.75, cls: 'fig-eye' });
+      out.push({ t: 'path', d: `M ${_figN(hx - 1.7)} ${_figN(hy + 3.8)} Q ${hx} ${_figN(hy + 4.8)} ${_figN(hx + 1.7)} ${_figN(hy + 3.8)}`, cls: 'fig-mouth' });
+    }
+    return out;
+  }
+  const AX = { right: { t: [0, -1], f: [1, 0] }, left: { t: [0, -1], f: [-1, 0] }, up: { t: [-1, 0], f: [0, -1] } }[face];
+  if (!AX) return out;
+  const t = AX.t, f = AX.f, sweep = (f[0] * t[1] - f[1] * t[0]) > 0 ? 1 : 0;
+  const at = (kf, kt) => [_figN(hx + (f[0] * kf + t[0] * kt) * hr), _figN(hy + (f[1] * kf + t[1] * kt) * hr)];
+  const c1 = at(0.72, 0.66), c2 = at(-0.85, 0.5);
+  out.push({ t: 'path', d: `M ${c1[0]} ${c1[1]} A ${_figN(hr * 0.98)} ${_figN(hr * 0.98)} 0 0 ${sweep} ${c2[0]} ${c2[1]}`, cls: 'fig-cap' }); // cap crown
+  const b0 = at(0.6, 0.74);
+  out.push({ t: 'line', a: b0, b: [b0[0] * 1 + f[0] * hr * 0.9, b0[1] + f[1] * hr * 0.9], w: 1.6, cls: 'fig-cap' });                      // brim points where the face points
+  out.push({ t: 'circle', c: [hx + f[0] * hr * 0.45, hy + f[1] * hr * 0.45 + t[1] * hr * 0.05], r: 0.75, cls: 'fig-eye' });
+  out.push({ t: 'path', d: `M ${at(0.94, 0.16).join(' ')} L ${at(1.25, -0.02).join(' ')} L ${at(0.9, -0.15).join(' ')}`, cls: 'fig-nose' }); // nose wedge
+  return out;
+}
+// Joints (+ optional torsoPath) → ordered shape list: far (dimmed) limbs, torso, near limbs, head (+ decorations).
+// o.act = per-muscle-zone activation 0..1 ({torso, upArm, foreArm, thigh, shin}); o.pulse scales it across the rep,
+// so working muscles glow with colour as they contract. Decorations (cap/face/shoes) render whenever J.face is set.
 function figBodyShapes(J, p, o) {
   o = o || {}; p = p || figDefaultP();
-  const k = o.depth || 1;
+  const k = o.depth || 1, act = o.act || {}, pulse = (o.pulse == null ? 1 : o.pulse), deco = !!J.face;
+  const aCol = x => x ? `hsla(6, 78%, 55%, ${(x * (0.1 + 0.42 * pulse)).toFixed(3)})` : undefined;
   const aw1 = 5.5 * p.armW * (o.limbScale || 1), aw2 = 4.2 * p.armW * (o.limbScale || 1);
   const lw1 = 8.5 * p.thigh * (o.limbScale || 1), lw2 = 6 * p.calf * (o.limbScale || 1);
   const far = [], near = [];
-  (J.legs || []).forEach(l => (l.dim ? far : near).push(...figLimb(l.hip, l.kn, l.an, lw1, lw2, 'fig-leg', l.dim), ...(l.foot ? [{ t: 'path', d: figCapsulePath(l.an, l.foot, lw2 * 0.7), cls: 'fig-foot', dim: l.dim }] : [])));
-  (J.arms || []).forEach(a => (a.dim ? far : near).push(...figLimb(a.sh, a.el, a.wr, aw1, aw2, 'av-arms fig-arm', a.dim)));
+  (J.legs || []).forEach(l => {
+    const segs = figLimb(l.hip, l.kn, l.an, lw1, lw2, 'fig-leg', l.dim);
+    segs[0].fillCol = aCol(act.thigh); segs[1].fillCol = aCol(act.shin);
+    if (l.foot) segs.push({ t: 'path', d: figCapsulePath(l.an, l.foot, lw2 * (deco ? 1.05 : 0.7)), cls: deco ? 'fig-shoe' : 'fig-foot', dim: l.dim });
+    (l.dim ? far : near).push(...segs);
+  });
+  (J.arms || []).forEach(a => {
+    const segs = figLimb(a.sh, a.el, a.wr, aw1, aw2, 'av-arms fig-arm', a.dim);
+    segs[0].fillCol = aCol(act.upArm); segs[1].fillCol = aCol(act.foreArm);
+    (a.dim ? far : near).push(...segs);
+  });
   const torso = J.torsoPath ? { t: 'path', d: J.torsoPath, cls: 'av-body fig-torso' } : figTorsoStrip(J.shC, J.hipC, p, k);
   const parts = far.concat([torso]);
+  if (act.torso && !J.torsoPath) { // trunk activation glows at the working zone (chest vs lats), not the whole slab
+    const zf = act.torsoZone == null ? 0.32 : act.torsoZone;
+    const cc = _figLerp(J.shC, J.hipC, zf), n = _figPerp(J.shC, J.hipC);
+    const off = p.chest * k * 0.4, r = p.chest * k * 0.55, colT = aCol(act.torso);
+    parts.push({ t: 'circle', c: [cc[0] + n[0] * off, cc[1] + n[1] * off], r, fillCol: colT, stroke: 'none', cls: 'fig-act' },
+               { t: 'circle', c: [cc[0] - n[0] * off, cc[1] - n[1] * off], r, fillCol: colT, stroke: 'none', cls: 'fig-act' });
+  }
   if (!J.torsoPath) parts.push({ t: 'path', d: figCapsulePath(J.shC, _figLerp(J.shC, J.head, 0.55), 3.6 * (p.neck || 1)), cls: 'fig-neck' }); // posed torsos get a connecting neck
-  return parts.concat(near).concat([{ t: 'circle', c: J.head, r: J.hr || 7, cls: 'fig-head' }]);
+  parts.push(...near, { t: 'circle', c: J.head, r: J.hr || 7, cls: 'fig-head' });
+  if (deco) parts.push(...figHeadDeco(J.head, J.hr || 7, J.face));
+  return parts;
 }
 // SVG renderer — one element per shape; stroke defaults to the wireframe border colour.
 function figShapeSvg(s) {
   const st = s.stroke || 'var(--border2)', cls = s.cls ? ` class="${s.cls}"` : '', op = s.dim ? ' opacity="0.45"' : '';
   const sw = s.w ? ` stroke-width="${s.w}"` : '';
-  if (s.t === 'path') return `<path${cls} d="${s.d}" fill="${s.fill || 'none'}" stroke="${st}"${sw}${op}/>`;
+  if (s.t === 'path') return `<path${cls} d="${s.d}" fill="${s.fillCol || s.fill || 'none'}" stroke="${st}"${sw}${op}/>`;
   if (s.t === 'line') return `<line${cls} x1="${_figN(s.a[0])}" y1="${_figN(s.a[1])}" x2="${_figN(s.b[0])}" y2="${_figN(s.b[1])}" stroke="${st}"${sw || ' stroke-width="1.4"'} stroke-linecap="round"${op}/>`;
-  if (s.t === 'circle') return `<circle${cls} cx="${_figN(s.c[0])}" cy="${_figN(s.c[1])}" r="${_figN(s.r)}" fill="${s.fill || 'none'}" stroke="${st}"${sw}${op}/>`;
+  if (s.t === 'circle') return `<circle${cls} cx="${_figN(s.c[0])}" cy="${_figN(s.c[1])}" r="${_figN(s.r)}" fill="${s.fillCol || s.fill || 'none'}" stroke="${st}"${sw}${op}/>`;
   return '';
 }
 function figSvg(shapes) { return (shapes || []).map(figShapeSvg).join(''); }
@@ -19046,9 +19111,9 @@ function figCanvas(ctx, shapes, ox, oy, s, color) {
   (shapes || []).forEach(sh => {
     ctx.globalAlpha = sh.dim ? 0.45 : 1;
     ctx.lineWidth = (sh.w || 1.3) / Math.sqrt(s);
-    if (sh.t === 'path') { try { ctx.stroke(new Path2D(sh.d)); } catch (_) {} }
+    if (sh.t === 'path') { try { const p2 = new Path2D(sh.d); if (sh.fillCol) { ctx.fillStyle = sh.fillCol; ctx.fill(p2); } ctx.stroke(p2); } catch (_) {} }
     else if (sh.t === 'line') { ctx.beginPath(); ctx.moveTo(sh.a[0], sh.a[1]); ctx.lineTo(sh.b[0], sh.b[1]); ctx.stroke(); }
-    else if (sh.t === 'circle') { ctx.beginPath(); ctx.arc(sh.c[0], sh.c[1], sh.r, 0, Math.PI * 2); ctx.stroke(); }
+    else if (sh.t === 'circle') { ctx.beginPath(); ctx.arc(sh.c[0], sh.c[1], sh.r, 0, Math.PI * 2); if (sh.fillCol) { ctx.fillStyle = sh.fillCol; ctx.fill(); } if (sh.stroke !== 'none') ctx.stroke(); }
   });
   ctx.globalAlpha = 1; ctx.restore();
 }
@@ -19075,6 +19140,7 @@ const MOTIONS = {
     label: 'Bench Press', views: ['side', 'front'],
     viewLabel: { side: 'Side', front: 'Front (above)' },
     box: { side: [150, 110], front: [110, 150] },
+    act: { torso: 1, torsoZone: 0.26, upArm: 0.85, foreArm: 0.25 }, // pecs (upper trunk) + front delts/triceps light up
     build(view, u, equip, p) {
       if (view === 'side') {
         // Lying supine, feet planted; the bar traces a J-curve — over the shoulder at lockout, mid-chest at the bottom.
@@ -19082,7 +19148,7 @@ const MOTIONS = {
         const wr = [62 + 5 * u, 17 + 26 * u];
         const arm = (off, dim) => ({ sh: [shC[0] + off, shC[1] - 2 + (dim ? 2 : 0)], el: figIk([shC[0] + off, shC[1] - 2], wr, 17, 17, 1), wr, dim });
         const J = {
-          head: [44, 50], shC, hipC,
+          head: [44, 50], face: 'up', shC, hipC,
           arms: [arm(3, true), arm(0, false)],
           legs: [{ hip: hipC, kn: [114, 82], an: [111, 98], foot: [121, 98], dim: true },
                  { hip: [hipC[0] - 2, hipC[1]], kn: [110, 84], an: [107, 100], foot: [117, 100] }],
@@ -19100,9 +19166,9 @@ const MOTIONS = {
       const L = 10 + 7 * u; // apparent (foreshortened) bone length from above
       const arm = sgn => { const sh = [cx + 12 * sgn, 38], wr = [cx + g * sgn, barY]; return { sh, el: figIk(sh, wr, L, L, sgn > 0 ? 1 : -1), wr }; };
       const J = {
-        head: [cx, 18], shC: [cx, 36], hipC: [cx, 98],
+        head: [cx, 18], face: 'front', shC: [cx, 36], hipC: [cx, 98],
         arms: [arm(-1), arm(1)],
-        legs: [{ hip: [cx - 6, 100], kn: [cx - 16, 118], an: [cx - 22, 142] }, { hip: [cx + 6, 100], kn: [cx + 16, 118], an: [cx + 22, 142] }],
+        legs: [{ hip: [cx - 6, 100], kn: [cx - 16, 118], an: [cx - 22, 142], foot: [cx - 25, 148] }, { hip: [cx + 6, 100], kn: [cx + 16, 118], an: [cx + 22, 142], foot: [cx + 25, 148] }],
       };
       const bench = [{ ..._EQ(`M ${cx - 8} 8 L ${cx + 8} 8 L ${cx + 8} 122 L ${cx - 8} 122 Z`, 1.2, 'fig-bench'), dim: true }];
       const load = equip === 'dumbbell'
@@ -19116,6 +19182,7 @@ const MOTIONS = {
     label: 'Biceps Curl', views: ['side', 'front'],
     viewLabel: { side: 'Side', front: 'Front' },
     box: { side: [110, 150], front: [110, 150] },
+    act: { upArm: 1, foreArm: 0.4 }, // biceps peak + forearm assist
     build(view, u, equip, p) {
       if (view === 'side') {
         // Standing; elbow pinned at the side, forearm arcs from full hang to above horizontal, slight lean-back at the top.
@@ -19123,7 +19190,7 @@ const MOTIONS = {
         const el = [shC[0] + 2 + 3 * u, 62 - u];
         const a = 0.14 + 2.13 * u, wr = [_figN(el[0] + 24 * Math.sin(a)), _figN(el[1] + 24 * Math.cos(a))];
         const J = {
-          head: [shC[0] - 2, 16], shC, hipC,
+          head: [shC[0] - 2, 16], face: 'right', shC, hipC,
           arms: [{ sh: [shC[0] - 3, shC[1] + 2], el: [el[0] - 3, el[1] + 1], wr: [wr[0] - 3, wr[1] + 1], dim: true }, { sh: shC, el, wr }],
           legs: [{ hip: [hipC[0] - 4, 90], kn: [hipC[0] - 6, 116], an: [hipC[0] - 6, 140], foot: [hipC[0] + 2, 140], dim: true },
                  { hip: hipC, kn: [hipC[0] - 2, 116], an: [hipC[0] - 2, 140], foot: [hipC[0] + 6, 140] }],
@@ -19134,9 +19201,9 @@ const MOTIONS = {
       const cx = 55, wrY = 90 - 48 * u, wrX = 16 - 2 * u;
       const arm = sgn => ({ sh: [cx + 13 * sgn, 36], el: [cx + 15 * sgn, 64], wr: [cx + wrX * sgn, wrY] });
       const J = {
-        head: [cx, 16], shC: [cx, 34], hipC: [cx, 92],
+        head: [cx, 16], face: 'front', shC: [cx, 34], hipC: [cx, 92],
         arms: [arm(-1), arm(1)],
-        legs: [{ hip: [cx - 6, 96], kn: [cx - 7, 120], an: [cx - 8, 144] }, { hip: [cx + 6, 96], kn: [cx + 7, 120], an: [cx + 8, 144] }],
+        legs: [{ hip: [cx - 6, 96], kn: [cx - 7, 120], an: [cx - 8, 144], foot: [cx - 12, 148] }, { hip: [cx + 6, 96], kn: [cx + 7, 120], an: [cx + 8, 144], foot: [cx + 12, 148] }],
       };
       const load = equip === 'dumbbell'
         ? [-1, 1].map(sgn => [_EQL([cx + (wrX - 6) * sgn, wrY], [cx + (wrX + 6) * sgn, wrY], 2, 'fig-bar'), _EQC([cx + (wrX - 5) * sgn, wrY], 3.4, 'fig-db'), _EQC([cx + (wrX + 5) * sgn, wrY], 3.4, 'fig-db')]).flat()
@@ -19148,13 +19215,14 @@ const MOTIONS = {
     label: 'Lat Pulldown', views: ['back', 'side'],
     viewLabel: { back: 'Back', side: 'Side' },
     box: { back: [110, 160], side: [130, 160] },
+    act: { torso: 0.9, torsoZone: 0.45, upArm: 0.85 }, // lats (mid-back) + biceps drive the pull
     build(view, u, equip, p) {
       if (view === 'back') {
         // Seated from behind: wide bar overhead pulled to the upper chest, elbows driving down and out.
         const cx = 55, barY = 12 + 34 * u, g = 31 - 4 * u;
         const arm = sgn => { const sh = [cx + 12 * sgn, 46], wr = [cx + g * sgn, barY]; return { sh, el: figIk(sh, wr, 17, 17, sgn > 0 ? 1 : -1), wr }; };
         const J = {
-          head: [cx, 30], shC: [cx, 48], hipC: [cx, 100],
+          head: [cx, 30], face: 'back', shC: [cx, 48], hipC: [cx, 100],
           arms: [arm(-1), arm(1)],
           legs: [{ hip: [cx - 6, 102], kn: [cx - 9, 110], an: [cx - 9, 140], foot: [cx - 13, 144] }, { hip: [cx + 6, 102], kn: [cx + 9, 110], an: [cx + 9, 140], foot: [cx + 13, 144] }],
         };
@@ -19168,7 +19236,7 @@ const MOTIONS = {
       const wr = [96 - 12 * u, 14 + 38 * u];
       const arm = (off, dim) => ({ sh: [shC[0] + off, shC[1]], el: figIk([shC[0] + off, shC[1]], [wr[0] + off, wr[1] + (dim ? 2 : 0)], 17, 17, 1), wr: [wr[0] + off, wr[1] + (dim ? 2 : 0)], dim });
       const J = {
-        head: [shC[0] + 3, shC[1] - 19], shC, hipC,
+        head: [shC[0] + 3, shC[1] - 19], face: 'right', shC, hipC,
         arms: [arm(3, true), arm(0, false)],
         legs: [{ hip: hipC, kn: [92, 97], an: [89, 146], foot: [98, 146], dim: true }, { hip: [hipC[0] - 2, hipC[1]], kn: [90, 98], an: [87, 148], foot: [96, 148] }],
       };
@@ -19197,12 +19265,15 @@ function motionForVariation(uuid) {
   return _motionByUuid[uuid] || null;
 }
 // Motion + view + rep position u (0 = top/start, 1 = bottom/contracted) → drawable shapes in the motion's box.
+// feat 410 — the motion's act map + u drive the muscle-activation colour (strongest at contraction).
 function motionPoseShapes(mid, view, u, equip, p) {
   const m = MOTIONS[mid]; if (!m) return null;
   view = m.views.indexOf(view) >= 0 ? view : m.views[0];
   p = p || figP();
-  const r = m.build(view, Math.max(0, Math.min(1, +u || 0)), equip || 'barbell', p);
-  return { shapes: (r.behind || []).concat(figBodyShapes(r.J, p, r.o)).concat(r.front || []), box: m.box[view], view };
+  u = Math.max(0, Math.min(1, +u || 0));
+  const r = m.build(view, u, equip || 'barbell', p);
+  const o = { ...(r.o || {}), act: m.act, pulse: u };
+  return { shapes: (r.behind || []).concat(figBodyShapes(r.J, p, o)).concat(r.front || []), box: m.box[view], view };
 }
 // ---- reference-page animation stages: a self-stopping rAF loop repaints every visible .motion-stage ----
 function motionPhase(ts, period) { period = period || 2400; const tau = ((+ts || 0) % period) / period; return 0.5 - 0.5 * Math.cos(tau * 2 * Math.PI); }
@@ -23815,7 +23886,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 335 · 2026-07-01 18:04';
+const APP_BUILD = 'build 336 · 2026-07-01 19:36';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
