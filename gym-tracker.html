@@ -19534,7 +19534,7 @@ const MOTIONS = {
         legs: [{ hip: [cx - 6, 100], kn: [cx - 16, 118], an: [cx - 22, 142], foot: [cx - 25, 148] }, { hip: [cx + 6, 100], kn: [cx + 16, 118], an: [cx + 22, 142], foot: [cx + 25, 148] }],
       };
       const bench = [{ ..._EQ(`M ${cx - 8} 8 L ${cx + 8} 8 L ${cx + 8} 122 L ${cx - 8} 122 Z`, 1.2, 'fig-bench'), dim: true }];
-      const load = equip === 'dumbbell'
+      const load = equip === 'none' ? [] : equip === 'dumbbell'
         ? [-1, 1].map(sgn => [_EQL([cx + (g - 6) * sgn, barY], [cx + (g + 6) * sgn, barY], 2, 'fig-bar'), _EQC([cx + (g - 5) * sgn, barY], 3.6, 'fig-db'), _EQC([cx + (g + 5) * sgn, barY], 3.6, 'fig-db')]).flat()
         : [_EQL([cx - 40, barY], [cx + 40, barY], 2, 'fig-bar'),
            _EQ(figCapsulePath([cx - 45, barY], [cx - 40, barY], 9), 1.2, 'fig-plate'), _EQ(figCapsulePath([cx + 40, barY], [cx + 45, barY], 9), 1.2, 'fig-plate')];
@@ -19568,7 +19568,7 @@ const MOTIONS = {
         arms: [arm(-1), arm(1)],
         legs: [{ hip: [cx - 6, 96], kn: [cx - 7, 120], an: [cx - 8, 144], foot: [cx - 12, 148] }, { hip: [cx + 6, 96], kn: [cx + 7, 120], an: [cx + 8, 144], foot: [cx + 12, 148] }],
       };
-      const load = equip === 'dumbbell'
+      const load = equip === 'none' ? [] : equip === 'dumbbell'
         ? [-1, 1].map(sgn => [_EQL([cx + (wrX - 6) * sgn, wrY], [cx + (wrX + 6) * sgn, wrY], 2, 'fig-bar'), _EQC([cx + (wrX - 5) * sgn, wrY], 3.4, 'fig-db'), _EQC([cx + (wrX + 5) * sgn, wrY], 3.4, 'fig-db')]).flat()
         : [_EQL([cx - 26, wrY], [cx + 26, wrY], 2, 'fig-bar'), _EQ(figCapsulePath([cx - 30, wrY], [cx - 26, wrY], 8), 1.2, 'fig-plate'), _EQ(figCapsulePath([cx + 26, wrY], [cx + 30, wrY], 8), 1.2, 'fig-plate')];
       return { J, behind: [], front: load };
@@ -19692,7 +19692,7 @@ const MOTIONS = {
       const J = { head: [cx, 16 + 2 * u], face: 'front', shC: [cx, 34], hipC: [cx, 92],
         arms: [arm(-1), arm(1)],
         legs: [-1, 1].map(s => ({ hip: [cx + 6 * s, 96], kn: [cx + 7 * s, 120], an: [cx + 8 * s, 144], foot: [cx + 12 * s, 148] })) };
-      const load = equip === 'dumbbell'
+      const load = equip === 'none' ? [] : equip === 'dumbbell'
         ? [-1, 1].map(s => [_EQL([cx + (g - 6) * s, barY], [cx + (g + 6) * s, barY], 2, 'fig-bar'), _EQC([cx + (g - 5) * s, barY], 3.4, 'fig-db'), _EQC([cx + (g + 5) * s, barY], 3.4, 'fig-db')]).flat()
         : [_EQL([cx - 32, barY], [cx + 32, barY], 2, 'fig-bar'), _EQ(figCapsulePath([cx - 37, barY], [cx - 32, barY], 8), 1.2, 'fig-plate'), _EQ(figCapsulePath([cx + 32, barY], [cx + 37, barY], 8), 1.2, 'fig-plate')];
       return { J, behind: [], front: load };
@@ -19761,7 +19761,7 @@ const MOTIONS = {
         arms: [arm(-1), arm(1)],
         legs: [-1, 1].map(s => ({ hip: [cx + 6 * s, 100], kn: [cx + 16 * s, 118], an: [cx + 22 * s, 142], foot: [cx + 25 * s, 148] })) };
       const a1 = arm(-1).wr, a2 = arm(1).wr;
-      const load = [a1, a2].map(w => [_EQL([w[0] - 5, w[1]], [w[0] + 5, w[1]], 2, 'fig-bar'), _EQC([w[0] - 4, w[1]], 3.2, 'fig-db'), _EQC([w[0] + 4, w[1]], 3.2, 'fig-db')]).flat();
+      const load = equip === 'none' ? [] : [a1, a2].map(w => [_EQL([w[0] - 5, w[1]], [w[0] + 5, w[1]], 2, 'fig-bar'), _EQC([w[0] - 4, w[1]], 3.2, 'fig-db'), _EQC([w[0] + 4, w[1]], 3.2, 'fig-db')]).flat();
       return { J, behind: [{ ..._EQ(`M ${cx - 8} 8 L ${cx + 8} 8 L ${cx + 8} 122 L ${cx - 8} 122 Z`, 1.2, 'fig-bench'), dim: true }], front: load };
     },
   },
@@ -19866,7 +19866,8 @@ const MOTIONS = {
         arms: [arm(-1), arm(1)],
         legs: [-1, 1].map(s => ({ hip: [cx + 6 * s, 96], kn: [cx + 7 * s, 120], an: [cx + 8 * s, 144], foot: [cx + 12 * s, 148] })) };
       const wY = 84 - 5 * u;
-      const load = equip === 'machine' // feat 414 — shrug machine: shoulder pads + side stacks, no bar
+      const load = equip === 'none' ? []
+        : equip === 'machine' // feat 414 — shrug machine: shoulder pads + side stacks, no bar
         ? [_EQ(figCapsulePath([cx - 17, shY - 1], [cx - 7, shY - 1], 6), 1.4, 'fig-pad'), _EQ(figCapsulePath([cx + 7, shY - 1], [cx + 17, shY - 1], 6), 1.4, 'fig-pad'),
            _EQ('M 8 40 L 16 40 L 16 146 L 8 146 Z', 1.2, 'fig-stack'), _EQ('M 94 40 L 102 40 L 102 146 L 94 146 Z', 1.2, 'fig-stack')]
         : equip === 'dumbbell' || equip === 'kettlebell'
@@ -20116,7 +20117,7 @@ const MOTIONS = {
       const J = { head: [shC[0] + 3, shC[1] - 17], face: 'right', shC, hipC: hip,
         arms: [{ sh: shC, el: lock ? figIk(shC, wr, 16, 16, 1) : _figLerp(shC, wr, 0.5), wr }],
         legs: [{ hip: [hip[0] + 3, hip[1]], kn: [kn[0] + 3, kn[1]], an: [an[0] + 3, an[1]], foot: [an[0] + 12, 144], dim: true }, { hip, kn, an, foot: [an[0] + 9, 144] }] };
-      return { J, behind: [_EQL([14, 144], [108, 144], 1, 'fig-floor')], front: [_EQC(wr, 11, 'fig-plate'), _EQC(wr, 2.2, 'fig-bar')], o: { depth: 0.72 } };
+      return { J, behind: [_EQL([14, 144], [108, 144], 1, 'fig-floor')], front: equip === 'none' ? [] : _figSideLoad(wr, equip === 'barbell' ? 'barbell' : equip), o: { depth: 0.72 } };
     },
   },
   /* ---- feat 413 — seated machine stations (Roc-It / fixed / MTS / plate-loaded). opts.angle = press
@@ -20528,7 +20529,16 @@ function motionForVariation(uuid) {
         const mv = MOTION_VARS[v.id];
         if (mv) { _motionByUuid[v.uuid] = { motion: mv[0], equip: mv[1], opts: nz({ ...mods, ...(mv[2] || {}) }) }; return; }
         if (!fam) return;
-        const equip = _motionEquip(v.title, fam[1]);
+        let equip = _motionEquip(v.title, fam[1]);
+        // feat 416 — bodyweight designation from the equipment solver (feat 223): a variation with NO loading
+        // tool trains empty-handed, even when its family defaults to barbell/dumbbell (wall sits, inverted
+        // rows, muscle-ups, L-sits…). Two exceptions keep their load: bands (no "setup tool" but the band IS
+        // the load) and loaded carries/holds (logged by time/distance, so the solver has no tool for them,
+        // but a farmer's walk without the weights is just a walk).
+        try {
+          if (equip !== 'band' && !/farmer|carr(y|ies)|yoke|zercher|suitcase|sandbag|waiter|thick.?bar|fat.?grip|hercules|curl hold/i.test(v.title)
+            && typeof autoSetupKind === 'function' && autoSetupKind(v.uuid) == null) equip = 'none';
+        } catch (_) {}
         const mach = FAMILY_MACHINE[f.id]; // feat 413 — seated stations override the free-weight motion
         if (mach && equip === 'machine' && !/smith/i.test(v.title)) { _motionByUuid[v.uuid] = { motion: mach[0], equip, opts: nz({ ...mach[1], ...mods }) }; return; }
         _motionByUuid[v.uuid] = { motion: fam[0], equip, opts: nz({ ...(fam[2] || {}), ...mods }) };
@@ -25174,7 +25184,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 341 · 2026-07-01 23:40';
+const APP_BUILD = 'build 342 · 2026-07-02 07:33';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

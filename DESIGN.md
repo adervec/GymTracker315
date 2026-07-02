@@ -2274,6 +2274,15 @@ They share variation **UUIDs**.
   now animate as push-ups via id-keyed `MOTION_VARS`; Sumo Squat (adductor family) is a wide-stance squat, not
   a leg-extension. `motionfigure.spec` feat-415 (modifier inference, tempo-clock dwell/hold/slow, grip geometry,
   floor-press scene, badges).
+- **Bodyweight designation from the equipment solver (feat 416):** motion equipment now defers to
+  **`autoSetupKind`** (the feat-223 per-variation loading-tool oracle): a variation with NO loading tool renders
+  **empty-handed** even when its family defaults to barbell/dumbbell (wall sits, inverted rows, muscle-ups,
+  L-sits, iso holds…). Two guarded exceptions keep their load: **bands/TRX** (no setup tool, but the band IS the
+  load) and **loaded carries/holds** (farmer/yoke/zercher/suitcase/sandbag/waiter/thick-bar/Hercules/curl-hold —
+  logged by time/distance so the solver has no tool, but a farmer's walk without weights is just a walk). All
+  templates with hardcoded loads (bench/press/curl fronts, fly, shrug, oly) gained `none` guards so bodyweight
+  variations never hold a phantom plate/dumbbell in ANY view. `motionfigure.spec` feat-416 (blanket
+  no-phantom-loads sweep across every none-equip variation × view + the designation spot checks).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

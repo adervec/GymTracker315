@@ -256,6 +256,38 @@ test('feat 415 — brief modifiers: pause/hold/slow tempo, grip width, floor/Lar
   expect(r.badge).toBe(true);
 });
 
+// feat 416 — bodyweight designation: variations without a loading tool (per the feat-223 equipment solver)
+// train empty-handed; loaded carries/holds and band work keep their load; and NO template draws a phantom
+// plate/dumbbell/kettlebell for a bodyweight variation in any view.
+test('feat 416 — bodyweight exercises are designated as such and render empty-handed', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const eqOf = t => { for (const f of FAMILIES) for (const v of (f.variations || [])) if (v.title === t) return motionForVariation(v.uuid).equip; return null; };
+    const phantoms = [];
+    for (const f of FAMILIES) for (const v of (f.variations || [])) {
+      if (!v.uuid) continue;
+      const mv = motionForVariation(v.uuid);
+      if (!mv || mv.equip !== 'none') continue;
+      for (const view of MOTIONS[mv.motion].views) {
+        const bad = motionPoseShapes(mv.motion, view, 0.5, 'none', undefined, mv.opts).shapes.some(s => /fig-(plate|db|kb)/.test(s.cls || ''));
+        if (bad) phantoms.push(f.id + '/' + v.id + '@' + view);
+      }
+    }
+    return {
+      phantoms,
+      wallSit: eqOf('Wall Sit (Iso Squat)'), invRow: eqOf('Inverted Row (BW)'), muscleUp: eqOf('Muscle-Up'),
+      farmers: eqOf("Farmer's Walk"), isoCurl: eqOf('Isometric Curl Hold'),
+      band: eqOf('Band Lateral Raise'),
+    };
+  });
+  expect(r.phantoms).toEqual([]);        // no bodyweight variation holds a phantom weight in any view
+  expect(r.wallSit).toBe('none');
+  expect(r.invRow).toBe('none');
+  expect(r.muscleUp).toBe('none');
+  expect(r.farmers).toBe('kettlebell');  // loaded carries keep their load — the solver's null just means "no setup tool"
+  expect(r.isoCurl).toBe('barbell');     // loaded holds too
+  expect(r.band).toBe('band');           // bands have no setup tool but ARE the load
+});
+
 // feat 412 — every variation of every exercise family animates (plan-template families excluded).
 test('feat 412 — full coverage: every exercise variation resolves to a motion and every template renders', async ({ page }) => {
   const r = await page.evaluate(() => {
