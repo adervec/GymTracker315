@@ -2293,6 +2293,15 @@ They share variation **UUIDs**.
   Full/Concise mode toggle stays in the header (it shapes the Tips slide). `test/excarousel.spec.mjs` (tabs,
   default visibility, motion stage paints for the picked variation, peek → full trends, history rows, slide
   survives re-render); `trendfocus.spec` entry-point case updated to the Trends tab.
+- **Carousel absorbs concise/full, alternatives + the brief (feat 418):** the feat-417 carousel grows to SEVEN
+  slides — **💡 Tips** (concise blocks) · **📖 Full** (the reference deep-dive that used to hide behind the
+  concise/full header toggle: position table, general + variation setup/movement/mistakes, programming, UUID) ·
+  🏃 Motion · 📈 Trends · 🕓 History · **⇄ Alts** (`computeAlternatives` + `altCue` from the reference — same
+  stimulus, swap when crowded, with gym-availability pills) · **🎧 Brief** (`variationPodcast` segs rendered as
+  READABLE text with a "play aloud" link; the media-row 🎧 button still plays it). The header mode toggle is
+  gone (`_modalTipsModeChange` kept as a shim that selects the matching slide); the Settings → *Tips detail*
+  preference now picks the DEFAULT slide on modal open (full → 📖). `excarousel.spec` extended (7 tabs, Full/
+  Alts/Brief content, default-slide setting); `tipposition.spec` re-anchored to the Full slide.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

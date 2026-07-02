@@ -22,18 +22,60 @@ const openFor = `(() => {
   return u;
 })()`;
 
-test('the tips area carries the four carousel tabs; Tips shows by default, others are hidden', async ({ page }) => {
+test('the tips area carries the seven carousel tabs; Tips shows by default, others are hidden', async ({ page }) => {
   const r = await page.evaluate((openFor) => {
     eval(openFor);
     const sec = document.getElementById('trk-tips-section');
     const tabs = [...sec.querySelectorAll('.excar-tab')].map(b => b.dataset.excar);
     const vis = Object.fromEntries([...sec.querySelectorAll('[data-excar-slide]')].map(s => [s.dataset.excarSlide, !s.hidden]));
-    return { tabs, vis, hasTips: !!sec.querySelector('[data-excar-slide="tips"] .tip-block'), oldBtnGone: !document.getElementById('trk-ex-trends-btn') };
+    return { tabs, vis, hasTips: !!sec.querySelector('[data-excar-slide="tips"] .tip-block'), oldBtnGone: !document.getElementById('trk-ex-trends-btn'), modeBtnGone: !document.getElementById('trk-tips-mode-btn') };
   }, openFor);
-  expect(r.tabs).toEqual(['tips', 'motion', 'trends', 'history']);
-  expect(r.vis).toEqual({ tips: true, motion: false, trends: false, history: false });
+  expect(r.tabs).toEqual(['tips', 'full', 'motion', 'trends', 'history', 'alts', 'brief']);
+  expect(r.vis).toEqual({ tips: true, full: false, motion: false, trends: false, history: false, alts: false, brief: false });
   expect(r.hasTips).toBe(true);
   expect(r.oldBtnGone).toBe(true);      // the 📈 Trends button is replaced by the Trends slide
+  expect(r.modeBtnGone).toBe(true);     // feat 418 — the concise/full header toggle became the Full slide
+});
+
+// feat 418 — Full / Alternatives / Brief slides + the Tips-detail setting picks the default slide.
+test('feat 418 — Full slide carries the reference deep-dive; Alts lists swaps; Brief shows the coach text', async ({ page }) => {
+  const r = await page.evaluate((openFor) => {
+    eval(openFor);
+    const sec = document.getElementById('trk-tips-section');
+    const slide = k => sec.querySelector(`[data-excar-slide="${k}"]`);
+    sec.querySelector('.excar-tab[data-excar="full"]').click();
+    const fullVis = !slide('full').hidden;
+    const fullHasDeepDive = /General Setup|position-wrap/.test(slide('full').innerHTML);
+    sec.querySelector('.excar-tab[data-excar="alts"]').click();
+    const altRows = slide('alts').querySelectorAll('.excar-alt-row').length;
+    sec.querySelector('.excar-tab[data-excar="brief"]').click();
+    const briefBlocks = slide('brief').querySelectorAll('.tip-block').length;
+    const briefPlay = !!slide('brief').querySelector('#trk-brief-play');
+    return { fullVis, fullHasDeepDive, altRows, briefBlocks, briefPlay };
+  }, openFor);
+  expect(r.fullVis).toBe(true);
+  expect(r.fullHasDeepDive).toBe(true);
+  expect(r.altRows).toBeGreaterThan(0);       // bench press has same-stimulus alternatives
+  expect(r.briefBlocks).toBeGreaterThan(1);   // the spoken brief, readable (intro + setup/technique/…)
+  expect(r.briefPlay).toBe(true);             // …and still playable from here
+});
+
+test('feat 418 — the Tips-detail setting picks the default slide on modal open', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let u = null; for (const f of FAMILIES) for (const v of (f.variations || [])) if (v.id === 'bb-flat-bench') u = v.uuid;
+    pending = { varUuid: u, subUuid: null, sets: [{ w: '', r: '' }] };
+    state.tipsMode = 'full';
+    openLogModal();
+    const full = modalState.exCarousel;
+    closeLogModal();
+    state.tipsMode = 'concise';
+    openLogModal();
+    const concise = modalState.exCarousel;
+    closeLogModal();
+    return { full, concise };
+  });
+  expect(r.full).toBe('full');
+  expect(r.concise).toBe('tips');
 });
 
 test('Motion tab reveals the animated wireframe stage for the picked variation', async ({ page }) => {

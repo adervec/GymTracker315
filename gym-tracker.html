@@ -2898,6 +2898,11 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .excar-hist-date { color: var(--text3); font-size: 10.5px; min-width: 46px; }
 .excar-hist-sets { color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .excar-hist-vol { color: var(--text3); font-size: 10.5px; white-space: nowrap; }
+.excar-alt-hint { font-size: 10.5px; color: var(--text3); margin-bottom: 6px; }
+.excar-alt-row { display: flex; gap: 8px; align-items: baseline; padding: 5px 2px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.excar-alt-row:last-child { border-bottom: none; }
+.excar-alt-title { color: var(--text); flex: 1; min-width: 0; }
+.excar-alt-fam { color: var(--text3); font-size: 10.5px; white-space: nowrap; }
 .anat-fig-label { font-size: 9px; fill: var(--text2); font-weight: 700; text-anchor: middle; }
 .amus { cursor: pointer; fill: var(--bg4); stroke: var(--border2); stroke-width: 0.8; transition: fill 0.15s; }
 .amus:hover { fill: var(--accent2); }
@@ -8785,7 +8790,7 @@ function renderSettingsDrawer() {
     <div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">Tips detail</div>
-        <div class="drawer-setting-sub">Concise: cues & tips · Full: adds setup, movement, mistakes</div>
+        <div class="drawer-setting-sub">Default slide of the exercise-sheet carousel — 💡 concise cues or the 📖 full reference deep-dive</div>
       </div>
       <div class="drawer-pill-group">
         <button class="drawer-pill ${(state.tipsMode||'concise') === 'concise' ? 'active' : ''}" data-pref-tips-mode="concise">Concise</button>
@@ -22758,6 +22763,7 @@ function openLogModal() {
   modalState.showPicker = !pending.varUuid;
   modalState.tipsExpanded = !!state.tipsExpanded;
   modalState.tipsMode = state.tipsMode || 'concise';
+  modalState.exCarousel = state.tipsMode === 'full' ? 'full' : 'tips'; // feat 418 — the Tips-detail setting picks the default slide
   modalState.exNoteEditing = false; // feat 54
   // No clearing of pending — that's what makes it persistent
   if (pending.sets.length === 0) pending.sets = [{ w:'', r:'' }];
@@ -22783,6 +22789,7 @@ function editExisting(sessionDate, varUuid, subUuid) {
   modalState.showPicker = false;
   modalState.tipsExpanded = !!state.tipsExpanded;
   modalState.tipsMode = state.tipsMode || 'concise';
+  modalState.exCarousel = state.tipsMode === 'full' ? 'full' : 'tips'; // feat 418
   modalState.exNoteEditing = false; // feat 54
   pending.varUuid = varUuid;
   pending.subUuid = subUuid || null;
@@ -23804,7 +23811,6 @@ function renderSetsForm() {
   let tipsHtml = '';
   if (hasFamilyTips || hasVariationTips || v.uuid) {
     const isOpen = modalState.tipsExpanded;
-    const mode = modalState.tipsMode || 'concise';
     let tipBlocks = '';
     if (fam.quickCue) {
       tipBlocks += `<div class="tip-block">
@@ -23836,30 +23842,31 @@ function renderSetsForm() {
         <div class="tip-block-text warning">${escapeHtml(v.warning)}</div>
       </div>`;
     }
-    // Full mode: look up reference data from exercises array
-    if (mode === 'full') {
+    // feat 418 — the reference deep-dive is its own 📖 Full slide (no more concise/full toggle)
+    let fullBlocks = '';
+    {
       const refEx = exercises.find(e => e.id === fam.id);
       if (refEx) {
         // feat 334 — the collapsed "📐 Body Position & Setup" table from the full reference, near the top of the
         // full tip (a 'trk-pos-' uid keeps it distinct from the Reference page's own copy if both are in the DOM).
         const posHtml = renderPosition('trk-pos-' + (v.uuid || v.id), getPosition((refEx.variations || []).find(rv => rv.id === v.id) || v, refEx.id));
-        if (posHtml) tipBlocks += posHtml;
+        if (posHtml) fullBlocks += posHtml;
         // General movement tips (setup, movement, mistakes)
         if (refEx.general) {
           if (refEx.general.setup && refEx.general.setup.length) {
-            tipBlocks += `<div class="tip-block">
+            fullBlocks += `<div class="tip-block">
               <div class="tip-block-label" style="color:#88ccff">General Setup</div>
               <div class="tip-block-text">${refEx.general.setup.map(s => escapeHtml(s)).join('<br>')}</div>
             </div>`;
           }
           if (refEx.general.movement && refEx.general.movement.length) {
-            tipBlocks += `<div class="tip-block">
+            fullBlocks += `<div class="tip-block">
               <div class="tip-block-label" style="color:#88ccff">Movement</div>
               <div class="tip-block-text">${refEx.general.movement.map(s => escapeHtml(s)).join('<br>')}</div>
             </div>`;
           }
           if (refEx.general.mistakes && refEx.general.mistakes.length) {
-            tipBlocks += `<div class="tip-block">
+            fullBlocks += `<div class="tip-block">
               <div class="tip-block-label" style="color:#ffb090">Common Mistakes</div>
               <div class="tip-block-text warning">${refEx.general.mistakes.map(s => escapeHtml(s)).join('<br>')}</div>
             </div>`;
@@ -23869,19 +23876,19 @@ function renderSetsForm() {
         const refVar = refEx.variations && refEx.variations.find(rv => rv.id === v.id);
         if (refVar) {
           if (refVar.setup && refVar.setup.length) {
-            tipBlocks += `<div class="tip-block">
+            fullBlocks += `<div class="tip-block">
               <div class="tip-block-label" style="color:#aaddaa">Variation Setup</div>
               <div class="tip-block-text">${refVar.setup.map(s => escapeHtml(s)).join('<br>')}</div>
             </div>`;
           }
           if (refVar.movement && refVar.movement.length) {
-            tipBlocks += `<div class="tip-block">
+            fullBlocks += `<div class="tip-block">
               <div class="tip-block-label" style="color:#aaddaa">Variation Movement</div>
               <div class="tip-block-text">${refVar.movement.map(s => escapeHtml(s)).join('<br>')}</div>
             </div>`;
           }
           if (refVar.mistakes && refVar.mistakes.length) {
-            tipBlocks += `<div class="tip-block">
+            fullBlocks += `<div class="tip-block">
               <div class="tip-block-label" style="color:#ffb090">Variation Mistakes</div>
               <div class="tip-block-text warning">${refVar.mistakes.map(s => escapeHtml(s)).join('<br>')}</div>
             </div>`;
@@ -23889,7 +23896,7 @@ function renderSetsForm() {
           if (refVar.programming) {
             const progEntries = Object.entries(refVar.programming).map(([k,v2]) => `<span style="color:#ccc">${escapeHtml(k)}:</span> ${escapeHtml(v2)}`).join(' &nbsp;·&nbsp; ');
             if (progEntries) {
-              tipBlocks += `<div class="tip-block">
+              fullBlocks += `<div class="tip-block">
                 <div class="tip-block-label" style="color:#d8a0ff">Programming</div>
                 <div class="tip-block-text">${progEntries}</div>
               </div>`;
@@ -23898,31 +23905,41 @@ function renderSetsForm() {
         }
       }
     }
-    tipBlocks += `<div class="tip-uuid-row">
+    fullBlocks += `<div class="tip-uuid-row">
       <span class="tip-uuid-label">UUID</span><span class="tip-uuid">${escapeHtml(v.uuid || '—')}</span>
     </div>`;
-    const modeToggleLabel = mode === 'concise' ? '📖 Full' : '📄 Concise';
-    // feat 417 — the tips area is a CAROUSEL: Tips · Motion (wireframe animation) · Trends preview (replaces
-    // the 📈 Trends button) · recent History preview. The chosen slide lives in modalState so it survives the
-    // per-set re-renders of the sheet.
+    // feat 417/418 — the tips area is a CAROUSEL: 💡 concise Tips · 📖 Full reference deep-dive (was the
+    // concise/full toggle) · 🏃 Motion (wireframe animation) · 📈 Trends preview (replaces the Trends button) ·
+    // 🕓 recent History · ⇄ Alternatives (same stimulus, swap when crowded) · 🎧 the Brief's text. The chosen
+    // slide lives in modalState so it survives the per-set re-renders of the sheet.
     const slide = modalState.exCarousel || 'tips';
-    const TABS = [['tips', '💡 Tips'], ['motion', '🏃 Motion'], ['trends', '📈 Trends'], ['history', '🕓 History']];
+    const TABS = [['tips', '💡 Tips'], ['full', '📖 Full'], ['motion', '🏃 Motion'], ['trends', '📈 Trends'], ['history', '🕓 History'], ['alts', '⇄ Alts'], ['brief', '🎧 Brief']];
     const motionSlide = (typeof motionPanelHtml === 'function' && motionPanelHtml(pending.varUuid)) || '<div class="excar-empty">No animation for this exercise yet.</div>';
     const trendSlide = renderTrendPeek(pending.varUuid, pending.subUuid) || '<div class="excar-empty">Not enough history for a trend yet — log a couple of sessions.</div>';
+    const altsSlide = (() => { // feat 418 — the reference's alternatives, in the sheet
+      const alts = (typeof computeAlternatives === 'function' && fam) ? (computeAlternatives(fam.mega, fam.sub, pending.varUuid) || []) : [];
+      if (!alts.length) return '<div class="excar-empty">No alternatives found — this one is fairly unique.</div>';
+      return '<div class="excar-alt-hint">Same stimulus — swap when the station is crowded.</div>' + alts.map(a => {
+        const cue = (typeof altCue === 'function') ? altCue(fam.id, fam.mega, a.fam) : null;
+        return `<div class="excar-alt-row"><span class="excar-alt-title">${escapeHtml(a.v.title)}</span><span class="excar-alt-fam">${escapeHtml(a.fam.title)}</span>${cue ? `<span class="alt-cue ${cue.cls}">${escapeHtml(cue.label)}</span>` : ''}</div>`;
+      }).join('');
+    })();
+    const briefSlide = (() => { // feat 418 — the 🎧 coach brief as READABLE text (the button still plays it)
+      const built = (typeof variationPodcast === 'function') ? variationPodcast(pending.varUuid) : null;
+      if (!built || !built.segs.length) return '<div class="excar-empty">No brief available for this movement.</div>';
+      return `<button class="tips-ref-link" id="trk-brief-play" type="button">🎧 Play this brief aloud →</button>` +
+        built.segs.map(s => `<div class="tip-block"><div class="tip-block-label">${escapeHtml(s.label)}</div><div class="tip-block-text">${escapeHtml(s.text)}</div></div>`).join('');
+    })();
+    const SLIDES = { tips: `<button class="tips-ref-link" id="trk-tips-ref-btn" type="button">📚 Open full reference entry →</button>${tipBlocks}`,
+      full: fullBlocks, motion: motionSlide, trends: trendSlide, history: exHistoryPreviewHtml(pending.varUuid, pending.subUuid), alts: altsSlide, brief: briefSlide };
     tipsHtml = `<div class="tips-section ${isOpen ? 'open' : ''}" id="trk-tips-section">
       <div class="tips-header" id="trk-tips-header">
         <div class="tips-title">💡 Tips & Insights</div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <button id="trk-tips-mode-btn" style="background:#1e1630;border:1px solid #3a2a5a;color:#b48aff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;cursor:pointer;font-family:inherit;letter-spacing:0.3px;" onclick="event.stopPropagation();(function(){var m=document.getElementById('trk-tips-mode-btn');var next=m.textContent.includes('Full')?'full':'concise';window._modalTipsModeChange(next);})();">${modeToggleLabel}</button>
-          <div class="tips-chevron">›</div>
-        </div>
+        <div class="tips-chevron">›</div>
       </div>
       <div class="tips-content">
         <div class="excar-tabs">${TABS.map(([k, lbl]) => `<button type="button" class="excar-tab ${slide === k ? 'active' : ''}" data-excar="${k}">${lbl}</button>`).join('')}</div>
-        <div class="excar-slide" data-excar-slide="tips" ${slide !== 'tips' ? 'hidden' : ''}><button class="tips-ref-link" id="trk-tips-ref-btn" type="button">📚 Open full reference entry →</button>${tipBlocks}</div>
-        <div class="excar-slide" data-excar-slide="motion" ${slide !== 'motion' ? 'hidden' : ''}>${motionSlide}</div>
-        <div class="excar-slide" data-excar-slide="trends" ${slide !== 'trends' ? 'hidden' : ''}>${trendSlide}</div>
-        <div class="excar-slide" data-excar-slide="history" ${slide !== 'history' ? 'hidden' : ''}>${exHistoryPreviewHtml(pending.varUuid, pending.subUuid)}</div>
+        ${TABS.map(([k]) => `<div class="excar-slide" data-excar-slide="${k}" ${slide !== k ? 'hidden' : ''}>${SLIDES[k]}</div>`).join('')}
       </div>
     </div>`;
   }
@@ -24538,6 +24555,7 @@ function bindSetsForm() {
   // feat 75 — reference videos for this exercise (carousel / manager); includes whole-movement clips
   document.getElementById('trk-ex-media-btn')?.addEventListener('click', () => { const fi = VAR_INDEX.get(pending.varUuid); openExerciseMedia(pending.varUuid, null, fi && fi.family ? fi.family.id : null); });
   document.getElementById('trk-trend-peek')?.addEventListener('click', () => openTrendsFor(pending.varUuid, pending.subUuid)); // feat 270 — peek → full trends (now the carousel's Trends slide)
+  document.getElementById('trk-brief-play')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 418 — the Brief slide's play link
   // feat 417 — the tips-area carousel: Tips · Motion · Trends · History. Selection sticks across the
   // sheet's per-set re-renders via modalState.exCarousel.
   document.querySelectorAll('#trk-tips-section .excar-tab').forEach(b => b.addEventListener('click', (e) => {
@@ -24584,10 +24602,10 @@ function bindSetsForm() {
     renderModal();
   });
 
-  // Tips mode toggle (concise ↔ full)
+  // feat 418 — concise/full are carousel slides now; the old header toggle is gone. Kept as a shim
+  // in case anything external still calls it: it selects the matching slide.
   window._modalTipsModeChange = function(newMode) {
-    modalState.tipsMode = newMode;
-    // ensure tips section is open when toggling to full
+    modalState.exCarousel = newMode === 'full' ? 'full' : 'tips';
     if (newMode === 'full') modalState.tipsExpanded = true;
     renderModal();
   };
@@ -25234,7 +25252,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 345 · 2026-07-02 16:54';
+const APP_BUILD = 'build 346 · 2026-07-02 17:27';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
