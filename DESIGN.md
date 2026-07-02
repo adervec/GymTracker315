@@ -2233,6 +2233,18 @@ They share variation **UUIDs**.
   (splits/sessions/WODs/warmups) are excluded — they're lists, not movements. `motionfigure.spec`: 100%-coverage
   + every-template-renders-and-animates case; the reference now carries one animated stage per rendered variation
   (750+). New patterns onboard by adding a FAMILY_MOTION row; new families fall back the same way.
+- **Roc-It + seated machine stations (feat 413):** first-pass wireframe correction — the Roc-It line was
+  rendering as free-weight motions (a lying barbell bench for the Roc-It chest press). Three new SEATED-station
+  templates: **machine-press** (weight stack, seat + back pad, pivoting press lever + handle; `opts.angle` aims
+  the press — flat 0° / incline 35° / decline −18° / shoulder 70°), **machine-row** (faces the stack, chest
+  support pad, handles pulled to the ribs) and **machine-back-ext** (seated, back roller on a pivot arm, shin
+  roller, torso reclines against it). `opts.rock` adds the **Roc-It signature rocking seat** — the upper body +
+  back pad tilt through the rep (press: rocked back at extension; row: rocks back through the pull). All six
+  `roc-it-*` variations map explicitly with `rock:1`; a new `FAMILY_MACHINE` override routes ANY variation in
+  the press/row/back-extension families whose equipment resolves to 'machine' (fixed / MTS / plate-loaded /
+  selectorized) onto the seated templates — **except Smith machines**, which stay on the bench (they are the
+  free-weight motion on rails). `motionfigure.spec` feat-413 case (all six Roc-Its, fixed/MTS coverage, Smith
+  exception, station parts drawn, the seat actually rocks).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

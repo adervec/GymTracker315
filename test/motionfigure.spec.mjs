@@ -135,6 +135,38 @@ test('feat 408/412 — motionForVariation: bespoke dev set + family templates wi
   expect(r.none).toBeNull();
 });
 
+// feat 413 — Roc-It (and every other seated machine press/row/back-ext) renders as a seated STATION, not a
+// free-weight motion: weight stack, seat + pads, pivoting lever — and the Roc-It rocking seat.
+test('feat 413 — Roc-It exercises are seated machines with the rocking seat; Smith stays on the bench', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const vOf = id => { for (const f of FAMILIES) for (const v of (f.variations || [])) if (v.id === id) return v.uuid; return null; };
+    const mv = id => motionForVariation(vOf(id));
+    const cls = ps => ps.shapes.map(s => s.cls || '').join(' ');
+    const flat = mv('roc-it-flat-press');
+    const stage = motionPoseShapes(flat.motion, 'side', 0.5, flat.equip, undefined, flat.opts);
+    const rocked = JSON.stringify(motionPoseShapes('machine-press', 'side', 0, 'machine', undefined, { rock: 1 }).shapes);
+    const still = JSON.stringify(motionPoseShapes('machine-press', 'side', 0, 'machine', undefined, {}).shapes);
+    return {
+      flat, incline: mv('roc-it-incline-press'), decline: mv('roc-it-decline-press'),
+      shoulder: mv('roc-it-shoulder-press'), row: mv('roc-it-row'), backExt: mv('roc-it-back-extension'),
+      fixed: mv('fixed-chest-press'), mts: mv('mts-chest-press'), smith: mv('smith-flat-bench'),
+      stationParts: ['fig-stack', 'fig-pad', 'fig-arm-lever'].every(c => cls(stage).includes(c)),
+      rocks: rocked !== still,
+    };
+  });
+  expect(r.flat).toEqual({ motion: 'machine-press', equip: 'machine', opts: { rock: 1 } });
+  expect(r.incline).toEqual({ motion: 'machine-press', equip: 'machine', opts: { rock: 1, angle: 35 } });
+  expect(r.decline).toEqual({ motion: 'machine-press', equip: 'machine', opts: { rock: 1, angle: -18 } });
+  expect(r.shoulder).toEqual({ motion: 'machine-press', equip: 'machine', opts: { rock: 1, angle: 70 } });
+  expect(r.row).toEqual({ motion: 'machine-row', equip: 'machine', opts: { rock: 1 } });
+  expect(r.backExt).toEqual({ motion: 'machine-back-ext', equip: 'machine', opts: { rock: 1 } });
+  expect(r.fixed.motion).toBe('machine-press');    // every seated machine press benefits, not just Roc-It
+  expect(r.mts.motion).toBe('machine-press');
+  expect(r.smith.motion).toBe('bench-press');      // a Smith bench IS a lying bench press on rails
+  expect(r.stationParts).toBe(true);               // stack + pads + pivoting lever are drawn
+  expect(r.rocks).toBe(true);                      // the Roc-It seat actually rocks
+});
+
 // feat 412 — every variation of every exercise family animates (plan-template families excluded).
 test('feat 412 — full coverage: every exercise variation resolves to a motion and every template renders', async ({ page }) => {
   const r = await page.evaluate(() => {
