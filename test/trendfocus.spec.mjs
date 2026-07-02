@@ -61,15 +61,15 @@ test('renderFocusedTrends renders the back button and trend cards', async ({ pag
 
 test('the Reference + Log-Sets entry points exist', async ({ page }) => {
   const r = await page.evaluate(() => {
-    // Log-Sets: render the sets form for a standard exercise and look for the Trends button
+    // feat 417 — the 📈 Trends button became the carousel's Trends slide (tab + tap-to-open peek)
     let a = null; for (const [u] of VAR_INDEX) { if (exMode(u).mode === 'standard' && !isCardioVar(u)) { a = u; break; } }
     pending = { varUuid: a, subUuid: null, sets: [{ w: '', r: '' }] };
     modalState.isEditing = false; modalState.showPicker = false; modalState.supersetMode = false; modalState.exNoteEditing = false;
     renderModal();
-    const logBtn = !!document.querySelector('#trk-modal-body #trk-ex-trends-btn');
-    // Reference markup includes an openTrendsFor link on the variation row
-    const refHasLink = /openTrendsFor\('\$\{v\.uuid\}'\)|openTrendsFor\('/.test(document.documentElement.outerHTML) || true;
-    return { logBtn, refHasLink };
+    const trendsTab = !!document.querySelector('#trk-modal-body .excar-tab[data-excar="trends"]');
+    const oldBtnGone = !document.querySelector('#trk-modal-body #trk-ex-trends-btn');
+    return { trendsTab, oldBtnGone };
   });
-  expect(r.logBtn).toBe(true);
+  expect(r.trendsTab).toBe(true);
+  expect(r.oldBtnGone).toBe(true);
 });

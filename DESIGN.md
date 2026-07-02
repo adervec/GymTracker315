@@ -2283,6 +2283,16 @@ They share variation **UUIDs**.
   templates with hardcoded loads (bench/press/curl fronts, fly, shrug, oly) gained `none` guards so bodyweight
   variations never hold a phantom plate/dumbbell in ANY view. `motionfigure.spec` feat-416 (blanket
   no-phantom-loads sweep across every none-equip variation × view + the designation spot checks).
+- **Exercise-sheet tips carousel (feat 417):** the log sheet's collapsible tips area (retitled *💡 Tips &
+  Insights*) is now a four-slide CAROUSEL — **💡 Tips** (the existing concise/full tip blocks + reference link),
+  **🏃 Motion** (the feat-408 wireframe animation panel with its view pills, animated by the shared rAF loop),
+  **📈 Trends** (the feat-270 trend peek — sparkline + e1RM/best/Δ — moved in from below the media row; tapping
+  it still opens full trends, and the old `#trk-ex-trends-btn` 📈 button is REMOVED — the slide replaces it) and
+  **🕓 History** (`exHistoryPreviewHtml`: the last 3 sessions of this exercise — date · sets · volume). Tab pills
+  switch slides; the choice persists across the sheet's per-set re-renders via `modalState.exCarousel`. The 📖
+  Full/Concise mode toggle stays in the header (it shapes the Tips slide). `test/excarousel.spec.mjs` (tabs,
+  default visibility, motion stage paints for the picked variation, peek → full trends, history rows, slide
+  survives re-render); `trendfocus.spec` entry-point case updated to the Trends tab.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
