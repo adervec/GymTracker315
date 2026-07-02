@@ -288,6 +288,22 @@ test('feat 416 — bodyweight exercises are designated as such and render empty-
   expect(r.band).toBe('band');           // bands have no setup tool but ARE the load
 });
 
+test('feat 416 — bodyweight movements the solver family-fallback mislabels are explicitly designated', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const mv = id => { for (const f of FAMILIES) for (const v of (f.variations || [])) if (v.id === id) return motionForVariation(v.uuid); return null; };
+    return {
+      skater: mv('sprinter-squat'), stepUp: mv('step-up'), jumpLunge: mv('jump-lunge'),
+      bearCrawl: mv('bear-crawl-shoulder-tap'), hyperSitup: mv('hyperext-decline-situp'), hyperSissy: mv('hyperext-sissy-squat'),
+    };
+  });
+  expect(r.skater).toEqual({ motion: 'squat', equip: 'none', opts: null });
+  expect(r.stepUp).toEqual({ motion: 'lunge', equip: 'none', opts: null });
+  expect(r.jumpLunge).toEqual({ motion: 'lunge', equip: 'none', opts: null });
+  expect(r.bearCrawl).toEqual({ motion: 'plank', equip: 'none', opts: null });
+  expect(r.hyperSitup).toEqual({ motion: 'crunch', equip: 'none', opts: null });
+  expect(r.hyperSissy).toEqual({ motion: 'squat', equip: 'none', opts: { anchor: 1 } });
+});
+
 // feat 412 — every variation of every exercise family animates (plan-template families excluded).
 test('feat 412 — full coverage: every exercise variation resolves to a motion and every template renders', async ({ page }) => {
   const r = await page.evaluate(() => {
