@@ -37,7 +37,8 @@ test('weekSummary carries gradeParts that explain the grade', async ({ page }) =
   const r = await page.evaluate(() => {
     const u = (() => { for (const [x] of VAR_INDEX) if (exMode(x).mode === 'standard') return x; })();
     state.program = null;
-    state.sessions = [1, 2, 3].map(d => ({ id: 's' + d, date: new Date(Date.now() - d * 86400000).toISOString(), exercises: [{ varUuid: u, subUuid: null, sets: [{ w: 100, r: 5 }] }] }));
+    const ws = _weekRangeMs(1).start; // seed INSIDE last week via the app's own week math (day-of-week safe)
+    state.sessions = [1, 2, 3].map(d => ({ id: 's' + d, date: new Date(ws + d * 86400000).toISOString(), exercises: [{ varUuid: u, subUuid: null, sets: [{ w: 100, r: 5 }] }] }));
     const w = weekSummary(1);
     return { hasParts: Array.isArray(w.gradeParts), n: w.gradeParts && w.gradeParts.length, adheresToGrade: !!w.grade };
   });
@@ -50,7 +51,8 @@ test('the Summary page reveals the breakdown on tapping a grade badge', async ({
   const r = await page.evaluate(() => {
     const u = (() => { for (const [x] of VAR_INDEX) if (exMode(x).mode === 'standard') return x; })();
     state.program = null;
-    state.sessions = [1, 2, 3].map(d => ({ id: 's' + d, date: new Date(Date.now() - d * 86400000).toISOString(), exercises: [{ varUuid: u, subUuid: null, sets: [{ w: 100, r: 5 }] }] }));
+    const ws = _weekRangeMs(1).start; // seed INSIDE last week via the app's own week math (day-of-week safe)
+    state.sessions = [1, 2, 3].map(d => ({ id: 's' + d, date: new Date(ws + d * 86400000).toISOString(), exercises: [{ varUuid: u, subUuid: null, sets: [{ w: 100, r: 5 }] }] }));
     const main = document.getElementById('trk-main');
     renderSummaryPage(main);
     const badge = main.querySelector('.summary-grade[data-grade-toggle]');
@@ -90,8 +92,9 @@ test('the Summary page renders a grade badge on a complete week', async ({ page 
   const r = await page.evaluate(() => {
     const u = (() => { for (const [x] of VAR_INDEX) if (exMode(x).mode === 'standard') return x; })();
     state.program = null;
-    // sessions dated 1-3 days ago → land in last week (a COMPLETE week the Summary page lists)
-    state.sessions = [1, 2, 3].map(d => ({ id: 's' + d, date: new Date(Date.now() - d * 86400000).toISOString(), exercises: [{ varUuid: u, subUuid: null, sets: [{ w: 100, r: 5 }, { w: 100, r: 5 }] }] }));
+    // sessions seeded INSIDE last week (a COMPLETE week the Summary page lists) via the app's own week math
+    const ws = _weekRangeMs(1).start;
+    state.sessions = [1, 2, 3].map(d => ({ id: 's' + d, date: new Date(ws + d * 86400000).toISOString(), exercises: [{ varUuid: u, subUuid: null, sets: [{ w: 100, r: 5 }, { w: 100, r: 5 }] }] }));
     const main = document.getElementById('trk-main');
     renderSummaryPage(main);
     const badge = main.querySelector('.summary-grade');
