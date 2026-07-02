@@ -2245,6 +2245,21 @@ They share variation **UUIDs**.
   selectorized) onto the seated templates — **except Smith machines**, which stay on the bench (they are the
   free-weight motion on rails). `motionfigure.spec` feat-413 case (all six Roc-Its, fixed/MTS coverage, Smith
   exception, station parts drawn, the seat actually rocks).
+- **Careful redo of every 'machine' variation (feat 414):** completing the feat-413 correction across all
+  ~44 machine-titled variations (incl. the EXTRA Roc-It/Life-Fitness additions). Seven more station templates:
+  **machine-curl** (preacher pad + lever), **machine-triceps** (elbows on pad, forearm presses the lever down),
+  **machine-pullover** (Nautilus cam arc overhead → lap), **pec-deck** (front view, forearm pads sweep together),
+  **machine-abduction** (`opts.dir` ±1: knees push apart / squeeze together against pads), **machine-crunch**
+  (chest roller + overhead handles), **reverse-hyper** (legs pendulum under the high pad), **machine-kickback**
+  (standing, leg drives the roller back), **inverted-row** (body under the fixed bar). In-template machine
+  branches: lateral-raise (elbow pads + levers + side stacks), shrug (shoulder pads, no bar), calf-raise
+  (barbell/Smith load rides the SHOULDERS; machine adds the rail), hip-thrust (padded glute-drive belt),
+  dips/pull-up (`opts.assist` knee platform), squat (`opts.anchor` sissy-bench foot anchor), curls
+  (`_figSideLoad(equip)` — cable curls hold a handle, not a plate). `FAMILY_MACHINE` extended (curl families,
+  fly→pec-deck, abs/obliques→machine-crunch, triceps→machine-triceps, glute-accessories→machine-kickback);
+  gym brand names (Life Fitness / Nautilus / Cybex / Hoist / Technogym / Precor / Hammer Strength) now imply
+  'machine' in `_motionEquip`. All 14 Roc-Its covered (dip = press-down station, ab/oblique = crunch station).
+  `motionfigure.spec` feat-414: blanket every-machine-draws-its-station assertion + spot checks.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

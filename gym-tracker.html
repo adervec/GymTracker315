@@ -19548,7 +19548,7 @@ const MOTIONS = {
           legs: [{ hip: [hipC[0] - 4, 90], kn: [hipC[0] - 6, 116], an: [hipC[0] - 6, 140], foot: [hipC[0] + 2, 140], dim: true },
                  { hip: hipC, kn: [hipC[0] - 2, 116], an: [hipC[0] - 2, 140], foot: [hipC[0] + 6, 140] }],
         };
-        return { J, behind: [_EQL([20, 140], [96, 140], 1, 'fig-floor')], front: _figSideLoad(wr, equip === 'dumbbell' ? 'dumbbell' : 'barbell'), o: { depth: 0.72 } };
+        return { J, behind: [_EQL([20, 140], [96, 140], 1, 'fig-floor')], front: _figSideLoad(wr, equip), o: { depth: 0.72 } }; // feat 414 — cable/band curls show their own load, not a plate
       }
       // Front: both forearms rise (foreshortened), bar/dumbbells track the wrists.
       const cx = 55, wrY = 90 - 48 * u, wrX = 16 - 2 * u;
@@ -19605,8 +19605,9 @@ const MOTIONS = {
     label: 'Squat', views: ['side', 'front'], viewLabel: { side: 'Side', front: 'Front' },
     box: { side: [110, 150], front: [110, 150] },
     act: { thigh: 1, shin: 0.4, torso: 0.5, torsoZone: 0.85 },
-    build(view, u, equip, p) {
+    build(view, u, equip, p, o) {
       const floor = [_EQL([16, 144], [100, 144], 1, 'fig-floor')];
+      if (o && o.anchor) floor.push(_EQ('M 50 138 L 78 138 L 78 144 L 50 144 Z', 1.4, 'fig-pad'), _EQC([66, 132], 3.2, 'fig-pad')); // sissy-bench foot anchor + calf roller
       if (view === 'side') {
         const hip = [56 - 8 * u, 88 + 20 * u], shC = [52 - 11 * u, 34 + 24 * u];
         const an = [60, 144], kn = figIk(hip, an, 28, 28, -1);
@@ -19697,9 +19698,16 @@ const MOTIONS = {
       const J = { head: [cx, 16], face: 'front', shC: [cx, 34], hipC: [cx, 92],
         arms: [arm(-1), arm(1)],
         legs: [-1, 1].map(s => ({ hip: [cx + 6 * s, 96], kn: [cx + 7 * s, 120], an: [cx + 8 * s, 144], foot: [cx + 12 * s, 148] })) };
-      const a1 = arm(-1).wr, a2 = arm(1).wr;
-      const load = equip === 'none' || equip === 'band' ? (equip === 'band' ? [..._figSideLoad(a1, 'band'), ..._figSideLoad(a2, 'band')] : [])
-        : [a1, a2].map(w => [_EQL([w[0] - 5, w[1]], [w[0] + 5, w[1]], 2, 'fig-bar'), _EQC([w[0] - 4, w[1]], 3, 'fig-db'), _EQC([w[0] + 4, w[1]], 3, 'fig-db')]).flat();
+      const a1 = arm(-1), a2 = arm(1);
+      if (equip === 'machine') { // feat 414 — seated lateral machine: elbow pads on levers, stack frames at the sides
+        const pads = [a1, a2].map(a => [_EQC(a.el, 4, 'fig-pad'), _EQL([cx + 13 * Math.sign(a.el[0] - cx) * 0.4, 100], a.el, 1.2, 'fig-arm-lever')]).flat();
+        const frame = [_EQ('M 6 34 L 14 34 L 14 146 L 6 146 Z', 1.2, 'fig-stack'), _EQ('M 96 34 L 104 34 L 104 146 L 96 146 Z', 1.2, 'fig-stack'),
+                       _EQ(`M ${cx - 11} 96 L ${cx + 11} 96 L ${cx + 11} 102 L ${cx - 11} 102 Z`), _EQL([cx, 102], [cx, 146])];
+        return { J, behind: frame, front: pads };
+      }
+      const w1 = a1.wr, w2 = a2.wr;
+      const load = equip === 'none' || equip === 'band' ? (equip === 'band' ? [..._figSideLoad(w1, 'band'), ..._figSideLoad(w2, 'band')] : [])
+        : [w1, w2].map(w => [_EQL([w[0] - 5, w[1]], [w[0] + 5, w[1]], 2, 'fig-bar'), _EQC([w[0] - 4, w[1]], 3, 'fig-db'), _EQC([w[0] + 4, w[1]], 3, 'fig-db')]).flat();
       return { J, behind: [], front: load };
     },
   },
@@ -19784,13 +19792,14 @@ const MOTIONS = {
     label: 'Dips', views: ['side'], viewLabel: { side: 'Side' },
     box: { side: [110, 150] },
     act: { upArm: 0.9, torso: 0.6, torsoZone: 0.26 },
-    build(view, u, equip, p) {
+    build(view, u, equip, p, o) {
       const wr = [54, 74], shC = [48, 58 + 16 * u], hipC = [52, 104 + 16 * u];
       const kn = [42, 122 + 14 * u], an = [38, 138 + 12 * u];
       const J = { head: [46, shC[1] - 18], face: 'right', shC, hipC,
         arms: [{ sh: shC, el: figIk(shC, wr, 15, 15, -1), wr }],
         legs: [{ hip: [hipC[0] + 3, hipC[1]], kn: [kn[0] + 3, kn[1]], an: [an[0] + 3, an[1]], dim: true }, { hip: hipC, kn, an, foot: [an[0] - 8, an[1] + 4] }] };
       const bars = [_EQL([30, 74], [78, 74], 2.4, 'fig-bar'), _EQL([34, 74], [34, 148]), _EQL([74, 74], [74, 148]), _EQL([14, 148], [96, 148], 1, 'fig-floor')];
+      if (o && o.assist) bars.push(_EQ(`M ${kn[0] - 9} ${kn[1] + 7} L ${kn[0] + 9} ${kn[1] + 7} L ${kn[0] + 9} ${kn[1] + 12} L ${kn[0] - 9} ${kn[1] + 12} Z`, 1.4, 'fig-pad'), _EQL([kn[0], kn[1] + 12], [kn[0], 148], 1.2, 'fig-arm-lever')); // assist knee pad on its counterweighted arm
       return { J, behind: bars, front: [], o: { depth: 0.72 } };
     },
   },
@@ -19813,14 +19822,16 @@ const MOTIONS = {
     label: 'Pull-Up', views: ['back', 'side'], viewLabel: { back: 'Back', side: 'Side' },
     box: { back: [110, 160], side: [110, 160] },
     act: { torso: 0.9, torsoZone: 0.45, upArm: 0.9 },
-    build(view, u, equip, p) {
+    build(view, u, equip, p, o) {
       if (view === 'back') {
         const cx = 55, rise = 20 * u;
         const arm = s => { const sh = [cx + 12 * s, 48 - rise], wr = [cx + 24 * s, 12]; return { sh, el: figIk(sh, wr, 17, 17, s > 0 ? 1 : -1), wr }; };
         const J = { head: [cx, 32 - rise], face: 'back', shC: [cx, 50 - rise], hipC: [cx, 100 - rise],
           arms: [arm(-1), arm(1)],
           legs: [-1, 1].map(s => ({ hip: [cx + 5 * s, 102 - rise], kn: [cx + 7 * s, 120 - rise + 4 * u], an: [cx + 6 * s, 138 - rise + 6 * u], foot: [cx + 10 * s, 142 - rise + 6 * u] })) };
-        return { J, behind: [_EQL([20, 12], [90, 12], 2.4, 'fig-bar'), _EQL([24, 12], [24, 2]), _EQL([86, 12], [86, 2])], front: [] };
+        const rig = [_EQL([20, 12], [90, 12], 2.4, 'fig-bar'), _EQL([24, 12], [24, 2]), _EQL([86, 12], [86, 2])];
+        if (o && o.assist) rig.push(_EQ(`M ${cx - 12} ${124 - rise + 4 * u} L ${cx + 12} ${124 - rise + 4 * u} L ${cx + 12} ${129 - rise + 4 * u} L ${cx - 12} ${129 - rise + 4 * u} Z`, 1.4, 'fig-pad')); // assist knee platform rides with the knees
+        return { J, behind: rig, front: [] };
       }
       const rise = 20 * u, wr = [60, 12];
       const shC = [54, 48 - rise], hipC = [58, 98 - rise];
@@ -19842,7 +19853,10 @@ const MOTIONS = {
         arms: [arm(-1), arm(1)],
         legs: [-1, 1].map(s => ({ hip: [cx + 6 * s, 96], kn: [cx + 7 * s, 120], an: [cx + 8 * s, 144], foot: [cx + 12 * s, 148] })) };
       const wY = 84 - 5 * u;
-      const load = equip === 'dumbbell' || equip === 'kettlebell'
+      const load = equip === 'machine' // feat 414 — shrug machine: shoulder pads + side stacks, no bar
+        ? [_EQ(figCapsulePath([cx - 17, shY - 1], [cx - 7, shY - 1], 6), 1.4, 'fig-pad'), _EQ(figCapsulePath([cx + 7, shY - 1], [cx + 17, shY - 1], 6), 1.4, 'fig-pad'),
+           _EQ('M 8 40 L 16 40 L 16 146 L 8 146 Z', 1.2, 'fig-stack'), _EQ('M 94 40 L 102 40 L 102 146 L 94 146 Z', 1.2, 'fig-stack')]
+        : equip === 'dumbbell' || equip === 'kettlebell'
         ? [-1, 1].map(s => _figSideLoad([cx + 15 * s, wY], equip)).flat()
         : [_EQL([cx - 28, wY], [cx + 28, wY], 2, 'fig-bar'), _EQ(figCapsulePath([cx - 33, wY], [cx - 28, wY], 8), 1.2, 'fig-plate'), _EQ(figCapsulePath([cx + 28, wY], [cx + 33, wY], 8), 1.2, 'fig-plate')];
       return { J, behind: [], front: load };
@@ -19906,7 +19920,13 @@ const MOTIONS = {
         arms: [{ sh: shC, el: [56, 58 - lift], wr: [58, 80 - lift] }],
         legs: [{ hip: [hipC[0] - 3, hipC[1]], kn: [hipC[0] - 4, 114 - lift], an: [an[0] - 3, an[1]], foot: [toe[0] - 3, toe[1]], dim: true },
                { hip: hipC, kn: [hipC[0] - 1, 114 - lift], an, foot: toe }] };
-      return { J, behind: [_EQ('M 44 144 L 74 144 L 74 148 L 44 148 Z'), _EQL([14, 148], [98, 148], 1, 'fig-floor')], front: _figSideLoad([58, 80 - lift], equip), o: { depth: 0.72 } };
+      // feat 414 — the load rides the SHOULDERS on barbell/Smith/standing-calf machines (pads + rail), not the hand
+      const load = equip === 'machine'
+        ? [_EQ(figCapsulePath([shC[0] - 8, shC[1] - 2], [shC[0] + 8, shC[1] - 2], 6), 1.4, 'fig-pad'), _EQL([shC[0] - 1, 4], [shC[0] - 1, shC[1] - 5], 1.2, 'fig-tower')]
+        : equip === 'barbell'
+        ? [_EQC([shC[0] - 1, shC[1] - 3], 8, 'fig-plate'), _EQC([shC[0] - 1, shC[1] - 3], 2, 'fig-bar')]
+        : _figSideLoad([58, 80 - lift], equip);
+      return { J, behind: [_EQ('M 44 144 L 74 144 L 74 148 L 44 148 Z'), _EQL([14, 148], [98, 148], 1, 'fig-floor')], front: load, o: { depth: 0.72 } };
     },
   },
   lunge: {
@@ -19936,7 +19956,10 @@ const MOTIONS = {
         arms: [{ sh: shC, el: _figLerp(shC, wr, 0.55), wr }],
         legs: [{ hip: [hipC[0] + 2, hipC[1]], kn: [kn[0] + 2, kn[1]], an: [an[0] + 2, an[1]], foot: [an[0] + 11, 100], dim: true }, { hip: hipC, kn, an, foot: [an[0] + 9, 100] }] };
       const bench = [_EQ('M 18 70 L 44 70 L 44 100 L 18 100 Z'), _EQL([10, 100], [130, 100], 1, 'fig-floor')];
-      const load = equip === 'barbell' ? [_EQC(wr, 9, 'fig-plate'), _EQC(wr, 2, 'fig-bar')] : _figSideLoad(wr, equip);
+      const load = equip === 'barbell' ? [_EQC(wr, 9, 'fig-plate'), _EQC(wr, 2, 'fig-bar')]
+        : equip === 'machine' // feat 414 — glute drive: padded belt across the hips, not a handle
+        ? [_EQ(figCapsulePath([wr[0] - 9, wr[1] + 4], [wr[0] + 9, wr[1] + 4], 6), 1.4, 'fig-pad')]
+        : _figSideLoad(wr, equip);
       return { J, behind: bench, front: load, o: { depth: 0.72 } };
     },
   },
@@ -20156,6 +20179,175 @@ const MOTIONS = {
       return { J, behind: machine, front: [], o: { depth: 0.72 } };
     },
   },
+  /* ---- feat 414 — careful redo of every 'machine' variation: dedicated station templates. ---- */
+  'machine-curl': {
+    label: 'Machine Curl', views: ['side'], viewLabel: { side: 'Side' },
+    box: { side: [130, 150] },
+    act: { upArm: 1, foreArm: 0.4 },
+    build(view, u, equip, p) {
+      const shC = [54, 52], el = [72, 66]; // upper arms rest on the sloped preacher pad, elbow at its lip
+      const ph = 1.65 - 1.35 * u;
+      const wr2 = [el[0] + 24 * Math.sin(ph), el[1] + 24 * Math.cos(ph)];
+      const J = { head: [50, 33], face: 'right', shC, hipC: [56, 92],
+        arms: [{ sh: shC, el, wr: wr2 }],
+        legs: [{ hip: [58, 92], kn: [82, 104], an: [78, 140], foot: [87, 142], dim: true }, { hip: [56, 92], kn: [80, 106], an: [76, 142], foot: [85, 144] }] };
+      const machine = [
+        _EQ('M 12 44 L 26 44 L 26 144 L 12 144 Z', 1.2, 'fig-stack'), _EQL([14, 72], [24, 72], 1, 'fig-stack'), _EQL([14, 100], [24, 100], 1, 'fig-stack'),
+        _EQ('M 58 58 L 80 72 L 76 84 L 54 70 Z', 1.4, 'fig-pad'),
+        _EQ('M 44 96 L 72 96 L 72 102 L 44 102 Z'), _EQL([58, 102], [58, 144]),
+        _EQL([el[0], el[1]], [wr2[0], wr2[1]], 1.4, 'fig-arm-lever'),
+        _EQL([wr2[0] - 2, wr2[1] + 3], [wr2[0] + 2, wr2[1] - 3], 2.2, 'fig-bar'),
+        _EQL([8, 144], [122, 144], 1, 'fig-floor')];
+      return { J, behind: machine, front: [], o: { depth: 0.72 } };
+    },
+  },
+  'machine-pullover': {
+    label: 'Machine Pullover', views: ['side'], viewLabel: { side: 'Side' },
+    box: { side: [130, 150] },
+    act: { torso: 0.85, torsoZone: 0.4, upArm: 0.5 },
+    build(view, u, equip, p) {
+      const shC = [56, 52]; // Nautilus-style: elbows on the pivoting cam pads, arc from overhead to the lap
+      const ph = -0.35 + 1.75 * u, wr = [shC[0] + 30 * Math.sin(ph), shC[1] - 30 * Math.cos(ph)];
+      const J = { head: [52, 33], face: 'right', shC, hipC: [58, 92],
+        arms: [{ sh: shC, el: _figLerp(shC, wr, 0.5), wr }],
+        legs: [{ hip: [60, 92], kn: [84, 104], an: [80, 140], foot: [89, 142], dim: true }, { hip: [58, 92], kn: [82, 106], an: [78, 142], foot: [87, 144] }] };
+      const machine = [
+        _EQ('M 102 44 L 116 44 L 116 144 L 102 144 Z', 1.2, 'fig-stack'), _EQL([104, 72], [114, 72], 1, 'fig-stack'), _EQL([104, 100], [114, 100], 1, 'fig-stack'),
+        _EQ('M 44 96 L 74 96 L 74 102 L 44 102 Z'), _EQL([58, 102], [58, 144]),
+        _EQL([shC[0], shC[1]], [wr[0], wr[1]], 1.4, 'fig-arm-lever'), _EQC(_figLerp(shC, wr, 0.75), 3.4, 'fig-pad'),
+        _EQL([8, 144], [124, 144], 1, 'fig-floor')];
+      return { J, behind: machine, front: [], o: { depth: 0.72 } };
+    },
+  },
+  'pec-deck': {
+    label: 'Pec Deck', views: ['front'], viewLabel: { front: 'Front' },
+    box: { front: [110, 150] },
+    act: { torso: 1, torsoZone: 0.26, upArm: 0.5 },
+    build(view, u, equip, p) {
+      const cx = 55, spread = 26 - 20 * u; // arms sweep from wide (u=0) to together in front (u=1)
+      const arm = s => { const sh = [cx + 13 * s, 38], el = [cx + spread * s, 46], wr = [el[0], 27]; return { sh, el, wr }; };
+      const a1 = arm(-1), a2 = arm(1);
+      const J = { head: [cx, 16], face: 'front', shC: [cx, 36], hipC: [cx, 92],
+        arms: [a1, a2],
+        legs: [-1, 1].map(s => ({ hip: [cx + 6 * s, 96], kn: [cx + 9 * s, 120], an: [cx + 10 * s, 144], foot: [cx + 14 * s, 148] })) };
+      const pads = [a1, a2].map(a => _EQ(figCapsulePath([a.el[0], a.el[1] + 2], [a.wr[0], a.wr[1] - 2], 9), 1.4, 'fig-pad'));
+      const frame = [_EQ('M 6 30 L 14 30 L 14 144 L 6 144 Z', 1.2, 'fig-stack'), _EQ('M 96 30 L 104 30 L 104 144 L 96 144 Z', 1.2, 'fig-stack'),
+                     _EQ(`M ${cx - 11} 96 L ${cx + 11} 96 L ${cx + 11} 102 L ${cx - 11} 102 Z`), _EQL([cx, 102], [cx, 148])];
+      return { J, behind: frame, front: pads };
+    },
+  },
+  'machine-abduction': {
+    label: 'Hip Abduction / Adduction', views: ['front'], viewLabel: { front: 'Front' },
+    box: { front: [110, 150] },
+    act: { thigh: 1 },
+    build(view, u, equip, p, o) {
+      const cx = 55, dir = (o && o.dir) || 1; // 1 = abduction (push apart), -1 = adduction (squeeze together)
+      const kx = dir > 0 ? 9 + 14 * u : 22 - 14 * u;
+      const J = { head: [cx, 20], face: 'front', shC: [cx, 38], hipC: [cx, 90],
+        arms: [-1, 1].map(s => ({ sh: [cx + 13 * s, 40], el: [cx + 16 * s, 62], wr: [cx + 14 * s, 82] })),
+        legs: [-1, 1].map(s => ({ hip: [cx + 6 * s, 94], kn: [cx + kx * s, 116], an: [cx + (kx + 2) * s, 142], foot: [cx + (kx + 6) * s, 146] })) };
+      const pads = [-1, 1].map(s => _EQC([cx + (kx + (dir > 0 ? 4.5 : -4.5)) * s, 116], 4, 'fig-pad'));
+      const frame = [_EQ(`M ${cx - 12} 90 L ${cx + 12} 90 L ${cx + 12} 96 L ${cx - 12} 96 Z`), _EQL([cx, 96], [cx, 148]),
+                     _EQ('M 8 40 L 16 40 L 16 148 L 8 148 Z', 1.2, 'fig-stack')];
+      return { J, behind: frame, front: pads };
+    },
+  },
+  'machine-crunch': {
+    label: 'Machine Crunch', views: ['side'], viewLabel: { side: 'Side' },
+    box: { side: [130, 150] },
+    act: { torso: 1, torsoZone: 0.55 },
+    build(view, u, equip, p) {
+      const hip = [56, 92], th = 1.5 - 0.6 * u; // torso curls forward against the chest roller
+      const shC = [hip[0] - 40 * Math.cos(th), hip[1] - 40 * Math.sin(th)];
+      const wr = [shC[0] + 8, shC[1] - 8]; // hands on the overhead handles
+      const J = { head: [shC[0] + 2, shC[1] - 17], face: 'right', shC, hipC: hip,
+        arms: [{ sh: shC, el: figIk(shC, wr, 13, 13, 1), wr }],
+        legs: [{ hip: [hip[0] + 2, hip[1]], kn: [82, 104], an: [78, 140], foot: [87, 142], dim: true }, { hip, kn: [80, 106], an: [76, 142], foot: [85, 144] }] };
+      const pad = [shC[0] + 12, shC[1] + 10];
+      const machine = [
+        _EQ('M 102 44 L 116 44 L 116 144 L 102 144 Z', 1.2, 'fig-stack'), _EQL([104, 72], [114, 72], 1, 'fig-stack'), _EQL([104, 100], [114, 100], 1, 'fig-stack'),
+        _EQ('M 44 96 L 72 96 L 72 102 L 44 102 Z'), _EQL([58, 102], [58, 144]),
+        _EQC(pad, 4.5, 'fig-pad'), _EQL(pad, [98, 60], 1.4, 'fig-arm-lever'),
+        _EQC([80, 120], 3.2, 'fig-pad'),
+        _EQL([8, 144], [124, 144], 1, 'fig-floor')];
+      return { J, behind: machine, front: [], o: { depth: 0.72 } };
+    },
+  },
+  'reverse-hyper': {
+    label: 'Reverse Hyper', views: ['side'], viewLabel: { side: 'Side' },
+    box: { side: [140, 110] },
+    act: { torso: 0.9, torsoZone: 0.85, thigh: 0.6 },
+    build(view, u, equip, p) {
+      const hip = [74, 52], a = 1.25 - 1.2 * u; // legs pendulum from hanging (u=0) to horizontal behind (u=1)
+      const an = [hip[0] + 46 * Math.cos(a), hip[1] + 46 * Math.sin(a)];
+      const kn = _figLerp(hip, an, 0.52);
+      const wr = [34, 68];
+      const J = { head: [30, 46], face: 'down', shC: [42, 48], hipC: hip,
+        arms: [{ sh: [42, 48], el: _figLerp([42, 48], wr, 0.55), wr }],
+        legs: [{ hip: [hip[0] + 2, hip[1]], kn: [kn[0] + 2, kn[1]], an: [an[0] + 2, an[1]], dim: true }, { hip, kn, an, foot: [an[0] + 8, an[1] + 2] }] };
+      const machine = [
+        _EQ('M 26 54 L 82 54 L 82 62 L 26 62 Z', 1.4, 'fig-pad'),
+        _EQL([36, 62], [36, 100]), _EQL([74, 62], [74, 100]),
+        _EQC([an[0] - 2, an[1] - 1], 3.4, 'fig-pad'),
+        _EQL([12, 100], [130, 100], 1, 'fig-floor')];
+      return { J, behind: machine, front: [], o: { depth: 0.72 } };
+    },
+  },
+  'machine-triceps': {
+    label: 'Machine Triceps Extension', views: ['side'], viewLabel: { side: 'Side' },
+    box: { side: [130, 150] },
+    act: { upArm: 1, foreArm: 0.3 },
+    build(view, u, equip, p) {
+      const shC = [54, 52], el = [70, 58]; // elbows up on the pad, forearms press down on the lever
+      const ph = -0.5 + 1.85 * u, wr = [el[0] + 24 * Math.sin(ph), el[1] + 24 * Math.cos(ph)];
+      const J = { head: [50, 33], face: 'right', shC, hipC: [56, 92],
+        arms: [{ sh: shC, el, wr }],
+        legs: [{ hip: [58, 92], kn: [82, 104], an: [78, 140], foot: [87, 142], dim: true }, { hip: [56, 92], kn: [80, 106], an: [76, 142], foot: [85, 144] }] };
+      const machine = [
+        _EQ('M 12 44 L 26 44 L 26 144 L 12 144 Z', 1.2, 'fig-stack'), _EQL([14, 72], [24, 72], 1, 'fig-stack'), _EQL([14, 100], [24, 100], 1, 'fig-stack'),
+        _EQ('M 58 54 L 80 62 L 78 72 L 56 64 Z', 1.4, 'fig-pad'),
+        _EQ('M 44 96 L 72 96 L 72 102 L 44 102 Z'), _EQL([58, 102], [58, 144]),
+        _EQL([el[0], el[1]], [wr[0], wr[1]], 1.4, 'fig-arm-lever'), _EQL([wr[0] - 2, wr[1] + 3], [wr[0] + 2, wr[1] - 3], 2.2, 'fig-bar'),
+        _EQL([8, 144], [122, 144], 1, 'fig-floor')];
+      return { J, behind: machine, front: [], o: { depth: 0.72 } };
+    },
+  },
+  'machine-kickback': {
+    label: 'Glute Kickback Machine', views: ['side'], viewLabel: { side: 'Side' },
+    box: { side: [130, 150] },
+    act: { torso: 0.7, torsoZone: 0.9, thigh: 0.8 },
+    build(view, u, equip, p) {
+      const shC = [46, 44], hip = [56, 90];
+      const b = 0.15 + 0.7 * u, an = [hip[0] + 48 * Math.sin(b), hip[1] + 48 * Math.cos(b)]; // working leg drives back-up
+      const kn = figIk(hip, an, 26, 26, 1);
+      const wr = [34, 60]; // hands on the frame handles
+      const J = { head: [44, 26], face: 'right', shC, hipC: hip,
+        arms: [{ sh: shC, el: figIk(shC, wr, 15, 15, -1), wr }],
+        legs: [{ hip: [hip[0] - 2, hip[1]], kn: [hip[0] - 3, 116], an: [hip[0] - 4, 142], foot: [hip[0] + 4, 144], dim: true },
+               { hip, kn, an, foot: [an[0] + 8, an[1] + 3] }] };
+      const machine = [
+        _EQ('M 14 40 L 28 40 L 28 144 L 14 144 Z', 1.2, 'fig-stack'), _EQL([16, 68], [26, 68], 1, 'fig-stack'), _EQL([16, 96], [26, 96], 1, 'fig-stack'),
+        _EQL([34, 60], [34, 144], 1.6, 'fig-tower'),                              // handle post
+        _EQC([an[0] - 1, an[1] - 2], 3.6, 'fig-pad'), _EQL([an[0] - 1, an[1] - 2], [64, 144], 1.4, 'fig-arm-lever'), // roller pad on its pivot arm
+        _EQL([8, 144], [122, 144], 1, 'fig-floor')];
+      return { J, behind: machine, front: [], o: { depth: 0.72 } };
+    },
+  },
+  'inverted-row': {
+    label: 'Inverted Row', views: ['side'], viewLabel: { side: 'Side' },
+    box: { side: [140, 110] },
+    act: { torso: 0.85, torsoZone: 0.45, upArm: 0.8 },
+    build(view, u, equip, p) {
+      const grip = [56, 42];
+      const shC = [54, 70 - 16 * u], hipC = [88, 80 - 10 * u];
+      const J = { head: [44, shC[1] - 8], face: 'up', shC, hipC,
+        arms: [{ sh: [shC[0] + 3, shC[1]], el: figIk([shC[0] + 3, shC[1]], [grip[0] + 3, grip[1]], 15, 15, -1), wr: [grip[0] + 3, grip[1]], dim: true },
+               { sh: shC, el: figIk(shC, grip, 15, 15, -1), wr: grip }],
+        legs: [{ hip: hipC, kn: [108, 86 - 5 * u], an: [122, 94], foot: [128, 90], dim: true }, { hip: [hipC[0] - 2, hipC[1]], kn: [106, 88 - 5 * u], an: [120, 96], foot: [126, 92] }] };
+      const rig = [_EQL([30, 8], [30, 96], 2, 'fig-tower'), _EQL([30, 42], [104, 42], 2.4, 'fig-bar'), _EQL([12, 96], [134, 96], 1, 'fig-floor')];
+      return { J, behind: rig, front: [], o: { depth: 0.72 } };
+    },
+  },
   mobility: {
     label: 'Mobility / Stretch', views: ['side'], viewLabel: { side: 'Side' },
     box: { side: [110, 150] },
@@ -20205,6 +20397,21 @@ const MOTION_VARS = {
   'roc-it-shoulder-press': ['machine-press', 'machine', { rock: 1, angle: 70 }],
   'roc-it-row': ['machine-row', 'machine', { rock: 1 }],
   'roc-it-back-extension': ['machine-back-ext', 'machine', { rock: 1 }],
+  // feat 414 — careful redo of every 'machine' variation onto its actual station.
+  'hip-adduction-machine': ['machine-abduction', 'machine', { dir: -1 }],
+  'hip-abduction': ['machine-abduction', 'machine', { dir: 1 }],
+  'reverse-hyper-machine': ['reverse-hyper', 'machine'],
+  'assisted-dip': ['dips', 'machine', { assist: 1 }],
+  'lf-assisted-chin': ['pull-up', 'machine', { assist: 1 }],
+  'smith-inverted-row': ['inverted-row', 'machine'],
+  'smith-low-row-row': ['row', 'machine'],
+  'leg-curl-glute-bridge': ['hip-thrust', 'machine'],
+  'smith-hip-thrust': ['hip-thrust', 'barbell'],   // Smith = the free-weight motion on rails
+  'smith-shrug': ['shrug', 'barbell'],
+  'sissy-squat-bench': ['squat', 'none', { anchor: 1 }],
+  'roc-it-dip': ['machine-press', 'machine', { rock: 1, angle: -50 }], // seated dip press station
+  'roc-it-ab-crunch': ['machine-crunch', 'machine'],
+  'roc-it-oblique': ['machine-crunch', 'machine'],
 };
 // feat 413 — when a variation in these families resolves to 'machine' equipment, it's a SEATED station,
 // not the family's free-weight motion (fixed / MTS / plate-loaded presses & rows). Smith machines stay on
@@ -20213,6 +20420,12 @@ const FAMILY_MACHINE = {
   'flat-bench-press': ['machine-press', {}], 'incline-bench-press': ['machine-press', { angle: 35 }],
   'decline-bench-press': ['machine-press', { angle: -18 }], 'shoulder-press': ['machine-press', { angle: 70 }],
   row: ['machine-row', {}], 'back-extension': ['machine-back-ext', {}],
+  // feat 414
+  'bicep-curl': ['machine-curl', {}], 'chest-fly': ['pec-deck', {}],
+  'abs-dynamic': ['machine-crunch', {}], pullover: ['machine-pullover', {}],
+  'reverse-curl': ['machine-curl', {}], 'hammer-curl': ['machine-curl', {}],
+  obliques: ['machine-crunch', {}], 'tricep-extension': ['machine-triceps', {}],
+  'glute-accessories': ['machine-kickback', {}],
 };
 // feat 412 — family → [motion template, default equipment, opts?]. Every exercise family maps; the four
 // plan-template families (splits / sessions / WODs / warmups) are movements lists, not movements — excluded.
@@ -20261,7 +20474,7 @@ function _motionEquip(title, dflt) {
   if (/kettlebell|\bkb\b|goblet/.test(n)) return 'kettlebell';
   if (/\bband(ed)?\b|trx|suspension/.test(n)) return 'band';
   if (/cable|pulldown|pushdown|pressdown|freemotion|pulley|\brope\b/.test(n)) return 'cable';
-  if (/machine|smith|selectorized|plate.?loaded|\bmts\b|roc-it|\bhack\b|pendulum|leverage|pec deck|iso[- ]lateral/.test(n)) return 'machine';
+  if (/machine|smith|selectorized|plate.?loaded|\bmts\b|roc-it|\bhack\b|pendulum|leverage|pec deck|iso[- ]lateral|life ?fitness|nautilus|cybex|hoist|technogym|precor|hammer strength/.test(n)) return 'machine';
   if (/barbell|\bbb\b|ez[- ]?bar|trap[- ]?bar|landmine|safety bar|\bssb\b/.test(n)) return 'barbell';
   if (/push-?up|pull-?up|chin-?up|bodyweight|\bdips?\b|nordic|pistol|plank|hollow|bridge|\bhang\b/.test(n)) return 'none';
   return dflt;
@@ -24911,7 +25124,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 339 · 2026-07-01 22:47';
+const APP_BUILD = 'build 340 · 2026-07-01 23:04';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

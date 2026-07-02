@@ -167,6 +167,48 @@ test('feat 413 — Roc-It exercises are seated machines with the rocking seat; S
   expect(r.rocks).toBe(true);                      // the Roc-It seat actually rocks
 });
 
+// feat 414 — careful redo of every 'machine'-titled variation: each renders an actual STATION (stack /
+// pads / levers / rails / sled / cable), except Smith machines which are deliberately the free-weight
+// motion (they still show the bar + rack/rail scene).
+test('feat 414 — every machine-titled variation draws its station; brand names imply machines', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const STATION = /fig-(stack|pad|arm-lever|tower|rail|sled|cable|wheel|crank|bench)/;
+    const noStation = [];
+    for (const f of FAMILIES) for (const v of (f.variations || [])) {
+      if (!/machine/i.test(v.title) || /smith/i.test(v.title) || !v.uuid) continue;
+      const mv = motionForVariation(v.uuid);
+      if (!mv) { noStation.push(v.id + ': unresolved'); continue; }
+      const views = MOTIONS[mv.motion].views;
+      const ok = views.some(view => motionPoseShapes(mv.motion, view, 0.5, mv.equip, undefined, mv.opts).shapes.some(s => STATION.test(s.cls || '')));
+      if (!ok) noStation.push(v.id + ' -> ' + mv.motion);
+    }
+    const vOf = id => { for (const f of FAMILIES) for (const v of (f.variations || [])) if (v.id === id) return v.uuid; return null; };
+    const mv = id => motionForVariation(vOf(id));
+    return {
+      noStation,
+      rocCurl: mv('roc-it-biceps-curl').motion, rocRev: mv('roc-it-reverse-curl').motion,
+      pecDeck: mv('pec-deck').motion, abd: mv('hip-abduction'), add: mv('hip-adduction-machine'),
+      kick: mv('lifefitness-glute-kickback').motion, triMach: mv('lifefitness-triceps-extension').motion,
+      torso: mv('lifefitness-torso-rotation').motion, revHyper: mv('reverse-hyper-machine').motion,
+      lfPreacherHammer: mv('lifefitness-preacher-hammer').motion, rocDip: mv('roc-it-dip'),
+      cableCurlLoad: motionPoseShapes('biceps-curl', 'side', 0.5, 'cable').shapes.some(s => (s.cls || '') === 'fig-bar'),
+    };
+  });
+  expect(r.noStation).toEqual([]);                      // no machine exercise renders bare-handed anymore
+  expect(r.rocCurl).toBe('machine-curl');
+  expect(r.rocRev).toBe('machine-curl');
+  expect(r.pecDeck).toBe('pec-deck');
+  expect(r.abd.motion).toBe('machine-abduction'); expect(r.abd.opts).toEqual({ dir: 1 });
+  expect(r.add.motion).toBe('machine-abduction'); expect(r.add.opts).toEqual({ dir: -1 });
+  expect(r.kick).toBe('machine-kickback');
+  expect(r.triMach).toBe('machine-triceps');
+  expect(r.torso).toBe('machine-crunch');
+  expect(r.revHyper).toBe('reverse-hyper');
+  expect(r.lfPreacherHammer).toBe('machine-curl');      // brand name (Life Fitness) implies the machine
+  expect(r.rocDip).toEqual({ motion: 'machine-press', equip: 'machine', opts: { rock: 1, angle: -50 } });
+  expect(r.cableCurlLoad).toBe(true);                   // cable curls hold a handle, not a barbell plate
+});
+
 // feat 412 — every variation of every exercise family animates (plan-template families excluded).
 test('feat 412 — full coverage: every exercise variation resolves to a motion and every template renders', async ({ page }) => {
   const r = await page.evaluate(() => {
