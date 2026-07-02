@@ -74,7 +74,7 @@ test('feat 408 — MOTIONS: 3 dev motions, each with the profiles it needs, pose
     }
     return out;
   });
-  expect(Object.keys(r).sort()).toEqual(['bench-press', 'biceps-curl', 'lat-pulldown']);
+  expect(Object.keys(r)).toEqual(expect.arrayContaining(['bench-press', 'biceps-curl', 'lat-pulldown'])); // feat 412 added many more
   expect(r['bench-press'].views).toEqual(['side', 'front']);
   expect(r['biceps-curl'].views).toEqual(['side', 'front']);
   expect(r['lat-pulldown'].views).toEqual(['back', 'side']);
@@ -105,24 +105,61 @@ test('feat 408 — equipment is drawn to match the variation: plates, dumbbells,
   expect(r.pullSide).toContain('fig-cable');
 });
 
-test('feat 408 — motionForVariation maps the dev set (equipment-accurate) and nothing else', async ({ page }) => {
+test('feat 408/412 — motionForVariation: bespoke dev set + family templates with per-variation equipment', async ({ page }) => {
   const ids = ['bb-flat-bench', 'db-flat-bench', 'bb-curl', 'db-curl', 'standard-pulldown'];
   const uuids = {};
   for (const id of ids) uuids[id] = await uuidOf(page, id);
-  const r = await page.evaluate((u) => ({
-    bb: motionForVariation(u['bb-flat-bench']), db: motionForVariation(u['db-flat-bench']),
-    curl: motionForVariation(u['bb-curl']), dcurl: motionForVariation(u['db-curl']),
-    pull: motionForVariation(u['standard-pulldown']),
-    other: motionForVariation((FAMILIES.find(f => f.id === 'lat-pulldown').variations.find(v => v.id === 'rope-pulldown') || {}).uuid),
-    none: motionForVariation(null),
-  }), uuids);
-  expect(r.bb).toEqual({ motion: 'bench-press', equip: 'barbell' });
-  expect(r.db).toEqual({ motion: 'bench-press', equip: 'dumbbell' });
-  expect(r.curl).toEqual({ motion: 'biceps-curl', equip: 'barbell' });
-  expect(r.dcurl).toEqual({ motion: 'biceps-curl', equip: 'dumbbell' });
-  expect(r.pull).toEqual({ motion: 'lat-pulldown', equip: 'cable' });
-  expect(r.other).toBeNull();
+  const r = await page.evaluate((u) => {
+    const vOf = (fam, vid) => (FAMILIES.find(f => f.id === fam).variations.find(v => v.id === vid) || {}).uuid;
+    return {
+      bb: motionForVariation(u['bb-flat-bench']), db: motionForVariation(u['db-flat-bench']),
+      curl: motionForVariation(u['bb-curl']), dcurl: motionForVariation(u['db-curl']),
+      pull: motionForVariation(u['standard-pulldown']),
+      rope: motionForVariation(vOf('lat-pulldown', 'rope-pulldown')),           // family template + title-inferred cable
+      goblet: motionForVariation(vOf('squat', FAMILIES.find(f => f.id === 'squat').variations.find(v => /goblet/i.test(v.title)).id)),
+      incline: motionForVariation(vOf('incline-bench-press', 'bb-incline')),    // tilt opts ride along
+      template: motionForVariation(vOf('workout-templates', 'ppl')),            // plan templates are NOT movements
+      none: motionForVariation(null),
+    };
+  }, uuids);
+  expect(r.bb).toEqual({ motion: 'bench-press', equip: 'barbell', opts: null });
+  expect(r.db).toEqual({ motion: 'bench-press', equip: 'dumbbell', opts: null });
+  expect(r.curl).toEqual({ motion: 'biceps-curl', equip: 'barbell', opts: null });
+  expect(r.dcurl).toEqual({ motion: 'biceps-curl', equip: 'dumbbell', opts: null });
+  expect(r.pull).toEqual({ motion: 'lat-pulldown', equip: 'cable', opts: null });
+  expect(r.rope).toEqual({ motion: 'lat-pulldown', equip: 'cable', opts: null });
+  expect(r.goblet.motion).toBe('squat');
+  expect(r.goblet.equip).toBe('kettlebell');       // "Goblet" in the title wins over the family's barbell default
+  expect(r.incline.opts).toEqual({ tilt: 18 });    // incline bench = the bench motion tilted head-up
+  expect(r.template).toBeNull();
   expect(r.none).toBeNull();
+});
+
+// feat 412 — every variation of every exercise family animates (plan-template families excluded).
+test('feat 412 — full coverage: every exercise variation resolves to a motion and every template renders', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const EXCLUDE = new Set(['workout-templates', 'session-templates', 'benchmark-wods', 'warmup-templates']);
+    let covered = 0, missing = [];
+    for (const f of FAMILIES) {
+      if (EXCLUDE.has(f.id)) continue;
+      for (const v of (f.variations || [])) if (v.uuid) { if (motionForVariation(v.uuid)) covered++; else missing.push(f.id + '/' + v.id); }
+    }
+    const bad = [];
+    for (const mid of Object.keys(MOTIONS)) {
+      for (const view of MOTIONS[mid].views) for (const u of [0, 0.5, 1]) {
+        try { const ps = motionPoseShapes(mid, view, u, 'dumbbell'); if (!ps || !ps.shapes.length) bad.push(mid + '/' + view + '@' + u); }
+        catch (e) { bad.push(mid + '/' + view + '@' + u + ': ' + e.message); }
+      }
+      const a = JSON.stringify(motionPoseShapes(mid, MOTIONS[mid].views[0], 0, 'dumbbell').shapes);
+      const b = JSON.stringify(motionPoseShapes(mid, MOTIONS[mid].views[0], 1, 'dumbbell').shapes);
+      if (a === b) bad.push(mid + ': does not animate');
+    }
+    return { covered, missing, bad, motions: Object.keys(MOTIONS).length };
+  });
+  expect(r.missing).toEqual([]);            // 100% of exercise variations covered
+  expect(r.covered).toBeGreaterThan(750);
+  expect(r.bad).toEqual([]);                // every template × view × phase builds and animates
+  expect(r.motions).toBeGreaterThanOrEqual(30);
 });
 
 test('feat 408 — the full reference embeds an animated motion stage per mapped variation, with view pills', async ({ page }) => {
@@ -139,8 +176,10 @@ test('feat 408 — the full reference embeds an animated motion stage per mapped
     motionRenderStage(st, 1); const f1 = st.innerHTML;
     const sideBtn = pullPanel.querySelector('.motion-view[data-mv="side"]');
     motionSetView(sideBtn);
+    // feat 412 — every rendered variation with a motion gets a stage
+    const expected = [...document.querySelectorAll('#panel-reference .variation')].filter(el => motionForVariation(el.dataset.uuid)).length;
     return {
-      stageCount: stages.length,
+      stageCount: stages.length, expected,
       hasSvg: f0.includes('<svg') && f0.includes('fig-torso'),
       animates: f0 !== f1,
       pills,
@@ -148,7 +187,8 @@ test('feat 408 — the full reference embeds an animated motion stage per mapped
       loopArmed: typeof _motionRaf !== 'undefined',
     };
   });
-  expect(r.stageCount).toBe(5);        // bb/db bench, bb/db curl, standard pulldown
+  expect(r.stageCount).toBe(r.expected); // feat 412 — one animated stage per covered variation (700+)
+  expect(r.expected).toBeGreaterThan(700);
   expect(r.hasSvg).toBe(true);
   expect(r.animates).toBe(true);       // rep phase 0 vs 1 renders different frames
   expect(r.pills).toEqual(['Back', 'Side']);
@@ -233,7 +273,7 @@ test('feat 409 — the timelapse replay uses the same motion (with equipment) fo
     let painted = 0; for (let i = 3; i < px.length; i += 4) if (px[i] > 0) painted++;
     return { mv: comp[0].panels.wireframe.mv, phases: [...new Set(comp.map(f => f.panels.wireframe.phase))].sort(), painted };
   }, bbUuid);
-  expect(r.mv).toEqual({ motion: 'bench-press', equip: 'barbell' });
+  expect(r.mv).toEqual({ motion: 'bench-press', equip: 'barbell', opts: null });
   expect(r.phases).toEqual([0, 1]);    // alternating rep extremes survive
   expect(r.painted).toBeGreaterThan(200); // the volumetric figure + bench + plates hit the canvas
 });

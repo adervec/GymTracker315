@@ -2216,6 +2216,23 @@ They share variation **UUIDs**.
   **RTL languages (Arabic, Hebrew) are deliberately excluded** — the layout has no `dir="rtl"` support; adding
   them means mirroring work first. `i18n.spec` gained a feat-411 case (registration, per-dictionary key parity
   vs French, live switching incl. Croatian + Chinese, picker options).
+- **Motion wireframes for ALL variations (feat 412):** the feat-408 dev set (3 bespoke motions) generalizes to
+  **every exercise variation** (~880, incl. runtime-added families). ~30 new **pattern templates** join MOTIONS —
+  squat (side+front, IK knees, back-bar/goblet/rails), hinge/deadlift (torso arc, plate rides the shins to the
+  floor), row, vertical-press (side+front), lateral/front raise, rear-delt, chest fly (top-down arc), pullover,
+  triceps pushdown (pinned elbow + cable), dips, push-up (prone, `face:'down'`), pull-up (back+side, body rises
+  to a fixed bar), shrug, leg-press (reclined + sled + rail), leg-extension/leg-curl (pad rollers), calf-raise,
+  lunge (split stance, both knees IK), hip-thrust (bench + bar over hips), crunch (torso arc), plank, back-ext
+  (45° hyper), run (alternating gait via the 0→1→0 rep wave), bike (crank + wheels + pedaling IK), row-erg
+  (sliding seat + flywheel), jump (crouch→airborne), carry, oly (2-phase pull→lockout), mobility, hold, generic.
+  Assignment: `MOTION_VARS` per-variation overrides → **`FAMILY_MOTION`** (family → [template, default equip,
+  opts]) with **`_motionEquip`** inferring dumbbell/kettlebell/band/cable/machine/barbell/bodyweight from the
+  variation title. `opts` carries `tilt` (incline +18° / decline −12° rotate the bench-press scene via
+  `_figRotPt`) and per-family `act` overrides (e.g. wrist-curl lights forearms); opts thread through the
+  reference stages (`data-mopts`) and the timelapse replay. Only the four plan-template families
+  (splits/sessions/WODs/warmups) are excluded — they're lists, not movements. `motionfigure.spec`: 100%-coverage
+  + every-template-renders-and-animates case; the reference now carries one animated stage per rendered variation
+  (750+). New patterns onboard by adding a FAMILY_MOTION row; new families fall back the same way.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
