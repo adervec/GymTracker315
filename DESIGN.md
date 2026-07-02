@@ -2260,6 +2260,20 @@ They share variation **UUIDs**.
   gym brand names (Life Fitness / Nautilus / Cybex / Hoist / Technogym / Precor / Hammer Strength) now imply
   'machine' in `_motionEquip`. All 14 Roc-Its covered (dip = press-down station, ab/oblique = crunch station).
   `motionfigure.spec` feat-414: blanket every-machine-draws-its-station assertion + spot checks.
+- **Brief-matching wireframes for free-weight variations (feat 415):** the animation now honours what the
+  variation's NAME promises. **`_motionMods(title)`** infers brief modifiers alongside equipment: rep **tempo**
+  — 'pause' (paused/Spoto/Anderson/pin/dead-stop) makes the rep clock DWELL at the bottom for ~20% of the cycle
+  via **`motionStageU`** (per-stage `data-tempo`, works in every template), 'hold' (isometric/wall-sit/static)
+  stays contracted with a breathing flutter, 'slow' (tempo/negatives/eccentric) spends 70% of the cycle lowering;
+  **grip/stance width** (close/diamond ×0.68, wide/snatch/sumo ×1.3) scales the hands in bench-front, pulldown-
+  back and pull-up-back views and the stance in squat-front; **bench specials** — floor press (no bench/rack,
+  legs out, ROM ends at the floor), Larsen (legs extended, feet off the floor), Spoto (bar stops just above the
+  chest), deficit push-up (hand blocks, chest sinks below them). The reference panel titles surface the brief
+  (⏸ pause at bottom / ⏱ iso hold / 🐢 slow eccentric). Deliberate non-modifiers: **Iso-Lateral** (Hammer
+  Strength's independent arms) and **21s** (partials). Cross-listed push-ups (bench/triceps/plyo/TRX families)
+  now animate as push-ups via id-keyed `MOTION_VARS`; Sumo Squat (adductor family) is a wide-stance squat, not
+  a leg-extension. `motionfigure.spec` feat-415 (modifier inference, tempo-clock dwell/hold/slow, grip geometry,
+  floor-press scene, badges).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

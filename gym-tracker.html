@@ -19497,25 +19497,35 @@ const MOTIONS = {
         const tilt = (o && o.tilt) || 0, piv = [92, 60];
         const R = pt => tilt ? _figRotPt(pt, piv, tilt) : pt;
         const shC = R([58, 53]), hipC = [92, 60];
-        const wr = R([62 + 5 * u, 17 + 26 * u]);
+        // feat 415 — bench-family briefs: Spoto stops just above the chest; floor press loses the bench and
+        // its ROM ends where the elbows meet the floor; Larsen extends the legs straight, feet off the floor.
+        const floor = o && o.floor, uEff = floor ? u * 0.72 : u;
+        const wr = R([62 + 5 * uEff, 17 + (o && o.stopShort ? 21 : 26) * uEff]);
         const arm = (off, dim) => ({ sh: [shC[0] + off, shC[1] - 2 + (dim ? 2 : 0)], el: figIk([shC[0] + off, shC[1] - 2], wr, 17, 17, 1), wr, dim });
+        const legsUp = o && o.legsUp;
         const J = {
           head: R([44, 50]), face: 'up', shC, hipC,
           arms: [arm(3, true), arm(0, false)],
-          legs: [{ hip: hipC, kn: [114, 82], an: [111, 98], foot: [121, 98], dim: true },
-                 { hip: [hipC[0] - 2, hipC[1]], kn: [110, 84], an: [107, 100], foot: [117, 100] }],
+          legs: floor
+            ? [{ hip: hipC, kn: [116, 64], an: [134, 67], foot: [142, 68], dim: true }, { hip: [hipC[0] - 2, hipC[1]], kn: [114, 66], an: [132, 69], foot: [140, 70] }]
+            : legsUp
+            ? [{ hip: hipC, kn: [116, 56], an: [138, 55], dim: true }, { hip: [hipC[0] - 2, hipC[1]], kn: [114, 58], an: [136, 57] }]
+            : [{ hip: hipC, kn: [114, 82], an: [111, 98], foot: [121, 98], dim: true },
+               { hip: [hipC[0] - 2, hipC[1]], kn: [110, 84], an: [107, 100], foot: [117, 100] }],
         };
         const bc = [[34, 64], [104, 64], [104, 70], [34, 70]].map(R), bl1 = R([42, 70]), bl2 = R([96, 70]);
-        const bench = [_EQ(`M ${bc.map(c => c.join(' ')).join(' L ')} Z`), _EQL(bl1, [bl1[0], 100]), _EQL(bl2, [bl2[0], 100]),
-                       _EQL([24, 12], [24, 100], 2), _EQ('M 24 28 L 31 28 L 31 33', 1.4), _EQL([10, 100], [140, 100], 1, 'fig-floor')];
+        const bench = floor
+          ? [_EQL([20, 70], [140, 70], 1, 'fig-floor')]
+          : [_EQ(`M ${bc.map(c => c.join(' ')).join(' L ')} Z`), _EQL(bl1, [bl1[0], 100]), _EQL(bl2, [bl2[0], 100]),
+             _EQL([24, 12], [24, 100], 2), _EQ('M 24 28 L 31 28 L 31 33', 1.4), _EQL([10, 100], [140, 100], 1, 'fig-floor')];
         const load = equip === 'dumbbell'
           ? [..._figSideLoad(wr, 'dumbbell'), ..._figSideLoad([wr[0] + 4, wr[1] + 2], 'dumbbell').map(s => ({ ...s, dim: true }))]
-          : _figSideLoad(wr, 'barbell');
+          : equip === 'none' ? [] : _figSideLoad(wr, 'barbell');
         return { J, behind: bench, front: load, o: { depth: 0.72 } };
       }
       // Front (from above): fixed barbell grip — the ELBOWS flare at the chest and the arms foreshorten at
       // lockout (they point up at the viewer); dumbbells converge at the top. The bar drifts face-ward locked out.
-      const cx = 55, g = equip === 'dumbbell' ? 16 + 14 * u : 28, barY = 32 + 22 * u;
+      const cx = 55, gripF = (o && o.grip) || 1, g = (equip === 'dumbbell' ? 16 + 14 * u : 28) * gripF, barY = 32 + 22 * u;
       const L = 10 + 7 * u; // apparent (foreshortened) bone length from above
       const arm = sgn => { const sh = [cx + 12 * sgn, 38], wr = [cx + g * sgn, barY]; return { sh, el: figIk(sh, wr, L, L, sgn > 0 ? 1 : -1), wr }; };
       const J = {
@@ -19569,10 +19579,10 @@ const MOTIONS = {
     viewLabel: { back: 'Back', side: 'Side' },
     box: { back: [110, 160], side: [130, 160] },
     act: { torso: 0.9, torsoZone: 0.45, upArm: 0.85 }, // lats (mid-back) + biceps drive the pull
-    build(view, u, equip, p) {
+    build(view, u, equip, p, o) {
       if (view === 'back') {
         // Seated from behind: wide bar overhead pulled to the upper chest, elbows driving down and out.
-        const cx = 55, barY = 12 + 34 * u, g = 31 - 4 * u;
+        const cx = 55, barY = 12 + 34 * u, g = (31 - 4 * u) * ((o && o.grip) || 1);
         const arm = sgn => { const sh = [cx + 12 * sgn, 46], wr = [cx + g * sgn, barY]; return { sh, el: figIk(sh, wr, 17, 17, sgn > 0 ? 1 : -1), wr }; };
         const J = {
           head: [cx, 30], face: 'back', shC: [cx, 48], hipC: [cx, 100],
@@ -19621,10 +19631,10 @@ const MOTIONS = {
           : _figSideLoad(grip, equip === 'none' ? 'none' : equip);
         return { J, behind: floor, front: load, o: { depth: 0.72 } };
       }
-      const cx = 55, shY = 34 + 22 * u, hipY = 92 + 16 * u;
+      const cx = 55, shY = 34 + 22 * u, hipY = 92 + 16 * u, stance = (o && o.grip) || 1; // feat 415 — sumo/wide vs narrow stance
       const J = { head: [cx, shY - 18], face: 'front', shC: [cx, shY], hipC: [cx, hipY],
         arms: [{ sh: [cx - 12, shY + 2], el: [cx - 17, shY + 12], wr: [cx - 15, shY - 2] }, { sh: [cx + 12, shY + 2], el: [cx + 17, shY + 12], wr: [cx + 15, shY - 2] }],
-        legs: [-1, 1].map(s => ({ hip: [cx + 6 * s, hipY + 4], kn: [cx + (8 + 7 * u) * s, 118 + 6 * u], an: [cx + 9 * s, 144], foot: [cx + 13 * s, 148] })) };
+        legs: [-1, 1].map(s => ({ hip: [cx + 6 * s, hipY + 4], kn: [cx + (8 + 7 * u) * stance * s, 118 + 6 * u], an: [cx + 9 * stance * s, 144], foot: [cx + (9 * stance + 4) * s, 148] })) };
       const bar = equip === 'barbell' ? [_EQL([cx - 34, shY - 3], [cx + 34, shY - 3], 2, 'fig-bar'), _EQ(figCapsulePath([cx - 40, shY - 3], [cx - 34, shY - 3], 8), 1.2, 'fig-plate'), _EQ(figCapsulePath([cx + 34, shY - 3], [cx + 40, shY - 3], 8), 1.2, 'fig-plate')] : [];
       return { J, behind: floor, front: bar };
     },
@@ -19807,15 +19817,18 @@ const MOTIONS = {
     label: 'Push-Up', views: ['side'], viewLabel: { side: 'Side' },
     box: { side: [140, 110] },
     act: { torso: 1, torsoZone: 0.26, upArm: 0.8 },
-    build(view, u, equip, p) {
-      const shC = [46, 60 + 18 * u], hipC = [88, 72 + 12 * u];
-      const wr = [44, 94];
+    build(view, u, equip, p, o) {
+      const deficit = o && o.deficit; // feat 415 — hands on raised blocks, chest sinks below them
+      const wr = [44, deficit ? 88 : 94];
+      const shC = [46, (deficit ? 58 : 60) + (deficit ? 22 : 18) * u], hipC = [88, 72 + 12 * u];
       const J = { head: [34, shC[1] - 6], face: 'down', shC, hipC,
         arms: [{ sh: [shC[0] + 3, shC[1]], el: figIk([shC[0] + 3, shC[1]], [wr[0] + 3, wr[1]], 16, 16, -1), wr: [wr[0] + 3, wr[1]], dim: true },
                { sh: shC, el: figIk(shC, wr, 16, 16, -1), wr }],
         legs: [{ hip: hipC, kn: [108, 78 + 9 * u], an: [124, 86 + 6 * u], foot: [128, 94], dim: true },
                { hip: [hipC[0] - 2, hipC[1]], kn: [106, 80 + 9 * u], an: [122, 88 + 6 * u], foot: [126, 96] }] };
-      return { J, behind: [_EQL([16, 96], [134, 96], 1, 'fig-floor')], front: [], o: { depth: 0.72 } };
+      const scene = [_EQL([16, 96], [134, 96], 1, 'fig-floor')];
+      if (deficit) scene.push(_EQ('M 36 90 L 54 90 L 54 96 L 36 96 Z', 1.4, 'fig-pad'));
+      return { J, behind: scene, front: [], o: { depth: 0.72 } };
     },
   },
   'pull-up': {
@@ -19824,8 +19837,8 @@ const MOTIONS = {
     act: { torso: 0.9, torsoZone: 0.45, upArm: 0.9 },
     build(view, u, equip, p, o) {
       if (view === 'back') {
-        const cx = 55, rise = 20 * u;
-        const arm = s => { const sh = [cx + 12 * s, 48 - rise], wr = [cx + 24 * s, 12]; return { sh, el: figIk(sh, wr, 17, 17, s > 0 ? 1 : -1), wr }; };
+        const cx = 55, rise = 20 * u, gw = 24 * ((o && o.grip) || 1);
+        const arm = s => { const sh = [cx + 12 * s, 48 - rise], wr = [cx + gw * s, 12]; return { sh, el: figIk(sh, wr, 17, 17, s > 0 ? 1 : -1), wr }; };
         const J = { head: [cx, 32 - rise], face: 'back', shC: [cx, 50 - rise], hipC: [cx, 100 - rise],
           arms: [arm(-1), arm(1)],
           legs: [-1, 1].map(s => ({ hip: [cx + 5 * s, 102 - rise], kn: [cx + 7 * s, 120 - rise + 4 * u], an: [cx + 6 * s, 138 - rise + 6 * u], foot: [cx + 10 * s, 142 - rise + 6 * u] })) };
@@ -20412,6 +20425,12 @@ const MOTION_VARS = {
   'roc-it-dip': ['machine-press', 'machine', { rock: 1, angle: -50 }], // seated dip press station
   'roc-it-ab-crunch': ['machine-crunch', 'machine'],
   'roc-it-oblique': ['machine-crunch', 'machine'],
+  'sumo-squat-narrow': ['squat', 'dumbbell', { grip: 1.3 }], // feat 415 — a squat (wide stance), not a leg-extension machine
+  // feat 415 — push-up variations cross-listed in other families animate as push-ups, not their host family's motion
+  'push-up': ['push-up', 'none'], 'deficit-push-up': ['push-up', 'none', { deficit: 1 }],
+  'pike-push-up': ['push-up', 'none'], 'close-grip-push-up': ['push-up', 'none'], 'diamond-push-up': ['push-up', 'none'],
+  'trx-push-up': ['push-up', 'none'], 'push-up-plus': ['push-up', 'none'], 'clap-push-up': ['push-up', 'none'],
+  'med-ball-pushup': ['push-up', 'none'], 'bench-decline-pushup': ['push-up', 'none'],
 };
 // feat 413 — when a variation in these families resolves to 'machine' equipment, it's a SEATED station,
 // not the family's free-weight motion (fixed / MTS / plate-loaded presses & rows). Smith machines stay on
@@ -20467,6 +20486,23 @@ const FAMILY_MOTION = {
   'pilates-mat': ['crunch', 'none'], 'tai-chi': ['mobility', 'none'], systema: ['mobility', 'none'],
   'boxing-bag': ['generic', 'none', { act: { upArm: 0.7, torso: 0.3, torsoZone: 0.3 } }], 'jump-rope-skills': ['jump', 'none'],
 };
+// feat 415 — brief modifiers inferred from the variation's title: rep TEMPO (pause at the bottom / isometric
+// hold / slow eccentric) reshapes the animation clock in every template; grip/stance width scales the hold;
+// bench specials (floor / Larsen / Spoto / deficit) reshape their scene. Iso-Lateral (Hammer Strength's
+// independent-arm design) and 21s (partials) are deliberately NOT tempo modifiers.
+function _motionMods(title) {
+  const n = String(title || '').toLowerCase(), o = {};
+  if (/paused|\bpause\b|spoto|anderson|pin (press|bench|squat)|dead.?stop/.test(n)) o.tempo = 'pause';
+  else if (/isometric|\bhold\b|wall sit|\bstatic\b/.test(n)) o.tempo = 'hold';
+  else if (/tempo|negative|eccentric|5-1-1|3-1-3|slow/.test(n)) o.tempo = 'slow';
+  if (/close.?grip|narrow.?grip|diamond/.test(n)) o.grip = 0.68;
+  if (/wide.?grip|snatch.?grip|sumo/.test(n)) o.grip = 1.3;
+  if (/spoto/.test(n)) o.stopShort = 1;
+  if (/floor press/.test(n)) o.floor = 1;
+  if (/larsen/.test(n)) o.legsUp = 1;
+  if (/deficit/.test(n)) o.deficit = 1;
+  return o;
+}
 // Equipment inferred from the variation's own title (wins over the family default).
 function _motionEquip(title, dflt) {
   const n = String(title || '').toLowerCase();
@@ -20488,13 +20524,14 @@ function motionForVariation(uuid) {
       const fam = FAMILY_MOTION[f.id];
       (f.variations || []).forEach(v => {
         if (!v.uuid) return;
+        const mods = _motionMods(v.title), nz = o => (o && Object.keys(o).length) ? o : null; // feat 415
         const mv = MOTION_VARS[v.id];
-        if (mv) { _motionByUuid[v.uuid] = { motion: mv[0], equip: mv[1], opts: mv[2] || null }; return; }
+        if (mv) { _motionByUuid[v.uuid] = { motion: mv[0], equip: mv[1], opts: nz({ ...mods, ...(mv[2] || {}) }) }; return; }
         if (!fam) return;
         const equip = _motionEquip(v.title, fam[1]);
         const mach = FAMILY_MACHINE[f.id]; // feat 413 — seated stations override the free-weight motion
-        if (mach && equip === 'machine' && !/smith/i.test(v.title)) { _motionByUuid[v.uuid] = { motion: mach[0], equip, opts: Object.keys(mach[1]).length ? mach[1] : null }; return; }
-        _motionByUuid[v.uuid] = { motion: fam[0], equip, opts: fam[2] || null };
+        if (mach && equip === 'machine' && !/smith/i.test(v.title)) { _motionByUuid[v.uuid] = { motion: mach[0], equip, opts: nz({ ...mach[1], ...mods }) }; return; }
+        _motionByUuid[v.uuid] = { motion: fam[0], equip, opts: nz({ ...(fam[2] || {}), ...mods }) };
       });
     });
   }
@@ -20514,6 +20551,18 @@ function motionPoseShapes(mid, view, u, equip, p, opts) {
 }
 // ---- reference-page animation stages: a self-stopping rAF loop repaints every visible .motion-stage ----
 function motionPhase(ts, period) { period = period || 2400; const tau = ((+ts || 0) % period) / period; return 0.5 - 0.5 * Math.cos(tau * 2 * Math.PI); }
+// feat 415 — tempo-shaped rep clock so the animation matches the brief: 'pause' DWELLS at the bottom for
+// ~20% of the cycle (paused/Spoto/Anderson work), 'slow' spends 70% on the eccentric, 'hold' stays contracted.
+function motionStageU(ts, tempo, period) {
+  period = period || 2400;
+  const tau = ((+ts || 0) % period) / period;
+  let t2 = tau;
+  if (tempo === 'pause') t2 = tau < 0.4 ? tau * (0.5 / 0.4) : tau < 0.6 ? 0.5 : 0.5 + (tau - 0.6) * (0.5 / 0.4);
+  else if (tempo === 'slow') t2 = tau < 0.7 ? tau * (0.5 / 0.7) : 0.5 + (tau - 0.7) * (0.5 / 0.3);
+  let u = 0.5 - 0.5 * Math.cos(t2 * 2 * Math.PI);
+  if (tempo === 'hold') u = 0.86 + 0.14 * u;
+  return u;
+}
 function motionRenderStage(st, u) {
   let opts = null; try { if (st.dataset.mopts) opts = JSON.parse(st.dataset.mopts); } catch (_) {}
   const ps = motionPoseShapes(st.dataset.motion, st.dataset.view, u, st.dataset.equip, undefined, opts);
@@ -20524,8 +20573,7 @@ let _motionRaf = null;
 function _motionLoop(ts) {
   const stages = document.querySelectorAll('.motion-stage');
   if (!stages.length) { _motionRaf = null; return; }
-  const u = motionPhase(ts);
-  stages.forEach(st => { if (st.offsetParent) motionRenderStage(st, u); });
+  stages.forEach(st => { if (st.offsetParent) motionRenderStage(st, motionStageU(ts, st.dataset.tempo)); }); // feat 415 — per-stage tempo
   _motionRaf = requestAnimationFrame(_motionLoop);
 }
 function motionEnsureLoop() { if (!_motionRaf && typeof requestAnimationFrame === 'function' && document.querySelector('.motion-stage')) _motionRaf = requestAnimationFrame(_motionLoop); }
@@ -20540,9 +20588,11 @@ function motionPanelHtml(uuid) {
   const mv = motionForVariation(uuid); if (!mv) return '';
   const m = MOTIONS[mv.motion];
   const pills = m.views.map((v, i) => `<button type="button" class="motion-view ${i === 0 ? 'active' : ''}" data-mv="${v}" onclick="event.stopPropagation();motionSetView(this)">${(m.viewLabel && m.viewLabel[v]) || v}</button>`).join('');
+  const tempo = mv.opts && mv.opts.tempo; // feat 415 — surface the brief in the panel title
+  const tempoTag = tempo === 'pause' ? ' · ⏸ pause at bottom' : tempo === 'hold' ? ' · ⏱ iso hold' : tempo === 'slow' ? ' · 🐢 slow eccentric' : '';
   return `<div class="motion-panel" onclick="event.stopPropagation()">
-    <div class="motion-head"><span class="motion-title">🏃 Motion — ${m.label}${mv.equip !== 'barbell' && mv.equip !== 'none' ? ' · ' + mv.equip : ''}</span><div class="motion-views">${pills}</div></div>
-    <div class="motion-stage" data-motion="${mv.motion}" data-equip="${mv.equip}" data-view="${m.views[0]}"${mv.opts ? ` data-mopts="${escapeAttr(JSON.stringify(mv.opts))}"` : ''}></div>
+    <div class="motion-head"><span class="motion-title">🏃 Motion — ${m.label}${mv.equip !== 'barbell' && mv.equip !== 'none' ? ' · ' + mv.equip : ''}${tempoTag}</span><div class="motion-views">${pills}</div></div>
+    <div class="motion-stage" data-motion="${mv.motion}" data-equip="${mv.equip}" data-view="${m.views[0]}"${tempo ? ` data-tempo="${tempo}"` : ''}${mv.opts ? ` data-mopts="${escapeAttr(JSON.stringify(mv.opts))}"` : ''}></div>
   </div>`;
 }
 
@@ -25124,7 +25174,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 340 · 2026-07-01 23:04';
+const APP_BUILD = 'build 341 · 2026-07-01 23:40';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

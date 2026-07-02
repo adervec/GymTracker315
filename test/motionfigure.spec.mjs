@@ -209,6 +209,53 @@ test('feat 414 — every machine-titled variation draws its station; brand names
   expect(r.cableCurlLoad).toBe(true);                   // cable curls hold a handle, not a barbell plate
 });
 
+// feat 415 — the animation matches the variation's BRIEF: paused work dwells at the bottom, iso work holds,
+// eccentric work lowers slowly, grip/stance width shows, and bench specials reshape their scene.
+test('feat 415 — brief modifiers: pause/hold/slow tempo, grip width, floor/Larsen/Spoto/deficit specials', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const vOf = id => { for (const f of FAMILIES) for (const v of (f.variations || [])) if (v.id === id) return v.uuid; return null; };
+    const mv = id => motionForVariation(vOf(id));
+    const P = 2400;
+    return {
+      paused: mv('paused-bench').opts, spoto: mv('spoto-press').opts, floor: mv('floor-press').opts,
+      larsen: mv('larsen-press').opts, close: mv('close-grip-bench').opts, widePull: mv('wide-grip-pulldown').opts,
+      isoCurl: mv('isometric-curl-hold').opts, negatives: (mv('eccentric-pullup') || mv('negative-pullup') || motionForVariation((FAMILIES.find(f => f.id === 'pull-up').variations.find(v => /eccentric|negative/i.test(v.title)) || {}).uuid)).opts,
+      deficit: mv('deficit-push-up'),                       // cross-listed push-up animates as a push-up
+      benchPushup: mv('push-up').motion,
+      // the tempo clock: paused dwells at the bottom through mid-cycle; hold stays contracted; slow is still descending at mid
+      dwell: [motionStageU(0.45 * P, 'pause'), motionStageU(0.55 * P, 'pause')],
+      plain45: motionStageU(0.45 * P),
+      holdMin: motionStageU(0, 'hold'),
+      slowMid: motionStageU(0.5 * P, 'slow'),
+      // geometry follows: close-grip pulldown wrists sit inside wide-grip wrists
+      differs: JSON.stringify(motionPoseShapes('lat-pulldown', 'back', 0.5, 'cable', undefined, { grip: 0.68 }).shapes)
+        !== JSON.stringify(motionPoseShapes('lat-pulldown', 'back', 0.5, 'cable', undefined, { grip: 1.3 }).shapes),
+      floorLighter: motionPoseShapes('bench-press', 'side', 0.5, 'barbell', undefined, { floor: 1 }).shapes.length
+        < motionPoseShapes('bench-press', 'side', 0.5, 'barbell').shapes.length, // no bench, no rack on the floor press
+      badge: motionPanelHtml(vOf('paused-bench')).includes('pause at bottom') && motionPanelHtml(vOf('paused-bench')).includes('data-tempo="pause"'),
+    };
+  });
+  expect(r.paused).toEqual({ tempo: 'pause' });
+  expect(r.spoto).toEqual({ tempo: 'pause', stopShort: 1 });
+  expect(r.floor).toEqual({ floor: 1 });
+  expect(r.larsen).toEqual({ legsUp: 1 });
+  expect(r.close).toEqual({ grip: 0.68 });
+  expect(r.widePull).toEqual({ grip: 1.3 });
+  expect(r.isoCurl).toEqual({ tempo: 'hold' });
+  expect(r.negatives).toEqual({ tempo: 'slow' });
+  expect(r.deficit.motion).toBe('push-up');
+  expect(r.deficit.opts).toEqual({ deficit: 1 });
+  expect(r.benchPushup).toBe('push-up');
+  expect(r.dwell[0]).toBeCloseTo(1, 5);        // THE PAUSE: bottom position held across mid-cycle
+  expect(r.dwell[1]).toBeCloseTo(1, 5);
+  expect(r.plain45).toBeLessThan(1);           // an unmodified rep is still moving there
+  expect(r.holdMin).toBeGreaterThanOrEqual(0.86);
+  expect(r.slowMid).toBeLessThan(0.95);        // slow eccentric: still on the way down at mid-cycle
+  expect(r.differs).toBe(true);
+  expect(r.floorLighter).toBe(true);
+  expect(r.badge).toBe(true);
+});
+
 // feat 412 — every variation of every exercise family animates (plan-template families excluded).
 test('feat 412 — full coverage: every exercise variation resolves to a motion and every template renders', async ({ page }) => {
   const r = await page.evaluate(() => {
