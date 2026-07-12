@@ -1,94 +1,93 @@
-// feat 234 — surface the feat-233 next-load suggestion inside the log sheet: for a live weight×reps
-// exercise with history, a concrete "Aim for W × R" target (double progression, deload-aware) with a
-// one-tap "Load W" that prefills the next empty set's WEIGHT only (you still log the reps you do).
+// feat 420 — the verbose feat-234 "Aim for W × R" blurb is retired. The sheet now offers REFERENCE-SET
+// buttons — ↩ previous top set · 🏆 all-time best by e1RM · 🏋️ all-time max weight · 🔁 all-time max reps —
+// deduped by weight, each a one-tap weight prefill (feat 247 reuse-the-open-set behaviour preserved). The
+// baseline cards keep ▼ lighter / ▲ heavier and gain a ⭐ best-e1RM card with the reps needed at the
+// CURRENT weight to at least match it.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
 
 test.beforeEach(async ({ page }) => {
   await page.goto(APP, { waitUntil: 'load' });
-  await page.waitForFunction(() => typeof openLogModal === 'function' && typeof renderModal === 'function' && typeof suggestProgression === 'function', null, { timeout: 15000 });
+  await page.waitForFunction(() => typeof openLogModal === 'function' && typeof renderModal === 'function' && typeof exBestSets === 'function', null, { timeout: 15000 });
 });
 
-// open the log sheet on a push lift with a given history; returns the chosen var uuid
-const openWithHistory = (page, { w, r, daysAgo = 2, editing = false, meso = null }) => page.evaluate(({ w, r, daysAgo, editing, meso }) => {
+// open the log sheet on a push lift with the given history sessions [{daysAgo, sets:[[w,r],…]}, …]
+const openWith = (page, sessions) => page.evaluate((sessions) => {
   const v = (() => { for (const [u, i] of VAR_INDEX) if (i.family.mega === 'push' && exMode(u).mode === 'standard') return u; })();
   state.unit = 'lb';
-  state.meso = meso || { enabled: false, length: 4, start: null };
-  if (w != null) { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - daysAgo); state.sessions = [{ id: 'h', date: d.toISOString(), updatedAt: d.toISOString(), exercises: [{ varUuid: v, subUuid: null, sets: [{ w, r }] }] }]; }
-  else state.sessions = [];
+  state.sessions = (sessions || []).map((s, i) => {
+    const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - s.daysAgo);
+    return { id: 'h' + i, date: d.toISOString(), updatedAt: d.toISOString(), exercises: [{ varUuid: v, subUuid: null, sets: s.sets.map(([w, r]) => ({ w, r })) }] };
+  });
   pending.varUuid = v; pending.subUuid = null; pending.cardio = null; pending.sets = [{ w: '', r: '' }]; savePending();
-  openLogModal(); modalState.showPicker = false; modalState.isEditing = editing; renderModal();
+  openLogModal(); modalState.showPicker = false; modalState.isEditing = false; renderModal();
   return v;
-}, { w, r, daysAgo, editing, meso });
+}, sessions);
 
-test('the sheet shows a concrete next-load target with a Load button', async ({ page }) => {
-  await openWithHistory(page, { w: 135, r: 12 }); // hit the top of 8–12 → add load, reset to 8
+const readBtns = (page) => page.evaluate(() =>
+  [...document.querySelectorAll('#trk-modal-body .target-btn')].map(b => ({ w: b.dataset.w, label: b.textContent.trim() })));
+
+test('identical prev/best/max sets collapse to ONE button; the Aim-for blurb is gone', async ({ page }) => {
+  await openWith(page, [{ daysAgo: 2, sets: [[135, 12]] }]);
+  const btns = await readBtns(page);
+  const blurbGone = await page.evaluate(() => !document.querySelector('#trk-modal-body .prog-target'));
+  expect(btns.length).toBe(1);                   // prev top = best e1RM = max weight = max reps → one weight, one button
+  expect(btns[0].w).toBe('135');
+  expect(btns[0].label).toContain('135×12');
+  expect(blurbGone).toBe(true);
+});
+
+test('distinct references get their own buttons, deduped by weight', async ({ page }) => {
+  // prev session top 135×5; an older 120×15 day is both the best e1RM (180) and the max-reps set
+  await openWith(page, [{ daysAgo: 2, sets: [[135, 5]] }, { daysAgo: 9, sets: [[120, 15]] }, { daysAgo: 16, sets: [[100, 10]] }]);
+  const btns = await readBtns(page);
+  expect(btns.length).toBe(2);
+  expect(btns[0].label).toContain('Prev top');
+  expect(btns[0].w).toBe('135');                 // also the max-weight set — deduped into the prev button
+  expect(btns[1].label).toContain('Best e1RM');
+  expect(btns[1].w).toBe('120');                 // also the max-reps set — deduped
+});
+
+test('tapping a reference button prefills WEIGHT only and reuses the open set on repeat taps', async ({ page }) => {
+  await openWith(page, [{ daysAgo: 2, sets: [[135, 12]] }]);
   const r = await page.evaluate(() => {
-    const body = document.getElementById('trk-modal-body'), t = body.querySelector('.prog-target');
-    return { has: !!t, aim: (t?.querySelector('.prog-target-aim')?.textContent || '').replace(/\s+/g, ' ').trim(), note: t?.querySelector('.prog-target-note')?.textContent || '', btnW: body.querySelector('#trk-prog-prefill')?.dataset.w, cls: t?.className || '' };
+    const tap = () => document.querySelector('#trk-modal-body .target-btn').click();
+    tap(); tap(); tap();
+    return { len: pending.sets.length, w: pending.sets[0].w, rep: pending.sets[0].r };
+  });
+  expect(r.len).toBe(1);      // feat 247 behaviour preserved: one open set, not three
+  expect(r.w).toBe(135);
+  expect(r.rep).toBe('');     // you still log the reps you actually do
+});
+
+test('no buttons without history', async ({ page }) => {
+  await openWith(page, []);
+  expect((await readBtns(page)).length).toBe(0);
+});
+
+test('the ⭐ best-e1RM baseline shows the reps needed at the CURRENT weight to match it', async ({ page }) => {
+  await openWith(page, [{ daysAgo: 9, sets: [[120, 15]] }]);   // best e1RM = 120·(1+15/30) = 180
+  const r = await page.evaluate(() => {
+    pending.sets = [{ w: 100, r: '' }]; savePending();
+    renderNeighborHints();
+    const card = document.querySelector('#trk-neighbor-hints .neighbor-hint.e1rm');
+    return { has: !!card, text: card ? card.textContent.replace(/\s+/g, ' ') : '' };
   });
   expect(r.has).toBe(true);
-  expect(r.aim).toContain('140');
-  expect(r.aim).toContain('8');
-  expect(r.note).toContain('add load');
-  expect(r.btnW).toBe('140');
-  expect(r.cls).toContain('prog-add-load');
+  expect(r.text).toContain('180');               // the target e1RM
+  expect(r.text).toContain('≥24 rep');           // 30·(180/100 − 1) = 24 reps at 100 to match
+  expect(r.text).toContain('120×15');            // the set that owns the record
 });
 
-test('one-tap Load prefills the next empty set WEIGHT only — reps stay blank', async ({ page }) => {
-  await openWithHistory(page, { w: 135, r: 12 });
+test('the e1RM card still shows when the entered weight already has a baseline (lighter/heavier suppressed)', async ({ page }) => {
+  await openWith(page, [{ daysAgo: 2, sets: [[100, 5]] }, { daysAgo: 9, sets: [[120, 15]] }]);
   const r = await page.evaluate(() => {
-    document.querySelector('#trk-modal-body #trk-prog-prefill').click();
-    return { w: pending.sets[0].w, rep: pending.sets[0].r };
+    pending.sets = [{ w: 100, r: '' }]; savePending();
+    renderNeighborHints();
+    const el = document.getElementById('trk-neighbor-hints');
+    return { e1: !!el.querySelector('.neighbor-hint.e1rm'), lighter: !!el.querySelector('.neighbor-hint.lighter') };
   });
-  expect(r.w).toBe(140);   // suggested weight loaded
-  expect(r.rep).toBe('');  // …but you still log the reps you actually do
-});
-
-test('feat 247 — repeated Load taps reuse the open set, not stack extra open sets', async ({ page }) => {
-  await openWithHistory(page, { w: 135, r: 12 }); // target 140
-  const r = await page.evaluate(() => {
-    const tap = () => document.querySelector('#trk-modal-body #trk-prog-prefill').click();
-    tap(); tap(); tap();                                  // three taps
-    const sets = pending.sets;
-    return { len: sets.length, open: sets.filter(s => isSetOpen(s)).length, w: sets[0].w, rep: sets[0].r };
-  });
-  expect(r.len).toBe(1);     // still ONE set…
-  expect(r.open).toBe(1);    // …one open set, not three (the bug stacked a new one each tap)
-  expect(r.w).toBe(140);
-  expect(r.rep).toBe('');
-});
-
-test('mid-range history suggests add-a-rep (same load, +1 rep)', async ({ page }) => {
-  await openWithHistory(page, { w: 135, r: 9 });
-  const r = await page.evaluate(() => {
-    const t = document.querySelector('#trk-modal-body .prog-target');
-    return { aim: (t?.querySelector('.prog-target-aim')?.textContent || '').replace(/\s+/g, ' ').trim(), cls: t?.className || '', btnW: document.querySelector('#trk-prog-prefill')?.dataset.w };
-  });
-  expect(r.aim).toContain('135');   // same weight
-  expect(r.aim).toContain('10');    // +1 rep
-  expect(r.cls).toContain('prog-add-reps');
-  expect(r.btnW).toBe('135');
-});
-
-test('no target when editing, for no history, or non-standard tracking', async ({ page }) => {
-  const editing = await openWithHistory(page, { w: 135, r: 12, editing: true }).then(() => page.evaluate(() => !!document.querySelector('#trk-modal-body .prog-target')));
-  const noHist = await openWithHistory(page, { w: null }).then(() => page.evaluate(() => !!document.querySelector('#trk-modal-body .prog-target')));
-  expect(editing).toBe(false);   // editing a past entry → no forward suggestion
-  expect(noHist).toBe(false);    // nothing logged yet → nothing to suggest
-});
-
-test('a deload week surfaces a back-off target in the sheet', async ({ page }) => {
-  await openWithHistory(page, { w: 135, r: 9, meso: { enabled: true, length: 4, start: null } });
-  // anchor the cycle 3 weeks back so we're in the deload week, then re-render
-  const r = await page.evaluate(() => {
-    state.meso.start = _weekMonday(3).toISOString().slice(0, 10);
-    renderModal();
-    const t = document.querySelector('#trk-modal-body .prog-target');
-    return { phase: mesoCurrentWeek().phase, cls: t?.className || '', btnW: document.querySelector('#trk-prog-prefill')?.dataset.w };
-  });
-  expect(r.phase).toBe('Deload');
-  expect(r.cls).toContain('prog-deload');
-  expect(r.btnW).toBe('120');   // 135 × 0.9 → nearest 5 lb
+  expect(r.e1).toBe(true);
+  expect(r.lighter).toBe(false);                 // baseline exists at 100 → neighbors stay hidden, e1RM stays
 });

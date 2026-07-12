@@ -12,6 +12,33 @@ test.beforeEach(async ({ page }) => {
     && typeof topbarBack === 'function' && typeof navTo === 'function', null, { timeout: 15000 });
 });
 
+// feat 419 — Exercise is a NORMAL SCREEN: no dimming backdrop, no slide transform, and the page behind is
+// frozen (iOS-proof body pin) so recovery info etc. cannot scroll underneath.
+test('feat 419 — the Exercise screen has no backdrop and freezes the page behind it', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    navTo('workout', { replace: true });
+    openLogModal();
+    const opened = {
+      backdropOpen: document.getElementById('trk-modal-backdrop').classList.contains('open'),
+      bodyPinned: document.body.style.position === 'fixed',
+      display: getComputedStyle(document.getElementById('trk-modal')).display,
+      transform: getComputedStyle(document.getElementById('trk-modal')).transform,
+    };
+    closeLogModal();
+    const closed = {
+      bodyPinned: document.body.style.position === 'fixed',
+      display: getComputedStyle(document.getElementById('trk-modal')).display,
+    };
+    return { opened, closed };
+  });
+  expect(r.opened.backdropOpen).toBe(false);            // a page has no dimmed backdrop
+  expect(r.opened.bodyPinned).toBe(true);               // the page behind cannot scroll
+  expect(r.opened.display).toBe('block');
+  expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(r.opened.transform); // no slide-in transform
+  expect(r.closed.bodyPinned).toBe(false);
+  expect(r.closed.display).toBe('none');                // hidden like a page, not parked off-screen
+});
+
 test('opening the log sheet marks the Exercise page; closing restores the previous page', async ({ page }) => {
   const r = await page.evaluate(() => {
     navTo('workout', { replace: true });

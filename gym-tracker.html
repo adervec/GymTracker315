@@ -818,7 +818,10 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   /* feat 148 — the Log-Sets sheet (#trk-modal) is a full-screen fixed overlay, so unlike .panel it sat at top:0
      and the fixed top bar + rest/plan-step HUD bars floated OVER its top content (clipping the exercise + sets).
      Push the sheet down to start below whichever bars are showing. Mirrors the .panel offsets above. */
-  #trk-modal { top: var(--topbar-h); transition: none; } /* feat 278 — Exercise page renders in place (no bottom slide-in); it's a router destination, not a popup */
+  /* feat 419 — Exercise is a NORMAL SCREEN: no slide transform at all, no dimming backdrop, shown/hidden
+     like a page (display), and its own scroll container never chains to the page behind. */
+  #trk-modal { top: var(--topbar-h); transition: none; transform: none; display: none; overscroll-behavior: contain; }
+  #trk-modal.open { display: block; transform: none; }
   body.rest-bar-on #trk-modal { top: calc(var(--topbar-h) + 30px); }
   body.rest-bar-idle #trk-modal { top: calc(var(--topbar-h) + 18px); }
   body.plan-step-bar-on #trk-modal { top: calc(var(--topbar-h) + 24px); }
@@ -2903,6 +2906,14 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .excar-alt-row:last-child { border-bottom: none; }
 .excar-alt-title { color: var(--text); flex: 1; min-width: 0; }
 .excar-alt-fam { color: var(--text3); font-size: 10.5px; white-space: nowrap; }
+/* feat 419 — plan-step compatible-variations popup (informational) */
+.step-var-list { max-height: 45vh; overflow: auto; margin: 4px 0 8px; }
+.step-var-item { font-size: 12.5px; color: var(--text2); padding: 6px 4px; border-bottom: 1px solid var(--border); }
+.step-var-item:last-child { border-bottom: none; }
+/* feat 420 — reference-set target buttons + the best-e1RM baseline card */
+.target-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.target-btn { font-size: 11px; padding: 6px 10px; }
+.neighbor-hint.e1rm .neighbor-hint-dir { color: var(--accent); }
 .anat-fig-label { font-size: 9px; fill: var(--text2); font-weight: 700; text-anchor: middle; }
 .amus { cursor: pointer; fill: var(--bg4); stroke: var(--border2); stroke-width: 0.8; transition: fill 0.15s; }
 .amus:hover { fill: var(--accent2); }
@@ -3667,6 +3678,28 @@ const EXTRA_VARIATIONS = [
     mistakes:['Wrists flexing under load','Elbows lifting off the pad','Going too heavy and losing the grip'],
     programming:{'Hypertrophy':'3 × 12-15'},
     tip:'A joint-friendly way to overload reverse curls — the machine fixes the path so you can focus on the forearms.' },
+  // feat 419 — requested missing machines: lying ab crunch, fixed (selectorized) back extension, incline plate-loaded leg press.
+  { movementId:'abs-dynamic', id:'lying-ab-crunch-machine', uuid:'b1a10015-0015-4015-8015-aaaaaaaa0015', title:'Lying Ab Crunch Machine', best:'Loaded Lying Crunch',
+    cue:'Lie back on the pad, hook the roller with your upper body or feet per the machine, and curl the ribs toward the pelvis against the stack — spine flexes, hips stay put.',
+    setup:['Adjust the pads so the pivot lines up with your mid-torso','Lie back, hook the rollers, hands on the grips','Start from a slight backward stretch'],
+    movement:['Exhale and curl the ribcage toward the pelvis','Squeeze the abs 1s at full flexion','Return under control to the stretched start — no flopping'],
+    mistakes:['Pulling with the arms or neck','Hip flexors taking over (hips must stay fixed)','Rushing the negative'],
+    programming:{'Hypertrophy':'3-4 × 10-15','Pump':'2-3 × 15-20'},
+    tip:'The lying version stretches the abs further than the seated crunch machine — lighter stack, fuller range.' },
+  { movementId:'back-extension', id:'fixed-back-extension', uuid:'b1a10016-0016-4016-8016-aaaaaaaa0016', title:'Fixed Back Extension Machine', best:'Selectorized Erectors',
+    cue:'Seated selectorized back extension — hips at the pivot, roller across the upper back; drive the pad back with the erectors, stop at neutral.',
+    setup:['Seat so the hips line up with the pivot','Roller pad across the shoulder blades, feet braced on the platform','Select a stack weight you can control'],
+    movement:['Push the pad back by extending the spine and hips','Stop at neutral — no hyperextension','Return slowly to a comfortable forward stretch'],
+    mistakes:['Arching past neutral at the back','Pushing through the legs instead of the back','Jerking the stack'],
+    programming:{'Strength':'3 × 8-12','Endurance':'2-3 × 15-20'},
+    tip:'The stack version lets you load erectors precisely and progress in small steps — friendlier than the 45° hyper when the lower back is touchy.' },
+  { movementId:'leg-press', id:'incline-plate-leg-press', uuid:'b1a10017-0017-4017-8017-aaaaaaaa0017', title:'Incline Plate-Loaded Leg Press', best:'45° Sled Press',
+    cue:'The classic 45° plate-loaded sled: back flat on the pad, feet mid-platform, lower until the knees near 90°, press without locking out hard.',
+    setup:['Load plates evenly on both horns','Back and hips glued to the pad, feet shoulder-width mid-platform','Release the safety handles'],
+    movement:['Lower the sled under control until knees reach ~90° (hips stay down)','Press through mid-foot to a soft lockout','Re-set the safeties before climbing out'],
+    mistakes:['Bouncing at the bottom','Hips curling off the pad (lower back rounds)','Slamming into a hard knee lockout','Feet too low on the platform (knee strain)'],
+    programming:{'Strength':'4 × 6-10','Hypertrophy':'3-4 × 10-15'},
+    tip:'Foot placement steers it: higher on the platform biases glutes/hams, lower biases quads — same sled, two exercises.' },
 ];
 
 function applyExtraVariations() {
@@ -15709,7 +15742,7 @@ function bindPlanGuide(main) {
     if (typeof refreshPlanStepBar === 'function') refreshPlanStepBar();
   }));
   // feat 112 — tapping a step (not its specific option buttons) opens the picker filtered to that step's full exercise list
-  main.querySelectorAll('.plan-step[data-plan-step-idx]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('.plan-opt') || e.target.closest('.plan-step-skip')) return; openStepPicker(+el.dataset.planStepIdx); }));
+  main.querySelectorAll('.plan-step[data-plan-step-idx]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('.plan-opt') || e.target.closest('.plan-step-skip')) return; showStepVariationsPopup(+el.dataset.planStepIdx); })); // feat 419 — list, don't start
   // feat 113 — plan-complete banner actions
   main.querySelector('#plan-complete-end')?.addEventListener('click', () => endWorkout(false));
   main.querySelector('#plan-complete-summary')?.addEventListener('click', showPlanCompleteDialog);
@@ -20019,7 +20052,12 @@ const MOTIONS = {
       const J = { head: [shC[0] - 4, shC[1] - 15 + 6 * u], face: 'up', shC, hipC,
         arms: [{ sh: shC, el: _figLerp(shC, wr, 0.5), wr }],
         legs: [{ hip: [hipC[0] + 2, hipC[1]], kn: [kn[0] + 2, kn[1]], an: [an[0] + 2, an[1]], foot: [an[0] + 9, 86], dim: true }, { hip: hipC, kn, an, foot: [an[0] + 7, 86] }] };
-      return { J, behind: [_EQL([14, 86], [126, 86], 1, 'fig-floor')], front: [], o: { depth: 0.72 } };
+      const scene = [_EQL([14, 86], [126, 86], 1, 'fig-floor')];
+      if (equip === 'machine') scene.push( // feat 419 — LYING crunch machine: bench pad, chest roller on its lever, compact stack
+        _EQ('M 26 86 L 112 86 L 112 92 L 26 92 Z', 1.4, 'fig-pad'),
+        _EQC([shC[0] + 14, shC[1] - 6], 4, 'fig-pad'), _EQL([shC[0] + 14, shC[1] - 6], [118, 60], 1.4, 'fig-arm-lever'),
+        _EQ('M 118 40 L 130 40 L 130 86 L 118 86 Z', 1.2, 'fig-stack'), _EQL([120, 56], [128, 56], 1, 'fig-stack'), _EQL([120, 70], [128, 70], 1, 'fig-stack'));
+      return { J, behind: scene, front: [], o: { depth: 0.72 } };
     },
   },
   plank: {
@@ -20455,6 +20493,7 @@ const MOTION_VARS = {
   'roc-it-dip': ['machine-press', 'machine', { rock: 1, angle: -50 }], // seated dip press station
   'roc-it-ab-crunch': ['machine-crunch', 'machine'],
   'roc-it-oblique': ['machine-crunch', 'machine'],
+  'lying-ab-crunch-machine': ['crunch', 'machine'], // feat 419 — LYING machine keeps the lying motion, with its station drawn
   'sumo-squat-narrow': ['squat', 'dumbbell', { grip: 1.3 }], // feat 415 — a squat (wide stance), not a leg-extension machine
   // feat 415 — push-up variations cross-listed in other families animate as push-ups, not their host family's motion
   'push-up': ['push-up', 'none'], 'deficit-push-up': ['push-up', 'none', { deficit: 1 }],
@@ -22728,6 +22767,23 @@ function startExerciseFromSuggestion(varUuid) {
   openLogModal();
 }
 // feat 112 — open the picker filtered to a plan step's exact exercise list (from the dashboard).
+// feat 419 — clicking a plan step shows its compatible variations in a popup — informational only,
+// NOTHING starts. Starting still happens explicitly via the step's option pills.
+function showStepVariationsPopup(idx) {
+  const plan = getActivePlan(); const st = plan && plan.steps[idx];
+  if (!st) return;
+  const set = (typeof stepQualifyingVarSet === 'function' && stepQualifyingVarSet(st)) || new Set();
+  const names = [...set].map(u => displayName(u)).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const close = () => { back.classList.remove('open'); setTimeout(() => back.remove(), 200); };
+  const back = document.createElement('div'); back.className = 'choice-backdrop';
+  back.innerHTML = `<div class="choice-sheet"><div class="choice-title">Step ${idx + 1} — compatible exercises (${names.length})</div>
+    <div class="step-var-list">${names.length ? names.map(n => `<div class="step-var-item">${escapeHtml(n)}</div>`).join('') : '<div class="step-var-item">— none —</div>'}</div>
+    <div class="choice-actions"><button class="choice-btn" type="button">Close</button></div></div>`;
+  back.querySelector('.choice-btn').addEventListener('click', close);
+  back.addEventListener('click', e => { if (e.target === back) close(); });
+  document.body.appendChild(back);
+  requestAnimationFrame(() => back.classList.add('open'));
+}
 function openStepPicker(idx) {
   if (roBlocked('pick an exercise')) return;
   const plan = getActivePlan();
@@ -22769,8 +22825,7 @@ function openLogModal() {
   if (pending.sets.length === 0) pending.sets = [{ w:'', r:'' }];
   renderModal();
   document.getElementById('trk-modal').classList.add('open');
-  document.getElementById('trk-modal-backdrop').classList.add('open');
-  document.body.style.overflow = 'hidden';
+  _lockBodyForSheet(); // feat 419 — a page, not an overlay: no backdrop, and the page behind cannot touch-scroll (iOS-proof)
   _markExercisePage(); // feat 192
 }
 
@@ -22807,9 +22862,23 @@ function editExisting(sessionDate, varUuid, subUuid) {
   savePending();
   renderModal();
   document.getElementById('trk-modal').classList.add('open');
-  document.getElementById('trk-modal-backdrop').classList.add('open');
-  document.body.style.overflow = 'hidden';
+  _lockBodyForSheet(); // feat 419
   _markExercisePage(); // feat 192
+}
+
+// feat 419 — iOS-proof freeze of the page behind the Exercise screen: overflow:hidden alone does not stop
+// touch scrolling on iOS, so the body is pinned (position:fixed at top) and the scroll spot restored on close.
+let _sheetScrollY = 0;
+function _lockBodyForSheet() {
+  _sheetScrollY = window.scrollY || 0;
+  document.body.style.position = 'fixed';
+  document.body.style.top = '0'; document.body.style.left = '0'; document.body.style.right = '0';
+  document.body.style.overflow = 'hidden';
+}
+function _unlockBodyForSheet() {
+  document.body.style.position = ''; document.body.style.top = ''; document.body.style.left = ''; document.body.style.right = '';
+  document.body.style.overflow = '';
+  window.scrollTo(0, _sheetScrollY);
 }
 
 function closeLogModal() {
@@ -22819,7 +22888,7 @@ function closeLogModal() {
   if (typeof closeNumpad === 'function') closeNumpad(); // feat 57 — don't leave the numpad sheet open
   document.getElementById('trk-modal').classList.remove('open');
   document.getElementById('trk-modal-backdrop').classList.remove('open');
-  document.body.style.overflow = '';
+  _unlockBodyForSheet();
   // Pending is intentionally NOT cleared
   _restoreFromExercisePage(); // feat 192 — reveal the page that was behind the sheet
   updateFAB();
@@ -23056,6 +23125,13 @@ function resetPickerNormalFilters() {
   modalState.pickerEquip = 'all';
   modalState.pickerSearch = '';
 }
+// feat 419 — token search: every word must appear SOMEWHERE in the combined text, in any order —
+// "life fitness glute" finds "Glute Kickback Machine (Life Fitness)"; plain substring could not.
+function searchMatchTokens(q, ...texts) {
+  if (!q) return true;
+  const hay = texts.join(' ').toLowerCase();
+  return String(q).toLowerCase().split(/\s+/).filter(Boolean).every(t => hay.includes(t));
+}
 function filterVariations() {
   const q = modalState.pickerSearch.trim().toLowerCase();
   const stepSet = activePlanStepFilterSet(); // feat 112/115 — limits to the step's variations; feat 179 — the mega/sub/equip pills STACK with it
@@ -23085,7 +23161,7 @@ function filterVariations() {
       if (trendMap && varLastTrendDir(trendMap.get(v.uuid)) !== trendMode) return false; // feat 385 — trended up/down last time
       if (stepSet && !stepSet.has(v.uuid)) return false; // restrict to exactly the step's exercises
       if (!q) return true;
-      return v.title.toLowerCase().includes(q) || f.title.toLowerCase().includes(q);
+      return searchMatchTokens(q, v.title, f.title); // feat 419 — word-order-independent
     });
     matchingVars.sort((a, b) => (isFavVar(b.uuid) ? 1 : 0) - (isFavVar(a.uuid) ? 1 : 0)); // feat 178 — favorites float to the top of the family
     // feat 167 — variations whose SECONDARY parent is this family, appended at the bottom with a link to their home movement.
@@ -23099,7 +23175,7 @@ function filterVariations() {
       if (volStatus && varVolStatus(uuid, volStatus) !== volMode) return; // feat 383
       if (trendMap && varLastTrendDir(trendMap.get(uuid)) !== trendMode) return; // feat 385
       if (stepSet && !stepSet.has(uuid)) return;
-      if (q && !(v.title.toLowerCase().includes(q) || f.title.toLowerCase().includes(q) || (primaryTitle || '').toLowerCase().includes(q))) return;
+      if (q && !searchMatchTokens(q, v.title, f.title, primaryTitle || '')) return; // feat 419
       secondaryVars.push({ v, primaryId, primaryTitle });
     });
     if (matchingVars.length > 0 || secondaryVars.length > 0) results.push({ family: f, variations: matchingVars, secondaryVars });
@@ -23803,7 +23879,7 @@ function renderSetsForm() {
   const fam = info.family;
   const M = exMode(pending.varUuid); // tracking mode (feat 26/27)
   // feat 234 — concrete next-load target (double progression, deload-aware) for live weight×reps logging.
-  const progTarget = (M.mode === 'standard' && !modalState.isEditing && typeof suggestProgression === 'function') ? suggestProgression(pending.varUuid) : null;
+  // feat 420 — the 'Aim for' blurb (suggestProgression) is retired from the sheet; reference-set buttons replace it.
 
   // Tips section
   const hasFamilyTips = fam.quickCue;
@@ -24091,10 +24167,18 @@ function renderSetsForm() {
       <div class="suggestion-label">${suggestion.label}</div>
       <div class="suggestion-text">${suggestion.text}</div>
     </div>` : ''}
-    ${progTarget ? `<div class="prog-target prog-${progTarget.action}">
-      <div class="prog-target-main"><span class="prog-target-aim">🎯 Aim for <b>${progTarget.next.w} × ${progTarget.next.r}</b></span><span class="prog-target-note">${escapeHtml(progTarget.note)}</span></div>
-      <button type="button" class="prog-prefill" id="trk-prog-prefill" data-w="${progTarget.next.w}" title="Load the suggested weight into the next set">↪ Load ${progTarget.next.w}</button>
-    </div>` : ''}
+    ${(() => { // feat 420 — reference-set buttons replace the verbose 'Aim for' blurb; tap = load that weight.
+      if (!pending.varUuid || pending.cardio) return '';
+      const B = exBestSets(pending.varUuid, pending.subUuid, currentSessionDate);
+      const defs = [['↩ Prev top', B.prevTop], ['🏆 Best e1RM', B.bestE1], ['🏋️ Max weight', B.maxW], ['🔁 Max reps', B.maxR]];
+      const seen = new Set(), btns = [];
+      defs.forEach(([lbl, s]) => {
+        if (!s || !(s.w > 0) || seen.has(s.w)) return; // same weight twice = one button
+        seen.add(s.w);
+        btns.push(`<button type="button" class="prog-prefill target-btn" data-w="${s.w}" title="Load ${s.w}${state.unit} into the next set">${lbl} ${s.w}×${s.r}</button>`);
+      });
+      return btns.length ? `<div class="target-row">${btns.join('')}</div>` : '';
+    })()}
     ${(() => { if (modalState.isEditing) return ''; const pl = plateauAdvice(pending.varUuid, pending.subUuid); return pl ? `<div class="plateau-note">🧱 <b>${escapeHtml(pl.title)}:</b> ${escapeHtml(pl.text)}</div>` : ''; })()}
     ${renderSetupInline()}
 
@@ -24114,6 +24198,28 @@ function renderSetsForm() {
   `;
 }
 
+// feat 420 — all-time reference sets for an exercise in one scan: the previous session's top set (before
+// `beforeDate`), the all-time best set by e1RM, the all-time heaviest set, and the all-time most-reps set.
+function exBestSets(varUuid, subUuid, beforeDate) {
+  const hist = getHistoryByKey(varUuid, subUuid); // recent-first
+  const cutoff = beforeDate ? new Date(beforeDate).getTime() : Infinity;
+  let prevTop = null, bestE1 = null, maxW = null, maxR = null;
+  hist.forEach(h => {
+    (h.sets || []).forEach(s => {
+      const w = parseFloat(s.w) || 0, r = parseFloat(s.r) || 0;
+      if (!(w > 0) || !(r > 0)) return;
+      const e = estimated1RM(w, r) || 0;
+      if (!bestE1 || e > bestE1.e) bestE1 = { w, r, e };
+      if (!maxW || w > maxW.w || (w === maxW.w && r > maxW.r)) maxW = { w, r };
+      if (!maxR || r > maxR.r || (r === maxR.r && w > maxR.w)) maxR = { w, r };
+    });
+    if (!prevTop && new Date(h.date).getTime() < cutoff && h.topSet) {
+      const w = parseFloat(h.topSet.w) || 0, r = parseFloat(h.topSet.r) || 0;
+      if (w > 0 && r > 0) prevTop = { w, r };
+    }
+  });
+  return { prevTop, bestE1, maxW, maxR };
+}
 // Renders neighbor baseline hints into #trk-neighbor-hints.
 // Shows closest lighter & heavier historical weights when the currently
 // entered weight has no prior baseline for this exercise.
@@ -24128,12 +24234,28 @@ function renderNeighborHints() {
     if (!isNaN(w) && w > 0) { currentW = w; break; }
   }
 
-  // Check whether this weight already has a baseline (if so, don't show neighbor hints)
+  // feat 420 — the all-time-best e1RM card, with the reps needed AT THE CURRENT WEIGHT to at least match it
+  // (r = 30·(e1RM/w − 1), the estimated1RM formula solved for reps). Shows whenever a weight is entered.
+  let e1Card = '';
+  if (currentW > 0) {
+    const best = exBestSets(pending.varUuid, pending.subUuid).bestE1;
+    if (best && best.e > 0) {
+      const needR = Math.max(1, Math.ceil(30 * (best.e / currentW - 1)));
+      e1Card = `<div class="neighbor-hint e1rm">
+        <div class="neighbor-hint-dir">⭐ Best e1RM</div>
+        <div class="neighbor-hint-weight">${Math.round(best.e)}<span style="font-size:10px;font-weight:400;"> ${state.unit}</span></div>
+        <div class="neighbor-hint-reps">≥${needR} rep${needR === 1 ? '' : 's'} at ${currentW} to match</div>
+        <div class="neighbor-hint-date">set: ${best.w}×${best.r}</div>
+      </div>`;
+    }
+  }
+
+  // Check whether this weight already has a baseline (if so, only the e1RM card shows)
   const hasBaseline = currentW !== null && getBestRepsAtWeight(pending.varUuid, pending.subUuid, currentW) !== null;
-  if (hasBaseline && currentW !== null) { el.innerHTML = ''; return; }
+  if (hasBaseline && currentW !== null) { el.innerHTML = e1Card; return; }
 
   const { lighter, heavier } = getNeighborBaselines(pending.varUuid, pending.subUuid, currentW ?? 0);
-  if (!lighter && !heavier) { el.innerHTML = ''; return; }
+  if (!lighter && !heavier) { el.innerHTML = e1Card; return; }
 
   function fmtDate(iso) {
     try { return new Date(iso).toLocaleDateString(undefined, { month:'short', day:'numeric' }); }
@@ -24156,7 +24278,7 @@ function renderNeighborHints() {
     ? `<div style="font-size:10px;color:var(--text3);margin-bottom:6px;font-style:italic;">No baseline at ${currentW} ${state.unit} — nearby for reference:</div>`
     : `<div style="font-size:10px;color:var(--text3);margin-bottom:6px;font-style:italic;">Nearby weight baselines for reference:</div>`;
 
-  el.innerHTML = intro + hintCard(lighter, 'lighter', '▼ Lighter') + hintCard(heavier, 'heavier', '▲ Heavier');
+  el.innerHTML = intro + hintCard(lighter, 'lighter', '▼ Lighter') + hintCard(heavier, 'heavier', '▲ Heavier') + e1Card;
 }
 
 // Live-update one set row's colours + bottom record hint (no full re-render). Module-scope (feat 57)
@@ -24522,9 +24644,10 @@ function bindSetsForm() {
     } else go();
   });
 
-  // feat 234 — one-tap prefill: load the suggested weight into the first empty set (weight only — you still
-  // log the reps you actually do), and pre-seed the plate/loader picker for it.
-  document.getElementById('trk-prog-prefill')?.addEventListener('click', (e) => {
+  // feat 234/420 — one-tap prefill: load a reference weight into the first incomplete set (weight only — you
+  // still log the reps you actually do), and pre-seed the plate/loader picker for it. Bound to EVERY target
+  // button (prev top · best e1RM · max weight · max reps).
+  document.querySelectorAll('.prog-prefill[data-w]').forEach(el => el.addEventListener('click', (e) => {
     const w = parseFloat(e.currentTarget.dataset.w); if (!(w > 0)) return;
     // feat 247 — target the first INCOMPLETE set (an open set, or a blank one), not the first weight-less set.
     // The old test (empty weight) skipped a set we'd already filled, so repeated taps stacked extra open sets.
@@ -24533,7 +24656,7 @@ function bindSetsForm() {
     pending.sets[i].w = w; savePending();                          // direct prefill (matches feat-58/82) — no premature set-start stamp
     if (typeof seedSetupForWeight === 'function') seedSetupForWeight(pending.varUuid, w); // pre-seed the loader picker
     renderModal(); updateFAB(); updateSaveBtn();
-  });
+  }));
 
   document.getElementById('trk-sub-select')?.addEventListener('change', e => {
     pending.subUuid = e.target.value;
@@ -25252,7 +25375,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 346 · 2026-07-02 17:27';
+const APP_BUILD = 'build 347 · 2026-07-11 21:49';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -32710,15 +32833,13 @@ function megaBadge(mega) {
 
 function exerciseMatchesSearch(ex, q) {
   if (!q) return true;
-  if (ex.title.toLowerCase().includes(q)) return true;
-  if (ex.keywords.toLowerCase().includes(q)) return true;
-  if (ex.tag.toLowerCase().includes(q)) return true;
-  if (ex.quickCue && ex.quickCue.toLowerCase().includes(q)) return true;
+  // feat 419 — token search (any word order); each variation is matched with the movement's own text so
+  // "life fitness glute" finds the LF glute kickback wherever the words land.
+  const movText = [ex.title, ex.keywords || '', ex.tag || '', ex.quickCue || ''].join(' ');
+  if (searchMatchTokens(q, movText)) return true;
   if (ex.variations) {
     for (const v of ex.variations) {
-      if (v.title.toLowerCase().includes(q)) return true;
-      if (v.cue && v.cue.toLowerCase().includes(q)) return true;
-      if (v.best && v.best.toLowerCase().includes(q)) return true;
+      if (searchMatchTokens(q, movText, v.title, v.cue || '', v.best || '')) return true;
     }
   }
   return false;

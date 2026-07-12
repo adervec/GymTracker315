@@ -2302,6 +2302,27 @@ They share variation **UUIDs**.
   gone (`_modalTipsModeChange` kept as a shim that selects the matching slide); the Settings → *Tips detail*
   preference now picks the DEFAULT slide on modal open (full → 📖). `excarousel.spec` extended (7 tabs, Full/
   Alts/Brief content, default-slide setting); `tipposition.spec` re-anchored to the Full slide.
+- **Requested machines, token search, page-behaved Exercise screen, step popup (feat 419):** a batch of
+  device-feedback fixes. (1) **Token search** — the picker and Reference searches required one contiguous
+  substring, so "life fitness glute" found nothing; `searchMatchTokens` makes every word match anywhere, any
+  order (this was the "can't see the LF glute kickback" mystery — it was present but unfindable). (2) Three
+  requested machines added via `EXTRA_VARIATIONS`: **Lying Ab Crunch Machine** (abs-dynamic; the crunch motion
+  gained a machine branch — bench pad, chest roller on a lever, stack — so the LYING machine isn't rendered
+  seated), **Fixed Back Extension Machine** (→ machine-back-ext) and **Incline Plate-Loaded Leg Press** (→ the
+  45° sled). (3) **Exercise is a NORMAL SCREEN**: no slide transform, shown/hidden via display, NO dimming
+  backdrop, and the page behind is frozen with an iOS-proof body pin (`_lockBodyForSheet` — `overflow:hidden`
+  alone doesn't stop iOS touch scroll, which is why recovery info kept scrolling behind the sheet). (4) A
+  plan-step tap now opens an INFORMATIONAL popup listing the step's compatible variations
+  (`showStepVariationsPopup`) instead of jumping into the picker — starting stays on the option pills.
+- **Reference-set target buttons + best-e1RM baseline (feat 420):** the verbose feat-234 "🎯 Aim for W×R"
+  blurb is retired from the log sheet. In its place, `exBestSets` scans the exercise's history once and offers
+  one-tap weight-prefill buttons — **↩ previous top set · 🏆 all-time best by e1RM · 🏋️ all-time max weight ·
+  🔁 all-time max reps** — deduped by weight (identical references collapse into one button); the tap behaviour
+  is the feat-247 prefill (weight only, reuses the open set). The baseline cards keep ▼ lighter / ▲ heavier and
+  gain a **⭐ Best e1RM** card showing the record e1RM, the set that owns it, and the reps needed at the
+  CURRENTLY-ENTERED weight to at least match it (r = 30·(e1RM/w − 1), the e1RM formula inverted); it shows even
+  when the entered weight already has a baseline. `progsheet.spec` rewritten for the buttons + e1RM card;
+  `planpicker`/`exercisepage` gained feat-419 cases.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

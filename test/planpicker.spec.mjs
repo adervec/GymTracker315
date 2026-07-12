@@ -66,6 +66,31 @@ test('renderPicker shows incomplete-step chips when a plan is active', async ({ 
   expect(html).toContain('My Plan');
 });
 
+// feat 419 — clicking a step ROW lists its compatible variations in a popup; it does NOT start anything.
+test('feat 419 — a plan-step click shows the compatible-variations popup without opening the log sheet', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let a = null; for (const [u] of VAR_INDEX) { if (exMode(u).mode === 'standard') { a = u; break; } }
+    state.readonly = false;
+    const famId = VAR_INDEX.get(a).family.id;
+    state.plans = [{ id: 'P', name: 'P', steps: [{ id: 's0', sets: 1, options: [{ type: 'movement', familyId: famId }] }] }];
+    state.sessions = [{ id: 'cur', date: new Date().toISOString(), planId: 'P', exercises: [] }];
+    showStepVariationsPopup(0);
+    const back = document.querySelector('.choice-backdrop');
+    const items = back ? back.querySelectorAll('.step-var-item').length : 0;
+    const title = back ? back.querySelector('.choice-title').textContent : '';
+    const modalOpen = modalState.open === true;
+    back.querySelector('.choice-btn').click();
+    const out = { hasPopup: !!back, items, title, modalOpen, pendingUntouched: !pending.varUuid };
+    state.sessions = []; state.plans = [];
+    return out;
+  });
+  expect(r.hasPopup).toBe(true);
+  expect(r.items).toBeGreaterThan(1);            // the whole movement's variations are listed
+  expect(r.title).toContain('compatible');
+  expect(r.modalOpen).toBe(false);               // nothing started, no log sheet
+  expect(r.pendingUntouched).toBe(true);
+});
+
 test('openStepPicker opens the modal with the picker filtered to the step', async ({ page }) => {
   const r = await page.evaluate(() => {
     let a = null; for (const [u] of VAR_INDEX) { if (exMode(u).mode === 'standard') { a = u; break; } }
