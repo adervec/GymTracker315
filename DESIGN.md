@@ -2323,6 +2323,12 @@ They share variation **UUIDs**.
   CURRENTLY-ENTERED weight to at least match it (r = 30·(e1RM/w − 1), the e1RM formula inverted); it shows even
   when the entered weight already has a baseline. `progsheet.spec` rewritten for the buttons + e1RM card;
   `planpicker`/`exercisepage` gained feat-419 cases.
+- **Variation-specific media dot (feat 421):** the Exercise-screen media button's list mixes the variation's
+  own clips with the parent movement's (feat 251), so "▶ Watch…" never said WHICH level the media lives at.
+  Now a small `var-media` dot (5px `::after`, currentColor) appears on the button — with a tooltip — exactly
+  when `getExerciseMedia(varUuid)` is non-empty; movement-inherited media alone lights the button but earns
+  no dot. One render-template conditional + one CSS rule; `exscreen.spec` covers none / movement-only /
+  variation-owned.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

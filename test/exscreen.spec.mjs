@@ -81,6 +81,30 @@ test('feat 251 — the log sheet renders the time stat + the context-aware media
   expect(r.noMediaClass).toBe(true);
 });
 
+// feat 421 — a subtle dot on the media button when THIS variation owns media (movement-only media gets no dot)
+test('feat 421 — var-media class marks variation-specific media, not movement-inherited', async ({ page }) => {
+  const v = await stdVar(page);
+  const r = await page.evaluate((v) => {
+    const mov = VAR_INDEX.get(v).family.id;
+    state.readonly = false; state.exerciseMedia = {};
+    pending = { varUuid: v, subUuid: null, sets: [{ w: '', r: '' }] };
+    openLogModal(); modalState.showPicker = false; modalState.isEditing = false;
+    const grab = () => { renderModal(); const b = document.getElementById('trk-ex-media-btn'); return { has: b.classList.contains('has-media'), varDot: b.classList.contains('var-media'), title: b.title }; };
+    const none = grab();
+    addExerciseMedia(mov, 'https://www.youtube.com/shorts/aaaaaaaaaaa'); // movement-level only
+    const movOnly = grab();
+    addExerciseMedia(v, 'https://www.youtube.com/shorts/bbbbbbbbbbb');  // now the variation owns one too
+    const varOwn = grab();
+    closeLogModal();
+    return { none, movOnly, varOwn };
+  }, v);
+  expect(r.none.varDot).toBe(false);
+  expect(r.movOnly.has).toBe(true);        // inherited media lights the button...
+  expect(r.movOnly.varDot).toBe(false);    // ...but no dot — nothing variation-specific
+  expect(r.varOwn.varDot).toBe(true);      // the dot appears once the variation itself has media
+  expect(r.varOwn.title).toContain('exact variation');
+});
+
 test('feat 254 — weightRecordHint clarifies what number to record per equipment', async ({ page }) => {
   const r = await page.evaluate(() => {
     const find = (re) => { for (const [u, i] of VAR_INDEX) { const n = i.variation.title + ' ' + i.family.title; if (re.test(n) && exMode(u).mode === 'standard') return u; } return null; };
