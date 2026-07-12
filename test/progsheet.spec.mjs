@@ -25,8 +25,8 @@ const openWith = (page, sessions) => page.evaluate((sessions) => {
   return v;
 }, sessions);
 
-const readBtns = (page) => page.evaluate(() =>
-  [...document.querySelectorAll('#trk-modal-body .target-btn')].map(b => ({ w: b.dataset.w, label: b.textContent.trim() })));
+const readBtns = (page) => page.evaluate(() =>   // reference buttons only — the ⤢ expand (feat 422) is not one
+  [...document.querySelectorAll('#trk-modal-body .prog-prefill.target-btn')].map(b => ({ w: b.dataset.w, label: b.textContent.trim() })));
 
 test('identical prev/best/max sets collapse to ONE button; the Aim-for blurb is gone', async ({ page }) => {
   await openWith(page, [{ daysAgo: 2, sets: [[135, 12]] }]);
@@ -78,6 +78,56 @@ test('the ⭐ best-e1RM baseline shows the reps needed at the CURRENT weight to 
   expect(r.text).toContain('180');               // the target e1RM
   expect(r.text).toContain('≥24 rep');           // 30·(180/100 − 1) = 24 reps at 100 to match
   expect(r.text).toContain('120×15');            // the set that owns the record
+});
+
+// feat 422 — ⤢ opens the all-weights table: per weight the all-time / latest / 90-day e1RMs with dates,
+// plus PR-odds indices; sortable; tapping a row loads that weight.
+test('feat 422 — exWeightRows aggregates per-weight records and PR odds', async ({ page }) => {
+  await openWith(page, [{ daysAgo: 2, sets: [[135, 5]] }, { daysAgo: 9, sets: [[120, 15]] }, { daysAgo: 100, sets: [[100, 10]] }]);
+  const r = await page.evaluate(() => {
+    const R = exWeightRows(pending.varUuid, pending.subUuid);
+    const by = {}; R.rows.forEach(x => by[x.w] = x);
+    return { n: R.rows.length, cap: R.cap, allBest: R.allBest,
+      d90of100: by[100].d90, best120: Math.round(by[120].best.e),
+      pw: { 100: by[100].pw, 135: by[135].pw, 120: by[120].pw }, pv120: by[120].pv };
+  });
+  expect(r.n).toBe(3);
+  expect(r.allBest).toBe(180);            // 120×15
+  expect(r.cap).toBe(180);                // the 90-day window still holds the record
+  expect(r.d90of100).toBe(null);          // 100 lb was 100 days ago — outside the window
+  expect(r.best120).toBe(180);
+  expect(r.pw[100]).toBeGreaterThan(r.pw[135]);   // light weight, few reps to beat → likeliest weight-PR
+  expect(r.pw[135]).toBeGreaterThan(r.pw[120]);
+  expect(r.pv120).toBe(r.pw[120]);        // beating the record weight's own record IS the variation PR
+});
+
+test('feat 422 — the ⤢ popup sorts by any column and a row tap loads that weight', async ({ page }) => {
+  await openWith(page, [{ daysAgo: 2, sets: [[135, 5]] }, { daysAgo: 9, sets: [[120, 15]] }, { daysAgo: 100, sets: [[100, 10]] }]);
+  const r = await page.evaluate(() => {
+    const expand = document.getElementById('trk-wt-expand');
+    showWeightTablePopup();
+    const back = document.querySelector('.choice-backdrop');
+    const firstW = () => back.querySelector('tbody tr').dataset.wtW;
+    const byWeight = firstW();                                   // default: weight desc
+    back.querySelector('[data-wt-col="pw"]').click();
+    const byPw = firstW();                                       // PR-odds desc → the light weight leads
+    const rows = back.querySelectorAll('tbody tr').length;
+    back.querySelector('tbody tr').click();                      // tap the top row → load 100
+    return { hasExpand: !!expand, rows, byWeight, byPw, closed: !back.classList.contains('open'),
+      w: pending.sets[0].w, rep: pending.sets[0].r };
+  });
+  expect(r.hasExpand).toBe(true);
+  expect(r.rows).toBe(3);
+  expect(r.byWeight).toBe('135');
+  expect(r.byPw).toBe('100');
+  expect(r.closed).toBe(true);            // picking a weight closes the popup...
+  expect(r.w).toBe(100);                  // ...and prefills it
+  expect(r.rep).toBe('');                 // reps stay yours to log
+});
+
+test('feat 422 — no ⤢ without history', async ({ page }) => {
+  await openWith(page, []);
+  expect(await page.evaluate(() => !!document.getElementById('trk-wt-expand'))).toBe(false);
 });
 
 test('the e1RM card still shows when the entered weight already has a baseline (lighter/heavier suppressed)', async ({ page }) => {

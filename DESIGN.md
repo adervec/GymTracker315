@@ -2329,6 +2329,25 @@ They share variation **UUIDs**.
   when `getExerciseMedia(varUuid)` is non-empty; movement-inherited media alone lights the button but earns
   no dot. One render-template conditional + one CSS rule; `exscreen.spec` covers none / movement-only /
   variation-owned.
+- **All-weights table popup (feat 422):** a **⤢** button at the end of the target-row (feat 420) opens a
+  sortable table of EVERY weight ever logged for the variation. Per weight: all-time best e1RM, the most
+  recent use, and the last-90-days best — each with its date — plus two PR-odds indices: **PR wt** (beating
+  that weight's own e1RM record) and **PR all** (beating the variation's all-time e1RM at that weight). Odds
+  = logistic((predicted reps at w) − (reps needed)), prediction from the 90-day-best e1RM (fallback:
+  all-time), k=1.5 — a heuristic, not a fitted model. Any column header sorts (tap again to flip); tapping a
+  row closes the popup and prefills that weight via the shared `prefillTargetWeight` (feat 247 semantics —
+  reps stay yours to log). `exWeightRows` is the pure aggregator; covered in `progsheet.spec`.
+- **Hold auto-stop (feat 423):** timed holds (plank / dead hang…) can stop their own count-up. Two
+  independent opt-in triggers live in Settings › Device, armed only while a hold-timer button is live:
+  **📴 pickup** — `makePickupDetector` (pure closure, unit-tested like `makeShakeDetector`) fires on many
+  off-baseline accelerometer samples in a rolling window, with a settle grace so putting the phone down
+  doesn't trip it; **🎙 stop word** — a configurable spoken word via the Web Speech API, with a settings
+  **Test** button that listens ~6 s and confirms recognition (and pre-grants the mic). Each trigger
+  subtracts its OWN configurable buffer from the reading (default 1 s: picked up at 31 s → 30 s logged;
+  floor 1 s). None / either / both may be on; whichever fires first logs the hold via the same
+  `commitSetField` path as tapping the button. iOS motion permission is requested from the toggle's tap
+  (mirrors shakeNav). `holdauto.spec` covers the detector, both buffers, arm/disarm lifecycle, transcript
+  matching, and the settings rows.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

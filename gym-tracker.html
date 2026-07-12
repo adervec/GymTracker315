@@ -680,6 +680,11 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   cursor: pointer; font-family: inherit; transition: background 0.15s;
 }
 .drawer-pill.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+/* feat 423 — inline config strip under a setting label (hold auto-stop buffers / stop word / test) */
+.drawer-inline-cfg { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 7px; font-size: 11.5px; color: var(--text2); }
+.drawer-mini-input { width: 58px; padding: 6px 8px; font-size: 13px; border-radius: 6px; text-align: center; font-family: inherit; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); }
+.drawer-mini-input.word { width: 92px; text-align: left; }
+.drawer-test-btn { padding: 5px 11px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 6px; color: var(--accent); font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
 /* Settings search + collapsible sections (cleanup) */
 #settings-search-row { display: flex; gap: 6px; padding: 6px 16px 4px; }
 #settings-search { flex: 1; padding: 9px 11px; font-size: 14px; background: var(--input-bg); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); outline: none; }
@@ -2914,6 +2919,19 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 /* feat 420 — reference-set target buttons + the best-e1RM baseline card */
 .target-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
 .target-btn { font-size: 11px; padding: 6px 10px; }
+/* feat 422 — ⤢ all-weights table popup */
+.target-expand { padding: 6px 9px; }
+.wt-sheet { max-width: 480px; }
+.wt-table-wrap { overflow: auto; max-height: 62vh; margin: 4px 0 10px; }
+.wt-table { width: 100%; border-collapse: collapse; font-size: 11px; color: var(--text); }
+.wt-table th { position: sticky; top: 0; background: var(--bg2); color: var(--text3); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.3px; padding: 6px 5px; text-align: right; cursor: pointer; white-space: nowrap; user-select: none; }
+.wt-table th.on { color: var(--accent); }
+.wt-table td { padding: 6px 5px; text-align: right; border-top: 1px solid var(--border2); white-space: nowrap; }
+.wt-table td.wt-w { font-weight: 800; color: var(--accent); }
+.wt-table tbody tr { cursor: pointer; }
+.wt-table tbody tr:active { background: var(--bg3); }
+.wt-table .wt-date { display: block; font-size: 9px; color: var(--text3); font-weight: 400; }
+.wt-table .wt-idx { font-weight: 700; }
 .neighbor-hint.e1rm .neighbor-hint-dir { color: var(--accent); }
 .anat-fig-label { font-size: 9px; fill: var(--text2); font-weight: 700; text-anchor: middle; }
 .amus { cursor: pointer; fill: var(--bg4); stroke: var(--border2); stroke-width: 0.8; transition: fill 0.15s; }
@@ -9002,6 +9020,28 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${!shakeNavEnabled() ? 'active' : ''}" data-shakenav="off">Off</button>
       </div>
     </div>` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">📳 Shake to open current exercise</div><div class="drawer-setting-sub">This device doesn't report motion, so shake-to-open isn't available here.</div></div></div>`}
+    ${shakeNavSupported() ? `<div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">📴 Hold timer: stop on pickup</div>
+        <div class="drawer-setting-sub">During a timed hold (plank, dead hang…) the phone lies still — picking it back up stops the count-up and logs the hold. The buffer is subtracted from the reading (grabbing the phone takes a moment: picked up at 31s with a 1s buffer logs 30s). On iOS you'll be asked once for motion access.</div>
+        <div class="drawer-inline-cfg">Buffer <input type="number" class="drawer-mini-input" id="drawer-holdaccel-buf" value="${(state.workoutControls||{}).holdAccelBufferS == null ? 1 : (state.workoutControls||{}).holdAccelBufferS}" min="0" max="10" step="0.5"> s</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).holdAccelStop ? 'active' : ''}" data-holdaccel="on">On</button>
+        <button class="drawer-pill ${!(state.workoutControls||{}).holdAccelStop ? 'active' : ''}" data-holdaccel="off">Off</button>
+      </div>
+    </div>` : ''}
+    ${speechRecSupported() ? `<div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">🎙 Hold timer: spoken stop word</div>
+        <div class="drawer-setting-sub">Saying your stop word out loud stops the hold count-up and logs it — with its own buffer subtracted. Works alone or together with pickup-stop: whichever fires first logs the hold. Use <b>Test</b> to check your word is picked up (and to grant the microphone once).</div>
+        <div class="drawer-inline-cfg">Word <input type="text" class="drawer-mini-input word" id="drawer-holdvoice-word" value="${escapeAttr((state.workoutControls||{}).holdVoiceWord == null ? 'stop' : (state.workoutControls||{}).holdVoiceWord)}" autocomplete="off" autocapitalize="none"> Buffer <input type="number" class="drawer-mini-input" id="drawer-holdvoice-buf" value="${(state.workoutControls||{}).holdVoiceBufferS == null ? 1 : (state.workoutControls||{}).holdVoiceBufferS}" min="0" max="10" step="0.5"> s <button type="button" class="drawer-test-btn" id="drawer-holdvoice-test">🎙 Test</button></div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).holdVoiceStop ? 'active' : ''}" data-holdvoice="on">On</button>
+        <button class="drawer-pill ${!(state.workoutControls||{}).holdVoiceStop ? 'active' : ''}" data-holdvoice="off">Off</button>
+      </div>
+    </div>` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">🎙 Hold timer: spoken stop word</div><div class="drawer-setting-sub">This device doesn't support speech recognition, so the stop word isn't available here.</div></div></div>`}
     ${hrSupported() ? `<div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">💓 Auto-connect HR on start</div>
@@ -9682,6 +9722,8 @@ function renderSettingsDrawer() {
       else if (btn.dataset.catVis) { state.hiddenCategories[btn.dataset.catVis] = btn.dataset.catVal === 'hide'; saveState(); render(); }
       else if (btn.dataset.wc) { ensureWC(); state.workoutControls[btn.dataset.wc] = btn.dataset.wcVal === 'on'; saveState(); if (typeof refreshRestBar === 'function') refreshRestBar(); if (typeof refreshWakeLock === 'function') refreshWakeLock(); if (typeof modalState !== 'undefined' && modalState.open) renderModal(); }
       else if (btn.dataset.shakenav) { ensureWC(); const on = btn.dataset.shakenav === 'on'; state.workoutControls.shakeNav = on; saveState(); if (on) enableShakeNav(true); else disableShakeNav(); } // feat 348
+      else if (btn.dataset.holdaccel) { ensureWC(); const on = btn.dataset.holdaccel === 'on'; state.workoutControls.holdAccelStop = on; saveState(); if (on) enableHoldAccelStop(true); else _holdAutoDisarm(); } // feat 423
+      else if (btn.dataset.holdvoice) { ensureWC(); const on = btn.dataset.holdvoice === 'on'; state.workoutControls.holdVoiceStop = on; saveState(); if (on) toast('🎙 Say "' + holdVoiceWordCfg() + '" during a hold to stop it'); else _holdAutoDisarm(); } // feat 423
       else if (btn.dataset.rpemode) { ensureWC(); state.workoutControls.rpeMode = ['off','rpe','rir'].indexOf(btn.dataset.rpemode) === -1 ? 'off' : btn.dataset.rpemode; saveState(); if (typeof modalState !== 'undefined' && modalState.open) renderModal(); if (typeof render === 'function') render(); toast('RPE / RIR: ' + (rpeMode() === 'off' ? 'hidden' : rpeMode().toUpperCase())); } // feat 261
       renderSettingsDrawer();
     });
@@ -9772,6 +9814,23 @@ function renderSettingsDrawer() {
     const v = parseInt(bsInput.value);
     if (!isNaN(v) && v >= 1 && v <= 365) { state.biometricStaleDays = v; saveState(); toast('Stale after: ' + v + ' days'); }
   });
+  // feat 423 — hold auto-stop config: per-trigger buffers, the stop word, and the word's live mic test
+  const habInput = body.querySelector('#drawer-holdaccel-buf');
+  if (habInput) habInput.addEventListener('change', () => {
+    const v = parseFloat(habInput.value);
+    if (!isNaN(v) && v >= 0 && v <= 10) { ensureWC(); state.workoutControls.holdAccelBufferS = v; saveState(); toast('Pickup buffer: ' + v + 's'); }
+  });
+  const hvbInput = body.querySelector('#drawer-holdvoice-buf');
+  if (hvbInput) hvbInput.addEventListener('change', () => {
+    const v = parseFloat(hvbInput.value);
+    if (!isNaN(v) && v >= 0 && v <= 10) { ensureWC(); state.workoutControls.holdVoiceBufferS = v; saveState(); toast('Stop-word buffer: ' + v + 's'); }
+  });
+  const hvwInput = body.querySelector('#drawer-holdvoice-word');
+  if (hvwInput) hvwInput.addEventListener('change', () => {
+    ensureWC(); state.workoutControls.holdVoiceWord = hvwInput.value.trim(); saveState();
+    toast(holdVoiceWordCfg() ? 'Stop word: "' + holdVoiceWordCfg() + '"' : 'Stop word cleared — the trigger is idle until you set one');
+  });
+  body.querySelector('#drawer-holdvoice-test')?.addEventListener('click', () => testHoldVoiceWord());
   // Metronome settings (feat 69)
   const setMetro = (patch) => { state.metronome = { ...metroCfg(), ...patch }; saveState(); restartMetronomeIfRunning(); refreshMetronomeUI(); };
   const mBpm = body.querySelector('#drawer-metro-bpm');
@@ -16518,6 +16577,110 @@ function disableShakeNav() { detachShakeNav(); }
 // Boot: if previously enabled, start listening (Android fires immediately; iOS only after a re-enable tap re-grants).
 function initShakeNav() { if (shakeNavEnabled()) attachShakeNav(); }
 
+/* ============================================================
+   feat 423 — HOLD AUTO-STOP: the timed-hold count-up can stop itself.
+   Two independent opt-in triggers, armed only while a hold-timer button is live:
+   · 📴 accelerometer — the phone lies still during a plank/hang; picking it back up stops the clock
+   · 🎙 stop word — a configurable spoken word (Web Speech API) stops the clock
+   Each subtracts its OWN buffer from the elapsed time (grabbing the phone / getting the word out takes a
+   moment — a 31 s reading with a 1 s buffer logs 30 s). None / either / both may be on; config lives in
+   state.workoutControls like shakeNav. iOS motion permission is requested from the settings toggle's tap.
+   ============================================================ */
+function holdVoiceWordCfg() { const w = (state.workoutControls || {}).holdVoiceWord; return String(w == null ? 'stop' : w).trim().toLowerCase(); }
+function holdAccelStopEnabled() { return !!(state.workoutControls || {}).holdAccelStop; }
+function holdVoiceStopEnabled() { return !!(state.workoutControls || {}).holdVoiceStop && !!holdVoiceWordCfg() && speechRecSupported(); }
+function speechRecSupported() { return typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+// Pure stateful pickup detector (unit-testable like makeShakeDetector). A pickup is MANY off-baseline
+// samples in a short window — the put-it-down jolt is a few samples that settle back; a phone being
+// lifted and held keeps deviating. The settle window ignores the handling right after arming (the phone
+// is still being put down when the hold starts). ponytail: tuned constants, not a fitted model.
+function makePickupDetector(cfg) {
+  cfg = cfg || {};
+  const DELTA = cfg.delta || 2.5;         // m/s² off the settled baseline = the phone is being handled
+  const NEED = cfg.need || 8;             // deviant samples…
+  const WINDOW = cfg.windowMs || 800;     // …within this rolling window
+  const SETTLE_MS = cfg.settleMs || 3000; // grace while the phone is still being put down
+  let t0 = null, base = null, hits = [];
+  return function step(mag, nowMs) {
+    if (t0 == null) t0 = nowMs;
+    if (base == null) { base = mag; return false; }
+    if (nowMs - t0 < SETTLE_MS) { base = base * 0.8 + mag * 0.2; return false; }
+    if (Math.abs(mag - base) > DELTA) hits.push(nowMs);
+    else base = base * 0.95 + mag * 0.05; // baseline drifts only while quiet
+    hits = hits.filter(t => nowMs - t <= WINDOW);
+    if (hits.length >= NEED) { hits = []; return true; }
+    return false;
+  };
+}
+let _haPickup = null, _haMotionOn = false, _haRec = null;
+function _onHoldMotion(e) {
+  const g = (e && (e.accelerationIncludingGravity || e.acceleration)) || null; if (!g) return;
+  const mag = Math.sqrt((g.x || 0) * (g.x || 0) + (g.y || 0) * (g.y || 0) + (g.z || 0) * (g.z || 0));
+  if (_haPickup && _haPickup(mag, Date.now())) _holdAutoStop('accel');
+}
+// A recognizer wired to fire onHit when the word appears in any (interim) transcript.
+function _holdVoiceMakeRec(word, onHit) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) return null;
+  const rec = new SR(); rec.continuous = true; rec.interimResults = true;
+  rec.onresult = (ev) => { for (let j = ev.resultIndex; j < ev.results.length; j++) { if (String((ev.results[j][0] || {}).transcript || '').toLowerCase().includes(word)) { onHit(); return; } } };
+  return rec;
+}
+function _holdAutoArm() { // idempotent — safe to call on every re-render while the hold runs
+  if (holdAccelStopEnabled() && !_haMotionOn && shakeNavSupported()) { _haPickup = makePickupDetector(); window.addEventListener('devicemotion', _onHoldMotion); _haMotionOn = true; }
+  if (holdVoiceStopEnabled() && !_haRec) {
+    const rec = _holdVoiceMakeRec(holdVoiceWordCfg(), () => _holdAutoStop('voice'));
+    if (rec) { rec.onend = () => { if (_haRec === rec) { try { rec.start(); } catch (_) {} } }; try { rec.start(); _haRec = rec; } catch (_) {} }
+  }
+}
+function _holdAutoDisarm() {
+  if (_haMotionOn) { try { window.removeEventListener('devicemotion', _onHoldMotion); } catch (_) {} _haMotionOn = false; _haPickup = null; }
+  if (_haRec) { const r = _haRec; _haRec = null; r.onend = null; try { r.stop(); } catch (_) {} }
+}
+// Stop the live hold: elapsed minus the firing trigger's buffer, logged as the set's seconds.
+function _holdAutoStop(kind) {
+  _holdAutoDisarm(); // no double-fires while the render catches up
+  const btn = document.querySelector('.hold-timer-btn[data-hold-idx]');
+  if (!btn) return;
+  const i = parseInt(btn.dataset.holdIdx, 10), start = parseInt(btn.dataset.holdStart, 10);
+  if (!(start > 0) || !pending.sets || !pending.sets[i]) return;
+  const wc = state.workoutControls || {};
+  const buf = kind === 'accel' ? (wc.holdAccelBufferS == null ? 1 : wc.holdAccelBufferS) : (wc.holdVoiceBufferS == null ? 1 : wc.holdVoiceBufferS);
+  const sec = Math.max(1, Math.round((Date.now() - start) / 1000 - (parseFloat(buf) || 0)));
+  commitSetField(i, 'r', sec); // stamps ts (set done) + fires the set-end cue, same as tapping the button
+  safeVibrate([0, 40]);
+  toast((kind === 'accel' ? '📴 Phone picked up' : '🎙 "' + holdVoiceWordCfg() + '"') + ' — hold logged: ' + sec + 's');
+  renderModal();
+}
+// Settings "Test": listen ~6 s and confirm the word is recognized (also pre-grants the mic permission).
+let _haTestRec = null;
+function testHoldVoiceWord() {
+  if (_haTestRec) { const r = _haTestRec; _haTestRec = null; try { r.stop(); } catch (_) {} }
+  if (!speechRecSupported()) { toast('Speech recognition is not supported on this device'); return; }
+  const word = holdVoiceWordCfg();
+  if (!word) { toast('Set a stop word first'); return; }
+  let heard = false;
+  const rec = _holdVoiceMakeRec(word, () => { heard = true; try { rec.stop(); } catch (_) {} toast('✅ Heard "' + word + '"!'); safeVibrate([0, 40]); });
+  if (!rec) return;
+  rec.onend = () => { if (_haTestRec === rec) { _haTestRec = null; if (!heard) toast('⏱ Didn\'t catch "' + word + '" — try again closer to the mic'); } };
+  toast('🎙 Listening… say "' + word + '"');
+  try { rec.start(); _haTestRec = rec; setTimeout(() => { if (_haTestRec === rec) { try { rec.stop(); } catch (_) {} } }, 6000); } catch (_) { toast('Could not start the microphone'); }
+}
+// Turn the pickup trigger on from settings — iOS wants motion permission granted from the tap itself.
+async function enableHoldAccelStop(interactive) {
+  if (!shakeNavSupported()) { if (interactive) toast("This device doesn't report motion"); return false; }
+  try {
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res !== 'granted') {
+        if (state.workoutControls) state.workoutControls.holdAccelStop = false;
+        saveState(); toast('Motion access denied'); if (typeof renderSettingsDrawer === 'function') renderSettingsDrawer(); return false;
+      }
+    }
+  } catch (_) { /* requestPermission throws off-gesture; Android needs no permission — attach anyway */ }
+  if (interactive) toast('📴 Holds now stop when you pick the phone up');
+  return true;
+}
+
 // Manually end the active workout with confirmation (feat 13).
 // skipConfirm=true when triggered via hold-to-confirm (feat 32) — the hold IS the confirm.
 function endWorkout(skipConfirm) {
@@ -22886,6 +23049,7 @@ function closeLogModal() {
   modalState.open = false;
   modalState.planStepFilter = null; // feat 112/115
   if (typeof stopHoldTimers === 'function') stopHoldTimers(); // feat 257 — kill the hold-timer interval on close
+  if (typeof _holdAutoDisarm === 'function') _holdAutoDisarm(); // feat 423 — sensors off with the sheet
   if (typeof closeNumpad === 'function') closeNumpad(); // feat 57 — don't leave the numpad sheet open
   document.getElementById('trk-modal').classList.remove('open');
   document.getElementById('trk-modal-backdrop').classList.remove('open');
@@ -24178,6 +24342,7 @@ function renderSetsForm() {
         seen.add(s.w);
         btns.push(`<button type="button" class="prog-prefill target-btn" data-w="${s.w}" title="Load ${s.w}${state.unit} into the next set">${lbl} ${s.w}×${s.r}</button>`);
       });
+      if (btns.length) btns.push(`<button type="button" class="target-btn target-expand" id="trk-wt-expand" title="All weights — history &amp; PR odds">⤢</button>`); // feat 422
       return btns.length ? `<div class="target-row">${btns.join('')}</div>` : '';
     })()}
     ${(() => { if (modalState.isEditing) return ''; const pl = plateauAdvice(pending.varUuid, pending.subUuid); return pl ? `<div class="plateau-note">🧱 <b>${escapeHtml(pl.title)}:</b> ${escapeHtml(pl.text)}</div>` : ''; })()}
@@ -24220,6 +24385,80 @@ function exBestSets(varUuid, subUuid, beforeDate) {
     }
   });
   return { prevTop, bestE1, maxW, maxR };
+}
+// feat 422 — ⤢ next to the target buttons: EVERY weight ever logged for this variation, one sortable table.
+// Per weight: all-time best e1RM, the most recent use, the last-90-days best (each with its date), plus two
+// PR-odds indices — pw = odds of beating that weight's OWN e1RM record, pv = odds of beating the variation's
+// all-time e1RM at that weight. Odds = logistic((predicted reps at w) − (reps needed)); the prediction comes
+// from the 90-day-best e1RM (fallback: all-time). ponytail: heuristic sigmoid (k=1.5), not a fitted model.
+function exWeightRows(varUuid, subUuid) {
+  const hist = getHistoryByKey(varUuid, subUuid); // recent-first
+  const cut90 = Date.now() - 90 * 86400000;
+  const byW = new Map();
+  hist.forEach(h => {
+    const t = new Date(h.date).getTime();
+    (h.sets || []).forEach(s => {
+      const w = parseFloat(s.w) || 0, r = parseFloat(s.r) || 0;
+      if (!(w > 0) || !(r > 0)) return;
+      const e = estimated1RM(w, r) || 0;
+      let row = byW.get(w); if (!row) byW.set(w, row = { w, best: null, last: null, d90: null });
+      if (!row.best || e > row.best.e) row.best = { e, r, date: h.date };
+      // recent-first ⇒ the first session seen per weight is its latest use; keep that session's top e1RM
+      if (!row.last || row.last.date === h.date) { if (!row.last || e > row.last.e) row.last = { e, r, date: h.date }; }
+      if (t >= cut90 && (!row.d90 || e > row.d90.e)) row.d90 = { e, r, date: h.date };
+    });
+  });
+  const rows = [...byW.values()];
+  const allBest = rows.reduce((m, r) => Math.max(m, r.best.e), 0);
+  const cap = rows.reduce((m, r) => Math.max(m, r.d90 ? r.d90.e : 0), 0) || allBest;
+  const odds = (need, w) => Math.round(100 / (1 + Math.exp(-((30 * (cap / w - 1)) - need) / 1.5)));
+  rows.forEach(r => {
+    r.pw = odds(r.best.r + 1, r.w);                                            // one more rep than this weight's record set
+    r.pv = odds(Math.max(1, Math.floor(30 * (allBest / r.w - 1)) + 1), r.w);   // enough reps to out-e1RM the all-time best
+  });
+  return { rows, cap, allBest };
+}
+// One-tap weight prefill (feat 234/247/420): first incomplete set gets the weight — reps stay yours to log.
+function prefillTargetWeight(w) {
+  if (!(w > 0)) return;
+  let i = (pending.sets || []).findIndex(s => s && !isSetValid(s, pending.varUuid));
+  if (i < 0) { pending.sets.push({ w: '', r: '' }); i = pending.sets.length - 1; }
+  pending.sets[i].w = w; savePending();
+  if (typeof seedSetupForWeight === 'function') seedSetupForWeight(pending.varUuid, w);
+  renderModal(); updateFAB(); updateSaveBtn();
+}
+let _wtSort = { col: 'w', dir: -1 };
+function _wtSortVal(row, col) {
+  return col === 'w' ? row.w
+    : col === 'best' ? row.best.e
+    : col === 'last' ? new Date(row.last.date).getTime()
+    : col === 'd90' ? (row.d90 ? row.d90.e : -1)
+    : col === 'pw' ? row.pw : row.pv;
+}
+function showWeightTablePopup() {
+  const R = exWeightRows(pending.varUuid, pending.subUuid);
+  if (!R.rows.length) return;
+  _wtSort = { col: 'w', dir: -1 };
+  const fd = (d) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: '2-digit' });
+  const cell = (x) => x ? `${Math.round(x.e)}<span class="wt-date">${fd(x.date)}</span>` : '—';
+  const COLS = [['w', 'Weight'], ['best', 'Best e1RM'], ['last', 'Last'], ['d90', '90d best'], ['pw', 'PR wt'], ['pv', 'PR all']];
+  const close = () => { back.classList.remove('open'); setTimeout(() => back.remove(), 200); };
+  const back = document.createElement('div'); back.className = 'choice-backdrop';
+  const head = () => COLS.map(([k, l]) => `<th data-wt-col="${k}" class="${_wtSort.col === k ? 'on' : ''}">${l}${_wtSort.col === k ? (_wtSort.dir < 0 ? ' ▾' : ' ▴') : ''}</th>`).join('');
+  const tbody = () => R.rows.slice().sort((a, b) => (_wtSortVal(a, _wtSort.col) - _wtSortVal(b, _wtSort.col)) * _wtSort.dir)
+    .map(r => `<tr data-wt-w="${r.w}"><td class="wt-w">${r.w}</td><td>${cell(r.best)}</td><td>${cell(r.last)}</td><td>${cell(r.d90)}</td><td class="wt-idx">${r.pw}%</td><td class="wt-idx">${r.pv}%</td></tr>`).join('');
+  back.innerHTML = `<div class="choice-sheet wt-sheet"><div class="choice-title">All weights — tap one to load it</div>
+    <div class="wt-table-wrap"><table class="wt-table"><thead><tr>${head()}</tr></thead><tbody>${tbody()}</tbody></table></div>
+    <div class="choice-actions"><button class="choice-btn" type="button">Close</button></div></div>`;
+  back.addEventListener('click', (e) => {
+    const th = e.target.closest('[data-wt-col]');
+    if (th) { const c = th.dataset.wtCol; _wtSort = { col: c, dir: _wtSort.col === c ? -_wtSort.dir : -1 }; back.querySelector('thead tr').innerHTML = head(); back.querySelector('tbody').innerHTML = tbody(); return; }
+    const tr = e.target.closest('[data-wt-w]');
+    if (tr) { close(); prefillTargetWeight(parseFloat(tr.dataset.wtW)); return; }
+    if (e.target === back || e.target.classList.contains('choice-btn')) close();
+  });
+  document.body.appendChild(back);
+  requestAnimationFrame(() => back.classList.add('open'));
 }
 // Renders neighbor baseline hints into #trk-neighbor-hints.
 // Shows closest lighter & heavier historical weights when the currently
@@ -24423,7 +24662,8 @@ function ensureHoldTimers() {
   if (document.querySelector('.hold-timer-btn[data-hold-start]')) {
     tickHoldTimers();                              // paint once immediately so it never shows a stale frame
     _holdTimerInt = setInterval(tickHoldTimers, 1000);
-  }
+    _holdAutoArm();                                // feat 423 — pickup / stop-word triggers (idempotent)
+  } else _holdAutoDisarm();                        // feat 423 — hold finished (or none) → sensors off
 }
 function stopHoldTimers() { if (_holdTimerInt) { clearInterval(_holdTimerInt); _holdTimerInt = null; } }
 
@@ -24648,16 +24888,8 @@ function bindSetsForm() {
   // feat 234/420 — one-tap prefill: load a reference weight into the first incomplete set (weight only — you
   // still log the reps you actually do), and pre-seed the plate/loader picker for it. Bound to EVERY target
   // button (prev top · best e1RM · max weight · max reps).
-  document.querySelectorAll('.prog-prefill[data-w]').forEach(el => el.addEventListener('click', (e) => {
-    const w = parseFloat(e.currentTarget.dataset.w); if (!(w > 0)) return;
-    // feat 247 — target the first INCOMPLETE set (an open set, or a blank one), not the first weight-less set.
-    // The old test (empty weight) skipped a set we'd already filled, so repeated taps stacked extra open sets.
-    let i = (pending.sets || []).findIndex(s => s && !isSetValid(s, pending.varUuid));
-    if (i < 0) { pending.sets.push({ w: '', r: '' }); i = pending.sets.length - 1; }
-    pending.sets[i].w = w; savePending();                          // direct prefill (matches feat-58/82) — no premature set-start stamp
-    if (typeof seedSetupForWeight === 'function') seedSetupForWeight(pending.varUuid, w); // pre-seed the loader picker
-    renderModal(); updateFAB(); updateSaveBtn();
-  }));
+  document.querySelectorAll('.prog-prefill[data-w]').forEach(el => el.addEventListener('click', (e) => prefillTargetWeight(parseFloat(e.currentTarget.dataset.w))));
+  document.getElementById('trk-wt-expand')?.addEventListener('click', showWeightTablePopup); // feat 422 — the all-weights table
 
   document.getElementById('trk-sub-select')?.addEventListener('change', e => {
     pending.subUuid = e.target.value;
@@ -25376,7 +25608,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 348 · 2026-07-11 22:36';
+const APP_BUILD = 'build 349 · 2026-07-12 08:58';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
