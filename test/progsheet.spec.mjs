@@ -130,6 +130,24 @@ test('feat 422 — no ⤢ without history', async ({ page }) => {
   expect(await page.evaluate(() => !!document.getElementById('trk-wt-expand'))).toBe(false);
 });
 
+// feat 432 — the ⤢ grew up: a prominent full-width button below the target row opens the table
+test('feat 432 — the all-weights opener is a prominent button that opens the popup', async ({ page }) => {
+  await openWith(page, [{ daysAgo: 2, sets: [[135, 5]] }]);
+  const r = await page.evaluate(() => {
+    const b = document.getElementById('trk-wt-expand');
+    const info = { cls: b ? b.className : '', text: b ? b.textContent : '', inTargetRow: !!(b && b.closest('.target-row')) };
+    document.querySelectorAll('.choice-backdrop').forEach(x => x.remove());
+    b.click();
+    info.popupOpen = !!document.querySelector('.choice-backdrop .wt-table');
+    document.querySelectorAll('.choice-backdrop').forEach(x => x.remove());
+    return info;
+  });
+  expect(r.cls).toContain('wt-open-btn');
+  expect(r.text).toContain('All weights');
+  expect(r.inTargetRow).toBe(false);      // no longer a tiny ⤢ squeezed into the target-row
+  expect(r.popupOpen).toBe(true);
+});
+
 test('the e1RM card still shows when the entered weight already has a baseline (lighter/heavier suppressed)', async ({ page }) => {
   await openWith(page, [{ daysAgo: 2, sets: [[100, 5]] }, { daysAgo: 9, sets: [[120, 15]] }]);
   const r = await page.evaluate(() => {

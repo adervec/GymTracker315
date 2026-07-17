@@ -2927,8 +2927,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 /* feat 420 — reference-set target buttons + the best-e1RM baseline card */
 .target-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
 .target-btn { font-size: 11px; padding: 6px 10px; }
-/* feat 422 — ⤢ all-weights table popup */
-.target-expand { padding: 6px 9px; }
+/* feat 422 — all-weights table popup; feat 432 — its opener is a prominent full-width button */
+.wt-open-btn { display: block; width: 100%; margin: 8px 0 2px; padding: 11px 12px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 10px; color: var(--text); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; }
 .wt-sheet { max-width: 480px; }
 .wt-table-wrap { overflow: auto; max-height: 62vh; margin: 4px 0 10px; }
 #fixw-custom { flex: 1; min-width: 0; width: 60px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; color: var(--text); font-family: inherit; font-size: 14px; text-align: center; padding: 9px 4px; } /* feat 429 — custom factor sits in the pill row */
@@ -13622,6 +13622,18 @@ const SEED_PLANS = [
     _pstep(3,[_mvOpt('glute-accessories'),_mvOpt('adductor')],'Abductions or adductors — pick your gap.','light'),
     _pstep(5,[_mvOpt('calf-raise')],'High-rep calves.','light'),
     _pstep(3,[_mvOpt('obliques')],'Obliques to close.','light') ] },
+  // —— feat 433 — the Punishment: legs, glutes, abs and BOTH hip lines, very harshly ——
+  { id:'seed-punishment-lower', name:'Punishment — Legs, Glutes & Hips', intensity:5, desc:'You asked for this. Heavy squats and hip thrusts, a loaded sled, walking lunges, hamstring and quad burnouts, then BOTH hip lines — abductors and adductors — before a two-stage ab finish. Nothing below the ribs leaves intact; plan the stairs home.', steps:[
+    _pstep(5,[_mvOpt('squat')],'Heavy and deep from the first working set.','heavy'),
+    _pstep(4,[_mvOpt('leg-press')],'Sled — quad volume with no escape.','heavy'),
+    _pstep(4,[_mvOpt('lunge')],'Walking lunges — long sets, both legs.','moderate'),
+    _pstep(4,[_mvOpt('leg-curl')],'Hamstrings — slow negatives.','moderate'),
+    _pstep(3,[_mvOpt('leg-extension')],'Quad burnout — high reps to failure\'s doorstep.','light'),
+    _pstep(5,[_mvOpt('hip-thrust')],'Heavy thrusts — pause every top.','heavy'),
+    _pstep(4,[_mvOpt('glute-accessories')],'Abductions — the outer hips pay first.','light'),
+    _pstep(4,[_mvOpt('adductor')],'Adductors — then the inner line pays too.','light'),
+    _pstep(4,[_mvOpt('abs-dynamic')],'Loaded ab work while the legs shake.','moderate'),
+    _pstep(3,[_mvOpt('obliques')],'Obliques to seal it.','light') ] },
 ];
 function cloneSeedPlan(sp) {
   return { id:sp.id, name:sp.name, desc:sp.desc||'', intensity:sp.intensity||3, steps:sp.steps.map(s => ({ id:newUuid(), sets:s.sets, desc:s.desc||'', load:s.load||'moderate', options:s.options.map(o => ({ ...o })) })) };
@@ -24534,8 +24546,11 @@ function renderSetsForm() {
         seen.add(s.w);
         btns.push(`<button type="button" class="prog-prefill target-btn" data-w="${s.w}" title="Load ${s.w}${state.unit} into the next set">${lbl} ${s.w}×${s.r}</button>`);
       });
-      if (btns.length) btns.push(`<button type="button" class="target-btn target-expand" id="trk-wt-expand" title="All weights — history &amp; PR odds">⤢</button>`); // feat 422
       return btns.length ? `<div class="target-row">${btns.join('')}</div>` : '';
+    })()}
+    ${(() => { // feat 432 — PROMINENT all-weights entry (replaces the easy-to-miss ⤢ of feat 422)
+      const R = exWeightRows(pending.varUuid, pending.subUuid);
+      return R.rows.length ? `<button type="button" class="wt-open-btn" id="trk-wt-expand" title="Sortable table of every weight logged — records, 90-day bests &amp; PR odds">📊 All weights — records &amp; PR odds</button>` : '';
     })()}
     ${(() => { if (modalState.isEditing) return ''; const pl = plateauAdvice(pending.varUuid, pending.subUuid); return pl ? `<div class="plateau-note">🧱 <b>${escapeHtml(pl.title)}:</b> ${escapeHtml(pl.text)}</div>` : ''; })()}
     ${renderSetupInline()}
@@ -25876,7 +25891,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 352 · 2026-07-17 03:07';
+const APP_BUILD = 'build 353 · 2026-07-17 08:03';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -2397,6 +2397,15 @@ They share variation **UUIDs**.
   full arm + forearm block, all pressing angles + serratus, quads/hams/glutes from two angles, calves,
   lower back and a core slot on each day. `flowplans.spec` asserts the ~105 sizing and the union
   coverage list.
+- **Prominent all-weights opener (feat 432):** the feat-422 table hid behind a tiny ⤢ that only rendered
+  when reference-target buttons did — reported unfindable. Now a full-width accent button ("📊 All
+  weights — records & PR odds") renders below the target row whenever `exWeightRows` has any rows,
+  independent of the target buttons. Same `trk-wt-expand` id, same binding, same popup. Covered in
+  `progsheet.spec` (prominent class, outside the target-row, opens the table).
+- **Punishment plan (feat 433):** requested — a seed plan that hits legs, glutes, abs and the hips VERY
+  harshly. `seed-punishment-lower` (intensity 5, 40 sets / 10 steps ≈ 105 min): heavy squat + sled +
+  walking lunges, hamstring/quad burnouts, heavy hip thrusts, then BOTH hip lines (abductions AND
+  adductions) and a two-stage ab finish. Covered in `flowplans.spec`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

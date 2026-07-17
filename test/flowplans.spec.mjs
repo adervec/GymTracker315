@@ -66,6 +66,25 @@ test('feat 431 — the trio together covers every major muscle family', async ({
   MUST.forEach(f => expect(r, `missing ${f}`).toContain(f));
 });
 
+// feat 433 — the Punishment: legs, glutes, abs and BOTH hip lines, intensity 5, ~40 sets
+test('feat 433 — the Punishment plan exists, is brutal, and hits legs, glutes, abs and both hip lines', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    normalizeState();
+    const p = SEED_PLANS.find(x => x.id === 'seed-punishment-lower');
+    if (!p) return null;
+    const fams = new Set(); p.steps.forEach(st => (st.options || []).forEach(o => { if (o.familyId) fams.add(o.familyId); }));
+    const bad = []; p.steps.forEach((st, i) => { const s = stepQualifyingVarSet(st); if (!s || s.size === 0) bad.push(i); });
+    return { seeded: !!state.plans.find(q => q.id === p.id), intensity: p.intensity, sets: p.steps.reduce((n, s) => n + s.sets, 0), fams: [...fams], bad };
+  });
+  expect(r).not.toBeNull();
+  expect(r.seeded).toBe(true);
+  expect(r.intensity).toBe(5);
+  expect(r.sets).toBeGreaterThanOrEqual(38);
+  expect(r.bad, `unsatisfiable steps: ${r && r.bad.join(', ')}`).toEqual([]);
+  ['squat', 'leg-press', 'lunge', 'leg-curl', 'leg-extension', 'hip-thrust', 'glute-accessories', 'adductor', 'abs-dynamic', 'obliques']
+    .forEach(f => expect(r.fams, `missing ${f}`).toContain(f));
+});
+
 test('the catalogue still has no duplicate plan ids or names', async ({ page }) => {
   const dupes = await page.evaluate(() => {
     const ids = {}, names = {}, dupId = [], dupName = [];
