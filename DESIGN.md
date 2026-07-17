@@ -2348,6 +2348,11 @@ They share variation **UUIDs**.
   `commitSetField` path as tapping the button. iOS motion permission is requested from the toggle's tap
   (mirrors shakeNav). `holdauto.spec` covers the detector, both buffers, arm/disarm lifecycle, transcript
   matching, and the settings rows.
+- **Vulnerable records in the picker (feat 424):** a 🎯 badge on picker rows whose all-time e1RM record was
+  set MORE than 90 days ago yet the last-90-day best comes within 5% of it — one good day takes it, so
+  record-hunting starts at the pick. `buildVulnerableRecordSet` is one pass over history (same batched
+  pattern as `buildVarTrendMap`); fresh records (set inside the window) and out-of-form variations get no
+  badge. Cutoffs (5% / 90 d) are deliberate simple constants. Covered in `vulrecord.spec`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

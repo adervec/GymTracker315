@@ -2652,6 +2652,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .touch-badge.old { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
   /* feat 332 — discrete e1RM trend dot on picker rows */
   .picker-trend { font-size: 10px; font-weight: 800; line-height: 1; opacity: 0.9; }
+  .picker-vul { font-size: 11px; line-height: 1; } /* feat 424 — 🎯 record within reach */
   .picker-trend.pt-up { color: var(--good); }
   .picker-trend.pt-down { color: var(--warn); }
   .picker-trend.pt-flat { color: var(--text3); }
@@ -23530,6 +23531,30 @@ function pickerTrendBadge(series) {
   const sign = t.pct > 0 ? '+' : '';
   return `<span class="picker-trend pt-${t.dir}" title="e1RM trend ${sign}${t.pct}% recently · best ${t.best} ${state.unit}">${sym}</span>`;
 }
+// feat 424 — VULNERABLE RECORDS: an all-time e1RM record set MORE than 90 days ago that your last-90-day
+// best comes within 5% of — one good day takes it. One pass over history like buildVarTrendMap; the picker
+// marks those rows with 🎯 so record-hunting starts at the pick. ponytail: 5% / 90d cutoffs, tune to taste.
+function buildVulnerableRecordSet() {
+  const cut90 = Date.now() - 90 * 86400000;
+  const agg = new Map(); // varUuid -> { best, bestMs, cap }
+  (state.sessions || []).forEach(s => {
+    const ms = new Date(s.date).getTime();
+    (s.exercises || []).forEach(ex => {
+      if (!ex.varUuid || ex.cardio || !ex.sets || !ex.sets.length) return;
+      let best = 0; ex.sets.forEach(set => { const e = estimated1RMSet(set); if (e > best) best = e; });
+      if (best <= 0) return;
+      let a = agg.get(ex.varUuid); if (!a) agg.set(ex.varUuid, a = { best: 0, bestMs: 0, cap: 0 });
+      if (best > a.best) { a.best = best; a.bestMs = ms; }
+      if (ms >= cut90 && best > a.cap) a.cap = best;
+    });
+  });
+  const out = new Set();
+  agg.forEach((a, u) => { if (a.bestMs < cut90 && a.cap >= a.best * 0.95) out.add(u); });
+  return out;
+}
+function vulnerableBadge() {
+  return `<span class="picker-vul" title="Vulnerable record — your best in the last 90 days is within 5% of an all-time record set over 90 days ago. One good day takes it.">🎯</span>`;
+}
 // feat 68 — results are a separate fragment so typing re-renders only the list, leaving the search
 // input and its ✕ button untouched (fixes the jiggly/inconsistent clear button + focus juggling).
 function renderPickerResults() {
@@ -23537,6 +23562,7 @@ function renderPickerResults() {
   const touch = buildTouchMap(); // feat 121
   const trend = buildVarTrendMap(); // feat 332 — discrete e1RM trend per variation
   const lastVar = buildFamilyLastVarMap(); // feat 381 — the variation used last / the time before, per movement
+  const vul = buildVulnerableRecordSet(); // feat 424 — 🎯 records within reach
   const shown = results.reduce((s, r) => s + r.variations.length + (r.secondaryVars ? r.secondaryVars.length : 0), 0);
   // feat 179 — with a plan step active the pills STACK with the step set, so report how many of the step's
   // compatible variations are currently visible: "X of Y step-compatible variations shown".
@@ -23561,7 +23587,7 @@ function renderPickerResults() {
                 <div class="picker-var-main">
                   <div class="picker-var-name">${escapeHtml(v.title)}${v._custom ? '<span class="manual-tag">manual</span>' : ''}${v.subvariation ? `<span class="sub-tag">${escapeHtml(v.subvariation.label)}</span>` : ''}</div>
                 </div>
-                <div class="picker-var-right">${v.uuid ? lastDoneBadge(v.uuid, lastVar.get(r.family.id)) : ''}${v.uuid ? favStarHtml(isFavVar(v.uuid), `data-fav-var="${v.uuid}"`) : ''}${spotterBadge(v, r.family)}${v.uuid ? pickerTrendBadge(trend.get(v.uuid)) : ''}${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
+                <div class="picker-var-right">${v.uuid ? lastDoneBadge(v.uuid, lastVar.get(r.family.id)) : ''}${v.uuid ? favStarHtml(isFavVar(v.uuid), `data-fav-var="${v.uuid}"`) : ''}${spotterBadge(v, r.family)}${v.uuid && vul.has(v.uuid) ? vulnerableBadge() : ''}${v.uuid ? pickerTrendBadge(trend.get(v.uuid)) : ''}${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
               </div>
             `).join('')}
             ${(r.secondaryVars || []).map(s => `
@@ -23570,7 +23596,7 @@ function renderPickerResults() {
                   <div class="picker-var-name">${escapeHtml(s.v.title)}</div>
                   <div class="picker-var-secfrom">↳ primarily a <span class="sec-jump" data-sec-jump="${escapeAttr(s.primaryTitle)}">${escapeHtml(s.primaryTitle)}</span> exercise</div>
                 </div>
-                <div class="picker-var-right">${lastDoneBadge(s.v.uuid, lastVar.get(VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family.id : r.family.id))}${favStarHtml(isFavVar(s.v.uuid), `data-fav-var="${s.v.uuid}"`)}${spotterBadge(s.v, VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family : r.family)}${pickerTrendBadge(trend.get(s.v.uuid))}${touchBadgeHtml(touch.get(s.v.uuid))}<div class="picker-var-arrow">›</div></div>
+                <div class="picker-var-right">${lastDoneBadge(s.v.uuid, lastVar.get(VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family.id : r.family.id))}${favStarHtml(isFavVar(s.v.uuid), `data-fav-var="${s.v.uuid}"`)}${spotterBadge(s.v, VAR_INDEX.get(s.v.uuid) ? VAR_INDEX.get(s.v.uuid).family : r.family)}${vul.has(s.v.uuid) ? vulnerableBadge() : ''}${pickerTrendBadge(trend.get(s.v.uuid))}${touchBadgeHtml(touch.get(s.v.uuid))}<div class="picker-var-arrow">›</div></div>
               </div>
             `).join('')}
             <div class="picker-add-var" data-add-var-fam="${r.family.id}">+ Add custom variation</div>
@@ -25608,7 +25634,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 349 · 2026-07-12 08:58';
+const APP_BUILD = 'build 350 · 2026-07-16 20:39';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
