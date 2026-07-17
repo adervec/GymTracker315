@@ -2406,6 +2406,15 @@ They share variation **UUIDs**.
   harshly. `seed-punishment-lower` (intensity 5, 40 sets / 10 steps ≈ 105 min): heavy squat + sled +
   walking lunges, hamstring/quad burnouts, heavy hip thrusts, then BOTH hip lines (abductions AND
   adductions) and a two-stage ab finish. Covered in `flowplans.spec`.
+- **Per-exercise max weight (feat 434):** a ⚖️ chip beside the exercise note sets a cap for ONE
+  variation ("where this machine's stack tops out") — `state.exerciseMaxW[varUuid]`, stored raw in the
+  display unit like set weights, 0 clears. `effectiveMaxW(varUuid)` = global limit tightened by the cap,
+  and every entry-validation path now uses it (`isSetFeasible`, `isSetValid`, the red input style, the
+  feat-364 save flow — so the cap inherits soft-warn/hard-block behaviour and the dialogs name the cap
+  when it's the binding limit). Suggestions clamp at the source (`suggestedWeightForVar`) and reference
+  buttons/table rows prefill AT the cap when history exceeds it. History outlier detection stays on the
+  global limit only — a cap set today shouldn't retro-flag older legitimate sets. Covered in
+  `exmaxw.spec`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

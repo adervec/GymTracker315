@@ -2680,12 +2680,13 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .selected-ex-family { font-size: 11px; color: #888; margin-top: 2px; }
   .selected-ex-change { font-family: inherit; font-size: 12px; font-weight: 600; color: #b48aff; cursor: pointer; margin-top: 8px; display: inline-block; padding: 7px 12px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; text-decoration: none; -webkit-tap-highlight-color: transparent; }
   .selected-ex-change:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
-  .ex-note-row { margin-top: 2px; }
+  .ex-note-row { margin-top: 2px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } /* feat 434 — note + ⚖️ max chip share the row */
   .ex-note { font-size: 11px; color: #cdbff0; margin-top: 6px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
   .ex-note-text { color: #cdbff0; }
   .ex-note-add { font-family: inherit; font-size: 12px; font-weight: 600; color: #b48aff; cursor: pointer; margin-top: 8px; display: inline-block; padding: 7px 12px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; text-decoration: none; -webkit-tap-highlight-color: transparent; }
   .ex-note-add:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .ex-note .ex-note-add { margin-top: 0; margin-left: 6px; font-size: 11px; padding: 3px 9px; }
+  .ex-note-add.has-cap { background: var(--accent-bg); border-color: var(--accent-border); } /* feat 434 — an active exercise cap shows tinted */
   /* feat 107 — picker escape hatch back to the current exercise */
   .picker-back-current { display: block; width: 100%; padding: 9px 12px; margin-bottom: 8px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; color: var(--accent); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
   /* feat 112/115 — plan-step chips at the top of the picker */
@@ -5448,6 +5449,7 @@ function normalizeState() {
   if (['detailed','tree','table'].indexOf(state.refView) < 0) state.refView = 'detailed'; // feat 76 — reference view mode
   if (!Array.isArray(state.stravaActivities)) state.stravaActivities = []; // feat 77 — imported Strava strength activities
   if (!state.exerciseSetup || typeof state.exerciseSetup !== 'object') state.exerciseSetup = {}; // feat 79 — per-variation setup-tool override
+  if (!state.exerciseMaxW || typeof state.exerciseMaxW !== 'object') state.exerciseMaxW = {}; // feat 434 — per-variation max-weight cap
   if (!Array.isArray(state.pinProfiles)) state.pinProfiles = []; // feat 80 — named pin-stack machine profiles [{id,name,inc}]
   state.cardioGoals = { weeklyMinutes:0, weeklyDistance:0, weeklySessions:0, distanceUnit:'km', ...(state.cardioGoals||{}) };
   // feat 95 — sync data model: backfill updatedAt on existing sessions (NOT id — legacy sessions stay
@@ -12364,13 +12366,28 @@ function categoryHidden(mega) {
 }
 function varCategoryHidden(varUuid) { return categoryHidden(megaOf(varUuid)); }
 
+// feat 434 — per-exercise max weight: a cap on suggestions and data entry for ONE variation (a machine
+// stack tops out, a joint says no). Stored raw in the current display unit, same semantics as set weights.
+function exMaxW(varUuid) { const v = state.exerciseMaxW && state.exerciseMaxW[varUuid]; return v > 0 ? v : null; }
+function setExMaxW(varUuid, w) {
+  state.exerciseMaxW = state.exerciseMaxW || {};
+  if (w > 0) state.exerciseMaxW[varUuid] = w; else delete state.exerciseMaxW[varUuid];
+  saveState();
+}
+// The global limit (display units) tightened by the per-exercise cap — every entry-validation path uses
+// this, so a cap inherits the whole feat-364 soft/hard limit UX (red inputs, warn-confirm or block on save).
+function effectiveMaxW(varUuid) {
+  const g = state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb;
+  const cap = varUuid ? exMaxW(varUuid) : null;
+  return cap && cap < g ? cap : g;
+}
 // Returns true if populated fields hold feasible values (empty allowed — user mid-entry).
 function isSetFeasible(set, varUuid) {
   const mode = exMode(varUuid || pending.varUuid).mode;
   const w = set.w, r = set.r;
   const wFilled = w !== '' && w != null;
   const rFilled = r !== '' && r != null;
-  const maxWeight = state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb;
+  const maxWeight = effectiveMaxW(varUuid || pending.varUuid); // feat 434
   if (wFilled) {
     const wn = parseFloat(w);
     if (mode === 'standard') { if (isNaN(wn) || wn <= 0 || wn > maxWeight) return false; }
@@ -12389,7 +12406,7 @@ function isSetFeasible(set, varUuid) {
 function isSetValid(set, varUuid, ignoreCap) {
   const mode = exMode(varUuid || pending.varUuid).mode;
   const w = parseFloat(set.w), r = parseFloat(set.r);
-  const maxWeight = ignoreCap ? Infinity : (state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb);
+  const maxWeight = ignoreCap ? Infinity : effectiveMaxW(varUuid || pending.varUuid); // feat 434
   if (mode === 'bodyweight') {
     const wOk = (set.w === '' || set.w == null) || (!isNaN(w) && Math.abs(w) <= maxWeight);
     return wOk && r > 0 && r <= 999 && Number.isInteger(r);
@@ -14212,7 +14229,7 @@ function baselineWeightForOption(o) {
 }
 function suggestedWeightFromBase(base, load) { if (base == null) return null; const inc = weightInc(); return Math.max(inc, Math.round(base * loadFactor(load) / inc) * inc); }
 function suggestedWeightForOption(o, load) { return suggestedWeightFromBase(baselineWeightForOption(o), load); }
-function suggestedWeightForVar(varUuid, load) { return suggestedWeightFromBase(baselineWeightVar(varUuid), load); }
+function suggestedWeightForVar(varUuid, load) { const w = suggestedWeightFromBase(baselineWeightVar(varUuid), load); const cap = exMaxW(varUuid); return (w != null && cap && w > cap) ? cap : w; } // feat 434 — suggestions never exceed the exercise cap
 // feat 161 — a representative rep target per load tag (a suggestion, not a prescription).
 function repTargetForLoad(load) { return load === 'heavy' ? 5 : load === 'light' ? 12 : 8; }
 // feat 161 — a LOOSE suggested working set for a plan step: weight tuned to your own recent history (when
@@ -24449,7 +24466,7 @@ function renderSetsForm() {
       }
     }
 
-    const maxW = state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb;
+    const maxW = effectiveMaxW(pending.varUuid); // feat 434 — the exercise cap reddens the input too
     const wOver = s.w !== '' && s.w != null && parseFloat(s.w) > maxW;
     // feat 57 — in on-screen-numpad mode the inputs are readonly text (suppresses the native keyboard); a tap opens the in-app numpad.
     const np = !!(state.workoutControls && state.workoutControls.onScreenNumpad);
@@ -24518,7 +24535,7 @@ function renderSetsForm() {
         `Hold — log <b>weight × seconds</b> instead of reps.`
       }</div>` : ''}
       ${(() => { const h = weightRecordHint(pending.varUuid); return h ? `<div class="weight-record-hint">${escapeHtml(h)}</div>` : ''; })()}
-      <div class="ex-note-row">${exNoteHtml}</div>
+      <div class="ex-note-row">${exNoteHtml}${(() => { const c = exMaxW(pending.varUuid); return `<button type="button" class="ex-note-add${c ? ' has-cap' : ''}" id="trk-ex-maxw" title="Cap suggestions and data entry for this exercise">⚖️ ${c ? 'Max ' + c + state.unit : 'Set max'}</button>`; })()}</div>
       <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}${getExerciseMedia(pending.varUuid).length ? ' var-media' : ''}" id="trk-ex-media-btn" type="button" ${getExerciseMedia(pending.varUuid).length ? 'title="Includes media for this exact variation" ' : ''}data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-podcast-btn" type="button" title="Play a 30-60s coach brief on this movement">🎧 Brief</button></div>
       ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
     </div>
@@ -24628,6 +24645,7 @@ function exWeightRows(varUuid, subUuid) {
 // One-tap weight prefill (feat 234/247/420): first incomplete set gets the weight — reps stay yours to log.
 function prefillTargetWeight(w) {
   if (!(w > 0)) return;
+  const cap = exMaxW(pending.varUuid); if (cap && w > cap) w = cap; // feat 434 — a reference above the cap prefills the cap
   let i = (pending.sets || []).findIndex(s => s && !isSetValid(s, pending.varUuid));
   if (i < 0) { pending.sets.push({ w: '', r: '' }); i = pending.sets.length - 1; }
   pending.sets[i].w = w; savePending();
@@ -25213,6 +25231,21 @@ function bindSetsForm() {
     renderModal();
     document.getElementById('trk-ex-note-input')?.focus();
   });
+  // feat 434 — ⚖️ per-exercise max weight: prompt for a cap (0 or empty clears it)
+  document.getElementById('trk-ex-maxw')?.addEventListener('click', () => {
+    if (roBlocked('set an exercise max')) return;
+    const cur = exMaxW(pending.varUuid);
+    promptDialog({ title: '⚖️ Max weight for this exercise',
+      message: `Suggestions and data entry are capped at this weight (${state.unit}) for THIS exercise only — e.g. where the stack tops out. Enter 0 to remove the cap.`,
+      value: cur ? String(cur) : '', placeholder: 'e.g. 120', okLabel: 'Set' }).then(v => {
+      if (v == null) return; // cancelled
+      const n = parseFloat(v);
+      if (isNaN(n) || n < 0) { toast('Enter a number'); return; }
+      setExMaxW(pending.varUuid, n);
+      toast(n > 0 ? '⚖️ Max ' + n + state.unit + ' set for this exercise' : '⚖️ Exercise max removed');
+      renderModal();
+    });
+  });
   // feat 215 — template chips append a calibration field to the freetext (separator-aware) and refocus
   document.querySelectorAll('.note-tpl-chip[data-note-tpl]').forEach(chip => chip.addEventListener('click', () => {
     const ta = document.getElementById('trk-ex-note-input'); if (!ta) return;
@@ -25720,11 +25753,11 @@ function saveSets(endingWorkout) {
   const hasInfeasible = validSets.some(s => !isSetFeasible(s));
   // feat 364 — a HARD weight limit refuses the save outright (no "save anyway"); soft mode keeps the old warn-and-confirm.
   if (state.maxWeightHard) {
-    const maxW = state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb;
+    const maxW = effectiveMaxW(pending.varUuid); // feat 434 — the exercise cap tightens the hard limit
     const overLimit = validSets.some(s => { const w = parseFloat(s.w); return !isNaN(w) && Math.abs(w) > maxW; });
     if (overLimit) {
       return choiceDialog({ title: 'Hard weight limit', danger: true,
-        message: `⛔ A weight exceeds your hard limit (${maxW} ${state.unit}). The hard limit can't be overridden — lower the weight (or switch to a soft limit in Settings) to save.`,
+        message: `⛔ A weight exceeds your hard limit (${maxW} ${state.unit}${exMaxW(pending.varUuid) ? ', this exercise\'s cap' : ''}). The hard limit can't be overridden — lower the weight (or raise the cap) to save.`,
         choices: [{ label: 'OK', value: true, style: 'primary' }] }).then(() => false);
     }
   }
@@ -25733,8 +25766,8 @@ function saveSets(endingWorkout) {
     const exName = info ? info.variation.title : 'this exercise';
     let msg, title = 'Save sets', danger = false;
     if (hasInfeasible) {
-      const maxW = state.unit === 'kg' ? Math.round(state.maxWeightLb / 2.205) : state.maxWeightLb;
-      msg = `⚠️ One or more weights exceed the limit (${maxW} ${state.unit}).\n\nSave ${validSets.length} set${validSets.length === 1 ? '' : 's'} for ${exName} anyway?`;
+      const maxW = effectiveMaxW(pending.varUuid); // feat 434
+      msg = `⚠️ One or more weights exceed the limit (${maxW} ${state.unit}${exMaxW(pending.varUuid) ? ', this exercise\'s cap' : ''}).\n\nSave ${validSets.length} set${validSets.length === 1 ? '' : 's'} for ${exName} anyway?`;
       title = 'Over the weight limit'; danger = true;
     } else {
       const setLines = validSets.map((s, i) => `  Set ${i+1}: ${s.w}${state.unit} × ${s.r} reps`).join('\n');
@@ -25891,7 +25924,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 353 · 2026-07-17 08:03';
+const APP_BUILD = 'build 354 · 2026-07-17 12:40';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
