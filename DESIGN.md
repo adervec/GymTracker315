@@ -2415,6 +2415,21 @@ They share variation **UUIDs**.
   buttons/table rows prefill AT the cap when history exceeds it. History outlier detection stays on the
   global limit only — a cap set today shouldn't retro-flag older legitimate sets. Covered in
   `exmaxw.spec`.
+- **Set-quality sound (feat 435):** opt-in (Settings › Metronome & Cues › 🎼): completing a set plays a
+  short melody whose SHAPE tracks the set's quality — the feat-63 overload level vs your own history:
+  PR = 4-note rising fanfare, progress = rising pair, match = one neutral note, down = falling pair.
+  `playSetQualityTone` schedules oscillator notes on the shared `_restAudioCtx` behind the master audio
+  gate + speech ducking; fired on the SAME rising edge as the feat-207 set-end annunciation (never while
+  editing history). Enabling it from settings plays the PR fanfare as a demo. Covered in `exvoice.spec`.
+- **Exercise-page voice control (feat 436):** a 🎤 toggle in the sheet's media row (persisted in
+  `workoutControls.exVoice`, device-local) arms ONE continuous SpeechRecognition session while the
+  Exercise sheet is open — and nowhere else in the app. Commands: "weight 120" / "load 120", "reps 8",
+  "time 90" (time mode), "add set" (obeys the feat-65 one-incomplete-row rule), "save"/"done", "close";
+  each confirms with a toast + short vibration. Since a browser allows one live recognition session, the
+  feat-423 hold stop word is folded into this mic while it runs (`_holdAutoArm` skips its own session
+  when `_exVoiceRec` is live); armed on sheet open, released on close alongside the hold sensors.
+  Lesson re-learned: `ensureWC` is closure-local to the settings binder — top-level code must guard
+  `state.workoutControls` inline (the spec caught the ReferenceError). Covered in `exvoice.spec`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

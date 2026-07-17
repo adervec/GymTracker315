@@ -2687,6 +2687,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .ex-note-add:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .ex-note .ex-note-add { margin-top: 0; margin-left: 6px; font-size: 11px; padding: 3px 9px; }
   .ex-note-add.has-cap { background: var(--accent-bg); border-color: var(--accent-border); } /* feat 434 — an active exercise cap shows tinted */
+  .ex-media-btn.voice-on { border-color: var(--accent); color: var(--accent); font-weight: 700; } /* feat 436 — live mic reads active */
   /* feat 107 — picker escape hatch back to the current exercise */
   .picker-back-current { display: block; width: 100%; padding: 9px 12px; margin-bottom: 8px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; color: var(--accent); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
   /* feat 112/115 — plan-step chips at the top of the picker */
@@ -9270,6 +9271,16 @@ function renderSettingsDrawer() {
     <div class="drawer-data-row">
       <button class="drawer-btn" id="drawer-rc-test">▶ Test end cue</button>
     </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">🎼 Set-quality sound</div>
+        <div class="drawer-setting-sub">On completing a set, play a short melody that tracks its quality vs your own history — a rising fanfare for a PR, a neutral note for matching, a falling pair for a down set.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).setQualityTone ? 'active' : ''}" data-sqtone="on">On</button>
+        <button class="drawer-pill ${!(state.workoutControls||{}).setQualityTone ? 'active' : ''}" data-sqtone="off">Off</button>
+      </div>
+    </div>
 
     <div class="drawer-section-title">Live Dashboard</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Show or hide each element of the current-workout dashboard.</div>
@@ -9750,6 +9761,7 @@ function renderSettingsDrawer() {
       else if (btn.dataset.shakenav) { ensureWC(); const on = btn.dataset.shakenav === 'on'; state.workoutControls.shakeNav = on; saveState(); if (on) enableShakeNav(true); else disableShakeNav(); } // feat 348
       else if (btn.dataset.holdaccel) { ensureWC(); const on = btn.dataset.holdaccel === 'on'; state.workoutControls.holdAccelStop = on; saveState(); if (on) enableHoldAccelStop(true); else _holdAutoDisarm(); } // feat 423
       else if (btn.dataset.holdvoice) { ensureWC(); const on = btn.dataset.holdvoice === 'on'; state.workoutControls.holdVoiceStop = on; saveState(); if (on) toast('🎙 Say "' + holdVoiceWordCfg() + '" during a hold to stop it'); else _holdAutoDisarm(); } // feat 423
+      else if (btn.dataset.sqtone) { ensureWC(); const on = btn.dataset.sqtone === 'on'; state.workoutControls.setQualityTone = on; saveState(); if (on) playSetQualityTone('pr'); toast('🎼 Set-quality sound: ' + (on ? 'on (that was the PR fanfare)' : 'off')); } // feat 435
       else if (btn.dataset.rpemode) { ensureWC(); state.workoutControls.rpeMode = ['off','rpe','rir'].indexOf(btn.dataset.rpemode) === -1 ? 'off' : btn.dataset.rpemode; saveState(); if (typeof modalState !== 'undefined' && modalState.open) renderModal(); if (typeof render === 'function') render(); toast('RPE / RIR: ' + (rpeMode() === 'off' ? 'hidden' : rpeMode().toUpperCase())); } // feat 261
       renderSettingsDrawer();
     });
@@ -16822,7 +16834,7 @@ function _holdVoiceMakeRec(word, onHit) {
 }
 function _holdAutoArm() { // idempotent — safe to call on every re-render while the hold runs
   if (holdAccelStopEnabled() && !_haMotionOn && shakeNavSupported()) { _haPickup = makePickupDetector(); window.addEventListener('devicemotion', _onHoldMotion); _haMotionOn = true; }
-  if (holdVoiceStopEnabled() && !_haRec) {
+  if (holdVoiceStopEnabled() && !_haRec && !_exVoiceRec) { // feat 436 — the exercise-page mic already listens for the stop word
     const rec = _holdVoiceMakeRec(holdVoiceWordCfg(), () => _holdAutoStop('voice'));
     if (rec) { rec.onend = () => { if (_haRec === rec) { try { rec.start(); } catch (_) {} } }; try { rec.start(); _haRec = rec; } catch (_) {} }
   }
@@ -16859,6 +16871,50 @@ function testHoldVoiceWord() {
   rec.onend = () => { if (_haTestRec === rec) { _haTestRec = null; if (!heard) toast('⏱ Didn\'t catch "' + word + '" — try again closer to the mic'); } };
   toast('🎙 Listening… say "' + word + '"');
   try { rec.start(); _haTestRec = rec; setTimeout(() => { if (_haTestRec === rec) { try { rec.stop(); } catch (_) {} } }, 6000); } catch (_) { toast('Could not start the microphone'); }
+}
+/* ---- feat 436 — voice control for the EXERCISE PAGE only. A 🎤 toggle on the sheet arms ONE
+   continuous recognition session while the sheet is open (never elsewhere in the app): say
+   "weight 120", "reps 8", "time 90", "add set", "save"/"done", or "close". The hold stop word
+   (feat 423) is folded into this same mic while it runs, since a browser gives you one
+   SpeechRecognition session — the two features must not fight over it. ---- */
+let _exVoiceRec = null;
+function exVoiceEnabled() { return !!(state.workoutControls || {}).exVoice; }
+function _exVoiceTargetSet() { // first incomplete set, or a fresh row — same target rule as prefill
+  let i = (pending.sets || []).findIndex(s => s && !isSetValid(s, pending.varUuid));
+  if (i < 0) { pending.sets.push({ w: '', r: '' }); i = pending.sets.length - 1; }
+  return i;
+}
+function _exVoiceHandle(tRaw) {
+  const t = ' ' + String(tRaw || '').toLowerCase().trim() + ' ';
+  // the shared mic also serves the hold stop word while a hold is live
+  if (holdVoiceStopEnabled() && document.querySelector('.hold-timer-btn[data-hold-idx]') && t.includes(holdVoiceWordCfg())) { _holdAutoStop('voice'); return 'hold stop'; }
+  if (typeof modalState === 'undefined' || !modalState.open) return null;
+  let m, act = null;
+  if ((m = t.match(/\b(?:weight|load)\s+(\d+(?:[.,]\d+)?)\b/))) { const n = parseFloat(m[1].replace(',', '.')); commitSetField(_exVoiceTargetSet(), 'w', n); renderModal(); act = 'weight ' + n; }
+  else if ((m = t.match(/\b(?:reps?|repetitions)\s+(\d+)\b/)) || (m = t.match(/\b(\d+)\s+reps?\b/))) { commitSetField(_exVoiceTargetSet(), 'r', parseInt(m[1], 10)); renderModal(); act = m[1] + ' reps'; }
+  else if ((m = t.match(/\b(?:time|seconds)\s+(\d+)\b/)) && pendingIsTimeMode()) { commitSetField(_exVoiceTargetSet(), 'r', m[1]); renderModal(); act = m[1] + 's'; }
+  else if (/\badd (?:a )?set\b/.test(t)) { const b = document.getElementById('trk-add-set'); if (b) b.onclick ? b.onclick() : b.click(); act = 'add set'; }
+  else if (/\b(?:save|done)\b/.test(t)) { const b = document.getElementById('trk-save-btn'); if (b && !b.disabled) { b.onclick ? b.onclick() : b.click(); act = 'save'; } }
+  else if (/\bclose\b/.test(t)) { closeLogModal(); render(); act = 'close'; }
+  if (act) { safeVibrate([0, 30]); toast('🎤 ' + act); }
+  return act;
+}
+function exVoiceArm() { // idempotent — only while the sheet is open and the toggle is on
+  if (_exVoiceRec || !exVoiceEnabled() || !speechRecSupported() || typeof modalState === 'undefined' || !modalState.open) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SR(); rec.continuous = true; rec.interimResults = false;
+  rec.onresult = (ev) => { for (let j = ev.resultIndex; j < ev.results.length; j++) { if (ev.results[j].isFinal) _exVoiceHandle((ev.results[j][0] || {}).transcript); } };
+  rec.onend = () => { if (_exVoiceRec === rec) { try { rec.start(); } catch (_) {} } }; // sessions die on silence — keep it live
+  try { rec.start(); _exVoiceRec = rec; } catch (_) {}
+}
+function exVoiceDisarm() { if (_exVoiceRec) { const r = _exVoiceRec; _exVoiceRec = null; r.onend = null; try { r.stop(); } catch (_) {} } }
+function exVoiceToggle() {
+  if (!state.workoutControls) state.workoutControls = {}; // ensureWC lives in the settings binder's closure — not reachable here
+  const on = !exVoiceEnabled();
+  state.workoutControls.exVoice = on; saveState();
+  if (on) { exVoiceArm(); toast('🎤 Voice control on — say "weight 120", "reps 8", "add set", "save" or "close"'); }
+  else { exVoiceDisarm(); toast('🎤 Voice control off'); }
+  renderModal();
 }
 // Turn the pickup trigger on from settings — iOS wants motion permission granted from the tap itself.
 async function enableHoldAccelStop(interactive) {
@@ -23186,6 +23242,7 @@ function openLogModal() {
   document.getElementById('trk-modal').classList.add('open');
   _lockBodyForSheet(); // feat 419 — a page, not an overlay: no backdrop, and the page behind cannot touch-scroll (iOS-proof)
   _markExercisePage(); // feat 192
+  if (typeof exVoiceArm === 'function') exVoiceArm(); // feat 436 — the page's voice control (if enabled) listens while the sheet is open
 }
 
 function editExisting(sessionDate, varUuid, subUuid) {
@@ -23245,6 +23302,7 @@ function closeLogModal() {
   modalState.planStepFilter = null; // feat 112/115
   if (typeof stopHoldTimers === 'function') stopHoldTimers(); // feat 257 — kill the hold-timer interval on close
   if (typeof _holdAutoDisarm === 'function') _holdAutoDisarm(); // feat 423 — sensors off with the sheet
+  if (typeof exVoiceDisarm === 'function') exVoiceDisarm(); // feat 436 — mic off with the sheet
   if (typeof closeNumpad === 'function') closeNumpad(); // feat 57 — don't leave the numpad sheet open
   document.getElementById('trk-modal').classList.remove('open');
   document.getElementById('trk-modal-backdrop').classList.remove('open');
@@ -24536,7 +24594,7 @@ function renderSetsForm() {
       }</div>` : ''}
       ${(() => { const h = weightRecordHint(pending.varUuid); return h ? `<div class="weight-record-hint">${escapeHtml(h)}</div>` : ''; })()}
       <div class="ex-note-row">${exNoteHtml}${(() => { const c = exMaxW(pending.varUuid); return `<button type="button" class="ex-note-add${c ? ' has-cap' : ''}" id="trk-ex-maxw" title="Cap suggestions and data entry for this exercise">⚖️ ${c ? 'Max ' + c + state.unit : 'Set max'}</button>`; })()}</div>
-      <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}${getExerciseMedia(pending.varUuid).length ? ' var-media' : ''}" id="trk-ex-media-btn" type="button" ${getExerciseMedia(pending.varUuid).length ? 'title="Includes media for this exact variation" ' : ''}data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-podcast-btn" type="button" title="Play a 30-60s coach brief on this movement">🎧 Brief</button></div>
+      <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}${getExerciseMedia(pending.varUuid).length ? ' var-media' : ''}" id="trk-ex-media-btn" type="button" ${getExerciseMedia(pending.varUuid).length ? 'title="Includes media for this exact variation" ' : ''}data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-podcast-btn" type="button" title="Play a 30-60s coach brief on this movement">🎧 Brief</button>${speechRecSupported() ? `<button class="ex-media-btn${exVoiceEnabled() ? ' voice-on' : ''}" id="trk-ex-voice" type="button" title="Voice control for THIS page — say weight 120 · reps 8 · add set · save · close">🎤${exVoiceEnabled() ? ' On' : ''}</button>` : ''}</div>
       ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
     </div>
 
@@ -24933,6 +24991,10 @@ function commitSetField(i, f, val) {
     s.ts = rFilled ? new Date().toISOString() : undefined;          // reps entered → set done
     if (s.ts && holdCueActive()) cancelHoldCue();                   // feat 291 — the hold finished → stop counting
     if (s.ts && !wasDone && parseFloat(s.r) > 0 && typeof annunceSetEnd === 'function') annunceSetEnd(); // feat 207
+    if (s.ts && !wasDone && parseFloat(s.r) > 0 && !modalState.isEditing && setQualityToneEnabled()) { // feat 435 — quality melody on the same rising edge
+      const sc = getOverloadScore(pending.varUuid, pending.subUuid, { w: s.w, r: s.r }, new Date().toISOString());
+      playSetQualityTone(sc ? sc.level : 'baseline');
+    }
   }
   savePending();
   updateFAB();
@@ -25203,6 +25265,7 @@ function bindSetsForm() {
   // Tips section toggle
   document.getElementById('trk-tips-ref-btn')?.addEventListener('click', (e) => { e.stopPropagation(); openReferenceFor(pending.varUuid); });
   document.getElementById('trk-podcast-btn')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 304
+  document.getElementById('trk-ex-voice')?.addEventListener('click', exVoiceToggle); // feat 436 — page-scoped voice control
   document.getElementById('trk-tips-header')?.addEventListener('click', () => {
     const sec = document.getElementById('trk-tips-section');
     sec.classList.toggle('open');
@@ -25924,7 +25987,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 354 · 2026-07-17 12:40';
+const APP_BUILD = 'build 355 · 2026-07-17 13:08';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -26407,6 +26470,29 @@ function metroBeep(freq, vol) {
     g.gain.setValueAtTime(v, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
     o.start(t); o.stop(t + 0.08);
+  } catch (e) {}
+}
+// feat 435 — a short melody on completing a set that TRACKS THE SET'S QUALITY (its overload level vs
+// your own history): rising fanfare for a PR, neutral note for matching, a falling pair for a down set.
+// Opt-in via Settings › Metronome & Cues; rides the shared rest-audio context and the master audio gate.
+function setQualityToneEnabled() { return !!(state.workoutControls || {}).setQualityTone; }
+const _SQT_NOTES = { pr: [523, 659, 784, 1047], progress: [523, 784], mild: [523, 587], match: [494], 'mild-down': [392], down: [440, 330], baseline: [523] };
+function playSetQualityTone(level) {
+  try {
+    if (!sndAudioOn() || !headphoneGatePasses()) return;
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    _restAudioCtx = _restAudioCtx || new AC();
+    if (_restAudioCtx.state === 'suspended') _restAudioCtx.resume();
+    const notes = _SQT_NOTES[level] || _SQT_NOTES.match;
+    const t0 = _restAudioCtx.currentTime, v = Math.max(0.01, Math.min(1, 0.22 * duckedVol()));
+    notes.forEach((f, k) => {
+      const o = _restAudioCtx.createOscillator(), g = _restAudioCtx.createGain();
+      o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(_restAudioCtx.destination);
+      const t = t0 + k * 0.1;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + (level === 'pr' ? 0.16 : 0.11));
+      o.start(t); o.stop(t + 0.18);
+    });
   } catch (e) {}
 }
 // feat 92 — UI tap feedback: a crisp, soft click + short haptic on every interactive control.
