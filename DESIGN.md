@@ -2353,6 +2353,38 @@ They share variation **UUIDs**.
   record-hunting starts at the pick. `buildVulnerableRecordSet` is one pass over history (same batched
   pattern as `buildVarTrendMap`); fresh records (set inside the window) and out-of-form variations get no
   badge. Cutoffs (5% / 90 d) are deliberate simple constants. Covered in `vulrecord.spec`.
+- **Horizontal calf raise (feat 425):** requested missing machine — the seated horizontal-sled calf press.
+  Two `EXTRA_VARIATIONS` on the calf-raise family (the feat 382/419 pattern): **Horizontal Calf Raise
+  (Machine)** and **Single-Leg Horizontal Calf Raise (Machine)** — separate variations rather than a
+  sub-option so each keeps its own history/PRs (single-leg runs far lighter), mirroring how Standing vs
+  Single-Leg Calf Raise already coexist. Loggable, documented in Reference, token-searchable
+  ("horizontal calf"); covered in `machinegaps.spec`.
+- **Quarter-step plan volume (feat 426):** the feat-398 Use-plan dialog's volume row grows from ½×/1×/2×
+  to **½ · ¾ · 1 · 1¼ · 1¾ · 2** (requested). `_scalePlan` already handled arbitrary factors
+  (round, min 1) so only the `scales` array and the start-toast changed — the toast now reports any
+  non-1 factor ("1.75× volume") instead of hard-coding halved/doubled. Covered in `planbookends.spec`.
+- **Navigation closes the Exercise sheet (feat 427):** with the Exercise sheet open (a body-pinned
+  normal screen since feat 419), tapping the 🔥 Workout or 🗺️ Plan shortcut tab changed the page
+  INVISIBLY underneath it. One guard in `navTo()` now closes the sheet (same path as its ✕) before any
+  page navigation; the ✍️ Exercise tab is unaffected (its legacy-opener branch returns earlier). Flows
+  that already closed the sheet explicitly (`openReferenceFor`, `openTrendsFor`) are now just redundant,
+  not broken. Covered in `exscreen.spec`.
+- **Objective set tier (feat 428):** next to the history-relative overload tag, each completed set can
+  carry a 🌍 chip grading it against POPULATION strength standards for the user's own biometrics:
+  **Light / Average / Heavy / Elite / Inhuman**. `objectiveSetTier` requires gender + a bodyweight entry
+  (else NO read); e1RM÷bodyweight is compared to `STRENGTH_STANDARDS` — strengthlevel-flavored cutoffs
+  for ~23 big families (ponytail: indicative, not fitted; machines vary by brand). Female ×0.65,
+  'other' ×0.82, masters drift −0.8%/yr past 35 (floor 0.6), dumbbell variations ×0.4 (one DB ≈ 40% of
+  the barbell total; per-hand families like lateral raise are tabled per-DB). Height is deliberately
+  unused — the bodyweight ratio absorbs body size and no credible height-adjusted standards exist.
+  Rendered in both set-row paths (full render + live input update). Covered in `objtier.spec`.
+- **Fix logged weights (feat 429):** history repair for the "logged the machine's TOTAL instead of one
+  stack/dumbbell" mistake (e.g. a month of MTS presses at double weight). 🛠 in the feat-422 all-weights
+  popup opens a sheet: factor pills ×½ / ×2 / custom, range 30 d / 90 d / all-time, a live dry-run
+  preview ("N sets across M sessions"), then a danger-confirm. `rescaleVariationWeights(varUuid, factor,
+  sinceMs, apply)` is one pass over sessions — variation-scoped (a logging convention spans subs),
+  skips cardio/empty sets, re-stamps only touched sessions' `updatedAt` so the sync merge (feats 95/324)
+  carries the fix across devices. Covered in `fixweights.spec`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

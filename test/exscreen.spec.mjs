@@ -81,6 +81,30 @@ test('feat 251 — the log sheet renders the time stat + the context-aware media
   expect(r.noMediaClass).toBe(true);
 });
 
+// feat 427 — navigating to any page (the 🔥 Workout / 🗺️ Plan shortcut tabs included) closes the Exercise sheet like its ✕
+test('feat 427 — navTo closes the open Exercise sheet like ✕', async ({ page }) => {
+  const v = await stdVar(page);
+  const r = await page.evaluate((v) => {
+    pending = { varUuid: v, subUuid: null, sets: [{ w: '', r: '' }] };
+    openLogModal(); modalState.showPicker = false; renderModal();
+    const openBefore = modalState.open && document.getElementById('trk-modal').classList.contains('open');
+    navTo('workout');                                    // the 🔥 Workout tab
+    const afterWorkout = { open: modalState.open, cls: document.getElementById('trk-modal').classList.contains('open'), page: currentPage };
+    openLogModal();
+    navTo('plan-detail');                                // the 🗺️ Plan tab (openPlanLive → navTo('plan-detail'))
+    const afterPlan = { open: modalState.open, cls: document.getElementById('trk-modal').classList.contains('open'), page: currentPage };
+    openLogModal();
+    navTo('exercise');                                   // ✍️ Exercise — legacy-opener path keeps the sheet
+    const afterExercise = { open: modalState.open, cls: document.getElementById('trk-modal').classList.contains('open') };
+    closeLogModal();
+    return { openBefore, afterWorkout, afterPlan, afterExercise };
+  }, v);
+  expect(r.openBefore).toBe(true);
+  expect(r.afterWorkout).toEqual({ open: false, cls: false, page: 'workout' });
+  expect(r.afterPlan).toEqual({ open: false, cls: false, page: 'plan-detail' });
+  expect(r.afterExercise).toEqual({ open: true, cls: true });
+});
+
 // feat 421 — a subtle dot on the media button when THIS variation owns media (movement-only media gets no dot)
 test('feat 421 — var-media class marks variation-specific media, not movement-inherited', async ({ page }) => {
   const v = await stdVar(page);

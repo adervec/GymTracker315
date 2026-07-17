@@ -59,3 +59,30 @@ test('feat 382 — the new machines are findable by search', async ({ page }) =>
   expect(r.shrug.some(t => /Behind-the-Back Cable Shrug/.test(t))).toBe(true);
   expect(r.rocit.filter(t => /Roc-It (Biceps|Reverse) Curl/.test(t)).length).toBe(2); // both the curl + reverse on the one machine
 });
+
+// feat 425 — horizontal (seated sled) calf raise machine, double- and single-leg.
+test('feat 425 — horizontal calf raise (both + single-leg) is loggable, documented and searchable', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const check = (uuid) => {
+      const info = VAR_INDEX.get(uuid);
+      const exFam = exercises.find(e => e.id === 'calf-raise');
+      return { found: !!info, fam: info && info.family.id, title: info && info.variation.title,
+        visible: info && varVisibleInPicker(info.family, info.variation), mode: info && exMode(uuid).mode,
+        inDocs: !!(exFam && (exFam.variations || []).some(v => v.uuid === uuid)) };
+    };
+    modalState.pickerSearch = 'horizontal calf'; modalState.planStepFilter = null; modalState.pickerExplored = 'all';
+    const titles = [];
+    filterVariations().forEach(g => { (g.variations || []).forEach(v => titles.push(v.title)); (g.secondaryVars || []).forEach(s => titles.push(s.v.title)); });
+    return { both: check('b1a10018-0018-4018-8018-aaaaaaaa0018'), single: check('b1a10019-0019-4019-8019-aaaaaaaa0019'), titles };
+  });
+  for (const x of [r.both, r.single]) {
+    expect(x.found).toBe(true);
+    expect(x.fam).toBe('calf-raise');
+    expect(x.visible).toBe(true);
+    expect(x.mode).toBe('standard');
+    expect(x.inDocs).toBe(true);
+  }
+  expect(r.both.title).toMatch(/^Horizontal Calf Raise/);
+  expect(r.single.title).toMatch(/^Single-Leg Horizontal Calf Raise/);
+  expect(r.titles.filter(t => /Horizontal Calf Raise/.test(t)).length).toBe(2);
+});

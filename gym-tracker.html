@@ -1810,6 +1810,13 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .set-overload-tag.mild-down { background: #2e2418; color: #d4b070; border: 1px solid #4a3a20; }
   .set-overload-tag.down { background: #3a1f1f; color: #ff9090; border: 1px solid #5a2a2a; }
   .set-overload-tag.baseline { background: #1f1f2e; color: #aab0c8; border: 1px solid #2a2a40; }
+  /* feat 428 — objective population-standard tier chip, rendered beside/under the overload tag */
+  .set-obj-tag { grid-column: 2 / 4; font-size: 9.5px; padding: 1px 6px; border-radius: 4px; font-weight: 700; justify-self: start; margin-top: 1px; letter-spacing: 0.3px; }
+  .set-obj-tag.obj-light   { background: #1f2630; color: #9fb2c8; border: 1px solid #2a3340; }
+  .set-obj-tag.obj-average { background: #1d3a25; color: #80e090; border: 1px solid #2e6f3a; }
+  .set-obj-tag.obj-heavy   { background: #2e2a18; color: #e0c070; border: 1px solid #4a4220; }
+  .set-obj-tag.obj-elite   { background: #2a1f33; color: #cf9fff; border: 1px solid #46306a; }
+  .set-obj-tag.obj-inhuman { background: linear-gradient(135deg, #6a2a7a, #a03060); color: #fff; border: 1px solid #8a4a9a; }
 
   /* Record hint shown next to the bottom-most set */
   .record-hint { grid-column: 2 / 4; font-size: 10.5px; color: #88b0ff; background: #161a26; border: 1px solid #2a3340; border-left: 3px solid #88b0ff; padding: 5px 8px; border-radius: 5px; justify-self: stretch; margin-top: 4px; font-variant-numeric: tabular-nums; line-height: 1.4; }
@@ -2924,6 +2931,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .target-expand { padding: 6px 9px; }
 .wt-sheet { max-width: 480px; }
 .wt-table-wrap { overflow: auto; max-height: 62vh; margin: 4px 0 10px; }
+#fixw-custom { flex: 1; min-width: 0; width: 60px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; color: var(--text); font-family: inherit; font-size: 14px; text-align: center; padding: 9px 4px; } /* feat 429 — custom factor sits in the pill row */
 .wt-table { width: 100%; border-collapse: collapse; font-size: 11px; color: var(--text); }
 .wt-table th { position: sticky; top: 0; background: var(--bg2); color: var(--text3); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.3px; padding: 6px 5px; text-align: right; cursor: pointer; white-space: nowrap; user-select: none; }
 .wt-table th.on { color: var(--accent); }
@@ -3720,6 +3728,21 @@ const EXTRA_VARIATIONS = [
     mistakes:['Bouncing at the bottom','Hips curling off the pad (lower back rounds)','Slamming into a hard knee lockout','Feet too low on the platform (knee strain)'],
     programming:{'Strength':'4 × 6-10','Hypertrophy':'3-4 × 10-15'},
     tip:'Foot placement steers it: higher on the platform biases glutes/hams, lower biases quads — same sled, two exercises.' },
+  // feat 425 — horizontal (seated sled) calf raise machine (requested), double- and single-leg versions.
+  { movementId:'calf-raise', id:'horizontal-calf-raise', uuid:'b1a10018-0018-4018-8018-aaaaaaaa0018', title:'Horizontal Calf Raise (Machine)', best:'Heavy Seated Gastroc',
+    cue:'Seated sled calf machine — legs out straight, balls of both feet on the plate. Press to a full point, sink into a deep stretch.',
+    setup:['Set the seat so the knees are nearly straight with the balls of the feet on the plate','Heels hang free off the plate edge','Hands light on the grips — the calves do the work'],
+    movement:['Let the plate push the toes back for a 2s stretch','Press away to full plantar flexion','Pause 1-2s at the top','Slow eccentric'],
+    mistakes:['Bending the knees to leg-press the weight','Half reps','Bouncing out of the stretch'],
+    programming:{'Hypertrophy':'4 × 10-15'},
+    tip:'Same motion as the leg-press calf raise but with a fixed seat — heavy gastroc loading with zero balance demand.' },
+  { movementId:'calf-raise', id:'horizontal-calf-raise-single', uuid:'b1a10019-0019-4019-8019-aaaaaaaa0019', title:'Single-Leg Horizontal Calf Raise (Machine)', best:'Unilateral Machine Calf',
+    cue:'The same horizontal sled worked one foot at a time — evens out a stronger side, doubles the stretch focus.',
+    setup:['Seat set as for the two-leg version','Ball of ONE foot on the plate, the other foot rested clear','Much lighter load than two legs'],
+    movement:['Deep 2s stretch','Press to a full point, pause at the top','Slow negative','Match reps on both legs'],
+    mistakes:['Bending the knee to help','Uneven reps left vs right','Rushing the stretch'],
+    programming:{'Hypertrophy':'3 × 10-15 per leg'},
+    tip:'Track it apart from the two-leg sled — single-leg runs much lighter and exposes the imbalance the pair hides.' },
 ];
 
 function applyExtraVariations() {
@@ -10701,6 +10724,69 @@ function getOverloadScore(varUuid, subUuid, set, currentSessionDate) {
   return { score: pct, label, level, oneRM: setOneRM, prevTopOneRM: prevTop };
 }
 
+/* ---- feat 428 — OBJECTIVE set tier: how the set ranks against POPULATION strength standards for the
+   user's own bodyweight / gender / age, shown next to the history-relative overload tag.
+   ponytail: strengthlevel-flavored e1RM÷bodyweight cutoffs for the big families only — indicative, not
+   fitted; a machine's leverage varies brand to brand. Height is deliberately unused: the bodyweight
+   ratio already absorbs body size and no credible height-adjusted standards exist. Extend the table
+   per family if a read is wanted elsewhere. ---- */
+const STRENGTH_STANDARDS = { // family id → [light→average, →heavy, →elite, →inhuman] e1RM÷BW cutoffs (male, ~25-35y)
+  'squat':               [1.00, 1.50, 2.00, 2.50],
+  'deadlift':            [1.25, 1.75, 2.50, 3.00],
+  'flat-bench-press':    [0.75, 1.00, 1.50, 2.00],
+  'incline-bench-press': [0.65, 0.90, 1.30, 1.70],
+  'decline-bench-press': [0.75, 1.05, 1.55, 2.00],
+  'shoulder-press':      [0.50, 0.70, 0.90, 1.20],
+  'row':                 [0.70, 0.90, 1.20, 1.50],
+  'lat-pulldown':        [0.60, 0.85, 1.10, 1.40],
+  'leg-press':           [1.75, 2.50, 3.25, 4.25],
+  'hip-thrust':          [1.10, 1.60, 2.20, 2.80],
+  'lunge':               [0.55, 0.85, 1.20, 1.55],
+  'leg-extension':       [0.70, 1.10, 1.50, 1.90],
+  'leg-curl':            [0.50, 0.80, 1.10, 1.40],
+  'calf-raise':          [0.80, 1.20, 1.70, 2.20],
+  'bicep-curl':          [0.35, 0.55, 0.75, 0.95],
+  'hammer-curl':         [0.25, 0.40, 0.55, 0.70],
+  'tricep-extension':    [0.35, 0.55, 0.80, 1.05],
+  'chest-fly':           [0.50, 0.80, 1.10, 1.45],
+  'shrugs':              [1.00, 1.40, 1.90, 2.40],
+  'pullover':            [0.35, 0.55, 0.80, 1.05],
+  'lateral-raise':       [0.10, 0.20, 0.30, 0.40],
+  'front-raise':         [0.12, 0.22, 0.33, 0.45],
+};
+const STANDARDS_PER_HAND = new Set(['lateral-raise', 'front-raise', 'hammer-curl']); // cutoffs are per dumbbell — no DB rescale
+const OBJ_TIERS = [
+  { key: 'light',   label: 'Light' },
+  { key: 'average', label: 'Average' },
+  { key: 'heavy',   label: 'Heavy' },
+  { key: 'elite',   label: 'Elite' },
+  { key: 'inhuman', label: 'Inhuman' },
+];
+function objectiveSetTier(varUuid, set) {
+  const info = VAR_INDEX.get(varUuid);
+  if (!info || exMode(varUuid).mode !== 'standard') return null;
+  const table = STRENGTH_STANDARDS[info.family.id];
+  if (!table) return null;
+  const w = parseFloat(set.w), r = parseFloat(set.r);
+  if (!(w > 0) || !(r > 0)) return null;
+  const g = state.profile && state.profile.gender;
+  const bwKg = getCurrentBodyweightKg();
+  if (!g || !bwKg) return null; // insufficient biometrics → no objective read
+  const bw = state.unit === 'kg' ? bwKg : kgToLb(bwKg);
+  const genderF = g === 'male' ? 1 : g === 'female' ? 0.65 : 0.82; // 'other' → midpoint of the two tables
+  const age = state.profile.dob ? ageFromDob(state.profile.dob) : null;
+  const ageF = age == null ? 1 : age > 35 ? Math.max(0.6, 1 - 0.008 * (age - 35)) : (age < 18 ? 0.9 : 1); // masters drift ≈0.8%/yr
+  const dbF = (autoSetupKind(varUuid) === 'dumbbell' && !STANDARDS_PER_HAND.has(info.family.id)) ? 0.4 : 1; // one DB ≈ 40% of the barbell total
+  const ratio = estimated1RM(w, r) / bw;
+  let tier = 0;
+  while (tier < 4 && ratio >= table[tier] * genderF * ageF * dbF) tier++;
+  return { tier, key: OBJ_TIERS[tier].key, label: OBJ_TIERS[tier].label, ratio: Math.round(ratio * 100) / 100 };
+}
+function objectiveTierTagHtml(varUuid, set) {
+  const o = objectiveSetTier(varUuid, set);
+  return o ? `<div class="set-obj-tag obj-${o.key}" title="Objective read for your bodyweight/gender/age: e1RM ≈ ${o.ratio}× bodyweight">🌍 ${o.label}</div>` : '';
+}
+
 function getProgressionSuggestion(varUuid, subUuid) {
   const history = getHistoryByKey(varUuid, subUuid);
   if (history.length === 0) return null;
@@ -12745,6 +12831,7 @@ function navTo(id, opts) {
   let def = PAGES[id]; if (!def) return;
   if (def.kind === 'menu') { id = _menuPrimary(id); def = PAGES[id]; if (!def) return; } // feat 221 — forward to content
   if (def.open && !def.render && def.kind !== 'menu') { def.open(); return; } // legacy opener — keep current page
+  if (typeof modalState !== 'undefined' && modalState.open) closeLogModal(); // feat 427 — navigating anywhere closes the Exercise sheet, same as its ✕ (Workout/Plan tabs included)
   if (!opts.replace && id !== currentPage) { _pageBack.push(currentPage); if (_pageBack.length > _PAGE_CAP) _pageBack.shift(); _pageFwd.length = 0; }
   currentPage = id; _persistPage(); renderCurrentPage();
 }
@@ -14966,7 +15053,7 @@ function planUseDialog(plan) {
   return new Promise(resolve => {
     const back = document.createElement('div'); back.className = 'choice-backdrop';
     const sheet = document.createElement('div'); sheet.className = 'choice-sheet';
-    const scales = [[0.5, '½×', 'Halved'], [1, '1×', 'Normal'], [2, '2×', 'Doubled']];
+    const scales = [[0.5, '½×', '50%'], [0.75, '¾×', '75%'], [1, '1×', '100%'], [1.25, '1¼×', '125%'], [1.75, '1¾×', '175%'], [2, '2×', '200%']]; // feat 426 — quarter steps added
     sheet.innerHTML = `<div class="choice-title">Start “${escapeHtml(plan.name)}”</div>
       <div class="choice-msg">Add a warm-up / cool-down and choose the volume for this session.</div>
       <div class="pud-tgls">
@@ -15005,7 +15092,7 @@ async function planUseForWorkout(id) {
   s.bookends = (choice.warmup || choice.cooldown) ? { warmup: choice.warmup, cooldown: choice.cooldown } : undefined; // feat 311
   s.planScale = (choice.scale && choice.scale !== 1) ? choice.scale : undefined; // feat 398 — ½ / 2× volume for this run
   saveState(); navTo('workout');
-  const extras = [choice.warmup && 'warm-up', choice.cooldown && 'cool-down', s.planScale === 0.5 && 'halved', s.planScale === 2 && 'doubled'].filter(Boolean);
+  const extras = [choice.warmup && 'warm-up', choice.cooldown && 'cool-down', s.planScale && (s.planScale + '× volume')].filter(Boolean); // feat 426 — any scale, not just ½/2
   toast('Using plan for this workout' + (extras.length ? ' (' + extras.join(', ') + ')' : '')); // feat 184 / 311 / 398
 }
 function renderPlansOverlay() {
@@ -24245,6 +24332,7 @@ function renderSetsForm() {
         rowClass += ` overload-${score.level}`;
         overloadTagHtml = `<div class="set-overload-tag ${score.level}">${score.label}</div>`;
       }
+      overloadTagHtml += objectiveTierTagHtml(pending.varUuid, { w: wNum, r: rNum }); // feat 428 — population-standard read next to the history-relative tag
     }
 
     // Record hint on bottom set with one input filled
@@ -24475,16 +24563,90 @@ function showWeightTablePopup() {
     .map(r => `<tr data-wt-w="${r.w}"><td class="wt-w">${r.w}</td><td>${cell(r.best)}</td><td>${cell(r.last)}</td><td>${cell(r.d90)}</td><td class="wt-idx">${r.pw}%</td><td class="wt-idx">${r.pv}%</td></tr>`).join('');
   back.innerHTML = `<div class="choice-sheet wt-sheet"><div class="choice-title">All weights — tap one to load it</div>
     <div class="wt-table-wrap"><table class="wt-table"><thead><tr>${head()}</tr></thead><tbody>${tbody()}</tbody></table></div>
-    <div class="choice-actions"><button class="choice-btn" type="button">Close</button></div></div>`;
+    <div class="choice-actions"><button class="choice-btn" type="button" data-wt-fix>🛠 Fix weights</button><button class="choice-btn" type="button">Close</button></div></div>`;
   back.addEventListener('click', (e) => {
     const th = e.target.closest('[data-wt-col]');
     if (th) { const c = th.dataset.wtCol; _wtSort = { col: c, dir: _wtSort.col === c ? -_wtSort.dir : -1 }; back.querySelector('thead tr').innerHTML = head(); back.querySelector('tbody').innerHTML = tbody(); return; }
     const tr = e.target.closest('[data-wt-w]');
     if (tr) { close(); prefillTargetWeight(parseFloat(tr.dataset.wtW)); return; }
+    if (e.target.closest('[data-wt-fix]')) { close(); showFixWeightsPopup(); return; } // feat 429
     if (e.target === back || e.target.classList.contains('choice-btn')) close();
   });
   document.body.appendChild(back);
   requestAnimationFrame(() => back.classList.add('open'));
+}
+/* ---- feat 429 — fix logged weights: rescale history where the machine's TOTAL weight was recorded
+   instead of the per-stack / per-hand weight (or the reverse). Variation-level on purpose — the
+   mistake is a logging convention, which spans sub-variations; scope per-sub if a need shows up.
+   apply=false dry-runs and only counts. ---- */
+function rescaleVariationWeights(varUuid, factor, sinceMs, apply) {
+  if (!varUuid || !(factor > 0)) return { sets: 0, sessions: 0 };
+  let nSets = 0, nSess = 0;
+  (state.sessions || []).forEach(s => {
+    if (new Date(s.date).getTime() < (sinceMs || 0)) return;
+    let touched = false;
+    (s.exercises || []).forEach(ex => {
+      if (ex.varUuid !== varUuid || ex.cardio) return;
+      (ex.sets || []).forEach(set => {
+        const w = parseFloat(set.w);
+        if (!(w > 0)) return;
+        if (apply) set.w = Math.round(w * factor * 100) / 100;
+        nSets++; touched = true;
+      });
+    });
+    if (touched) { nSess++; if (apply) s.updatedAt = new Date().toISOString(); } // the sync merge (feat 95/324) carries the fix to other devices
+  });
+  if (apply && nSess) saveState();
+  return { sets: nSets, sessions: nSess };
+}
+function showFixWeightsPopup() {
+  if (roBlocked('fix logged weights')) return;
+  if (!pending.varUuid) return;
+  const SINCE = [[30, '30 days'], [90, '90 days'], [0, 'All time']];
+  let sinceDays = 30;
+  const back = document.createElement('div'); back.className = 'choice-backdrop';
+  const close = () => { back.classList.remove('open'); setTimeout(() => back.remove(), 200); };
+  back.innerHTML = `<div class="choice-sheet"><div class="choice-title">🛠 Fix logged weights</div>
+    <div class="choice-msg">Logged the machine's TOTAL instead of one stack (or one dumbbell)? Rescale this variation's history so trends and PRs stay honest. ×½ turns totals into per-stack; ×2 is the reverse.</div>
+    <div class="pud-seg" id="fixw-factor">
+      <button type="button" class="active" data-fixw-f="0.5"><b>×½</b><span>total→one</span></button>
+      <button type="button" data-fixw-f="2"><b>×2</b><span>one→total</span></button>
+      <input type="number" step="any" min="0" id="fixw-custom" value="0.5" aria-label="Custom factor">
+    </div>
+    <div class="pud-seg" id="fixw-since">
+      ${SINCE.map(([d, l]) => `<button type="button" class="${d === 30 ? 'active' : ''}" data-fixw-since="${d}"><b>${l}</b></button>`).join('')}
+    </div>
+    <div class="choice-msg" id="fixw-preview"></div>
+    <div class="choice-actions"><button class="choice-btn primary" data-fixw="apply">Apply</button><button class="choice-btn" data-fixw="cancel">Cancel</button></div></div>`;
+  const sinceMs = () => sinceDays ? Date.now() - sinceDays * 86400000 : 0;
+  const preview = () => {
+    const p = rescaleVariationWeights(pending.varUuid, 2, sinceMs(), false); // factor is irrelevant when counting
+    back.querySelector('#fixw-preview').textContent = p.sets ? `${p.sets} set${p.sets === 1 ? '' : 's'} across ${p.sessions} session${p.sessions === 1 ? '' : 's'} will be rescaled.` : 'No logged sets in this range.';
+  };
+  back.addEventListener('click', (e) => {
+    const f = e.target.closest('[data-fixw-f]');
+    if (f) { back.querySelector('#fixw-custom').value = f.dataset.fixwF; back.querySelectorAll('[data-fixw-f]').forEach(x => x.classList.toggle('active', x === f)); return; }
+    const s = e.target.closest('[data-fixw-since]');
+    if (s) { sinceDays = parseInt(s.dataset.fixwSince, 10); back.querySelectorAll('[data-fixw-since]').forEach(x => x.classList.toggle('active', x === s)); preview(); return; }
+    if (e.target.closest('[data-fixw="apply"]')) {
+      const factor = parseFloat(back.querySelector('#fixw-custom').value);
+      if (!(factor > 0) || factor === 1) { toast('Pick a factor other than 1'); return; }
+      const since = sinceMs();
+      const p = rescaleVariationWeights(pending.varUuid, factor, since, false);
+      if (!p.sets) { toast('Nothing to rescale in this range'); return; }
+      confirmDialog(`Multiply ${p.sets} logged set weight${p.sets === 1 ? '' : 's'} in ${p.sessions} session${p.sessions === 1 ? '' : 's'} by ${factor}? This rewrites history.`, { danger: true, okLabel: 'Rescale' }).then(ok => {
+        if (!ok) return;
+        const r = rescaleVariationWeights(pending.varUuid, factor, since, true);
+        toast(`✅ ${r.sets} set weight${r.sets === 1 ? '' : 's'} ×${factor}`);
+        close(); renderModal();
+      });
+      return;
+    }
+    if (e.target === back || e.target.closest('[data-fixw="cancel"]')) close();
+  });
+  document.body.appendChild(back);
+  requestAnimationFrame(() => back.classList.add('open'));
+  preview();
 }
 // Renders neighbor baseline hints into #trk-neighbor-hints.
 // Shows closest lighter & heavier historical weights when the currently
@@ -24576,7 +24738,7 @@ function updateRowLive(idx) {
 
   // Remove old overload classes, tag, and hint
   row.className = 'set-row';
-  row.querySelectorAll('.set-overload-tag, .record-hint').forEach(el => el.remove());
+  row.querySelectorAll('.set-overload-tag, .set-obj-tag, .record-hint').forEach(el => el.remove());
 
   if (wNum > 0 && rNum > 0) {
     const score = getOverloadScore(pending.varUuid, pending.subUuid, { w: wNum, r: rNum }, currentSessionDate);
@@ -24587,6 +24749,8 @@ function updateRowLive(idx) {
       tag.textContent = score.label;
       row.appendChild(tag);
     }
+    const objHtml = objectiveTierTagHtml(pending.varUuid, { w: wNum, r: rNum }); // feat 428
+    if (objHtml) row.insertAdjacentHTML('beforeend', objHtml);
   }
 
   // Bottom-row record hint
@@ -25634,7 +25798,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 350 · 2026-07-16 20:39';
+const APP_BUILD = 'build 351 · 2026-07-17 02:56';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

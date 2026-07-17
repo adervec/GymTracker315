@@ -128,3 +128,37 @@ test('feat 398 — the dialog can halve or double the plan volume, and cancel do
   expect(r.storedUnchanged).toEqual([4, 3]);    // the saved plan is never mutated
   expect(r.cancelledNoSession).toBe(true);      // cancel = no workout started
 });
+
+test('feat 426 — quarter-step volume scales (¾× / 1¼× / 1¾×) in the dialog', async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    const open = async (pick) => {
+      document.querySelectorAll('.choice-backdrop').forEach(b => b.remove());
+      state.sessions = [];
+      const p = planUseForWorkout('p5');
+      const back = [...document.querySelectorAll('.choice-backdrop')].pop();
+      back.querySelector(`#pud-scale button[data-scale="${pick}"]`).click();
+      back.querySelector('[data-pud="ok"]').click();
+      await p;
+      return getActivePlan().steps.filter(st => !st.bookend).map(st => st.sets);
+    };
+    state.readonly = false;
+    state.planDefaults = { warmup: false, cooldown: false };
+    state.plans = [{ id: 'p5', name: 'T5', intensity: 3, steps: [
+      { sets: 4, options: [{ type: 'movement', familyId: 'squat' }], load: 'heavy' },
+      { sets: 3, options: [{ type: 'movement', familyId: 'flat-bench-press' }], load: 'heavy' } ] }];
+    const buttons = (() => {
+      const p = planUseForWorkout('p5');
+      const back = [...document.querySelectorAll('.choice-backdrop')].pop();
+      const vals = [...back.querySelectorAll('#pud-scale button')].map(b => parseFloat(b.dataset.scale));
+      back.querySelector('[data-pud="cancel"]').click();
+      return p.then(() => vals);
+    })();
+    return { buttons: await buttons, x075: await open(0.75), x125: await open(1.25), x175: await open(1.75),
+      scale175: getActiveSession().planScale };
+  });
+  expect(r.buttons).toEqual([0.5, 0.75, 1, 1.25, 1.75, 2]);
+  expect(r.x075).toEqual([3, 2]);   // round(4×.75)=3, round(3×.75)=2
+  expect(r.x125).toEqual([5, 4]);   // round(5)=5, round(3.75)=4
+  expect(r.x175).toEqual([7, 5]);   // round(7)=7, round(5.25)=5
+  expect(r.scale175).toBe(1.75);    // stored on the session like ½/2 always were
+});
