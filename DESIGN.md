@@ -2385,6 +2385,18 @@ They share variation **UUIDs**.
   sinceMs, apply)` is one pass over sessions — variation-scoped (a logging convention spans subs),
   skips cardio/empty sets, re-stamps only touched sessions' `updatedAt` so the sync merge (feats 95/324)
   carries the fix across devices. Covered in `fixweights.spec`.
+- **Single-implement flow plans (feat 430):** a SEED_PLANS tranche of seven sessions doable with ONE
+  implement and open space — three mace (Foundations · Full Body · Rotational Engine) and four
+  kettlebell (Swing & Get-Up · Clean, Press & Squat · Ballistic Engine · Mobility & Control). Every step
+  pins a REAL variation uuid (feat-175 lesson) from `mace-club-work` / `kettlebell-specific`, so the
+  plans stay implement-pure by construction — `flowplans.spec` asserts each pinned uuid resolves to the
+  expected family and every step is satisfiable.
+- **100-minute morning trio (feat 431):** three seed plans — **Morning Pull / Push / Lower (100m)** —
+  sized so `estimatePlanMinutes` reads ~105 (its 15-min rounding's closest step to 100: 36-37 sets,
+  9-10 steps each) that TOGETHER cover every major muscle family: both pull angles, rear delts, traps,
+  full arm + forearm block, all pressing angles + serratus, quads/hams/glutes from two angles, calves,
+  lower back and a core slot on each day. `flowplans.spec` asserts the ~105 sizing and the union
+  coverage list.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
