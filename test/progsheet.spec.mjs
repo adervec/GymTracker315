@@ -130,6 +130,36 @@ test('feat 422 — no ⤢ without history', async ({ page }) => {
   expect(await page.evaluate(() => !!document.getElementById('trk-wt-expand'))).toBe(false);
 });
 
+// feat 439/440 — the table colour-scales the PR columns and shows reps + the 🌍 objective read per weight
+test('feat 439/440 — popup rows carry ×reps, tier chips with biometrics, and coloured PR cells', async ({ page }) => {
+  await openWith(page, [{ daysAgo: 2, sets: [[135, 5]] }, { daysAgo: 9, sets: [[120, 15]] }]);
+  const r = await page.evaluate(() => {
+    state.profile = { ...(state.profile || {}), gender: 'male', dob: '' };
+    state.bodyComp = [{ date: '2026-01-01T12:00:00.000Z', weightKg: 100, updatedAt: '2026-01-01T12:00:00.000Z' }];
+    document.querySelectorAll('.choice-backdrop').forEach(b => b.remove());
+    showWeightTablePopup();
+    const back = [...document.querySelectorAll('.choice-backdrop')].pop();
+    const withBio = {
+      reps: (back.querySelector('.wt-reps') || {}).textContent || '',
+      objHeader: !!back.querySelector('[data-wt-col="obj"]'),
+      objChip: !!back.querySelector('.wt-obj'),
+      pwColored: ((back.querySelector('td.wt-idx') || {}).getAttribute && back.querySelector('td.wt-idx').getAttribute('style') || '').includes('hsl('),
+    };
+    document.querySelectorAll('.choice-backdrop').forEach(b => b.remove());
+    state.bodyComp = [];                                       // no bodyweight → no 🌍 column at all
+    showWeightTablePopup();
+    const back2 = [...document.querySelectorAll('.choice-backdrop')].pop();
+    const noBioObjHeader = !!back2.querySelector('[data-wt-col="obj"]');
+    document.querySelectorAll('.choice-backdrop').forEach(b => b.remove());
+    return { withBio, noBioObjHeader };
+  });
+  expect(r.withBio.reps).toMatch(/^×\d+$/);
+  expect(r.withBio.objHeader).toBe(true);
+  expect(r.withBio.objChip).toBe(true);
+  expect(r.withBio.pwColored).toBe(true);
+  expect(r.noBioObjHeader).toBe(false);
+});
+
 // feat 432 — the ⤢ grew up: a prominent full-width button below the target row opens the table
 test('feat 432 — the all-weights opener is a prominent button that opens the popup', async ({ page }) => {
   await openWith(page, [{ daysAgo: 2, sets: [[135, 5]] }]);

@@ -2436,6 +2436,27 @@ They share variation **UUIDs**.
   the feat-429 shape: dry-run counting, only-touched sessions re-stamp `updatedAt`, and remove-mode
   drops an exercise entry whose sets all vanish. Records, trends and PR odds simply recompute from the
   repaired history. Covered in `fixweights.spec`.
+- **Objective tiers retuned (feat 438):** field feedback — "mediocre sets read elite, and the scale is
+  the movement's, not the variation's". Three fixes: (1) every `STRENGTH_STANDARDS` cutoff moved a full
+  tier stricter (bounds now sit on strengthlevel-style novice/int/adv/elite 1RM ratios); (2) the ratio
+  caps Epley at 12 reps (`estimated1RM(w, min(r,12))`) so 15-20-rep pump sets can't inflate a tier;
+  (3) variation-aware scaling — kettlebell ×0.35 joins dumbbell ×0.4, and a `single/one-leg/arm|
+  unilateral|pistol` title match applies ×0.55 (one limb vs the pair) for non-DB/KB variations.
+  `objtier.spec` re-anchored + new reps-cap and single-leg cases.
+- **All-weights popup: colour + context (feat 439/440):** the PR wt / PR all cells colour-scale red→green
+  (`hsl(pct·1.2)`, inline — 0% red, 100% green); every e1RM cell shows the REPS of the set behind it
+  (`180 ×8`); and with biometrics on file a 🌍 column grades each weight-row's best set on the feat-438
+  tiers (chip shares the `.obj-*` palette, sortable by tier, column absent without biometrics). Covered
+  in `progsheet.spec`.
+- **One exercise, one step identity (feat 441):** regression report — hack squats (leg-press primary,
+  squat secondary parent since feat 301) filled BOTH a squat step and a leg-press step: feat 281's
+  allocator made each SET unique but let an entry's sets spill across DIFFERENT movements, and feat 144's
+  min-% (floor 1) then called the second step satisfied. `_allocSetsToSteps` now BINDS each exercise
+  entry to the identity of the option it first feeds (`v:uuid` / `f:family` / `m:muscle` / `r:regex`) and
+  only lets it keep feeding steps that match the SAME way — duplicate steps of one movement still share
+  an entry (the feat-281 three-row-steps case is unchanged), cross-movement leaks don't. Surplus attaches
+  to the last same-identity step. Covered in `dupsteps.spec` (hack-only, exact-fill, real-pair split,
+  set conservation).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

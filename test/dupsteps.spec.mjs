@@ -62,6 +62,41 @@ test('the plan card badges the duplicate steps and names their partners (feat 24
   expect(r[2]).toContain('1');      // step 3 points back at step 1
 });
 
+// feat 441 — one EXERCISE feeds one movement identity: hack squats (leg-press primary, squat secondary
+// parent via feat 301) filled BOTH a squat step and a leg-press step — surplus spilled across movements
+// and min-% (feat 144) called the second step satisfied. An entry now binds to the identity it first
+// feeds; only duplicate steps of that same movement may share it.
+test('feat 441 — hack squats fill squat OR leg-press, never both; real pairs still split correctly', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const HACK = '5d630c7c-26fd-4cab-a033-3c5c6640956b'; // Hack Squat — leg-press family, squat secondary parent
+    let squatUuid = null;
+    for (const [u, i] of VAR_INDEX) { if (i.family.id === 'squat' && i.variation.id === 'bb-back-squat') { squatUuid = u; break; } }
+    const plan = { id: 't-441', rev: 0, steps: [
+      { id: 's1', sets: 3, options: [{ type: 'movement', familyId: 'squat' }] },
+      { id: 's2', sets: 3, options: [{ type: 'movement', familyId: 'leg-press' }] },
+    ] };
+    pending = { varUuid: null, subUuid: null, sets: [] };
+    const mk = (exs) => ({ id: 'sess441', date: '2099-01-02',
+      exercises: exs.map(([u, n]) => ({ varUuid: u, subUuid: null, sets: Array.from({ length: n }, () => ({ w: '100', r: '8' })) })) });
+    const snap = (sess) => plan.steps.map(st => { const ss = stepStatus(sess, st, plan); return { logged: ss.logged, satisfied: ss.satisfied, started: ss.started }; });
+    return {
+      hackOnly: snap(mk([[HACK, 6]])),                       // 6 hack sets: squat step takes 3 + 3 surplus; leg-press untouched
+      hackFew: snap(mk([[HACK, 3]])),                        // exactly one step's worth → squat only
+      pair: snap(mk([[squatUuid, 3], [HACK, 3]])),           // real squats take the squat step; hacks land on leg-press
+      conservation: planStepAllocation(mk([[HACK, 6]]), plan).saved.reduce((a, b) => a + b, 0),
+    };
+  });
+  expect(r.hackOnly[0].logged).toBe(6);          // 3 target + 3 extra, all on the squat step
+  expect(r.hackOnly[1].logged).toBe(0);          // leg-press never touched…
+  expect(r.hackOnly[1].satisfied).toBe(false);   // …and NOT satisfied (this was the regression)
+  expect(r.hackOnly[1].started).toBe(false);
+  expect(r.hackFew[0].logged).toBe(3);
+  expect(r.hackFew[1].logged).toBe(0);
+  expect(r.pair[0].logged).toBe(3);              // real squats → squat step
+  expect(r.pair[1].logged).toBe(3);              // hacks → leg-press step (their own identity, unbound elsewhere)
+  expect(r.conservation).toBe(6);                // every set still allocated exactly once
+});
+
 // feat 281 — a logged set counts toward exactly ONE step. The bug: in Pull Marathon (three "row" steps),
 // rows logged for the first row step also completed the later ones. Fix: sets fill steps to target in plan
 // order, then surplus attaches to the LAST matching step — never shared.

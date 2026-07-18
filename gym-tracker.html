@@ -1812,11 +1812,11 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .set-overload-tag.baseline { background: #1f1f2e; color: #aab0c8; border: 1px solid #2a2a40; }
   /* feat 428 — objective population-standard tier chip, rendered beside/under the overload tag */
   .set-obj-tag { grid-column: 2 / 4; font-size: 9.5px; padding: 1px 6px; border-radius: 4px; font-weight: 700; justify-self: start; margin-top: 1px; letter-spacing: 0.3px; }
-  .set-obj-tag.obj-light   { background: #1f2630; color: #9fb2c8; border: 1px solid #2a3340; }
-  .set-obj-tag.obj-average { background: #1d3a25; color: #80e090; border: 1px solid #2e6f3a; }
-  .set-obj-tag.obj-heavy   { background: #2e2a18; color: #e0c070; border: 1px solid #4a4220; }
-  .set-obj-tag.obj-elite   { background: #2a1f33; color: #cf9fff; border: 1px solid #46306a; }
-  .set-obj-tag.obj-inhuman { background: linear-gradient(135deg, #6a2a7a, #a03060); color: #fff; border: 1px solid #8a4a9a; }
+  .set-obj-tag.obj-light,   .wt-obj.obj-light   { background: #1f2630; color: #9fb2c8; border: 1px solid #2a3340; }
+  .set-obj-tag.obj-average, .wt-obj.obj-average { background: #1d3a25; color: #80e090; border: 1px solid #2e6f3a; }
+  .set-obj-tag.obj-heavy,   .wt-obj.obj-heavy   { background: #2e2a18; color: #e0c070; border: 1px solid #4a4220; }
+  .set-obj-tag.obj-elite,   .wt-obj.obj-elite   { background: #2a1f33; color: #cf9fff; border: 1px solid #46306a; }
+  .set-obj-tag.obj-inhuman, .wt-obj.obj-inhuman { background: linear-gradient(135deg, #6a2a7a, #a03060); color: #fff; border: 1px solid #8a4a9a; }
 
   /* Record hint shown next to the bottom-most set */
   .record-hint { grid-column: 2 / 4; font-size: 10.5px; color: #88b0ff; background: #161a26; border: 1px solid #2a3340; border-left: 3px solid #88b0ff; padding: 5px 8px; border-radius: 5px; justify-self: stretch; margin-top: 4px; font-variant-numeric: tabular-nums; line-height: 1.4; }
@@ -2942,6 +2942,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .wt-table tbody tr { cursor: pointer; }
 .wt-table tbody tr:active { background: var(--bg3); }
 .wt-table .wt-date { display: block; font-size: 9px; color: var(--text3); font-weight: 400; }
+.wt-table .wt-reps { font-size: 9.5px; color: var(--text2); font-weight: 600; margin-left: 2px; } /* feat 440 — the reps behind each e1RM */
+.wt-obj { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700; white-space: nowrap; } /* feat 440 — 🌍 tier chip in the table */
 .wt-table .wt-idx { font-weight: 700; }
 .neighbor-hint.e1rm .neighbor-hint-dir { color: var(--accent); }
 .anat-fig-label { font-size: 9px; fill: var(--text2); font-weight: 700; text-anchor: middle; }
@@ -10745,28 +10747,30 @@ function getOverloadScore(varUuid, subUuid, set, currentSessionDate) {
    ratio already absorbs body size and no credible height-adjusted standards exist. Extend the table
    per family if a read is wanted elsewhere. ---- */
 const STRENGTH_STANDARDS = { // family id → [light→average, →heavy, →elite, →inhuman] e1RM÷BW cutoffs (male, ~25-35y)
-  'squat':               [1.00, 1.50, 2.00, 2.50],
-  'deadlift':            [1.25, 1.75, 2.50, 3.00],
-  'flat-bench-press':    [0.75, 1.00, 1.50, 2.00],
-  'incline-bench-press': [0.65, 0.90, 1.30, 1.70],
-  'decline-bench-press': [0.75, 1.05, 1.55, 2.00],
-  'shoulder-press':      [0.50, 0.70, 0.90, 1.20],
-  'row':                 [0.70, 0.90, 1.20, 1.50],
-  'lat-pulldown':        [0.60, 0.85, 1.10, 1.40],
-  'leg-press':           [1.75, 2.50, 3.25, 4.25],
-  'hip-thrust':          [1.10, 1.60, 2.20, 2.80],
-  'lunge':               [0.55, 0.85, 1.20, 1.55],
-  'leg-extension':       [0.70, 1.10, 1.50, 1.90],
-  'leg-curl':            [0.50, 0.80, 1.10, 1.40],
-  'calf-raise':          [0.80, 1.20, 1.70, 2.20],
-  'bicep-curl':          [0.35, 0.55, 0.75, 0.95],
-  'hammer-curl':         [0.25, 0.40, 0.55, 0.70],
-  'tricep-extension':    [0.35, 0.55, 0.80, 1.05],
-  'chest-fly':           [0.50, 0.80, 1.10, 1.45],
-  'shrugs':              [1.00, 1.40, 1.90, 2.40],
-  'pullover':            [0.35, 0.55, 0.80, 1.05],
-  'lateral-raise':       [0.10, 0.20, 0.30, 0.40],
-  'front-raise':         [0.12, 0.22, 0.33, 0.45],
+  // feat 438 — retuned a full tier stricter after field feedback ("mediocre sets read elite"): bounds now
+  // sit on strengthlevel-style novice / intermediate / advanced / elite 1RM ratios.
+  'squat':               [1.25, 1.75, 2.25, 2.75],
+  'deadlift':            [1.50, 2.00, 2.50, 3.00],
+  'flat-bench-press':    [0.85, 1.25, 1.75, 2.15],
+  'incline-bench-press': [0.75, 1.10, 1.55, 1.90],
+  'decline-bench-press': [0.90, 1.30, 1.80, 2.20],
+  'shoulder-press':      [0.55, 0.80, 1.05, 1.35],
+  'row':                 [0.80, 1.10, 1.40, 1.70],
+  'lat-pulldown':        [0.70, 1.00, 1.25, 1.55],
+  'leg-press':           [2.00, 2.75, 3.50, 4.50],
+  'hip-thrust':          [1.30, 1.90, 2.50, 3.10],
+  'lunge':               [0.70, 1.00, 1.35, 1.70],
+  'leg-extension':       [0.85, 1.25, 1.65, 2.05],
+  'leg-curl':            [0.60, 0.90, 1.20, 1.50],
+  'calf-raise':          [1.00, 1.50, 2.00, 2.50],
+  'bicep-curl':          [0.40, 0.60, 0.85, 1.10],
+  'hammer-curl':         [0.28, 0.45, 0.60, 0.75],
+  'tricep-extension':    [0.45, 0.65, 0.90, 1.15],
+  'chest-fly':           [0.60, 0.90, 1.25, 1.60],
+  'shrugs':              [1.20, 1.70, 2.20, 2.80],
+  'pullover':            [0.45, 0.65, 0.90, 1.15],
+  'lateral-raise':       [0.12, 0.22, 0.33, 0.45],
+  'front-raise':         [0.14, 0.25, 0.36, 0.50],
 };
 const STANDARDS_PER_HAND = new Set(['lateral-raise', 'front-raise', 'hammer-curl']); // cutoffs are per dumbbell — no DB rescale
 const OBJ_TIERS = [
@@ -10790,10 +10794,14 @@ function objectiveSetTier(varUuid, set) {
   const genderF = g === 'male' ? 1 : g === 'female' ? 0.65 : 0.82; // 'other' → midpoint of the two tables
   const age = state.profile.dob ? ageFromDob(state.profile.dob) : null;
   const ageF = age == null ? 1 : age > 35 ? Math.max(0.6, 1 - 0.008 * (age - 35)) : (age < 18 ? 0.9 : 1); // masters drift ≈0.8%/yr
-  const dbF = (autoSetupKind(varUuid) === 'dumbbell' && !STANDARDS_PER_HAND.has(info.family.id)) ? 0.4 : 1; // one DB ≈ 40% of the barbell total
-  const ratio = estimated1RM(w, r) / bw;
+  const kind = autoSetupKind(varUuid); // feat 438 — variation-aware scaling, not just the family's convention
+  const dbF = (!STANDARDS_PER_HAND.has(info.family.id) && kind === 'dumbbell') ? 0.4
+    : (!STANDARDS_PER_HAND.has(info.family.id) && kind === 'kettlebell') ? 0.35 : 1; // one DB/KB ≈ 40/35% of the barbell total
+  const uniF = (kind !== 'dumbbell' && kind !== 'kettlebell'
+    && /(?:^|\W)(?:single|one)[- ]?(?:leg|arm)|unilateral|pistol/i.test((info.variation.title || '') + ' ' + (info.variation.id || ''))) ? 0.55 : 1; // one limb ≈ 55% of the pair
+  const ratio = estimated1RM(w, Math.min(r, 12)) / bw; // feat 438 — Epley runs wild past ~12 reps; cap the inflation
   let tier = 0;
-  while (tier < 4 && ratio >= table[tier] * genderF * ageF * dbF) tier++;
+  while (tier < 4 && ratio >= table[tier] * genderF * ageF * dbF * uniF) tier++;
   return { tier, key: OBJ_TIERS[tier].key, label: OBJ_TIERS[tier].label, ratio: Math.round(ratio * 100) / 100 };
 }
 function objectiveTierTagHtml(varUuid, set) {
@@ -13916,6 +13924,19 @@ function _allocSetsToSteps(steps, units) {
   const assigned = new Array(N).fill(0);
   if (!N || !units.length) return assigned;
   const rem = units.map(u => u.count);
+  // feat 441 — an exercise BINDS to the identity of the option it first feeds, and may only keep feeding
+  // steps that match it the SAME way. One entry still spans duplicate steps of one movement (feat 281's
+  // superset case: three "row" steps), but never leaks across different movements that both happen to
+  // match it — hack squats (leg-press primary, squat secondary parent) fill squat OR leg-press, not both.
+  const matchId = (i, k) => {
+    const o = (steps[i].options || []).find(x => optionMatchesVar(x, units[k].varUuid));
+    return !o ? null : o.type === 'variation' ? 'v:' + o.uuid
+      : o.type === 'movement' ? 'f:' + (typeof resolveFamilyId === 'function' ? resolveFamilyId(o.familyId) : o.familyId)
+      : o.type === 'muscle' ? 'm:' + o.muscleId + ':' + (o.level || '')
+      : 'r:' + (o.pattern || '');
+  };
+  const bound = new Array(units.length).fill(null);
+  const canFeed = (i, k) => { const id = matchId(i, k); return id != null && (bound[k] == null || bound[k] === id); };
   // Which step indexes each unit could satisfy (and, implicitly, how many — used for least-shared-first).
   const unitSteps = units.map(u => {
     const arr = [];
@@ -13936,19 +13957,23 @@ function _allocSetsToSteps(steps, units) {
     if (target <= 0) continue;
     for (const k of stepUnits[i]) {
       if (assigned[i] >= target) break;
+      if (!canFeed(i, k)) continue; // feat 441 — already committed to a different movement identity
       const take = Math.min(rem[k], target - assigned[i]);
-      assigned[i] += take; rem[k] -= take;
+      if (take > 0) { assigned[i] += take; rem[k] -= take; bound[k] = matchId(i, k); }
     }
   }
   // Pass 1b — a target-less step (sets=0, which is "done" on any single set) claims one remaining matching set.
   for (let i = 0; i < N; i++) {
     if ((steps[i].sets || 0) > 0) continue;
-    for (const k of stepUnits[i]) { if (rem[k] > 0) { assigned[i]++; rem[k]--; break; } }
+    for (const k of stepUnits[i]) { if (rem[k] > 0 && canFeed(i, k)) { assigned[i]++; rem[k]--; bound[k] = matchId(i, k); break; } }
   }
-  // Pass 2 — surplus sets beyond every target ("extra work") attach to the LAST step they match.
+  // Pass 2 — surplus sets beyond every target ("extra work") attach to the LAST step they match THE SAME
+  // WAY (feat 441); a unit that never fed anything (every matching step full) keeps the old any-match rule.
   for (let k = 0; k < units.length; k++) {
     if (rem[k] <= 0 || !unitSteps[k].length) continue;
-    assigned[unitSteps[k][unitSteps[k].length - 1]] += rem[k];
+    const eligible = unitSteps[k].filter(i => canFeed(i, k));
+    const list = eligible.length ? eligible : unitSteps[k];
+    assigned[list[list.length - 1]] += rem[k];
     rem[k] = 0;
   }
   return assigned;
@@ -24716,20 +24741,24 @@ function _wtSortVal(row, col) {
     : col === 'best' ? row.best.e
     : col === 'last' ? new Date(row.last.date).getTime()
     : col === 'd90' ? (row.d90 ? row.d90.e : -1)
+    : col === 'obj' ? (row.obj ? row.obj.tier : -1) // feat 440
     : col === 'pw' ? row.pw : row.pv;
 }
+const _wtPctColor = (p) => `color:hsl(${Math.round(Math.max(0, Math.min(100, p)) * 1.2)},65%,52%);font-weight:700;`; // feat 439 — 0% red → 100% green
 function showWeightTablePopup() {
   const R = exWeightRows(pending.varUuid, pending.subUuid);
   if (!R.rows.length) return;
+  R.rows.forEach(r => { r.obj = objectiveSetTier(pending.varUuid, { w: r.w, r: r.best.r }); }); // feat 440 — 🌍 read at each weight's best reps
   _wtSort = { col: 'w', dir: -1 };
   const fd = (d) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: '2-digit' });
-  const cell = (x) => x ? `${Math.round(x.e)}<span class="wt-date">${fd(x.date)}</span>` : '—';
-  const COLS = [['w', 'Weight'], ['best', 'Best e1RM'], ['last', 'Last'], ['d90', '90d best'], ['pw', 'PR wt'], ['pv', 'PR all']];
+  const cell = (x) => x ? `${Math.round(x.e)}<span class="wt-reps">×${x.r}</span><span class="wt-date">${fd(x.date)}</span>` : '—'; // feat 440 — reps of the set behind each e1RM
+  const hasObj = R.rows.some(r => r.obj); // biometrics present → show the 🌍 column
+  const COLS = [['w', 'Weight'], ['best', 'Best e1RM'], ['last', 'Last'], ['d90', '90d best'], ...(hasObj ? [['obj', '🌍']] : []), ['pw', 'PR wt'], ['pv', 'PR all']];
   const close = () => { back.classList.remove('open'); setTimeout(() => back.remove(), 200); };
   const back = document.createElement('div'); back.className = 'choice-backdrop';
   const head = () => COLS.map(([k, l]) => `<th data-wt-col="${k}" class="${_wtSort.col === k ? 'on' : ''}">${l}${_wtSort.col === k ? (_wtSort.dir < 0 ? ' ▾' : ' ▴') : ''}</th>`).join('');
   const tbody = () => R.rows.slice().sort((a, b) => (_wtSortVal(a, _wtSort.col) - _wtSortVal(b, _wtSort.col)) * _wtSort.dir)
-    .map(r => `<tr data-wt-w="${r.w}"><td class="wt-w">${r.w}</td><td>${cell(r.best)}</td><td>${cell(r.last)}</td><td>${cell(r.d90)}</td><td class="wt-idx">${r.pw}%</td><td class="wt-idx">${r.pv}%</td></tr>`).join('');
+    .map(r => `<tr data-wt-w="${r.w}"><td class="wt-w">${r.w}</td><td>${cell(r.best)}</td><td>${cell(r.last)}</td><td>${cell(r.d90)}</td>${hasObj ? `<td>${r.obj ? `<span class="wt-obj obj-${r.obj.key}">${r.obj.label}</span>` : '—'}</td>` : ''}<td class="wt-idx" style="${_wtPctColor(r.pw)}">${r.pw}%</td><td class="wt-idx" style="${_wtPctColor(r.pv)}">${r.pv}%</td></tr>`).join('');
   back.innerHTML = `<div class="choice-sheet wt-sheet"><div class="choice-title">All weights — tap one to load it</div>
     <div class="wt-table-wrap"><table class="wt-table"><thead><tr>${head()}</tr></thead><tbody>${tbody()}</tbody></table></div>
     <div class="choice-actions"><button class="choice-btn" type="button" data-wt-fix>🛠 Fix weights</button><button class="choice-btn" type="button">Close</button></div></div>`;
@@ -26043,7 +26072,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 356 · 2026-07-17 21:37';
+const APP_BUILD = 'build 357 · 2026-07-17 22:50';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

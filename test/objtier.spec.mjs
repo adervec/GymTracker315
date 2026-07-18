@@ -32,32 +32,43 @@ test('feat 428 — gating: no gender or no bodyweight → no objective read', as
   const ok = await page.evaluate((v) => objectiveSetTier(v, { w: 100, r: 3 }), v);
   expect(noGender).toBeNull();
   expect(noBw).toBeNull();
-  expect(ok && ok.key).toBe('average');
+  expect(ok && ok.key).toBe('light');   // 1.10×BW squat e1RM — honest on the feat-438 scale
 });
 
-test('feat 428 — male squat tiers at 100 kg BW span light → inhuman', async ({ page }) => {
+test('feat 438 — male squat tiers at 100 kg BW span light → inhuman on the stricter scale', async ({ page }) => {
   const v = await squatVar(page);
   await seedBio(page, 'male', {});
   const r = await page.evaluate((v) => ({
-    light: objectiveSetTier(v, { w: 60, r: 5 }).key,     // e1RM 70 → 0.70×BW
-    average: objectiveSetTier(v, { w: 100, r: 3 }).key,  // 110 → 1.10
-    heavy: objectiveSetTier(v, { w: 140, r: 5 }).key,    // 163 → 1.63
-    elite: objectiveSetTier(v, { w: 190, r: 5 }).key,    // 222 → 2.22
-    inhuman: objectiveSetTier(v, { w: 230, r: 5 }).key,  // 268 → 2.68
+    light: objectiveSetTier(v, { w: 100, r: 3 }).key,    // e1RM 110 → 1.10×BW — mediocre must NOT flatter
+    average: objectiveSetTier(v, { w: 120, r: 5 }).key,  // 140 → 1.40
+    heavy: objectiveSetTier(v, { w: 160, r: 5 }).key,    // 187 → 1.87
+    elite: objectiveSetTier(v, { w: 200, r: 5 }).key,    // 233 → 2.33
+    inhuman: objectiveSetTier(v, { w: 240, r: 5 }).key,  // 280 → 2.80
     ratio: objectiveSetTier(v, { w: 100, r: 3 }).ratio,
   }), v);
   expect(r).toEqual({ light: 'light', average: 'average', heavy: 'heavy', elite: 'elite', inhuman: 'inhuman', ratio: 1.1 });
 });
 
+test('feat 438 — high-rep sets cannot inflate their way up a tier (reps capped at 12)', async ({ page }) => {
+  const v = await squatVar(page);
+  await seedBio(page, 'male', {});
+  const r = await page.evaluate((v) => ({
+    at20: objectiveSetTier(v, { w: 150, r: 20 }),   // uncapped Epley would claim 250 → 2.50 "elite"
+    at12: objectiveSetTier(v, { w: 150, r: 12 }),   // capped: 210 → 2.10 heavy — same as 12 reps
+  }), v);
+  expect(r.at20.key).toBe('heavy');
+  expect(r.at20.ratio).toBe(r.at12.ratio);
+});
+
 test('feat 428 — gender and age scale the cutoffs', async ({ page }) => {
   const v = await squatVar(page);
   await seedBio(page, 'female', {});
-  const female = await page.evaluate((v) => objectiveSetTier(v, { w: 100, r: 3 }).key, v); // 1.10 vs ×0.65 cuts → heavy
+  const female = await page.evaluate((v) => objectiveSetTier(v, { w: 100, r: 3 }).key, v); // 1.10 vs ×0.65 cuts [0.81,1.14,…] → average
   const dob60 = await page.evaluate(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 60); return d.toISOString().slice(0, 10); });
   await seedBio(page, 'male', { dob: dob60 });
-  const at60 = await page.evaluate((v) => objectiveSetTier(v, { w: 100, r: 3 }), v); // ageF 0.8 → cuts [0.8,1.2,…] → 1.10 average still, 1.3 ratio → heavy
-  const at60heavy = await page.evaluate((v) => objectiveSetTier(v, { w: 115, r: 4 }).key, v); // e1RM 130.3 → 1.30 ≥ 1.2 → heavy
-  expect(female).toBe('heavy');
+  const at60 = await page.evaluate((v) => objectiveSetTier(v, { w: 100, r: 3 }), v); // ageF 0.8 → cuts [1.0,1.4,…] → 1.10 average
+  const at60heavy = await page.evaluate((v) => objectiveSetTier(v, { w: 130, r: 4 }).key, v); // e1RM 147.3 → 1.47 ≥ 1.4 → heavy
+  expect(female).toBe('average');
   expect(at60.key).toBe('average');
   expect(at60heavy).toBe('heavy');
 });
@@ -70,18 +81,28 @@ test('feat 428 — no standards table or non-standard mode → null; dumbbell va
     for (const [u, i] of VAR_INDEX) { if (i.family.id === 'flat-bench-press' && autoSetupKind(u) === 'dumbbell' && exMode(u).mode === 'standard') { dbBench = u; break; } }
     return {
       noTable: grip ? objectiveSetTier(grip, { w: 50, r: 5 }) : 'no-var',
-      db: dbBench ? objectiveSetTier(dbBench, { w: 45, r: 5 }).key : 'no-var', // e1RM 52.5 → 0.525 vs ×0.4 cuts [0.3,0.4,0.6,0.8] → heavy
+      db: dbBench ? objectiveSetTier(dbBench, { w: 45, r: 5 }).key : 'no-var', // per-DB e1RM 52.5 → 0.525 vs ×0.4 cuts [0.34,0.5,0.7,0.86] → heavy
     };
   });
   expect(r.noTable).toBeNull();
   expect(r.db).toBe('heavy');
 });
 
+test('feat 438 — a single-leg variation is judged on one-limb cutoffs, not the pair\'s', async ({ page }) => {
+  await seedBio(page, 'male', {});
+  const r = await page.evaluate(() => ({
+    both: objectiveSetTier('b1a10018-0018-4018-8018-aaaaaaaa0018', { w: 60, r: 5 }).key,   // 0.70 vs calf cuts [1.0,…] → light
+    single: objectiveSetTier('b1a10019-0019-4019-8019-aaaaaaaa0019', { w: 60, r: 5 }).key, // same load vs ×0.55 cuts [0.55,0.83,…] → average
+  }));
+  expect(r.both).toBe('light');
+  expect(r.single).toBe('average');
+});
+
 test('feat 428 — the log sheet renders the 🌍 chip, and drops it without biometrics', async ({ page }) => {
   const v = await squatVar(page);
   await seedBio(page, 'male', {});
   const withBio = await page.evaluate((v) => {
-    pending = { varUuid: v, subUuid: null, sets: [{ w: 100, r: 3 }] };
+    pending = { varUuid: v, subUuid: null, sets: [{ w: 120, r: 5 }] }; // e1RM 140 → 1.40 → average on the feat-438 scale
     openLogModal(); modalState.showPicker = false; modalState.isEditing = false; renderModal();
     const tag = document.querySelector('#trk-modal-body .set-obj-tag');
     return { has: !!tag, cls: tag ? tag.className : '', text: tag ? tag.textContent : '' };
