@@ -2457,6 +2457,14 @@ They share variation **UUIDs**.
   an entry (the feat-281 three-row-steps case is unchanged), cross-movement leaks don't. Surplus attaches
   to the last same-identity step. Covered in `dupsteps.spec` (hack-only, exact-fill, real-pair split,
   set conservation).
+- **Reference export as sectioned HTML (feat 442):** Settings › Data › Info pack gains **📖 Export
+  Reference HTML** — `buildReferenceHtml()` renders the COMPLETE catalogue (the reference `exercises`
+  dataset, extras mirrored in) as one self-contained document with a strict heading hierarchy — h1 doc →
+  h2 group (Push/Pull/…) → h3 movement (tag, quick cue, general blocks) → h4 variation (cue, setup /
+  movement / mistakes lists, programming, tips, warnings) — so reader / read-later apps can build their
+  TOC natively from the headings. No scripts inside, everything escaped, serif reader CSS inline;
+  `downloadText` as `exercise-reference-<date>.html`. Covered in `refexport.spec` (hierarchy counts ==
+  catalogue counts, extras present, no inner scripts, real download event + filename).
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

@@ -9379,6 +9379,10 @@ function renderSettingsDrawer() {
       <button class="drawer-btn" id="info-export-html-btn">⬆ Export Info HTML</button>
       <button class="drawer-btn" id="info-export-print-btn">🖨 Print / PDF</button>
     </div>
+    <div style="font-size:11px;color:var(--text3);margin:10px 0 6px;line-height:1.5;">The complete exercise reference — every movement and variation with cues, setup, mistakes and programming — as one cleanly sectioned HTML document (h1→h4 headings) that reader apps can build a table of contents from.</div>
+    <div class="drawer-data-row">
+      <button class="drawer-btn" id="ref-export-html-btn">📖 Export Reference HTML</button>
+    </div>
 
     <div class="drawer-section-title" data-sec-id="activity-log">Activity &amp; Error Log</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">
@@ -9908,6 +9912,7 @@ function renderSettingsDrawer() {
   body.querySelector('#drawer-export-btn').addEventListener('click', exportData);
   // feat 216 — info pack export (wired before #drawer-data-wrap relocates; listeners ride along)
   body.querySelector('#info-export-html-btn')?.addEventListener('click', () => exportInfoPack());
+  body.querySelector('#ref-export-html-btn')?.addEventListener('click', () => exportReferenceHtml()); // feat 442
   body.querySelector('#info-export-print-btn')?.addEventListener('click', () => printInfoPack());
   body.querySelector('#drawer-export-workout-btn')?.addEventListener('click', () => { closeDataPage(); closeSettingsDrawer(); openExportDialog({ preset:'week' }); });
   body.querySelector('#drawer-export-ref-csv-btn').addEventListener('click', exportReferenceCsv);
@@ -10270,6 +10275,65 @@ function downloadBlob(blob, filename) {
 }
 function downloadText(text, filename, mime) {
   downloadBlob(new Blob([text], { type: mime || 'text/plain;charset=utf-8' }), filename);
+}
+
+/* ---- feat 442 — FULL REFERENCE EXPORT: the complete exercise catalogue as one clean, self-contained
+   HTML document with a strict heading hierarchy (h1 doc → h2 group → h3 movement → h4 variation), so
+   reader / read-later apps can section and TOC it natively. No scripts, minimal inline CSS. ---- */
+function buildReferenceHtml() {
+  const esc = escapeHtml;
+  const GROUPS = { push: 'Push', pull: 'Pull', lower: 'Lower Body', core: 'Core', full: 'Full Body & Specialty', cardio: 'Cardio & Conditioning', mobility: 'Mobility', recovery: 'Recovery', workouts: 'Workouts & Templates', neck: 'Neck', jaw: 'Jaw', grip: 'Grip & Forearms' };
+  const list = (label, arr) => (arr && arr.length) ? `<p class="lbl">${label}</p><ul>${arr.map(x => `<li>${esc(String(x))}</li>`).join('')}</ul>` : '';
+  const prog = (p) => p ? `<p class="lbl">Programming</p><ul>${Object.keys(p).map(k => `<li><b>${esc(k)}:</b> ${esc(String(p[k]))}</li>`).join('')}</ul>` : '';
+  const byMega = new Map();
+  (typeof exercises !== 'undefined' ? exercises : []).forEach(ex => {
+    const g = ex.mega || 'other';
+    if (!byMega.has(g)) byMega.set(g, []);
+    byMega.get(g).push(ex);
+  });
+  let nFam = 0, nVar = 0, body = '';
+  byMega.forEach((fams, g) => {
+    body += `<h2>${esc(GROUPS[g] || (g.charAt(0).toUpperCase() + g.slice(1)))}</h2>`;
+    fams.forEach(ex => {
+      nFam++;
+      body += `<h3>${esc(ex.title)}</h3>`;
+      if (ex.tag) body += `<p class="tag">${esc(ex.tag)}</p>`;
+      if (ex.quickCue) body += `<p><em>${esc(ex.quickCue)}</em></p>`;
+      if (ex.general) body += list('General setup', ex.general.setup) + list('General movement', ex.general.movement) + list('Common mistakes', ex.general.mistakes);
+      (ex.variations || []).forEach(v => {
+        nVar++;
+        body += `<h4>${esc(v.title)}${v.best ? ` <span class="best">· ${esc(v.best)}</span>` : ''}</h4>`;
+        if (v.cue) body += `<p><em>${esc(v.cue)}</em></p>`;
+        body += list('Setup', v.setup) + list('Movement', v.movement) + list('Mistakes', v.mistakes) + prog(v.programming);
+        if (v.tip) body += `<p class="tip">💡 ${esc(v.tip)}</p>`;
+        if (v.warning) body += `<p class="warn">⚠️ ${esc(v.warning)}</p>`;
+      });
+    });
+  });
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exercise Reference — GymTracker315</title>
+<style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:42em;margin:0 auto;padding:24px 18px;line-height:1.55;color:#222;background:#fff;}
+h1{font-size:1.7em;border-bottom:2px solid #333;padding-bottom:6px;}
+h2{font-size:1.4em;margin-top:2.2em;border-bottom:1px solid #999;padding-bottom:4px;}
+h3{font-size:1.18em;margin-top:1.8em;}
+h4{font-size:1em;margin:1.2em 0 0.2em;}
+.tag{color:#666;font-size:0.85em;margin-top:-0.4em;}
+.lbl{font-weight:bold;margin:0.6em 0 0.1em;font-size:0.9em;}
+ul{margin:0.15em 0 0.6em;padding-left:1.3em;}
+.best{color:#666;font-weight:normal;font-size:0.85em;}
+.tip{color:#375e37;} .warn{color:#8a3a2a;}
+.meta{color:#666;font-size:0.85em;}
+</style></head><body>
+<h1>Exercise Reference</h1>
+<p class="meta">GymTracker315 · ${esc(typeof APP_BUILD !== 'undefined' ? APP_BUILD : '')} · exported ${esc(new Date().toLocaleDateString())} · ${nFam} movements, ${nVar} variations</p>
+${body}
+</body></html>`;
+}
+function exportReferenceHtml() {
+  const html = buildReferenceHtml();
+  downloadText(html, 'exercise-reference-' + new Date().toISOString().slice(0, 10) + '.html', 'text/html;charset=utf-8');
+  toast('📖 Reference exported (' + Math.round(html.length / 1024) + ' KB)');
 }
 
 /* ============================================================
@@ -26072,7 +26136,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 357 · 2026-07-17 22:50';
+const APP_BUILD = 'build 358 · 2026-07-17 22:57';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
