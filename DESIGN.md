@@ -2430,6 +2430,12 @@ They share variation **UUIDs**.
   when `_exVoiceRec` is live); armed on sheet open, released on close alongside the hold sensors.
   Lesson re-learned: `ensureWC` is closure-local to the settings binder — top-level code must guard
   `state.workoutControls` inline (the spec caught the ReferenceError). Covered in `exvoice.spec`.
+- **Cap reconciliation in Fix weights (feat 437):** when the variation has a feat-434 max AND history
+  exceeds it, the 🛠 sheet grows a section — "N sets exceed this exercise's 120lb max" with **⤵ Lower
+  to max** and **🗑 Remove them** (danger-confirmed). `capViolationFix(varUuid, mode, apply)` mirrors
+  the feat-429 shape: dry-run counting, only-touched sessions re-stamp `updatedAt`, and remove-mode
+  drops an exercise entry whose sets all vanish. Records, trends and PR odds simply recompute from the
+  repaired history. Covered in `fixweights.spec`.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the

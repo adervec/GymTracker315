@@ -95,6 +95,63 @@ test('feat 429 — the sheet previews, and Apply → confirm rewrites and closes
   expect(r.weights).toEqual([45, 50, '']);
 });
 
+// feat 437 — reconcile history with the feat-434 exercise cap: lower offending sets to it, or remove them
+test('feat 437 — capViolationFix lowers or removes only over-cap sets, dry-run counts first', async ({ page }) => {
+  const ids = await seed(page);
+  const r = await page.evaluate(({ target }) => {
+    state.exerciseMaxW = {}; setExMaxW(target, 95);
+    const dry = capViolationFix(target, 'lower', false);
+    const untouched = state.sessions.map(s => s.exercises.length);
+    const lowered = capViolationFix(target, 'lower', true);
+    const afterLower = { s40: state.sessions[0].exercises[0].sets.map(x => x.w), s20: state.sessions[1].exercises[0].sets.map(x => x.w) };
+    // re-seed the over-cap sets, then remove them instead
+    state.sessions[0].exercises[0].sets = [{ w: 100, r: 5 }];
+    state.sessions[1].exercises[0].sets = [{ w: 90, r: 8 }, { w: 100, r: 3 }, { w: '', r: '' }];
+    const removed = capViolationFix(target, 'remove', true);
+    const afterRemove = {
+      s40ex: state.sessions[0].exercises.length,                       // emptied exercise dropped
+      s20: state.sessions[1].exercises[0].sets.map(x => x.w),          // under-cap + empty sets stay
+      upd40: state.sessions[0].updatedAt > '2026-01-01',
+    };
+    setExMaxW(target, 0);
+    return { dry, untouched, lowered, afterLower, removed, afterRemove };
+  }, ids);
+  expect(r.dry).toEqual({ sets: 2, sessions: 2 });      // the two 100s; 90 and the empty set don't count
+  expect(r.untouched).toEqual([1, 1, 1]);               // dry run deleted nothing
+  expect(r.lowered).toEqual({ sets: 2, sessions: 2 });
+  expect(r.afterLower.s40).toEqual([95]);
+  expect(r.afterLower.s20).toEqual([90, 95, '']);
+  expect(r.removed).toEqual({ sets: 2, sessions: 2 });
+  expect(r.afterRemove.s40ex).toBe(0);
+  expect(r.afterRemove.s20).toEqual([90, '']);
+  expect(r.afterRemove.upd40).toBe(true);
+});
+
+test('feat 437 — the sheet offers cap reconciliation only when a cap exists with offenders', async ({ page }) => {
+  const ids = await seed(page);
+  const r = await page.evaluate(({ target }) => {
+    pending = { varUuid: target, subUuid: null, sets: [{ w: '', r: '' }] };
+    state.exerciseMaxW = {};
+    document.querySelectorAll('.choice-backdrop').forEach(b => b.remove());
+    showFixWeightsPopup();
+    let sheet = [...document.querySelectorAll('.choice-backdrop')].pop();
+    const noCap = !!sheet.querySelector('[data-fixw-cap]');
+    document.querySelectorAll('.choice-backdrop').forEach(b => b.remove());
+    setExMaxW(target, 95);
+    showFixWeightsPopup();
+    sheet = [...document.querySelectorAll('.choice-backdrop')].pop();
+    const withCap = { lower: !!sheet.querySelector('[data-fixw-cap="lower"]'), remove: !!sheet.querySelector('[data-fixw-cap="remove"]'),
+      msg: (sheet.textContent.match(/\d+ logged sets? exceed/) || [''])[0] };
+    document.querySelectorAll('.choice-backdrop').forEach(b => b.remove());
+    setExMaxW(target, 0);
+    return { noCap, withCap };
+  }, ids);
+  expect(r.noCap).toBe(false);
+  expect(r.withCap.lower).toBe(true);
+  expect(r.withCap.remove).toBe(true);
+  expect(r.withCap.msg).toContain('exceed');
+});
+
 test('feat 429 — the all-weights popup carries the 🛠 entry point', async ({ page }) => {
   const ids = await seed(page);
   const r = await page.evaluate(({ target }) => {

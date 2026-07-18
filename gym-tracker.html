@@ -24768,6 +24768,34 @@ function rescaleVariationWeights(varUuid, factor, sinceMs, apply) {
   if (apply && nSess) saveState();
   return { sets: nSets, sessions: nSess };
 }
+/* ---- feat 437 — reconcile history with the feat-434 exercise cap: LOWER every offending set weight
+   to the cap, or REMOVE those sets entirely (an emptied exercise entry is dropped from its session).
+   mode 'lower' | 'remove'; apply=false dry-runs and only counts. Touched sessions re-stamp updatedAt
+   so the sync merge carries the repair. ---- */
+function capViolationFix(varUuid, mode, apply) {
+  const cap = exMaxW(varUuid);
+  if (!cap) return { sets: 0, sessions: 0 };
+  let nSets = 0, nSess = 0;
+  (state.sessions || []).forEach(s => {
+    let touched = 0;
+    (s.exercises || []).forEach(ex => {
+      if (ex.varUuid !== varUuid || ex.cardio) return;
+      (ex.sets || []).forEach(set => { if (parseFloat(set.w) > cap) touched++; });
+    });
+    if (!touched) return;
+    nSets += touched; nSess++;
+    if (!apply) return;
+    (s.exercises || []).forEach(ex => {
+      if (ex.varUuid !== varUuid || ex.cardio) return;
+      if (mode === 'remove') ex.sets = (ex.sets || []).filter(set => !(parseFloat(set.w) > cap));
+      else (ex.sets || []).forEach(set => { if (parseFloat(set.w) > cap) set.w = cap; });
+    });
+    if (mode === 'remove') s.exercises = s.exercises.filter(ex => ex.cardio || (ex.sets || []).length);
+    s.updatedAt = new Date().toISOString();
+  });
+  if (apply && nSess) saveState();
+  return { sets: nSets, sessions: nSess };
+}
 function showFixWeightsPopup() {
   if (roBlocked('fix logged weights')) return;
   if (!pending.varUuid) return;
@@ -24775,6 +24803,16 @@ function showFixWeightsPopup() {
   let sinceDays = 30;
   const back = document.createElement('div'); back.className = 'choice-backdrop';
   const close = () => { back.classList.remove('open'); setTimeout(() => back.remove(), 200); };
+  const cap = exMaxW(pending.varUuid); // feat 437 — offer cap reconciliation when a cap exists and history exceeds it
+  const capHtml = (() => {
+    if (!cap) return '';
+    const p = capViolationFix(pending.varUuid, 'lower', false);
+    return p.sets ? `<div class="choice-msg">⚖️ <b>${p.sets}</b> logged set${p.sets === 1 ? '' : 's'} exceed this exercise's <b>${cap}${state.unit}</b> max.</div>
+    <div class="choice-actions" style="margin-bottom:4px;">
+      <button class="choice-btn" data-fixw-cap="lower">⤵ Lower to ${cap}${state.unit}</button>
+      <button class="choice-btn danger" data-fixw-cap="remove">🗑 Remove them</button>
+    </div>` : '';
+  })();
   back.innerHTML = `<div class="choice-sheet"><div class="choice-title">🛠 Fix logged weights</div>
     <div class="choice-msg">Logged the machine's TOTAL instead of one stack (or one dumbbell)? Rescale this variation's history so trends and PRs stay honest. ×½ turns totals into per-stack; ×2 is the reverse.</div>
     <div class="pud-seg" id="fixw-factor">
@@ -24786,6 +24824,7 @@ function showFixWeightsPopup() {
       ${SINCE.map(([d, l]) => `<button type="button" class="${d === 30 ? 'active' : ''}" data-fixw-since="${d}"><b>${l}</b></button>`).join('')}
     </div>
     <div class="choice-msg" id="fixw-preview"></div>
+    ${capHtml}
     <div class="choice-actions"><button class="choice-btn primary" data-fixw="apply">Apply</button><button class="choice-btn" data-fixw="cancel">Cancel</button></div></div>`;
   const sinceMs = () => sinceDays ? Date.now() - sinceDays * 86400000 : 0;
   const preview = () => {
@@ -24807,6 +24846,23 @@ function showFixWeightsPopup() {
         if (!ok) return;
         const r = rescaleVariationWeights(pending.varUuid, factor, since, true);
         toast(`✅ ${r.sets} set weight${r.sets === 1 ? '' : 's'} ×${factor}`);
+        close(); renderModal();
+      });
+      return;
+    }
+    const capBtn = e.target.closest('[data-fixw-cap]'); // feat 437
+    if (capBtn) {
+      const mode = capBtn.dataset.fixwCap;
+      const p = capViolationFix(pending.varUuid, mode, false);
+      if (!p.sets) { toast('Nothing exceeds the max'); return; }
+      const nSets = p.sets + ' set' + (p.sets === 1 ? '' : 's') + ' in ' + p.sessions + ' session' + (p.sessions === 1 ? '' : 's');
+      confirmDialog(mode === 'remove'
+        ? `DELETE ${nSets} that exceed ${cap}${state.unit}? The sets are gone for good — records and trends recompute without them.`
+        : `Lower ${nSets} to ${cap}${state.unit}? This rewrites history.`,
+        { danger: true, okLabel: mode === 'remove' ? 'Delete' : 'Lower' }).then(ok => {
+        if (!ok) return;
+        const r = capViolationFix(pending.varUuid, mode, true);
+        toast(mode === 'remove' ? `🗑 ${r.sets} set${r.sets === 1 ? '' : 's'} removed` : `⤵ ${r.sets} set${r.sets === 1 ? '' : 's'} lowered to ${cap}${state.unit}`);
         close(); renderModal();
       });
       return;
@@ -25987,7 +26043,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 355 · 2026-07-17 13:08';
+const APP_BUILD = 'build 356 · 2026-07-17 21:37';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
