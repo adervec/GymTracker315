@@ -2465,6 +2465,25 @@ They share variation **UUIDs**.
   TOC natively from the headings. No scripts inside, everything escaped, serif reader CSS inline;
   `downloadText` as `exercise-reference-<date>.html`. Covered in `refexport.spec` (hierarchy counts ==
   catalogue counts, extras present, no inner scripts, real download event + filename).
+- **The mobilization system (feat 449):** covering *Becoming a Supple Leopard* (Starrett). The audit split
+  cleanly in two: the book's **Category 1/2/3 movements** were already almost entirely covered — only the
+  **snatch balance** was missing (added to `olympic-lifts`, uuid `b1a1002e`) — but its **mobilization
+  system had no coverage at all**: no smashing, flossing, banded distraction or voodoo compression anywhere
+  in the catalogue, just a couch stretch and two lacrosse-ball rolls. New family **`mobility-system` /
+  "Mobility System (Supple Leopard)"**, **110 named drills** grouped by the book's target areas, `best`
+  carrying the area (`Area 7 · Glutes & Hip Capsule`) so the reference reads in the book's order.
+  The non-drill material lives in the family's **general block**, which is what that block is for: the
+  **bracing sequence** (4 steps), the **one-joint rule**, the **laws of torque**, the **seven archetypes**
+  (overhead / press / hang / front rack / squat / pistol / lunge), **the tunnel**, the **seven mobilization
+  methods** (pressure wave, contract-and-relax, smash-and-floss, banded flossing, paper-clipping,
+  voodoo flossing, flexion gapping) plus upstream-downstream, and the **rules of mobility** as the mistakes
+  list. `quickCue` carries the three systems (joint mechanics / sliding surfaces / muscle dynamics) and the
+  test-retest-2-minutes dosing.
+  **Deliberate gap:** Area 1 (Jaw, Head & Neck) is new in the 2nd edition and no source itemises its drill
+  names, so it is **absent rather than invented** — areas 2-14 are all represented, and the existing
+  `neck-training` / `jaw-training` families cover that region. `mobsystem.spec` pins all 26 category
+  movements, spot-checks a named drill in each of the 13 areas, and asserts every principle and method
+  string survives in the general block.
 - **The Swiss ball as its own family (feat 448):** the catalogue had two Swiss-ball entries
   (`swiss-ball-curl` in Hamstring Curl, `stir-the-pot` in Core Anti-Movement) and no home for the rest.
   New family **`swiss-ball-work` / "Swiss Ball Work"**, 77 variations, built the same way as `ybell-work`
