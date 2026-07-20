@@ -2465,6 +2465,24 @@ They share variation **UUIDs**.
   TOC natively from the headings. No scripts inside, everything escaped, serif reader CSS inline;
   `downloadText` as `exercise-reference-<date>.html`. Covered in `refexport.spec` (hierarchy counts ==
   catalogue counts, extras present, no inner scripts, real download event + filename).
+- **Full mace & club vocabulary (feat 444):** the **Mace & Club Work** family carried ~20 entries against a
+  discipline with well over a hundred named movements. **89 new variations** fill it out: mace swings
+  (front/side pendulum, insides-and-outsides, hand switches, single-arm & coiled 360, barbarian swing),
+  squats & lunges, presses (push/offset/Z/single-arm), the full pull chain (deadlift → lawnmower row → high
+  pull → clean → clean-and-press → snatch, plus pullover and renegade row), skull crusher, the leverage
+  family (front/side leverage raise, reverse lever, pronation-supination, balance), strikes (grave digger,
+  wood chop, uppercut, tyre strike, shovels, rainbow, halo, bull skull), ground work (get-up, windmill, side
+  bend, kneeling press & 360, seated twist), flows — and the whole steel-club side: casts (single/double
+  arm, inside, outside, gama, shield, order-to-shield), mills, order, four pendulums, swipe, side & cross
+  swing, two-hands-anyhow, torch/flag/side-flag/military/snap/booster/bent press, squats, club curl,
+  rockit, bull rush, cast-to-press, three flows — plus the **sang** and **mugdar/jori** lineage entries
+  alongside the existing gada / meel / light-club ones.
+  *ponytail:* stored as `MACE_CLUB_ROWS`, one compact `[id, title, best, cue, setup|, movement|, mistakes|,
+  'Key:val', tip]` row per movement, expanded into `EXTRA_VARIATIONS` by a 10-line loop rather than 89
+  hand-written object literals. **uuids are positional** (`b1a10030` upward = index `0x30 + i`) — the row
+  list is APPEND-ONLY; reordering or inserting mid-list shifts every later uuid and detaches logged sets
+  from their variation. `maceclub.spec` pins all 106 ledger movements (new and pre-existing) to variation
+  ids and checks every expanded row is indexed under `mace-club-work` with a full reference entry.
 - **Cable machine charts covered (feat 443):** the exercise charts printed on the gym's cable stations —
   the **Life Fitness Cable Motion Dual Adjustable Pulley** poster and the **Freemotion CHEST / SHOULDER /
   LAT** towers — audited against the catalogue. Already covered: fly, lateral raise, int/ext rotation,
