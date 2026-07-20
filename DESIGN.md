@@ -2465,6 +2465,27 @@ They share variation **UUIDs**.
   TOC natively from the headings. No scripts inside, everything escaped, serif reader CSS inline;
   `downloadText` as `exercise-reference-<date>.html`. Covered in `refexport.spec` (hierarchy counts ==
   catalogue counts, extras present, no inner scripts, real download event + filename).
+- **Full kettlebell vocabulary (feat 445):** **55 new variations** in **Kettlebell-Specific Movements**
+  (29 → 84), covering the rest of both schools — hardstyle power and girevoy sport. New: American /
+  dead-stop / double / staggered-stance / walking swings and the **sport pendulum swing**; dead, hang and
+  hand-to-hand cleans; dead, hang, **half** and double snatches; double, see-saw, Sots and tall-kneeling
+  press; double jerk and the **biathlon set**; double front / double overhead / bottoms-up goblet squat;
+  KB deadlift, staggered-stance and double deadlift; overhead lunge; half get-up, get-up sit-up,
+  bottoms-up and bent-arm get-up; bottoms-up / cross / goblet carry; low windmill, figure-8-to-hold, KB
+  wood chop, plank drag; upright row; KB curl, bottoms-up curl, KB push-up; bent arm bar, prying goblet
+  squat, bottoms-up hold, Turkish stand, deck squat; swing toss, around-the-back pass, clean flip,
+  juggling flow; and the complexes (ABC, swing-clean-snatch, C&P ladder, double clean-squat-press, man
+  maker). Movements the catalogue already carries implement-agnostically (goblet / cossack / pistol squat,
+  RDL, sumo DL, hip thrust, russian twist, farmer & suitcase carry, floor / Z / arnold press, thruster,
+  push jerk, gorilla row, skull crusher, lateral & front raise…) are **mapped to those, not duplicated**.
+  Stored as `KB_ROWS` in the same compact form as `MACE_CLUB_ROWS`; both now expand through a shared
+  `pushCompactRows(rows, famId, base)`. **Positional-uuid ranges are fixed and append-only** — mace/club
+  owns `0x30-0x88`, kettlebell owns `0x89-0xBF`; a new table takes the next free range.
+  *Bug found on the way:* `kettlebell-specific` **never existed in the reference `exercises` dataset**, so
+  extras aimed at it were silently dropped and the 29 built-in KB variations were trackable but
+  undocumented (absent from the Reference panel and the HTML export). `injectExtraIntoReference` now
+  `adopt()`s a missing family across from `FAMILIES` on first need, which fixes this class of gap
+  generally. `kbledger.spec` pins all 118 ledger movements, the expanded rows, and the reference mirror.
 - **Full mace & club vocabulary (feat 444):** the **Mace & Club Work** family carried ~20 entries against a
   discipline with well over a hundred named movements. **89 new variations** fill it out: mace swings
   (front/side pendulum, insides-and-outsides, hand switches, single-arm & coiled 360, barbarian swing),
