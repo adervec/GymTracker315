@@ -2465,6 +2465,18 @@ They share variation **UUIDs**.
   TOC natively from the headings. No scripts inside, everything escaped, serif reader CSS inline;
   `downloadText` as `exercise-reference-<date>.html`. Covered in `refexport.spec` (hierarchy counts ==
   catalogue counts, extras present, no inner scripts, real download event + filename).
+- **The Swiss ball as its own family (feat 448):** the catalogue had two Swiss-ball entries
+  (`swiss-ball-curl` in Hamstring Curl, `stir-the-pot` in Core Anti-Movement) and no home for the rest.
+  New family **`swiss-ball-work` / "Swiss Ball Work"**, 77 variations, built the same way as `ybell-work`
+  (`EXTRA_FAMILIES` + `compactRowsToVars(SWISSBALL_ROWS, 0x12E)`). The framing throughout is that the ball
+  trains by **subtraction** — it removes the floor's stability so the body has to manufacture its own, which
+  is why nearly every entry is a stability rep wearing another name. Grouped by position: *supine* (5
+  crunches, 5 passes/raises, 3 rotations), *prone* (5 planks, 5 pikes/tucks, 2 rollouts, 4 push-ups),
+  *bridge* (5 bridges, 2 curls, 6 back-extension/posterior), *press* (8 dumbbell movements using the ball as
+  an unstable bench or seat), *legs* (4 wall + 5 squat/lunge), *balance* (6 seated, 5 kneeling/standing) and
+  *mobility* (7). The two pre-existing entries are **mapped, not duplicated** — `swissball.spec` pins all 79
+  ledger movements including those two. `FAMILY_MOTION` gets `['crunch','none']` (the feat-446 lesson,
+  applied up front this time — and the spec asserts every new row resolves to a motion).
 - **The YBell as its own family (feat 446):** the catalogue had exactly **one** YBell entry, so this
   becomes a whole new trackable family — **`ybell-work` / "YBell Work"**, 56 variations, via
   `EXTRA_FAMILIES` (feat 90 machinery) with its variations built by `compactRowsToVars(YBELL_ROWS, 0xC0)`.
