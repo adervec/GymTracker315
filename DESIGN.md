@@ -2465,6 +2465,20 @@ They share variation **UUIDs**.
   TOC natively from the headings. No scripts inside, everything escaped, serif reader CSS inline;
   `downloadText` as `exercise-reference-<date>.html`. Covered in `refexport.spec` (hierarchy counts ==
   catalogue counts, extras present, no inner scripts, real download event + filename).
+- **Cable machine charts covered (feat 443):** the exercise charts printed on the gym's cable stations —
+  the **Life Fitness Cable Motion Dual Adjustable Pulley** poster and the **Freemotion CHEST / SHOULDER /
+  LAT** towers — audited against the catalogue. Already covered: fly, lateral raise, int/ext rotation,
+  wood chop (= decline rotation) / reverse chop (= incline rotation), cable crunch, cable kickback (= hip
+  extension), standing cable ab/adduction, seated cable row, LF dual-pulley row & pulldown, Freemotion
+  pulldown / chest fly, single-arm pulldown. **20 new `EXTRA_VARIATIONS`** (uuids `b1a1001a`…`b1a1002d`)
+  fill the rest: standing / seated / unsupported-alternating / alternating-with-rotation cable chest press,
+  cable incline & decline press, standing cable high row, seated / 1-arm / unsupported-standing /
+  1-arm-1-leg cable shoulder press, standing alternating & standing 1-arm & 1-arm-with-rotation pulldown,
+  cable RDL, horizontal cable core rotation, cable golf swing, cable squat, cable lunge, standing cable hip
+  flexion. Deliberate merges: the Freemotion "on frame" and "facing out" 1-arm-1-leg presses are one entry
+  (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
+  are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
+  label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
