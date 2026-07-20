@@ -2465,6 +2465,33 @@ They share variation **UUIDs**.
   TOC natively from the headings. No scripts inside, everything escaped, serif reader CSS inline;
   `downloadText` as `exercise-reference-<date>.html`. Covered in `refexport.spec` (hierarchy counts ==
   catalogue counts, extras present, no inner scripts, real download event + filename).
+- **The YBell as its own family (feat 446):** the catalogue had exactly **one** YBell entry, so this
+  becomes a whole new trackable family — **`ybell-work` / "YBell Work"**, 56 variations, via
+  `EXTRA_FAMILIES` (feat 90 machinery) with its variations built by `compactRowsToVars(YBELL_ROWS, 0xC0)`.
+  Organised by the tool's defining trick — **a grip change is an equipment change**: an *outer handle*
+  hangs it like a **kettlebell** (swings, cleans, snatch, high pull, deadlift, clean & press, goblet /
+  front squat, presses, halo, racked lunge, get-up, windmill, bottoms-up press); the *centre handle*
+  balances it like a **dumbbell** (presses, fly, triceps, rows, four curls, three raises, pullover); both
+  outer handles *knuckles-up* invert it into a dual-grip **med ball** (press, punch press, the signature
+  **cross-catch**, chop, rotational punch, twist, squat-to-punch, two-hand halo, around-the-body,
+  sit-up-to-press); *on the floor* the top handle makes it a **push-up stand** (push-ups, plank, pike,
+  spider, mountain climber, burpee, sit-up, plank drag); plus six **grip-change flows**.
+  *Lesson (re-learned):* **any new family needs a `FAMILY_MOTION` entry** or `motionfigure.spec`'s
+  full-coverage test fails — it asserts every variation in every non-template family resolves to a motion.
+  `ybell-work` takes `['generic','dumbbell']`, the same default `mace-club-work` uses for a mixed family.
+- **Full TRX / suspension vocabulary (feat 447):** **TRX Work** held 5 entries; **54 new** take it to 59 —
+  six more rows (mid / high / single-arm / inverted / face pull / low-to-high), chest press & single-arm
+  press, fly, clock press, atomic push-up, four squats, five more lunges, the whole hinge family
+  (hamstring curl & runner, hip press & single-leg, hinge, SLDL), planks (plank, side plank, body saw, hip
+  drop), dynamic core (knee tuck, mountain climber, oblique & reverse crunch), the **Y/T/W/I + reverse fly**
+  series, curls and extensions, power work (the signature **power pull**, jump squat, sprinter start,
+  burpee, press-with-rotation, explosive row) and seven mobility drills. Cues lean on the one variable
+  suspension has: **angle is the weight** — how far the feet walk under the anchor is the whole progression.
+- **Compact-row uuid ranges (feats 444-447):** four tables now expand through `compactRowsToVars` /
+  `pushCompactRows`. **Ranges are fixed and APPEND-ONLY** — `MACE_CLUB_ROWS` `0x30-0x88`, `KB_ROWS`
+  `0x89-0xBF`, `YBELL_ROWS` `0xC0-0xF7`, `TRX_ROWS` `0xF8-0x12D`; a new table takes the next free range.
+  Reordering or inserting mid-list shifts every later uuid and detaches logged sets from their variation.
+  `ybelltrx.spec` asserts the ranges never overlap and that no uuid is duplicated anywhere in `FAMILIES`.
 - **Full kettlebell vocabulary (feat 445):** **55 new variations** in **Kettlebell-Specific Movements**
   (29 → 84), covering the rest of both schools — hardstyle power and girevoy sport. New: American /
   dead-stop / double / staggered-stance / walking swings and the **sport pendulum swing**; dead, hang and
