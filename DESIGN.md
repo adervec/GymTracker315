@@ -2576,6 +2576,22 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Analysis requests — a fifth Cowork channel (feat 450):** a new **Reflect › Analysis** page (🔬) is a CRUD
+  queue of free-text questions the user has about their own training ("how has my bench progressed?", "am I
+  neglecting a muscle group?"). It rides the existing Cowork hub rather than inventing a new transport: a new
+  `analysis/` channel joins garmin/strava/pod in `coworkResolveRoot`, `coworkExportNow`, `coworkPollAll`, and
+  the context/instructions builders. On export the channel's `context.json` carries the still-open requests
+  (`status !== 'answered'`); the agent reads them + `../app-export.json`, drops an `analysis-output` envelope
+  (`{ answers:[{ id, answer }] }`) in `inbox/`; `coworkImportAnalysis` matches each answer to its request by
+  `id`, sets `answer`/`status:'answered'`/`answeredAt`, and the poll's cloud-sync carries it back to the phone.
+  Data model: `state.analysisRequests` = `[{ id, q, created, updatedAt, status, answer, answeredAt }]`, merged
+  cross-device by `mergeKeyedArray` on `id` with **newest-`updatedAt`-wins** — create-on-phone and answer-on-
+  desktop are both `updatedAt` bumps, so the round-trip converges without a coordination step. Deliberate gap
+  (ponytail): no delete tombstone (same as `gyms`/`customVariations`) — a delete may not reach a device still
+  holding the row; add one if it bites. Editing a question clears its answer and re-opens it to `pending` so a
+  changed question gets re-answered. The page works read/write on any device; the ⤴ Push / ↻ Check buttons
+  (which call the existing `coworkExportNow`/`coworkPollAll`) show only on desktop with the hub enabled.
+  `analysis.spec` drives the CRUD helpers, the channel context/instructions/import, and the LWW merge.
 - **Workout-tab cleanup (feat 242):** the active-workout dashboard's **metronome bar** (run toggle · bpm · ⚙)
   was a duplicate of the Mantranome controls in the 🔊 sound menu (feat 205) — removed to reclaim space; the
   HR bar and End/Discard controls stay. The engine + its `refreshMetronomeUI` updater already guarded the
