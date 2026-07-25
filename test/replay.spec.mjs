@@ -76,8 +76,13 @@ test('scrubbing to the squat week swaps the heatmap and the log', async ({ page 
 
 test('▶ Play restarts from the oldest week, runs to "now", then stops itself', async ({ page }) => {
   await seedHistory(page);
-  await page.evaluate(() => { _replayTickMs = 60; navTo('replay'); document.getElementById('replay-play').click(); });
-  expect(await page.evaluate(() => ({ playing: _replayPlaying, atOldest: _replayOffset === replayMaxOffset() }))).toEqual({ playing: true, atOldest: true });
+  // capture the just-started state IN the click's evaluate — a second round-trip loses the race
+  // against the 60ms tick (the timer could advance or even finish before the next evaluate lands).
+  const start = await page.evaluate(() => {
+    _replayTickMs = 60; navTo('replay'); document.getElementById('replay-play').click();
+    return { playing: _replayPlaying, atOldest: _replayOffset === replayMaxOffset() };
+  });
+  expect(start).toEqual({ playing: true, atOldest: true });
   await page.waitForFunction(() => !_replayPlaying && _replayOffset === 0, null, { timeout: 5000 });
   const done = await page.evaluate(() => document.querySelector('#replay-page .card-title').textContent);
   expect(done).toContain('(now)');

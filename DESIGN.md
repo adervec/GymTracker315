@@ -2576,6 +2576,26 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Test robustification + bug sweep (feat 451):** a deliberate hardening pass. **Flaky specs fixed at the
+  root:** replay.spec's ▶-Play test read the just-started state in a *second* `page.evaluate` — with the test
+  tick at 60 ms the interval could advance (or finish) between the two round-trips; the initial-state read now
+  happens synchronously inside the click's own evaluate (the click handler runs before any timer can fire in
+  the same JS task). motionfigure.spec's three heaviest tests (full-coverage sweep, reference-embed render,
+  machine-station sweep) got `test.slow()` — they iterate every variation × view × pose, and feats 443-449
+  grew that set by ~440 rows, which is what made them start timing out on loaded parallel workers.
+  **Bug sweep findings (fixed):** (1) two duplicate variation ids — `grip-training/thick-bar-hold` and
+  `neck-training/neck-lateral` each existed twice (a built-in in the minified FAMILIES JSON + an EXTRA copy
+  from the `c0ac…` era) — the EXTRA copies renamed to `fat-grip-hold` / `neck-lateral-raise` (sets and
+  exerciseSetup key by uuid, so renames are safe; `VAR_EQUIP_OVERRIDES` gained `neck-lateral-raise: plate`);
+  (2) two dead FAMILY_MOTION keys — `neck` and `band-work` are *reference* family ids (the trackable families
+  are `neck-training`/`resistance-bands`, both already mapped) — removed. **Permanent guards:** the sweep's
+  audit checks became `integrity.spec` (6 tests): unique variation ids per family in FAMILIES *and* the
+  reference, well-formed compact rows (9 fields, single-colon programming pairs, non-empty split parts),
+  no dead FAMILY_MOTION keys, no double-injection into the reference, a complete VAR_INDEX, and NaN-resilient
+  analytics (volume/trends/history/recovery fed deliberately-malformed sets must render NaN-free). Verified
+  non-bugs, for the record: `analysisRequests` sync wiring (pushed by syncPayload, per-record merged, not in
+  SETTINGS_KEYS so the coarse-LWW branch can't clobber it — same pattern as recoveryLog), the cowork ledger
+  (pruned to ~200/channel), and `gt_page` (written, deliberately never restored — boot-to-workout is by design).
 - **Analysis requests — a fifth Cowork channel (feat 450):** a new **Reflect › Analysis** page (🔬) is a CRUD
   queue of free-text questions the user has about their own training ("how has my bench progressed?", "am I
   neglecting a muscle group?"). It rides the existing Cowork hub rather than inventing a new transport: a new

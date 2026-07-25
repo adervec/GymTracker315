@@ -171,6 +171,7 @@ test('feat 413 — Roc-It exercises are seated machines with the rocking seat; S
 // pads / levers / rails / sled / cable), except Smith machines which are deliberately the free-weight
 // motion (they still show the bar + rack/rail scene).
 test('feat 414 — every machine-titled variation draws its station; brand names imply machines', async ({ page }) => {
+  test.slow(); // iterates every machine variation × views × poses — 3× timeout on loaded workers
   const r = await page.evaluate(() => {
     const STATION = /fig-(stack|pad|arm-lever|tower|rail|sled|cable|wheel|crank|bench)/;
     const noStation = [];
@@ -306,6 +307,7 @@ test('feat 416 — bodyweight movements the solver family-fallback mislabels are
 
 // feat 412 — every variation of every exercise family animates (plan-template families excluded).
 test('feat 412 — full coverage: every exercise variation resolves to a motion and every template renders', async ({ page }) => {
+  test.slow(); // sweeps ALL ~1200 variations + every motion × view × phase — the catalogue grew 440 rows in feats 443-449
   const r = await page.evaluate(() => {
     const EXCLUDE = new Set(['workout-templates', 'session-templates', 'benchmark-wods', 'warmup-templates']);
     let covered = 0, missing = [];
@@ -332,6 +334,7 @@ test('feat 412 — full coverage: every exercise variation resolves to a motion 
 });
 
 test('feat 408 — the full reference embeds an animated motion stage per mapped variation, with view pills', async ({ page }) => {
+  test.slow(); // renders the detailed reference: one animated SVG stage per covered variation (1000+)
   const r = await page.evaluate(() => {
     state.refView = 'detailed';
     navTo('reference');
