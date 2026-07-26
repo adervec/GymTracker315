@@ -869,6 +869,22 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .np-calc-toggle.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .np-ops { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 8px; }
   .np-ops .np-key { font-size: 18px; padding: 12px 0; font-weight: 800; color: var(--accent); }
+  /* feat 452 — DESKTOP MODE. JS adds `body.desktop` when the device is mouse-driven (fine pointer + hover);
+     touch phones/tablets never get it. A phone-first PWA sprawls edge-to-edge on a monitor with oversized
+     touch targets, so on desktop we center the core surfaces in a readable column, cap + center the numpad
+     bottom-sheet, and trim the chunkiest controls a notch for a mouse. Mobile is untouched. Tune to taste. */
+  body.desktop { --desktop-w: 900px; }
+  body.desktop #panel-tracker > header,
+  body.desktop #trk-main,
+  body.desktop #trk-modal .modal-header,
+  body.desktop #trk-modal .modal-body,
+  body.desktop #trk-modal .modal-footer { max-width: var(--desktop-w, 900px); margin-left: auto; margin-right: auto; }
+  body.desktop .numpad-sheet { left: 50%; right: auto; width: min(460px, 96vw); transform: translateX(-50%) translateY(115%); }
+  body.desktop .numpad-sheet.open { transform: translateX(-50%) translateY(0); }
+  body.desktop .np-key { font-size: 17px; padding: 10px 0; }
+  body.desktop .np-display { font-size: 26px; }
+  body.desktop .np-ops .np-key { font-size: 16px; padding: 9px 0; }
+  body.desktop .set-input { font-size: 15px; padding: 7px 9px; }
   /* Workout metronome (feat 69) */
   .metronome-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 8px 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; }
   .metro-toggle { flex: 1; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; white-space: nowrap; }
@@ -27032,12 +27048,47 @@ document.addEventListener('keydown', e => {
   }
 });
 
+/* ============================================================
+   feat 452 — DESKTOP MODE. A fine pointer + hover is a mouse-driven desktop (touch phones/tablets report a
+   coarse pointer / no hover). We expose that as `body.desktop` (drives the centered, denser layout above) and,
+   on desktop only, let the physical keyboard drive the on-screen numpad — so weights/reps can be typed and
+   Enter'd instead of clicked. On a phone there's no keyboard and the readonly fields suppress the soft one, so
+   this never fires there; when the native-input mode is on (no numpad), the numpad never opens, so no conflict.
+   ============================================================ */
+const _desktopMQ = (typeof matchMedia === 'function') ? matchMedia('(hover: hover) and (pointer: fine)') : null;
+function isDesktopMode() { return !!(_desktopMQ && _desktopMQ.matches); }
+function applyDesktopClass() { try { document.body.classList.toggle('desktop', isDesktopMode()); } catch (_) {} }
+applyDesktopClass();
+if (_desktopMQ) { try { _desktopMQ.addEventListener('change', applyDesktopClass); } catch (_) { try { _desktopMQ.addListener(applyDesktopClass); } catch (_) {} } } // Safari <14 uses the legacy addListener
+// Physical-keyboard → numpad. Capture phase so Escape closes the numpad BEFORE the global handler above closes
+// the whole log sheet. Enter = Next (commit + advance to reps / the next set), ⌫ = back; +−×÷() feed calc mode.
+const _NP_KEYMAP = { '+': 'add', '-': 'sub', '*': 'mul', 'x': 'mul', 'X': 'mul', '/': 'div', '(': 'lparen', ')': 'rparen' };
+document.addEventListener('keydown', e => {
+  const np = (typeof modalState !== 'undefined') && modalState.numpad;
+  if (!np || !np.open || !isDesktopMode()) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;                 // leave browser shortcuts alone
+  const ae = document.activeElement;                              // don't hijack real text entry (note editor, search…)
+  if (ae && (ae.tagName === 'TEXTAREA' || ae.isContentEditable || (ae.tagName === 'INPUT' && !ae.readOnly))) return;
+  const key = e.key;
+  let npk = null;
+  if (/^[0-9]$/.test(key)) npk = key;
+  else if (key === '.') npk = '.';
+  else if (key === ':') npk = 'colon';
+  else if (key === 'Backspace') npk = 'back';
+  else if (key === 'Enter') npk = 'next';
+  else if (key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeNumpad(); return; }
+  else if (state.calcMode === true && (key in _NP_KEYMAP)) npk = _NP_KEYMAP[key];
+  if (npk == null) return;
+  e.preventDefault();
+  numpadHandleKey(npk);
+}, true);
+
 // feat 92 — global UI tap feedback: a subtle click + haptic on every interactive control
 // (default ON, gated by the master switches + the "Button taps" toggle in the sound menu).
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 366 · 2026-07-24 22:52';
+const APP_BUILD = 'build 367 · 2026-07-26 11:11';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

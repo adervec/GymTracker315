@@ -2576,6 +2576,26 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Desktop mode — detection, centered layout, keyboard-driven numpad (feat 452):** GymTracker is phone-first
+  (full-bleed, big touch targets), which sprawls on a monitor and forces mouse-clicking the on-screen numpad.
+  **Detection:** `matchMedia('(hover: hover) and (pointer: fine)')` — a mouse-driven desktop reports a fine
+  pointer + hover; touch phones/tablets report coarse / no-hover. Exposed as `isDesktopMode()` and mirrored to
+  a `body.desktop` class (kept live via the MQ `change` listener, with the legacy `addListener` fallback). No
+  setting — it's environmental, so it's auto-detected, not configured. **Layout (CSS, all under `body.desktop`,
+  so mobile is byte-for-byte unchanged):** the core surfaces — `#trk-main`, the tracker header, and the log
+  modal's header/body/footer — are capped at `--desktop-w` (900px) and centered; the numpad bottom-sheet is
+  capped at 460px and centered (`translateX(-50%)` folded into its open/closed `translateY`); and the chunkiest
+  touch controls (`.np-key`, `.np-display`, `.np-ops`, `.set-input`) are trimmed a notch for a mouse. The log
+  modal is a separate full-screen overlay (`#trk-modal`), NOT inside `#trk-main`, so it needs its own centering
+  rule — a first pass that only centered `#trk-main` missed the entire logging surface (caught by screenshot).
+  **Keyboard numpad:** a capture-phase `document` keydown listener, active only when `isDesktopMode()` AND the
+  numpad is open, routes physical keys through the existing `numpadHandleKey`: digits/`.`/`:` build the buffer,
+  ⌫ = back, Enter = Next (commit + advance weight→reps→next set→close), Esc closes just the numpad (capture +
+  `stopImmediatePropagation` beat the global Esc-closes-the-sheet handler), and `+ − × ÷ ( )` feed calc mode.
+  It bails if a real text field is focused (note editor / search) so typing there is never hijacked, and does
+  nothing when the numpad is closed or on touch — and since native-input mode never opens the numpad, the two
+  input modes never collide. `desktopmode.spec` uses BOTH Playwright projects: desktop-chromium asserts the
+  class + the full type/Enter/⌫/Esc flow; mobile-pixel asserts neither the class nor any key hijack appears.
 - **Test robustification + bug sweep (feat 451):** a deliberate hardening pass. **Flaky specs fixed at the
   root:** replay.spec's ▶-Play test read the just-started state in a *second* `page.evaluate` — with the test
   tick at 60 ms the interval could advance (or finish) between the two round-trips; the initial-state read now
