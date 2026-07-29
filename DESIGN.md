@@ -2576,6 +2576,36 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **The wrist roller + a cross-linking refresh (feat 453):** two halves of one content pass.
+  **(a) The wrist roller.** The catalogue carried a single generic `wrist-roller` row in Grip Training for a
+  tool with three real axes: roll **direction** picks the muscle (rolling the top of the bar away loads the
+  extensors, toward you the flexors, supinated the deep finger flexors); **arm position** picks the limiting
+  factor (arms-out at shoulder height is the classic, but the front delts quit first — elbows-bent / rack- /
+  seated- / preacher-supported take the shoulder out so the forearms get the whole set and load can actually
+  progress); and **loading style** picks the resistance curve (plate, band — hardest at the top, cable — the
+  only one that micro-loads). **18 compact rows** (`WRIST_ROLLER_ROWS`, slots `0x1E9`-`0x1FA`) cover those plus
+  the clamp-on **barbell-mounted** collar (the physical tool that prompted this), one-arm, fat-grip, eccentric-
+  only, ladder and mid-roll isometric. They go into `grip-training` beside the existing entry — **no new
+  family**, so no `FAMILY_MOTION` entry and no duplicate-title problem — and are cross-listed into Forearm Work.
+  **(b) Cross-linking brought up to date.** A title-similarity sweep (normalised tokens + Jaccard) over all
+  1376 variations surfaced two distinct problems. First, **13 genuine same-exercise-twice pairs** visible in
+  both families — the feat-167 test only catches byte-identical titles, so "KB Strict Press"/"Kettlebell Strict
+  Press", "Safety Squat Bar"/"Safety Squat Bar Squat", Zhan Zhuang, Horse Stance, Clap Push-Up, Turkish Get-Up,
+  Single-Leg Hip Thrust, Svend Press (a *second* copy), Fat-Grip Pull-Up, T-Bar/Landmine Row and Farmer's
+  Walk/Carry all slipped through; they join `VAR_DUP_RECONCILE`. Second, feats 443-449 added ~440 implement-family
+  movements that ARE base patterns performed with a tool, and **none were cross-linked** — a plan step for
+  "squat" never offered the YBell/mace/KB/TRX/ball squats. New `SECONDARY_PARENTS_BY_ID` keys the additive
+  links by readable `family/variationId` (ids are stable and `family/id` is unambiguous where a bare id may
+  not be), resolved to uuids once in `applyExtraSecondaryParents`. It is **additive** — nothing is suppressed
+  or moved; each variation keeps its own home and stays visible there. The table is the **reviewed** output of
+  a title-pattern sweep, not the raw proposals: the machine mislabelled TRX/ball *hamstring* curls as biceps
+  curls, TRX Y/T/W/I flies as chest flies, and banded monster walks as loaded carries — all corrected by hand,
+  which is why the mapping ships as data rather than a runtime heuristic. `wristroller.spec` pins the roller's
+  axes, asserts every cross-link spec resolves (a rename fails the suite instead of silently no-op'ing), that
+  suppressed variations are never cross-linked, and that every reconciled duplicate still resolves for old
+  logged sets. Known and left alone: `grip-training`'s "Thick Bar Hold" vs "Thick-Bar / Fat-Grip Hold" are
+  near-twins in the SAME family, which the cross-family reconcile machinery cannot express — arguably a
+  dedicated thick bar vs Fat Gripz on a normal bar, so both stay.
 - **Desktop mode — detection, centered layout, keyboard-driven numpad (feat 452):** GymTracker is phone-first
   (full-bleed, big touch targets), which sprawls on a monitor and forces mouse-clicking the on-screen numpad.
   **Detection:** `matchMedia('(hover: hover) and (pointer: fine)')` — a mouse-driven desktop reports a fine
