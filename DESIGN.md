@@ -2576,6 +2576,36 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Grip gear, the fixed row machine's handles, and a stale hold timer (feat 454):**
+  **(a) Three pieces of kit, filed by muscle rather than by gear.** RDX lifting **hooks**, Iron Bull **Fat
+  Gripz** and the RDX **arm blaster** had no vocabulary at all (four incidental fat-grip rows aside). The
+  tempting shape was one "gear" family; rejected, because a variation inherits its family's body part, so a
+  hooked deadlift filed under gear would book forearm volume and never satisfy a deadlift plan step. Instead
+  **28 compact rows** (slots `0x1FB`-`0x216`) go into the family whose muscles they train — hooks into
+  `deadlift`/`shrugs`/`row`/`lat-pulldown`/`loaded-carries`, blaster into `bicep-curl`/`hammer-curl`/
+  `reverse-curl`, Fat Gripz across those plus `flat-bench-press`/`shoulder-press`. Hooks get their own
+  variations rather than a note on the strapless lift because **the numbers are not comparable**: a hooked
+  pull and a bare double-overhand pull are different exercises for logging purposes, and merging them would
+  corrupt the trend. Two entries stay in `grip-training` because they are *rules*, not lifts: `hook-free-top-set`
+  (first work set of any pull goes bare-handed — keeps the gear from eroding the grip it replaces) and the
+  `fat-grip-thickness-ladder` (thickness, not weight, is the loading variable; "Hold" in its title is
+  load-bearing, since `exMode` reads titles to pick time mode). Cross-linking is asymmetric on purpose: the
+  fat-grip rows cross-list **into** Grip Training (thick-handle work *is* grip work), the hook rows deliberately
+  do **not** (they remove the grip). `VAR_EQUIP_OVERRIDES` gains `hook-free-top-set: 'barbell'` — a barbell rule
+  living in a family whose default loader is a dumbbell.
+  **(b) The Life Fitness fixed chest-supported row.** Its pronated / neutral / supinated handles are three
+  different exercises (upper back / strongest-and-most-lat / longest lat range with biceps), so they are three
+  variations plus single-arm and a **grip-cycle drop set** — neutral to failure, straight to supinated, straight
+  to wide pronated, one weight throughout, since each handle is weaker than the last. The supinated entry
+  carries an explicit warning against wrenching a *locked* pronated handle round.
+  **(c) The hold-timer bug.** A timed hold's live ⏱ button kept ticking after the seconds were typed in.
+  `renderModal()` drops a completed set's timer, but only the ⏱-**tap** path called it — typing, the numpad and
+  voice entry all go through `commitSetField`, which only refreshes the row via `updateRowLive` (the timer is
+  a sibling of `.set-row`, so the row refresh never saw it). Fix: `commitSetField` now toggles the button's
+  `hidden` on the `r` field, and the four timer/auto-stop selectors require `:not([hidden])`. Hidden rather
+  than removed so that *clearing* the field re-opens the hold and re-arms the ticker without a re-render
+  stealing focus mid-edit; a `.hold-timer-btn[hidden] { display: none }` rule is needed because the author
+  `display: flex` would otherwise beat the UA `hidden` rule. `gripgear.spec` covers all of the above.
 - **The wrist roller + a cross-linking refresh (feat 453):** two halves of one content pass.
   **(a) The wrist roller.** The catalogue carried a single generic `wrist-roller` row in Grip Training for a
   tool with three real axes: roll **direction** picks the muscle (rolling the top of the bar away loads the

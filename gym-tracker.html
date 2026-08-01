@@ -1900,6 +1900,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
      the Seconds field. Pulses subtly so it reads as live. */
   .hold-timer-btn { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin: 3px 0 7px; padding: 9px 10px; border: 1px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-family: inherit; font-weight: 800; font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; animation: hold-timer-pulse 1.8s ease-in-out infinite; }
   .hold-timer-btn:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  .hold-timer-btn[hidden] { display: none; } /* feat 454 — author display:flex would otherwise beat the UA hidden rule */
   .hold-timer-btn .ht-time { font-size: 17px; letter-spacing: 0.3px; }
   .hold-timer-btn .ht-tap { font-size: 11px; font-weight: 600; opacity: 0.82; }
   @keyframes hold-timer-pulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); } 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); } }
@@ -4312,6 +4313,82 @@ const WRIST_ROLLER_ROWS = [
 ];
 pushCompactRows(WRIST_ROLLER_ROWS, 'grip-training', 0x1E9);  // slots 0x1E9-0x1FA
 
+/* ---- feat 454 — grip gear, and the fixed row machine's handles ----
+   Three pieces of kit the catalogue had no vocabulary for, plus one machine detail:
+     · LIFTING HOOKS (RDX) — the anti-grip tool. They do not create new exercises, they remove the grip
+       ceiling from existing pulls, which makes the numbers non-comparable to a bare double-overhand set.
+       So each hooked pull is its own trackable variation rather than a note on the strapless one.
+     · FAT GRIPZ (Iron Bull) — the opposite tool. Thickness is the loading variable; load drops ~30%.
+     · ARM BLASTER (RDX) — a curl position constraint: the upper arm cannot move, so the biceps do it all.
+     · The Life Fitness fixed chest-supported row carries pronated / neutral / supinated handles that are
+       three genuinely different exercises, and a free mechanical drop set if you cycle them.
+   Rows are filed in the family whose MUSCLES they train — not in a gear family — so body-part volume,
+   plan-step matching and the equipment picker all stay correct. The fat-grip ones are cross-listed into
+   Grip Training (feat 453 table) because thick-handle work IS grip work; hooked pulls deliberately are
+   not, since they train the opposite thing. APPEND ONLY, slots 0x1FB upward. ---- */
+const HOOK_DL_ROWS = [
+  ['hook-assisted-dl','Hook-Assisted Deadlift','Grip Removed','Steel hooks over the bar, wrist cuffs taking the load. The back and legs get the set with grip out of the equation.','Cuffs snug on the wrists, hooks hanging over the palms|Set up to the bar as normal, then drape each hook over it|Fingers close lightly over the hook — they are along for the ride','Take the slack out and pull exactly as you would strapless|Wrists neutral so the cuff, not the joint, carries the load|Lower under control — a hook will not release mid-rep','Logging hooked pulls against strapless numbers|Living in them so the grip never catches up|Letting the wrist bend back over the hook','Hypertrophy:4 x 6-10;Volume:5 x 5 back-off','Hooks let the posterior chain train past the grip. Track them as their own exercise — the numbers are not comparable to a bare double-overhand pull.'],
+  ['hook-rack-pull','Hook-Assisted Rack Pull','Overload Pull','Above-the-knee pull with hooks on. The strongest position in the lift, with grip no longer the ceiling.','Pins or blocks set just above the knee|Hooks over the bar, cuffs snug|Load heavier than your floor pull','Brace, then drive the hips through to lockout|Hold the top a beat|Set the bar back on the pins rather than dropping it','Turning it into a shrug|Hyperextending at lockout|Loading past what the back can control just because the hands now can','Strength:4 x 3-5;Overload:3 x 2-3 heavy','The clearest case for hooks — rack pulls run out of grip long before they run out of back.'],
+  ['hook-high-rep-rdl','Hook-Assisted High-Rep RDL','Hamstring Volume','Romanian deadlifts for 15-20 with hooks, so the hamstrings rather than the fingers decide when the set ends.','Hooks on, bar resting at the hips|Soft knees, ribs down|Lighter load than a strength RDL','Push the hips back with the bar tracking the thighs|Stop at the stretch, not the floor|Drive the hips forward to stand tall','Chasing load instead of range|Rounding as the set gets long|Bouncing out of the bottom','Hypertrophy:3-4 x 12-20','High-rep hinging is where a raw grip fails first. This is the version that actually reaches hamstring failure.'],
+];
+pushCompactRows(HOOK_DL_ROWS, 'deadlift', 0x1FB);            // slots 0x1FB-0x1FD
+const GEAR_SHRUG_ROWS = [
+  ['hook-shrug','Hook-Assisted Barbell Shrug','Trap Overload','Shrugs with hooks on. The traps get loaded to their own capacity rather than to whatever the fingers allow.','Hooks over the bar, cuffs snug|Bar hanging at full extension, shoulders relaxed down|Feet hip-width, ribs down','Shrug straight up toward the ears|Pause a beat at the top|Lower all the way down to a full stretch','Rolling the shoulders|Bouncing with the knees|Half-range reps once it gets heavy','Hypertrophy:4 x 10-15;Strength:4 x 6-8','Traps can hold far more than fingers can. Hooked shrugs are the cleanest way to find out how much.'],
+  ['fat-grip-shrug','Fat-Grip Barbell Shrug','Grip Plus Traps','Thick sleeves on the bar. Now the shrug is a grip exercise that the traps happen to share.','Fat Gripz clamped either side of the bar at shrug width|Load roughly 60-70 percent of your normal shrug|Chalk if the hands are damp','Shrug up, fighting to keep the hand closed|Pause at the top while the grip protests|Lower under control, no drop','Keeping the normal shrug weight|Adding straps, which cancels the point|Regripping between reps','Grip:3-4 x 8-12','The opposite tool to hooks on the same lift. Alternate blocks — hooked shrugs for the traps, fat-grip shrugs for the hands.'],
+];
+pushCompactRows(GEAR_SHRUG_ROWS, 'shrugs', 0x1FE);           // slots 0x1FE-0x1FF
+const GEAR_ROW_ROWS = [
+  ['hook-bb-row','Hook-Assisted Barbell Row','Back Focus','Bent-over rows with hooks. The lats set the rep count instead of the fingers.','Hooks over the bar, cuffs snug|Hinge to roughly 45 degrees, back flat|Bar hanging under the shoulders','Row to the lower ribs with the elbows tracking back|Squeeze the shoulder blades together|Lower to a full stretch without losing the torso angle','Standing up as the set gets hard|Yanking with the low back|Letting the hooks talk you into a load the torso cannot hold','Hypertrophy:4 x 8-12','Hooks remove the mixed grip and the wrist strain both. Excellent for high-rep rowing, useless for building a row-specific grip.'],
+  ['fat-grip-bb-row','Fat-Grip Barbell Row','Thick-Bar Row','Barbell rows with thick sleeves on. Turns a back exercise into a back-and-forearm exercise.','Fat Gripz on the bar at your normal row width|Drop to about 60-70 percent of your usual row|Hinge with the back flat','Row to the ribs with the hand fighting to stay shut|Squeeze at the top|Lower under control before the grip slips','Keeping the thin-bar weight|Letting the bar roll out to the fingertips|Adding straps','Grip:3 x 6-10;Hypertrophy:3-4 x 8-12','Thick handles also force a more open hand, which quietly cleans up wrist and elbow position on rows.'],
+  ['lf-row-pronated','Fixed Row — Wide Pronated Grip (Life Fitness)','Upper Back and Rear Delt','Palms down on the outer wide handles. The elbows flare, and the load shifts to rear delts, traps and rhomboids.','Chest pad at mid-sternum, seat set so the handles sit at lower-chest height|Take the outer handles palms down|Feet planted, chest stays glued to the pad','Pull with the elbows travelling out and back at roughly 45 degrees|Squeeze the blades together as the handles reach the ribs|Return slowly to a full stretch','Chest peeling off the pad|Shrugging at the top|Rowing to the waist, which turns it back into a lat row','Hypertrophy:3-4 x 10-15','The wide pronated handle is the upper-back option — expect less load than neutral and more soreness between the shoulder blades.'],
+  ['lf-row-neutral','Fixed Row — Neutral Grip (Life Fitness)','Strongest Handle','Palms facing each other on the inner handles. The strongest position on the machine, most lat, least wrist strain.','Same chest pad and seat settings as the pronated version|Take the inner parallel handles, thumbs up|Shoulders pulled down before the first rep','Drive the elbows straight back along the ribs|Pull to the lower ribs and squeeze|Let the arms extend fully on the return','Cutting the stretch short|Leaning back off the pad to steal range|Letting the elbows flare, which makes it the pronated version','Hypertrophy:3-4 x 8-12;Strength:4 x 6-8','If you only run one handle, run this one — neutral carries the most load for the least shoulder and wrist cost.'],
+  ['lf-row-supinated','Fixed Row — Supinated Grip (Life Fitness)','Lat and Biceps','Palms up, elbows tight to the sides. The longest lat range the machine offers, with the biceps sharing the work.','Only on a machine whose handles rotate or offer an underhand position|Seat a notch lower so the handles arrive at the lower ribs|Wrists neutral, not bent back','Pull with the elbows brushing the ribs|Drive to the belly and squeeze the lats|Extend fully and let the lats stretch','Wrenching a locked pronated handle into supination|Turning it into a curl|Flaring the elbows out','Hypertrophy:3-4 x 10-12','On a fixed handle this only works if the grip actually rotates. Never force a locked handle round — the wrist pays for it.'],
+  ['lf-row-single-arm','Fixed Row — Single-Arm (Life Fitness)','Side-by-Side Fix','One handle at a time on the chest-supported machine. Finds and fixes the side that has been coasting.','Chest on the pad as normal|One hand on a handle, the other resting on the pad or hip|Roughly half the usual load','Row that one side to the ribs with the chest square on the pad|Squeeze, then return to a full stretch|Match the strong side to the weak side, not the reverse','Twisting the torso to help|Doing extra reps on the strong side|Rushing the eccentric','Corrective:3 x 10-12 per side','Chest support means the trunk cannot cheat, so any left-right gap shows up honestly here.'],
+  ['lf-row-grip-cycle','Fixed Row — Grip-Cycle Drop Set (Life Fitness)','Mechanical Drop','One weight run through neutral, then supinated, then wide pronated. Each handle is weaker than the last, so the set continues without touching the stack.','Pick a load you can row 8-10 times on the neutral handle|All three handles within reach from one seat position|Nothing changes between rounds except your hands','Row neutral to failure, then switch straight to supinated|Supinated to failure, then switch straight to wide pronated|Finish there, with no rest between switches','Changing the weight between rounds|Resting long enough to recover|Running it every session','Finisher:1-2 x 3 rounds','A mechanical drop set with no plate changes — the handle does the dropping. One of these at the end of back day is plenty.'],
+];
+pushCompactRows(GEAR_ROW_ROWS, 'row', 0x200);                // slots 0x200-0x206
+const GEAR_PULLDOWN_ROWS = [
+  ['hook-pulldown','Hook-Assisted Lat Pulldown','Lat Focus','Hooks over the lat bar. Takes the forearm out of a movement people constantly turn into an arm exercise.','Thigh pad locked snug|Hooks draped over the bar at your usual width|Fingers resting on the hooks rather than squeezing','Pull the elbows down and back toward the ribs|Squeeze the lats at the bottom|Let the bar rise to a full overhead stretch','Leaning back until it becomes a row|Using hooks on every set|Pulling with the elbows flared forward','Hypertrophy:3-4 x 10-15','With the grip out of it the lats are far easier to feel. Use it as a cueing tool, not a permanent setting.'],
+  ['fat-grip-pulldown','Fat-Grip Lat Pulldown','Grip Under Load','Fat Gripz on the pulldown bar. The hands fail first, which is exactly the point.','Fat Gripz clamped at your normal pulldown width|Drop to roughly 60-70 percent of your usual stack|Thigh pad locked snug','Pull the elbows to the ribs with the hand fighting to stay closed|Squeeze the lats at the bottom|Control the bar all the way back up','Keeping the normal stack|Letting the bar slide out to the fingertips|Adding straps','Grip:3 x 8-12','The safest place to train an open hand under real load — nothing lands on your feet when it slips.'],
+];
+pushCompactRows(GEAR_PULLDOWN_ROWS, 'lat-pulldown', 0x207);  // slots 0x207-0x208
+const GEAR_CARRY_ROWS = [
+  ['hook-carry','Hook-Assisted Farmer\'s Carry','Legs and Trunk','Carries with hooks on. Turns a grip event into a leg, trunk and lung event.','Hooks over the handles, cuffs snug|Stand tall, shoulders packed, ribs down|Route marked out before you pick up','Walk with short controlled steps|Keep the torso upright and the load quiet|Set down deliberately rather than dropping','Comparing hooked distance to bare-handed distance|Dropping strapless carries entirely|Leaning back under the heavy loads hooks allow','Conditioning:4 x 40-60m;Strength:4 x 20-30m heavy','Carries are normally capped by the hands. Hooks let the legs and trunk find their own ceiling — keep some strapless work alongside.'],
+  ['fat-grip-carry','Fat-Grip Farmer\'s Carry','Grip Killer','Thick sleeves on the handles. The distance is decided by the hands and nothing else.','Fat Gripz on dumbbell or trap-bar handles|About half your usual carry load|Chalk on','Pick up, stand tall and walk|The hand opens the moment you lose focus, so do not lose focus|Set down before it slips, not after','Loading it like a normal carry|Walking until the hand genuinely opens|Regripping mid-carry','Grip:4 x 20-30m','The hardest grip exercise most gyms can offer. Expect the distance to roughly halve the first time.'],
+];
+pushCompactRows(GEAR_CARRY_ROWS, 'loaded-carries', 0x209);   // slots 0x209-0x20A
+// "Hold" in the ladder's title is load-bearing: exMode reads titles, and the ladder is three timed holds at one weight.
+const GEAR_GRIP_ROWS = [
+  ['hook-free-top-set','Hook-Free Top Set','Grip Discipline','A rule rather than a movement — the first work set of any pull goes bare-handed, hooks only after it. Stops the gear quietly eroding the grip it replaces.','Pick the pull for the day — deadlift, row, shrug or carry|Hooks left off the bar for the opening set|Chalk instead','Take the first work set double-overhand and strapless, for whatever it holds|Log that number as the honest grip figure|Put the hooks on for the remaining sets','Going straight to the hooks on a heavy day|Using a mixed grip and calling it strapless|Never logging the bare-handed number, so the trend stays invisible','Habit:1 set every pulling session','Grip aids are a tool, not a default. One honest set per session keeps the hands progressing alongside the back.'],
+  ['fat-grip-thickness-ladder','Fat Gripz Thickness Ladder (Timed Hold)','Progressive Thickness','Progress the handle instead of the plate — bare bar, then the standard sleeves, then the thicker pair, all at one fixed weight.','A weight you can hold comfortably bare-handed for 30 seconds|Both a standard and an extreme thickness pair if you own them|Timer ready','Hold to the target time on the bare handle|Repeat at the same weight with the standard sleeves fitted|Repeat again with the thicker pair, resting fully between','Adding weight and thickness in the same block|Jumping to the thickest pair before the standard one is comfortable|Skipping the bare-handed baseline','Grip:3-4 x 20-40s per thickness;Progression:one thickness step per block','Barrel diameter is the loading variable for open-hand strength — treat a step up in thickness exactly like a step up in weight.'],
+];
+pushCompactRows(GEAR_GRIP_ROWS, 'grip-training', 0x20B);     // slots 0x20B-0x20C
+const BLASTER_CURL_ROWS = [
+  ['blaster-bb-curl','Arm Blaster Barbell Curl','Zero Swing','Aluminium plate strapped around the neck, the backs of the upper arms pinned flat against it. The elbow cannot travel, so the biceps do every inch.','Strap around the neck, plate resting against the abdomen|Backs of the upper arms flat on the plate, elbows at its lower lip|Bar held at full extension, shoulder-width grip','Curl without letting the elbows leave the plate|Squeeze hard at the top|Lower all the way back to straight arms','Loading it like your usual cheat curl|Letting the elbows slide up the plate|Leaning back to start the rep','Hypertrophy:3-4 x 8-12','Expect to drop 20-30 percent off your normal curl. That gap is exactly how much body English you had been using.'],
+  ['blaster-ez-curl','Arm Blaster EZ-Bar Curl','Wrist-Friendly','The same locked-elbow position on a cambered bar. Kinder on the wrists than a straight bar for an identical strict curl.','Blaster strapped on, upper arms flat against the plate|Hands on the inner angles of the EZ bar|Ribs down, knees soft','Curl to the top with the elbows glued in place|Pause and squeeze|Lower under control to full extension','Gripping the widest angle, which loads the wrist|Bouncing out of the bottom|Shortening the range at the bottom','Hypertrophy:3-4 x 8-12','The semi-supinated angle takes the wrist strain out. The default bar if straight-bar curls make your wrists ache.'],
+  ['blaster-db-alt-curl','Arm Blaster Alternating DB Curl','Supination Under Lock','Dumbbells one arm at a time with both upper arms locked to the plate. Lets you supinate hard without the shoulder drifting in to help.','Blaster on, both upper arms against the plate|A dumbbell in each hand, palms neutral at the bottom|Shoulders pulled down','Curl one arm, rotating the palm up as it rises|Squeeze at the top, then lower and rotate back to neutral|Alternate, both elbows staying on the plate throughout','The resting arm drifting off the plate|Swinging the working side|Skipping the rotation','Hypertrophy:3 x 8-12 per arm','Full supination is where the peak contraction lives. The blaster is what stops the shoulder joining in.'],
+  ['blaster-21s','Arm Blaster 21s','Range Torture','Seven bottom-half reps, seven top-half, seven full — all with the elbows locked to the plate.','Blaster on, bar loaded far lighter than usual|Elbows flat against the plate|Somewhere to set the bar down quickly','Seven reps from straight arms to halfway|Seven from halfway to the top|Seven full-range reps to finish, with no pause between the thirds','Starting too heavy to reach 21|Letting the halfway point creep upward|Resting between the thirds','Finisher:2-3 x 21','Standard 21s leak into the shoulders as the arms tire. With the blaster on there is nowhere for that to go.'],
+  ['blaster-cable-curl','Arm Blaster Cable Curl','Constant Tension','A low-pulley curl with the elbows pinned. Cable tension at the bottom plus an upper arm that cannot move.','Blaster on, standing a step back from a low pulley|Straight or EZ attachment held at full extension|Elbows flat on the plate','Curl against constant cable tension|Squeeze at the top|Let the stack draw the arms straight without the elbows lifting','Standing so close the cable goes slack|Letting the stack pull the elbows off the plate|Leaning back as fatigue arrives','Hypertrophy:3 x 10-15','The cable keeps tension exactly where a barbell loses it — at the bottom. Pair it with a barbell blaster curl for the whole range.'],
+];
+pushCompactRows(BLASTER_CURL_ROWS, 'bicep-curl', 0x20D);     // slots 0x20D-0x211
+const GEAR_HAMMER_ROWS = [
+  ['blaster-hammer-curl','Arm Blaster DB Hammer Curl','Brachialis Lock','Neutral-grip curls with the upper arms pinned to the plate. All brachialis and brachioradialis, no swing available.','Blaster on, upper arms flat against the plate|Dumbbells held thumbs up|Ribs down, shoulders packed','Curl both dumbbells with the palms staying neutral|Squeeze at the top|Lower to full extension without the elbows lifting','Rotating into a normal curl|Swinging from the shoulder|Loading it like an unrestricted hammer curl','Hypertrophy:3-4 x 8-12','Brachialis size is what pushes the biceps up. The blaster makes sure the shoulder does not take the work.'],
+  ['fat-grip-hammer-curl','Fat-Grip DB Hammer Curl','Forearm Builder','Thick sleeves on the dumbbells, neutral grip. The best forearm-size exercise a pair of Fat Gripz offers.','Fat Gripz fitted to both dumbbells|Roughly 60-70 percent of your normal hammer curl|Thumbs up, elbows at the sides','Curl with the hand fighting to stay closed around the barrel|Squeeze at the top|Lower under control to straight arms','Keeping the normal load|Letting the dumbbell roll back in the hand|Cutting the eccentric short','Hypertrophy:3-4 x 8-12;Grip:3 x 10-15','Hammer curls already hit the brachioradialis. Thickening the handle roughly doubles what the forearm has to do.'],
+];
+pushCompactRows(GEAR_HAMMER_ROWS, 'hammer-curl', 0x212);     // slots 0x212-0x213
+const BLASTER_REVERSE_ROWS = [
+  ['blaster-reverse-curl','Arm Blaster EZ-Bar Reverse Curl','Strict Extensors','Palms-down curls with the elbows locked to the plate. The forearm extensors take the set with nothing to hide behind.','Blaster on, upper arms flat against the plate|Overhand grip on the inner angles of the EZ bar|Load very light — this position is weak','Curl with the knuckles leading|Pause at the top where it burns most|Lower slowly to straight arms','Using biceps-curl weight|Letting the wrists collapse into flexion|Elbows drifting up the plate','Hypertrophy:3 x 10-15','Reverse curls are the classic elbow-pain fix. The blaster removes the swing that usually makes them useless.'],
+];
+pushCompactRows(BLASTER_REVERSE_ROWS, 'reverse-curl', 0x214); // slot 0x214
+const GEAR_BENCH_ROWS = [
+  ['fat-grip-bench','Fat-Grip Bench Press','Thick-Bar Press','Fat Gripz on the bench bar. The thicker handle changes wrist and elbow position and quietly cues more triceps.','Fat Gripz clamped at your normal bench width|Roughly 70-80 percent of your usual working weight|Safeties set, or a spotter — a fat bar is much harder to save','Unrack and press as normal, wrists stacked over the elbows|Touch the chest under control|Press back up without the bar rolling in the hand','Benching your usual weight|Pressing heavy with no safeties|Letting the wrists bend back around the thicker barrel','Hypertrophy:3 x 6-10','A genuine triceps and lockout tool, but the one fat-grip lift where a slip actually matters. Safeties on, every set.'],
+];
+pushCompactRows(GEAR_BENCH_ROWS, 'flat-bench-press', 0x215); // slot 0x215
+const GEAR_OHP_ROWS = [
+  ['fat-grip-ohp','Fat-Grip Overhead Press','Wrist Position','Thick sleeves on the press bar. Forces a more open hand and a straighter wrist overhead.','Fat Gripz at your normal press width|Around 70-80 percent of your usual load|Rack set so you never have to clean it','Press from the front rack to lockout with the wrists stacked|Ribs down and glutes tight|Lower to the collarbone under control','Pressing your normal weight|Letting the wrists fold back around the thick barrel|Pressing out of a rack you cannot re-rack into','Hypertrophy:3 x 6-10','If overhead pressing makes your wrists ache, a thicker handle often fixes the position on its own.'],
+];
+pushCompactRows(GEAR_OHP_ROWS, 'shoulder-press', 0x216);     // slot 0x216 — next free: 0x217
+
 /* ---- feat 448 — the Swiss ball, its own family ----
    The catalogue had two Swiss-ball entries (`swiss-ball-curl` in Leg Curl, `stir-the-pot` in Core
    Anti-Movement) and no home for the rest. The ball trains by SUBTRACTION — it removes the floor's
@@ -5238,6 +5315,10 @@ const SECONDARY_PARENTS_BY_ID = {
   'flat-bench-press': ['trx-work/trx-chest-press', 'trx-work/trx-single-arm-chest-press', 'trx-work/trx-press-rotation', 'resistance-bands/band-bench-press', 'resistance-bands/reverse-band-bench', 'ybell-work/yb-chest-press', 'swiss-ball-work/sb-db-chest-press'],
   'front-raise': ['ybell-work/yb-front-raise'],
   'glute-accessories': ['resistance-bands/monster-walk', 'resistance-bands/banded-walk-lateral', 'resistance-bands/banded-monster-walk'],
+  // feat 454 — thick-handle work is grip work whatever family it lives in, so a Grip Training step offers it.
+  // The HOOK variants deliberately are NOT listed here: they remove the grip from the lift, so they belong
+  // nowhere near a grip-training step.
+  'grip-training': ['row/fat-grip-bb-row', 'shrugs/fat-grip-shrug', 'lat-pulldown/fat-grip-pulldown', 'loaded-carries/fat-grip-carry', 'hammer-curl/fat-grip-hammer-curl', 'flat-bench-press/fat-grip-bench', 'shoulder-press/fat-grip-ohp'],
   'hammer-curl': ['mace-club-work/mace-hammer-curl', 'ybell-work/yb-hammer-curl'],
   'hip-thrust': ['resistance-bands/banded-hip-thrust'],
   'lateral-raise': ['ybell-work/yb-lateral-raise', 'swiss-ball-work/sb-seated-lateral-raise'],
@@ -17943,7 +18024,7 @@ function _holdAutoDisarm() {
 // Stop the live hold: elapsed minus the firing trigger's buffer, logged as the set's seconds.
 function _holdAutoStop(kind) {
   _holdAutoDisarm(); // no double-fires while the render catches up
-  const btn = document.querySelector('.hold-timer-btn[data-hold-idx]');
+  const btn = document.querySelector('.hold-timer-btn[data-hold-idx]:not([hidden])'); // feat 454 — a hidden timer means the set is already logged
   if (!btn) return;
   const i = parseInt(btn.dataset.holdIdx, 10), start = parseInt(btn.dataset.holdStart, 10);
   if (!(start > 0) || !pending.sets || !pending.sets[i]) return;
@@ -17984,7 +18065,7 @@ function _exVoiceTargetSet() { // first incomplete set, or a fresh row — same 
 function _exVoiceHandle(tRaw) {
   const t = ' ' + String(tRaw || '').toLowerCase().trim() + ' ';
   // the shared mic also serves the hold stop word while a hold is live
-  if (holdVoiceStopEnabled() && document.querySelector('.hold-timer-btn[data-hold-idx]') && t.includes(holdVoiceWordCfg())) { _holdAutoStop('voice'); return 'hold stop'; }
+  if (holdVoiceStopEnabled() && document.querySelector('.hold-timer-btn[data-hold-idx]:not([hidden])') && t.includes(holdVoiceWordCfg())) { _holdAutoStop('voice'); return 'hold stop'; }
   if (typeof modalState === 'undefined' || !modalState.open) return null;
   let m, act = null;
   if ((m = t.match(/\b(?:weight|load)\s+(\d+(?:[.,]\d+)?)\b/))) { const n = parseFloat(m[1].replace(',', '.')); commitSetField(_exVoiceTargetSet(), 'w', n); renderModal(); act = 'weight ' + n; }
@@ -25133,6 +25214,7 @@ const VAR_EQUIP_OVERRIDES = {
   'single-arm-overhead-tri': 'dumbbell', 'batwing-row': 'dumbbell', 'kroc-row': 'dumbbell',
   'side-lying-er': 'dumbbell', 'preacher-rear-delt': 'dumbbell', 'suitcase-deadlift': 'dumbbell',
   'snatch-grip-shrug': 'barbell',
+  'hook-free-top-set': 'barbell', // feat 454 — a barbell-pull rule that happens to live in Grip Training
   'viking-press': 'landmine',
   'turkish-get-up': 'kettlebell', 'helen': 'kettlebell',
   'svend-press': 'plate', 'weighted-crunch': 'plate', 'sicilian-crunch': 'plate',
@@ -26160,6 +26242,13 @@ function commitSetField(i, f, val) {
   updateFAB();
   updateSaveBtn();
   updateRowLive(i);
+  // feat 454 — a hold time typed straight into the Seconds field (keyboard, numpad or voice) finishes the
+  // set, so its live ⏱ timer has to go. Only the ⏱-tap path re-rendered the modal, so every other entry
+  // route left a stale timer ticking. Hidden rather than removed: clearing the field re-opens the hold.
+  if (f === 'r') {
+    const ht = document.querySelector('#trk-sets-container .hold-timer-btn[data-hold-idx="' + i + '"]');
+    if (ht && ht.hidden !== !!s.ts) { ht.hidden = !!s.ts; ensureHoldTimers(); }
+  }
   if (f === 'w') renderNeighborHints();
   if (typeof refreshRestBar === 'function') refreshRestBar();
   if (s[f] !== prev) flashSetField(i, f); // feat 149 — visual confirmation the field changed
@@ -26170,7 +26259,7 @@ function commitSetField(i, f, val) {
 // button remains in the DOM (a re-render or modal close clears them), and re-armed by bindSetsForm.
 let _holdTimerInt = null;
 function tickHoldTimers() {
-  const btns = document.querySelectorAll('.hold-timer-btn[data-hold-start]');
+  const btns = document.querySelectorAll('.hold-timer-btn[data-hold-start]:not([hidden])');
   if (!btns.length) { stopHoldTimers(); return; }
   const now = Date.now();
   btns.forEach(btn => {
@@ -26182,7 +26271,7 @@ function tickHoldTimers() {
 }
 function ensureHoldTimers() {
   stopHoldTimers();
-  if (document.querySelector('.hold-timer-btn[data-hold-start]')) {
+  if (document.querySelector('.hold-timer-btn[data-hold-start]:not([hidden])')) {
     tickHoldTimers();                              // paint once immediately so it never shows a stale frame
     _holdTimerInt = setInterval(tickHoldTimers, 1000);
     _holdAutoArm();                                // feat 423 — pickup / stop-word triggers (idempotent)
@@ -27182,7 +27271,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 368 · 2026-07-28 21:04';
+const APP_BUILD = 'build 369 · 2026-08-01 19:21';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
