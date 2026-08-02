@@ -2576,6 +2576,37 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Cowork hub → house protocol + Tachyread parity (feat 458):** the hub spoke a *grandfathered dialect*
+  (`gymtracker-cowork` v1), so CoworkSyncHub needed a hand-written `scan_gymtracker` adapter that had to stay
+  in step with this file, and several of Tachyread's cowork capabilities were simply absent. Seven changes:
+  **(a) `cowork.json` discovery manifest** (`cowork-manifest` v1). The protocol doc says a manifest *wins* over
+  any dialect adapter, so publishing one moves us onto the hub's **generic** adapter and the bespoke one
+  becomes a fallback for old folders. Verified by materializing a real export folder and running
+  `python coworkhub.py check` against it — it now reports **PASS (manifest)**, 4 channels.
+  **(b) Declared `requestHash`** on every request envelope (djb2 over the payload), echoed back by the agent.
+  `coworkLocal.declared` remembers what we asked per channel, so a reply written against a superseded request
+  is *detectable*. It is still imported — an answer to a slightly older question is usually the answer you
+  want — but recorded as "answered a superseded request", matching the protocol's "staleness is information,
+  not garbage collection".
+  **(c) Agent error files (dead letters).** An agent that cannot do the job writes
+  `<channel>/inbox/error-<date>.json` with `{reason}`. The poller used to see a JSON file with no `protocol`,
+  file it as "wrong protocol" and archive it — so **an agent failing every night looked identical to an agent
+  doing nothing**. `parseCoworkErrorFile` now surfaces the reason into the run history; it refuses to treat a
+  valid envelope or a bare payload as a failure.
+  **(d) A run history** (`coworkLocal.history`, capped 200, device-local) + per-task last-run, with a status
+  panel in Settings › Cowork. Previously the only feedback was a toast at the moment of a manual write.
+  **(e) Permission-aware writes.** `queryPermission({mode:'readwrite'})` before a silent run — Chrome forgetting
+  the grant is the hub's most common failure, and it used to surface as one generic "write failed". A silent
+  run now never prompts; it records *why* it skipped.
+  **(f) A designated sync machine** (`cowork.machine`, synced; role `open` / `machine` / `viewer`). Two desktops
+  polling one inbox race to consume the same reply. `open` preserves the pre-458 behaviour, so nobody has to
+  opt in; a malformed designation is dropped rather than stranding every device as a viewer.
+  **(g) Per-task schedules** (`off`/`5m`/`15m`/`30m`/`hourly`/`6h`/`daily`) driving one 60 s scheduler tick,
+  replacing the bare `pollMinutes` interval. The **write** side is now scheduled at all (it fired only on
+  workout-end or after a foreign cloud pull), `push` runs before `check` so a reply is read against the request
+  it answered, and the tick stamps `lastRuns` *before* running so a throwing task still waits its interval.
+  `pollMinutes` migrates into `schedules.check` rounding **up** (never poll faster than asked) — which needed
+  the default to be `schedules: null`, since a filled-in default is indistinguishable from a user choice.
 - **Newest set first (feat 457):** default-ON option putting the set you just logged at the TOP of the
   current exercise pane, so a long list never buries it. Implemented as a **purely visual** flip —
   `.sets-scroll.newest-first { flex-direction: column-reverse }` — because the log sheet is full of

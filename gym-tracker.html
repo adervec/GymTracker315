@@ -894,6 +894,26 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .metro-bpm { font-size: 12px; font-weight: 700; color: var(--text2); min-width: 54px; text-align: center; font-variant-numeric: tabular-nums; }
   .metro-cfg { width: 34px; height: 30px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); font-size: 15px; cursor: pointer; font-family: inherit; }
   /* Workout plans (feat 70) — the creator/list/editor renders into #trk-main as the 'plan-creator' page (feat 184); the slide-in overlay chrome was retired. */
+  /* feat 458 — cowork hub status: device role, per-task cadence, and the recent run log */
+  .cowork-status { border: 1px solid var(--border2); border-radius: 9px; padding: 10px 11px; margin: 4px 0 10px; background: var(--bg3); }
+  .cowork-role { font-size: 11.5px; line-height: 1.5; border-radius: 7px; padding: 7px 9px; margin-bottom: 4px; }
+  .cowork-role.machine { background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); }
+  .cowork-role.viewer { background: rgba(232,179,57,0.12); border: 1px solid rgba(232,179,57,0.4); color: #e8b339; }
+  .cowork-role.open { background: var(--bg4); border: 1px solid var(--border2); color: var(--text3); }
+  .cowork-sched-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); }
+  .cowork-sched-row > div { flex: 1; min-width: 0; }
+  .cowork-sched { flex: 0 0 auto; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); border-radius: 7px; padding: 5px 8px; font-size: 12px; font-family: inherit; }
+  .cowork-sched[disabled] { opacity: 0.5; }
+  .cowork-log-title { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); margin: 10px 0 4px; }
+  .cowork-log-sub { font-weight: 600; letter-spacing: 0; text-transform: none; opacity: 0.7; }
+  .cowork-log { max-height: 190px; overflow-y: auto; }
+  .cowork-run { display: flex; align-items: baseline; gap: 7px; font-size: 11px; line-height: 1.45; padding: 3px 0; border-bottom: 1px solid var(--border); }
+  .cowork-run-dot { flex: 0 0 auto; font-weight: 800; }
+  .cowork-run.ok .cowork-run-dot { color: var(--good, #5cbd6a); }
+  .cowork-run.bad .cowork-run-dot { color: var(--danger, #ff6b6b); }
+  .cowork-run-txt { flex: 1; min-width: 0; color: var(--text2); word-break: break-word; }
+  .cowork-run-ago { flex: 0 0 auto; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .cowork-run-empty { font-size: 11px; color: var(--text3); padding: 6px 0; }
   .plan-list-intro { font-size: 12px; color: var(--text3); line-height: 1.5; margin-bottom: 12px; }
   /* feat 226 — Quick Pick recommender block at the top of the plan picker */
   .quick-pick { background: linear-gradient(135deg, var(--accent-bg), var(--bg2)); border: 1px solid var(--accent-border); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
@@ -6343,11 +6363,41 @@ function coworkHashText(text) {
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
   return h.toString(36);
 }
+/* feat 458 — THE CHANNEL TABLE, single source of truth. Everything that used to hard-code the four channel
+   names (the export loop, the poller's dir→key map, coworkResolveRoot, the manifest) derives from here. */
+const COWORK_CHANNELS = [
+  { key: 'garmin',   dir: 'garmin-reconciliation', replyKind: 'garmin-output',   request: ['context.json'] },
+  { key: 'strava',   dir: 'strava-reconciliation', replyKind: 'strava-output',   request: ['context.json'] },
+  { key: 'pod',      dir: 'plan-of-the-day',       replyKind: 'pod-output',      request: ['context.json', 'options.json'] },
+  { key: 'analysis', dir: 'analysis',              replyKind: 'analysis-output', request: ['context.json'] },
+];
+const COWORK_DIRS = COWORK_CHANNELS.map(c => c.dir);
+const coworkChannelByDir = (dir) => COWORK_CHANNELS.find(c => c.dir === dir) || null;
+const coworkChannelByKey = (key) => COWORK_CHANNELS.find(c => c.key === key) || null;
+/* feat 458 — `cowork.json` DISCOVERY MANIFEST (cowork-manifest v1, CoworkSyncHub/COWORK-PROTOCOL.md).
+   Publishing this is what lets the hub drive us with its GENERIC adapter instead of a hand-written
+   `scan_gymtracker`; the protocol doc says a manifest wins over any dialect adapter, so the bespoke one
+   becomes a fallback for old folders rather than the thing that has to stay in step with this file. */
+function buildCoworkManifest() {
+  return {
+    protocol: 'cowork-manifest', protocolVersion: 1, app: 'gymtracker',
+    channels: COWORK_CHANNELS.map(c => ({
+      name: c.dir,
+      request: c.request.map(r => c.dir + '/' + r),
+      instructions: c.dir + '/INSTRUCTIONS.md',
+      replyDir: c.dir + '/inbox', replyPrefix: 'output-',
+      replyProtocol: COWORK_PROTOCOL, replyKind: c.replyKind,
+    })),
+  };
+}
 // Wrap a payload in the versioned envelope the cowork agent reads/writes.
+// feat 458 — every request now DECLARES its own `requestHash`; the agent echoes it back, which is how a
+// reply written against a superseded request becomes detectable instead of silently applying stale work.
 function buildCoworkEnvelope(kind, payload) {
+  const body = (payload == null ? {} : payload);
   return { protocol: COWORK_PROTOCOL, protocolVersion: COWORK_PROTOCOL_VERSION, kind: kind,
     generatedAt: new Date().toISOString(), appBuild: (typeof APP_BUILD !== 'undefined' ? APP_BUILD : null),
-    payload: (payload == null ? {} : payload) };
+    requestHash: coworkHashText(JSON.stringify(body)), payload: body };
 }
 // Validate + unwrap an envelope from disk. Tolerant: rejects (never throws) on bad/foreign/newer-than-known files.
 function parseCoworkEnvelope(text) {
@@ -6355,7 +6405,109 @@ function parseCoworkEnvelope(text) {
   if (!o || o.protocol !== COWORK_PROTOCOL) return { ok: false, reason: 'wrong protocol' };
   if ((o.protocolVersion | 0) > COWORK_PROTOCOL_VERSION) return { ok: false, reason: 'newer protocol version ' + o.protocolVersion };
   if (!o.kind) return { ok: false, reason: 'missing kind' };
-  return { ok: true, kind: o.kind, payload: o.payload || {}, generatedAt: o.generatedAt || null, protocolVersion: o.protocolVersion | 0 };
+  return { ok: true, kind: o.kind, payload: o.payload || {}, generatedAt: o.generatedAt || null,
+    protocolVersion: o.protocolVersion | 0, requestHash: o.requestHash == null ? null : String(o.requestHash) };
+}
+/* feat 458 — AGENT ERROR FILES (dead letters). The protocol lets an agent that cannot do the job write
+   `<channel>/inbox/error-<date>.json` with `{"reason": "..."}` instead of a reply. Before this, the poller
+   saw a JSON file with no `protocol`, filed it as "wrong protocol" and archived it — so an agent failing
+   every night looked exactly like an agent doing nothing. Now the reason reaches the run history. */
+function parseCoworkErrorFile(text, fileName) {
+  let o; try { o = JSON.parse(text); } catch (_) { return null; }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  if (o.protocol) return null;                                        // an envelope (possibly foreign), not a dead letter
+  const reason = o.reason || o.error || o.message;
+  if (!reason && !/^error[-.]/i.test(String(fileName || ''))) return null;
+  return { reason: String(reason || 'agent reported a failure with no reason').trim().slice(0, 400) };
+}
+/* feat 458 — RUN HISTORY. Tachyread keeps a capped log of every sync run (what, when, ok, why not) plus a
+   last-run per action; GymTracker kept only `lastExportAt`/`lastPollAt`, so a hub that had been failing for
+   a week was indistinguishable from a quiet one. Device-local: it describes THIS machine's folder I/O. */
+const COWORK_HISTORY_CAP = 200;
+function coworkHistory() {
+  if (!state.coworkLocal) state.coworkLocal = {};
+  if (!Array.isArray(state.coworkLocal.history)) state.coworkLocal.history = [];
+  return state.coworkLocal.history;
+}
+function coworkRecordRun(entry) {
+  const h = coworkHistory();
+  const row = { at: (entry && entry.at) || new Date().toISOString(), kind: (entry && entry.kind) || 'other',
+    channel: (entry && entry.channel) || '', ok: !(entry && entry.ok === false),
+    note: String((entry && entry.note) || '').slice(0, 300), auto: !!(entry && entry.auto) };
+  h.push(row);
+  if (h.length > COWORK_HISTORY_CAP) h.splice(0, h.length - COWORK_HISTORY_CAP);
+  return row;
+}
+// Newest-first, optionally narrowed to one kind. The UI reads this; nothing else should sort the raw array.
+function coworkRuns(kind) {
+  return coworkHistory().filter(r => !kind || r.kind === kind).slice().reverse();
+}
+function coworkLastRun(kind) { return coworkRuns(kind)[0] || null; }
+function coworkFmtAgo(iso, now) {
+  if (!iso) return 'never';
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return 'never';
+  const s = Math.max(0, Math.round(((now || Date.now()) - t) / 1000));
+  if (s < 60) return 'just now';
+  const m = Math.round(s / 60); if (m < 60) return m + 'm ago';
+  const hr = Math.round(m / 60); if (hr < 48) return hr + 'h ago';
+  return Math.round(hr / 24) + 'd ago';
+}
+/* feat 458 — DESIGNATED SYNC MACHINE. The folder half of the hub is desktop-only, but "desktop" can be more
+   than one machine, and two of them polling the same inbox race to consume the same reply. The designation
+   is SYNCED (every device can see which machine owns the folder) while the run history stays device-local.
+   'open' keeps the pre-458 behaviour — any desktop may run — so nobody has to opt in to keep working. */
+function coworkRole(st, deviceId) {
+  const m = st && st.cowork && st.cowork.machine;
+  if (!m || !m.deviceId) return 'open';
+  return m.deviceId === deviceId ? 'machine' : 'viewer';
+}
+function coworkAutoAllowed() { return coworkRole(state, state.deviceId) !== 'viewer'; }
+// A human-readable label for the designated machine, so the other devices can say WHICH one owns the folder.
+function coworkThisDeviceName() {
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  const os = /Windows/i.test(ua) ? 'Windows' : /Mac OS X|Macintosh/i.test(ua) ? 'Mac' : /CrOS/i.test(ua) ? 'ChromeOS' : /Linux/i.test(ua) ? 'Linux' : 'this desktop';
+  const br = /Edg\//i.test(ua) ? 'Edge' : /Chrome\//i.test(ua) ? 'Chrome' : 'browser';
+  return os + ' · ' + br;
+}
+/* feat 458 — SCHEDULES, one vocabulary for both hub tasks (Tachyread's `SCHEDULE_OPTS` shape). Replaces the
+   bare `pollMinutes` timer: same cadence by default, but now the WRITE side is scheduled too (it used to fire
+   only on workout-end / after a foreign cloud pull), and every firing lands in the run history. */
+const COWORK_SCHEDULES = [
+  { id: 'off',    label: 'manual', ms: 0 },
+  { id: '5m',     label: 'every 5 min',  ms: 5 * 60e3 },
+  { id: '15m',    label: 'every 15 min', ms: 15 * 60e3 },
+  { id: '30m',    label: 'every 30 min', ms: 30 * 60e3 },
+  { id: 'hourly', label: 'hourly',       ms: 3600e3 },
+  { id: '6h',     label: 'every 6 h',    ms: 6 * 3600e3 },
+  { id: 'daily',  label: 'daily',        ms: 24 * 3600e3 },
+];
+const COWORK_TASKS = [
+  { id: 'push',  label: 'Write the hub export',   dflt: 'hourly' },
+  { id: 'check', label: 'Check for agent replies', dflt: '5m' },
+];
+const _coworkSchedMs = (id) => (COWORK_SCHEDULES.find(s => s.id === id) || {}).ms || 0;
+// null = manual (never due). A scheduled task that has never run is due immediately.
+function coworkNextDueAt(scheduleId, lastAt) {
+  const ms = _coworkSchedMs(scheduleId);
+  if (!ms) return null;
+  const t = lastAt ? new Date(lastAt).getTime() : 0;
+  return (isNaN(t) ? 0 : t) + ms;
+}
+function coworkTaskSchedule(taskId) {
+  const s = (state.cowork && state.cowork.schedules) || {};
+  const t = COWORK_TASKS.find(x => x.id === taskId);
+  const v = s[taskId];
+  return COWORK_SCHEDULES.some(o => o.id === v) ? v : (t ? t.dflt : 'off');
+}
+// Task ids due now, in table order (stable execution order — push before check, so a reply is read against
+// the request it was written for rather than one the same tick just superseded).
+function coworkDueTasks(schedules, lastRuns, now) {
+  return COWORK_TASKS.filter(t => {
+    const id = (schedules && schedules[t.id]) || t.dflt;
+    const due = coworkNextDueAt(COWORK_SCHEDULES.some(o => o.id === id) ? id : t.dflt, lastRuns && lastRuns[t.id]);
+    return due != null && (now || Date.now()) >= due;
+  }).map(t => t.id);
 }
 // Idempotency ledger (device-local): has this channel already consumed this exact content?
 function coworkLedgerHas(channel, hash) {
@@ -6393,8 +6545,9 @@ function normalizeState() {
     planDefaults: { minPct:1 }, // feat 144 — default min % of a step's sets that counts the step as "done" (overridable per plan / per step)
     historyFilter: { range:'all', bp:'', family:'', varKey:'', q:'' }, // feat 102 — device-local view filter
     cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{}, syncOnEnd:true, periodicMinutes:30 }, // feat 124 — DEVICE-LOCAL (not synced); feat 272 — guaranteed push on workout end; feat 315 — periodic desktop sync
-    cowork: { enabled:false, pollMinutes:5, minExportGapSec:120, podKeepDays:7, cardioFatigue:false }, // feat 315 — Claude Cowork hub (synced settings)
-    coworkLocal: { processed:{}, lastExportHash:null, lastExportAt:null, lastPollAt:null }, // feat 315 — DEVICE-LOCAL (not in SETTINGS_KEYS): processed-file ledger + export de-dup
+    cowork: { enabled:false, pollMinutes:5, minExportGapSec:120, podKeepDays:7, cardioFatigue:false,
+      schedules:null, machine:null }, // feat 315 — Claude Cowork hub (synced settings); feat 458 — per-task schedules (null so normalizeState can tell "never set" from "set to the default" and migrate pollMinutes) + designated sync machine
+    coworkLocal: { processed:{}, lastExportHash:null, lastExportAt:null, lastPollAt:null, history:[], lastRuns:{}, declared:{} }, // feat 315 — DEVICE-LOCAL (not in SETTINGS_KEYS): processed-file ledger + export de-dup; feat 458 — run history, per-task last-run, declared request hashes
     podOptions: { notes:'', injuries:[], gyms:[], equipment:[], availableMinutes:{ min:30, max:60 }, targetMode:'recovered', targetGroups:[], fitnessFocus:'balance' }, // feat 315/386 — Plan-of-the-Day options (synced); time is a {min,max} range
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
@@ -6440,7 +6593,24 @@ function normalizeState() {
   state.cowork.minExportGapSec = Math.max(15, Math.min(3600, state.cowork.minExportGapSec | 0 || 120));
   state.cowork.podKeepDays = Math.max(1, Math.min(60, state.cowork.podKeepDays | 0 || 7));
   state.cowork.cardioFatigue = !!state.cowork.cardioFatigue;
+  // feat 458 — per-task schedules. The old `pollMinutes` knob migrates into `schedules.check` on first run
+  // (nearest cadence, rounding UP so we never poll more often than the user asked); pollMinutes stays on the
+  // record so an older build reading a synced state still finds what it expects.
+  if (!state.cowork.schedules || typeof state.cowork.schedules !== 'object') state.cowork.schedules = {};
+  if (!COWORK_SCHEDULES.some(s => s.id === state.cowork.schedules.check)) {
+    const want = state.cowork.pollMinutes * 60e3;
+    const fit = COWORK_SCHEDULES.filter(s => s.ms > 0).find(s => s.ms >= want);
+    state.cowork.schedules.check = fit ? fit.id : 'daily';
+  }
+  if (!COWORK_SCHEDULES.some(s => s.id === state.cowork.schedules.push)) state.cowork.schedules.push = 'hourly';
+  const _cm = state.cowork.machine;
+  state.cowork.machine = (_cm && typeof _cm === 'object' && typeof _cm.deviceId === 'string' && _cm.deviceId)
+    ? { deviceId: _cm.deviceId, name: String(_cm.name || 'a desktop').slice(0, 60), at: _cm.at || null } : null;
   if (!state.coworkLocal.processed || typeof state.coworkLocal.processed !== 'object') state.coworkLocal.processed = {};
+  if (!Array.isArray(state.coworkLocal.history)) state.coworkLocal.history = [];
+  if (state.coworkLocal.history.length > COWORK_HISTORY_CAP) state.coworkLocal.history.splice(0, state.coworkLocal.history.length - COWORK_HISTORY_CAP);
+  if (!state.coworkLocal.lastRuns || typeof state.coworkLocal.lastRuns !== 'object') state.coworkLocal.lastRuns = {};
+  if (!state.coworkLocal.declared || typeof state.coworkLocal.declared !== 'object') state.coworkLocal.declared = {};
   if (!Array.isArray(state.podOptions.injuries)) state.podOptions.injuries = [];
   if (!Array.isArray(state.podOptions.targetGroups)) state.podOptions.targetGroups = [];
   // feat 386 — available time is a {min,max} range (migrate the old single value → {min:30, max:V})
@@ -7649,8 +7819,11 @@ function buildPodOptionsFile() { return buildCoworkEnvelope('pod-options', state
 function applyPodOptionsFile(payload) { if (payload && typeof payload === 'object') state.podOptions = { ...state.podOptions, ...payload }; return state.podOptions; }
 // INSTRUCTIONS.md per channel — documents the envelope + payload schema + drop location + an example.
 function buildInstructionsMd(channel) {
-  const env = '```json\n' + JSON.stringify({ protocol: COWORK_PROTOCOL, protocolVersion: COWORK_PROTOCOL_VERSION, kind: '<kind>', generatedAt: '<ISO>', payload: { '…': '…' } }, null, 2) + '\n```';
-  const head = `# GymTracker315 — Cowork channel: ${channel}\n\nRead \`../app-export.json\` for full context and \`context.json\` here for this channel's task. Emit your result as a JSON file dropped in **\`inbox/\`** named \`output-<ISO-date>.json\`, wrapped in this envelope:\n\n${env}\n\n`;
+  const env = '```json\n' + JSON.stringify({ protocol: COWORK_PROTOCOL, protocolVersion: COWORK_PROTOCOL_VERSION, kind: '<kind>', generatedAt: '<ISO>', requestHash: '<copied verbatim from context.json>', payload: { '…': '…' } }, null, 2) + '\n```';
+  // feat 458 — the two protocol obligations the agent side has to know about: echo the request hash so a
+  // stale reply is detectable, and write a dead letter rather than nothing when the task can't be done.
+  const proto = `\n### Protocol\n\n- \`context.json\` declares a \`requestHash\`. **Copy it verbatim** into your reply envelope's \`requestHash\` field — that is how the app tells an answer to *this* request from an answer to one it has already replaced.\n- If you **cannot** complete the task, write \`inbox/error-<ISO-date>.json\` containing \`{ "reason": "why" }\` **instead of** a reply. The app surfaces that reason in its run history; silence is indistinguishable from an agent that never ran.\n- Write exactly one reply file per sweep, and overwrite it if it already exists. Don't modify \`context.json\`, \`options.json\` or anything under \`processed/\`.\n`;
+  const head = `# GymTracker315 — Cowork channel: ${channel}\n\nRead \`../app-export.json\` for full context and \`context.json\` here for this channel's task. Emit your result as a JSON file dropped in **\`inbox/\`** named \`output-<ISO-date>.json\`, wrapped in this envelope:\n\n${env}\n${proto}\n`;
   if (channel === 'garmin') return head +
 `## kind: \`garmin-output\`\nFill in biometrics, sleep + daily recovery from Garmin. Payload (matches the app's importer):\n\n\`\`\`json\n{ "bodyComp": [ { "date": "YYYY-MM-DD", "weightKg": 81.2, "bodyFatPct": 18.4, "muscleMassKg": 34.1, "bodyWaterPct": 55.1 } ],\n  "sleep": [ { "date": "YYYY-MM-DD", "score": 78, "note": "7h12m" } ],\n  "recovery": [ { "date": "YYYY-MM-DD", "sleepScore": 78, "sleepNote": "7h12m", "bodyBattery": 72, "hrv": 64, "restingHr": 52, "stress": 28 } ] }\n\`\`\`\n\n- \`context.json\` lists recent bodyComp dates, the session dates still lacking sleep, and \`lastRecoveryDate\` — backfill \`recovery\` for EVERY day since then (rest days too), not just workout days.\n- Body composition is merged by calendar day; \`sleep\` is matched to the workout that day; \`recovery\` is kept as a standalone daily log (sleep + body battery / HRV / resting HR / stress).\n`;
   if (channel === 'strava') return head +
@@ -7661,7 +7834,7 @@ function buildInstructionsMd(channel) {
 `## kind: \`pod-output\`\nGenerate one or more "Plan of the Day" plans. Honour \`options.json\` (notes, injuries to avoid, available gyms/equipment, available minutes, target mode, fitness focus) and \`context.json\` (recovery readiness, recent split, equipment, focus). Payload:\n\n\`\`\`json\n{ "date": "YYYY-MM-DD", "rationale": "why these",\n  "plans": [ { "name": "...", "desc": "...", "intensity": 4,\n    "steps": [ { "sets": 4, "load": "heavy", "desc": "...", "options": [ { "type": "movement", "familyId": "squat" } ] } ] } ] }\n\`\`\`\n\n- **Reference only REAL ids** from \`app-export.json\` → \`vocab\` (\`movementFamilies[].id\` for \`familyId\`, \`cardioVariations[].uuid\` for \`{type:"variation",uuid}\`). The importer drops unknown options and rejects empty plans.\n- Avoid anything contraindicated by the selected injuries.\n- \`options.availableMinutes\` is a **range** \`{ min, max }\`. Keep every plan's estimated time within it, and offer a few options spanning the range — but **always include at least one plan that uses most of the available maximum** (close to \`max\`). Don't return only short plans when lots of time is available (e.g. for a 180-min max, don't propose just 75 and 45-min plans), even if recovery is low — bias the longer option toward volume/accessory work, not heavier load.\n`;
 }
 function buildCoworkReadme() {
-  return `# GymTracker315 — AI Cowork hub\n\nThis folder is a two-way bridge between the GymTracker315 web app (desktop) and an **AI cowork agent**. It is model-agnostic — any agent that can read and write this folder (e.g. Claude or GPT) can do the work.\n\n- \`app-export.json\` — the app's current state + context (read this first). Versioned envelope, protocol \`${COWORK_PROTOCOL}\` v${COWORK_PROTOCOL_VERSION}.\n- \`garmin-reconciliation/\`, \`strava-reconciliation/\`, \`plan-of-the-day/\`, \`analysis/\` — one task each. See each folder's \`INSTRUCTIONS.md\` + \`context.json\`.\n- Drop your results as JSON in each channel's \`inbox/\`. The app imports them, moves them to \`processed/\`, and cloud-syncs so the phone is up to date.\n\nThe app re-writes these files after each workout and on a schedule. Don't edit \`app-export.json\`/\`context.json\` by hand.\n`;
+  return `# GymTracker315 — AI Cowork hub\n\nThis folder is a two-way bridge between the GymTracker315 web app (desktop) and an **AI cowork agent**. It is model-agnostic — any agent that can read and write this folder (e.g. Claude or GPT) can do the work.\n\n- \`cowork.json\` — the **discovery manifest** (\`cowork-manifest\` v1). A hub or agent that speaks the house cowork protocol can drive this folder from that file alone, with no GymTracker-specific code.\n- \`app-export.json\` — the app's current state + context (read this first). Versioned envelope, protocol \`${COWORK_PROTOCOL}\` v${COWORK_PROTOCOL_VERSION}.\n- ${COWORK_DIRS.map(d => '\\`' + d + '/\\`').join(', ')} — one task each. See each folder's \`INSTRUCTIONS.md\` + \`context.json\`.\n- Drop your results as JSON in each channel's \`inbox/\`. The app imports them, moves them to \`processed/\`, and cloud-syncs so the phone is up to date.\n\n## Two obligations\n\n1. **Echo \`requestHash\`.** Every \`context.json\` declares one; copy it verbatim into your reply envelope so a reply written against a superseded request is detectable.\n2. **Write a dead letter on failure.** If a task can't be done, write \`<channel>/inbox/error-<ISO-date>.json\` containing \`{ "reason": "why" }\` instead of a reply. The app shows that reason in its run history — silence looks identical to an agent that never ran.\n\nThe app re-writes these files after each workout and on a schedule. Don't edit \`app-export.json\`/\`context.json\`/\`cowork.json\` by hand.\n`;
 }
 // ---- Thin I/O (desktop only; not unit-tested — all logic is in the pure builders above) ----
 async function _coworkWriteFile(dirHandle, name, text) {
@@ -7670,48 +7843,75 @@ async function _coworkWriteFile(dirHandle, name, text) {
   await w.write(new Blob([text], { type: name.endsWith('.md') ? 'text/markdown' : 'application/json' }));
   await w.close();
 }
+/* feat 458 — the readwrite grant is the hub's most common silent failure: Chrome forgets it between
+   sessions, every write then rejects, and the old code logged one generic "write failed". Ask first, and
+   in a SILENT run never prompt — record why the run was skipped so the settings page can say so. */
+async function coworkPermissionState(handle) {
+  if (!handle) return 'missing';
+  if (typeof handle.queryPermission !== 'function') return 'granted'; // older engines: assume usable, the write will tell us
+  try { return await handle.queryPermission({ mode: 'readwrite' }); } catch (_) { return 'granted'; }
+}
 async function coworkResolveRoot(interactive) {
   const root = await aiExportResolveHandle(interactive); // reuse the existing "Claude folder" handle
   if (!root) return null;
+  const perm = await coworkPermissionState(root);
+  if (perm !== 'granted' && !interactive) return { root, sub: null, perm };   // silent run: report, don't prompt
   const sub = {};
-  for (const name of ['garmin-reconciliation', 'strava-reconciliation', 'plan-of-the-day', 'analysis']) {
-    const d = await root.getDirectoryHandle(name, { create: true });
+  for (const dir of COWORK_DIRS) {
+    const d = await root.getDirectoryHandle(dir, { create: true });
     await d.getDirectoryHandle('inbox', { create: true });
     await d.getDirectoryHandle('processed', { create: true });
-    sub[name] = d;
+    sub[dir] = d;
   }
-  return { root, sub };
+  return { root, sub, perm: 'granted' };
 }
 async function coworkExportNow(silent) {
   if (_coworkImporting) return false;                       // feat 320 — don't re-export mid-import (loop guard)
   if (!state.cowork || !state.cowork.enabled) { if (!silent) toast('Enable the Cowork hub first'); return false; }
   if (!('showDirectoryPicker' in window)) { if (!silent) toast('Cowork hub needs Chrome/Edge on desktop'); return false; }
   let res; try { res = await coworkResolveRoot(silent ? false : true); } catch (_) { res = null; }
-  if (!res) { if (!silent) autoSaveSetStatus('⚠ Cowork: set the AI export folder first'); return false; }
+  if (!res) {
+    coworkRecordRun({ kind: 'push', ok: false, auto: !!silent, note: 'skipped — no AI export folder chosen' });
+    if (!silent) autoSaveSetStatus('⚠ Cowork: set the AI export folder first');
+    return false;
+  }
   const { root, sub } = res;
+  if (!sub) { // feat 458 — the browser forgot the readwrite grant; say so rather than failing opaquely
+    coworkRecordRun({ kind: 'push', ok: false, auto: !!silent, note: 'skipped — folder permission needs re-granting (open Settings › Cowork and write the hub once)' });
+    return false;
+  }
   try {
     const env = JSON.stringify(buildCoworkEnvelope('app-export', buildAppExportPayload({})), null, 2);
     const hash = coworkHashText(env);
     const now = Date.now(), last = state.coworkLocal.lastExportAt ? new Date(state.coworkLocal.lastExportAt).getTime() : 0;
     const gapOk = (now - last) >= (state.cowork.minExportGapSec * 1000);
+    let wroteExport = false;
     if (hash !== state.coworkLocal.lastExportHash && (gapOk || !silent)) { // interactive writes bypass the min-gap
       await _coworkWriteFile(root, 'app-export.json', env);
       state.coworkLocal.lastExportHash = hash; state.coworkLocal.lastExportAt = new Date().toISOString();
+      wroteExport = true;
     }
     await _coworkWriteFile(root, 'README-COWORK.md', buildCoworkReadme());
-    const map = { garmin: 'garmin-reconciliation', strava: 'strava-reconciliation', pod: 'plan-of-the-day', analysis: 'analysis' };
-    for (const ch of ['garmin', 'strava', 'pod', 'analysis']) {
-      await _coworkWriteFile(sub[map[ch]], 'INSTRUCTIONS.md', buildInstructionsMd(ch));
-      await _coworkWriteFile(sub[map[ch]], 'context.json', JSON.stringify(buildCoworkEnvelope('context', buildChannelContext(ch)), null, 2));
+    await _coworkWriteFile(root, 'cowork.json', JSON.stringify(buildCoworkManifest(), null, 2)); // feat 458 — discovery manifest
+    for (const c of COWORK_CHANNELS) {
+      const envelope = buildCoworkEnvelope('context', buildChannelContext(c.key));
+      state.coworkLocal.declared[c.dir] = envelope.requestHash;   // feat 458 — remember what we asked, to spot a stale reply
+      await _coworkWriteFile(sub[c.dir], 'INSTRUCTIONS.md', buildInstructionsMd(c.key));
+      await _coworkWriteFile(sub[c.dir], 'context.json', JSON.stringify(envelope, null, 2));
     }
     await _coworkWriteFile(sub['plan-of-the-day'], 'options.json', JSON.stringify(buildPodOptionsFile(), null, 2));
+    coworkRecordRun({ kind: 'push', ok: true, auto: !!silent, note: wroteExport ? 'wrote the hub (export refreshed)' : 'wrote the hub (export unchanged)' });
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
     if (!silent) { autoSaveSetStatus('✓ Cowork hub written'); toast(`🤝 Cowork hub → ${root.name}`); try { renderSettingsDrawer(); } catch (_) {} }
     logInfo('Cowork hub written', root.name);
     return true;
-  } catch (err) { if (!silent) autoSaveSetStatus('⚠ Cowork hub write failed'); logWarn('Cowork export failed', err && err.message); return false; }
+  } catch (err) {
+    coworkRecordRun({ kind: 'push', ok: false, auto: !!silent, note: 'write failed: ' + ((err && err.message) || err) });
+    if (!silent) autoSaveSetStatus('⚠ Cowork hub write failed');
+    logWarn('Cowork export failed', err && err.message); return false;
+  }
 }
-function coworkOnWorkoutEnd() { if (state.cowork && state.cowork.enabled) coworkExportNow(true).catch(() => {}); }
+function coworkOnWorkoutEnd() { if (state.cowork && state.cowork.enabled && coworkAutoAllowed()) coworkExportNow(true).catch(() => {}); } // feat 458 — never on a viewer device
 
 /* ============================================================
    feat 450 — ANALYSIS REQUESTS. A CRUD queue of questions the user has about their training; the Cowork
@@ -7831,12 +8031,13 @@ async function coworkPollAll(interactive) {
   if (_coworkPolling || _coworkImporting) return;
   if (!state.cowork || !state.cowork.enabled || !('showDirectoryPicker' in window)) return;
   _coworkPolling = true;
-  let imported = 0;
+  let imported = 0, errors = 0, stale = 0;
   try {
-    const res = await coworkResolveRoot(interactive ? true : false); if (!res) return;
-    const map = { 'garmin-reconciliation': 'garmin', 'strava-reconciliation': 'strava', 'plan-of-the-day': 'pod', 'analysis': 'analysis' };
-    for (const subName in map) {
-      const channel = map[subName], channelDir = res.sub[subName];
+    const res = await coworkResolveRoot(interactive ? true : false);
+    if (!res) { coworkRecordRun({ kind: 'check', ok: false, auto: !interactive, note: 'skipped — no AI export folder chosen' }); return; }
+    if (!res.sub) { coworkRecordRun({ kind: 'check', ok: false, auto: !interactive, note: 'skipped — folder permission needs re-granting (open Settings › Cowork and write the hub once)' }); return; }
+    for (const c of COWORK_CHANNELS) {
+      const channel = c.key, channelDir = res.sub[c.dir];
       let inbox; try { inbox = await channelDir.getDirectoryHandle('inbox', { create: true }); } catch (_) { continue; }
       const files = [];
       try { for await (const [name, h] of inbox.entries()) { if (h.kind === 'file' && /\.json$/i.test(name)) files.push({ name, h }); } } catch (_) { continue; }
@@ -7845,29 +8046,67 @@ async function coworkPollAll(interactive) {
         let text; try { text = await (await f.h.getFile()).text(); } catch (_) { continue; }
         const hash = coworkHashText(text);
         if (coworkLedgerHas(channel, hash)) { await _coworkMoveToProcessed(channelDir, inbox, f.name, text); continue; }
+        // feat 458 — a dead letter: the agent could not do the job and said why. Surface the reason.
+        const dead = parseCoworkErrorFile(text, f.name);
+        if (dead) {
+          coworkRecordRun({ kind: 'check', channel: c.dir, ok: false, auto: !interactive, note: 'agent reported: ' + dead.reason });
+          coworkLedgerAdd(channel, hash, { fileName: f.name, agentError: dead.reason });
+          await _coworkMoveToProcessed(channelDir, inbox, f.name, text); errors++; continue;
+        }
         const env = parseCoworkEnvelope(text);
-        if (!env.ok) { coworkLedgerAdd(channel, hash, { fileName: f.name, skipped: env.reason }); await _coworkMoveToProcessed(channelDir, inbox, f.name, text); continue; }
+        if (!env.ok) {
+          coworkRecordRun({ kind: 'check', channel: c.dir, ok: false, auto: !interactive, note: 'skipped ' + f.name + ' — ' + env.reason });
+          coworkLedgerAdd(channel, hash, { fileName: f.name, skipped: env.reason });
+          await _coworkMoveToProcessed(channelDir, inbox, f.name, text); continue;
+        }
+        // feat 458 — the agent echoes our declared requestHash. A mismatch means it answered a request we
+        // have since replaced. Still imported (an answer to a slightly older question is usually the answer
+        // you want) but recorded, so a hub that is always a cycle behind is visible rather than invisible.
+        const declared = (state.coworkLocal.declared || {})[c.dir];
+        const isStale = !!(env.requestHash && declared && env.requestHash !== declared);
         _coworkImporting = true;
         let result; try { result = coworkApplyImport(env.kind, env.payload); } catch (e) { result = { handled: false, error: e && e.message }; }
         _coworkImporting = false;
-        coworkLedgerAdd(channel, hash, { fileName: f.name, kind: env.kind, result });
+        coworkLedgerAdd(channel, hash, { fileName: f.name, kind: env.kind, result, stale: isStale || undefined });
+        coworkRecordRun({ kind: 'check', channel: c.dir, ok: !!(result && result.handled), auto: !interactive,
+          note: (result && result.handled ? 'imported ' + env.kind : 'could not apply ' + env.kind + ((result && result.error) ? ' — ' + result.error : ''))
+            + (isStale ? ' (answered a superseded request)' : '') });
         await _coworkMoveToProcessed(channelDir, inbox, f.name, text);
+        if (isStale) stale++;
         if (result && result.handled) imported++;
       }
     }
     state.coworkLocal.lastPollAt = new Date().toISOString();
-    if (imported > 0) { saveState(); if (typeof render === 'function') render(); toast('🤝 Cowork imported ' + imported + ' file' + (imported === 1 ? '' : 's')); }
+    if (imported > 0) { saveState(); if (typeof render === 'function') render(); toast('🤝 Cowork imported ' + imported + ' file' + (imported === 1 ? '' : 's') + (stale ? ' (' + stale + ' answered an older request)' : '')); }
     else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {} } // persist the ledger/lastPollAt without a cloud push
-  } catch (e) { logWarn('Cowork poll failed', e && e.message); }
+    if (errors > 0 && interactive) toast('⚠ Cowork agent reported ' + errors + ' failure' + (errors === 1 ? '' : 's') + ' — see Settings › Cowork');
+  } catch (e) { coworkRecordRun({ kind: 'check', ok: false, auto: !interactive, note: 'poll failed: ' + ((e && e.message) || e) }); logWarn('Cowork poll failed', e && e.message); }
   finally { _coworkPolling = false; }
 }
 let _coworkPollTimer = null, _coworkFocusAt = 0;
-function coworkStartPolling() { // desktop boot wiring (feat 317); periodic + on tab-focus
+/* feat 458 — ONE SCHEDULER TICK replaces the fixed poll interval (Tachyread's shape). Both hub tasks now
+   have a visible cadence, the WRITE side is scheduled at all (it used to fire only on workout-end or after a
+   foreign cloud pull), every firing lands in the run history, and nothing runs on a device that another
+   machine has been designated for. The tick itself is cheap: it only reads two timestamps. */
+const COWORK_TICK_MS = 60000;
+async function coworkSchedulerTick(now) {
+  now = now || Date.now();
+  if (!state.cowork || !state.cowork.enabled || !('showDirectoryPicker' in window)) return [];
+  if (!coworkAutoAllowed()) return [];                       // another desktop owns the folder
+  const due = coworkDueTasks(state.cowork.schedules, state.coworkLocal.lastRuns, now);
+  if (!due.length) return [];
+  for (const id of due) {
+    state.coworkLocal.lastRuns[id] = new Date(now).toISOString(); // stamp BEFORE running: a task that throws still waits its interval
+    try { if (id === 'push') await coworkExportNow(true); else await coworkPollAll(false); } catch (_) {}
+  }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+  return due;
+}
+function coworkStartPolling() { // desktop boot wiring (feat 317); feat 458 — drives the scheduler
   if (!('showDirectoryPicker' in window)) return;
   if (_coworkPollTimer) clearInterval(_coworkPollTimer);
-  const mins = (state.cowork && state.cowork.pollMinutes) || 5;
-  _coworkPollTimer = setInterval(() => coworkPollAll(false).catch(() => {}), Math.max(1, mins) * 60000);
-  coworkPollAll(false).catch(() => {}); // an immediate first sweep
+  _coworkPollTimer = setInterval(() => coworkSchedulerTick().catch(() => {}), COWORK_TICK_MS);
+  coworkPollAll(false).catch(() => {}); // an immediate first sweep, independent of the schedule
 }
 
 /* ============================================================
@@ -7878,7 +8117,7 @@ function coworkStartPolling() { // desktop boot wiring (feat 317); periodic + on
 let _coworkCloudTimer = null;
 // Debounced hub re-export (the min-gap + content-hash skip in coworkExportNow are the real loop guards).
 function coworkExportLater() {
-  if (_coworkImporting) return;
+  if (_coworkImporting || !coworkAutoAllowed()) return; // feat 458 — never on a viewer device
   if (_coworkExportTimer) clearTimeout(_coworkExportTimer);
   _coworkExportTimer = setTimeout(() => { coworkExportNow(true).then(() => coworkPollAll(false)).catch(() => {}); }, 3000);
 }
@@ -8027,6 +8266,40 @@ function coworkImportPlanOfDay(payload) {
 function coworkWritePodOptions() { saveState(); try { renderSettingsDrawer(); } catch (_) {} if (state.cowork && state.cowork.enabled) coworkExportNow(true).catch(() => {}); toast('🗓️ Plan-of-Day options saved'); }
 // feat 322 — short readable day for a Plan-of-the-Day badge (YYYY-MM-DD → "Sun Jun 22").
 function coworkFmtDay(ymd) { try { const d = /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? new Date(ymd + 'T12:00:00') : new Date(ymd); return isNaN(d.getTime()) ? String(ymd) : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); } catch (_) { return String(ymd); } }
+/* feat 458 — the hub's status panel: which machine owns the folder, each task's cadence and last run, and
+   the recent run log. Before this the only feedback was a toast at the moment of a manual write — a hub that
+   had silently stopped (forgotten permission, agent erroring nightly) looked exactly like a quiet one. */
+function renderCoworkStatusBlock() {
+  const role = coworkRole(state, state.deviceId), m = state.cowork.machine, now = Date.now();
+  const roleLine = role === 'viewer'
+    ? `<div class="cowork-role viewer">👁 Viewing only — <b>${escapeHtml(m.name)}</b> is the designated sync machine. Automatic writes and inbox checks run there.</div>`
+    : role === 'machine'
+      ? `<div class="cowork-role machine">🖥 This device is the designated sync machine.</div>`
+      : `<div class="cowork-role open">🖥 No sync machine designated — every desktop runs the hub. Designate one if you use more than one.</div>`;
+  const machineBtn = role === 'machine'
+    ? `<button class="drawer-btn" id="cowork-machine-clear">Release this device</button>`
+    : `<button class="drawer-btn" id="cowork-machine-claim">${role === 'viewer' ? 'Take over as sync machine' : 'Make this the sync machine'}</button>`;
+  const schedRows = COWORK_TASKS.map(t => {
+    const cur = coworkTaskSchedule(t.id), last = (state.coworkLocal.lastRuns || {})[t.id];
+    const opts = COWORK_SCHEDULES.map(s => `<option value="${s.id}" ${s.id === cur ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join('');
+    return `<div class="cowork-sched-row">
+      <div><div class="drawer-setting-label">${escapeHtml(t.label)}</div><div class="drawer-setting-sub">last run ${escapeHtml(coworkFmtAgo(last, now))}</div></div>
+      <select class="cowork-sched" data-cowork-sched="${t.id}" ${role === 'viewer' ? 'disabled' : ''}>${opts}</select>
+    </div>`;
+  }).join('');
+  const runs = coworkRuns().slice(0, 12);
+  const log = runs.length
+    ? runs.map(r => `<div class="cowork-run ${r.ok ? 'ok' : 'bad'}"><span class="cowork-run-dot">${r.ok ? '✓' : '✗'}</span><span class="cowork-run-txt">${escapeHtml(r.channel ? r.channel + ' — ' : '')}${escapeHtml(r.note || r.kind)}</span><span class="cowork-run-ago">${escapeHtml(coworkFmtAgo(r.at, now))}</span></div>`).join('')
+    : '<div class="cowork-run-empty">No hub activity recorded on this device yet.</div>';
+  const fails = coworkRuns().filter(r => !r.ok).length;
+  return `<div class="cowork-status">
+    ${roleLine}
+    <div class="drawer-data-row" style="flex-wrap:wrap;margin:8px 0 4px;">${machineBtn}${fails ? `<button class="drawer-btn" id="cowork-log-clear">Clear log (${fails} failed)</button>` : ''}</div>
+    ${schedRows}
+    <div class="cowork-log-title">Recent hub activity <span class="cowork-log-sub">this device</span></div>
+    <div class="cowork-log">${log}</div>
+  </div>`;
+}
 // The POD options editor (rendered inside the Cowork settings block when the hub is on).
 function renderPodOptionsForm() {
   const o = state.podOptions || {};
@@ -10779,7 +11052,8 @@ function renderSettingsDrawer() {
           <button class="drawer-pill ${!state.cowork.enabled ? 'active' : ''}" data-cowork="off">Off</button>
         </div>
       </div>
-      ${state.cowork.enabled ? `<div class="drawer-data-row" style="flex-wrap:wrap;"><button class="drawer-btn" id="cowork-write-now">🤝 Write hub now</button></div>
+      ${state.cowork.enabled ? `<div class="drawer-data-row" style="flex-wrap:wrap;"><button class="drawer-btn" id="cowork-write-now">🤝 Write hub now</button><button class="drawer-btn" id="cowork-check-now">↻ Check for replies</button></div>
+      ${renderCoworkStatusBlock()}
       <div class="drawer-setting-row">
         <div><div class="drawer-setting-label">Count cardio in recovery</div><div class="drawer-setting-sub">Let recent hard cardio (incl. imported Strava activities) gently lower your Training Readiness. Per-muscle recovery is unaffected.</div></div>
         <div class="drawer-pill-group">
@@ -11163,6 +11437,21 @@ function renderSettingsDrawer() {
   body.querySelector('#ai-write-now-btn')?.addEventListener('click', () => { aiExportWriteNow(false, true).catch(() => {}); });
   body.querySelectorAll('[data-cowork]').forEach(b => b.addEventListener('click', () => { state.cowork.enabled = b.dataset.cowork === 'on'; saveState(); renderSettingsDrawer(); if (state.cowork.enabled) coworkExportNow(false).catch(() => {}); })); // feat 316
   body.querySelector('#cowork-write-now')?.addEventListener('click', () => coworkExportNow(false).catch(() => {})); // feat 316
+  // feat 458 — hub status controls: manual check, sync-machine claim/release, schedules, clear the log
+  body.querySelector('#cowork-check-now')?.addEventListener('click', () => coworkPollAll(true).then(() => renderSettingsDrawer()).catch(() => {}));
+  body.querySelector('#cowork-machine-claim')?.addEventListener('click', () => {
+    state.cowork.machine = { deviceId: state.deviceId, name: coworkThisDeviceName(), at: new Date().toISOString() };
+    saveState(); renderSettingsDrawer(); toast('🖥 This device now runs the cowork hub');
+  });
+  body.querySelector('#cowork-machine-clear')?.addEventListener('click', () => {
+    state.cowork.machine = null; saveState(); renderSettingsDrawer(); toast('🖥 Sync machine released — any desktop may run the hub');
+  });
+  body.querySelector('#cowork-log-clear')?.addEventListener('click', () => {
+    state.coworkLocal.history = []; try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {} renderSettingsDrawer();
+  });
+  body.querySelectorAll('[data-cowork-sched]').forEach(sel => sel.addEventListener('change', () => {
+    state.cowork.schedules[sel.dataset.coworkSched] = sel.value; saveState(); renderSettingsDrawer();
+  }));
   body.querySelectorAll('[data-cardiofatigue]').forEach(b => b.addEventListener('click', () => { state.cowork.cardioFatigue = b.dataset.cardiofatigue === 'on'; saveState(); renderSettingsDrawer(); if (typeof render === 'function') render(); toast('Cardio in recovery: ' + (state.cowork.cardioFatigue ? 'on' : 'off')); })); // feat 318
   // feat 321 — POD options controls persist IMMEDIATELY to state (the generic drawer-pill handler below
   // re-renders the drawer on every pill click, which would otherwise discard unsaved form edits / reset pills).
@@ -27433,7 +27722,7 @@ document.addEventListener('visibilitychange', () => {
   // value when you return. Restart the tick (defensive) and repaint immediately so it snaps to the real time.
   try { ensureRestTick(); restTick(); } catch (_) {}
   try { if (typeof aiExportMaybeDaily === 'function') aiExportMaybeDaily(); } catch (_) {} // feat 272 — a new day may have started while away
-  try { const _n = Date.now(); if (_n - _coworkFocusAt > 30000 && state.cowork && state.cowork.enabled) { _coworkFocusAt = _n; coworkPollAll(false).catch(() => {}); } } catch (_) {} // feat 317 — pick up cowork outputs on tab focus (debounced)
+  try { const _n = Date.now(); if (_n - _coworkFocusAt > 30000 && state.cowork && state.cowork.enabled && coworkAutoAllowed()) { _coworkFocusAt = _n; coworkPollAll(false).catch(() => {}); } } catch (_) {} // feat 317 — pick up cowork outputs on tab focus (debounced); feat 458 — machine-gated
 });
 window.addEventListener('focus', () => { try { if (typeof hrTryReconnect === 'function' && !_hrConnected && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {} });
 try { refreshWakeLock(); } catch (_) {}
@@ -27492,7 +27781,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 371 · 2026-08-01 21:32';
+const APP_BUILD = 'build 372 · 2026-08-02 09:38';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
