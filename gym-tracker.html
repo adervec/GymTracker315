@@ -2986,6 +2986,20 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .anat-hotspot.box { transform: none; border: 1.5px solid var(--accent); border-radius: 4px; background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .anat-hotspot.dot:hover, .anat-hotspot.box:hover { background: color-mix(in srgb, var(--accent) 60%, transparent); }
 .anat-hotspot.active { outline: 2px solid var(--good); }
+/* feat 455 — full-screen chart viewer. The detailed chart is a hi-res image squeezed into a phone-width
+   panel, and the app's viewport is user-scalable=no, so there is no pinch-zoom to fall back on. Zoom is
+   the wrapper's width as a percentage inside an overflow:auto box — panning is the browser's, not ours. */
+#anat-viewer { position: fixed; inset: 0; z-index: 10085; background: var(--bg); display: none; flex-direction: column; }
+#anat-viewer.open { display: flex; }
+.anat-viewer-bar { display: flex; align-items: center; gap: 7px; padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top, 0px)); background: var(--bg2); border-bottom: 1px solid var(--border2); flex: 0 0 auto; }
+.anat-vbar-btn { background: var(--bg3); border: 1.5px solid var(--accent); color: var(--text); border-radius: 9px; padding: 8px 14px; font-size: 15px; font-weight: 700; min-height: 40px; min-width: 44px; cursor: pointer; font-family: inherit; }
+.anat-vbar-btn:active { transform: scale(0.96); }
+.anat-vbar-btn[disabled] { opacity: 0.4; }
+.anat-vbar-pct { font-size: 13px; font-weight: 700; color: var(--text2); min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+.anat-vbar-spacer { flex: 1 1 auto; }
+.anat-viewer-scroll { flex: 1 1 auto; overflow: auto; -webkit-overflow-scrolling: touch; padding: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+.anat-viewer-zoom { width: 100%; }
+.anat-viewer-zoom .anat-svg { margin-bottom: 0; }
 /* feat 217 — the anatomy volume heatmap (Volume page; feat 218 reuses it on the live workout) */
 .heatmap-card .anat-svg { width: 100%; max-width: 430px; display: block; margin: 4px auto 0; }
 .hm-region { stroke: var(--border2); fill: transparent; transition: fill 0.4s; }
@@ -3005,8 +3019,10 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .replay-sess:last-child { border-bottom: none; }
 @media (max-width: 560px) {
   .gloss-panel.chart-open .gloss-main { flex-direction: column; }
-  .gloss-panel.chart-open .gloss-chart { width: auto; max-height: 46%; border-right: none; border-bottom: 1px solid var(--border2); display: flex; gap: 8px; }
-  .gloss-panel.chart-open .gloss-chart .anat-svg { width: 50%; }
+  /* feat 455 — was a horizontal flex row (toolbar | chart), which left the chart ~250px wide once the
+     toolbar buttons wrapped into a tall column. Stacked instead: the chart gets the full pane width and
+     the pane scrolls. ⛶ full screen is there for anything finer than that. */
+  .gloss-panel.chart-open .gloss-chart { width: auto; max-height: 46%; border-right: none; border-bottom: 1px solid var(--border2); }
 }
 
 /* Glossary as a full page rather than a right-side slide-in drawer (feat 59, default on).
@@ -27223,6 +27239,8 @@ try { if (typeof hrTryReconnect === 'function' && state.hrDevice) hrTryReconnect
 document.getElementById('trk-numpad-backdrop')?.addEventListener('click', closeNumpad);
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    const av = document.getElementById('anat-viewer'); // feat 455 — the chart viewer sits above everything
+    if (av && av.classList.contains('open')) { if (typeof closeAnatomyViewer === 'function') closeAnatomyViewer(); return; }
     const gr = document.getElementById('guide-reader');
     if (gr && gr.classList.contains('open')) { if (typeof closeGuide === 'function') closeGuide(); return; }
     if (document.getElementById('help-panel').classList.contains('open')) closeHelp();
@@ -27271,7 +27289,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 369 · 2026-08-01 19:21';
+const APP_BUILD = 'build 370 · 2026-08-01 21:00';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -36153,40 +36171,50 @@ function anatomyToolbarHtml() {
     </div>
     <label class="anat-upload">${_anatomyImg ? 'Replace' : '🖼️ Upload file'}<input type="file" accept="image/*" id="anat-img-input" hidden></label>
     <button class="anat-upload" id="anat-media-btn" type="button">📥 Import URL</button>
+    <button class="anat-upload" id="anat-fullscreen-btn" type="button" title="Open the chart full screen (zoom + pan)">⛶ Full screen</button>
     <label class="anat-upload">Import map<input type="file" accept=".json,.txt" id="anat-map-input" hidden></label>
     ${_anatomyImg ? `<button class="anat-upload danger" id="anat-remove-btn">Remove file</button>` : ''}
   </div>`;
 }
-function renderAnatomyChart(activeTerm) {
-  const chart = document.getElementById('ref-gloss-chart');
-  if (!chart) return;
-  if (!_anatomyImgTried) loadAnatomyImage(); // lazily load the stored image; re-renders when ready
-  const toolbar = anatomyToolbarHtml();
-  if (anatomyView() === 'detailed' && anatomyImageSrc()) {
-    const map = anatomyCfg().map || [];
-    const hotspots = map.map(m => {
+// feat 455 — the chart body (image + hotspots, or the wireframe SVG) as markup, so the inline panel and the
+// full-screen viewer render exactly the same thing rather than drifting apart.
+function anatomyChartIsDetailed() { return anatomyView() === 'detailed' && !!anatomyImageSrc(); }
+function anatomyBodyHtml(activeTerm) {
+  if (anatomyChartIsDetailed()) {
+    const hotspots = (anatomyCfg().map || []).map(m => {
       const box = (m.w != null && m.h != null);
       const style = box ? `left:${(m.x * 100).toFixed(2)}%;top:${(m.y * 100).toFixed(2)}%;width:${(m.w * 100).toFixed(2)}%;height:${(m.h * 100).toFixed(2)}%;` : `left:${(m.x * 100).toFixed(2)}%;top:${(m.y * 100).toFixed(2)}%;`;
       return `<button class="anat-hotspot ${box ? 'box' : 'dot'} ${activeTerm === m.term ? 'active' : ''}" data-term="${escapeAttr(m.term)}" style="${style}" title="${escapeHtml(m.term)}"></button>`;
     }).join('');
-    chart.innerHTML = toolbar + `<div class="gloss-chart-hint">Detailed chart — tap a labelled muscle to open its glossary entry.${map.length ? '' : ' (import a label map to add tap targets)'}</div>
-      <div class="anat-detailed"><img class="anat-img" src="${escapeAttr(anatomyImageSrc())}" alt="Anatomy chart">${hotspots}</div>`;
-    chart.querySelectorAll('.anat-hotspot').forEach(el => el.addEventListener('click', () => openGlossaryTo(el.dataset.term)));
-  } else {
-    const region = r => r.e.map(([cx, cy, rx, ry]) =>
-      `<ellipse class="amus ${activeTerm === r.term ? 'active' : ''}" data-term="${escapeAttr(r.term)}" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"><title>${escapeHtml(r.term)}</title></ellipse>`).join('');
-    chart.innerHTML = toolbar + `<div class="gloss-chart-hint">Medical chart — tap a muscle to open its glossary entry.</div>
-      <svg class="anat-svg" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
+    return `<div class="anat-detailed"><img class="anat-img" src="${escapeAttr(anatomyImageSrc())}" alt="Anatomy chart">${hotspots}</div>`;
+  }
+  const region = r => r.e.map(([cx, cy, rx, ry]) =>
+    `<ellipse class="amus ${activeTerm === r.term ? 'active' : ''}" data-term="${escapeAttr(r.term)}" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"><title>${escapeHtml(r.term)}</title></ellipse>`).join('');
+  return `<svg class="anat-svg" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
         ${anatomyOutline(50)}${anatomyOutline(150)}
         ${ANATOMY_REGIONS.map(region).join('')}
         <text class="anat-fig-label" x="50" y="190">Front</text>
         <text class="anat-fig-label" x="150" y="190">Back</text>
       </svg>`;
-    chart.querySelectorAll('.amus').forEach(el => el.addEventListener('click', () => {
-      chart.querySelectorAll('.amus').forEach(x => x.classList.toggle('active', x.dataset.term === el.dataset.term));
-      openGlossaryTo(el.dataset.term);
-    }));
-  }
+}
+// Tap targets behave the same in either host; from the full-screen viewer the glossary needs the viewer gone first.
+function bindAnatomyBody(root) {
+  root.querySelectorAll('.anat-hotspot').forEach(el => el.addEventListener('click', () => { closeAnatomyViewer(); openGlossaryTo(el.dataset.term); }));
+  root.querySelectorAll('.amus').forEach(el => el.addEventListener('click', () => {
+    root.querySelectorAll('.amus').forEach(x => x.classList.toggle('active', x.dataset.term === el.dataset.term));
+    closeAnatomyViewer(); openGlossaryTo(el.dataset.term);
+  }));
+}
+function renderAnatomyChart(activeTerm) {
+  const chart = document.getElementById('ref-gloss-chart');
+  if (!chart) return;
+  if (!_anatomyImgTried) loadAnatomyImage(); // lazily load the stored image; re-renders when ready
+  const hint = anatomyChartIsDetailed()
+    ? `Detailed chart — tap a labelled muscle to open its glossary entry.${(anatomyCfg().map || []).length ? '' : ' (import a label map to add tap targets)'} Tap ⛶ for full screen.`
+    : 'Medical chart — tap a muscle to open its glossary entry. Tap ⛶ for full screen.';
+  chart.innerHTML = anatomyToolbarHtml() + `<div class="gloss-chart-hint">${hint}</div>` + anatomyBodyHtml(activeTerm);
+  bindAnatomyBody(chart);
+  chart.querySelector('#anat-fullscreen-btn')?.addEventListener('click', () => openAnatomyViewer(activeTerm));
   // Toolbar bindings (shown in both views)
   chart.querySelectorAll('[data-anat-view]').forEach(b => b.addEventListener('click', () => { if (b.hasAttribute('disabled')) return; anatomyCfg().view = b.dataset.anatView; saveState(); renderAnatomyChart(activeTerm); }));
   const imgIn = chart.querySelector('#anat-img-input'); if (imgIn) imgIn.addEventListener('change', e => { anatomyUploadImage(e.target.files[0]); e.target.value = ''; });
@@ -36202,6 +36230,64 @@ function renderAnatomyChart(activeTerm) {
     if (res && res.ok) { anatomyCfg().view = 'detailed'; saveState(); renderAnatomyChart(activeTerm); toast('🖼️ Detailed chart imported'); }
     else toast((res && res.err) || 'Could not import that link');
   });
+}
+/* feat 455 — FULL-SCREEN CHART VIEWER. On a phone the chart lives in a ~350px panel and the app ships
+   user-scalable=no, so a hi-res medical chart is unreadable with no pinch-zoom to rescue it. ⛶ opens the
+   same chart body edge-to-edge in a scroll box; zoom is just the wrapper's width, so panning is the
+   browser's own scrolling rather than gesture code we would have to maintain. */
+const ANAT_ZOOMS = [1, 1.5, 2, 3, 4, 6];
+let _anatZoomIdx = 0, _anatViewerPushed = false;
+function isAnatomyViewerOpen() {
+  const ov = document.getElementById('anat-viewer');
+  return !!(ov && ov.classList.contains('open'));
+}
+function _anatApplyZoom() {
+  const ov = document.getElementById('anat-viewer'); if (!ov) return;
+  const z = ANAT_ZOOMS[_anatZoomIdx];
+  ov.querySelector('#anat-viewer-zoom').style.width = (z * 100) + '%';
+  ov.querySelector('#anat-viewer-pct').textContent = Math.round(z * 100) + '%';
+  ov.querySelector('#anat-zoom-out').disabled = _anatZoomIdx === 0;
+  ov.querySelector('#anat-zoom-in').disabled = _anatZoomIdx === ANAT_ZOOMS.length - 1;
+}
+function openAnatomyViewer(activeTerm) {
+  let ov = document.getElementById('anat-viewer');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'anat-viewer';
+    ov.innerHTML = '<div class="anat-viewer-bar">'
+      + '<button type="button" class="anat-vbar-btn" id="anat-viewer-close" aria-label="Close chart">✕</button>'
+      + '<span class="anat-vbar-spacer"></span>'
+      + '<button type="button" class="anat-vbar-btn" id="anat-zoom-out" aria-label="Zoom out">−</button>'
+      + '<span class="anat-vbar-pct" id="anat-viewer-pct">100%</span>'
+      + '<button type="button" class="anat-vbar-btn" id="anat-zoom-in" aria-label="Zoom in">+</button>'
+      + '</div>'
+      + '<div class="anat-viewer-scroll" id="anat-viewer-scroll"><div class="anat-viewer-zoom" id="anat-viewer-zoom"></div></div>';
+    document.body.appendChild(ov);
+    ov.querySelector('#anat-viewer-close').addEventListener('click', closeAnatomyViewer);
+    ov.querySelector('#anat-zoom-in').addEventListener('click', () => { _anatZoomIdx = Math.min(ANAT_ZOOMS.length - 1, _anatZoomIdx + 1); _anatApplyZoom(); });
+    ov.querySelector('#anat-zoom-out').addEventListener('click', () => { _anatZoomIdx = Math.max(0, _anatZoomIdx - 1); _anatApplyZoom(); });
+    // the phone Back button / swipe-back closes it — the natural escape when an overlay covers the app nav
+    window.addEventListener('popstate', () => { if (isAnatomyViewerOpen()) { _anatViewerPushed = false; _anatHideViewer(); } });
+  }
+  const box = ov.querySelector('#anat-viewer-zoom');
+  box.innerHTML = anatomyBodyHtml(activeTerm);
+  bindAnatomyBody(box);
+  _anatZoomIdx = 0; _anatApplyZoom();
+  ov.querySelector('#anat-viewer-scroll').scrollTop = 0;
+  ov.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  try { history.pushState({ anatViewer: 1 }, ''); _anatViewerPushed = true; } catch (e) {}
+}
+function _anatHideViewer() {
+  const ov = document.getElementById('anat-viewer'); if (!ov) return;
+  ov.classList.remove('open');
+  ov.querySelector('#anat-viewer-zoom').innerHTML = '';
+  document.body.style.overflow = '';
+}
+function closeAnatomyViewer() {
+  if (!isAnatomyViewerOpen()) return;
+  _anatHideViewer();                                                      // hide first — a hotspot tap opens the
+  if (_anatViewerPushed) { _anatViewerPushed = false; try { history.back(); } catch (e) {} } // glossary underneath
 }
 function toggleGlossChart() {
   glossChartOpen = !glossChartOpen;

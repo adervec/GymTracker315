@@ -2576,6 +2576,20 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Full-screen anatomy chart (feat 455):** the detailed chart was unreadable on a phone, for two
+  independent reasons. First, the mobile rule for the chart pane made it a **horizontal flex row**
+  (`toolbar | chart`) — sized for the 200x192 wireframe SVG, but once the toolbar's buttons wrapped into a
+  tall narrow column a hi-res medical image got roughly 250px of a 412px screen. That rule is now a plain
+  stack: full pane width for the chart, pane scrolls. Second, even full-width is not enough for label text,
+  and the app's viewport is `user-scalable=no`, so there is **no pinch-zoom to fall back on** — deliberately,
+  since accidental zoom mid-set is worse. So ⛶ opens `#anat-viewer`, a full-screen overlay following the
+  `#guide-reader` pattern (fixed inset, `.open` class, body scroll locked, Escape + `popstate` close, history
+  entry pushed so the phone Back gesture works). **Zoom is the wrapper's `width` as a percentage inside an
+  `overflow:auto` box** — 100/150/200/300/400/600% — so panning is the browser's own scrolling and there is
+  no gesture code to maintain. `renderAnatomyChart` was split so the chart body (image + hotspots, or the
+  wireframe SVG) comes from one `anatomyBodyHtml()` used by both hosts; `anatomyfull.spec` asserts the two
+  render byte-identical markup, so they cannot drift. Hotspots work in the viewer and close it before opening
+  the glossary underneath.
 - **Grip gear, the fixed row machine's handles, and a stale hold timer (feat 454):**
   **(a) Three pieces of kit, filed by muscle rather than by gear.** RDX lifting **hooks**, Iron Bull **Fat
   Gripz** and the RDX **arm blaster** had no vocabulary at all (four incidental fat-grip rows aside). The
