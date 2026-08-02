@@ -923,13 +923,31 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .sp-chip.active { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
   .sp-note { font-size: 11.5px; color: var(--warn); margin-top: 8px; line-height: 1.4; }
   /* feat 255 — themed split picker */
-  .sp-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: 360px; overflow-y: auto; }
-  .sp-theme { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); cursor: pointer; font-family: inherit; }
-  .sp-theme.active { border-color: var(--accent); background: var(--accent-bg); }
-  .sp-theme-emoji { font-size: 17px; line-height: 1; }
+  /* feat 456 — themed splits as a sortable table (was an auto-fill card grid) */
+  .sp-themes { display: flex; flex-direction: column; gap: 2px; max-height: 420px; overflow-y: auto; }
+  .sp-thead-theme, .sp-theme-tap { display: grid; grid-template-columns: 1fr 40px 30px; gap: 8px; align-items: center; text-align: left; }
+  .sp-thead-theme { grid-template-columns: 1fr 40px 30px 22px; padding: 4px 8px 5px; position: sticky; top: 0; background: var(--bg2); z-index: 1; border-bottom: 1px solid var(--border2); }
+  .sp-theme-row { border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); }
+  .sp-theme-row.active { border-color: var(--accent); background: var(--accent-bg); }
+  .sp-theme-line { display: flex; align-items: stretch; }
+  .sp-theme-line .sp-theme-tap { flex: 1; min-width: 0; border: none; background: none; border-radius: 8px 0 0 8px; color: var(--text); }
+  .sp-theme-line .sp-c-chev { flex: 0 0 30px; background: none; border: none; border-left: 1px solid var(--border2); color: var(--text3); font-size: 11px; cursor: pointer; font-family: inherit; }
+  .sp-c-h { background: none; border: none; padding: 0; font-family: inherit; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); cursor: pointer; text-align: left; }
+  .sp-c-h.active { color: var(--accent); }
+  .sp-c-tdays, .sp-c-tsess { font-size: 11px; color: var(--text2); text-align: right; font-variant-numeric: tabular-nums; }
+  .sp-c-h.sp-c-tdays, .sp-c-h.sp-c-tsess { text-align: right; }
+  .sp-c-tname { min-width: 0; font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sp-theme { color: var(--text); font-family: inherit; }
+  .sp-theme-tap { padding: 8px; font-family: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .sp-theme-on { color: var(--accent); }
+  .sp-theme-emoji { font-size: 14px; line-height: 1; }
   .sp-theme-name { font-size: 12.5px; font-weight: 800; }
-  .sp-theme-tag { font-size: 10px; color: var(--text3); }
+  .sp-theme-tag { font-size: 10px; color: var(--text3); margin-left: 6px; font-weight: 400; }
   .sp-theme.active .sp-theme-tag { color: var(--accent); }
+  .sp-theme-detail { padding: 0 9px 9px; }
+  .sp-theme-blurb { font-size: 11.5px; color: var(--text2); line-height: 1.45; margin-bottom: 6px; }
+  .sp-theme-seq { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+  .sp-seq-pill { font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--bg4); color: var(--text3); }
   /* feat 283 — collapsible split-planner sections + themed-split search/filter */
   .sp-sec-head { cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
   .sp-sec-chev { display: inline-block; font-size: 11px; color: var(--text3); transition: transform 0.12s; margin-right: 2px; }
@@ -1022,14 +1040,28 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .coach-persona.active .cp-tag { color: var(--accent); }
   .coach-voice-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
   .coach-voice-lbl { font-size: 12px; font-weight: 700; color: var(--text2); }
-  .sp-days { display: flex; flex-direction: column; gap: 7px; }
-  .sp-day { display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 9px 11px; }
-  .sp-day-slot { flex-shrink: 0; width: 64px; }
-  .sp-day-n { display: block; font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; }
-  .sp-day-cat { display: block; font-size: 12.5px; font-weight: 800; color: var(--accent); }
-  .sp-day-main { flex: 1; min-width: 0; }
-  .sp-day-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* feat 456 — the recommended split as a full-rotation table (one row per day, rest days included) */
+  .sp-days { display: flex; flex-direction: column; gap: 2px; }
+  .sp-thead, .sp-day-tap, .sp-day.rest { display: grid; grid-template-columns: 42px 68px 1fr 36px 26px; gap: 7px; align-items: center; text-align: left; }
+  .sp-thead { grid-template-columns: 42px 68px 1fr 36px 26px 62px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); padding: 4px 8px 5px; }
+  .sp-day { background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; }
+  .sp-day.rest { background: transparent; border-color: transparent; padding: 6px 8px; opacity: 0.55; }
+  .sp-day-line { display: flex; align-items: center; }
+  .sp-day-tap { flex: 1; min-width: 0; background: none; border: none; padding: 8px; font-family: inherit; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .sp-day-line .sp-use { flex: 0 0 auto; padding: 6px 10px; margin: 0 2px; }
+  .sp-day-line .sp-c-chev { flex: 0 0 24px; background: none; border: none; color: var(--text3); font-size: 11px; cursor: pointer; font-family: inherit; padding: 8px 0; }
+  .sp-day.open { border-color: var(--accent-border); }
+  .sp-c-day { font-size: 10.5px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.3px; }
+  .sp-c-slot { font-size: 12px; font-weight: 800; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sp-c-plan { font-size: 12.5px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sp-rest-txt { color: var(--text3); font-weight: 400; font-style: italic; }
+  .sp-c-min, .sp-c-sets { font-size: 11px; color: var(--text2); text-align: right; font-variant-numeric: tabular-nums; }
+  .sp-c-chev { font-size: 10px; color: var(--text3); text-align: right; }
+  .sp-day-detail { padding: 0 9px 9px; }
+  .sp-day-desc { font-size: 11.5px; color: var(--text2); line-height: 1.45; margin-bottom: 4px; }
   .sp-day-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .sp-day-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+  .sp-unfilled { font-size: 11px; color: var(--warn, #e8b339); margin-top: 8px; line-height: 1.45; }
   .sp-use { flex-shrink: 0; font-size: 12px; font-weight: 700; background: var(--accent); border: none; color: #0a0a0a; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-family: inherit; }
   .sp-balance { font-size: 13px; font-weight: 700; color: var(--text2); margin-bottom: 12px; }
   .sp-bal-score { font-weight: 800; }
@@ -1135,11 +1167,28 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .prog-target.prog-add-load .prog-target-aim b { color: var(--good); }
   .prog-target-note { display: block; font-size: 10.5px; color: var(--text3); margin-top: 1px; }
   .prog-prefill { flex-shrink: 0; font-size: 12px; font-weight: 800; background: var(--accent); border: none; color: #0a0a0a; padding: 8px 13px; border-radius: 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
-  .plan-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
-  .plan-row-main { flex: 1; min-width: 0; }
-  .plan-row-name { font-size: 14px; font-weight: 600; color: var(--text); }
+  /* feat 456 — the plan list as a table: fixed columns always visible, description + actions only on the
+     one expanded row. One shared grid template keeps the header and every row in the same columns. */
+  .plan-row { border-bottom: 1px solid var(--border); }
+  .plan-thead, .plan-row-tap { display: grid; grid-template-columns: 1fr 64px 46px 42px 34px; gap: 8px; align-items: center; text-align: left; }
+  .plan-thead { grid-template-columns: 1fr 64px 46px 42px 34px 56px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); padding: 6px 2px 5px; border-bottom: 1px solid var(--border2); }
+  .plan-row-line { display: flex; align-items: center; gap: 4px; }
+  .plan-row-tap { flex: 1; min-width: 0; background: none; border: none; padding: 9px 2px; font-family: inherit; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .plan-c-chev { flex: 0 0 22px; background: none; border: none; padding: 6px 0; font-family: inherit; cursor: pointer; }
+  .plan-row.open .plan-row-line { background: var(--accent-bg); border-radius: 8px 8px 0 0; }
+  .plan-c-name { font-size: 13.5px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .plan-row.open .plan-c-name { white-space: normal; }
+  .plan-row-fav { color: #e8b339; }
+  .plan-c-cat { font-size: 10.5px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .plan-c-int { font-size: 10px; letter-spacing: -0.5px; }
+  .plan-c-min, .plan-c-sets { font-size: 11.5px; color: var(--text2); text-align: right; font-variant-numeric: tabular-nums; }
+  .plan-c-chev { font-size: 10px; color: var(--text3); text-align: center; }
+  .plan-row-detail { padding: 2px 4px 10px; }
   .plan-row-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
-  .plan-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .plan-row-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+  .plan-sort { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
+  .plan-sort-lbl { flex-shrink: 0; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
+  @media (max-width: 420px) { .plan-thead, .plan-row-tap { grid-template-columns: 1fr 44px 40px 30px 14px; } .plan-c-cat { display: none; } }
   /* feat 147 — plan picker: search + category/length filter chips + grouped headers */
   .plans-search { width: 100%; box-sizing: border-box; margin-bottom: 9px; padding: 9px 12px; font-size: 13px; border-radius: 9px; font-family: inherit; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); -webkit-appearance: none; }
   .plan-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 4px; -webkit-overflow-scrolling: touch; }
@@ -1876,6 +1925,11 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .sets-section { border: 1px solid var(--border2); border-radius: 9px; background: var(--bg2); padding: 6px 8px 4px; }
   .sets-section .set-header { position: sticky; top: 0; background: var(--bg2); z-index: 1; padding-top: 2px; }
   .sets-scroll { max-height: 40vh; min-height: 84px; overflow-y: auto; resize: vertical; }
+  /* feat 457 — newest set first (default on). A pure VISUAL flip: DOM order is untouched, so every
+     positional lookup (updateRowLive's rows[idx], the numpad's data-i selectors) still works. */
+  .sets-scroll.newest-first { display: flex; flex-direction: column-reverse; justify-content: flex-end; }
+  .sets-scroll.newest-first .set-block { flex: 0 0 auto; }
+  .sets-scroll.newest-first .set-block:last-of-type .set-row { border-bottom: none; }
   .tip-block { margin-bottom: 10px; }
   .tip-block:last-child { margin-bottom: 0; }
   .tip-block-label { font-size: 9.5px; color: #80a0ff; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; margin-bottom: 3px; }
@@ -6206,6 +6260,7 @@ let state = {
     onScreenNumpad: true,      // feat 57/150 — in-app numpad for set entry (default ON; strongly recommended)
     prefillFromHistory: false, // feat 58 — ARCHIVED (feat 331): no longer wired; first set always opens blank
     mixSubvariations: false,   // feat 88 — per-set sub-variation selection in one log (default off)
+    newestSetFirst: true,      // feat 457 — show the newest set at the TOP of the current exercise pane (default ON)
     rpeMode: 'off',            // feat 261 — RPE/RIR per-set logging: 'off' | 'rpe' | 'rir' (default off = fully hidden)
   },
   // ---- Profile (feat 34) — fed into BMI / age / relative-strength calcs ----
@@ -10093,6 +10148,16 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
+        <div class="drawer-setting-label">Newest set first</div>
+        <div class="drawer-setting-sub">Show the set you just logged at the TOP of the current exercise, so a long list never buries it</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${newestSetFirst() ? 'active' : ''}" data-wc="newestSetFirst" data-wc-val="on">On</button>
+        <button class="drawer-pill ${!newestSetFirst() ? 'active' : ''}" data-wc="newestSetFirst" data-wc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
         <div class="drawer-setting-label">Mix sub-variations in one log</div>
         <div class="drawer-setting-sub">For exercises with grip/bar/angle options, pick a sub-variation per set; on save they split into separate tracked entries</div>
       </div>
@@ -11239,6 +11304,8 @@ function exerciseVolume(ex) { return ex.sets.reduce((s, set) => s + setVolume(se
 // carries an RPE we can model proximity-to-failure for a sharper e1RM and for plateau detection.
 function rpeMode() { const m = state.workoutControls && state.workoutControls.rpeMode; return (m === 'rpe' || m === 'rir') ? m : 'off'; }
 function rpeEnabled() { return rpeMode() !== 'off'; }
+// feat 457 — newest set at the top of the current exercise pane. Default ON, so an absent key means on.
+function newestSetFirst() { return (state.workoutControls || {}).newestSetFirst !== false; }
 function rpeToRir(rpe) { const n = parseFloat(rpe); return isNaN(n) ? null : Math.max(0, Math.min(5, Math.round((10 - n) * 2) / 2)); }
 function rirToRpe(rir) { const n = parseFloat(rir); return isNaN(n) ? null : Math.max(5, Math.min(10, Math.round((10 - n) * 2) / 2)); }
 function setRpe(set) { const n = set && set.rpe != null && set.rpe !== '' ? parseFloat(set.rpe) : NaN; return isNaN(n) ? null : n; }
@@ -15885,6 +15952,24 @@ function buildRecommendedSplit(opts) {
     return { day: i + 1, slot: cat, plan: pick, est: pick ? estimatePlanMinutes(pick) : 0 };
   });
 }
+/* feat 456 — lay a recommended split out over EVERY day of its rotation (or over the Mon–Sun week), in
+   exactly the positions saving it as a program would use. A 28-day split therefore shows 28 rows — its 16
+   sessions AND the 12 rest days — instead of only the 16 slots it happens to contain, which read as
+   "Day 1…Day 16" and made a monthlong split look like a 16-day one. The two branches mirror
+   buildProgramFromSplit's two branches exactly, so the preview cannot disagree with what Save produces. */
+function splitDayLayout(split, days, sessions) {
+  const n = Math.max(1, days | 0);
+  if (n > 7) {
+    const len = Math.min(28, Math.max(8, n));
+    const placed = (split || []).filter(s => s && s.plan);
+    const idxs = _spreadIndices(placed.length, len);
+    const byDay = {}; placed.forEach((s, i) => { byDay[idxs[i]] = s; });
+    return Array.from({ length: len }, (_, k) => ({ label: 'Day ' + (k + 1), key: 'd' + k, s: byDay[k] || null }));
+  }
+  const picks = PROGRAM_DOW_PICKS[Math.max(2, Math.min(6, sessions | 0 || 3))] || PROGRAM_DOW_PICKS[3];
+  const byDow = {}; (split || []).forEach((s, i) => { if (s && s.plan && picks[i] != null) byDow[picks[i]] = s; });
+  return DOW_ORDER.map(d => ({ label: DOW_SHORT[d], key: 'w' + d, s: byDow[d] || null }));
+}
 const SPLIT_STATUS_LABEL = { under: 'under', light: 'light', optimal: 'on target', over: 'over' };
 function splitPlanCfg() { return state.splitPlan || (state.splitPlan = { sessions: 3, days: 7, minutes: 60 }); }
 // feat 283 — split-planner UI prefs (per-section collapse + the themed-split length filter). Themed splits
@@ -15896,6 +15981,7 @@ function spUICfg() {
   return state.spUI;
 }
 let _spThemeSearch = ''; // transient — not persisted across sessions
+let _spExpandDay = null, _spExpandTheme = null; // feat 456 — the ONE split-day / themed-split row showing its detail
 /* ============================================================
    feat 230 — SCHEDULED WEEKLY PROGRAM. The future-oriented layer over the split planner: save a recommended
    split as a day-by-day weekly program (state.program), then the app knows what's planned for each day —
@@ -16118,18 +16204,61 @@ function renderSplitPlannerPage(main) {
   const themeInFilter = t => { const d = themeDays(t); return tf === 'all' || (tf === 'week' && d <= 7) || (tf === 'short' && d >= 8 && d <= 14) || (tf === 'long' && d >= 15); };
   const themesShown = THEMED_SPLITS.filter(themeInFilter);
   const themeFilterChips = THEME_LEN_FILTERS.map(f => `<button class="sp-chip ${tf === f.id ? 'active' : ''}" data-theme-filter="${f.id}">${f.label}</button>`).join('');
-  const themeChips = themesShown.map(t => {
-    const hay = (t.name + ' ' + t.tag + ' ' + t.blurb + ' ' + themeDays(t) + 'day').toLowerCase();
-    const hidden = _spThemeSearch && !hay.includes(_spThemeSearch.trim().toLowerCase());
-    return `<button class="sp-theme ${cfg.theme === t.id ? 'active' : ''}" data-sp-theme="${escapeAttr(t.id)}" data-theme-search="${escapeAttr(hay)}" title="${escapeAttr(t.blurb)}"${hidden ? ' style="display:none"' : ''}><span class="sp-theme-emoji">${t.emoji}</span><span class="sp-theme-name">${escapeHtml(t.name)}</span><span class="sp-theme-tag">${escapeHtml(t.tag)}</span><span class="sp-theme-days">${themeDays(t)}-day split</span></button>`;
-  }).join('');
-  // recommended split rows
-  const splitRows = split.map(s => s.plan
-    ? `<div class="sp-day"><div class="sp-day-slot"><span class="sp-day-n">Day ${s.day}</span><span class="sp-day-cat">${escapeHtml(s.slot)}</span></div>
-         <div class="sp-day-main"><div class="sp-day-name">${escapeHtml(s.plan.name)}</div><div class="sp-day-sub">~${s.est} min · ${planTotalSets(s.plan)} sets</div></div>
-         <button class="sp-use" data-plan-use="${escapeAttr(s.plan.id)}">Use</button></div>`
-    : `<div class="sp-day"><div class="sp-day-slot"><span class="sp-day-n">Day ${s.day}</span><span class="sp-day-cat">${escapeHtml(s.slot)}</span></div><div class="sp-day-main"><div class="sp-day-sub">No ${escapeHtml(s.slot)} plan in your library yet.</div></div></div>`
-  ).join('');
+  // feat 456 — themed splits as a sortable table (was a grid of cards): the blurb only shows for the row
+  // being looked at, so all of them fit on one screen and can be compared by length / session count.
+  const tSort = ui.themeSort || 'default';
+  const T_SORTS = { name: (a, b) => a.name.localeCompare(b.name), days: (a, b) => themeDays(a) - themeDays(b), sessions: (a, b) => a.slots.length - b.slots.length };
+  const themesSorted = T_SORTS[tSort] ? themesShown.slice().sort((a, b) => (ui.themeSortDesc ? -1 : 1) * T_SORTS[tSort](a, b)) : themesShown;
+  const tHead = (id, label, cls) => `<button class="sp-c-h ${cls} ${tSort === id ? 'active' : ''}" data-theme-sort="${id}">${label}${tSort === id ? (ui.themeSortDesc ? ' ↓' : ' ↑') : ''}</button>`;
+  const themeChips = `<div class="sp-thead-theme">${tHead('name', 'Split', 'sp-c-tname')}${tHead('days', 'Days', 'sp-c-tdays')}${tHead('sessions', 'Sess', 'sp-c-tsess')}<span class="sp-c-chev"></span></div>`
+    + themesSorted.map(t => {
+      const hay = (t.name + ' ' + t.tag + ' ' + t.blurb + ' ' + themeDays(t) + 'day').toLowerCase();
+      const hidden = _spThemeSearch && !hay.includes(_spThemeSearch.trim().toLowerCase());
+      const open = _spExpandTheme === t.id, active = cfg.theme === t.id;
+      // the row itself still SELECTS in one tap (as before); the chevron is a separate button that reveals
+      // the blurb, so "collapsed descriptions" never costs an extra tap to actually pick a split.
+      return `<div class="sp-theme sp-theme-row${active ? ' active' : ''}${open ? ' open' : ''}" data-theme-search="${escapeAttr(hay)}"${hidden ? ' style="display:none"' : ''}>
+        <div class="sp-theme-line">
+          <button type="button" class="sp-theme-tap" data-sp-theme="${escapeAttr(t.id)}" title="${escapeAttr(t.blurb)}">
+            <span class="sp-c-tname"><span class="sp-theme-emoji">${t.emoji}</span> <span class="sp-theme-name">${escapeHtml(t.name)}</span>${active ? ' <span class="sp-theme-on">✓</span>' : ''}<span class="sp-theme-tag">${escapeHtml(t.tag)}</span></span>
+            <span class="sp-c-tdays">${themeDays(t)}d</span>
+            <span class="sp-c-tsess">${t.slots.length}</span>
+          </button>
+          <button type="button" class="sp-c-chev" data-sp-theme-exp="${escapeAttr(t.id)}" aria-expanded="${open}" aria-label="Show details">${open ? '▾' : '▸'}</button>
+        </div>
+        ${open ? `<div class="sp-theme-detail">
+          <div class="sp-theme-blurb">${escapeHtml(t.blurb)}</div>
+          <div class="sp-theme-seq">${t.slots.map(sl => `<span class="sp-seq-pill">${escapeHtml(sl)}</span>`).join('')}</div>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+  // feat 456 — recommended split as a full-rotation table: one row per day (rest days included), description
+  // collapsed except the row being looked at. Unfilled slots are called out below rather than faked onto a day.
+  const layout = splitDayLayout(split, cfg.days, cfg.sessions);
+  const unfilled = split.filter(s => !s.plan).map(s => s.slot);
+  const splitRows = `<div class="sp-thead"><span class="sp-c-day">Day</span><span class="sp-c-slot">Focus</span><span class="sp-c-plan">Plan</span><span class="sp-c-min">Time</span><span class="sp-c-sets">Sets</span><span class="sp-c-chev"></span></div>`
+    + layout.map(row => {
+      const s = row.s, open = _spExpandDay === row.key && !!s;
+      if (!s) return `<div class="sp-day rest"><span class="sp-c-day">${escapeHtml(row.label)}</span><span class="sp-c-slot">Rest</span><span class="sp-c-plan sp-rest-txt">— recover —</span><span class="sp-c-min"></span><span class="sp-c-sets"></span><span class="sp-c-chev"></span></div>`;
+      return `<div class="sp-day${open ? ' open' : ''}">
+        <div class="sp-day-line">
+          <button type="button" class="sp-day-tap" data-sp-day="${escapeAttr(row.key)}" aria-expanded="${open}">
+            <span class="sp-c-day">${escapeHtml(row.label)}</span>
+            <span class="sp-c-slot sp-day-cat">${escapeHtml(s.slot)}</span>
+            <span class="sp-c-plan">${escapeHtml(s.plan.name)}</span>
+            <span class="sp-c-min">${s.est}m</span>
+            <span class="sp-c-sets">${planTotalSets(s.plan)}</span>
+          </button>
+          <button type="button" class="sp-use" data-plan-use="${escapeAttr(s.plan.id)}" title="Use this plan">▶</button>
+          <button type="button" class="sp-c-chev" data-sp-day="${escapeAttr(row.key)}" aria-expanded="${open}" aria-label="Show details">${open ? '▾' : '▸'}</button>
+        </div>
+        ${open ? `<div class="sp-day-detail">${s.plan.desc ? `<div class="sp-day-desc">${escapeHtml(s.plan.desc)}</div>` : ''}
+          <div class="sp-day-sub">${s.plan.steps.length} step${s.plan.steps.length === 1 ? '' : 's'} · ~${planTotalSets(s.plan)} sets · ~${s.est} min · ${escapeHtml(planCategory(s.plan))}</div>
+          <div class="sp-day-acts"><button class="drawer-btn" data-plan-view="${escapeAttr(s.plan.id)}" title="View read-only">👁 View</button><button class="drawer-btn" data-plan-edit="${escapeAttr(s.plan.id)}">Edit</button></div>
+        </div>` : ''}
+      </div>`;
+    }).join('')
+    + (unfilled.length ? `<div class="sp-unfilled">No plan in your library yet for: <b>${escapeHtml([...new Set(unfilled)].join(', '))}</b> — ${unfilled.length} session${unfilled.length === 1 ? '' : 's'} will be left unscheduled.</div>` : '');
   // per-group over/under bars
   const barRows = analysis.rows.map(r => {
     const scale = Math.max(r.mrv * 1.25, r.sets * 1.05, 1);
@@ -16251,6 +16380,18 @@ function renderSplitPlannerPage(main) {
     const k = el.dataset.spColl, u = spUICfg(); u.collapse[k] = !u.collapse[k]; saveState(); renderSplitPlannerPage(main);
   }));
   main.querySelectorAll('[data-theme-filter]').forEach(b => b.addEventListener('click', () => { spUICfg().themeFilter = b.dataset.themeFilter; _spThemeSearch = ''; saveState(); renderSplitPlannerPage(main); }));
+  // feat 456 — sortable themed-split columns + one-at-a-time row expansion (both tables)
+  main.querySelectorAll('[data-theme-sort]').forEach(b => b.addEventListener('click', () => {
+    const u = spUICfg(), v = b.dataset.themeSort;
+    if (u.themeSort === v) u.themeSortDesc = !u.themeSortDesc; else { u.themeSort = v; u.themeSortDesc = false; }
+    saveState(); renderSplitPlannerPage(main);
+  }));
+  main.querySelectorAll('[data-sp-theme-exp]').forEach(b => b.addEventListener('click', () => {
+    _spExpandTheme = (_spExpandTheme === b.dataset.spThemeExp) ? null : b.dataset.spThemeExp; renderSplitPlannerPage(main);
+  }));
+  main.querySelectorAll('[data-sp-day]').forEach(b => b.addEventListener('click', () => {
+    _spExpandDay = (_spExpandDay === b.dataset.spDay) ? null : b.dataset.spDay; renderSplitPlannerPage(main);
+  }));
   const themeSearchEl = main.querySelector('#sp-theme-search');
   if (themeSearchEl) themeSearchEl.addEventListener('input', () => { // client-side filter (no re-render → keeps focus)
     _spThemeSearch = themeSearchEl.value;
@@ -16316,6 +16457,20 @@ let _plansSearch = '', _plansCatFilter = new Set(), _plansLenRange = { min: PLAN
 const _plansLenActive = () => _plansLenRange.min > PLAN_LEN_MIN || _plansLenRange.max < PLAN_LEN_MAX;
 let _plansFavOnly = false; // feat 178 — show only favorited plans
 let _plansPage = 0; // feat 240 — paginate the (filtered) plan list
+/* feat 456 — the plan list is a sortable table with collapsed descriptions. Sorting by anything other than
+   'cat' drops the category headers and shows one flat table (a grouped list can't be sorted end-to-end).
+   `_plansExpandId` is the ONE row whose description is showing — tapping another row moves it. */
+const PLAN_SORTS = [
+  { id: 'cat',       label: 'Category', cmp: null },  // null = keep the grouped, favourites-first order
+  { id: 'name',      label: 'Name',      cmp: (a, b) => a.name.localeCompare(b.name) },
+  { id: 'minutes',   label: 'Length',    cmp: (a, b) => estimatePlanMinutes(a) - estimatePlanMinutes(b) },
+  { id: 'sets',      label: 'Sets',      cmp: (a, b) => planTotalSets(b) - planTotalSets(a) },
+  { id: 'intensity', label: 'Intensity', cmp: (a, b) => planIntensity(b) - planIntensity(a) },
+  { id: 'recent',    label: 'Last run',  cmp: (a, b) => _planLastRunTs(b) - _planLastRunTs(a) },
+];
+function _planLastRunTs(p) { const e = findPlanExecutions(p.id); return e.recent ? new Date(e.recent.date).getTime() : 0; }
+const PLAN_CAT_DAILY = 'Plans of the Day';
+let _plansSort = 'cat', _plansSortDesc = false, _plansExpandId = null;
 let _plansDeepLink = false; // feat 184 — openPlanFull sets this so the page render opens straight to the editor
 // feat 184 — the Plan Creator is a router page rendered into #trk-main (the #plans-panel overlay is retired).
 // openPlansOverlay opens the list; openPlanFull deep-links to one plan's editor. Both navTo the page; in-page
@@ -16424,17 +16579,36 @@ function renderPlansOverlay() {
 }
 // feat 147 — the plan picker: a search box + category & length filter chips, then plans grouped under
 // category headers. Categories are derived (planCategory) so no hand-maintained field is needed.
-const _planRowHtml = (p) => `<div class="plan-row">
-    <div class="plan-row-main"><div class="plan-row-name">${(p.source==='daily'&&p.dailyDate)?`<span class="plan-day-tag">🗓️ ${escapeHtml(coworkFmtDay(p.dailyDate))}</span> `:''}${escapeHtml(p.name)}</div>${p.desc?`<div class="plan-row-desc">${escapeHtml(p.desc)}</div>`:''}<div class="plan-row-sub"><span class="plan-cat-tag">${escapeHtml(planCategory(p))}</span> · <span class="plan-intensity" title="Intensity ${planIntensity(p)}/5">${intensityDots(p)}</span> · ~${estimatePlanMinutes(p)} min · ${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets</div></div>
-    <div class="plan-row-actions">
+// feat 456 — one table row per plan: the fixed columns always show, the description and the action buttons
+// only for the expanded row. Tapping the row expands it (and collapses whichever was open).
+const _planRowHtml = (p) => {
+  const open = _plansExpandId === p.id;
+  return `<div class="plan-row${open ? ' open' : ''}" data-plan-row="${escapeAttr(p.id)}">
+    <div class="plan-row-line">
+      <button type="button" class="plan-row-tap" data-plan-expand="${escapeAttr(p.id)}" aria-expanded="${open}">
+        <span class="plan-c-name plan-row-name">${(p.source==='daily'&&p.dailyDate)?`<span class="plan-day-tag">🗓️ ${escapeHtml(coworkFmtDay(p.dailyDate))}</span> `:''}${escapeHtml(p.name)}</span>
+        <span class="plan-c-cat">${escapeHtml(planCategory(p))}</span>
+        <span class="plan-c-int" title="Intensity ${planIntensity(p)}/5">${intensityDots(p)}</span>
+        <span class="plan-c-min">${estimatePlanMinutes(p)}m</span>
+        <span class="plan-c-sets">${planTotalSets(p)}</span>
+      </button>
       ${favStarHtml(isFavPlan(p.id), `data-fav-plan="${escapeAttr(p.id)}"`)}
-      ${p.media ? `<button class="drawer-btn" data-plan-media="${p.id}" title="Watch attached video">🎬</button>` : ''}
-      <button class="drawer-btn" data-plan-use="${p.id}">Use</button>
-      <button class="drawer-btn" data-plan-view="${p.id}" title="View read-only">👁</button>
-      <button class="drawer-btn" data-plan-edit="${p.id}">Edit</button>
-      <button class="drawer-btn danger" data-plan-del="${p.id}">Del</button>
+      <button type="button" class="plan-c-chev" data-plan-expand="${escapeAttr(p.id)}" aria-expanded="${open}" aria-label="Show details">${open ? '▾' : '▸'}</button>
     </div>
+    ${open ? `<div class="plan-row-detail">
+      ${p.desc ? `<div class="plan-row-desc">${escapeHtml(p.desc)}</div>` : ''}
+      <div class="plan-row-sub">${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets · ~${estimatePlanMinutes(p)} min${(() => { const e = findPlanExecutions(p.id); return e.count ? ` · ${e.count}× done, last ${escapeHtml(fmtDate(e.recent.date))}` : ' · not run yet'; })()}</div>
+      <div class="plan-row-actions">
+        ${p.media ? `<button class="drawer-btn" data-plan-media="${p.id}" title="Watch attached video">🎬</button>` : ''}
+        <button class="drawer-btn" data-plan-use="${p.id}">Use</button>
+        <button class="drawer-btn" data-plan-view="${p.id}" title="View read-only">👁</button>
+        <button class="drawer-btn" data-plan-edit="${p.id}">Edit</button>
+        <button class="drawer-btn danger" data-plan-del="${p.id}">Del</button>
+      </div>
+    </div>` : ''}
   </div>`;
+};
+const PLAN_TABLE_HEAD = `<div class="plan-thead"><span class="plan-c-name">Plan</span><span class="plan-c-cat">Category</span><span class="plan-c-int">Int</span><span class="plan-c-min">Time</span><span class="plan-c-sets">Sets</span><span class="plan-c-chev"></span></div>`;
 // feat 226 — the Quick Pick block at the top of the picker: a time selector + the top-3 recommendations
 // for that budget and your recent training. Shown only on the unfiltered list (it's a starting point).
 function quickPickHtml() {
@@ -16465,6 +16639,9 @@ function renderPlansList(body) {
   const matches = (p) => {
     if (_plansFavOnly && !isFavPlan(p.id)) return false; // feat 178
     if (q && !(p.name.toLowerCase().includes(q) || (p.desc || '').toLowerCase().includes(q))) return false;
+    // feat 456 — "All" means your own library. Plans of the Day are a dated feed that would otherwise bury it;
+    // they stay one tap away on their own chip (and a search still finds them).
+    if (!_plansCatFilter.size && !q && planCategory(p) === PLAN_CAT_DAILY) return false;
     if (_plansCatFilter.size && !_plansCatFilter.has(planCategory(p))) return false; // feat 373 — multi-select (empty = all)
     if (_plansLenActive()) { // feat 374 — minute range; a thumb at the slider extreme means "open-ended" on that side
       const m = estimatePlanMinutes(p);
@@ -16497,13 +16674,23 @@ function renderPlansList(body) {
   // feat 240 — paginate the (filtered) list so a big plan library stays scannable. Page over the
   // category-rank-ordered, favourites-first flat list; re-emit a category head whenever it changes on a page.
   const PLANS_PER_PAGE = 12;
-  const ordered = groupCats.flatMap(c => groups[c]);
+  // feat 456 — sorting by a column flattens the list (a grouped list can't sort end-to-end); 'cat' keeps groups.
+  const sort = PLAN_SORTS.find(s => s.id === _plansSort) || PLAN_SORTS[0];
+  const flatSort = !!sort.cmp;
+  const ordered = flatSort
+    ? filtered.slice().sort((a, b) => (_plansSortDesc ? -1 : 1) * sort.cmp(a, b))
+    : groupCats.flatMap(c => groups[c]);
   const pageCount = Math.max(1, Math.ceil(ordered.length / PLANS_PER_PAGE));
   if (_plansPage >= pageCount) _plansPage = pageCount - 1;
   if (_plansPage < 0) _plansPage = 0;
   const pageItems = ordered.slice(_plansPage * PLANS_PER_PAGE, _plansPage * PLANS_PER_PAGE + PLANS_PER_PAGE);
-  let pageRows = '', _lastCat = null;
-  pageItems.forEach(p => { const c = planCategory(p); if (c !== _lastCat) { pageRows += `<div class="plan-cat-head">${escapeHtml(c)} <span class="plan-cat-count">${groups[c].length}</span></div>`; _lastCat = c; } pageRows += _planRowHtml(p); });
+  let pageRows = PLAN_TABLE_HEAD, _lastCat = null;
+  pageItems.forEach(p => {
+    if (!flatSort) { const c = planCategory(p); if (c !== _lastCat) { pageRows += `<div class="plan-cat-head">${escapeHtml(c)} <span class="plan-cat-count">${groups[c].length}</span></div>`; _lastCat = c; } }
+    pageRows += _planRowHtml(p);
+  });
+  const sortChips = `<div class="plan-sort"><span class="plan-sort-lbl">Sort</span>${PLAN_SORTS.map(s =>
+    `<button class="plan-chip ${_plansSort === s.id ? 'active' : ''}" data-plan-sort="${s.id}">${escapeHtml(s.label)}${_plansSort === s.id && s.cmp ? (_plansSortDesc ? ' ↓' : ' ↑') : ''}</button>`).join('')}</div>`;
   const pagerHtml = pageCount > 1
     ? `<div class="plan-pager"><button class="plan-page-btn" data-plan-page="prev" ${_plansPage === 0 ? 'disabled' : ''}>‹ Prev</button><span class="plan-page-ind">Page ${_plansPage + 1} / ${pageCount} · ${ordered.length} plans</span><button class="plan-page-btn" data-plan-page="next" ${_plansPage >= pageCount - 1 ? 'disabled' : ''}>Next ›</button></div>`
     : '';
@@ -16516,7 +16703,8 @@ function renderPlansList(body) {
   const showQuickPick = plans.length > 0 && !q && _plansCatFilter.size === 0 && !_plansLenActive() && !_plansFavOnly;
   body.innerHTML = `${showQuickPick ? quickPickHtml() : ''}<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
     <input type="search" id="plans-search" class="plans-search" placeholder="🔍 Search plans by name or theme…" value="${escapeAttr(_plansSearch)}" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <div class="plan-chips">${favN ? `<button class="plan-chip fav-chip ${_plansFavOnly?'active':''}" data-plan-fav="1" title="Show favorites only">★ Favorites <span class="plan-chip-n">${favN}</span></button>` : ''}${catChip('all','All',plans.length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
+    <div class="plan-chips">${favN ? `<button class="plan-chip fav-chip ${_plansFavOnly?'active':''}" data-plan-fav="1" title="Show favorites only">★ Favorites <span class="plan-chip-n">${favN}</span></button>` : ''}${catChip('all','All',plans.filter(p => planCategory(p)!==PLAN_CAT_DAILY).length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
+    ${sortChips}
     ${lenSliderHtml}
     ${(_plansCatFilter.size || _plansLenActive() || q || _plansFavOnly) ? `<div class="plan-filter-note">${filtered.length} of ${plans.length} plans</div>` : ''}
     ${listHtml}
@@ -16529,6 +16717,16 @@ function bindPlansList(body) {
   body.querySelectorAll('[data-pick-min]').forEach(b => b.addEventListener('click', () => { state.planPickMinutes = +b.dataset.pickMin; _qpShuffle = 0; saveState(); renderPlansOverlay(); })); // feat 226/395 — time budget (reset the shuffle window)
   body.querySelector('#qp-shuffle')?.addEventListener('click', () => { _qpShuffle++; renderPlansOverlay(); }); // feat 395 — show the next batch of suggestions
   body.querySelectorAll('[data-plan-page]').forEach(b => b.addEventListener('click', () => { _plansPage += (b.dataset.planPage === 'next' ? 1 : -1); renderPlansOverlay(); })); // feat 240 — paginate (render re-clamps)
+  // feat 456 — sortable columns (tapping the active one flips direction) + one-at-a-time row expansion
+  body.querySelectorAll('[data-plan-sort]').forEach(b => b.addEventListener('click', () => {
+    const v = b.dataset.planSort;
+    if (_plansSort === v) _plansSortDesc = !_plansSortDesc; else { _plansSort = v; _plansSortDesc = false; }
+    _plansPage = 0; renderPlansOverlay();
+  }));
+  body.querySelectorAll('[data-plan-expand]').forEach(b => b.addEventListener('click', () => {
+    _plansExpandId = (_plansExpandId === b.dataset.planExpand) ? null : b.dataset.planExpand;
+    renderPlansOverlay();
+  }));
   body.querySelectorAll('[data-plan-cat]').forEach(b => b.addEventListener('click', () => { // feat 373 — multi-select
     const v = b.dataset.planCat;
     if (v === 'all') _plansCatFilter.clear();
@@ -25743,7 +25941,10 @@ function renderSetsForm() {
     const holdTimerHtml = (holdStartMs && holdStartMs > 0)
       ? `<button type="button" class="hold-timer-btn" data-hold-idx="${i}" data-hold-start="${holdStartMs}" title="Tap to log the current hold time as this set's seconds">⏱ <span class="ht-time">${formatDuration((Date.now() - holdStartMs) / 1000)}</span> <span class="ht-tap">— tap to log</span></button>`
       : '';
-    return `
+    // feat 457 — each set is one block (row + its hold timer + its sub-variation select) so newest-first can
+    // flip the VISUAL order with flex column-reverse without touching DOM order. Every positional lookup in
+    // the sheet (updateRowLive's rows[idx], the numpad's data-i selectors) keeps working untouched.
+    return `<div class="set-block">
       <div class="${rowClass}">
         <div class="set-num">${i + 1}</div>
         <input class="set-input${npCls}" ${wAttrs} placeholder="${M.wLabel}" value="${s.w}" data-i="${i}" data-field="w" style="${wOver ? 'color:#ff4444;font-weight:700;' : ''}">
@@ -25755,7 +25956,7 @@ function renderSetsForm() {
       </div>
       ${holdTimerHtml}
       ${mixSub ? `<div class="set-sub-row"><span class="set-sub-lbl">${escapeHtml(sub.label)}</span><select class="set-sub-select" data-set-sub="${i}">${sub.options.map(o => `<option value="${o.uuid}" ${((s.subUuid || pending.subUuid) === o.uuid) ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select></div>` : ''}
-    `;
+    </div>`;
   }).join('');
 
   // feat 54 — per-exercise custom note region for the header
@@ -25833,7 +26034,7 @@ function renderSetsForm() {
       <div class="set-header">
         <div>#</div><div>${escapeHtml(M.wLabel)}</div><div>${escapeHtml(M.rLabel)}</div>${rpeEnabled() ? `<div>${rpeMode() === 'rir' ? 'RIR' : 'RPE'}</div>` : ''}<div></div>
       </div>
-      <div id="trk-sets-container" class="sets-scroll">${setsHtml}</div>
+      <div id="trk-sets-container" class="sets-scroll${newestSetFirst() ? ' newest-first' : ''}">${setsHtml}</div>
     </div>
     <div id="trk-neighbor-hints"></div>
 
@@ -26967,12 +27168,14 @@ function revealLastSetRow() {
   requestAnimationFrame(() => {
     const c = document.getElementById('trk-sets-container');
     if (!c) return;
-    c.scrollTop = c.scrollHeight; // 1) reveal the newest row within the inner 40vh sets list
+    c.scrollTop = newestSetFirst() ? 0 : c.scrollHeight; // 1) reveal the newest row — it's at the TOP under feat 457
     requestAnimationFrame(() => {
       const modal = document.getElementById('trk-modal');
       const footer = document.getElementById('trk-modal-footer');
       const rows = c.querySelectorAll('.set-row');
-      const last = rows[rows.length - 1];
+      // feat 457 — newest-first flips the visual order, so the row to keep clear of the footer is the FIRST
+      // in the DOM (set 1, displayed at the bottom); the just-added row is already at the top of the list.
+      const last = newestSetFirst() ? rows[0] : rows[rows.length - 1];
       if (!modal || !last) return;
       const lr = last.getBoundingClientRect();
       const fTop = footer ? footer.getBoundingClientRect().top : window.innerHeight;
@@ -27289,7 +27492,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 370 · 2026-08-01 21:00';
+const APP_BUILD = 'build 371 · 2026-08-01 21:32';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

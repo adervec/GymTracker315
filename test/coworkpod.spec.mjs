@@ -66,16 +66,19 @@ test('daily plans are pinned in their own category and run like any plan', async
     // render the list and confirm the pinned section header appears
     _plansSearch = ''; _plansCatFilter = new Set(); _plansLenRange = { min: 5, max: 120 }; _plansFavOnly = false; _plansPage = 0;
     const el = document.getElementById('trk-main'); renderPlansList(el);
+    const inAll = /POD Legs/.test(el.innerHTML);   // feat 456 — the daily feed is out of the unfiltered view
+    _plansCatFilter = new Set(['Plans of the Day']); renderPlansList(el);
     const html = el.innerHTML;
     // it starts like any plan — confirm the feat 398 "Use" sheet, then accept it
     const p = planUseForWorkout(daily.id);
     [...document.querySelectorAll('.choice-backdrop')].pop().querySelector('[data-pud="ok"]').click();
     await p;
     const active = getActiveSession();
-    return { cat, rank, headerShown: /Plans of the Day/.test(html), nameShown: /POD Legs/.test(html), dayShown: /plan-day-tag/.test(html), planId: active && active.planId, expected: daily.id };
+    return { cat, rank, inAll, headerShown: /Plans of the Day/.test(html), nameShown: /POD Legs/.test(html), dayShown: /plan-day-tag/.test(html), planId: active && active.planId, expected: daily.id };
   });
   expect(r.cat).toBe('Plans of the Day');
   expect(r.rank).toBe(0);                 // pinned first
+  expect(r.inAll).toBe(false);            // feat 456 — reachable via its own chip, not via "All"
   expect(r.headerShown).toBe(true);
   expect(r.nameShown).toBe(true);
   expect(r.dayShown).toBe(true);          // feat 322 — the row indicates the day

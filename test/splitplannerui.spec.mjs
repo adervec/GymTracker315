@@ -97,7 +97,8 @@ test('feat 283 — the length filter narrows the themed list to a bucket', async
     main.querySelector('[data-theme-filter="long"]').click();   // 15–28d bucket
     const m2 = document.getElementById('trk-main');
     const chips = [...m2.querySelectorAll('.sp-themes .sp-theme')];
-    const allLong = chips.every(el => { const t = THEMED_SPLITS.find(x => x.id === el.dataset.spTheme); return themeDays(t) >= 15; });
+    // feat 456 — a themed split is a table row; its id is on the row's select button
+    const allLong = chips.every(el => { const id = el.querySelector('[data-sp-theme]').dataset.spTheme; return themeDays(THEMED_SPLITS.find(x => x.id === id)) >= 15; });
     return { all, longOnly: chips.length, allLong };
   });
   expect(r.all).toBeGreaterThanOrEqual(25);

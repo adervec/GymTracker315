@@ -2576,6 +2576,36 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Newest set first (feat 457):** default-ON option putting the set you just logged at the TOP of the
+  current exercise pane, so a long list never buries it. Implemented as a **purely visual** flip —
+  `.sets-scroll.newest-first { flex-direction: column-reverse }` — because the log sheet is full of
+  POSITIONAL lookups (`updateRowLive`'s `rows[idx]`, the numpad's `data-i` selectors, `_holdAutoStop`).
+  Reversing the array would have silently mis-targeted every one of them; reversing in CSS leaves DOM order
+  and `pending.sets` indices identical, and `newestset.spec` pins exactly that (DOM `1,2,3` while the screen
+  reads `3,2,1`). Each set is now wrapped in a `.set-block` so its hold timer and sub-variation select travel
+  with it rather than being flipped above it. `revealLastSetRow` scrolls to `0` instead of `scrollHeight`, and
+  keeps set 1 (now the visually bottom row) clear of the sticky footer. `newestSetFirst()` treats an absent key
+  as ON, so existing users get it without a state migration.
+- **Plans and splits as sortable tables (feat 456):** four changes driven by one principle — anything
+  comparable should be tabular and sortable, with prose collapsed until asked for.
+  **(a) "All" no longer includes Plans of the Day.** They are a dated feed that buried a small library under
+  months of daily entries. They keep their own category chip, and a *search* still reaches them (the exclusion
+  is skipped when a query is present) — so nothing became unreachable.
+  **(b) The plan list is a table.** Fixed columns (Plan · Category · Int · Time · Sets) with the description
+  and the Use/View/Edit/Del actions revealed only for the ONE expanded row (`_plansExpandId`). The ★ stays on
+  every collapsed row — favouriting is a one-tap action and shouldn't need an expand. Sorting by any column
+  flattens the list (a category-grouped list can't be sorted end-to-end), and tapping the active column flips
+  direction.
+  **(c) The recommended split shows every day of its rotation.** The bug: a 28-day themed split rendered 16
+  rows labelled "Day 1…Day 16" — those were its *sessions*, not its days, so a monthlong split read as a
+  16-day one and the rest days were invisible. `splitDayLayout()` now mirrors `buildProgramFromSplit`'s two
+  branches exactly (`_spreadIndices` for a >7-day rotation, `PROGRAM_DOW_PICKS` for a Mon–Sun week), so the
+  preview is the same schedule Save produces — the spec asserts that equality rather than trusting it. Slots
+  with no matching plan are named in a note instead of being faked onto a day.
+  **(d) Themed splits are a sortable table** (Split · Days · Sess) instead of an auto-fill card grid, so all
+  27 fit one screen and can be compared by length. Selection stayed a single tap on the row; the blurb moved
+  behind a separate chevron button, so "collapsed descriptions" costs nothing to actually pick a split. Three
+  existing specs asserted the old DOM shape and were updated with the reason inline.
 - **Full-screen anatomy chart (feat 455):** the detailed chart was unreadable on a phone, for two
   independent reasons. First, the mobile rule for the chart pane made it a **horizontal flex row**
   (`toolbar | chart`) — sized for the 200x192 wireframe SVG, but once the toolbar's buttons wrapped into a

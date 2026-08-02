@@ -192,9 +192,13 @@ test('feat 375 — "Plans of the Day" list newest date first', async ({ page }) 
     ];
     state.seededPlanIds = state.plans.map(p => p.id);
     openPlansOverlay();
-    return [...document.getElementById('trk-main').querySelectorAll('.plan-row-name')].map(n => (n.textContent.match(/POD \w+/) || [''])[0]);
+    const inAll = [...document.getElementById('trk-main').querySelectorAll('.plan-row-name')].length;
+    _plansCatFilter = new Set(['Plans of the Day']); renderPlansOverlay();  // feat 456 — "All" excludes the daily feed
+    const order = [...document.getElementById('trk-main').querySelectorAll('.plan-row-name')].map(n => (n.textContent.match(/POD \w+/) || [''])[0]);
+    return { inAll, order };
   }, { push });
-  expect(order.slice(0, 3)).toEqual(['POD Wed', 'POD Tue', 'POD Mon']); // 24 → 23 → 22, descending
+  expect(order.inAll).toBe(0);          // feat 456 — daily plans stay out of the unfiltered library view
+  expect(order.order.slice(0, 3)).toEqual(['POD Wed', 'POD Tue', 'POD Mon']); // 24 → 23 → 22, descending
 });
 
 test('feat 373 — the category filter is multi-select (two categories show both groups)', async ({ page }) => {

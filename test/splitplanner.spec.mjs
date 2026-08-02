@@ -81,7 +81,7 @@ test('the page renders inputs, recommended days, and coverage bars; chips persis
     state.splitPlan = { sessions: 3, days: 5, minutes: 60 };
     navTo('split-planner');
     const host = document.getElementById('trk-main');
-    const before = { days: host.querySelectorAll('.sp-day').length, bars: host.querySelectorAll('.sp-grp').length, useBtns: host.querySelectorAll('.sp-use').length, activeSess: host.querySelector('.sp-chip.active[data-sp-sessions]')?.dataset.spSessions };
+    const before = { days: host.querySelectorAll('.sp-day').length, rest: host.querySelectorAll('.sp-day.rest').length, bars: host.querySelectorAll('.sp-grp').length, useBtns: host.querySelectorAll('.sp-use').length, activeSess: host.querySelector('.sp-chip.active[data-sp-sessions]')?.dataset.spSessions };
     host.querySelector('[data-sp-sessions="5"]').click(); // bump to 5 sessions → re-render
     const host2 = document.getElementById('trk-main');
     return {
@@ -90,16 +90,20 @@ test('the page renders inputs, recommended days, and coverage bars; chips persis
       afterDays: host2.querySelectorAll('.sp-day').length,
       sess: state.splitPlan.sessions,
       persisted: JSON.parse(localStorage.getItem('overload_tracker_v2')).splitPlan.sessions,
+      restRows: before.rest,
       inKeys: SETTINGS_KEYS.includes('splitPlan'),
     };
   });
   expect(r.page).toBe('split-planner');
   expect(r.crumb).toContain('Split Planner');
-  expect(r.before.days).toBe(3);            // 3 session rows
+  // feat 456 — one row per day of the rotation, not per session: a ≤7-day split is a Mon–Sun week, so
+  // 7 rows (3 sessions + 4 rest) regardless of session count.
+  expect(r.before.days).toBe(7);
   expect(r.before.bars).toBeGreaterThanOrEqual(10); // a coverage bar per muscle group
   expect(r.before.useBtns).toBeGreaterThan(0);
   expect(r.before.activeSess).toBe('3');
-  expect(r.afterDays).toBe(5);              // bumping to 5 sessions re-laid the split
+  expect(r.afterDays).toBe(7);              // still a Mon–Sun week; 5 sessions now fill it
+  expect(r.restRows).toBe(4);               // 3 sessions → 4 rest days on the first render
   expect(r.sess).toBe(5);
   expect(r.persisted).toBe(5);              // travels with settings
   expect(r.inKeys).toBe(true);
