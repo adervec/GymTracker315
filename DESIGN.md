@@ -2576,6 +2576,13 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Cowork observability details (feat 460):** the last three Tachyread details. **`target` on every run
+  record** — where it went (folder label / cloud provider / model); a log of "pulled — already up to date"
+  couldn't say which account it pulled from. **A folder-path annotation** (`coworkLocal.dirLabel`, device-local):
+  the File System Access API only ever hands back the LEAF name, so "wrote the hub → Claude" can't distinguish
+  three folders called Claude; the leaf name remains the fallback so the field is optional. **Cumulative API
+  spend** — calls, tokens and an estimated USD total per device (per-million prices, clearly labelled an
+  estimate against the invoice), because a per-call token readout doesn't answer "what has this cost me".
 - **Cowork transports + activity view (feat 459):** the rest of Tachyread parity, closing the four gaps feat
   458 left. **(a) Cloud sync becomes a scheduled, recorded task** — it was its own untracked `setInterval`, so
   "the phone hasn't updated in two days" was unanswerable; it now sits in the same task table and run log,

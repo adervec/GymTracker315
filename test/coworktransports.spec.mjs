@@ -158,3 +158,40 @@ test('feat 459 — an API failure is recorded, not thrown, and answers nothing',
   expect(r.junkNote.note).toMatch(/API call failed/);
   expect(r.status, 'a failed call must not mark the request answered').toBe('pending');
 });
+
+test('feat 460 — every run records WHERE it went, and API spend accumulates', async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    normalizeState();
+    state.coworkLocal.history = [];
+    // the folder label is a device-local annotation; the leaf name is the fallback
+    const fallback = coworkFolderLabel({ name: 'Claude' });
+    state.coworkLocal.dirLabel = 'D:\Sync\Claude\GymTracker';
+    const labelled = coworkFolderLabel({ name: 'Claude' });
+    // cloud + api runs carry their provider / model
+    state.cloudSync = { ...(state.cloudSync || {}), provider: 'gdrive', enabled: false };
+    await coworkCloudSyncRun(true);
+    const cloud = coworkLastRun('cloud');
+    aiApiCfg().key = 'sk-ant-test'; aiApiCfg().model = 'claude-haiku-4-5-20251001';
+    aiApiCfg().totals = { calls: 0, inTok: 0, outTok: 0, usd: 0 };
+    state.analysisRequests = [{ id: 'q1', q: 'q', created: '2026-08-01T00:00:00Z', status: 'pending', updatedAt: '2026-08-01T00:00:00Z' }];
+    window.fetch = async () => ({ ok: true, json: async () => ({ model: 'claude-haiku-4-5-20251001',
+      usage: { input_tokens: 1000000, output_tokens: 200000 },
+      content: [{ type: 'text', text: '{"answers":[{"id":"q1","answer":"a"}]}' }] }) });
+    await coworkAnalysisViaApi(false);
+    const api = coworkLastRun('api');
+    const t1 = { ...aiApiCfg().totals };
+    state.analysisRequests[0].status = 'pending';        // ask again → totals accumulate
+    await coworkAnalysisViaApi(false);
+    return { fallback, labelled, cloudTarget: cloud.target, apiTarget: api.target, t1, t2: aiApiCfg().totals,
+      notSynced: !Object.keys(syncPayload()).includes('aiApi') };
+  });
+  expect(r.fallback, 'with no annotation the leaf name stands in').toBe('Claude');
+  expect(r.labelled).toBe('D:\Sync\Claude\GymTracker');
+  expect(r.cloudTarget).toBe('gdrive');
+  expect(r.apiTarget).toBe('claude-haiku-4-5-20251001');
+  expect(r.t1).toMatchObject({ calls: 1, inTok: 1000000, outTok: 200000 });
+  expect(r.t1.usd, 'haiku: 1M in @ $1 + 0.2M out @ $5 = $2').toBeCloseTo(2, 3);
+  expect(r.t2.calls).toBe(2);
+  expect(r.t2.usd).toBeCloseTo(4, 3);
+  expect(r.notSynced).toBe(true);
+});

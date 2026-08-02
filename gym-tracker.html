@@ -913,6 +913,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .cowork-run.bad .cowork-run-dot { color: var(--danger, #ff6b6b); }
   .cowork-run-txt { flex: 1; min-width: 0; color: var(--text2); word-break: break-word; }
   .cowork-run-ago { flex: 0 0 auto; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .cowork-run-tgt { color: var(--text3); margin-left: 5px; opacity: 0.8; }
   .cowork-run-empty { font-size: 11px; color: var(--text3); padding: 6px 0; }
   .cowork-chans { display: flex; flex-wrap: wrap; gap: 5px; }
   .cowork-chan { font-size: 10.5px; font-weight: 700; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--border2); background: var(--bg4); color: var(--text3); cursor: pointer; font-family: inherit; }
@@ -6446,8 +6447,11 @@ function coworkHistory() {
 }
 function coworkRecordRun(entry) {
   const h = coworkHistory();
+  // feat 460 — `target` records WHERE a run went (folder, cloud provider, model). Without it a log of
+  // "pulled — already up to date" can't tell you which account it pulled from.
   const row = { at: (entry && entry.at) || new Date().toISOString(), kind: (entry && entry.kind) || 'other',
-    channel: (entry && entry.channel) || '', ok: !(entry && entry.ok === false),
+    channel: (entry && entry.channel) || '', target: String((entry && entry.target) || '').slice(0, 80),
+    ok: !(entry && entry.ok === false),
     note: String((entry && entry.note) || '').slice(0, 300), auto: !!(entry && entry.auto) };
   h.push(row);
   if (h.length > COWORK_HISTORY_CAP) h.splice(0, h.length - COWORK_HISTORY_CAP);
@@ -6504,6 +6508,14 @@ function coworkAutoAllowed() { return coworkRole(state, state.deviceId) !== 'vie
 // feat 459 — a channel you have switched off is neither written nor polled. Absent key = on, so an older
 // synced state (and every existing folder) keeps all four channels live.
 function coworkChannelOn(key) { return ((state.cowork && state.cowork.channels) || {})[key] !== false; }
+/* feat 460 — the File System Access API only ever hands back the LEAF folder name, so a log that says
+   "wrote the hub → Claude" can't tell you which of three folders called Claude it meant. `coworkLocal.dirLabel`
+   is a device-local annotation the user types once (Tachyread's `ai.coworkDirPath`); the leaf name is the
+   fallback so the field is optional. */
+function coworkFolderLabel(handle) {
+  const note = String((state.coworkLocal && state.coworkLocal.dirLabel) || '').trim();
+  return note || (handle && handle.name) || '';
+}
 function coworkActiveChannels() { return COWORK_CHANNELS.filter(c => coworkChannelOn(c.key)); }
 // A human-readable label for the designated machine, so the other devices can say WHICH one owns the folder.
 function coworkThisDeviceName() {
@@ -7953,13 +7965,13 @@ async function coworkExportNow(silent) {
       await _coworkWriteFile(sub[c.dir], 'context.json', JSON.stringify(envelope, null, 2));
     }
     await _coworkWriteFile(sub['plan-of-the-day'], 'options.json', JSON.stringify(buildPodOptionsFile(), null, 2));
-    coworkRecordRun({ kind: 'push', ok: true, auto: !!silent, note: wroteExport ? 'wrote the hub (export refreshed)' : 'wrote the hub (export unchanged)' });
+    coworkRecordRun({ kind: 'push', ok: true, auto: !!silent, target: coworkFolderLabel(root), note: wroteExport ? 'wrote the hub (export refreshed)' : 'wrote the hub (export unchanged)' });
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
     if (!silent) { autoSaveSetStatus('✓ Cowork hub written'); toast(`🤝 Cowork hub → ${root.name}`); try { renderSettingsDrawer(); } catch (_) {} }
     logInfo('Cowork hub written', root.name);
     return true;
   } catch (err) {
-    coworkRecordRun({ kind: 'push', ok: false, auto: !!silent, note: 'write failed: ' + ((err && err.message) || err) });
+    coworkRecordRun({ kind: 'push', ok: false, auto: !!silent, target: coworkFolderLabel(root), note: 'write failed: ' + ((err && err.message) || err) });
     if (!silent) autoSaveSetStatus('⚠ Cowork hub write failed');
     logWarn('Cowork export failed', err && err.message); return false;
   }
@@ -8102,7 +8114,7 @@ async function coworkPollAll(interactive) {
         // feat 458 — a dead letter: the agent could not do the job and said why. Surface the reason.
         const dead = parseCoworkErrorFile(text, f.name);
         if (dead) {
-          coworkRecordRun({ kind: 'check', channel: c.dir, ok: false, auto: !interactive, note: 'agent reported: ' + dead.reason });
+          coworkRecordRun({ kind: 'check', channel: c.dir, ok: false, auto: !interactive, target: coworkFolderLabel(res.root), note: 'agent reported: ' + dead.reason });
           coworkLedgerAdd(channel, hash, { fileName: f.name, agentError: dead.reason });
           await _coworkMoveToProcessed(channelDir, inbox, f.name, text); errors++; continue;
         }
@@ -8188,21 +8200,22 @@ function coworkAfterPull(prevKeys) {
    "the phone hasn't updated in two days" is answerable from the same run log instead of being invisible.
    Same behaviour as the old timer: pull, then re-export if a foreign workout arrived. */
 async function coworkCloudSyncRun(auto) {
+  const provider = (state.cloudSync && state.cloudSync.provider) || 'cloud';
   if (typeof cloudActive !== 'function' || !cloudActive()) {
-    coworkRecordRun({ kind: 'cloud', ok: false, auto: !!auto, note: 'skipped — no cloud provider connected on this device' }); return false;
+    coworkRecordRun({ kind: 'cloud', ok: false, auto: !!auto, target: provider, note: 'skipped — no cloud provider connected on this device' }); return false;
   }
   if (typeof _cloudSyncing !== 'undefined' && _cloudSyncing) {
-    coworkRecordRun({ kind: 'cloud', ok: false, auto: !!auto, note: 'skipped — a sync was already running' }); return false;
+    coworkRecordRun({ kind: 'cloud', ok: false, auto: !!auto, target: provider, note: 'skipped — a sync was already running' }); return false;
   }
   const prev = new Set((state.sessions || []).map(sessionKey));
   try {
     await cloudPullNow(true);
     const fresh = coworkNewWorkoutSince(prev, state.sessions, state.deviceId);
     coworkAfterPull(prev);
-    coworkRecordRun({ kind: 'cloud', ok: true, auto: !!auto, note: fresh ? 'pulled — a workout arrived from another device' : 'pulled — already up to date' });
+    coworkRecordRun({ kind: 'cloud', ok: true, auto: !!auto, target: provider, note: fresh ? 'pulled — a workout arrived from another device' : 'pulled — already up to date' });
     return true;
   } catch (e) {
-    coworkRecordRun({ kind: 'cloud', ok: false, auto: !!auto, note: 'pull failed: ' + ((e && e.message) || e) });
+    coworkRecordRun({ kind: 'cloud', ok: false, auto: !!auto, target: provider, note: 'pull failed: ' + ((e && e.message) || e) });
     return false;
   }
 }
@@ -8226,9 +8239,17 @@ const AI_API_MODELS = [
   { id: 'claude-opus-5', label: 'Claude Opus 5 — most capable' },
   { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 — fastest / cheapest' },
 ];
+// USD per MILLION tokens. Indicative only — used for a running estimate, never for billing.
+const AI_API_PRICES = {
+  'claude-sonnet-5': { in: 3, out: 15 },
+  'claude-opus-5': { in: 15, out: 75 },
+  'claude-haiku-4-5-20251001': { in: 1, out: 5 },
+  _default: { in: 3, out: 15 },
+};
 function aiApiCfg() {
-  if (!state.aiApi || typeof state.aiApi !== 'object') state.aiApi = { key: '', model: AI_API_MODELS[0].id, lastUsage: null };
+  if (!state.aiApi || typeof state.aiApi !== 'object') state.aiApi = { key: '', model: AI_API_MODELS[0].id, lastUsage: null, totals: null };
   if (!AI_API_MODELS.some(m => m.id === state.aiApi.model)) state.aiApi.model = AI_API_MODELS[0].id;
+  if (!state.aiApi.totals || typeof state.aiApi.totals !== 'object') state.aiApi.totals = { calls: 0, inTok: 0, outTok: 0, usd: 0 };
   return state.aiApi;
 }
 function aiApiConfigured() { return !!String(aiApiCfg().key || '').trim(); }
@@ -8251,7 +8272,14 @@ async function askClaudeDirect(messages, opts) {
   }
   const j = await r.json();
   const u = j.usage || {};
-  cfg.lastUsage = { at: new Date().toISOString(), inTok: u.input_tokens || 0, outTok: u.output_tokens || 0, model: j.model || cfg.model };
+  // feat 460 — running totals as well as the last call, so the spend is visible before the invoice is.
+  // Prices are per MILLION tokens and are a rough guide, not billing — the invoice is the source of truth.
+  const inTok = u.input_tokens || 0, outTok = u.output_tokens || 0;
+  const price = AI_API_PRICES[j.model || cfg.model] || AI_API_PRICES._default;
+  cfg.lastUsage = { at: new Date().toISOString(), inTok, outTok, model: j.model || cfg.model };
+  const tot = cfg.totals || (cfg.totals = { calls: 0, inTok: 0, outTok: 0, usd: 0 });
+  tot.calls++; tot.inTok += inTok; tot.outTok += outTok;
+  tot.usd = Math.round((tot.usd + (inTok / 1e6) * price.in + (outTok / 1e6) * price.out) * 1e4) / 1e4;
   return (j.content || []).filter(b => b && b.type === 'text').map(b => b.text).join('\n');
 }
 // Pull the JSON object out of a model reply (fenced ```json block, or the outermost braces).
@@ -8262,7 +8290,7 @@ function parseAiJsonReply(text) {
   return JSON.parse(raw);
 }
 async function coworkAnalysisViaApi(auto) {
-  const record = (ok, note) => { coworkRecordRun({ kind: 'api', channel: 'analysis', ok, auto: !!auto, note }); return ok; };
+  const record = (ok, note) => { coworkRecordRun({ kind: 'api', channel: 'analysis', ok, auto: !!auto, target: aiApiCfg().model, note }); return ok; };
   if (!aiApiConfigured()) return record(false, 'skipped — no Anthropic API key on this device');
   let ctx; try { ctx = buildChannelContext('analysis'); } catch (_) { ctx = { requests: [] }; }
   if (!ctx.requests || !ctx.requests.length) return record(true, 'nothing to answer — no open analysis requests');
@@ -8442,13 +8470,15 @@ function renderCoworkStatusBlock() {
     ${cal.map(c => `<span class="cowork-cal-day ${c.inMonth ? '' : 'out'} ${c.errs ? 'errs' : (c.count ? 'ok' : '')}" title="${escapeAttr(c.key + ' — ' + c.count + ' run' + (c.count === 1 ? '' : 's') + (c.errs ? ', ' + c.errs + ' failed' : ''))}">${c.day}</span>`).join('')}</div>`;
   const runs = coworkRuns().slice(0, 12);
   const log = runs.length
-    ? runs.map(r => `<div class="cowork-run ${r.ok ? 'ok' : 'bad'}"><span class="cowork-run-dot">${r.ok ? '✓' : '✗'}</span><span class="cowork-run-txt">${escapeHtml(r.channel ? r.channel + ' — ' : '')}${escapeHtml(r.note || r.kind)}</span><span class="cowork-run-ago">${escapeHtml(coworkFmtAgo(r.at, now))}</span></div>`).join('')
+    ? runs.map(r => `<div class="cowork-run ${r.ok ? 'ok' : 'bad'}"><span class="cowork-run-dot">${r.ok ? '✓' : '✗'}</span><span class="cowork-run-txt">${escapeHtml(r.channel ? r.channel + ' — ' : '')}${escapeHtml(r.note || r.kind)}${r.target ? `<span class="cowork-run-tgt">→ ${escapeHtml(r.target)}</span>` : ''}</span><span class="cowork-run-ago">${escapeHtml(coworkFmtAgo(r.at, now))}</span></div>`).join('')
     : '<div class="cowork-run-empty">No hub activity recorded on this device yet.</div>';
   const fails = coworkRuns().filter(r => !r.ok).length;
   return `<div class="cowork-status">
     ${roleLine}
     <div class="drawer-data-row" style="flex-wrap:wrap;margin:8px 0 4px;">${machineBtn}${fails ? `<button class="drawer-btn" id="cowork-log-clear">Clear log (${fails} failed)</button>` : ''}</div>
     ${schedRows}
+    <div class="cowork-log-title">Folder <span class="cowork-log-sub">a note to yourself — the browser only reveals the leaf name</span></div>
+    <input type="text" class="cowork-api-key" id="cowork-dir-label" placeholder="e.g. D:\\Sync\\Claude\\GymTracker" value="${escapeAttr((state.coworkLocal && state.coworkLocal.dirLabel) || '')}" autocomplete="off" spellcheck="false">
     <div class="cowork-log-title">Channels <span class="cowork-log-sub">tap to switch a task folder off</span></div>
     <div class="cowork-chans">${chanRows}</div>
     <div class="cowork-log-title">This month <span class="cowork-log-sub">runs per day · red = a failure</span></div>
@@ -8468,7 +8498,7 @@ function renderAiApiBlock() {
       <input type="password" class="cowork-api-key" id="ai-api-key" placeholder="sk-ant-… (stays on this device)" value="${escapeAttr(cfg.key || '')}" autocomplete="off" spellcheck="false">
       <select class="cowork-sched" id="ai-api-model">${models}</select>
       <button class="drawer-btn" id="ai-api-run" ${aiApiConfigured() ? '' : 'disabled'}>🤖 Answer analysis now</button>
-      <div class="cowork-api-note">Your key is stored on this device only — it is never cloud-synced. Requests go straight from this browser to Anthropic.${u ? ` Last call: ${escapeHtml(coworkFmtAgo(u.at))} · ${u.inTok} in / ${u.outTok} out tokens.` : ''}</div>
+      <div class="cowork-api-note">Your key is stored on this device only — it is never cloud-synced. Requests go straight from this browser to Anthropic.${u ? ` Last call: ${escapeHtml(coworkFmtAgo(u.at))} · ${u.inTok} in / ${u.outTok} out tokens.` : ''}${cfg.totals && cfg.totals.calls ? ` <b>${cfg.totals.calls} call${cfg.totals.calls === 1 ? '' : 's'} · ${(cfg.totals.inTok / 1000).toFixed(1)}k in / ${(cfg.totals.outTok / 1000).toFixed(1)}k out · ≈$${cfg.totals.usd.toFixed(3)}</b> on this device (estimate — your invoice is the truth).` : ''}</div>
     </div>`;
 }
 // The POD options editor (rendered inside the Cowork settings block when the hub is on).
@@ -11628,6 +11658,11 @@ function renderSettingsDrawer() {
     state.cowork.channels[k] = !coworkChannelOn(k); saveState(); renderSettingsDrawer();
   }));
   // feat 459 — direct-API controls. The key is device-local, so it is saved to localStorage only.
+  const dirLabelEl = body.querySelector('#cowork-dir-label'); // feat 460 — device-local folder annotation
+  if (dirLabelEl) dirLabelEl.addEventListener('change', () => {
+    state.coworkLocal.dirLabel = dirLabelEl.value.trim().slice(0, 200);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+  });
   const apiKeyEl = body.querySelector('#ai-api-key');
   if (apiKeyEl) apiKeyEl.addEventListener('change', () => {
     aiApiCfg().key = apiKeyEl.value.trim();
@@ -27974,7 +28009,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 373 · 2026-08-02 09:52';
+const APP_BUILD = 'build 374 · 2026-08-02 10:02';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
