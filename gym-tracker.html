@@ -914,6 +914,19 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .cowork-run-txt { flex: 1; min-width: 0; color: var(--text2); word-break: break-word; }
   .cowork-run-ago { flex: 0 0 auto; color: var(--text3); font-variant-numeric: tabular-nums; }
   .cowork-run-empty { font-size: 11px; color: var(--text3); padding: 6px 0; }
+  .cowork-chans { display: flex; flex-wrap: wrap; gap: 5px; }
+  .cowork-chan { font-size: 10.5px; font-weight: 700; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--border2); background: var(--bg4); color: var(--text3); cursor: pointer; font-family: inherit; }
+  .cowork-chan.on { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+  .cowork-chan[disabled] { opacity: 0.5; cursor: default; }
+  .cowork-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cowork-cal-dow { font-size: 8.5px; font-weight: 800; color: var(--text3); text-align: center; }
+  .cowork-cal-day { font-size: 9px; text-align: center; padding: 3px 0; border-radius: 4px; color: var(--text3); background: var(--bg4); font-variant-numeric: tabular-nums; }
+  .cowork-cal-day.out { opacity: 0.28; }
+  .cowork-cal-day.ok { background: color-mix(in srgb, var(--good, #5cbd6a) 34%, transparent); color: var(--text); }
+  .cowork-cal-day.errs { background: color-mix(in srgb, var(--danger, #ff6b6b) 38%, transparent); color: var(--text); }
+  .cowork-api { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .cowork-api-key { flex: 1 1 180px; min-width: 140px; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); border-radius: 7px; padding: 6px 9px; font-size: 12px; font-family: inherit; }
+  .cowork-api-note { flex: 1 1 100%; font-size: 10px; color: var(--text3); line-height: 1.5; }
   .plan-list-intro { font-size: 12px; color: var(--text3); line-height: 1.5; margin-bottom: 12px; }
   /* feat 226 — Quick Pick recommender block at the top of the plan picker */
   .quick-pick { background: linear-gradient(135deg, var(--accent-bg), var(--bg2)); border: 1px solid var(--accent-border); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
@@ -6133,7 +6146,7 @@ const SYNC_COLLECTION_KEYS = new Set(['plans','bodyComp','stravaActivities','cus
   'exerciseMedia','exerciseSetup','cardioGoals','favoritePlans','favoriteVars','hiddenVars','hiddenMovements',
   'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod']);
 // Beyond DEVICE_LOCAL_KEYS, these top-level slices are connection/identity that must never be pushed to the cloud.
-const NEVER_SYNC_EXTRA = ['cloudSync','coworkLocal','deviceId','lastSettingAnchor'];
+const NEVER_SYNC_EXTRA = ['cloudSync','coworkLocal','deviceId','lastSettingAnchor','aiApi']; // feat 459 — the Anthropic key stays on the device that entered it
 // The object actually written to the cloud file: everything EXCEPT device-local + connection/identity state.
 function syncPayload(st) {
   const o = {};
@@ -6381,7 +6394,9 @@ const coworkChannelByKey = (key) => COWORK_CHANNELS.find(c => c.key === key) || 
 function buildCoworkManifest() {
   return {
     protocol: 'cowork-manifest', protocolVersion: 1, app: 'gymtracker',
-    channels: COWORK_CHANNELS.map(c => ({
+    // feat 459 — only ACTIVE channels are declared: a manifest entry whose context.json we never write would
+    // sit PENDING on the hub's status table forever.
+    channels: coworkActiveChannels().map(c => ({
       name: c.dir,
       request: c.request.map(r => c.dir + '/' + r),
       instructions: c.dir + '/INSTRUCTIONS.md',
@@ -6443,6 +6458,29 @@ function coworkRuns(kind) {
   return coworkHistory().filter(r => !kind || r.kind === kind).slice().reverse();
 }
 function coworkLastRun(kind) { return coworkRuns(kind)[0] || null; }
+/* feat 459 — a month grid of run activity (Tachyread's `calendarCells`). A log you have to scroll answers
+   "what just happened"; a grid answers "has this been working all month", which is the question you actually
+   have when the phone looks stale. Monday-first, 42 cells so the shape never jumps between months. */
+function coworkCalendarCells(year, month, history) {
+  const counts = new Map();
+  (history || []).forEach(h => {
+    const d = new Date(h.at); if (isNaN(d.getTime())) return;
+    const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const c = counts.get(k) || { count: 0, errs: 0 };
+    c.count++; if (h.ok === false) c.errs++;
+    counts.set(k, c);
+  });
+  const first = new Date(year, month, 1);
+  const lead = (first.getDay() + 6) % 7;                       // Monday-first offset
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(year, month, 1 - lead + i);
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const c = counts.get(key) || { count: 0, errs: 0 };
+    cells.push({ key, day: d.getDate(), inMonth: d.getMonth() === month, count: c.count, errs: c.errs });
+  }
+  return cells;
+}
 function coworkFmtAgo(iso, now) {
   if (!iso) return 'never';
   const t = new Date(iso).getTime();
@@ -6463,6 +6501,10 @@ function coworkRole(st, deviceId) {
   return m.deviceId === deviceId ? 'machine' : 'viewer';
 }
 function coworkAutoAllowed() { return coworkRole(state, state.deviceId) !== 'viewer'; }
+// feat 459 — a channel you have switched off is neither written nor polled. Absent key = on, so an older
+// synced state (and every existing folder) keeps all four channels live.
+function coworkChannelOn(key) { return ((state.cowork && state.cowork.channels) || {})[key] !== false; }
+function coworkActiveChannels() { return COWORK_CHANNELS.filter(c => coworkChannelOn(c.key)); }
 // A human-readable label for the designated machine, so the other devices can say WHICH one owns the folder.
 function coworkThisDeviceName() {
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
@@ -6483,8 +6525,10 @@ const COWORK_SCHEDULES = [
   { id: 'daily',  label: 'daily',        ms: 24 * 3600e3 },
 ];
 const COWORK_TASKS = [
-  { id: 'push',  label: 'Write the hub export',   dflt: 'hourly' },
+  { id: 'push',  label: 'Write the hub export',    dflt: 'hourly' },
   { id: 'check', label: 'Check for agent replies', dflt: '5m' },
+  { id: 'cloud', label: 'Cloud sync (two-way)',    dflt: '30m' }, // feat 459 — was its own untracked timer
+  { id: 'api',   label: 'Answer analysis via API',  dflt: 'off' }, // feat 459 — costs real money, so manual by default
 ];
 const _coworkSchedMs = (id) => (COWORK_SCHEDULES.find(s => s.id === id) || {}).ms || 0;
 // null = manual (never due). A scheduled task that has never run is due immediately.
@@ -6546,7 +6590,7 @@ function normalizeState() {
     historyFilter: { range:'all', bp:'', family:'', varKey:'', q:'' }, // feat 102 — device-local view filter
     cloudSync: { provider:null, enabled:false, lastSync:null, lastError:null, perProvider:{}, syncOnEnd:true, periodicMinutes:30 }, // feat 124 — DEVICE-LOCAL (not synced); feat 272 — guaranteed push on workout end; feat 315 — periodic desktop sync
     cowork: { enabled:false, pollMinutes:5, minExportGapSec:120, podKeepDays:7, cardioFatigue:false,
-      schedules:null, machine:null }, // feat 315 — Claude Cowork hub (synced settings); feat 458 — per-task schedules (null so normalizeState can tell "never set" from "set to the default" and migrate pollMinutes) + designated sync machine
+      schedules:null, machine:null, channels:null }, // feat 315 — Claude Cowork hub (synced settings); feat 458 — per-task schedules (null so normalizeState can tell "never set" from "set to the default" and migrate pollMinutes) + designated sync machine; feat 459 — per-channel enable
     coworkLocal: { processed:{}, lastExportHash:null, lastExportAt:null, lastPollAt:null, history:[], lastRuns:{}, declared:{} }, // feat 315 — DEVICE-LOCAL (not in SETTINGS_KEYS): processed-file ledger + export de-dup; feat 458 — run history, per-task last-run, declared request hashes
     podOptions: { notes:'', injuries:[], gyms:[], equipment:[], availableMinutes:{ min:30, max:60 }, targetMode:'recovered', targetGroups:[], fitnessFocus:'balance' }, // feat 315/386 — Plan-of-the-Day options (synced); time is a {min,max} range
   };
@@ -6603,6 +6647,15 @@ function normalizeState() {
     state.cowork.schedules.check = fit ? fit.id : 'daily';
   }
   if (!COWORK_SCHEDULES.some(s => s.id === state.cowork.schedules.push)) state.cowork.schedules.push = 'hourly';
+  // feat 459 — the cloud task inherits the old standalone `cloudSync.periodicMinutes` cadence on first run.
+  if (!COWORK_SCHEDULES.some(s => s.id === state.cowork.schedules.cloud)) {
+    const want = Math.max(5, ((state.cloudSync && state.cloudSync.periodicMinutes) | 0) || 30) * 60e3;
+    const fit = COWORK_SCHEDULES.filter(s => s.ms > 0).find(s => s.ms >= want);
+    state.cowork.schedules.cloud = fit ? fit.id : 'daily';
+  }
+  // feat 459 — per-channel enable: which task folders get written and polled at all (all on by default).
+  if (!state.cowork.channels || typeof state.cowork.channels !== 'object') state.cowork.channels = {};
+  COWORK_CHANNELS.forEach(c => { if (typeof state.cowork.channels[c.key] !== 'boolean') state.cowork.channels[c.key] = true; });
   const _cm = state.cowork.machine;
   state.cowork.machine = (_cm && typeof _cm === 'object' && typeof _cm.deviceId === 'string' && _cm.deviceId)
     ? { deviceId: _cm.deviceId, name: String(_cm.name || 'a desktop').slice(0, 60), at: _cm.at || null } : null;
@@ -7893,7 +7946,7 @@ async function coworkExportNow(silent) {
     }
     await _coworkWriteFile(root, 'README-COWORK.md', buildCoworkReadme());
     await _coworkWriteFile(root, 'cowork.json', JSON.stringify(buildCoworkManifest(), null, 2)); // feat 458 — discovery manifest
-    for (const c of COWORK_CHANNELS) {
+    for (const c of coworkActiveChannels()) {   // feat 459 — skip channels the user switched off
       const envelope = buildCoworkEnvelope('context', buildChannelContext(c.key));
       state.coworkLocal.declared[c.dir] = envelope.requestHash;   // feat 458 — remember what we asked, to spot a stale reply
       await _coworkWriteFile(sub[c.dir], 'INSTRUCTIONS.md', buildInstructionsMd(c.key));
@@ -8036,7 +8089,7 @@ async function coworkPollAll(interactive) {
     const res = await coworkResolveRoot(interactive ? true : false);
     if (!res) { coworkRecordRun({ kind: 'check', ok: false, auto: !interactive, note: 'skipped — no AI export folder chosen' }); return; }
     if (!res.sub) { coworkRecordRun({ kind: 'check', ok: false, auto: !interactive, note: 'skipped — folder permission needs re-granting (open Settings › Cowork and write the hub once)' }); return; }
-    for (const c of COWORK_CHANNELS) {
+    for (const c of coworkActiveChannels()) {   // feat 459 — skip channels the user switched off
       const channel = c.key, channelDir = res.sub[c.dir];
       let inbox; try { inbox = await channelDir.getDirectoryHandle('inbox', { create: true }); } catch (_) { continue; }
       const files = [];
@@ -8097,7 +8150,12 @@ async function coworkSchedulerTick(now) {
   if (!due.length) return [];
   for (const id of due) {
     state.coworkLocal.lastRuns[id] = new Date(now).toISOString(); // stamp BEFORE running: a task that throws still waits its interval
-    try { if (id === 'push') await coworkExportNow(true); else await coworkPollAll(false); } catch (_) {}
+    try {
+      if (id === 'push') await coworkExportNow(true);
+      else if (id === 'check') await coworkPollAll(false);
+      else if (id === 'cloud') await coworkCloudSyncRun(true);   // feat 459 — cloud sync is a scheduled, recorded task
+      else if (id === 'api') await coworkAnalysisViaApi(true);   // feat 459 — the no-folder transport
+    } catch (_) {}
   }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
   return due;
@@ -8126,16 +8184,107 @@ function coworkAfterPull(prevKeys) {
   if (!state.cowork || !state.cowork.enabled || _coworkImporting) return;
   try { if (coworkNewWorkoutSince(prevKeys, state.sessions, state.deviceId)) coworkExportLater(); } catch (_) {}
 }
-// Periodic cloud sync (feat 320). Pull, then re-export if a foreign workout arrived. Gated by cloudActive.
-function coworkCloudTimerStart() {
-  if (_coworkCloudTimer) clearInterval(_coworkCloudTimer);
-  const mins = (state.cloudSync && state.cloudSync.periodicMinutes) || 30;
-  _coworkCloudTimer = setInterval(() => {
-    if (typeof cloudActive !== 'function' || !cloudActive()) return;
-    if (typeof _cloudSyncing !== 'undefined' && _cloudSyncing) return;
-    const prev = new Set((state.sessions || []).map(sessionKey));
-    cloudPullNow(true).then(() => coworkAfterPull(prev)).catch(() => {});
-  }, Math.max(5, mins) * 60000);
+/* feat 459 — the periodic cloud sync (feat 320) becomes a SCHEDULED, RECORDED task like the other two, so
+   "the phone hasn't updated in two days" is answerable from the same run log instead of being invisible.
+   Same behaviour as the old timer: pull, then re-export if a foreign workout arrived. */
+async function coworkCloudSyncRun(auto) {
+  if (typeof cloudActive !== 'function' || !cloudActive()) {
+    coworkRecordRun({ kind: 'cloud', ok: false, auto: !!auto, note: 'skipped — no cloud provider connected on this device' }); return false;
+  }
+  if (typeof _cloudSyncing !== 'undefined' && _cloudSyncing) {
+    coworkRecordRun({ kind: 'cloud', ok: false, auto: !!auto, note: 'skipped — a sync was already running' }); return false;
+  }
+  const prev = new Set((state.sessions || []).map(sessionKey));
+  try {
+    await cloudPullNow(true);
+    const fresh = coworkNewWorkoutSince(prev, state.sessions, state.deviceId);
+    coworkAfterPull(prev);
+    coworkRecordRun({ kind: 'cloud', ok: true, auto: !!auto, note: fresh ? 'pulled — a workout arrived from another device' : 'pulled — already up to date' });
+    return true;
+  } catch (e) {
+    coworkRecordRun({ kind: 'cloud', ok: false, auto: !!auto, note: 'pull failed: ' + ((e && e.message) || e) });
+    return false;
+  }
+}
+// feat 459 — the standalone interval is retired; the scheduler owns the cadence (`schedules.cloud`).
+function coworkCloudTimerStart() { if (_coworkCloudTimer) { clearInterval(_coworkCloudTimer); _coworkCloudTimer = null; } }
+
+/* ============================================================
+   feat 459 — DIRECT API TRANSPORT (Tachyread's third transport). The folder hub needs a desktop, a chosen
+   directory and an agent that happens to be running; for the `analysis` channel — pure text generation over
+   data the app already holds — that round-trip is the whole latency. This asks Anthropic straight from the
+   browser with the user's OWN key and routes the result through the SAME importer the folder path uses, so
+   there is exactly one place that applies an answer.
+
+   The key is DEVICE-LOCAL (`NEVER_SYNC_EXTRA`) — it is never written to Drive, never leaves this browser
+   except to api.anthropic.com. Direct browser calls need the `anthropic-dangerous-direct-browser-access`
+   header; the "dangerous" refers to shipping a key to a browser at all, which is the user's own key here.
+   Off by default, and the scheduled cadence defaults to manual because every run spends real credit.
+   ============================================================ */
+const AI_API_MODELS = [
+  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 — balanced' },
+  { id: 'claude-opus-5', label: 'Claude Opus 5 — most capable' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 — fastest / cheapest' },
+];
+function aiApiCfg() {
+  if (!state.aiApi || typeof state.aiApi !== 'object') state.aiApi = { key: '', model: AI_API_MODELS[0].id, lastUsage: null };
+  if (!AI_API_MODELS.some(m => m.id === state.aiApi.model)) state.aiApi.model = AI_API_MODELS[0].id;
+  return state.aiApi;
+}
+function aiApiConfigured() { return !!String(aiApiCfg().key || '').trim(); }
+async function askClaudeDirect(messages, opts) {
+  opts = opts || {};
+  const cfg = aiApiCfg();
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': String(cfg.key || '').trim(), 'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: opts.model || cfg.model, max_tokens: opts.maxTokens || 2048,
+      system: opts.system || undefined, messages }),
+  });
+  if (!r.ok) {
+    let detail = 'Anthropic error ' + r.status;
+    if (r.status === 401) detail = 'Invalid Anthropic API key.';
+    else if (r.status === 429) detail = 'Anthropic rate limit / quota reached.';
+    else { try { const e = await r.json(); detail = (e && e.error && e.error.message) || detail; } catch (_) {} }
+    throw new Error(detail);
+  }
+  const j = await r.json();
+  const u = j.usage || {};
+  cfg.lastUsage = { at: new Date().toISOString(), inTok: u.input_tokens || 0, outTok: u.output_tokens || 0, model: j.model || cfg.model };
+  return (j.content || []).filter(b => b && b.type === 'text').map(b => b.text).join('\n');
+}
+// Pull the JSON object out of a model reply (fenced ```json block, or the outermost braces).
+function parseAiJsonReply(text) {
+  if (!text || !String(text).trim()) throw new Error('Empty response.');
+  const fence = String(text).match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const raw = fence ? fence[1] : String(text).slice(String(text).indexOf('{'), String(text).lastIndexOf('}') + 1);
+  return JSON.parse(raw);
+}
+async function coworkAnalysisViaApi(auto) {
+  const record = (ok, note) => { coworkRecordRun({ kind: 'api', channel: 'analysis', ok, auto: !!auto, note }); return ok; };
+  if (!aiApiConfigured()) return record(false, 'skipped — no Anthropic API key on this device');
+  let ctx; try { ctx = buildChannelContext('analysis'); } catch (_) { ctx = { requests: [] }; }
+  if (!ctx.requests || !ctx.requests.length) return record(true, 'nothing to answer — no open analysis requests');
+  try {
+    // Deliberately the LAST-30-DAYS slice, not the whole export: this path pays per token, and an analysis
+    // question is almost always about recent training.
+    const data = buildAppExportPayload({ scope: 'last30' });
+    const slim = { sessions: data.sessions, bodyComp: data.bodyComp, recovery: data.recovery,
+      trainingReadiness: data.trainingReadiness, recentMega: data.recentMega, focus: data.focus };
+    const system = 'You are a strength-training analyst. Respond with ONLY a single JSON object, no prose, no markdown fences. Ground every claim in the supplied logged data — cite lifts, dates and numbers. No medical advice.';
+    const content = 'Answer each request below.\n\nReturn JSON: { "answers": [ { "id": "<request id>", "answer": "..." } ] }\nUse the exact ids given.\n\nREQUESTS:\n'
+      + JSON.stringify(ctx.requests) + '\n\nTRAINING DATA (last 30 days):\n' + JSON.stringify(slim);
+    const reply = await askClaudeDirect([{ role: 'user', content }], { system, maxTokens: 4096 });
+    const out = parseAiJsonReply(reply);
+    _coworkImporting = true;
+    let res; try { res = coworkImportAnalysis(out); } finally { _coworkImporting = false; }
+    const n = (res && res.answered) || 0;
+    if (n) { saveState(); if (typeof render === 'function') render(); }
+    const u = aiApiCfg().lastUsage || {};
+    return record(n > 0, (n ? 'answered ' + n + ' request' + (n === 1 ? '' : 's') : 'no answers matched an open request')
+      + ' · ' + (u.inTok || 0) + ' in / ' + (u.outTok || 0) + ' out tokens');
+  } catch (e) { return record(false, 'API call failed: ' + ((e && e.message) || e)); }
 }
 
 /* ============================================================
@@ -8287,6 +8436,10 @@ function renderCoworkStatusBlock() {
       <select class="cowork-sched" data-cowork-sched="${t.id}" ${role === 'viewer' ? 'disabled' : ''}>${opts}</select>
     </div>`;
   }).join('');
+  const chanRows = COWORK_CHANNELS.map(c => `<button class="cowork-chan ${coworkChannelOn(c.key) ? 'on' : ''}" data-cowork-chan="${c.key}" ${role === 'viewer' ? 'disabled' : ''} aria-pressed="${coworkChannelOn(c.key)}">${coworkChannelOn(c.key) ? '✓' : '✕'} ${escapeHtml(c.dir)}</button>`).join('');
+  const cal = coworkCalendarCells(new Date(now).getFullYear(), new Date(now).getMonth(), coworkHistory());
+  const calHtml = `<div class="cowork-cal">${['M','T','W','T','F','S','S'].map(d => `<span class="cowork-cal-dow">${d}</span>`).join('')}
+    ${cal.map(c => `<span class="cowork-cal-day ${c.inMonth ? '' : 'out'} ${c.errs ? 'errs' : (c.count ? 'ok' : '')}" title="${escapeAttr(c.key + ' — ' + c.count + ' run' + (c.count === 1 ? '' : 's') + (c.errs ? ', ' + c.errs + ' failed' : ''))}">${c.day}</span>`).join('')}</div>`;
   const runs = coworkRuns().slice(0, 12);
   const log = runs.length
     ? runs.map(r => `<div class="cowork-run ${r.ok ? 'ok' : 'bad'}"><span class="cowork-run-dot">${r.ok ? '✓' : '✗'}</span><span class="cowork-run-txt">${escapeHtml(r.channel ? r.channel + ' — ' : '')}${escapeHtml(r.note || r.kind)}</span><span class="cowork-run-ago">${escapeHtml(coworkFmtAgo(r.at, now))}</span></div>`).join('')
@@ -8296,9 +8449,27 @@ function renderCoworkStatusBlock() {
     ${roleLine}
     <div class="drawer-data-row" style="flex-wrap:wrap;margin:8px 0 4px;">${machineBtn}${fails ? `<button class="drawer-btn" id="cowork-log-clear">Clear log (${fails} failed)</button>` : ''}</div>
     ${schedRows}
+    <div class="cowork-log-title">Channels <span class="cowork-log-sub">tap to switch a task folder off</span></div>
+    <div class="cowork-chans">${chanRows}</div>
+    <div class="cowork-log-title">This month <span class="cowork-log-sub">runs per day · red = a failure</span></div>
+    ${calHtml}
     <div class="cowork-log-title">Recent hub activity <span class="cowork-log-sub">this device</span></div>
     <div class="cowork-log">${log}</div>
+    ${renderAiApiBlock()}
   </div>`;
+}
+/* feat 459 — the direct-API transport's controls. Deliberately understated: it is the paid path, and the
+   folder hub remains the default. The key never leaves this device (NEVER_SYNC_EXTRA). */
+function renderAiApiBlock() {
+  const cfg = aiApiCfg(), u = cfg.lastUsage;
+  const models = AI_API_MODELS.map(m => `<option value="${m.id}" ${m.id === cfg.model ? 'selected' : ''}>${escapeHtml(m.label)}</option>`).join('');
+  return `<div class="cowork-log-title">Direct API <span class="cowork-log-sub">optional — skips the folder round-trip, spends your own credit</span></div>
+    <div class="cowork-api">
+      <input type="password" class="cowork-api-key" id="ai-api-key" placeholder="sk-ant-… (stays on this device)" value="${escapeAttr(cfg.key || '')}" autocomplete="off" spellcheck="false">
+      <select class="cowork-sched" id="ai-api-model">${models}</select>
+      <button class="drawer-btn" id="ai-api-run" ${aiApiConfigured() ? '' : 'disabled'}>🤖 Answer analysis now</button>
+      <div class="cowork-api-note">Your key is stored on this device only — it is never cloud-synced. Requests go straight from this browser to Anthropic.${u ? ` Last call: ${escapeHtml(coworkFmtAgo(u.at))} · ${u.inTok} in / ${u.outTok} out tokens.` : ''}</div>
+    </div>`;
 }
 // The POD options editor (rendered inside the Cowork settings block when the hub is on).
 function renderPodOptionsForm() {
@@ -11452,6 +11623,28 @@ function renderSettingsDrawer() {
   body.querySelectorAll('[data-cowork-sched]').forEach(sel => sel.addEventListener('change', () => {
     state.cowork.schedules[sel.dataset.coworkSched] = sel.value; saveState(); renderSettingsDrawer();
   }));
+  body.querySelectorAll('[data-cowork-chan]').forEach(b => b.addEventListener('click', () => { // feat 459
+    const k = b.dataset.coworkChan;
+    state.cowork.channels[k] = !coworkChannelOn(k); saveState(); renderSettingsDrawer();
+  }));
+  // feat 459 — direct-API controls. The key is device-local, so it is saved to localStorage only.
+  const apiKeyEl = body.querySelector('#ai-api-key');
+  if (apiKeyEl) apiKeyEl.addEventListener('change', () => {
+    aiApiCfg().key = apiKeyEl.value.trim();
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+    renderSettingsDrawer();
+  });
+  body.querySelector('#ai-api-model')?.addEventListener('change', (e) => {
+    aiApiCfg().model = e.target.value;
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+  });
+  body.querySelector('#ai-api-run')?.addEventListener('click', async (e) => {
+    e.target.disabled = true; e.target.textContent = '🤖 Asking…';
+    const ok = await coworkAnalysisViaApi(false);
+    const last = coworkLastRun('api');
+    toast((ok ? '🤖 ' : '⚠ ') + ((last && last.note) || 'done'));
+    renderSettingsDrawer();
+  });
   body.querySelectorAll('[data-cardiofatigue]').forEach(b => b.addEventListener('click', () => { state.cowork.cardioFatigue = b.dataset.cardiofatigue === 'on'; saveState(); renderSettingsDrawer(); if (typeof render === 'function') render(); toast('Cardio in recovery: ' + (state.cowork.cardioFatigue ? 'on' : 'off')); })); // feat 318
   // feat 321 — POD options controls persist IMMEDIATELY to state (the generic drawer-pill handler below
   // re-renders the drawer on every pill click, which would otherwise discard unsaved form edits / reset pills).
@@ -27781,7 +27974,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 372 · 2026-08-02 09:38';
+const APP_BUILD = 'build 373 · 2026-08-02 09:52';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

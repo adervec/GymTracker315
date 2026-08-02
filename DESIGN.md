@@ -2576,6 +2576,23 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Cowork transports + activity view (feat 459):** the rest of Tachyread parity, closing the four gaps feat
+  458 left. **(a) Cloud sync becomes a scheduled, recorded task** — it was its own untracked `setInterval`, so
+  "the phone hasn't updated in two days" was unanswerable; it now sits in the same task table and run log,
+  inheriting the old `cloudSync.periodicMinutes` cadence on first run. **(b) Per-channel enable/disable.** A
+  channel you switch off is neither written nor polled — *and is dropped from the manifest*, because a manifest
+  entry whose `context.json` never appears would sit PENDING on the hub's status table forever. Absent key
+  reads as on, so existing folders are unaffected. **(c) A month activity calendar** (Tachyread's
+  `calendarCells`): a scrolling log answers "what just happened", a grid answers "has this been working all
+  month", which is the question you actually have when the data looks stale. **(d) The DIRECT API transport** —
+  the `analysis` channel is pure text generation over data the app already holds, so the folder round-trip is
+  the whole latency. `coworkAnalysisViaApi` calls Anthropic straight from the browser with the user's own key
+  and routes the result through the SAME `coworkImportAnalysis` the folder path uses, so there is exactly one
+  place that applies an answer. The key lives in `NEVER_SYNC_EXTRA` — never written to Drive, never in
+  `syncPayload()`, asserted by the spec. Its schedule defaults to **manual** because every run spends real
+  credit, and the last call's token counts show in Settings. Failures (401, non-JSON reply) are recorded, never
+  thrown, and never mark a request answered. Conformance re-verified: `coworkhub.py check` still reports
+  **PASS (manifest)**.
 - **Cowork hub → house protocol + Tachyread parity (feat 458):** the hub spoke a *grandfathered dialect*
   (`gymtracker-cowork` v1), so CoworkSyncHub needed a hand-written `scan_gymtracker` adapter that had to stay
   in step with this file, and several of Tachyread's cowork capabilities were simply absent. Seven changes:

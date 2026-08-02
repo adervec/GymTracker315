@@ -156,12 +156,13 @@ test('feat 458 — schedules: due maths, catalog order, and the pollMinutes migr
     const minAgo = new Date(now - 60e3).toISOString();
     const out = {
       manual: coworkNextDueAt('off', 0),
-      neverRun: coworkDueTasks({ push: 'hourly', check: '5m' }, {}, now),          // never run → due at once
-      order: coworkDueTasks({ push: 'daily', check: 'daily' }, {}, now),           // stable catalog order
-      onlyPush: coworkDueTasks({ push: 'hourly', check: '30m' }, { push: hourAgo, check: minAgo }, now),
-      none: coworkDueTasks({ push: 'hourly', check: '30m' }, { push: minAgo, check: minAgo }, now),
-      offNeverDue: coworkDueTasks({ push: 'off', check: 'off' }, {}, now),
-      badId: coworkDueTasks({ push: 'nonsense' }, {}, now),                        // unknown id falls back to the default
+      neverRun: coworkDueTasks({ push: 'hourly', check: '5m', cloud: '30m', api: 'off' }, {}, now), // never run → due at once
+      order: coworkDueTasks({ push: 'daily', check: 'daily', cloud: 'daily', api: 'daily' }, {}, now), // stable catalog order
+      onlyPush: coworkDueTasks({ push: 'hourly', check: '30m', cloud: 'off', api: 'off' }, { push: hourAgo, check: minAgo }, now),
+      none: coworkDueTasks({ push: 'hourly', check: '30m', cloud: 'off', api: 'off' }, { push: minAgo, check: minAgo }, now),
+      offNeverDue: coworkDueTasks({ push: 'off', check: 'off', cloud: 'off', api: 'off' }, {}, now),
+      apiManualByDefault: coworkDueTasks({ push: 'off', check: 'off', cloud: 'off' }, {}, now), // api's default is 'off'
+      badId: coworkDueTasks({ push: 'nonsense', check: 'off', cloud: 'off', api: 'off' }, {}, now), // unknown id → the task's default
     };
     // migration: an old state carrying only pollMinutes gets a matching (never faster) check cadence
     const mig = (mins) => { state.cowork = { enabled: true, pollMinutes: mins, minExportGapSec: 120, podKeepDays: 7 }; normalizeState(); return state.cowork.schedules.check; };
@@ -170,12 +171,13 @@ test('feat 458 — schedules: due maths, catalog order, and the pollMinutes migr
     return out;
   });
   expect(r.manual, 'manual is never due').toBeNull();
-  expect(r.neverRun).toEqual(['push', 'check']);
-  expect(r.order, 'push runs before check, so a reply is read against the request it answered').toEqual(['push', 'check']);
+  expect(r.neverRun).toEqual(['push', 'check', 'cloud']);
+  expect(r.order, 'push runs before check, so a reply is read against the request it answered').toEqual(['push', 'check', 'cloud', 'api']);
   expect(r.onlyPush).toEqual(['push']);
   expect(r.none).toEqual([]);
   expect(r.offNeverDue).toEqual([]);
-  expect(r.badId).toEqual(['push', 'check']);
+  expect(r.apiManualByDefault, 'the paid transport never fires unless asked').toEqual([]);
+  expect(r.badId).toEqual(['push']);
   expect(r.mig5).toBe('5m');
   expect(r.mig10).toBe('15m');       // rounds UP — never polls more often than asked
   expect(r.mig45).toBe('hourly');
@@ -187,7 +189,7 @@ test('feat 458 — the scheduler tick only fires on an allowed device and stamps
   const r = await page.evaluate(async () => {
     normalizeState();
     state.deviceId = 'me'; state.cowork.enabled = true;
-    state.cowork.schedules = { push: 'hourly', check: '5m' };
+    state.cowork.schedules = { push: 'hourly', check: '5m', cloud: 'off', api: 'off' };
     state.coworkLocal.lastRuns = {}; state.coworkLocal.history = [];
     // a viewer device never runs, whatever is due
     state.cowork.machine = { deviceId: 'other', name: 'Mac', at: new Date().toISOString() };
@@ -235,7 +237,7 @@ test('feat 458 — the settings page shows the role, both cadences and the run l
       localNotSynced: NEVER_SYNC_EXTRA.includes('coworkLocal') };
   });
   expect(r.hasStatus).toBe(true);
-  expect(r.scheds).toEqual(['push', 'check']);
+  expect(r.scheds).toEqual(['push', 'check', 'cloud', 'api']);
   expect(r.showsFailure, 'a failed run must be visible, not just logged').toBe(true);
   expect(r.failClass).toBe(true);
   expect(r.openRole).toBe(true);
