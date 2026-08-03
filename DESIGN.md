@@ -2576,6 +2576,30 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **The sandbag, in full (feat 461):** the catalogue held three one-line sandbag stubs scattered across
+  Strongman and Loaded Carries. A sandbag is not a heavy dumbbell — **the load shifts**, so every rep is also
+  a grip and bracing problem, and there are no handles to hide behind. Three consequences shape the
+  vocabulary, and the entries are organised around them rather than around muscle groups:
+  **(a) Ground-to-shoulder is the signature lift and has its own technique tree** — `sbag-lap` (pull it to the
+  thighs and stop) is trained as a movement in its own right, because that is where most attempts are actually
+  lost, and `sbag-lap-and-shoulder` is the two-stage strongman method for a bag too heavy to shoulder in one
+  motion. **(b) The carry POSITION is the exercise**, not a grip on one exercise: bear hug, shouldered,
+  Zercher, overhead and suitcase are five different lifts with different limiters, plus a medley that cycles
+  them. **(c) It can be thrown and dragged**, which almost nothing else in a gym can — over-the-shoulder toss,
+  over-the-bar throw and backward drag are near-pure concentric, so they are the rare hard pieces you can
+  recover from quickly.
+  **43 rows** (`SANDBAG_ROWS`, slots `0x217`-`0x241`) in a new `sandbag-work` family via `EXTRA_FAMILIES` —
+  the established shape for a major implement (ybell/swiss-ball precedent), which brings the reference entry,
+  the general block and the export along automatically; `FAMILY_MOTION` gains a matching key or
+  motionfigure.spec's coverage test fails. Modes fall out of the titles: the seven carries log **distance**,
+  the bear-hug hold logs **time**, the other 35 log reps.
+  One entry is deliberately not a movement: `sbag-fill-progression` documents filling the bag (**two thirds
+  full** — a packed bag is just an awkward dumbbell; one filler bag is the smallest increment) and is the one
+  entry with no cross-links, asserted by the spec.
+  The three pre-existing stubs are **reconciled** rather than deleted, so a set logged against them still
+  resolves and Strongman / Loaded Carries still offer the movement. That required removing feat 453's
+  `'strongman/sandbag-carry'` cross-link — it now points at a suppressed variation, which the
+  no-suppressed-var-is-cross-linked invariant forbids.
 - **Cowork observability details (feat 460):** the last three Tachyread details. **`target` on every run
   record** — where it went (folder label / cloud provider / model); a log of "pulled — already up to date"
   couldn't say which account it pulled from. **A folder-path annotation** (`coworkLocal.dirLabel`, device-local):
