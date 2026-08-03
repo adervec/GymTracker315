@@ -2576,6 +2576,31 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **The duplication sweep, two classes deeper (feat 462):** a reported case — "Cable behind body" existing
+  both as a subvariation option of Cable Lateral Raise and as the standalone Behind-the-Back Cable Lateral —
+  turned out to be one instance of a class nothing had ever checked, and the sweep found a second class and a
+  mechanism bug alongside it.
+  **(a) Sub-option vs standalone variation.** `VAR_DUP_RECONCILE` deduped two *variations*; nothing deduped an
+  *option* against a variation. The two are not equivalent: an option carries no reference content, no motion
+  figure, no cross-links and no plan-step matching, so having both is a strictly worse second way to log one
+  movement — and it splits that movement's history. New `SUBOPT_DEPRECATED` (option uuid → superseding
+  variation uuid) retires an option: filtered out of every picker via `subOptions()`/`liveSubOptions()` and
+  never chosen by `defaultSubUuid()`, but **still resolved by `displayName`**, so a set logged against it reads
+  exactly as before. Six retired. The Reference panel needed the second entry point because it reads options
+  from its own `subvariations` lookup keyed `exId::varId`, not from the variation record.
+  **(b) Synonym-level near-duplicates.** Feat 453's sweep compared exact token sets, so it could not see
+  Push-Up / Standard Push-Up or Farmer's Walk / Heavy Farmer's Walk. Re-running with synonym folding found
+  four live pairs, now reconciled. The folding deliberately does NOT fold words that FLIP meaning — 'side',
+  'front', 'behind', 'single', 'body' — which is what kept Plank / Side Plank and lateral-raise / front-raise
+  out of the results.
+  **(c) The reconciler ignored same-family pairs.** `applyVarDupReconcile` returned early when keep and drop
+  shared a family, so Anderson Squat surviving *twice inside `squat`* was invisible to it — it only ever
+  deduped across families. The early return is gone; `_addSecondaryParent` already no-ops on a same-family
+  target, so cross-family behaviour is unchanged.
+  The sweep now lives in `dedupe.spec` as a **test rather than a one-off script**, with an empty allowlist, so
+  new catalogue content cannot quietly reintroduce either class. Two suppressed cross-links had to be removed
+  (`strongman/farmers-walk-heavy`, `resistance-bands/banded-monster-walk`) to keep the
+  no-suppressed-var-is-cross-linked invariant.
 - **The sandbag, in full (feat 461):** the catalogue held three one-line sandbag stubs scattered across
   Strongman and Loaded Carries. A sandbag is not a heavy dumbbell — **the load shifts**, so every rep is also
   a grip and bracing problem, and there are no handles to hide behind. Three consequences shape the
