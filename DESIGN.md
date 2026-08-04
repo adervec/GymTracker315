@@ -2576,6 +2576,18 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Active-set marker (feat 463):** with several rows on screen — and feat 457 flipping their visual order —
+  the set you were actually on was easy to lose. `activeSetIndex(sets)` is a pure resolver with a deliberate
+  precedence: a set that has **started but not finished** (weight in, no reps) wins outright, because that is
+  unambiguous; otherwise the first row still missing anything; otherwise `-1`, so a fully-logged exercise
+  highlights nothing. Editing a past session also resolves to `-1` — there is no "current" set in history.
+  The marker **reuses the overload rows' exact left-edge geometry** (3px border, the same padding/margin pair)
+  so no row shifts when a set completes and the marker hands over to the next one; an active set is by
+  definition incomplete, so it can never collide with an overload colour. `paintActiveSet()` repaints across
+  ALL rows rather than one, for two reasons: `updateRowLive` resets `className`, and completing a set moves
+  the marker to a *different* row than the one being edited. Because feat 457's flip is CSS-only, the marker
+  follows the SET, not the screen position — the spec pins that (marker on DOM row 1 = set 2, while set 3 is
+  visually topmost).
 - **The duplication sweep, two classes deeper (feat 462):** a reported case — "Cable behind body" existing
   both as a subvariation option of Cable Lateral Raise and as the standalone Behind-the-Back Cable Lateral —
   turned out to be one instance of a class nothing had ever checked, and the sweep found a second class and a

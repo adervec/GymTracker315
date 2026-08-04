@@ -1901,6 +1901,11 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .set-row.overload-mild-down { background: linear-gradient(90deg, rgba(46,36,24,0.35), transparent 60%); border-left: 3px solid #d4b070; padding-left: 6px; margin-left: -6px; }
   .set-row.overload-down { background: linear-gradient(90deg, rgba(58,31,31,0.4), transparent 60%); border-left: 3px solid #ff9090; padding-left: 6px; margin-left: -6px; }
   .set-row.overload-baseline { border-left: 3px solid #2a2a40; padding-left: 6px; margin-left: -6px; }
+  /* feat 463 — the set you are on. Reuses the overload rows' exact left-edge geometry (3px border, the same
+     padding/margin pair) so nothing shifts when a set completes and the marker hands over to the next row.
+     An active set is by definition incomplete, so this can never collide with an overload colour. */
+  .set-row.set-active { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent 65%); border-left: 3px solid var(--accent); padding-left: 6px; margin-left: -6px; }
+  .set-row.set-active .set-num { color: var(--accent) !important; }
   .set-overload-tag { grid-column: 2 / 4; font-size: 9.5px; padding: 1px 6px; border-radius: 4px; font-weight: 700; justify-self: start; margin-top: 2px; font-variant-numeric: tabular-nums; letter-spacing: 0.3px; }
   .set-overload-tag.pr { background: linear-gradient(135deg, #2e6f3a, #4e9050); color: #fff; }
   .set-overload-tag.progress { background: #1d3a25; color: #80e090; border: 1px solid #2e6f3a; }
@@ -11948,6 +11953,20 @@ function rpeMode() { const m = state.workoutControls && state.workoutControls.rp
 function rpeEnabled() { return rpeMode() !== 'off'; }
 // feat 457 — newest set at the top of the current exercise pane. Default ON, so an absent key means on.
 function newestSetFirst() { return (state.workoutControls || {}).newestSetFirst !== false; }
+/* feat 463 — WHICH SET AM I ON? With several rows on screen (and feat 457 flipping their visual order) the
+   one you are actually working is easy to lose. Precedence, most-specific first:
+     1. a set that has STARTED but is not finished (weight in, no reps) — the live set, unambiguous;
+     2. otherwise the first set still missing anything — the one you are about to fill;
+     3. otherwise none — every set is complete, so nothing is highlighted.
+   Pure over the sets array so it is testable and so the renderer and the live repaint cannot disagree. */
+function activeSetIndex(sets) {
+  const list = Array.isArray(sets) ? sets : [];
+  const filled = v => v !== '' && v != null;
+  const started = list.findIndex(s => s && filled(s.w) && !filled(s.r));
+  if (started >= 0) return started;
+  const next = list.findIndex(s => s && !(filled(s.w) && filled(s.r)));
+  return next;   // -1 when everything is done
+}
 function rpeToRir(rpe) { const n = parseFloat(rpe); return isNaN(n) ? null : Math.max(0, Math.min(5, Math.round((10 - n) * 2) / 2)); }
 function rirToRpe(rir) { const n = parseFloat(rir); return isNaN(n) ? null : Math.max(5, Math.min(10, Math.round((10 - n) * 2) / 2)); }
 function setRpe(set) { const n = set && set.rpe != null && set.rpe !== '' ? parseFloat(set.rpe) : NaN; return isNaN(n) ? null : n; }
@@ -26500,6 +26519,8 @@ function renderSetsForm() {
     </div>`;
   }
 
+  // feat 463 — resolved once for the whole render; paintActiveSet() re-derives it live as you type.
+  const _activeSetIdx = modalState.isEditing ? -1 : activeSetIndex(pending.sets); // editing a past session has no "current" set
   // Determine "current session date" for overload comparison
   // If editing an existing session, compare vs sessions BEFORE that date.
   // If logging new sets today, today's session date counts as the current.
@@ -26521,6 +26542,7 @@ function renderSetsForm() {
   const setsHtml = pending.sets.map((s, i) => {
     const isLast = i === pending.sets.length - 1;
     let rowClass = 'set-row';
+    if (i === _activeSetIdx) rowClass += ' set-active'; // feat 463 — the set you are on
     let overloadTagHtml = '';
     let recordHintHtml = '';
 
@@ -27008,6 +27030,7 @@ function updateRowLive(idx) {
   // Remove old overload classes, tag, and hint
   row.className = 'set-row';
   row.querySelectorAll('.set-overload-tag, .set-obj-tag, .record-hint').forEach(el => el.remove());
+  paintActiveSet(); // feat 463 — className was just reset, and finishing a set moves the marker to ANOTHER row
 
   if (wNum > 0 && rNum > 0) {
     const score = getOverloadScore(pending.varUuid, pending.subUuid, { w: wNum, r: rNum }, currentSessionDate);
@@ -27056,6 +27079,14 @@ function updateRowLive(idx) {
 // feat 51/57 — apply a weight/reps value to a set; the native input AND the on-screen numpad both use this path.
 // feat 149 — briefly flash a set input's border whenever its value changes (any source: typing, OSK,
 // copy, setup-apply). Restarts the animation each call so rapid edits keep a steady glow, then fade.
+/* feat 463 — repaint the active-set marker across ALL rows. Completing a set moves it from one row to the
+   next, so this can't be a per-row update; and updateRowLive resets className, which would drop it. */
+function paintActiveSet() {
+  const rows = document.querySelectorAll('#trk-sets-container .set-row');
+  if (!rows.length) return;
+  const idx = (typeof modalState !== 'undefined' && modalState.isEditing) ? -1 : activeSetIndex(pending.sets);
+  rows.forEach((row, i) => row.classList.toggle('set-active', i === idx));
+}
 function flashSetField(i, f) {
   const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + i + '"][data-field="' + f + '"]');
   if (!inp) return;
@@ -27503,6 +27534,7 @@ function bindSetsForm() {
   document.getElementById('trk-save-btn').onclick = () => saveSets(); // feat 114 — no event arg (it would read as endingWorkout)
   document.getElementById('trk-delete-ex-btn')?.addEventListener('click', deleteExercise);
   ensureHoldTimers(); // feat 257 — start the 1 s count-up if a timed hold is currently open
+  paintActiveSet();   // feat 463 — mark the set you are on (also covers add-set / remove-set re-renders)
 }
 
 /* ----- Cardio form (feat 6) ----- */
@@ -28133,7 +28165,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 376 · 2026-08-03 17:14';
+const APP_BUILD = 'build 377 · 2026-08-03 21:05';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
