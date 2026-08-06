@@ -2576,6 +2576,21 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **The Cuban press (feat 464):** three movements welded into one rep — a high pull to elbows-at-90, an
+  **external rotation** of the forearms to vertical, then an overhead press, reversed on the way down. The
+  middle third is the point: it is the only common lift that loads external rotation through a full arc while
+  the shoulder is abducted, which is the position overhead athletes keep failing in. Home is `rotator-cuff`,
+  **not** `shoulder-press` — the press is the easy part and the cuff is the limiter, so the load has to be
+  chosen for the rotation. The seven pressing variants cross-link *into* Shoulder Press; the rotation-only
+  teaching version deliberately does **not**, since it contains no press. **8 rows** (`CUBAN_ROWS`, slots
+  `0x242`-`0x249`) covering the axes that matter: the rotation alone (where everyone should start), the
+  standard DB press, the prone-incline version (strictest — chest pinned, nothing to swing with), EZ-bar (both
+  arms locked together), cable (the only one that loads the bottom of the rotation), single-arm (asymmetry),
+  half-kneeling (no hip drive) and band (warm-up). Titles carry their implement so `autoSetupKind` resolves
+  correctly rather than inheriting the family's cable-first default; the band variant takes a `null`
+  `VAR_EQUIP_OVERRIDES` entry because a band has no loading tool at all. The spec asserts the two coaching
+  points that decide whether the exercise does anything — elbows must not drop during the rotation, and the
+  load is picked for the rotation rather than the press.
 - **Active-set marker (feat 463):** with several rows on screen — and feat 457 flipping their visual order —
   the set you were actually on was easy to lose. `activeSetIndex(sets)` is a pure resolver with a deliberate
   precedence: a set that has **started but not finished** (weight in, no reps) wins outright, because that is
