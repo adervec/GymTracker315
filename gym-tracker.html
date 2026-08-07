@@ -2838,6 +2838,8 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   /* Toast */
   .toast { position: fixed; bottom: 90px; left: 14px; right: 14px; background: #1a1a1a; border: 1px solid #2a2a2a; border-left: 3px solid #b48aff; padding: 10px 14px; border-radius: 7px; z-index: 300; transform: translateY(calc(100% + 120px)); opacity: 0; transition: transform 0.25s ease-out, opacity 0.25s ease-out; font-size: 13px; color: #fff; pointer-events: none; }
   .toast.show { transform: translateY(0); opacity: 1; pointer-events: auto; }
+  /* feat 465 — a toast that DOES something on tap looks tappable; a plain one still just dismisses. */
+  .toast.toast-action { cursor: pointer; font-weight: 600; border-left-width: 4px; }
 
   /* Settings */
   .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1f1f1f; }
@@ -6267,7 +6269,7 @@ const SYNC_COLLECTION_KEYS = new Set(['plans','bodyComp','stravaActivities','cus
   'exerciseMedia','exerciseSetup','cardioGoals','favoritePlans','favoriteVars','hiddenVars','hiddenMovements',
   'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod']);
 // Beyond DEVICE_LOCAL_KEYS, these top-level slices are connection/identity that must never be pushed to the cloud.
-const NEVER_SYNC_EXTRA = ['cloudSync','coworkLocal','deviceId','lastSettingAnchor','aiApi']; // feat 459 — the Anthropic key stays on the device that entered it
+const NEVER_SYNC_EXTRA = ['cloudSync','coworkLocal','deviceId','lastSettingAnchor','aiApi','backupLocal']; // feat 459 — the Anthropic key stays on the device that entered it; feat 465 — "when did I last export" is per-device
 // The object actually written to the cloud file: everything EXCEPT device-local + connection/identity state.
 function syncPayload(st) {
   const o = {};
@@ -6757,6 +6759,7 @@ function normalizeState() {
       schedules:null, machine:null, channels:null }, // feat 315 — Claude Cowork hub (synced settings); feat 458 — per-task schedules (null so normalizeState can tell "never set" from "set to the default" and migrate pollMinutes) + designated sync machine; feat 459 — per-channel enable
     coworkLocal: { processed:{}, lastExportHash:null, lastExportAt:null, lastPollAt:null, history:[], lastRuns:{}, declared:{} }, // feat 315 — DEVICE-LOCAL (not in SETTINGS_KEYS): processed-file ledger + export de-dup; feat 458 — run history, per-task last-run, declared request hashes
     podOptions: { notes:'', injuries:[], gyms:[], equipment:[], availableMinutes:{ min:30, max:60 }, targetMode:'recovered', targetGroups:[], fitnessFocus:'balance' }, // feat 315/386 — Plan-of-the-Day options (synced); time is a {min,max} range
+    backupLocal: { lastAt:null, nudgedAt:null }, // feat 465 — DEVICE-LOCAL: last full export + last nudge, so the reminder tracks THIS device's copy
   };
   for (const k in d) state[k] = { ...d[k], ...(state[k] || {}) };
   // feat 197 — the old 5-min abandon default proved ~3x too quick; migrate stored old-default values to 15.
@@ -6998,11 +7001,25 @@ const logWarn  = (m, d) => logEvent('warn', m, d);
 const logError = (m, d) => logEvent('error', m, d);
 function clearLog() { _eventLog = []; persistLog(); }
 
-function exportLog() {
+function logText() {
   const lines = _eventLog.map(e => `[${e.ts}] ${e.level.toUpperCase().padEnd(5)} ${e.msg}${e.detail ? ' :: ' + e.detail : ''}`);
   const header = `GymTracker315 activity & error log\nGenerated ${new Date().toISOString()}\n${_eventLog.length} entries\n${'='.repeat(40)}\n`;
-  downloadBlob(new Blob([header + lines.join('\n') + '\n'], { type:'text/plain' }), `gym-tracker-log_${new Date().toISOString().slice(0,10)}.txt`);
+  return header + lines.join('\n') + '\n';
+}
+function exportLog() {
+  downloadBlob(new Blob([logText()], { type:'text/plain' }), `gym-tracker-log_${new Date().toISOString().slice(0,10)}.txt`);
   logInfo('Log exported to flat file');
+}
+// feat 465 — the app has no telemetry by design, so someone hitting a bug on their own phone has no way to
+// SHOW it to anyone. Share sheet where there is one, clipboard everywhere else; either way it's opt-in and
+// the user sees exactly what leaves the device (the log never contains their workout data).
+async function shareLog() {
+  const text = logText();
+  if (navigator.share) {
+    try { await navigator.share({ text }); logInfo('Log shared'); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; } // any other failure falls through to clipboard
+  }
+  if (await copyText(text)) logInfo('Log copied to clipboard');
 }
 
 // Install global handlers once.
@@ -11192,6 +11209,7 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-data-row" style="margin-top:8px;">
       <button class="drawer-btn" id="log-export-btn">⬆ Export Log (.txt)</button>
+      <button class="drawer-btn" id="log-share-btn">📤 Share Log</button>
       <button class="drawer-btn danger" id="log-clear-btn">🗑 Clear Log</button>
     </div>
 
@@ -11599,6 +11617,7 @@ function renderSettingsDrawer() {
 
   // Activity log buttons
   body.querySelector('#log-export-btn')?.addEventListener('click', exportLog);
+  body.querySelector('#log-share-btn')?.addEventListener('click', shareLog); // feat 465
   body.querySelector('#log-clear-btn')?.addEventListener('click', () => {
     guardedConfirm('Clear the activity & error log?', body.querySelector('#log-clear-btn')).then(ok => {
       if (ok) { clearLog(); renderSettingsDrawer(); toast('Log cleared'); }
@@ -12091,7 +12110,10 @@ function escapeHtml(s) {
 function escapeAttr(s) {
   return String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-function toast(msg, durationMs = 2500) {
+// feat 465 — `action` makes the toast tappable: the tap-to-dismiss binding below runs it instead of just
+// hiding. Used where the toast IS the affordance (update ready → reload, no backup → export), so a message
+// the user would otherwise have to act on from memory carries the action with it.
+function toast(msg, durationMs = 2500, action = null) {
   const t = document.getElementById('trk-toast');
   if (!t) return;
   // Force reset: remove show, flush layout, then re-add so the transition fires fresh
@@ -12100,9 +12122,12 @@ function toast(msg, durationMs = 2500) {
   t.offsetHeight; // force reflow so transition restarts cleanly
   t.textContent = msg;
   t.classList.add('show');
+  t.classList.toggle('toast-action', !!action);
+  window._toastAction = action;
   clearTimeout(window._toastT);
   window._toastT = setTimeout(() => {
     t.classList.remove('show');
+    window._toastAction = null; // a toast that has faded can no longer be acted on
   }, durationMs);
 }
 
@@ -12113,6 +12138,9 @@ document.addEventListener('DOMContentLoaded', () => {
   t.addEventListener('click', () => {
     t.classList.remove('show');
     clearTimeout(window._toastT);
+    const a = window._toastAction;
+    window._toastAction = null; // one-shot, cleared before running so a throwing action can't re-arm
+    if (a) { try { a(); } catch (e) {} }
   });
 });
 
@@ -24245,8 +24273,28 @@ function exportData() {
     const now = new Date();
     const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
     downloadBlob(new Blob([JSON.stringify(state, null, 2)], { type:'application/json' }), `overload-tracker_${ts}.json`);
+    state.backupLocal.lastAt = now.toISOString(); saveState(); // feat 465 — this is what silences the backup nudge
     return { message: 'Exported overload-tracker_' + ts + '.json' };
   });
+}
+
+/* feat 465 — the data lives in localStorage, which a browser is free to evict. Cloud sync makes that a
+   non-event; without it a user is one purge away from losing everything and has no reason to think about it.
+   So: nudge, but only once there is something worth losing, and at most once a week. */
+const BACKUP_STALE_DAYS = 30, BACKUP_NUDGE_DAYS = 7, BACKUP_MIN_SESSIONS = 5;
+function backupIsStale() {
+  const cs = state.cloudSync || {};
+  if (cs.enabled && cs.provider) return false;                       // synced elsewhere — nothing to nag about
+  if ((state.sessions || []).length < BACKUP_MIN_SESSIONS) return false;
+  const b = state.backupLocal || {};
+  const ageDays = t => t ? (Date.now() - new Date(t).getTime()) / 86400000 : Infinity;
+  if (ageDays(b.nudgedAt) < BACKUP_NUDGE_DAYS) return false;         // already asked recently
+  return ageDays(b.lastAt) > BACKUP_STALE_DAYS;
+}
+function backupNudge() {
+  if (!backupIsStale()) return;
+  state.backupLocal.nudgedAt = new Date().toISOString(); saveState(); // stamped whether or not they act on it
+  toast('💾 No backup in a while — tap to export your data', 9000, exportData);
 }
 
 /* ============================================================
@@ -28064,6 +28112,7 @@ installGlossaryHighlight();
 applyI18n(document); // feat 61 — translate tagged static markup (attrs/text) for the active language
 setTimeout(hrTryReconnect, 0); // feat 72 — auto-reconnect last HR device; deferred so it runs after boot completes (this INIT block is above the `let _hrConnected` declaration, so calling synchronously here hit its temporal-dead-zone and silently rejected — auto-reconnect never actually ran)
 logInfo('App loaded', (state.sessions ? state.sessions.length : 0) + ' sessions');
+setTimeout(backupNudge, 4000); // feat 465 — after boot's own toasts have had their turn
 
 function switchToTab(name) { // feat 146 — shared by the tab bar + in-page "see Log" link; feat 181 — routes through navTo
   historyView = 'list';
@@ -28188,7 +28237,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 378 · 2026-08-05 21:58';
+const APP_BUILD = 'build 379 · 2026-08-06 22:00';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -42062,13 +42111,31 @@ render();
 // (and any failure is swallowed) so standalone-file use and the test harness are unaffected.
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', function () {
+    // feat 465 — every session lives in localStorage, which the browser may evict under disk pressure.
+    // Ask it not to. Silently unsupported on some browsers, and granted without any prompt on Chrome once
+    // the app is installed / engaged with, so there is nothing to gate this behind.
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); } catch (e) {}
     navigator.serviceWorker.register('sw.js').then(function (reg) {
+      // feat 465 — an installed PWA can sit open for days, and `updatefound` only fires when something
+      // re-checks. Re-check whenever the app comes back to the foreground (throttled to once a minute) so a
+      // new build is discovered on the next glance instead of the next cold start.
+      var lastCheck = 0;
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState !== 'visible') return;
+        var now = Date.now();
+        if (now - lastCheck < 60000) return;
+        lastCheck = now;
+        try { reg.update(); } catch (e) {}
+      });
       reg.addEventListener('updatefound', function () {
         var nw = reg.installing;
         if (!nw) return;
         nw.addEventListener('statechange', function () {
           if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-            try { toast('🔄 Update ready — reopen the app to apply'); } catch (e) {}
+            // sw.js skipWaiting()s on install, so the new worker is already in charge — only this open
+            // document is stale, and a plain reload picks the new one up. Ignoring the toast is safe:
+            // the old page keeps working, which is why this is a tap and not a forced reload.
+            try { toast('🔄 Update ready — tap to reload', 12000, function () { location.reload(); }); } catch (e) {}
           }
         });
       });

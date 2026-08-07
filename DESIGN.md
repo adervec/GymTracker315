@@ -2576,6 +2576,30 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Multi-user hardening (feat 465):** the app picked up users who are not the developer — on their own
+  phones, with no telemetry, no support channel and no backup habit. Three gaps that only exist once that is
+  true, plus one preventative. (1) **Update delivery.** `toast()` gained an optional third argument, an
+  `action` run by the existing tap-to-dismiss binding; it is one-shot (cleared before invoking, so a throwing
+  action can't re-arm), cleared when the toast fades, and reset by the next toast, and a `.toast-action` class
+  makes a tappable toast look tappable. The service-worker `updatefound` toast now reads *"tap to reload"* and
+  reloads, instead of telling the user to reopen the app themselves — `sw.js` already `skipWaiting()`s on
+  install, so the new worker is in charge and only the open document is stale. Ignoring it stays safe: the old
+  page keeps working. An installed PWA can also sit open for days without anything re-checking, so
+  `reg.update()` now fires on `visibilitychange`→visible, throttled to once a minute. (2) **Error visibility.**
+  `exportLog()` split into `logText()` + the download, and a **📤 Share Log** button next to it calls
+  `shareLog()` — native share sheet where there is one, clipboard everywhere else. The log is diagnostics only
+  and never contains workout data, so this is a safe thing to paste into a group chat, and it is the whole
+  support channel by design: opt-in, user-initiated, no server. (3) **Backup nudge.** All data lives in
+  `localStorage`, which a browser may evict; cloud sync makes that a non-event but an unsynced user is one
+  purge away from losing everything and has no reason to think about it. `backupIsStale()` fires only when
+  cloud sync is off *and* there are ≥5 sessions *and* the last full export is >30 days old *and* the last
+  nudge was >7 days ago — an enabled-but-unconnected provider counts as no backup. `backupNudge()` stamps
+  itself whether or not the user acts, and the toast carries `exportData` as its action, which stamps
+  `backupLocal.lastAt` and silences it. `backupLocal` is device-local (`NEVER_SYNC_EXTRA`) because "when did I
+  last back **this** device up" must not ride the cloud file to another one. (4) `navigator.storage.persist()`
+  on boot asks the browser not to evict in the first place — one line, silently ignored where unsupported.
+  Deliberately skipped: the JSDoc/`tsc --checkJs` ratchet from the same assessment (worth doing, but it is a
+  new `tools/` extractor and a CI baseline, not part of this).
 - **The Cuban press (feat 464):** three movements welded into one rep — a high pull to elbows-at-90, an
   **external rotation** of the forearms to vertical, then an overhead press, reversed on the way down. The
   middle third is the point: it is the only common lift that loads external rotation through a full arc while
