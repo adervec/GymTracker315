@@ -2576,6 +2576,27 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **The bare weight plate (feat 466):** the catalogue was full of plate-**loaded** machines and had only
+  eight movements where you hold the plate itself — front raise, Svend press, around-the-world, two pinches,
+  tibialis, neck, wrist. A plate is the most available implement in any gym and it loads differently from a
+  dumbbell: the mass sits away from the hands, so every rep is a lever and the grip is the rim or the hub
+  rather than a handle. That makes it the honest tool for anterior-delt raises, rotational core work, and
+  anything wanting a long moment arm at a light absolute weight. **51 rows** (`PLATE_SETS`, slots
+  `0x24A`-`0x27C`) covering presses, squats, lunges, hinges, rows, curls, extensions, rotation, carries, grip
+  and conditioning. **No plate family** — a variation inherits its family's body part, so one "Plate Work"
+  family would book a plate front raise and a plate squat as the same muscle, which is exactly why feat 454
+  refused a gear family for hooks and fat grips. Each row therefore lands in the movement family that owns its
+  body part (23 of them), and the slot base walks itself across the groups so adding a row to one group cannot
+  collide with the next. Discovery comes from the naming instead: every title begins with `Plate`, so the
+  picker search surfaces the whole set. `autoSetupKind`'s existing `/\bplate\b/` rule already resolves them all
+  to the plate picker, and `exMode`'s title rules put holds on the clock and carries on distance — the one
+  place that bit was "Plate Floor Push (Sled Substitute)", which missed `sled (push|drag|pull)` and logged
+  reps; renamed **Plate Sled Push**, fixing the mode rather than special-casing it. Cross-links are chosen,
+  not blanket: the grip-limited work (pinch curl, front hold, pinch/front carries, rim-grip deadlift and row)
+  satisfies a **grip** step, the thruster satisfies both **shoulder-press** and **squat**, and the plate hip
+  thrust reaches **glute-accessories**. Also folded a duplicate the sweep had missed — `equipment-hacks`
+  carried "Plate Press / Svend Press", a **third** copy of the Svend press whose Pullover twin feat 462 had
+  already reconciled; it now points at the Chest Fly original and still resolves for old logged sets.
 - **Multi-user hardening (feat 465):** the app picked up users who are not the developer — on their own
   phones, with no telemetry, no support channel and no backup habit. Three gaps that only exist once that is
   true, plus one preventative. (1) **Update delivery.** `toast()` gained an optional third argument, an
