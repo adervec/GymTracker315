@@ -2576,6 +2576,17 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Two missing curls (feat 467):** reported from use, not found by a sweep. The kettlebell family had a
+  Kettlebell Curl and a Bottoms-Up Curl but **no hammer curl**, even though a bell gripped by the horn hangs
+  in neutral on its own — it is the grip a kettlebell wants, and the mass sitting *behind* the hand moves the
+  hardest point of the rep earlier than a dumbbell does. And the arm-blaster set (feat 449) covered barbell,
+  EZ, **alternating** dumbbells, 21s, cable and reverse, but not both dumbbells at once, which is the
+  plainest use of the device and harder than the alternating version at the same weight because neither arm
+  rests. `kb-hammer-curl` (slot `0x27D`) lives in **Hammer Curl**, not the kettlebell family — a hammer curl
+  is a hammer curl whatever is in the hand, and the body part follows the family — with a new
+  `SECONDARY_PARENTS_BY_ID['kettlebell-specific']` key so the kettlebell page still offers it. It deliberately
+  does **not** satisfy a supinated `bicep-curl` step. `blaster-db-curl` (slot `0x27E`) joins the blaster set
+  in Bicep Curl. Next free: `0x27F`.
 - **The bare weight plate (feat 466):** the catalogue was full of plate-**loaded** machines and had only
   eight movements where you hold the plate itself — front raise, Svend press, around-the-world, two pinches,
   tibialis, neck, wrist. A plate is the most available implement in any gym and it loads differently from a

@@ -4638,6 +4638,21 @@ let _plateBase = 0x24A;
 PLATE_SETS.forEach(([famId, rows]) => { pushCompactRows(rows, famId, _plateBase); _plateBase += rows.length; });
 // 51 rows, slots 0x24A-0x27C — next free: 0x27D
 
+/* ---- feat 467 — two curls that should already have been here ----
+   The kettlebell family had a Kettlebell Curl and a Bottoms-Up Curl but no HAMMER curl, even though a bell
+   gripped by the horn hangs in neutral by default — it is the grip a kettlebell wants. And the arm-blaster
+   set (feat 449) covered barbell, EZ, ALTERNATING dumbbells, 21s, cable and reverse, but not the plainest
+   use of the device: both dumbbells at once. Homes follow the movement, not the implement — the KB hammer
+   curl lives in Hammer Curl and cross-links into the kettlebell family. */
+const CURL_GAP_ROWS_HAMMER = [
+  ['kb-hammer-curl','KB Hammer Curl','Offset Load','A bell held by the horn hangs in neutral on its own, and its mass sits behind the hand instead of in it.','A kettlebell in each hand, gripped by the horn|Bells hanging behind the wrists, thumbs up|Elbows at the sides, ribs down','Curl both bells with the palms staying neutral|Let the bell rest against the forearm at the top|Lower to straight arms without the elbows drifting','Gripping the handle like a dumbbell and losing the offset|Swinging the bells up to clear the sticking point|Letting the bells bang into the forearms','Hypertrophy:3-4 x 8-12;Grip:3 x 12-15','The load hangs behind the hand, so the hardest point comes earlier than with a dumbbell and the grip works the whole set. Expect less weight than your dumbbell hammer.'],
+];
+pushCompactRows(CURL_GAP_ROWS_HAMMER, 'hammer-curl', 0x27D);   // slot 0x27D
+const CURL_GAP_ROWS_BICEP = [
+  ['blaster-db-curl','Arm Blaster DB Curl','The Plain One','Both dumbbells at once with the upper arms pinned to the plate. The most obvious thing to do with a blaster.','Blaster on, upper arms flat against the plate|A dumbbell in each hand, palms up|Ribs down, knees soft','Curl both dumbbells together, elbows staying on the plate|Squeeze hard at the top|Lower all the way to straight arms','Letting one arm lead and turning it into an alternating set|Elbows leaving the plate at the top|Loading it like an unrestricted curl','Hypertrophy:3-4 x 8-12;Volume:3 x 12-15','Both arms at once means no rest between sides, so this is harder than the alternating version at the same weight. Start lower than you think.'],
+];
+pushCompactRows(CURL_GAP_ROWS_BICEP, 'bicep-curl', 0x27E);     // slot 0x27E — next free: 0x27F
+
 /* ---- feat 448 — the Swiss ball, its own family ----
    The catalogue had two Swiss-ball entries (`swiss-ball-curl` in Leg Curl, `stir-the-pot` in Core
    Anti-Movement) and no home for the rest. The ball trains by SUBTRACTION — it removes the floor's
@@ -5658,6 +5673,7 @@ const SECONDARY_PARENTS_BY_ID = {
   'grip-training': ['bicep-curl/plate-pinch-curl', 'front-raise/plate-front-hold', 'loaded-carries/plate-pinch-carry', 'loaded-carries/plate-front-carry', 'deadlift/plate-deadlift', 'row/plate-single-arm-row', 'row/fat-grip-bb-row', 'shrugs/fat-grip-shrug', 'lat-pulldown/fat-grip-pulldown', 'loaded-carries/fat-grip-carry', 'hammer-curl/fat-grip-hammer-curl', 'flat-bench-press/fat-grip-bench', 'shoulder-press/fat-grip-ohp'],
   'hammer-curl': ['mace-club-work/mace-hammer-curl', 'ybell-work/yb-hammer-curl'],
   'hip-thrust': ['resistance-bands/banded-hip-thrust'],
+  'kettlebell-specific': ['hammer-curl/kb-hammer-curl'], // feat 467 — a KB hammer curl is arm volume, so Hammer Curl owns it; the kettlebell page still offers it
   'lateral-raise': ['ybell-work/yb-lateral-raise', 'swiss-ball-work/sb-seated-lateral-raise'],
   'leg-curl': ['trx-work/trx-hamstring-curl', 'swiss-ball-work/sb-single-leg-curl', 'swiss-ball-work/sb-curl-to-bridge'],
   'loaded-carries': ['kettlebell-specific/kb-bear-hug-carry', 'kettlebell-specific/kb-bottoms-up-carry', 'kettlebell-specific/kb-cross-carry', 'kettlebell-specific/kb-goblet-carry', 'sandbag-work/sbag-bear-hug-carry', 'sandbag-work/sbag-shoulder-carry', 'sandbag-work/sbag-zercher-carry', 'sandbag-work/sbag-overhead-carry', 'sandbag-work/sbag-suitcase-carry', 'sandbag-work/sbag-front-rack-carry', 'sandbag-work/sbag-carry-medley'],
@@ -28354,7 +28370,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 381 · 2026-08-06 22:34';
+const APP_BUILD = 'build 382 · 2026-08-07 13:56';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
