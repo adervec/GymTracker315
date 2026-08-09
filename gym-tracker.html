@@ -2841,6 +2841,30 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   /* feat 465 — a toast that DOES something on tap looks tappable; a plain one still just dismisses. */
   .toast.toast-action { cursor: pointer; font-weight: 600; border-left-width: 4px; }
 
+  /* feat 468 — Rucking. Tiles, the next-step card, then the sortable history (feat 456's house table). */
+  .ruck-page { padding: 4px 0 20px; }
+  .ruck-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .ruck-tile { background: var(--bg3, #131313); border: 1px solid var(--border2, #242424); border-radius: 9px; padding: 10px 12px; }
+  .ruck-tile-v { font-size: 19px; font-weight: 800; color: var(--text, #fff); line-height: 1.2; }
+  .ruck-tile-v em { font-style: normal; font-size: 11px; font-weight: 600; color: var(--text3, #777); margin-left: 2px; }
+  .ruck-tile-l { font-size: 11px; font-weight: 700; color: var(--text2, #aaa); margin-top: 3px; }
+  .ruck-tile-s { font-size: 10.5px; color: var(--text3, #777); margin-top: 2px; }
+  .ruck-next { border: 1px solid var(--border2, #242424); border-left: 3px solid var(--accent, #b48aff); border-radius: 9px; padding: 10px 12px; margin-bottom: 12px; background: var(--bg3, #131313); }
+  .ruck-next-h { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--accent, #b48aff); }
+  .ruck-next-t { font-size: 13px; color: var(--text, #fff); margin-top: 4px; line-height: 1.5; }
+  .ruck-next-s { font-size: 10.5px; color: var(--text3, #777); margin-top: 5px; }
+  .ruck-warn { font-size: 11.5px; color: var(--warn, #d29922); margin-top: 5px; font-weight: 600; }
+  .ruck-thead, .ruck-row { display: grid; grid-template-columns: 58px 68px 62px 52px 46px 1fr; gap: 6px; align-items: center; }
+  .ruck-thead { padding: 0 8px 5px; border-bottom: 1px solid var(--border2, #242424); }
+  .ruck-th { background: none; border: none; padding: 2px 0; text-align: left; font: inherit; font-size: 10.5px; font-weight: 700; color: var(--text3, #777); cursor: pointer; }
+  .ruck-th.on { color: var(--accent, #b48aff); }
+  .ruck-row { padding: 8px; border-bottom: 1px solid var(--border, #1b1b1b); font-size: 12px; color: var(--text2, #aaa); }
+  .ruck-c-date { font-weight: 700; color: var(--text, #fff); }
+  .ruck-c-load { font-weight: 800; color: var(--accent, #b48aff); }
+  .ruck-c-load em { font-style: normal; font-size: 10px; font-weight: 600; color: var(--text3, #777); margin-left: 1px; }
+  /* the type + activity ride on their own line on a phone rather than squeezing the numbers */
+  .ruck-c-type { grid-column: 1 / -1; font-size: 10.5px; color: var(--text3, #777); }
+
   /* Settings */
   .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1f1f1f; }
   .setting-row:last-child { border-bottom: none; }
@@ -7100,9 +7124,23 @@ function clearPending() {
   pending = { varUuid: null, subUuid: null, sets: [], cardio: null, defaultWeight: null, superset: null };
   localStorage.removeItem(PENDING_KEY);
 }
+// feat 468 — the load CARRIES FORWARD from the last loaded bout. Someone who rucks the same pack three times
+// a week should never retype it; someone who walks unloaded once clears the field and it stays cleared.
+function lastCardioLoad() {
+  const sessions = (state.sessions || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  for (const s of sessions) {
+    for (let i = (s.exercises || []).length - 1; i >= 0; i--) {
+      const c = s.exercises[i] && s.exercises[i].cardio;
+      if (c && parseFloat(c.load) > 0) return { load: c.load, loadUnit: c.loadUnit || state.unit, loadType: c.loadType || '' };
+    }
+  }
+  return null;
+}
 function freshCardio() {
+  const prior = lastCardioLoad() || { load: '', loadUnit: state.unit, loadType: '' };
   return { elapsedMin:'', distance:'', distanceUnit:(state.cardioGoals&&state.cardioGoals.distanceUnit)||'km',
-           steps:'', power:'', setting:'', calories:'', effort:'', temp:'', weather:'', notes:'' };
+           steps:'', power:'', setting:'', calories:'', effort:'', temp:'', weather:'', notes:'',
+           load:prior.load, loadUnit:prior.loadUnit, loadType:prior.loadType };
 }
 
 /* ============================================================
@@ -14845,7 +14883,7 @@ const PAGES = {
   // ever just a nav list. Browsing happens in the compact nav-tree popover; the breadcrumb shows where you are.
   home:    { title:'GymTracker315', emoji:'🏠', kind:'menu', parent:null,    children:['train','study','settings'], primary:'workout' },
   train:   { title:'Train',   emoji:'🏋️', kind:'menu', parent:'home',  children:['reflect','execute','prepare'], primary:'workout' },
-  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','summary','focus','archetypes','history','trends','volume','achievements','constellation','replay','progression','analysis'], primary:'log' },
+  reflect: { title:'Reflect', emoji:'📊', kind:'menu', parent:'train', children:['log','summary','focus','archetypes','history','trends','volume','achievements','constellation','replay','progression','ruck','analysis'], primary:'log' },
   execute: { title:'Execute', emoji:'⚡', kind:'menu', parent:'train', children:['workout','exercise','plan-detail','hiit'], primary:'workout' },
   prepare: { title:'Prepare', emoji:'🧰', kind:'menu', parent:'train', children:['gyms','body','equipment','plan-creator','split-planner'], primary:'gyms' },
   study:   { title:'Study',   emoji:'📚', kind:'menu', parent:'home',  children:['reference','media-gallery','glossary','anatomy','advice'], primary:'reference' },
@@ -14865,6 +14903,7 @@ const PAGES = {
   analysis:    { title:'Analysis',          emoji:'🔬', kind:'leaf', parent:'reflect', render:m=>renderAnalysisPage(m) }, // feat 450 — cowork-answered analysis-request queue
   replay:      { title:'Replay',           emoji:'⏪', kind:'leaf', parent:'reflect', render:m=>renderReplayPage(m) }, // feat 219
   progression: { title:'Progression',      emoji:'🚀', kind:'leaf', parent:'reflect', render:m=>renderProgressionPage(m) }, // feat 233
+  ruck:        { title:'Rucking',           emoji:'🎒', kind:'leaf', parent:'reflect', render:m=>renderRuckPage(m) }, // feat 468 — loaded-carry progression
   gyms:        { title:'Gyms',             emoji:'📍', kind:'leaf', parent:'prepare', tab:'gyms', render:m=>renderGymsTab(m) },
   body:        { title:'Body',             emoji:'🧍', kind:'leaf', parent:'prepare', tab:'body', render:m=>renderBody(m) },
   // leaves still served by their existing overlay/opener (converted to real pages in later phases)
@@ -15033,7 +15072,7 @@ const PILL_GROUPS = ['reflect', 'prepare', 'study', 'settings'];
 // fall back to their (already short) title.
 const PILL_ABBR = {
   summary: 'Sum', focus: 'Focus', archetypes: 'Arch', history: 'Hist', trends: 'Trend', volume: 'Vol',
-  achievements: 'Ach', constellation: 'Const', progression: 'Prog', analysis: 'Analyze',
+  achievements: 'Ach', constellation: 'Const', progression: 'Prog', ruck: 'Ruck', analysis: 'Analyze',
   equipment: 'Equip', 'plan-creator': 'Plans', 'split-planner': 'Split',
   reference: 'Ref', 'media-gallery': 'Media', glossary: 'Gloss', anatomy: 'Anat',
   'set-profile': 'Prof', 'set-cosmetic': 'Cosm', 'set-prefs': 'Prefs', 'set-workout': 'Sess', 'set-metronome': 'Metro', 'set-library': 'Libr', 'set-device': 'Device', 'set-analytics': 'Stats', 'set-coach': 'Coach', 'set-data': 'Data', 'set-cowork': 'Cowork', 'set-about': 'About',
@@ -20331,6 +20370,158 @@ function renderCardioGoals(weekOffset) {
     <div class="cg-head"><span>🏃 Cardio Goals</span><button id="cardio-goals-edit" class="vol-weights-btn" style="margin-left:auto;">${cardioGoalsEditOpen?'✓ Done':'⚙ Edit'}</button></div>
     ${inner}
   </div>`;
+}
+
+/* ============================================================
+   feat 468 — RUCKING. A loaded walk is not a walk: 20 kg on your back roughly doubles the metabolic cost of
+   the same route, and it progresses like a lift, not like cardio — by load, distance and pace, one variable
+   at a time. The cardio form gained a load (weight + what is carrying it), it CARRIES FORWARD from the last
+   loaded session so a regular rucker never retypes it, and this module reads every loaded cardio entry back
+   as a progression history.
+   The single number is WORK = load x distance (kg·km). Load alone rewards standing still; distance alone
+   rewards taking the pack off. Work is what actually went up, and pace is tracked beside it because moving
+   the same work faster is the third way to progress.
+   Cardio stays out of volume and scoring (feat 7's rule) — this is a separate read of the same entries, so
+   nothing here changes what a session is worth.
+   ============================================================ */
+const RUCK_LOAD_TYPES = [
+  { id: 'ruck', label: 'Ruck / backpack' },
+  { id: 'vest', label: 'Weight vest' },
+  { id: 'plate-carrier', label: 'Plate carrier' },
+  { id: 'sandbag', label: 'Sandbag' },
+  { id: 'hand', label: 'Hand-carried' },
+  { id: 'child', label: 'Child / pack carrier' },
+  { id: 'other', label: 'Other' },
+];
+function ruckTypeLabel(id) { const t = RUCK_LOAD_TYPES.find(x => x.id === id); return t ? t.label : (id || 'Load'); }
+const _RUCK_KG = { kg: 1, lb: 1 / 2.205 };
+function ruckLoadKg(c) {
+  const n = parseFloat(c && c.load);
+  if (!(n > 0)) return 0;
+  return n * (_RUCK_KG[c.loadUnit] != null ? _RUCK_KG[c.loadUnit] : _RUCK_KG[state.unit] || 1);
+}
+// A cardio bout counts as a ruck the moment it carries weight — no whitelist of activities to go stale.
+function isRuckEntry(ex) { return !!(ex && ex.cardio && ruckLoadKg(ex.cardio) > 0); }
+// Newest first. distanceKm/paceMinPerKm are null when the bout logged no distance — a loaded treadmill hour
+// is still a ruck, it just cannot contribute to the distance-based numbers.
+function ruckEntries() {
+  const out = [];
+  (state.sessions || []).forEach(s => (s.exercises || []).forEach(ex => {
+    if (!isRuckEntry(ex)) return;
+    const c = ex.cardio;
+    const loadKg = ruckLoadKg(c);
+    const distanceKm = c.distance > 0 ? toDistanceUnit(Number(c.distance), c.distanceUnit || 'km', 'km') : null;
+    const minutes = Number(c.elapsedMin) || 0;
+    out.push({ date: s.date, title: displayName(ex.varUuid, ex.subUuid), type: c.loadType || null,
+      loadKg, distanceKm, minutes,
+      paceMinPerKm: (distanceKm > 0 && minutes > 0) ? minutes / distanceKm : null,
+      workKgKm: distanceKm > 0 ? loadKg * distanceKm : 0 });
+  }));
+  return out.sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+function ruckTotals(list, sinceDays) {
+  const cut = sinceDays ? Date.now() - sinceDays * 86400000 : null;
+  const use = cut ? list.filter(e => new Date(e.date).getTime() >= cut) : list;
+  return { sessions: use.length,
+    work: use.reduce((n, e) => n + e.workKgKm, 0),
+    km: use.reduce((n, e) => n + (e.distanceKm || 0), 0),
+    minutes: use.reduce((n, e) => n + e.minutes, 0),
+    bestLoadKg: use.reduce((n, e) => Math.max(n, e.loadKg), 0) };
+}
+/* One variable at a time, and never more than about 10 percent. Which variable comes next is decided by what
+   did NOT move last time, load first — and the load is capped at a third of bodyweight, which is where a
+   general-fitness ruck stops being a ruck and starts being a compression injury waiting to happen. */
+const RUCK_BW_CAP = 1 / 3, RUCK_STEP = 1.1;
+function ruckNextStep(list, bwKg) {
+  if (!list || !list.length) return { variable: null, text: 'Log a walk or run with a load and this starts tracking.' };
+  const cur = list[0], prev = list.slice(1, 4);
+  const bestPrev = k => prev.reduce((m, e) => Math.max(m, e[k] || 0), 0);
+  const capKg = bwKg > 0 ? bwKg * RUCK_BW_CAP : null;
+  // Both at once is the pattern that hurts people, so it gets called out whatever the recommendation is.
+  const jumpedBoth = cur.loadKg > bestPrev('loadKg') && (cur.distanceKm || 0) > bestPrev('distanceKm') && prev.length > 0;
+  const warn = jumpedBoth ? 'Load AND distance both went up last time. Hold one of them still from here.' : null;
+  const kg = n => Math.round(n * 10) / 10, km = n => Math.round(n * 10) / 10;
+  if (capKg && cur.loadKg >= capKg) return { variable: 'distance', warn,
+    text: 'You are at the sensible load ceiling for your bodyweight (' + kg(capKg) + ' kg). Grow distance or pace from here, not the pack.' };
+  if (cur.loadKg <= bestPrev('loadKg')) return { variable: 'load', warn,
+    target: Math.min(kg(cur.loadKg * RUCK_STEP), capKg ? kg(capKg) : Infinity),
+    text: 'Load has not moved. Try ' + Math.min(kg(cur.loadKg * RUCK_STEP), capKg ? kg(capKg) : Infinity) + ' kg over the same route.' };
+  if ((cur.distanceKm || 0) <= bestPrev('distanceKm')) return { variable: 'distance', warn,
+    target: cur.distanceKm ? km(cur.distanceKm * RUCK_STEP) : null,
+    text: cur.distanceKm ? 'Load just went up. Keep it there and take it ' + km(cur.distanceKm * RUCK_STEP) + ' km.'
+      : 'Load just went up. Log a distance next time so progression has something to measure.' };
+  return { variable: 'pace', warn,
+    text: 'Load and distance are both up to date. Same pack, same route, move it faster.' };
+}
+let _ruckSort = 'date', _ruckSortDesc = true;
+const RUCK_SORTS = {
+  date: e => new Date(e.date).getTime(), load: e => e.loadKg, dist: e => e.distanceKm || 0,
+  pace: e => e.paceMinPerKm || Infinity, work: e => e.workKgKm, mins: e => e.minutes,
+};
+function renderRuckPage(main) {
+  const list = ruckEntries();
+  const bwKg = (typeof getCurrentBodyweightKg === 'function' && getCurrentBodyweightKg()) || 0;
+  const u = state.unit === 'kg' ? 'kg' : 'lb';
+  const showW = kg => (u === 'kg' ? kg : kgToLb(kg));
+  const n1 = v => (Math.round(v * 10) / 10).toLocaleString();
+  const pace = p => p == null ? '—' : (Math.floor(p) + ':' + String(Math.round((p % 1) * 60)).padStart(2, '0'));
+  const wk4 = ruckTotals(list, 28), wk4prev = (() => {
+    const cut = Date.now() - 28 * 86400000, cut2 = Date.now() - 56 * 86400000;
+    const use = list.filter(e => { const t = new Date(e.date).getTime(); return t < cut && t >= cut2; });
+    return { work: use.reduce((n, e) => n + e.workKgKm, 0), sessions: use.length };
+  })();
+  const step = ruckNextStep(list, bwKg);
+  const all = ruckTotals(list);
+
+  if (!list.length) {
+    main.innerHTML = `<div class="ruck-page">
+      <div class="empty">No loaded sessions yet.<br><br>Log a walk or run and fill in <b>Load carried</b> — the weight and what is carrying it. It carries forward to the next one automatically, and this page starts tracking progression from the first entry.</div>
+    </div>`;
+    return;
+  }
+
+  const tile = (label, val, sub) => `<div class="ruck-tile"><div class="ruck-tile-v">${val}</div><div class="ruck-tile-l">${label}</div>${sub ? `<div class="ruck-tile-s">${sub}</div>` : ''}</div>`;
+  const trend = wk4prev.work > 0 ? Math.round((wk4.work / wk4prev.work - 1) * 100) : null;
+  const pctBw = bwKg > 0 ? Math.round(list[0].loadKg / bwKg * 100) : null;
+
+  const head = [['date', 'Date'], ['load', 'Load'], ['dist', 'Dist'], ['pace', 'Pace'], ['mins', 'Time'], ['work', 'Work']]
+    .map(([k, l]) => `<button class="ruck-th ${_ruckSort === k ? 'on' : ''}" data-ruck-sort="${k}">${l}${_ruckSort === k ? (_ruckSortDesc ? ' ▾' : ' ▴') : ''}</button>`).join('');
+  const sorted = list.slice().sort((a, b) => {
+    const f = RUCK_SORTS[_ruckSort] || RUCK_SORTS.date;
+    const d = f(a) - f(b);
+    return _ruckSortDesc ? -d : d;
+  });
+  const rows = sorted.map(e => `<div class="ruck-row">
+      <span class="ruck-c-date">${new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+      <span class="ruck-c-load">${n1(showW(e.loadKg))}<em>${u}</em></span>
+      <span>${e.distanceKm ? n1(e.distanceKm) + ' km' : '—'}</span>
+      <span>${pace(e.paceMinPerKm)}</span>
+      <span>${Math.round(e.minutes)}m</span>
+      <span>${e.workKgKm ? n1(e.workKgKm) : '—'}</span>
+      <span class="ruck-c-type">${e.type ? escapeHtml(ruckTypeLabel(e.type)) : ''}${e.title ? ' · ' + escapeHtml(e.title) : ''}</span>
+    </div>`).join('');
+
+  main.innerHTML = `<div class="ruck-page">
+    <div class="ruck-tiles">
+      ${tile('Last load', n1(showW(list[0].loadKg)) + ' ' + u, pctBw != null ? pctBw + '% bodyweight' : 'set a bodyweight for %')}
+      ${tile('Work · 4 wk', n1(wk4.work) + ' <em>kg·km</em>', trend == null ? wk4.sessions + ' session' + (wk4.sessions === 1 ? '' : 's') : (trend >= 0 ? '+' : '') + trend + '% vs previous 4')}
+      ${tile('Heaviest', n1(showW(all.bestLoadKg)) + ' ' + u, 'all time')}
+      ${tile('Under load', Math.round(all.minutes) + ' min', n1(all.km) + ' km across ' + all.sessions)}
+    </div>
+    <div class="ruck-next ${step.variable ? 'v-' + step.variable : ''}">
+      <div class="ruck-next-h">Next step${step.variable ? ' — ' + step.variable : ''}</div>
+      <div class="ruck-next-t">${escapeHtml(step.text)}</div>
+      ${step.warn ? `<div class="ruck-warn">⚠ ${escapeHtml(step.warn)}</div>` : ''}
+      <div class="ruck-next-s">One variable at a time, about 10% at a time.${bwKg > 0 ? ' Load ceiling ' + n1(showW(bwKg * RUCK_BW_CAP)) + ' ' + u + ' (a third of bodyweight).' : ''}</div>
+    </div>
+    <div class="ruck-thead">${head}</div>
+    <div class="ruck-rows">${rows}</div>
+  </div>`;
+  main.querySelectorAll('[data-ruck-sort]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.ruckSort;
+    if (_ruckSort === k) _ruckSortDesc = !_ruckSortDesc; else { _ruckSort = k; _ruckSortDesc = true; }
+    renderRuckPage(main);
+  }));
 }
 
 /* ============================================================
@@ -27790,6 +27981,25 @@ function renderCardioForm() {
         </div>
       </div>
       <div class="cardio-row">
+        <div style="flex:1;min-width:120px;">
+          <label class="cardio-lbl">Load carried</label>
+          <div style="display:flex;gap:4px;">
+            <input class="cardio-input" id="cf-load" placeholder="0" value="${c.load!=null?escapeAttr(String(c.load)):''}" type="number" inputmode="decimal" step="any" min="0" style="flex:1;">
+            <select class="cardio-input" id="cf-loadunit" style="width:56px;flex:0 0 auto;">
+              ${['lb','kg'].map(x=>`<option value="${x}" ${(c.loadUnit||state.unit)===x?'selected':''}>${x}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div style="flex:1;min-width:120px;">
+          <label class="cardio-lbl">Carried in</label>
+          <select class="cardio-input" id="cf-loadtype">
+            <option value="">—</option>
+            ${RUCK_LOAD_TYPES.map(t=>`<option value="${t.id}" ${c.loadType===t.id?'selected':''}>${escapeHtml(t.label)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="ex-mode-hint" style="margin:-2px 0 8px;">Any bout with a load shows up on the 🎒 Rucking page and progresses there. The load carries over to your next one — clear it for an unloaded session.</div>
+      <div class="cardio-row">
         ${fld('temp','Temp (°)','', c.temp, 'type="number" inputmode="decimal"')}
         ${fld('weather','Weather','sunny, treadmill', c.weather)}
       </div>
@@ -27801,7 +28011,8 @@ function renderCardioForm() {
 }
 function bindCardioForm() {
   const map = { elapsed:'elapsedMin', distance:'distance', distunit:'distanceUnit', steps:'steps', power:'power',
-                calories:'calories', setting:'setting', effort:'effort', temp:'temp', weather:'weather', notes:'notes' };
+                calories:'calories', setting:'setting', effort:'effort', temp:'temp', weather:'weather', notes:'notes',
+                load:'load', loadunit:'loadUnit', loadtype:'loadType' }; // feat 468
   Object.entries(map).forEach(([id, key]) => {
     const el = document.getElementById('cf-' + id);
     if (el) el.addEventListener('input', () => { pending.cardio[key] = el.value; savePending(); updateSaveBtn(); });
@@ -27825,6 +28036,7 @@ function saveCardio() {
     steps: num(c.steps), power: num(c.power), calories: num(c.calories),
     setting: (c.setting||'').trim() || null, effort: num(c.effort),
     temp: num(c.temp), weather: (c.weather||'').trim() || null, notes: (c.notes||'').trim() || null,
+    load: num(c.load), loadUnit: c.loadUnit || state.unit, loadType: (c.loadType||'').trim() || null, // feat 468
     ts: new Date().toISOString(),
   };
   const entry = { varUuid: pending.varUuid, subUuid: pending.subUuid, sets: [], cardio };
@@ -28370,7 +28582,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 382 · 2026-08-07 13:56';
+const APP_BUILD = 'build 383 · 2026-08-09 09:47';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

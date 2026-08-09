@@ -2576,6 +2576,26 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Rucking (feat 468):** a loaded walk is not a walk — 20 kg on your back roughly doubles the metabolic cost
+  of the same route — and it progresses like a lift rather than like cardio: by load, distance and pace, one
+  variable at a time. Two halves. **Logging:** the cardio form gained a *Load carried* row (weight + unit +
+  what is carrying it, from `RUCK_LOAD_TYPES` — ruck, vest, plate carrier, sandbag, hand-carried, child
+  carrier), stored as `cardio.load` / `loadUnit` / `loadType` alongside the existing distance-and-its-own-unit
+  precedent, so the entry is self-describing and no migration is needed. `freshCardio()` seeds them from
+  `lastCardioLoad()`, the most recent bout that actually carried weight, so a regular rucker never retypes the
+  pack — and only the *load* carries over, never the elapsed time or distance. Deliberately **not** gated to
+  an activity whitelist: a bout is a ruck the moment it carries weight, which covers weighted treadmill
+  inclines and stroller walks without a list that goes stale. **The module** (`ruck` page, 🎒, under Reflect):
+  the single progression number is **work = load × distance (kg·km)** — load alone rewards standing still and
+  distance alone rewards taking the pack off — with pace tracked beside it as the third way to progress. All
+  loads normalise to kg via `ruckLoadKg` so a unit switch cannot break comparisons, and a bout with no
+  distance (treadmill) still counts its load and minutes but contributes no work and no pace rather than
+  dividing by zero. `ruckNextStep()` names exactly **one** variable to move and about 10%: whichever did not
+  move last time, load first, capped at a third of bodyweight (`getCurrentBodyweightKg`) — past which it
+  stops recommending a bigger pack and switches to distance. Raising load *and* distance in the same session
+  is the pattern that injures people, so it is called out as a warning regardless of the recommendation.
+  Cardio stays out of volume and scoring (feat 7's rule); this is a separate read of the same entries and
+  changes nothing about what a session is worth.
 - **Two missing curls (feat 467):** reported from use, not found by a sweep. The kettlebell family had a
   Kettlebell Curl and a Bottoms-Up Curl but **no hammer curl**, even though a bell gripped by the horn hangs
   in neutral on its own — it is the grip a kettlebell wants, and the mass sitting *behind* the hand moves the
