@@ -2576,6 +2576,22 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Two more lines back from the log sheet (feat 470):** after feat 469 the sheet still spent four lines on a
+  header carrying two lines of content, and the Tips carousel's seven word-tabs wrapped onto two rows.
+  **Header → two lines.** The `LOGGING` label is gone (the sheet title already reads *Log Sets*), replaced by
+  an `Editing` chip that appears only in the state that is **not** the default — the modal title is static, so
+  without the chip editing a past session would be silent. Family, body part, recovery and elapsed time now
+  share one meta line; the recovery read keeps its status colour on the percentage, and the muscle name is
+  dropped when the body part already said it (no more "Chest … Chest"). One trap, caught by looking at a
+  screenshot rather than by the spec: a bare `.rec-fatigued` is already a **coloured swatch** class elsewhere
+  in the app, so the inline span rendered as a solid red block. Namespaced to `ex-rec-*`, with the spec now
+  asserting the span has no background at all. **Carousel → one row.** `TABS` became `[key, icon, label]` and
+  only the *selected* tab spells its name (`.excar-lbl { display: none }`, un-hidden on `.active`), so seven
+  tabs fit a phone. `flex-wrap: nowrap` trades wrapping for overflow, so the spec asserts the row actually
+  *fits* (`scrollWidth <= clientWidth`) rather than just occupying one line, and each icon-only tab keeps an
+  `aria-label`. A `▴` chip at the end of the row collapses the whole panel — the header toggle is scrolled
+  off-screen once you are inside a slide — and it deliberately is **not** an `.excar-tab`, so slide-switching
+  and the specs that enumerate tabs are untouched.
 - **The exercise header collapses to icons (feat 469):** the log sheet's six header actions — 📝 note,
   ⚖️ max, 🎬 media, 🎧 brief, 🎤 voice, 🔄 change — were labelled chips across three rows that wrapped onto
   **four** lines on a phone, pushing the sets themselves below the fold on the screen where you are standing
