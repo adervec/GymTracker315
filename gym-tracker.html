@@ -2791,6 +2791,20 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .selected-ex-change { font-family: inherit; font-size: 12px; font-weight: 600; color: #b48aff; cursor: pointer; margin-top: 8px; display: inline-block; padding: 7px 12px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; text-decoration: none; -webkit-tap-highlight-color: transparent; }
   .selected-ex-change:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .ex-note-row { margin-top: 2px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } /* feat 434 — note + ⚖️ max chip share the row */
+
+  /* feat 469 — the exercise header's six actions. Open = the old labelled chips, wrapping as they always did.
+     Collapsed (the default) = one row of icons. The collapse is done by zeroing the button's font and drawing
+     `data-emoji` in ::before, so a button whose LABEL is dynamic (the media button's channel name, "Max 100lb",
+     "🎤 On") needs no template surgery to lose its text. */
+  .ex-actions { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .ex-actions:not(.open) { flex-wrap: nowrap; }
+  .ex-actions:not(.open) .ex-act { font-size: 0; gap: 0; padding: 7px 10px; margin-top: 0; flex: 0 0 auto; }
+  .ex-actions:not(.open) .ex-act::before { content: attr(data-emoji); font-size: 16px; line-height: 1; }
+  /* state a label would otherwise have carried (a set cap, media for this variation, a live mic) → a dot */
+  .ex-actions:not(.open) .ex-act.has-cap::after,
+  .ex-actions:not(.open) .ex-act.voice-on::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .85; margin-left: 3px; flex-shrink: 0; }
+  .ex-act-toggle { font-family: inherit; font-size: 13px; line-height: 1; color: var(--text3, #777); background: none; border: 1px solid var(--border2, #242424); border-radius: 8px; padding: 7px 9px; cursor: pointer; flex: 0 0 auto; margin-left: auto; -webkit-tap-highlight-color: transparent; }
+  .ex-act-toggle:active { background: var(--bg3, #131313); }
   .ex-note { font-size: 11px; color: #cdbff0; margin-top: 6px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
   .ex-note-text { color: #cdbff0; }
   .ex-note-add { font-family: inherit; font-size: 12px; font-weight: 600; color: #b48aff; cursor: pointer; margin-top: 8px; display: inline-block; padding: 7px 12px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; text-decoration: none; -webkit-tap-highlight-color: transparent; }
@@ -6905,7 +6919,7 @@ function normalizeState() {
     dashboard: { stats:true, timeline:true, liveScore:true, pace:true, physique:true, recovery:true, planCollapsed:false },
     longPressConfirm: { enabled:false, ms:1500 },
     workoutControls: { autoEndMinutes:40, showLiveScoreAfterMin:45, paceAnalysisStartMin:20,
-      restTimer:true, abandonMinutes:15, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true, rpeMode:'off' },
+      restTimer:true, abandonMinutes:15, feedbackVibrate:true, feedbackBeep:false, restRecEnabled:true, onScreenNumpad:true, prefillFromHistory:false, mixSubvariations:false, hrAutoConnect:true, rpeMode:'off', exActionsOpen:false }, // feat 469 — header actions start collapsed to icons
     bioAutoLoad: { enabled:false, mode:'folder' }, // feat 73
     stravaAutoLoad: { enabled:false, mode:'folder' }, // feat 89
     aiExport: { enabled:false, onWorkoutEnd:true, daily:true, scope:'last30', filename:'gymtracker-brief.md', lastWriteDay:null, lastWriteAt:null }, // feat 272 — per-device AI-ready digest auto-export to a folder
@@ -12164,6 +12178,14 @@ function exerciseVolume(ex) { return ex.sets.reduce((s, set) => s + setVolume(se
 function rpeMode() { const m = state.workoutControls && state.workoutControls.rpeMode; return (m === 'rpe' || m === 'rir') ? m : 'off'; }
 function rpeEnabled() { return rpeMode() !== 'off'; }
 // feat 457 — newest set at the top of the current exercise pane. Default ON, so an absent key means on.
+// feat 469 — the six exercise-header actions collapse to an emoji bar by default. Six labelled chips wrapped
+// onto four lines and pushed the sets themselves below the fold on a phone; collapsed they are one row.
+// The preference is remembered, so someone who wants the words back only asks once.
+function exActionsOpen() { return !!(state.workoutControls || {}).exActionsOpen; }
+function toggleExActions() {
+  state.workoutControls.exActionsOpen = !exActionsOpen();
+  saveState(); renderModal();
+}
 function newestSetFirst() { return (state.workoutControls || {}).newestSetFirst !== false; }
 /* feat 463 — WHICH SET AM I ON? With several rows on screen (and feat 457 flipping their visual order) the
    one you are actually working is easy to lose. Precedence, most-specific first:
@@ -27031,10 +27053,12 @@ function renderSetsForm() {
         ${exNote ? '<button class="danger" id="trk-ex-note-clear">Clear</button>' : ''}
       </div>`;
   } else if (exNote) {
+    // feat 469 — the ticker keeps its own row (it is content, not an action) and no longer carries its own
+    // edit button; the action bar's 📝 does that job, so there is only ever one #trk-ex-note-edit.
     const t = exNote.text, dur = Math.max(8, Math.min(60, Math.round(t.length * 0.45)));
-    exNoteHtml = `<div class="ex-note ticker">📝 <span class="ex-note-ticker"><span class="ex-note-ticker-inner" style="animation-duration:${dur}s"><span class="ex-note-text">${escapeHtml(t)}</span><span class="ex-note-gap">···</span><span class="ex-note-text" aria-hidden="true">${escapeHtml(t)}</span><span class="ex-note-gap" aria-hidden="true">···</span></span></span> <button type="button" class="ex-note-add" id="trk-ex-note-edit">edit</button></div>`;
+    exNoteHtml = `<div class="ex-note ticker">📝 <span class="ex-note-ticker"><span class="ex-note-ticker-inner" style="animation-duration:${dur}s"><span class="ex-note-text">${escapeHtml(t)}</span><span class="ex-note-gap">···</span><span class="ex-note-text" aria-hidden="true">${escapeHtml(t)}</span><span class="ex-note-gap" aria-hidden="true">···</span></span></span></div>`;
   } else {
-    exNoteHtml = `<button type="button" class="ex-note-add" id="trk-ex-note-edit">＋ Add note</button>`;
+    exNoteHtml = '';
   }
 
   return `
@@ -27050,9 +27074,16 @@ function renderSetsForm() {
         `Hold — log <b>weight × seconds</b> instead of reps.`
       }</div>` : ''}
       ${(() => { const h = weightRecordHint(pending.varUuid); return h ? `<div class="weight-record-hint">${escapeHtml(h)}</div>` : ''; })()}
-      <div class="ex-note-row">${exNoteHtml}${(() => { const c = exMaxW(pending.varUuid); return `<button type="button" class="ex-note-add${c ? ' has-cap' : ''}" id="trk-ex-maxw" title="Cap suggestions and data entry for this exercise">⚖️ ${c ? 'Max ' + c + state.unit : 'Set max'}</button>`; })()}</div>
-      <div class="ex-media-row"><button class="ex-media-btn ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}${getExerciseMedia(pending.varUuid).length ? ' var-media' : ''}" id="trk-ex-media-btn" type="button" ${getExerciseMedia(pending.varUuid).length ? 'title="Includes media for this exact variation" ' : ''}data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button><button class="ex-media-btn" id="trk-podcast-btn" type="button" title="Play a 30-60s coach brief on this movement">🎧 Brief</button>${speechRecSupported() ? `<button class="ex-media-btn${exVoiceEnabled() ? ' voice-on' : ''}" id="trk-ex-voice" type="button" title="Voice control for THIS page — say weight 120 · reps 8 · add set · save · close">🎤${exVoiceEnabled() ? ' On' : ''}</button>` : ''}</div>
-      ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">🔄 Change exercise</button>` : ''}
+      ${exNoteHtml ? `<div class="ex-note-row">${exNoteHtml}</div>` : ''}
+      <div class="ex-actions${exActionsOpen() ? ' open' : ''}" id="trk-ex-actions">
+        <button type="button" class="ex-note-add ex-act" id="trk-ex-note-edit" data-emoji="📝" title="Exercise note">${exNote ? 'Edit note' : '＋ Add note'}</button>
+        ${(() => { const c = exMaxW(pending.varUuid); return `<button type="button" class="ex-note-add ex-act${c ? ' has-cap' : ''}" id="trk-ex-maxw" data-emoji="⚖️" title="Cap suggestions and data entry for this exercise">⚖️ ${c ? 'Max ' + c + state.unit : 'Set max'}</button>`; })()}
+        <button class="ex-media-btn ex-act ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}${getExerciseMedia(pending.varUuid).length ? ' var-media' : ''}" id="trk-ex-media-btn" type="button" data-emoji="🎬" ${getExerciseMedia(pending.varUuid).length ? 'title="Includes media for this exact variation" ' : ''}data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button>
+        <button class="ex-media-btn ex-act" id="trk-podcast-btn" type="button" data-emoji="🎧" title="Play a 30-60s coach brief on this movement">🎧 Brief</button>
+        ${speechRecSupported() ? `<button class="ex-media-btn ex-act${exVoiceEnabled() ? ' voice-on' : ''}" id="trk-ex-voice" type="button" data-emoji="🎤" title="Voice control for THIS page — say weight 120 · reps 8 · add set · save · close">🎤${exVoiceEnabled() ? ' On' : ''}</button>` : ''}
+        ${!modalState.isEditing ? `<button type="button" class="selected-ex-change ex-act" id="trk-change-exercise" data-emoji="🔄">🔄 Change exercise</button>` : ''}
+        <button type="button" class="ex-act-toggle" id="trk-ex-actions-toggle" title="${exActionsOpen() ? 'Collapse to icons' : 'Show labels'}" aria-expanded="${exActionsOpen()}">${exActionsOpen() ? '▴' : '⋯'}</button>
+      </div>
     </div>
 
     ${sub ? `<div class="sub-select-wrap">
@@ -27799,6 +27830,7 @@ function bindSetsForm() {
   document.getElementById('trk-tips-ref-btn')?.addEventListener('click', (e) => { e.stopPropagation(); openReferenceFor(pending.varUuid); });
   document.getElementById('trk-podcast-btn')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 304
   document.getElementById('trk-ex-voice')?.addEventListener('click', exVoiceToggle); // feat 436 — page-scoped voice control
+  document.getElementById('trk-ex-actions-toggle')?.addEventListener('click', toggleExActions); // feat 469
   document.getElementById('trk-tips-header')?.addEventListener('click', () => {
     const sec = document.getElementById('trk-tips-section');
     sec.classList.toggle('open');
@@ -28582,7 +28614,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 383 · 2026-08-09 09:47';
+const APP_BUILD = 'build 384 · 2026-08-11 12:00';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

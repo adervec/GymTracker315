@@ -2576,6 +2576,20 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **The exercise header collapses to icons (feat 469):** the log sheet's six header actions — 📝 note,
+  ⚖️ max, 🎬 media, 🎧 brief, 🎤 voice, 🔄 change — were labelled chips across three rows that wrapped onto
+  **four** lines on a phone, pushing the sets themselves below the fold on the screen where you are standing
+  in a gym trying to log a set. They are now one `.ex-actions` bar, **collapsed to icons by default**, with a
+  `⋯` toggle that restores the labels; the choice is remembered in `workoutControls.exActionsOpen` so someone
+  who wants the words asks once. The collapse is pure CSS: `font-size: 0` on the button plus
+  `content: attr(data-emoji)` in `::before`. That matters because three of the six labels are **dynamic** —
+  the media button carries the channel name, the cap button reads "Max 100lb", the mic reads "🎤 On" — and
+  drawing the icon from an attribute means none of those templates had to be restructured to lose their text,
+  and every element id (so every existing binding and spec) is untouched. State a label used to carry does not
+  vanish with it: `has-cap` and `voice-on` render a dot when collapsed, alongside feat 421's existing
+  `var-media` dot. The note **ticker** was pulled out of the bar and kept on its own full-width row, because a
+  note is content rather than an action; it also lost its inline edit button, so `#trk-ex-note-edit` now
+  exists exactly once in the DOM instead of twice.
 - **Rucking (feat 468):** a loaded walk is not a walk — 20 kg on your back roughly doubles the metabolic cost
   of the same route — and it progresses like a lift rather than like cardio: by load, distance and pace, one
   variable at a time. Two halves. **Logging:** the cardio form gained a *Load carried* row (weight + unit +
