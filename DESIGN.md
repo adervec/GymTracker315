@@ -2576,6 +2576,11 @@ They share variation **UUIDs**.
   (same lift, different foot reference), and "Squat With Bar" / "Shoulder Press" on the LF *Alternate* panel
   are the same movements with the bar attachment. `cablecharts.spec` pins the whole chart — every poster
   label maps to a variation id, and each new entry has setup/movement/mistakes/programming in the reference.
+- **Maker portal link on the About page (feat 471):** the Settings › About credit block gains one line —
+  *More apps by this maker — adervec.github.io* — linking the maker's app portal
+  (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
+  convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
+  about-this-app screen, so the settings-drawer About section is left untouched.
 - **Two more lines back from the log sheet (feat 470):** after feat 469 the sheet still spent four lines on a
   header carrying two lines of content, and the Tips carousel's seven word-tabs wrapped onto two rows.
   **Header → two lines.** The `LOGGING` label is gone (the sheet title already reads *Log Sets*), replaced by
