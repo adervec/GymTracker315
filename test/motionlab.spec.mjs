@@ -249,3 +249,76 @@ test('feat 475 — chunk 3: leg raises, get-ups, nordics, rack positions and wal
   expect(r.ohAboveShoulder, 'overhead squat: bar above the shoulder').toBeLessThan(-18);
   expect(r.backBehindNeck, 'back squat grip stays at the shoulder').toBeGreaterThan(-8);
 });
+
+test('feat 476 — chunk 4: the pattern-word router rescues the generic families', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const u = id => { for (const [uuid, i] of VAR_INDEX) if (i.variation.id === id) return uuid; return null; };
+    const mot = id => (motionForVariation(u(id)) || {}).motion;
+    const opts = id => (motionForVariation(u(id)) || {}).opts || {};
+    // how many of the specialty families still fall through to `generic`?
+    let generic = 0, total = 0;
+    const GEN_FAMS = new Set(['mace-club-work', 'ybell-work', 'sandbag-work', 'resistance-bands', 'cable-attachments', 'medicine-ball']);
+    FAMILIES.forEach(f => { if (!GEN_FAMS.has(f.id)) return; (f.variations || []).forEach(v => {
+      if (!v.uuid || (typeof isSuppressedVar === 'function' && isSuppressedVar(v.uuid))) return;
+      total++; if ((motionForVariation(v.uuid) || {}).motion === 'generic') generic++;
+    }); });
+    return { generic, total,
+      sbagRow: mot('sbag-bent-row'), maceLunge: mot('mace-front-lunge'), bandGM: mot('band-good-morning'),
+      ybPushUp: mot('yb-push-up'), maceCurl: mot('mace-curl'), sbagSquat: mot('sbag-front-squat'),
+      sbagRack: opts('sbag-front-squat').rack, zerchSquat: opts('sbag-zercher-squat').rack,
+      // a genuinely ambiguous flow KEEPS generic — that is the honest answer, not a wrong template
+      mace360: mot('mace-360-detailed'),
+      // and the implement rides along
+      sbagRowEquip: (motionForVariation(u('sbag-bent-row')) || {}).equip };
+  });
+  expect(r.sbagRow, 'a sandbag bent-over row is a ROW').toBe('row');
+  expect(r.maceLunge).toBe('lunge');
+  expect(r.bandGM).toBe('hinge');
+  expect(r.ybPushUp).toBe('push-up');
+  expect(r.maceCurl).toBe('biceps-curl');
+  expect(r.sbagSquat).toBe('squat');
+  expect(r.sbagRack, 'front-rack is a POSITION both squat and carry understand').toBe('front');
+  expect(r.zerchSquat).toBe('zercher');
+  expect(r.mace360, 'an ambiguous flow keeps generic rather than guessing wrong').toBe('generic');
+  expect(r.sbagRowEquip).toBeTruthy();
+  expect(r.generic / r.total, 'most of the specialty families now animate their real movement').toBeLessThan(0.5);
+});
+
+test('feat 476 — prone rows are supported; bench angle reaches fly, push-up and curl', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const u = id => { for (const [uuid, i] of VAR_INDEX) if (i.variation.id === id) return uuid; return null; };
+    const opts = id => (motionForVariation(u(id)) || {}).opts || {};
+    const shapes = (mid, o, uu) => motionPoseShapes(mid, null, uu, 'dumbbell', undefined, o).shapes;
+    const rowJ = (o, uu) => MOTIONS.row.build('side', uu, 'dumbbell', figP(), o).J;
+    const prone0 = rowJ({ prone: 1 }, 0), prone1 = rowJ({ prone: 1 }, 1);
+    const free0 = rowJ({}, 0), free1 = rowJ({}, 1);
+    const puY = o => MOTIONS['push-up'].build('side', 0.2, 'none', figP(), o).J.arms[1].wr[1];
+    const curl = o => MOTIONS['biceps-curl'].build('side', 0.5, 'dumbbell', figP(), o).J;
+    return {
+      chestSupported: opts('chest-supported-db-row').prone, seal: opts('seal-row').prone,
+      proneTorsoStill: Math.hypot(prone1.shC[0] - prone0.shC[0], prone1.shC[1] - prone0.shC[1]),
+      proneArmsWork: Math.abs(prone1.arms[1].wr[1] - prone0.arms[1].wr[1]),
+      // the two poses are genuinely different scenes, not the same figure with a pad bolted on
+      poseDiffers: Math.hypot(prone0.shC[0] - free0.shC[0], prone0.shC[1] - free0.shC[1]),
+      proneBench: shapes('row', { prone: 1 }, 0.5).some(s => s.cls === 'fig-bench'),
+      inclinePU: puY({ tilt: 18 }), flatPU: puY({}), declinePU: puY({ tilt: -12 }),
+      inclineFlyOpts: opts('incline-db-fly').tilt, declineFlyOpts: opts('decline-db-fly').tilt,
+      curlRecline: opts('incline-curl').recline,
+      elbowBehind: curl({ recline: 1 }).arms[1].el[0] - curl({ recline: 1 }).shC[0],
+      elbowUnder: curl({}).arms[1].el[0] - curl({}).shC[0],
+    };
+  });
+  expect(r.chestSupported).toBe(1);
+  expect(r.seal).toBe(1);
+  expect(r.proneTorsoStill, 'a supported chest CANNOT move — that is the exercise').toBeLessThan(0.5);
+  expect(r.proneArmsWork, 'only the arms row').toBeGreaterThan(15);
+  expect(r.poseDiffers, 'and it is a different scene from the free bent-over row').toBeGreaterThan(10);
+  expect(r.proneBench, 'and the pad it lies on is drawn').toBe(true);
+  expect(r.inclinePU, 'incline push-up: hands raised').toBeLessThan(r.flatPU);
+  expect(r.declinePU, 'decline push-up: hands stay down, feet go up').toBe(r.flatPU);
+  expect(r.inclineFlyOpts).toBe(18);
+  expect(r.declineFlyOpts).toBe(-12);
+  expect(r.curlRecline, 'an incline CURL reclines rather than tilting a bench').toBe(1);
+  expect(r.elbowBehind, 'reclined: the elbow sits behind the torso — the stretched long head').toBeLessThan(-3);
+  expect(r.elbowUnder, 'standing: the elbow is under/ahead of the shoulder').toBeGreaterThan(0);
+});

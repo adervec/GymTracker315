@@ -2581,6 +2581,22 @@ They share variation **UUIDs**.
   (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
   convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
   about-this-app screen, so the settings-drawer About section is left untouched.
+- **MOTION LAB chunk 4 — the pattern-word router (feat 476):** the long tail. **241** variations still drew
+  the ambiguous `generic` figure, almost all in specialty families (mace 99, YBell 50, sandbag 40, bands,
+  cable attachments) — yet their titles *name a real movement*: "Sandbag Bent-Over Row", "Mace Front Lunge",
+  "Band Good Morning". `MOTION_PATTERN_WORDS` is an ordered title→template table consulted **only when a
+  family's own mapping is `generic`**, so the implement rides along and nothing with a better mapping is
+  disturbed. Genuinely ambiguous flows (a Mace 360) keep `generic` — the honest answer beats a confident
+  wrong template. Generic figures: **241 → 114**. Also: **`prone`** (chest-supported / seal / prone-incline
+  rows — the torso lies on a drawn pad and *cannot move*, which is the whole point of the variation; the spec
+  pins torso travel at ~0 while the arms row), **bench angle as one number** — `_motionMods` infers
+  `tilt` from incline/decline and `fly`/`push-up` learned to consume it (hands-up vs feet-up benches drawn),
+  while an incline **curl** gets `recline` instead, because its point is the elbow sitting *behind* the torso,
+  not a tilted bench — and **`rack`** extended from squats to carries (front-rack at the collarbones, Zercher
+  in the elbow crooks), scoped by position rather than by movement so both templates share it. One new
+  invariant fell out of the failures: **an opt only survives where its template understands it** — `tilt` is
+  inferred from any title containing "incline", but machine-press calls it `angle` and crunch has no bench,
+  so a post-pass strips opts their template cannot consume rather than leaving a figure lying about itself.
 - **MOTION LAB chunk 3 (feat 475):** the audit's remaining named classes. **Three new templates**:
   `leg-raise` (hanging — from a drawn bar, legs sweeping a real arc, `knee` bends them, or lying — legs
   rising from the floor, `fold` turning it into a V-up), `getup` (the Turkish get-up's essence in one arc:
