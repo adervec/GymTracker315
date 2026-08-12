@@ -176,3 +176,85 @@ test('feat 477 — the baseline chips got compact without losing what they say',
   expect(r.keepsWeight).toBe(true);
   expect(r.keepsReps).toBe(true);
 });
+
+test('feat 478 — the targets section collapses, keeps its score in the header, and folds when all are hit', async ({ page }) => {
+  const v = await seed(page);
+  const r = await page.evaluate((v) => {
+    const sec = () => document.getElementById('trk-targets');
+    const open = () => sec() && !sec().classList.contains('collapsed');
+    const out = { present: !!sec(), startsOpen: open(),
+      // both the tiles and the All-weights button live inside the collapsible body
+      bodyHasTiles: !!sec().querySelector('.targets-body .target-row'),
+      bodyHasAllWeights: !!sec().querySelector('.targets-body #trk-wt-expand') };
+
+    // hit every target the row is offering
+    const targets = [...document.querySelectorAll('.target-btn b')].map(b => {
+      const [w, rr] = b.textContent.split('×').map(Number); return { w, r: rr };
+    });
+    out.n = targets.length;
+    pending.sets = targets.map(t => ({ w: t.w, r: t.r }));
+    renderModal();
+    out.allHit = [...document.querySelectorAll('.target-btn')].every(b => b.classList.contains('hit'));
+    out.countText = sec().querySelector('.targets-count').textContent.trim();
+    out.countAllClass = sec().querySelector('.targets-count').classList.contains('all');
+
+    // the auto-collapse fires off the live-update path
+    out.openBeforeAuto = open();
+    targetsAutoCollapse();
+    out.autoCollapsed = !open();
+    // collapsed, the header still reports the score — nothing is hidden that mattered
+    out.headerVisible = sec().querySelector('.targets-head').offsetHeight > 0;
+    // collapsed, the header picks up the PR badge the hidden button was carrying
+    out.headerBadge = (sec().querySelector('.targets-head .wt-pr-badge') || {}).textContent || null;
+    out.scoreStillShown = sec().querySelector('.targets-count').textContent.trim();
+    out.bodyHidden = getComputedStyle(sec().querySelector('.targets-body')).display === 'none';
+
+    // manual reopen pins it
+    document.getElementById('trk-targets-toggle').click();
+    out.reopened = open();
+    targetsAutoCollapse();
+    out.staysOpen = open();
+
+    targetsResetForSheet(); renderModal();
+    out.freshSheetOpen = open();
+    return out;
+  }, v);
+  expect(r.present).toBe(true);
+  expect(r.startsOpen).toBe(true);
+  expect(r.bodyHasTiles, 'the tiles are inside the collapsible body').toBe(true);
+  expect(r.bodyHasAllWeights, 'and so is the All-weights button').toBe(true);
+  expect(r.n).toBeGreaterThan(2);
+  expect(r.allHit).toBe(true);
+  expect(r.countText).toBe(r.n + '/' + r.n + ' hit');
+  expect(r.countAllClass, 'a full score reads differently').toBe(true);
+  expect(r.openBeforeAuto, 'nothing collapses until the auto-pass runs').toBe(true);
+  expect(r.autoCollapsed, 'nothing left to aim at — give the room to the sets').toBe(true);
+  expect(r.headerVisible, 'the header stays').toBe(true);
+  expect(r.headerBadge, 'and picks up the PR count from the hidden button').toMatch(/PR/);
+  expect(r.scoreStillShown).toBe(r.n + '/' + r.n + ' hit');
+  expect(r.bodyHidden).toBe(true);
+  expect(r.reopened).toBe(true);
+  expect(r.staysOpen, 'a manual open sticks').toBe(true);
+  expect(r.freshSheetOpen).toBe(true);
+});
+
+test('feat 478 — a partially-hit section stays open', async ({ page }) => {
+  await seed(page);
+  const r = await page.evaluate(() => {
+    const sec = () => document.getElementById('trk-targets');
+    const first = document.querySelector('.target-btn b').textContent.split('×').map(Number);
+    pending.sets = [{ w: first[0], r: first[1] }];
+    renderModal();
+    const hits = [...document.querySelectorAll('.target-btn')].filter(b => b.classList.contains('hit')).length;
+    const total = document.querySelectorAll('.target-btn').length;
+    targetsAutoCollapse();
+    return { hits, total, stillOpen: !sec().classList.contains('collapsed'),
+      count: sec().querySelector('.targets-count').textContent.trim(),
+      allClass: sec().querySelector('.targets-count').classList.contains('all') };
+  });
+  expect(r.hits).toBeGreaterThan(0);
+  expect(r.hits).toBeLessThan(r.total);
+  expect(r.stillOpen, 'targets remain — keep them on screen').toBe(true);
+  expect(r.count).toBe(r.hits + '/' + r.total + ' hit');
+  expect(r.allClass).toBe(false);
+});

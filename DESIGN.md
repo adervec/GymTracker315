@@ -2581,6 +2581,16 @@ They share variation **UUIDs**.
   (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
   convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
   about-this-app screen, so the settings-drawer About section is left untouched.
+- **The targets section collapses too (feat 478):** the reference tiles and the All-weights button merged
+  into one `.targets-sec` with a persistent header and a collapsible body, mirroring feat 477's blurb
+  exactly (`_tgtCollapsed`/`_tgtPinned`, reset per sheet, auto-collapse driven from `updateRowLive`, a
+  manual open pinning against the auto-pass). The trigger is different and better: it folds the moment
+  **every target it offered has been hit** — at that point there is nothing left to aim at, so the sets take
+  the room. Collapsed, the header still carries the whole story (`3/5 hit`, green at full score, plus the
+  🏅 PR count), so nothing that mattered is hidden. The PR badge renders in the header **only while
+  collapsed** — open, the All-weights button below already shows it, and two copies of one number in the
+  same block is noise (it also made the spec's `querySelector('.wt-pr-badge')` ambiguous, which is how it
+  was noticed). A partially-hit section deliberately stays open.
 - **The reference row earns its space (feat 477):** five changes to the log sheet's target area.
   **Two new targets** join the four historical ones: `exPrTargets` returns the weight most *vulnerable* to a
   weight PR (highest `pw` — one more rep than its own record is the most reachable) and the weight × reps

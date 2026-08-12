@@ -3093,6 +3093,14 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .step-var-item { font-size: 12.5px; color: var(--text2); padding: 6px 4px; border-bottom: 1px solid var(--border); }
 .step-var-item:last-child { border-bottom: none; }
 /* feat 420 — reference-set target buttons + the best-e1RM baseline card */
+/* feat 478 — the targets section: header always visible, body collapsible. */
+.targets-sec { margin: 8px 0 2px; }
+.targets-head { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 2px 0 4px; font-family: inherit; text-align: left; cursor: pointer; color: inherit; }
+.targets-title { font-size: 9.5px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--accent); flex-shrink: 0; }
+.targets-count { font-size: 10.5px; font-weight: 700; color: var(--text3); flex-shrink: 0; }
+.targets-count.all { color: #3fb950; }   /* every target hit — the state that collapses the section */
+.targets-chev { margin-left: auto; flex-shrink: 0; color: var(--text3); font-size: 11px; }
+.targets-sec.collapsed .targets-body { display: none; }
 /* feat 477 — six targets in at most TWO rows: a 3-up grid, so the row height is predictable. */
 .target-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 8px 0 4px; }
 /* minmax(0,1fr) — a plain 1fr refuses to shrink below its content and the third tile slides off the card */
@@ -26155,6 +26163,7 @@ function _restoreFromExercisePage() {
 }
 function openLogModal() {
   if (typeof suggestionResetForSheet === 'function') suggestionResetForSheet(); // feat 477
+  if (typeof targetsResetForSheet === 'function') targetsResetForSheet(); // feat 478
   reapAbandonedSet(); // feat 51 — clean up a stale open set after a long gap
   modalState.open = true;
   modalState.isEditing = false;
@@ -27568,7 +27577,7 @@ function renderSetsForm() {
       </button>
       <div class="suggestion-text">${suggestion.text}</div>
     </div>`; })() : ''}
-    ${(() => { // feat 420 — reference-set buttons replace the verbose 'Aim for' blurb; tap = load that weight.
+    ${(() => { // feat 420 — reference-set buttons; feat 478 — targets + All-weights are ONE collapsible section
       if (!pending.varUuid || pending.cardio) return '';
       const B = exBestSets(pending.varUuid, pending.subUuid, currentSessionDate);
       const claimed = [B.prevTop, B.bestE1, B.maxW, B.maxR].filter(x => x && x.w > 0).map(x => x.w);
@@ -27577,22 +27586,38 @@ function renderSetsForm() {
         ['🎯', 'Wt PR', P.vuln, P.vuln && P.vuln.odds], ['🚀', 'e1RM PR', P.e1, P.e1 && P.e1.odds],
         ['🏋️', 'Max wt', B.maxW, null], ['🔁', 'Max reps', B.maxR, null]];
       const seen = new Set(), btns = [];
+      let hits = 0;
       defs.forEach(([ico, lbl, t, odds]) => {
         if (!t || !(t.w > 0) || seen.has(t.w)) return; // same weight twice = one button
         seen.add(t.w);
         const hit = exTargetHit(pending.varUuid, pending.subUuid, t.w, t.r);
+        if (hit) hits++;
         btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}" data-w="${t.w}"
           title="${escapeAttr(lbl + ' — ' + t.w + state.unit + ' × ' + t.r + (odds != null ? ' · ' + odds + '% PR odds' : '') + (hit ? ' — already done this session' : ''))}"
           ><span class="tb-ico">${ico}</span><span class="tb-lbl">${lbl}</span><b>${t.w}×${t.r}</b></button>`);
         // the odds live in the tooltip and the All-weights table — on a 3-up tile they only ate the label
       });
-      return btns.length ? `<div class="target-row">${btns.join('')}</div>` : '';
-    })()}
-    ${(() => { // feat 432 — PROMINENT all-weights entry (replaces the easy-to-miss ⤢ of feat 422)
       const R = exWeightRows(pending.varUuid, pending.subUuid);
-      if (!R.rows.length) return '';
-      const prs = exSessionPrCount(pending.varUuid, pending.subUuid); // feat 477 — today's scoreboard, on the button
-      return `<button type="button" class="wt-open-btn" id="trk-wt-expand" title="Sortable table of every weight logged — records, 90-day bests &amp; PR odds${prs ? ' · ' + prs + ' PR' + (prs === 1 ? '' : 's') + ' this session' : ''}">📊 All weights${prs ? `<span class="wt-pr-badge">🏅 ${prs} PR${prs === 1 ? '' : 's'} today</span>` : ' — records &amp; PR odds'}</button>`;
+      const prs = exSessionPrCount(pending.varUuid, pending.subUuid); // feat 477 — today's scoreboard
+      const wtBtn = R.rows.length
+        ? `<button type="button" class="wt-open-btn" id="trk-wt-expand" title="Sortable table of every weight logged — records, 90-day bests &amp; PR odds${prs ? ' · ' + prs + ' PR' + (prs === 1 ? '' : 's') + ' this session' : ''}">📊 All weights${prs ? `<span class="wt-pr-badge">🏅 ${prs} PR${prs === 1 ? '' : 's'} today</span>` : ' — records &amp; PR odds'}</button>`
+        : '';
+      if (!btns.length && !wtBtn) return '';
+      _tgtTotal = btns.length; _tgtHits = hits;   // read by targetsAutoCollapse on the next live update
+      const open = targetsOpen();
+      return `<div class="targets-sec${open ? '' : ' collapsed'}" id="trk-targets">
+        <button type="button" class="targets-head" id="trk-targets-toggle" aria-expanded="${open}">
+          <span class="targets-title">🎯 Targets</span>
+          ${btns.length ? `<span class="targets-count${hits === btns.length ? ' all' : ''}">${hits}/${btns.length} hit</span>` : ''}
+          ${(prs && !open) ? `<span class="wt-pr-badge">🏅 ${prs} PR${prs === 1 ? '' : 's'}</span>` : ''}
+          ${''/* only while collapsed — open, the All-weights button below already carries it */}
+          <span class="targets-chev">${open ? '▴' : '▾'}</span>
+        </button>
+        <div class="targets-body">
+          ${btns.length ? `<div class="target-row">${btns.join('')}</div>` : ''}
+          ${wtBtn}
+        </div>
+      </div>`;
     })()}
     ${(() => { if (modalState.isEditing) return ''; const pl = plateauAdvice(pending.varUuid, pending.subUuid); return pl ? `<div class="plateau-note">🧱 <b>${escapeHtml(pl.title)}:</b> ${escapeHtml(pl.text)}</div>` : ''; })()}
     ${renderSetupInline()}
@@ -27721,6 +27746,21 @@ function exSessionPrCount(varUuid, subUuid) {
     if (was === undefined || e > was) hit.add(st.w);    // a brand-new weight counts as its own record
   });
   return hit.size;
+}
+/* feat 478 — the whole targets section (reference tiles + All-weights) collapses too, and AUTO-COLLAPSES
+   the moment every target it offered has been hit: there is nothing left to aim at, so the sets get the
+   room. Collapsed, the header still carries the score (3/5 hit) and today's PR count, so nothing is lost.
+   Same pinning rule as the blurb — a manual open sticks for the sheet. */
+let _tgtCollapsed = false, _tgtPinned = false, _tgtTotal = 0, _tgtHits = 0;
+function targetsOpen() { return !_tgtCollapsed; }
+function targetsResetForSheet() { _tgtCollapsed = false; _tgtPinned = false; }
+function targetsAutoCollapse() {
+  if (_tgtPinned || _tgtCollapsed) return false;
+  if (!_tgtTotal || _tgtHits < _tgtTotal) return false;   // still something to aim at
+  _tgtCollapsed = true;
+  const el = document.getElementById('trk-targets');
+  if (el && !el.classList.contains('collapsed')) { renderModal(); return true; }
+  return false;
 }
 /* feat 477 — the up/down blurb is worth reading once. It starts open, and AUTO-COLLAPSES the moment the
    first set of the sheet is complete: by then you are working, not reading. Tapping the header reopens it
@@ -27979,6 +28019,7 @@ function renderNeighborHints() {
 // so both the native-input path and the on-screen numpad can refresh the row.
 function updateRowLive(idx) {
   if (typeof suggestionAutoCollapse === 'function' && suggestionAutoCollapse()) return; // feat 477 — a full re-render already happened
+  if (typeof targetsAutoCollapse === 'function' && targetsAutoCollapse()) return;       // feat 478 — ditto
   const rows = document.querySelectorAll('#trk-sets-container .set-row');
   const row = rows[idx];
   if (!row) return;
@@ -28404,6 +28445,9 @@ function bindSetsForm() {
   document.getElementById('trk-ex-motion-btn')?.addEventListener('click', () => openMotionCarousel(pending.varUuid)); // feat 474
   document.getElementById('trk-suggestion-toggle')?.addEventListener('click', () => { // feat 477
     _sugCollapsed = !_sugCollapsed; _sugPinned = true; renderModal();
+  });
+  document.getElementById('trk-targets-toggle')?.addEventListener('click', () => { // feat 478
+    _tgtCollapsed = !_tgtCollapsed; _tgtPinned = true; renderModal();
   });
   document.getElementById('trk-trend-peek')?.addEventListener('click', () => openTrendsFor(pending.varUuid, pending.subUuid)); // feat 270 — peek → full trends (now the carousel's Trends slide)
   document.getElementById('trk-brief-play')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 418 — the Brief slide's play link
@@ -29179,7 +29223,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 394 · 2026-08-12 13:18';
+const APP_BUILD = 'build 395 · 2026-08-12 18:04';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
