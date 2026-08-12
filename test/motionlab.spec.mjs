@@ -191,3 +191,61 @@ test('feat 474 — waiter and overhead carries lock the load out overhead', asyn
   expect(r.overheadWr, 'the working wrist is ABOVE the shoulder').toBeLessThan(-20);
   expect(r.farmerWr, 'a farmer carry hangs below it').toBeGreaterThan(20);
 });
+
+test('feat 475 — chunk 3: leg raises, get-ups, nordics, rack positions and wall sits resolve and pose right', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const u = id => { for (const [uuid, i] of VAR_INDEX) if (i.variation.id === id) return uuid; return null; };
+    const mv = id => motionForVariation(u(id));
+    const build = (mid, o, uu) => MOTIONS[mid].build('side', uu, 'none', figP(), o);
+    // resolution: the title routes land on the new templates
+    const routes = {
+      hangRaise: mv('hanging-leg-raise'), vup: mv('v-up'), t2b: mv('toes-to-bar'),
+      getup: mv('turkish-get-up'), nordic: mv('nordic-curl'), wall: mv('wall-squat-iso'),
+      front: mv('front-squat'), zercher: mv('zercher-squat'), ohs: mv('overhead-squat'),
+      upright: mv('plate-upright-row'), btn: mv('machine-bn-press'), hang: mv('dead-hang'),
+    };
+    // poses: the geometry claims that make each one ITSELF
+    const lr0 = build('leg-raise', { hang: 1 }, 0).J, lr1 = build('leg-raise', { hang: 1 }, 1).J;
+    const gu0 = build('getup', {}, 0).J, gu1 = build('getup', {}, 1).J;
+    const no0 = build('nordic', {}, 0).J, no1 = build('nordic', {}, 1).J;
+    const sqWall = build('squat', { wall: 1 }, 0.1);
+    const sqOH = build('squat', { rack: 'overhead' }, 0.5).J;
+    const sqBack = build('squat', {}, 0.5).J;
+    const legAng = J => { const l = J.legs[1]; return Math.atan2(l.an[1] - l.hip[1], l.an[0] - l.hip[0]); };
+    return { routes,
+      legsSweep: legAng(lr0) - legAng(lr1),                       // hanging legs travel a big arc
+      guTorsoRises: gu0.shC[1] - gu1.shC[1],                      // the get-up torso comes UP
+      guArmVertical: Math.abs(gu1.arms[1].wr[0] - gu1.shC[0]),    // loaded arm stays over the shoulder
+      noFalls: no1.shC[0] - no0.shC[0],                           // the nordic body travels forward
+      noKneesFixed: Math.abs(build('nordic', {}, 1).J.legs[1].kn[0] - build('nordic', {}, 0).J.legs[1].kn[0]),
+      wallDrawn: sqWall.behind.some(sh => sh.cls === 'fig-wall'),
+      ohAboveShoulder: sqOH.arms[0].wr[1] - sqOH.shC[1],          // overhead rack: wrist ABOVE the shoulder
+      backBehindNeck: sqBack.arms[0].wr[1] - sqBack.shC[1] };
+  });
+  Object.entries(r.routes).forEach(([k, v]) => expect(v, k).toBeTruthy());
+  expect(r.routes.hangRaise.motion).toBe('leg-raise');
+  expect(r.routes.hangRaise.opts.hang).toBe(1);
+  expect(r.routes.vup.opts.fold, 'a V-up folds the torso too').toBe(1);
+  expect(r.routes.t2b.opts.hang).toBe(1);
+  expect(r.routes.getup.motion).toBe('getup');
+  expect(r.routes.nordic.motion).toBe('nordic');
+  expect(r.routes.wall.motion).toBe('squat');
+  expect(r.routes.wall.opts.wall).toBe(1);
+  expect(r.routes.wall.opts.tempo, 'a wall sit is a hold').toBe('hold');
+  expect(r.routes.front.opts.rack).toBe('front');
+  expect(r.routes.zercher.opts.rack).toBe('zercher');
+  expect(r.routes.ohs.opts.rack).toBe('overhead');
+  expect(r.routes.upright.motion).toBe('shrug');
+  expect(r.routes.upright.opts.upright).toBe(1);
+  expect(r.routes.btn.opts.behind, 'BTN press runs behind the head').toBe(1);
+  expect(r.routes.hang.motion).toBe('pull-up');
+  expect(r.routes.hang.opts.tempo).toBe('hold');
+  expect(r.legsSweep, 'the hanging raise sweeps a real arc').toBeGreaterThan(0.9);
+  expect(r.guTorsoRises, 'the get-up rises').toBeGreaterThan(20);
+  expect(r.guArmVertical, 'with the load locked out overhead').toBeLessThan(6);
+  expect(r.noFalls, 'the nordic falls forward').toBeGreaterThan(30);
+  expect(r.noKneesFixed, 'from FIXED knees').toBeLessThan(1);
+  expect(r.wallDrawn).toBe(true);
+  expect(r.ohAboveShoulder, 'overhead squat: bar above the shoulder').toBeLessThan(-18);
+  expect(r.backBehindNeck, 'back squat grip stays at the shoulder').toBeGreaterThan(-8);
+});

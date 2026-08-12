@@ -2581,6 +2581,22 @@ They share variation **UUIDs**.
   (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
   convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
   about-this-app screen, so the settings-drawer About section is left untouched.
+- **MOTION LAB chunk 3 (feat 475):** the audit's remaining named classes. **Three new templates**:
+  `leg-raise` (hanging — from a drawn bar, legs sweeping a real arc, `knee` bends them, or lying — legs
+  rising from the floor, `fold` turning it into a V-up), `getup` (the Turkish get-up's essence in one arc:
+  torso rises from lying to propped-up while the loaded arm stays locked out vertically the whole way) and
+  `nordic` (kneeling at an ankle pad, the straight body falling forward from FIXED knees, arms reaching to
+  catch). **The squat learned its positions**: `rack: 'front' | 'zercher' | 'overhead'` moves the load to
+  the delts / elbow crooks / lockout, and `wall: 1` renders the held bottom position against a drawn wall
+  (paired with `tempo: 'hold'`). Smaller opts: `behind` (BTN presses run the bar path behind the head),
+  `upright` (upright rows travel a narrow bar up the body with elbows flaring, on the shrug template).
+  All routed by `MOTION_TITLE_TEMPLATE` additions plus one `_motionMods` rule. Two bugs the invariants
+  caught: the get-up drew a **phantom kettlebell** on the bodyweight variation (feat 416's sweep — the
+  fallback bell removed; KB get-ups still draw theirs from the title), and the title-template hook
+  **bypassed the feat-416 bodyweight designation** entirely, so wall sits inherited their family's barbell —
+  the hook now applies the same solver check the family path does. `motionlab.spec` grew the chunk-3 guard
+  (routes + pose geometry: the get-up rises with the arm vertical, the nordic falls from fixed knees, the
+  overhead-squat bar stays above the shoulder).
 - **MOTION LAB chunk 2 + the motion carousel (feat 474):** the audit's largest remaining class — 60+
   rotational movements rendering as crunches or generic pulls — plus the overhead carries, and two UI
   requests. **The `rotation` template**: one standing front-view figure covers the whole plane family via
