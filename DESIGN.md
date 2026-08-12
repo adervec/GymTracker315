@@ -2581,6 +2581,19 @@ They share variation **UUIDs**.
   (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
   convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
   about-this-app screen, so the settings-drawer About section is left untouched.
+- **Log sheet tightening, round three (feat 471):** four savings plus the motion stage learning to show
+  itself. (1) The *Tips & Insights* banner row **merged into the tab row** — the `.excar-tabs` row is now the
+  `#trk-tips-header`, always visible; collapsed, the tabs *are* the closed state, and tapping a tab both
+  opens the panel and lands on that slide. The end chip shows `▾`/`▴` and one `_tipsSetOpen()` helper flips
+  panel + flag + glyph so they can never disagree. The old `.tips-title`/`.tips-chevron` markup and CSS are
+  gone. (2) The standalone **"Sets" title is gone**; the header row's first column reads `Set` instead of
+  `#`. (3) Padding trims on the header card and grip row (10px→8px rhythm). (4) The **Motion slide lifts the
+  feat-97 22vh cap** via `.tips-content:has(> [data-excar-slide="motion"]:not([hidden]))` — the figure is
+  fixed-size, not prose, so it gets its full height with no inner scrollbar while text slides keep the cap
+  that protects the sets pane (Chromium-only app, `:has()` is safe). (5) **Viewpoint auto-cycle**: a
+  multi-view motion flips to its next viewpoint every 2 rep cycles (`MOTION_VIEW_CYCLES`, 2×2400ms windows
+  keyed off the rAF clock so all stages stay in phase), pills tracking the flip; the first visible frame only
+  sets the baseline so opening the slide never jumps; tapping a pill sets `data-pinned` and stops the cycle.
 - **Two more lines back from the log sheet (feat 470):** after feat 469 the sheet still spent four lines on a
   header carrying two lines of content, and the Tips carousel's seven word-tabs wrapped onto two rows.
   **Header → two lines.** The `LOGGING` label is gone (the sheet title already reads *Log Sets*), replaced by

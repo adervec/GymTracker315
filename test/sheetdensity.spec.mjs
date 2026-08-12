@@ -136,7 +136,8 @@ test('feat 470 — a chip inside the panel collapses it, and the choice sticks',
     const sec = document.getElementById('trk-tips-section');
     sec.classList.add('open'); modalState.tipsExpanded = true;
     const btn = document.getElementById('trk-excar-collapse');
-    const inPanel = !!btn && !btn.closest('.tips-header') && !!btn.closest('.tips-content');
+    // feat 471 moved the chip into the merged tab-row header (the banner row is gone entirely)
+    const inPanel = !!btn && !!btn.closest('.excar-tabs') && !document.querySelector('.tips-title');
     btn.click();
     const closed = { open: sec.classList.contains('open'), flag: modalState.tipsExpanded };
     // and it is not counted as a carousel tab, so slide-switching is untouched
