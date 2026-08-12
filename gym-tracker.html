@@ -1930,13 +1930,17 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .record-hint .hint-action { font-size: 9.5px; color: #6f88c0; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; margin-right: 5px; }
   /* Neighbor baseline reference hints (shown below sets when no baseline for current weight) */
   #trk-neighbor-hints {
-    margin-top: 10px; display: flex; gap: 7px; flex-wrap: wrap;
+    /* feat 477 — align-items:flex-start so a chip sizes to ITS content; the default stretch made every
+       chip as tall as the wordiest one (the e1RM card), which is what made these read as big cards. */
+    margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start;
   }
+  /* feat 477 — baselines are reference, not headlines: one compact chip each, three across a phone. */
+  .nh-intro { flex: 1 0 100%; }  /* feat 477 — the caption takes its own line instead of competing for width */
   .neighbor-hint {
-    flex: 1; min-width: 110px;
+    flex: 1 1 0; min-width: 84px;
     background: var(--bg3); border: 1px solid var(--border2);
-    border-radius: 8px; padding: 8px 10px;
-    font-size: 11px; line-height: 1.5; font-variant-numeric: tabular-nums;
+    border-radius: 7px; padding: 5px 7px;
+    font-size: 10.5px; line-height: 1.35; font-variant-numeric: tabular-nums;
   }
   .neighbor-hint-dir {
     font-size: 9px; font-weight: 700; text-transform: uppercase;
@@ -1947,8 +1951,8 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .neighbor-hint-weight {
     font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.1;
   }
-  .neighbor-hint-reps { font-size: 11px; color: var(--text2); }
-  .neighbor-hint-date { font-size: 9.5px; color: var(--text3); margin-top: 1px; }
+  .neighbor-hint-reps { font-size: 10px; color: var(--text2); }
+  .neighbor-hint-date { font-size: 9px; color: var(--text3); }
 
   /* Collapsible tips section (feat 472 — the tab row IS the header; the old banner row is gone) */
   .tips-section { background: #141414; border: 1px solid #1f1f1f; border-radius: 8px; margin: 8px 0; overflow: hidden; }
@@ -2616,9 +2620,14 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .vol-target { position: absolute; top: 0; bottom: 0; width: 1.5px; background: #444; opacity: 0.6; }
 
   /* Suggestion */
-  .suggestion { background: linear-gradient(135deg, #1a1426 0%, #0f0c1a 100%); border-left: 3px solid #b48aff; padding: 10px 14px; border-radius: 7px; margin-top: 10px; }
-  .suggestion-label { font-size: 9.5px; color: #b48aff; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; margin-bottom: 4px; }
-  .suggestion-text { font-size: 13px; color: #eee; line-height: 1.5; }
+  .suggestion { background: linear-gradient(135deg, #1a1426 0%, #0f0c1a 100%); border-left: 3px solid #b48aff; padding: 8px 12px; border-radius: 7px; margin-top: 8px; }
+  /* feat 477 — collapsible: the header is the toggle and shows a one-line peek once closed */
+  .suggestion-head { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 0; font-family: inherit; text-align: left; cursor: pointer; color: inherit; }
+  .suggestion-label { font-size: 9.5px; color: #b48aff; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; flex-shrink: 0; }
+  .suggestion-peek { flex: 1; min-width: 0; font-size: 11px; color: var(--text3, #888); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .suggestion-chev { flex-shrink: 0; color: var(--text3, #888); font-size: 11px; }
+  .suggestion.collapsed .suggestion-text { display: none; }
+  .suggestion-text { font-size: 13px; color: #eee; line-height: 1.5; margin-top: 5px; }
   .suggestion-text b { color: #fff; }
 
   /* Stats */
@@ -3084,8 +3093,20 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .step-var-item { font-size: 12.5px; color: var(--text2); padding: 6px 4px; border-bottom: 1px solid var(--border); }
 .step-var-item:last-child { border-bottom: none; }
 /* feat 420 — reference-set target buttons + the best-e1RM baseline card */
-.target-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
-.target-btn { font-size: 11px; padding: 6px 10px; }
+/* feat 477 — six targets in at most TWO rows: a 3-up grid, so the row height is predictable. */
+.target-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 8px 0 4px; }
+/* minmax(0,1fr) — a plain 1fr refuses to shrink below its content and the third tile slides off the card */
+.target-btn { font-size: 10.5px; padding: 6px 4px; display: flex; align-items: baseline; justify-content: center; gap: 3px; min-width: 0; width: 100%; overflow: hidden; white-space: nowrap; }
+.target-btn > * { flex-shrink: 0; }
+.target-btn .tb-lbl { overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; min-width: 0; }
+.target-btn .tb-ico { font-size: 11px; }
+.target-btn .tb-lbl { color: var(--text3); font-weight: 600; }
+.target-btn b { font-weight: 800; }
+/* satisfied: this session already matched or beat it — a receipt, not a suggestion */
+.target-btn.hit { border-color: #3fb950 !important; background: rgba(63,185,80,0.13) !important; }
+.target-btn.hit .tb-lbl { color: #3fb950; }
+.target-btn.hit .tb-ico::after { content: '✓'; margin-left: 2px; color: #3fb950; font-weight: 900; }
+.wt-pr-badge { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: rgba(63,185,80,0.18); border: 1px solid rgba(63,185,80,0.5); color: #3fb950; font-size: 11px; font-weight: 800; }
 /* feat 422 — all-weights table popup; feat 432 — its opener is a prominent full-width button */
 .wt-open-btn { display: block; width: 100%; margin: 8px 0 2px; padding: 11px 12px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 10px; color: var(--text); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; }
 .wt-sheet { max-width: 480px; }
@@ -26133,6 +26154,7 @@ function _restoreFromExercisePage() {
   if (typeof updateTopbarChrome === 'function') updateTopbarChrome();
 }
 function openLogModal() {
+  if (typeof suggestionResetForSheet === 'function') suggestionResetForSheet(); // feat 477
   reapAbandonedSet(); // feat 51 — clean up a stale open set after a long gap
   modalState.open = true;
   modalState.isEditing = false;
@@ -27536,25 +27558,41 @@ function renderSetsForm() {
 
     ${tipsHtml}
 
-    ${suggestion ? `<div class="suggestion">
-      <div class="suggestion-label">${suggestion.label}</div>
+    ${suggestion ? (() => { // feat 477 — read it once, then it gets out of the way
+      const open = suggestionOpen();
+      return `<div class="suggestion${open ? '' : ' collapsed'}" id="trk-suggestion">
+      <button type="button" class="suggestion-head" id="trk-suggestion-toggle" aria-expanded="${open}">
+        <span class="suggestion-label">${suggestion.label}</span>
+        <span class="suggestion-peek">${open ? '' : escapeHtml(String(suggestion.text).replace(/<[^>]*>/g, ''))}</span>
+        <span class="suggestion-chev">${open ? '▴' : '▾'}</span>
+      </button>
       <div class="suggestion-text">${suggestion.text}</div>
-    </div>` : ''}
+    </div>`; })() : ''}
     ${(() => { // feat 420 — reference-set buttons replace the verbose 'Aim for' blurb; tap = load that weight.
       if (!pending.varUuid || pending.cardio) return '';
       const B = exBestSets(pending.varUuid, pending.subUuid, currentSessionDate);
-      const defs = [['↩ Prev top', B.prevTop], ['🏆 Best e1RM', B.bestE1], ['🏋️ Max weight', B.maxW], ['🔁 Max reps', B.maxR]];
+      const claimed = [B.prevTop, B.bestE1, B.maxW, B.maxR].filter(x => x && x.w > 0).map(x => x.w);
+      const P = exPrTargets(pending.varUuid, pending.subUuid, claimed); // feat 477 — PR picks avoid taken weights
+      const defs = [['↩', 'Prev top', B.prevTop, null], ['🏆', 'Best e1RM', B.bestE1, null],
+        ['🎯', 'Wt PR', P.vuln, P.vuln && P.vuln.odds], ['🚀', 'e1RM PR', P.e1, P.e1 && P.e1.odds],
+        ['🏋️', 'Max wt', B.maxW, null], ['🔁', 'Max reps', B.maxR, null]];
       const seen = new Set(), btns = [];
-      defs.forEach(([lbl, s]) => {
-        if (!s || !(s.w > 0) || seen.has(s.w)) return; // same weight twice = one button
-        seen.add(s.w);
-        btns.push(`<button type="button" class="prog-prefill target-btn" data-w="${s.w}" title="Load ${s.w}${state.unit} into the next set">${lbl} ${s.w}×${s.r}</button>`);
+      defs.forEach(([ico, lbl, t, odds]) => {
+        if (!t || !(t.w > 0) || seen.has(t.w)) return; // same weight twice = one button
+        seen.add(t.w);
+        const hit = exTargetHit(pending.varUuid, pending.subUuid, t.w, t.r);
+        btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}" data-w="${t.w}"
+          title="${escapeAttr(lbl + ' — ' + t.w + state.unit + ' × ' + t.r + (odds != null ? ' · ' + odds + '% PR odds' : '') + (hit ? ' — already done this session' : ''))}"
+          ><span class="tb-ico">${ico}</span><span class="tb-lbl">${lbl}</span><b>${t.w}×${t.r}</b></button>`);
+        // the odds live in the tooltip and the All-weights table — on a 3-up tile they only ate the label
       });
       return btns.length ? `<div class="target-row">${btns.join('')}</div>` : '';
     })()}
     ${(() => { // feat 432 — PROMINENT all-weights entry (replaces the easy-to-miss ⤢ of feat 422)
       const R = exWeightRows(pending.varUuid, pending.subUuid);
-      return R.rows.length ? `<button type="button" class="wt-open-btn" id="trk-wt-expand" title="Sortable table of every weight logged — records, 90-day bests &amp; PR odds">📊 All weights — records &amp; PR odds</button>` : '';
+      if (!R.rows.length) return '';
+      const prs = exSessionPrCount(pending.varUuid, pending.subUuid); // feat 477 — today's scoreboard, on the button
+      return `<button type="button" class="wt-open-btn" id="trk-wt-expand" title="Sortable table of every weight logged — records, 90-day bests &amp; PR odds${prs ? ' · ' + prs + ' PR' + (prs === 1 ? '' : 's') + ' this session' : ''}">📊 All weights${prs ? `<span class="wt-pr-badge">🏅 ${prs} PR${prs === 1 ? '' : 's'} today</span>` : ' — records &amp; PR odds'}</button>`;
     })()}
     ${(() => { if (modalState.isEditing) return ''; const pl = plateauAdvice(pending.varUuid, pending.subUuid); return pl ? `<div class="plateau-note">🧱 <b>${escapeHtml(pl.title)}:</b> ${escapeHtml(pl.text)}</div>` : ''; })()}
     ${renderSetupInline()}
@@ -27628,6 +27666,76 @@ function exWeightRows(varUuid, subUuid) {
     r.pv = odds(Math.max(1, Math.floor(30 * (allBest / r.w - 1)) + 1), r.w);   // enough reps to out-e1RM the all-time best
   });
   return { rows, cap, allBest };
+}
+/* feat 477 — the target row learns what THIS session has already done.
+   • exPrTargets: the two picks the row was missing — the weight most vulnerable to a weight PR (highest
+     `pw`, i.e. one more rep than its own record is most reachable), and the weight × reps most likely to
+     take the overall e1RM record (highest `pv`, shown with the reps that would actually do it).
+   • exTargetHit: a target is SATISFIED once a valid logged set this session matches its weight and at
+     least its reps — the tile stops being a suggestion and becomes a receipt.
+   • exSessionPrCount: how many distinct weights have beaten their own all-time e1RM record today. */
+function exPrTargets(varUuid, subUuid, taken) {
+  const R = exWeightRows(varUuid, subUuid);
+  if (!R.rows.length) return { vuln: null, e1: null };
+  const cap = exMaxW(varUuid);
+  // A PR pick whose weight another tile already shows is a wasted tile — skip to the next-best weight.
+  const used = new Set(taken || []);
+  const usable = R.rows.filter(r => r.w > 0 && (!cap || r.w <= cap) && !used.has(r.w));
+  if (!usable.length) return { vuln: null, e1: null };
+  const pick = (key, skip) => usable.reduce((b, r) => (r.w === skip) ? b
+    : (!b || r[key] > b[key] || (r[key] === b[key] && r.w > b.w)) ? r : b, null);
+  const vRow = pick('pw'), eRow = pick('pv', vRow && vRow.w) || pick('pv');
+  const vuln = vRow ? { w: vRow.w, r: vRow.best.r + 1, odds: vRow.pw } : null;
+  // the reps at that weight that would actually clear the all-time best e1RM
+  const need = eRow ? Math.max(1, Math.floor(30 * (R.allBest / eRow.w - 1)) + 1) : 0;
+  const e1 = eRow ? { w: eRow.w, r: need, odds: eRow.pv } : null;
+  return { vuln, e1 };
+}
+// The sets logged for THIS exercise today: the pending sheet plus anything already saved this session.
+function exSessionSets(varUuid, subUuid) {
+  const out = [];
+  (pending.sets || []).forEach(st => { const w = parseFloat(st.w), r = parseFloat(st.r); if (w > 0 && r > 0) out.push({ w, r }); });
+  const today = new Date().toDateString();
+  (state.sessions || []).forEach(ss => {
+    if (new Date(ss.date).toDateString() !== today) return;
+    (ss.exercises || []).forEach(ex => {
+      if (ex.varUuid !== varUuid || (ex.subUuid || null) !== (subUuid || null)) return;
+      (ex.sets || []).forEach(st => { const w = parseFloat(st.w), r = parseFloat(st.r); if (w > 0 && r > 0) out.push({ w, r }); });
+    });
+  });
+  return out;
+}
+function exTargetHit(varUuid, subUuid, w, r) {
+  if (!(w > 0)) return false;
+  return exSessionSets(varUuid, subUuid).some(st => st.w >= w && st.r >= (r > 0 ? r : 1));
+}
+function exSessionPrCount(varUuid, subUuid) {
+  const done = exSessionSets(varUuid, subUuid);
+  if (!done.length) return 0;
+  const R = exWeightRows(varUuid, subUuid);            // history EXCLUDES the pending sheet
+  const prevBest = new Map(R.rows.map(r => [r.w, r.best.e]));
+  const hit = new Set();
+  done.forEach(st => {
+    const e = estimated1RM(st.w, st.r) || 0;
+    const was = prevBest.get(st.w);
+    if (was === undefined || e > was) hit.add(st.w);    // a brand-new weight counts as its own record
+  });
+  return hit.size;
+}
+/* feat 477 — the up/down blurb is worth reading once. It starts open, and AUTO-COLLAPSES the moment the
+   first set of the sheet is complete: by then you are working, not reading. Tapping the header reopens it
+   and that manual choice sticks for the rest of the sheet (`_sugPinned`), so it cannot fight the user. */
+let _sugCollapsed = false, _sugPinned = false;
+function suggestionOpen() { return !_sugCollapsed; }
+function suggestionResetForSheet() { _sugCollapsed = false; _sugPinned = false; }
+function suggestionAutoCollapse() {
+  if (_sugPinned || _sugCollapsed) return false;
+  const done = (pending.sets || []).filter(st => st && parseFloat(st.w) > 0 && parseFloat(st.r) > 0).length;
+  if (!done) return false;
+  _sugCollapsed = true;
+  const el = document.getElementById('trk-suggestion');
+  if (el && !el.classList.contains('collapsed')) { renderModal(); return true; }
+  return false;
 }
 // One-tap weight prefill (feat 234/247/420): first incomplete set gets the weight — reps stay yours to log.
 function prefillTargetWeight(w) {
@@ -27830,7 +27938,7 @@ function renderNeighborHints() {
       e1Card = `<div class="neighbor-hint e1rm">
         <div class="neighbor-hint-dir">⭐ Best e1RM</div>
         <div class="neighbor-hint-weight">${Math.round(best.e)}<span style="font-size:10px;font-weight:400;"> ${state.unit}</span></div>
-        <div class="neighbor-hint-reps">≥${needR} rep${needR === 1 ? '' : 's'} at ${currentW} to match</div>
+        <div class="neighbor-hint-reps">≥${needR} rep${needR === 1 ? '' : 's'} @ ${currentW}</div>
         <div class="neighbor-hint-date">set: ${best.w}×${best.r}</div>
       </div>`;
     }
@@ -27851,7 +27959,7 @@ function renderNeighborHints() {
   function hintCard(data, dir, label) {
     if (!data) return '';
     const gap = currentW > 0 ? Math.abs(data.w - currentW) : null;
-    const gapStr = gap !== null ? ` (${gap > 0 ? '+' : ''}${dir === 'lighter' ? '-' : '+'}${gap}${state.unit})` : '';
+    const gapStr = gap ? ` ${dir === 'lighter' ? '−' : '+'}${gap}` : ''; // one sign, and the unit is on the weight below
     return `<div class="neighbor-hint ${dir}">
       <div class="neighbor-hint-dir">${label}${gapStr}</div>
       <div class="neighbor-hint-weight">${data.w}<span style="font-size:10px;font-weight:400;"> ${state.unit}</span></div>
@@ -27861,8 +27969,8 @@ function renderNeighborHints() {
   }
 
   const intro = currentW > 0
-    ? `<div style="font-size:10px;color:var(--text3);margin-bottom:6px;font-style:italic;">No baseline at ${currentW} ${state.unit} — nearby for reference:</div>`
-    : `<div style="font-size:10px;color:var(--text3);margin-bottom:6px;font-style:italic;">Nearby weight baselines for reference:</div>`;
+    ? `<div class="nh-intro" style="font-size:10px;color:var(--text3);margin-bottom:6px;font-style:italic;">No baseline at ${currentW} ${state.unit} — nearby for reference:</div>`
+    : `<div class="nh-intro" style="font-size:10px;color:var(--text3);margin-bottom:6px;font-style:italic;">Nearby weight baselines for reference:</div>`;
 
   el.innerHTML = intro + hintCard(lighter, 'lighter', '▼ Lighter') + hintCard(heavier, 'heavier', '▲ Heavier') + e1Card;
 }
@@ -27870,6 +27978,7 @@ function renderNeighborHints() {
 // Live-update one set row's colours + bottom record hint (no full re-render). Module-scope (feat 57)
 // so both the native-input path and the on-screen numpad can refresh the row.
 function updateRowLive(idx) {
+  if (typeof suggestionAutoCollapse === 'function' && suggestionAutoCollapse()) return; // feat 477 — a full re-render already happened
   const rows = document.querySelectorAll('#trk-sets-container .set-row');
   const row = rows[idx];
   if (!row) return;
@@ -28293,6 +28402,9 @@ function bindSetsForm() {
   // feat 75 — reference videos for this exercise (carousel / manager); includes whole-movement clips
   document.getElementById('trk-ex-media-btn')?.addEventListener('click', () => { const fi = VAR_INDEX.get(pending.varUuid); openExerciseMedia(pending.varUuid, null, fi && fi.family ? fi.family.id : null); });
   document.getElementById('trk-ex-motion-btn')?.addEventListener('click', () => openMotionCarousel(pending.varUuid)); // feat 474
+  document.getElementById('trk-suggestion-toggle')?.addEventListener('click', () => { // feat 477
+    _sugCollapsed = !_sugCollapsed; _sugPinned = true; renderModal();
+  });
   document.getElementById('trk-trend-peek')?.addEventListener('click', () => openTrendsFor(pending.varUuid, pending.subUuid)); // feat 270 — peek → full trends (now the carousel's Trends slide)
   document.getElementById('trk-brief-play')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 418 — the Brief slide's play link
   // feat 417 — the tips-area carousel: Tips · Motion · Trends · History. Selection sticks across the
@@ -29067,7 +29179,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 393 · 2026-08-12 12:23';
+const APP_BUILD = 'build 394 · 2026-08-12 13:18';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -42,11 +42,15 @@ test('distinct references get their own buttons, deduped by weight', async ({ pa
   // prev session top 135×5; an older 120×15 day is both the best e1RM (180) and the max-reps set
   await openWith(page, [{ daysAgo: 2, sets: [[135, 5]] }, { daysAgo: 9, sets: [[120, 15]] }, { daysAgo: 16, sets: [[100, 10]] }]);
   const btns = await readBtns(page);
-  expect(btns.length).toBe(2);
   expect(btns[0].label).toContain('Prev top');
   expect(btns[0].w).toBe('135');                 // also the max-weight set — deduped into the prev button
   expect(btns[1].label).toContain('Best e1RM');
   expect(btns[1].w).toBe('120');                 // also the max-reps set — deduped
+  // feat 477 — the PR-hunting picks then take any weight the classics did NOT claim (here 100), so the
+  // dedupe is still per-weight: no two buttons ever offer the same load.
+  const ws = btns.map(b => b.w);
+  expect(new Set(ws).size).toBe(ws.length);
+  expect(btns.length).toBeLessThanOrEqual(6);
 });
 
 test('tapping a reference button prefills WEIGHT only and reuses the open set on repeat taps', async ({ page }) => {

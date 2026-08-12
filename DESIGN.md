@@ -2581,6 +2581,25 @@ They share variation **UUIDs**.
   (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
   convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
   about-this-app screen, so the settings-drawer About section is left untouched.
+- **The reference row earns its space (feat 477):** five changes to the log sheet's target area.
+  **Two new targets** join the four historical ones: `exPrTargets` returns the weight most *vulnerable* to a
+  weight PR (highest `pw` — one more rep than its own record is the most reachable) and the weight × reps
+  most likely to take the overall e1RM record (highest `pv`, shown with the reps that would *actually* clear
+  it, one more than the break-even). The picks take an exclusion list so they never duplicate a weight a
+  classic tile already shows — otherwise the existing per-weight dedupe silently swallowed them.
+  **Satisfied indicators**: `exTargetHit` turns a tile green with a ✓ once a set logged *this session*
+  (pending sheet + anything already saved today) matches its weight and meets or beats its reps — the tile
+  stops being a suggestion and becomes a receipt. **Session PR count** on the All-weights button:
+  `exSessionPrCount` counts distinct weights whose e1RM today beats that weight's own all-time record (a
+  brand-new weight counts as its own record), rendered as a 🏅 badge. **Layout**: six tiles in a
+  `repeat(3, minmax(0,1fr))` grid — two rows maximum — with the odds % dropped from the tile (it lives in
+  the tooltip and the All-weights table; on a 3-up tile it only ate the label). `minmax(0,1fr)` matters: a
+  plain `1fr` refuses to shrink below its content and the third tile slid off the card. Baseline chips went
+  from stacked cards to a compact row — the fix was `align-items: flex-start` (default `stretch` made every
+  chip as tall as the wordiest one) plus giving the caption `flex-basis: 100%`, since as a flex *sibling* it
+  had been squeezing the chips to 55px. **The up/down blurb collapses**: it starts open, auto-collapses to a
+  one-line peek the moment set 1 is complete (`suggestionAutoCollapse` from `updateRowLive`), and a manual
+  reopen sets `_sugPinned` so the auto-collapse can never fight the user; a fresh sheet resets both.
 - **MOTION LAB chunk 4 — the pattern-word router (feat 476):** the long tail. **241** variations still drew
   the ambiguous `generic` figure, almost all in specialty families (mace 99, YBell 50, sandbag 40, bands,
   cable attachments) — yet their titles *name a real movement*: "Sandbag Bent-Over Row", "Mace Front Lunge",
