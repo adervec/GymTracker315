@@ -85,12 +85,13 @@ test('feat 470 — editing a past session still says so, since the sheet title n
     modalState.isEditing = true; renderModal();
     const chip = document.querySelector('#trk-modal-body .ex-editing-chip');
     return { logging, editing: !!chip, text: chip && chip.textContent.trim(),
-      title: document.querySelector('.modal-title').textContent.trim() };
+      // feat 474 — the "Log Sets" banner row was removed outright, so the chip is the ONLY editing signal
+      titleRowGone: !document.querySelector('#trk-modal .modal-title') };
   });
   expect(r.logging, 'the default state needs no chip').toBe(false);
   expect(r.editing, 'the state that is NOT the default must be visible').toBe(true);
   expect(r.text).toBe('Editing');
-  expect(r.title, 'the sheet title is static, which is why the chip has to exist').toBe('Log Sets');
+  expect(r.titleRowGone, 'no banner left — the chip carries the whole signal').toBe(true);
 });
 
 test('feat 470 — the carousel is one row: icons only, words on the selected tab alone', async ({ page }) => {
@@ -101,7 +102,7 @@ test('feat 470 — the carousel is one row: icons only, words on the selected ta
     const tabs = [...sec.querySelectorAll('.excar-tab')];
     const shown = () => tabs.map(t => getComputedStyle(t.querySelector('.excar-lbl')).display);
     const before = shown();
-    sec.querySelector('.excar-tab[data-excar="motion"]').click();
+    sec.querySelector('.excar-tab[data-excar="trends"]').click();
     const after = shown();
     return {
       count: tabs.length,
@@ -118,13 +119,13 @@ test('feat 470 — the carousel is one row: icons only, words on the selected ta
       fits: sec.querySelector('.excar-tabs').scrollWidth <= sec.querySelector('.excar-tabs').clientWidth + 1,
     };
   });
-  expect(r.count, 'all seven survive').toBe(7);
-  expect(r.keys).toEqual(['tips', 'full', 'motion', 'trends', 'history', 'alts', 'brief']);
+  expect(r.count, 'the six text slides').toBe(6);
+  expect(r.keys).toEqual(['tips', 'full', 'trends', 'history', 'alts', 'brief']); // feat 474 — Motion moved out
   expect(r.everyHasIcon).toBe(true);
   expect(r.rows, 'one row — the wrap onto two is the thing being fixed').toBe(1);
   expect(r.labelsShownAtFirst, 'exactly one tab spells its name').toBe(1);
   expect(r.labelsShownAfter).toBe(1);
-  expect(r.activeAfter, 'the label follows the selection').toBe('motion');
+  expect(r.activeAfter, 'the label follows the selection').toBe('trends');
   expect(r.activeLabelShown).toBe(true);
   expect(r.labelled, 'an icon-only tab still needs a name for screen readers').toBe(true);
   expect(r.fits, 'one row must FIT, not overflow — nowrap has no second line to fall back on').toBe(true);
@@ -149,6 +150,6 @@ test('feat 470 — a chip inside the panel collapses it, and the choice sticks',
   expect(r.inPanel, 'the header scrolls away once you are inside a slide — hence a chip in the panel').toBe(true);
   expect(r.closed).toEqual({ open: false, flag: false });
   expect(r.tabKeys).not.toContain(undefined);
-  expect(r.tabKeys.length).toBe(7);
+  expect(r.tabKeys.length).toBe(6); // feat 474 — Motion left the tips row for its own carousel
   expect(r.reopened, 'the header toggle still works').toBe(true);
 });

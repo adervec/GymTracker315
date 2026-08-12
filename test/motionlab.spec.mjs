@@ -3,7 +3,8 @@
 // free-standing, KB swings gripping a static bar…). Cross-template mechanisms now live in ONE pipeline
 // (motionApplyMods) driven by opts, detected from titles in _motionMods — so every template gains each
 // mechanism at once and NEW content gets them for free. This spec is the standing guard: chunk 1 covers
-// seat · kneel/half-kneel · uni · alt · support · swing. Later chunks extend the mechanism list here.
+// seat · kneel/half-kneel · uni · alt · support · swing. Chunk 2 (feat 474): the rotation template
+// (chops, twists, halos, Pallof, Russian twists) and the overhead carry — checked below.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -139,4 +140,54 @@ test('feat 473 — kneeling reposes the legs in side AND front views, body and l
   expect(r.side, 'side-view kneel lowers the body').toBeGreaterThan(10);
   expect(r.front, 'front-view kneel lowers the body').toBeGreaterThan(10);
   expect(r.loadDrop, 'and the load follows').toBeGreaterThan(10);
+});
+
+test('feat 474 — rotational movements resolve to the rotation template, not a crunch or generic pull', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const misses = [], hits = [];
+    const RE = /wood.?chop|chop|russian twist|halo|around.the.world|pallof|golf swing|landmine 180/i;
+    FAMILIES.forEach(f => (f.variations || []).forEach(v => {
+      if (!v.uuid || (typeof isSuppressedVar === 'function' && isSuppressedVar(v.uuid))) return;
+      if (!RE.test(v.title)) return;
+      const mv = motionForVariation(v.uuid);
+      if (!mv) return;
+      (mv.motion === 'rotation' ? hits : misses).push(f.id + '/' + v.id + ' → ' + mv.motion);
+    }));
+    // and the template itself distinguishes its planes — chop, twist, halo, Pallof, floor-seated twist
+    const wrAt = (o, u) => { const ps = MOTIONS.rotation.build('front', u, 'dumbbell', figP(), o); return ps.J.arms[1].wr; };
+    const chop0 = wrAt({ plane: 'diag' }, 0), chop1 = wrAt({ plane: 'diag' }, 1);
+    const twist0 = wrAt({ plane: 'mid' }, 0), twist1 = wrAt({ plane: 'mid' }, 1);
+    const halo0 = wrAt({ orbit: 1 }, 0), haloQ = wrAt({ orbit: 1 }, 0.25);
+    const pall0 = wrAt({ iso: 1 }, 0), pall5 = wrAt({ iso: 1 }, 0.5);
+    const seat = MOTIONS.rotation.build('front', 0.5, 'dumbbell', figP(), { seatFloor: 1 });
+    return { misses, hitCount: hits.length,
+      chopDropsAndCrosses: chop1[1] - chop0[1] > 30 && chop1[0] - chop0[0] > 30,
+      twistLevel: Math.abs(twist1[1] - twist0[1]) < 2 && twist1[0] - twist0[0] > 30,
+      haloOrbits: Math.abs(halo0[1] - haloQ[1]) > 3 && Math.abs(halo0[0] - haloQ[0]) > 5,
+      pallofHolds: Math.abs(pall0[1] - pall5[1]) < 2 && Math.abs(pall0[0] - pall5[0]) < 12,
+      russianSitsOnFloor: seat.J.hipC[1] > 100 };
+  });
+  expect(r.misses).toEqual([]);
+  expect(r.hitCount, 'the rotation class is a real class').toBeGreaterThan(15);
+  expect(r.chopDropsAndCrosses, 'a chop travels high→low ACROSS the body').toBe(true);
+  expect(r.twistLevel, 'a twist stays level').toBe(true);
+  expect(r.haloOrbits, 'a halo orbits the head').toBe(true);
+  expect(r.pallofHolds, 'a Pallof press-out barely moves — anti-rotation').toBe(true);
+  expect(r.russianSitsOnFloor, 'a Russian twist sits on the floor').toBe(true);
+});
+
+test('feat 474 — waiter and overhead carries lock the load out overhead', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const u = id => { for (const [uuid, i] of VAR_INDEX) if (i.variation.id === id) return uuid; return null; };
+    const mv = id => motionForVariation(u(id));
+    const wrVs = o => { const ps = MOTIONS.carry.build('side', 0.5, 'kettlebell', figP(), o); const a = ps.J.arms.find(x => !x.dim); return a.wr[1] - a.sh[1]; };
+    return { waiter: mv('overhead-carry'), plate: mv('plate-overhead-carry'),
+      overheadWr: wrVs({ overhead: 1 }), farmerWr: wrVs({}) };
+  });
+  expect(r.waiter.motion).toBe('carry');
+  expect(r.waiter.opts.overhead, 'Overhead Carry / Waiter Walk carries overhead').toBe(1);
+  expect(r.waiter.opts.uni, 'a waiter walk is one-handed').toBe(1);
+  expect(r.plate.opts.overhead).toBe(1);
+  expect(r.overheadWr, 'the working wrist is ABOVE the shoulder').toBeLessThan(-20);
+  expect(r.farmerWr, 'a farmer carry hangs below it').toBeGreaterThan(20);
 });

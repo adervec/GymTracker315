@@ -203,7 +203,8 @@ test('feat 414 — every machine-titled variation draws its station; brand names
   expect(r.add.motion).toBe('machine-abduction'); expect(r.add.opts).toEqual({ dir: -1 });
   expect(r.kick).toBe('machine-kickback');
   expect(r.triMach).toBe('machine-triceps');
-  expect(r.torso).toBe('machine-crunch');
+  // feat 474 — the torso-rotation STATION now animates the rotation PATTERN (seated), not a crunch
+  expect(r.torso).toBe('rotation');
   expect(r.revHyper).toBe('reverse-hyper');
   expect(r.lfPreacherHammer).toBe('machine-curl');      // brand name (Life Fitness) implies the machine
   expect(r.rocDip).toEqual({ motion: 'machine-press', equip: 'machine', opts: { rock: 1, angle: -50 } });

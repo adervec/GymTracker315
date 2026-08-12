@@ -94,71 +94,63 @@ test('feat 472 — no standalone Sets title; the first column header says Set', 
   expect(r.cols, 'the header grid is otherwise untouched').toBeGreaterThanOrEqual(4);
 });
 
-test('feat 472 — the Motion slide shows the whole figure without a scrollbar; prose keeps the cap', async ({ page }) => {
+test('feat 474 — text slides keep the feat-97 cap that protects the sets pane', async ({ page }) => {
   await openSheet(page);
   const r = await page.evaluate(() => {
     const sec = document.getElementById('trk-tips-section');
     sec.classList.add('open');
     const content = sec.querySelector('.tips-content');
     sec.querySelector('.excar-tab[data-excar="full"]').click();
-    const prose = { maxH: getComputedStyle(content).maxHeight };
-    sec.querySelector('.excar-tab[data-excar="motion"]').click();
-    // let the rAF loop paint the stage
-    return new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => {
-      const stage = sec.querySelector('.motion-stage');
-      res({ prose,
-        motionMaxH: getComputedStyle(content).maxHeight,
-        noScroll: content.scrollHeight <= content.clientHeight + 1,
-        stagePainted: !!stage.querySelector('svg'),
-        stageFullyVisible: stage.getBoundingClientRect().bottom <= content.getBoundingClientRect().bottom + 1 });
-    })));
+    return { maxH: getComputedStyle(content).maxHeight,
+      motionTabGone: !sec.querySelector('.excar-tab[data-excar="motion"]') };
   });
-  expect(r.prose.maxH, 'text slides keep the feat-97 cap that protects the sets pane').not.toBe('none');
-  expect(r.motionMaxH, 'the figure is fixed-size, not prose — the cap lifts').toBe('none');
-  expect(r.noScroll, 'no vertical scrolling inside the Motion slide').toBe(true);
-  expect(r.stagePainted).toBe(true);
-  expect(r.stageFullyVisible).toBe(true);
+  expect(r.maxH).not.toBe('none');
+  expect(r.motionTabGone, 'feat 474 — Motion lives in its own carousel now').toBe(true);
 });
 
-test('feat 472 — a multi-view stage flips viewpoint every 2 rep cycles, pills in step, pin stops it', async ({ page }) => {
+test('feat 472/474 — the motion carousel shows every view whole, no scrolling inside a slide', async ({ page }) => {
+  await openSheet(page);
+  const r = await page.evaluate(() => new Promise(res => {
+    document.getElementById('trk-ex-motion-btn').click();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const modal = document.getElementById('motion-modal');
+      const wraps = [...modal.querySelectorAll('.media-frame-wrap')];
+      const out = {
+        open: modal.classList.contains('open'),
+        allWhole: wraps.every(w => w.scrollHeight <= w.clientHeight + 1),
+        painted: [...modal.querySelectorAll('.motion-stage')].every(st => st.querySelector('svg')),
+      };
+      closeMotionCarousel(); res(out);
+    }));
+  }));
+  expect(r.open).toBe(true);
+  expect(r.allWhole, 'the whole figure is visible without vertical scrolling').toBe(true);
+  expect(r.painted).toBe(true);
+});
+
+test('feat 472 — a multi-view stage still auto-cycles every 2 rep cycles outside the carousel, pin stops it', async ({ page }) => {
+  // The tips slide is gone (feat 474); the auto-cycle still serves the reference-page panels, so it is
+  // exercised directly on a stage the way the rAF loop would.
   await openSheet(page);
   const r = await page.evaluate(() => {
-    const sec = document.getElementById('trk-tips-section');
-    sec.classList.add('open');
-    sec.querySelector('.excar-tab[data-excar="motion"]').click();
-    const st = sec.querySelector('.motion-stage');
-    const views = MOTIONS[st.dataset.motion].views;
-    const activePill = () => sec.querySelector('.motion-view.active').dataset.mv;
+    const st = document.createElement('div');
+    st.dataset.motion = 'bench-press'; st.dataset.view = 'side';
+    const views = MOTIONS['bench-press'].views;
     const PERIOD = 2400 * MOTION_VIEW_CYCLES;
-
-    delete st.dataset.autoCyc; delete st.dataset.pinned;
-    motionAutoCycle(st, 100);                       // first frame: baseline only
+    motionAutoCycle(st, 100);
     const afterBaseline = st.dataset.view;
-    motionAutoCycle(st, 1000);                      // same window: no change
+    motionAutoCycle(st, 1000);
     const sameWindow = st.dataset.view;
-    motionAutoCycle(st, PERIOD + 50);               // window 1: flip
-    const flipped = { view: st.dataset.view, pill: activePill() };
-    motionAutoCycle(st, PERIOD * 2 + 50);           // window 2: flips again (wraps on 2-view motions)
-    const flippedTwice = st.dataset.view;
-
-    // a manual pill tap pins the stage
-    motionSetView(sec.querySelector('.motion-view'));
-    const pinnedView = st.dataset.view;
-    motionAutoCycle(st, PERIOD * 5 + 50);
+    motionAutoCycle(st, PERIOD + 50);
+    const flipped = st.dataset.view;
+    st.dataset.pinned = '1';
+    motionAutoCycle(st, PERIOD * 3 + 50);
     const afterPinned = st.dataset.view;
-
-    // a single-view motion never cycles
-    const fake = document.createElement('div');
-    fake.dataset.motion = st.dataset.motion; fake.dataset.view = views[0];
-    const single = { ...MOTIONS[st.dataset.motion], views: [views[0]] };
-    return { views, afterBaseline, sameWindow, flipped, flippedTwice, pinnedView, afterPinned,
-      first: views[0], second: views[1], cyclesConst: MOTION_VIEW_CYCLES };
+    return { views, afterBaseline, sameWindow, flipped, afterPinned, cyc: MOTION_VIEW_CYCLES };
   });
-  expect(r.cyclesConst, 'every 2 cycles, as specified').toBe(2);
-  expect(r.afterBaseline, 'opening the slide does not jump').toBe(r.first);
-  expect(r.sameWindow).toBe(r.first);
-  expect(r.flipped.view, 'after 2 rep cycles the view advances').toBe(r.second);
-  expect(r.flipped.pill, 'the pill follows the auto-flip').toBe(r.second);
-  expect(r.flippedTwice, 'and keeps cycling').toBe(r.views.length === 2 ? r.first : r.views[2 % r.views.length]);
-  expect(r.afterPinned, 'a manual choice stops the auto-cycle').toBe(r.pinnedView);
+  expect(r.cyc).toBe(2);
+  expect(r.afterBaseline, 'first frame only sets the baseline').toBe(r.views[0]);
+  expect(r.sameWindow).toBe(r.views[0]);
+  expect(r.flipped, 'after 2 rep cycles the view advances').toBe(r.views[1]);
+  expect(r.afterPinned, 'pinned stages never cycle').toBe(r.views[1]);
 });

@@ -2581,6 +2581,27 @@ They share variation **UUIDs**.
   (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
   convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
   about-this-app screen, so the settings-drawer About section is left untouched.
+- **MOTION LAB chunk 2 + the motion carousel (feat 474):** the audit's largest remaining class — 60+
+  rotational movements rendering as crunches or generic pulls — plus the overhead carries, and two UI
+  requests. **The `rotation` template**: one standing front-view figure covers the whole plane family via
+  opts — `plane: 'diag'` (chop high→low across the body), `'up'` (reverse chop), `'mid'` (level twist),
+  `orbit` (halo circling the head), `iso` (Pallof press-out — arms long, barely moving, which *is* the
+  exercise), `seatFloor` (Russian twist, sat on the floor, torso leaned back, feet up). Cable loads draw
+  their line from a **fixed** anchor per plane — the first contact sheet had the pulley flipping sides
+  mid-rep. **`MOTION_TITLE_TEMPLATE`**: a new resolution step between MOTION_VARS and the family fallback
+  for variations that are a *different movement* from their family (a cable wood chop filed under Obliques
+  is not a crunch) — first match wins, equipment still title-resolved, `_motionMods` still applies. The
+  same table routes waiter/overhead carries to `carry` + new `overhead` opt (load locked out above the
+  shoulder; `uni` makes the waiter walk one-handed). The LF torso-rotation station pins to seated `rotation`
+  via MOTION_VARS — the rotation *pattern* beats the machine-crunch it used to show. **Motion carousel**:
+  the wireframe moved out of the Tips tab row into its own 🏃 button beside 🎬, opening a media-style
+  carousel (`.media-*` classes reused wholesale) — one slide per viewpoint, dots, swipe; every slide is a
+  live `.motion-stage` so the shared rAF loop animates all views at once, and no auto-cycling is needed
+  there (the reference-page panels keep it). Tips drops to six text-only tabs and the feat-472 `:has()`
+  cap-lift became dead code and was removed. **Log Sets banner removed**: the modal header row (title + ✕)
+  is gone — the breadcrumb already names the page and the footer ✕ closes; the body inherited the
+  safe-area padding. The Editing chip (feat 470) is now the *only* editing signal, which is exactly why it
+  exists.
 - **MOTION LAB, chunk 1 (feat 473):** an adversarial audit of all 1,481 motion figures found **370**
   rendering a pose that contradicts their own title — seated shown standing, single-arm shown two-arm,
   preacher curls free-standing, KB swings gripping a static bar. Root cause: 46 templates carry all the pose

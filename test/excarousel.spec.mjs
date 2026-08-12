@@ -22,7 +22,7 @@ const openFor = `(() => {
   return u;
 })()`;
 
-test('the tips area carries the seven carousel tabs; Tips shows by default, others are hidden', async ({ page }) => {
+test('the tips area carries the six carousel tabs; Tips shows by default, others are hidden', async ({ page }) => {
   const r = await page.evaluate((openFor) => {
     eval(openFor);
     const sec = document.getElementById('trk-tips-section');
@@ -30,8 +30,9 @@ test('the tips area carries the seven carousel tabs; Tips shows by default, othe
     const vis = Object.fromEntries([...sec.querySelectorAll('[data-excar-slide]')].map(s => [s.dataset.excarSlide, !s.hidden]));
     return { tabs, vis, hasTips: !!sec.querySelector('[data-excar-slide="tips"] .tip-block'), oldBtnGone: !document.getElementById('trk-ex-trends-btn'), modeBtnGone: !document.getElementById('trk-tips-mode-btn') };
   }, openFor);
-  expect(r.tabs).toEqual(['tips', 'full', 'motion', 'trends', 'history', 'alts', 'brief']);
-  expect(r.vis).toEqual({ tips: true, full: false, motion: false, trends: false, history: false, alts: false, brief: false });
+  // feat 474 — Motion moved out of the tips row to its own 🏃 button + carousel beside 🎬
+  expect(r.tabs).toEqual(['tips', 'full', 'trends', 'history', 'alts', 'brief']);
+  expect(r.vis).toEqual({ tips: true, full: false, trends: false, history: false, alts: false, brief: false });
   expect(r.hasTips).toBe(true);
   expect(r.oldBtnGone).toBe(true);      // the 📈 Trends button is replaced by the Trends slide
   expect(r.modeBtnGone).toBe(true);     // feat 418 — the concise/full header toggle became the Full slide
@@ -78,25 +79,35 @@ test('feat 418 — the Tips-detail setting picks the default slide on modal open
   expect(r.concise).toBe('tips');
 });
 
-test('Motion tab reveals the animated wireframe stage for the picked variation', async ({ page }) => {
+test('feat 474 — the 🏃 button opens the motion CAROUSEL: one media-style slide per viewpoint', async ({ page }) => {
   const r = await page.evaluate((openFor) => {
     eval(openFor);
-    const sec = document.getElementById('trk-tips-section');
-    sec.querySelector('.excar-tab[data-excar="motion"]').click();
-    const st = sec.querySelector('[data-excar-slide="motion"] .motion-stage');
-    motionRenderStage(st, 0.5);
-    return {
-      visible: !sec.querySelector('[data-excar-slide="motion"]').hidden,
-      saved: modalState.exCarousel,
-      stage: !!st, motion: st && st.dataset.motion,
-      painted: st && st.innerHTML.includes('<svg') && st.innerHTML.includes('fig-torso'),
+    document.getElementById('trk-ex-motion-btn').click();
+    const modal = document.getElementById('motion-modal');
+    const stages = [...modal.querySelectorAll('.motion-stage')];
+    stages.forEach(st => motionRenderStage(st, 0.5));
+    const out = {
+      open: modal.classList.contains('open'),
+      slides: modal.querySelectorAll('.media-slide').length,
+      views: stages.map(st => st.dataset.view),
+      motion: stages[0] && stages[0].dataset.motion,
+      dots: modal.querySelectorAll('.media-dot').length,
+      painted: stages.every(st => st.innerHTML.includes('<svg') && st.innerHTML.includes('fig-torso')),
+      nextToMedia: (() => { const acts = [...document.querySelectorAll('#trk-ex-actions .ex-act')].map(b => b.id);
+        return acts.indexOf('trk-ex-motion-btn') === acts.indexOf('trk-ex-media-btn') + 1; })(),
     };
+    closeMotionCarousel();
+    out.closed = !modal.classList.contains('open');
+    return out;
   }, openFor);
-  expect(r.visible).toBe(true);
-  expect(r.saved).toBe('motion');
-  expect(r.stage).toBe(true);
+  expect(r.open).toBe(true);
+  expect(r.slides, 'one slide per viewpoint').toBeGreaterThanOrEqual(2);
+  expect(r.views).toEqual(['side', 'front']);
   expect(r.motion).toBe('bench-press');
-  expect(r.painted).toBe(true);
+  expect(r.dots, 'dots like the media carousel').toBe(r.slides);
+  expect(r.painted, 'every view animates from the shared loop').toBe(true);
+  expect(r.nextToMedia, 'the 🏃 button sits right after 🎬').toBe(true);
+  expect(r.closed).toBe(true);
 });
 
 test('Trends tab shows the peek (sparkline + e1RM) and tapping it opens full trends', async ({ page }) => {

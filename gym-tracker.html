@@ -364,9 +364,11 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
 .snd-metro #snd-metro-mantra:not(.active) { opacity: 0.45; filter: grayscale(0.55); }
 
 /* feat 75 — exercise reference media (carousel + manager) */
-#media-backdrop, #strava-backdrop { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,0.66); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
-#media-backdrop.open, #strava-backdrop.open { opacity: 1; pointer-events: auto; }
-#media-modal, #strava-modal {
+#media-backdrop, #strava-backdrop, #motion-backdrop { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,0.66); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+#media-backdrop.open, #strava-backdrop.open, #motion-backdrop.open { opacity: 1; pointer-events: auto; }
+#motion-modal .media-slide .motion-stage svg { width: 100%; max-width: 240px; margin: 0 auto; } /* feat 474 — the carousel stage is the big version */
+#motion-modal .media-frame-wrap { aspect-ratio: auto; padding: 12px 0 16px; background: var(--bg2, #101010); display: flex; align-items: center; justify-content: center; }
+#media-modal, #strava-modal, #motion-modal {
   position: fixed; z-index: 10051; left: 50%; top: 50%;
   transform: translate(-50%,-50%) scale(0.96); opacity: 0; pointer-events: none;
   width: min(440px, calc(100vw - 22px)); max-height: calc(100vh - 36px);
@@ -374,7 +376,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   border: 1px solid var(--border2); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
   overflow: hidden; transition: opacity 0.2s ease, transform 0.2s ease;
 }
-#media-modal.open, #strava-modal.open { opacity: 1; pointer-events: auto; transform: translate(-50%,-50%) scale(1); }
+#media-modal.open, #strava-modal.open, #motion-modal.open { opacity: 1; pointer-events: auto; transform: translate(-50%,-50%) scale(1); }
 .media-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border2); flex-shrink: 0; }
 .media-head .media-title { flex: 1; font-size: 14px; font-weight: 800; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .media-head .media-count { font-size: 11px; color: var(--text3); font-weight: 700; white-space: nowrap; }
@@ -1955,9 +1957,6 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .tips-content { display: none; padding: 0 12px 11px 12px; border-top: 1px solid #1f1f1f; }
   /* feat 85 — cap tips height so long details never bury the sets */
   .tips-section.open .tips-content { display: block; padding-top: 10px; max-height: 22vh; overflow-y: auto; } /* feat 97 — capped so an open tips panel never pushes the sets pane off-screen */
-  /* feat 472 — the Motion slide is a fixed-size figure, not prose: give it its full height instead of a
-     scrollbar. Chromium-only app, so :has() is safe. */
-  .tips-section.open .tips-content:has(> [data-excar-slide="motion"]:not([hidden])) { max-height: none; overflow-y: visible; }
   /* feat 85 — SETS in their own resizable, independently-scrollable panel */
   .sets-section { border: 1px solid var(--border2); border-radius: 9px; background: var(--bg2); padding: 6px 8px 4px; }
   .sets-section .set-header { position: sticky; top: 0; background: var(--bg2); z-index: 1; padding-top: 2px; }
@@ -3281,6 +3280,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 <div id="nav-tree" role="dialog" aria-label="Navigate"></div>
 
 <!-- feat 75 — exercise reference media (carousel + manager) -->
+<div id="motion-backdrop" onclick="closeMotionCarousel()"></div>
+<div id="motion-modal" role="dialog" aria-label="Motion figure"></div>
 <div id="media-backdrop" onclick="closeExerciseMedia()"></div>
 <div id="media-modal" role="dialog" aria-label="Reference videos"></div>
 
@@ -3358,13 +3359,9 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 
 <div class="modal-backdrop" id="trk-modal-backdrop"></div>
 <div class="modal" id="trk-modal">
-  <div class="modal-header">
-    <div class="modal-title">Log Sets</div>
-    <div class="modal-actions">
-      <button class="modal-btn" id="trk-modal-close">✕</button>
-    </div>
-  </div>
-  <div class="modal-body" id="trk-modal-body"></div>
+  <!-- feat 474 — the "Log Sets" banner row + header ✕ are gone: the page breadcrumb already says where you
+       are, and the footer ✕ Close does the closing. The body just needs the safe-area padding it provided. -->
+  <div class="modal-body" id="trk-modal-body" style="padding-top:calc(10px + env(safe-area-inset-top, 0px));"></div>
   <div class="modal-footer" id="trk-modal-footer">
     <button class="mf-save" id="trk-save-btn" disabled>💾 Save Sets</button>
     <button class="mf-btn" id="trk-add-set" title="Add a set"><span class="mf-icon">➕</span><span class="mf-label">Add</span></button>
@@ -13877,6 +13874,45 @@ let _mediaCtx = null;          // { keys:[{id,label}], title }
 let _mediaMode = 'view';       // 'view' | 'manage'
 let _mediaIO = null;           // IntersectionObserver for lazy iframe loading
 // movementId (optional) lets a variation's carousel also include its whole-movement clips.
+/* feat 474 — the Motion carousel: the wireframe views presented exactly like the media carousel (one
+   slide per viewpoint, dots, swipe), opened from a 🏃 button beside 🎬. All slides carry live .motion-stage
+   divs, so the shared rAF loop animates every view at once — no auto-cycling needed here. */
+function openMotionCarousel(uuid) {
+  const mv = uuid && motionForVariation(uuid); if (!mv) { toast('No motion figure for this exercise yet'); return; }
+  const m = MOTIONS[mv.motion]; if (!m) return;
+  const info = VAR_INDEX.get(uuid);
+  const tempo = mv.opts && mv.opts.tempo;
+  const slides = m.views.map((v, i) => `<div class="media-slide" data-idx="${i}">
+      <div class="media-frame-wrap"><div class="motion-stage" data-motion="${mv.motion}" data-equip="${mv.equip}" data-view="${v}" data-pinned="1"${tempo ? ` data-tempo="${tempo}"` : ''}${mv.opts ? ` data-mopts="${escapeAttr(JSON.stringify(mv.opts))}"` : ''}></div></div>
+      <div class="media-slide-meta"><span>🏃 ${escapeHtml((m.viewLabel && m.viewLabel[v]) || v)}</span></div>
+    </div>`).join('');
+  const dots = m.views.length > 1 ? `<div class="media-dots">${m.views.map((_, i) => `<span class="media-dot ${i === 0 ? 'active' : ''}" data-dot="${i}"></span>`).join('')}</div>` : '';
+  const modal = document.getElementById('motion-modal');
+  modal.innerHTML = `<div class="media-head">
+      <div class="media-title">🏃 ${escapeHtml(info ? info.variation.title : m.label)}</div>
+      <div class="media-count">${m.views.length} view${m.views.length === 1 ? '' : 's'}</div>
+      <button class="media-close" onclick="closeMotionCarousel()" aria-label="Close">✕</button>
+    </div>
+    <div class="media-body"><div class="media-track" id="motion-track">${slides}</div>${dots}</div>`;
+  const track = modal.querySelector('#motion-track');
+  modal.querySelectorAll('.media-dot').forEach(d => d.addEventListener('click', () => {
+    const sl = track.querySelector(`.media-slide[data-idx="${d.dataset.dot}"]`);
+    if (sl) sl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }));
+  track.addEventListener('scroll', () => {
+    const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+    modal.querySelectorAll('.media-dot').forEach(d => d.classList.toggle('active', +d.dataset.dot === i));
+  }, { passive: true });
+  document.getElementById('motion-backdrop').classList.add('open');
+  modal.classList.add('open');
+  motionEnsureLoop();
+}
+function closeMotionCarousel() {
+  document.getElementById('motion-backdrop')?.classList.remove('open');
+  const modal = document.getElementById('motion-modal');
+  modal?.classList.remove('open');
+  setTimeout(() => { if (modal && !modal.classList.contains('open')) modal.innerHTML = ''; }, 230); // stop the stages so the rAF loop can sleep
+}
 function openExerciseMedia(uuid, fallbackTitle, movementId) {
   if (!uuid) { toast('No exercise selected'); return; }
   const keys = [{ id: uuid, label: (movementId && movementId !== uuid) ? 'This variation' : 'This exercise' }];
@@ -23044,12 +23080,16 @@ const MOTIONS = {
     label: 'Loaded Carry', views: ['side'], viewLabel: { side: 'Side' },
     box: { side: [120, 150] },
     act: { foreArm: 0.8, thigh: 0.4, torso: 0.3, torsoZone: 0.5 },
-    build(view, u, equip, p) {
+    build(view, u, equip, p, o) {
       const hip = [56, 86], sw = 2 * u - 1;
       const legAt = (s, dim) => { const an = [hip[0] + 13 * sw * s, 142 - 5 * Math.max(0, Math.sin(Math.PI * (s > 0 ? u : 1 - u)))]; return { hip, kn: figIk(hip, an, 28, 28, -1), an, foot: [an[0] + 9, an[1] + 3], dim }; };
-      const shC = [54, 34], wr = [58, 82];
+      // feat 474 — o.overhead (waiter walk / overhead carry): the load is locked out above the shoulder,
+      // arm vertical, instead of hanging at the side.
+      const shC = [54, 34], wr = (o && o.overhead) ? [57, 8] : [58, 82];
       const J = { head: [54, 16], face: 'right', shC, hipC: hip,
-        arms: [{ sh: [shC[0] - 3, shC[1] + 1], el: [wr[0] - 4, 58], wr: [wr[0] - 3, wr[1]], dim: true }, { sh: shC, el: [wr[0] - 1, 58], wr }],
+        arms: (o && o.overhead)
+          ? [{ sh: [shC[0] - 3, shC[1] + 1], el: [wr[0] - 4, 21], wr: [wr[0] - 3, wr[1]], dim: true }, { sh: shC, el: [wr[0] - 1, 21], wr }]
+          : [{ sh: [shC[0] - 3, shC[1] + 1], el: [wr[0] - 4, 58], wr: [wr[0] - 3, wr[1]], dim: true }, { sh: shC, el: [wr[0] - 1, 58], wr }],
         legs: [legAt(-1, true), legAt(1, false)] };
       return { J, behind: [_EQL([12, 145], [110, 145], 1, 'fig-floor')], front: _figSideLoad(wr, equip === 'barbell' ? 'kettlebell' : equip), o: { depth: 0.72 } };
     },
@@ -23072,6 +23112,48 @@ const MOTIONS = {
   },
   /* ---- feat 413 — seated machine stations (Roc-It / fixed / MTS / plate-loaded). opts.angle = press
      direction (0 = chest press, +up); opts.rock = Roc-It rocking seat (upper body + pad tilt through the rep). ---- */
+  // feat 474 — MOTION LAB chunk 2: rotational work had NO template at all, so 60+ chops/twists/halos
+  // rendered as crunches or generic pulls. One standing front-view template covers the whole plane family:
+  // plane 'diag' (chop high→low) / 'up' (reverse chop) / 'mid' (twist), orbit (halo), iso (Pallof press-out
+  // hold), seatFloor (Russian twist — sat on the floor, torso leaned back, feet up).
+  rotation: {
+    label: 'Rotation', views: ['front'], viewLabel: { front: 'Front' },
+    box: { front: [110, 150] },
+    act: { torso: 1, torsoZone: 0.5, upArm: 0.35 }, // obliques drive it, arms transmit it
+    build(view, u, equip, p, o) {
+      o = o || {};
+      const cx = 55;
+      if (o.seatFloor) {
+        const hipY = 118, shC = [cx, 58], wrX = cx + 30 * Math.sin((u - 0.5) * Math.PI * 1.7);
+        const wr = [wrX, 78];
+        const J = { head: [cx, 38], face: 'front', shC, hipC: [cx, hipY],
+          arms: [{ sh: [cx - 13, 60], el: [(cx - 13 + wrX) / 2, 74], wr }, { sh: [cx + 13, 60], el: [(cx + 13 + wrX) / 2, 74], wr }],
+          legs: [-1, 1].map(sg => ({ hip: [cx + 5 * sg, hipY], kn: [cx + 14 * sg, 96], an: [cx + 20 * sg, 112], foot: [cx + 25 * sg, 109] })) };
+        const load = equip === 'none' ? [] : [_EQC(wr, 5, 'fig-db')];
+        return { J, behind: [_EQL([14, 122], [96, 122], 1, 'fig-floor')], front: load };
+      }
+      let wr;
+      if (o.orbit) { // halo — the load circles the head, close to it
+        wr = [cx + 15 * Math.sin(u * Math.PI * 2), 16 - 9 * Math.cos(u * Math.PI * 2)];
+      } else if (o.iso) { // Pallof — arms pressed long in front, fighting a tiny lateral drift
+        wr = [cx + 5 * Math.sin(u * Math.PI * 2), 64];
+      } else {
+        const t = u, pl = o.plane || 'mid';
+        const y = pl === 'diag' ? 34 + 58 * t : pl === 'up' ? 92 - 58 * t : 62;
+        wr = [cx + (60 * t - 30), y];
+      }
+      const twist = (wr[0] - cx) / 5; // shoulders follow the hands; hips stay square
+      const shC = [cx + twist, 36];
+      const J = { head: [cx + twist * 0.7, 16], face: 'front', shC, hipC: [cx, 92],
+        arms: [{ sh: [shC[0] - 12, 38], el: [(shC[0] - 12 + wr[0]) / 2, (38 + wr[1]) / 2 + 4], wr },
+               { sh: [shC[0] + 12, 38], el: [(shC[0] + 12 + wr[0]) / 2, (38 + wr[1]) / 2 + 4], wr }],
+        legs: [-1, 1].map(sg => ({ hip: [cx + 6 * sg, 96], kn: [cx + 7 * sg, 120], an: [cx + 8 * sg, 144], foot: [cx + 12 * sg, 148] })) };
+      const load = equip === 'none' ? []
+        : equip === 'cable' || equip === 'band' ? [_EQL(o.plane === 'up' ? [4, 146] : o.plane === 'diag' ? [4, 6] : [4, 62], wr, 1, 'fig-cable'), _EQC(wr, 3.4, 'fig-db')] // the pulley is bolted down — the anchor never moves
+        : [_EQC(wr, 5, 'fig-db')];
+      return { J, behind: [_EQL([16, 148], [94, 148], 1, 'fig-floor')], front: load };
+    },
+  },
   'machine-press': {
     label: 'Machine Press', views: ['side'], viewLabel: { side: 'Side' },
     box: { side: [140, 150] },
@@ -23387,6 +23469,8 @@ const MOTION_VARS = {
   'sprinter-squat': ['squat', 'none'], 'step-up': ['lunge', 'none'], 'jump-lunge': ['lunge', 'none'],
   'bear-crawl-shoulder-tap': ['plank', 'none'],
   'hyperext-decline-situp': ['crunch', 'none'], 'hyperext-sissy-squat': ['squat', 'none', { anchor: 1 }],
+  // feat 474 — the LF torso-rotation station: the rotation PATTERN (not a crunch), seated as the machine is
+  'lifefitness-torso-rotation': ['rotation', 'machine', { plane: 'mid', seat: 1 }],
 };
 // feat 413 — when a variation in these families resolves to 'machine' equipment, it's a SEATED station,
 // not the family's free-weight motion (fixed / MTS / plate-loaded presses & rows). Smith machines stay on
@@ -23482,6 +23566,19 @@ function _motionEquip(title, dflt) {
   if (/push-?up|pull-?up|chin-?up|bodyweight|\bdips?\b|nordic|pistol|plank|hollow|bridge|\bhang\b/.test(n)) return 'none';
   return dflt;
 }
+// feat 474 — MOTION LAB: title-driven TEMPLATE overrides. Some variations are a different MOVEMENT from
+// their family (a cable wood chop filed under Obliques is not a crunch), which no opt on the wrong template
+// can fix. First match wins; equipment still resolves from the title; _motionMods still applies on top.
+const MOTION_TITLE_TEMPLATE = [
+  [/russian twist/i, 'rotation', { seatFloor: 1 }],
+  [/\bhalo\b|around.the.world/i, 'rotation', { orbit: 1 }],
+  [/pallof/i, 'rotation', { iso: 1 }],
+  [/reverse chop/i, 'rotation', { plane: 'up' }],
+  [/wood.?chop|\bchop\b|golf swing|landmine 180/i, 'rotation', { plane: 'diag' }],
+  [/(torso|core|cable|seated|standing|oblique|trunk|hip)[^,]*(rotation|twist)/i, 'rotation', { plane: 'mid' }],
+  [/\bwaiter\b/i, 'carry', { overhead: 1, uni: 1 }],
+  [/overhead (carry|walk)/i, 'carry', { overhead: 1 }],
+];
 let _motionByUuid = null;
 function motionForVariation(uuid) {
   if (!uuid) return null;
@@ -23494,6 +23591,8 @@ function motionForVariation(uuid) {
         const mods = _motionMods(v.title), nz = o => (o && Object.keys(o).length) ? o : null; // feat 415
         const mv = MOTION_VARS[v.id];
         if (mv) { _motionByUuid[v.uuid] = { motion: mv[0], equip: mv[1], opts: nz({ ...mods, ...(mv[2] || {}) }) }; return; }
+        const tt = MOTION_TITLE_TEMPLATE.find(t => t[0].test(v.title)); // feat 474 — a different movement, not a different flavour
+        if (tt) { _motionByUuid[v.uuid] = { motion: tt[1], equip: _motionEquip(v.title, (fam && fam[1]) || 'dumbbell'), opts: nz({ ...mods, ...(tt[2] || {}) }) }; return; }
         if (!fam) return;
         let equip = _motionEquip(v.title, fam[1]);
         // feat 416 — bodyweight designation from the equipment solver (feat 223): a variation with NO loading
@@ -23542,7 +23641,7 @@ function _mlabShiftShapes(list, dy) {
   });
 }
 // Front-view standing templates that can take a seated fold (legs fold toward the viewer, bench behind).
-const MOTION_STANDING_FRONT = new Set(['biceps-curl', 'vertical-press', 'lateral-raise', 'front-raise', 'shrug', 'generic']);
+const MOTION_STANDING_FRONT = new Set(['biceps-curl', 'vertical-press', 'lateral-raise', 'front-raise', 'shrug', 'generic', 'rotation']);
 function motionApplyMods(m, mid, view, r, o, u, equip, p) {
   if (!r || !r.J || !o) return;
   const J = r.J;
@@ -27033,8 +27132,8 @@ function renderSetsForm() {
     const slide = modalState.exCarousel || 'tips';
     // feat 470 — one row of icon tabs: only the SELECTED tab spells its name, so seven tabs fit a phone
     // without wrapping. The last chip collapses the whole panel from inside it.
-    const TABS = [['tips', '💡', 'Tips'], ['full', '📖', 'Full'], ['motion', '🏃', 'Motion'], ['trends', '📈', 'Trends'], ['history', '🕓', 'History'], ['alts', '⇄', 'Alts'], ['brief', '🎧', 'Brief']];
-    const motionSlide = (typeof motionPanelHtml === 'function' && motionPanelHtml(pending.varUuid)) || '<div class="excar-empty">No animation for this exercise yet.</div>';
+    // feat 474 — Motion moved out to its own 🏃 button + carousel beside 🎬; the tips row is text slides only
+    const TABS = [['tips', '💡', 'Tips'], ['full', '📖', 'Full'], ['trends', '📈', 'Trends'], ['history', '🕓', 'History'], ['alts', '⇄', 'Alts'], ['brief', '🎧', 'Brief']];
     const trendSlide = renderTrendPeek(pending.varUuid, pending.subUuid) || '<div class="excar-empty">Not enough history for a trend yet — log a couple of sessions.</div>';
     const altsSlide = (() => { // feat 418 — the reference's alternatives, in the sheet
       const alts = (typeof computeAlternatives === 'function' && fam) ? (computeAlternatives(fam.mega, fam.sub, pending.varUuid) || []) : [];
@@ -27051,7 +27150,7 @@ function renderSetsForm() {
         built.segs.map(s => `<div class="tip-block"><div class="tip-block-label">${escapeHtml(s.label)}</div><div class="tip-block-text">${escapeHtml(s.text)}</div></div>`).join('');
     })();
     const SLIDES = { tips: `<button class="tips-ref-link" id="trk-tips-ref-btn" type="button">📚 Open full reference entry →</button>${tipBlocks}`,
-      full: fullBlocks, motion: motionSlide, trends: trendSlide, history: exHistoryPreviewHtml(pending.varUuid, pending.subUuid), alts: altsSlide, brief: briefSlide };
+      full: fullBlocks, trends: trendSlide, history: exHistoryPreviewHtml(pending.varUuid, pending.subUuid), alts: altsSlide, brief: briefSlide };
     // feat 472 — the "Tips & Insights" banner and the tab row are ONE row: the tabs are the header,
     // always visible; the end chip toggles the panel. One row of chrome instead of two.
     tipsHtml = `<div class="tips-section ${isOpen ? 'open' : ''}" id="trk-tips-section">
@@ -27212,6 +27311,7 @@ function renderSetsForm() {
         <button type="button" class="ex-note-add ex-act" id="trk-ex-note-edit" data-emoji="📝" title="Exercise note">${exNote ? 'Edit note' : '＋ Add note'}</button>
         ${(() => { const c = exMaxW(pending.varUuid); return `<button type="button" class="ex-note-add ex-act${c ? ' has-cap' : ''}" id="trk-ex-maxw" data-emoji="⚖️" title="Cap suggestions and data entry for this exercise">⚖️ ${c ? 'Max ' + c + state.unit : 'Set max'}</button>`; })()}
         <button class="ex-media-btn ex-act ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}${getExerciseMedia(pending.varUuid).length ? ' var-media' : ''}" id="trk-ex-media-btn" type="button" data-emoji="🎬" ${getExerciseMedia(pending.varUuid).length ? 'title="Includes media for this exact variation" ' : ''}data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button>
+        <button class="ex-media-btn ex-act" id="trk-ex-motion-btn" type="button" data-emoji="🏃" title="Animated motion figure">🏃 Motion</button>
         <button class="ex-media-btn ex-act" id="trk-podcast-btn" type="button" data-emoji="🎧" title="Play a 30-60s coach brief on this movement">🎧 Brief</button>
         ${speechRecSupported() ? `<button class="ex-media-btn ex-act${exVoiceEnabled() ? ' voice-on' : ''}" id="trk-ex-voice" type="button" data-emoji="🎤" title="Voice control for THIS page — say weight 120 · reps 8 · add set · save · close">🎤${exVoiceEnabled() ? ' On' : ''}</button>` : ''}
         ${!modalState.isEditing ? `<button type="button" class="selected-ex-change ex-act" id="trk-change-exercise" data-emoji="🔄">🔄 Change exercise</button>` : ''}
@@ -27984,6 +28084,7 @@ function bindSetsForm() {
 
   // feat 75 — reference videos for this exercise (carousel / manager); includes whole-movement clips
   document.getElementById('trk-ex-media-btn')?.addEventListener('click', () => { const fi = VAR_INDEX.get(pending.varUuid); openExerciseMedia(pending.varUuid, null, fi && fi.family ? fi.family.id : null); });
+  document.getElementById('trk-ex-motion-btn')?.addEventListener('click', () => openMotionCarousel(pending.varUuid)); // feat 474
   document.getElementById('trk-trend-peek')?.addEventListener('click', () => openTrendsFor(pending.varUuid, pending.subUuid)); // feat 270 — peek → full trends (now the carousel's Trends slide)
   document.getElementById('trk-brief-play')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 418 — the Brief slide's play link
   // feat 417 — the tips-area carousel: Tips · Motion · Trends · History. Selection sticks across the
@@ -27995,7 +28096,6 @@ function bindSetsForm() {
     if (!sec.classList.contains('open')) _tipsSetOpen(true); // feat 472 — a tab tap on the collapsed bar opens it
     sec.querySelectorAll('.excar-tab').forEach(x => x.classList.toggle('active', x === b));
     sec.querySelectorAll('[data-excar-slide]').forEach(sl => { sl.hidden = sl.dataset.excarSlide !== b.dataset.excar; });
-    if (b.dataset.excar === 'motion' && typeof motionEnsureLoop === 'function') motionEnsureLoop();
   }));
   if (document.querySelector('#trk-tips-section .motion-stage') && typeof motionEnsureLoop === 'function') motionEnsureLoop(); // arm the animator for the Motion slide
 
@@ -28650,7 +28750,6 @@ document.querySelectorAll('.tab[data-tab]').forEach(t => {
 
 document.getElementById('trk-fab').addEventListener('click', openLogModal);
 document.getElementById('trk-export-pdf')?.addEventListener('click', exportCurrentViewPdf); // feat 133
-document.getElementById('trk-modal-close').addEventListener('click', () => { closeLogModal(); render(); }); // feat 137 — refresh the dashboard so the plan card reflects (or drops) unsaved sets
 document.getElementById('trk-modal-clear').addEventListener('click', clearPendingModal);
 document.getElementById('trk-footer-close').addEventListener('click', () => { closeLogModal(); render(); });
 // feat 142 — Copy: tap copies weight to the next set (onclick, set in bindSetsForm); HOLD copies the
@@ -28760,7 +28859,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 389 · 2026-08-12 03:33';
+const APP_BUILD = 'build 390 · 2026-08-12 09:21';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
