@@ -2581,6 +2581,25 @@ They share variation **UUIDs**.
   (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
   convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
   about-this-app screen, so the settings-drawer About section is left untouched.
+- **MOTION LAB, chunk 1 (feat 473):** an adversarial audit of all 1,481 motion figures found **370**
+  rendering a pose that contradicts their own title — seated shown standing, single-arm shown two-arm,
+  preacher curls free-standing, KB swings gripping a static bar. Root cause: 46 templates carry all the pose
+  knowledge, and a variation's only levers were equipment + a handful of title mods, so most differences
+  silently fell back to the family generic. The fix is a **submodule**: a bounded MOTION LAB section (a git
+  submodule would break the single-file architecture the checks enforce — this is the EXTRA_FAMILIES
+  pattern) owning every cross-template mechanism as a post-transform pipeline. `motionApplyMods` runs after
+  every template build inside `motionPoseShapes`, so one mechanism lands in all 46 templates at once and new
+  content gets it from `_motionMods` title detection for free. Chunk-1 mechanisms: **seat** (fold onto a
+  drawn bench — side view, plus a viewer-ward leg fold for front-only templates), **kneel/half-kneel** (both
+  views), **uni** (the far arm hangs instead of mirroring), **alt** (the far arm rebuilt at `1-u` — the
+  opposite phase — by re-running the template's own builder), plus two template-specific opts: **support**
+  (preacher/spider/concentration/blaster: pad drawn, elbow pinned — drift ≈0 across the rep) and **swing**
+  (hinge: the arms become a free pendulum, horizontal at the top of the float). Infrastructure that made it
+  work: path shapes gained a `ty` translate (SVG + canvas), because the first contact sheet showed the fold
+  moving the body while **the dumbbell stayed floating at standing height** — loads are built inside the
+  template at the original wrist, so `_mlabShiftShapes` now moves `r.front` with the body. `motionlab.spec`
+  guards the pipeline and asserts the audit stays clean for the chunk-1 mechanisms (~116 variations fixed).
+  Remaining chunks: rotation (62), overhead/carry (49), wall-sit, leg-raise, front-rack, get-up templates.
 - **Log sheet tightening, round three (feat 472):** four savings plus the motion stage learning to show
   itself. (1) The *Tips & Insights* banner row **merged into the tab row** — the `.excar-tabs` row is now the
   `#trk-tips-header`, always visible; collapsed, the tabs *are* the closed state, and tapping a tab both

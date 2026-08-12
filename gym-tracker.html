@@ -22373,7 +22373,8 @@ function figBodyShapes(J, p, o) {
 function figShapeSvg(s) {
   const st = s.stroke || 'var(--border2)', cls = s.cls ? ` class="${s.cls}"` : '', op = s.dim ? ' opacity="0.45"' : '';
   const sw = s.w ? ` stroke-width="${s.w}"` : '';
-  if (s.t === 'path') return `<path${cls} d="${s.d}" fill="${s.fillCol || s.fill || 'none'}" stroke="${st}"${sw}${op}/>`;
+  const tr = s.ty ? ` transform="translate(0 ${_figN(s.ty)})"` : ''; // feat 473 — MOTION LAB shape translation
+  if (s.t === 'path') return `<path${cls} d="${s.d}" fill="${s.fillCol || s.fill || 'none'}" stroke="${st}"${sw}${op}${tr}/>`;
   if (s.t === 'line') return `<line${cls} x1="${_figN(s.a[0])}" y1="${_figN(s.a[1])}" x2="${_figN(s.b[0])}" y2="${_figN(s.b[1])}" stroke="${st}"${sw || ' stroke-width="1.4"'} stroke-linecap="round"${op}/>`;
   if (s.t === 'circle') return `<circle${cls} cx="${_figN(s.c[0])}" cy="${_figN(s.c[1])}" r="${_figN(s.r)}" fill="${s.fillCol || s.fill || 'none'}" stroke="${st}"${sw}${op}/>`;
   return '';
@@ -22386,7 +22387,7 @@ function figCanvas(ctx, shapes, ox, oy, s, color) {
   (shapes || []).forEach(sh => {
     ctx.globalAlpha = sh.dim ? 0.45 : 1;
     ctx.lineWidth = (sh.w || 1.3) / Math.sqrt(s);
-    if (sh.t === 'path') { try { const p2 = new Path2D(sh.d); if (sh.fillCol) { ctx.fillStyle = sh.fillCol; ctx.fill(p2); } ctx.stroke(p2); } catch (_) {} }
+    if (sh.t === 'path') { try { if (sh.ty) { ctx.save(); ctx.translate(0, sh.ty); } const p2 = new Path2D(sh.d); if (sh.fillCol) { ctx.fillStyle = sh.fillCol; ctx.fill(p2); } ctx.stroke(p2); if (sh.ty) ctx.restore(); } catch (_) {} }
     else if (sh.t === 'line') { ctx.beginPath(); ctx.moveTo(sh.a[0], sh.a[1]); ctx.lineTo(sh.b[0], sh.b[1]); ctx.stroke(); }
     else if (sh.t === 'circle') { ctx.beginPath(); ctx.arc(sh.c[0], sh.c[1], sh.r, 0, Math.PI * 2); if (sh.fillCol) { ctx.fillStyle = sh.fillCol; ctx.fill(); } if (sh.stroke !== 'none') ctx.stroke(); }
   });
@@ -22481,19 +22482,24 @@ const MOTIONS = {
     viewLabel: { side: 'Side', front: 'Front' },
     box: { side: [110, 150], front: [110, 150] },
     act: { upArm: 1, foreArm: 0.4 }, // biceps peak + forearm assist
-    build(view, u, equip, p) {
+    build(view, u, equip, p, o) {
       if (view === 'side') {
         // Standing; elbow pinned at the side, forearm arcs from full hang to above horizontal, slight lean-back at the top.
-        const shC = [54 - 2 * u, 34], hipC = [56, 88];
-        const el = [shC[0] + 2 + 3 * u, 62 - u];
-        const a = 0.14 + 2.13 * u, wr = [_figN(el[0] + 24 * Math.sin(a)), _figN(el[1] + 24 * Math.cos(a))];
+        // feat 473 — o.support (preacher/spider/concentration/blaster): the upper arm is PINNED on a pad,
+        // so the shoulder cannot drift back and the elbow stays fixed through the arc.
+        const sup = o && o.support;
+        const shC = sup ? [48, 40] : [54 - 2 * u, 34], hipC = sup ? [50, 88] : [56, 88];
+        const el = sup ? [63, 61] : [shC[0] + 2 + 3 * u, 62 - u];
+        const a = sup ? (0.5 + 1.72 * u) : (0.14 + 2.13 * u), wr = [_figN(el[0] + 24 * Math.sin(a)), _figN(el[1] + 24 * Math.cos(a))];
         const J = {
           head: [shC[0] - 2, 16], face: 'right', shC, hipC,
           arms: [{ sh: [shC[0] - 3, shC[1] + 2], el: [el[0] - 3, el[1] + 1], wr: [wr[0] - 3, wr[1] + 1], dim: true }, { sh: shC, el, wr }],
           legs: [{ hip: [hipC[0] - 4, 90], kn: [hipC[0] - 6, 116], an: [hipC[0] - 6, 140], foot: [hipC[0] + 2, 140], dim: true },
                  { hip: hipC, kn: [hipC[0] - 2, 116], an: [hipC[0] - 2, 140], foot: [hipC[0] + 6, 140] }],
         };
-        return { J, behind: [_EQL([20, 140], [96, 140], 1, 'fig-floor')], front: _figSideLoad(wr, equip), o: { depth: 0.72 } }; // feat 414 — cable/band curls show their own load, not a plate
+        const behind = [_EQL([20, 140], [96, 140], 1, 'fig-floor')];
+        if (sup) behind.push(_EQ('M 46 64 L 74 55 L 74 71 L 46 82 Z', 1.2, 'fig-pad'), _EQL([60, 82], [60, 140], 1.4)); // the preacher pad + column
+        return { J, behind, front: _figSideLoad(wr, equip), o: { depth: 0.72 } }; // feat 414 — cable/band curls show their own load, not a plate
       }
       // Front: both forearms rise (foreshortened), bar/dumbbells track the wrists.
       const cx = 55, wrY = 90 - 48 * u, wrX = 16 - 2 * u;
@@ -22578,11 +22584,15 @@ const MOTIONS = {
     label: 'Hinge / Deadlift', views: ['side'], viewLabel: { side: 'Side' },
     box: { side: [120, 150] },
     act: { torso: 0.9, torsoZone: 0.65, thigh: 0.8 },
-    build(view, u, equip, p) {
+    build(view, u, equip, p, o) {
       const hip = [64 - 4 * u, 92 - 6 * (1 - u)], th = 1.47 - 1.02 * u;
       const shC = [hip[0] - 48 * Math.cos(th), hip[1] - 48 * Math.sin(th)];
       const an = [62, 144], kn = figIk(hip, an, 27, 27, -1);
-      const wr = [shC[0] + 6, Math.min(shC[1] + 33, 131)];
+      // feat 473 — o.swing (KB swings): the arms are a free pendulum — horizontal in front at the top of
+      // the float, hanging under the shoulders through the hinge — instead of gripping a bar down the legs.
+      const ph = -0.06 + 1.68 * u;
+      const wr = (o && o.swing) ? [shC[0] + 33 * Math.cos(ph), shC[1] + 33 * Math.sin(ph)]
+        : [shC[0] + 6, Math.min(shC[1] + 33, 131)];
       const J = { head: [shC[0] + 4, shC[1] - 17], face: 'right', shC, hipC: hip,
         arms: [{ sh: shC, el: _figLerp(shC, wr, 0.5), wr }],
         legs: [{ hip: [hip[0] + 3, hip[1]], kn: [kn[0] + 3, kn[1]], an: [an[0] + 3, an[1]], foot: [an[0] + 12, 144], dim: true },
@@ -23451,6 +23461,13 @@ function _motionMods(title) {
   if (/floor press/.test(n)) o.floor = 1;
   if (/larsen/.test(n)) o.legsUp = 1;
   if (/deficit/.test(n)) o.deficit = 1;
+  // feat 473 — MOTION LAB mechanisms, detected once here so every family gets them consistently
+  if (/single.?arm|one.?arm|\b1.?arm\b|\barcher\b|unilateral/.test(n)) o.uni = 1;
+  if (/alternat/.test(n)) o.alt = 1;
+  if (/half.?kneel/.test(n)) o.kneel = 'half'; else if (/kneel/.test(n)) o.kneel = 1;
+  if (/\bseated\b|\bsitting\b/.test(n)) o.seat = 1;
+  if (/preacher|spider curl|concentration curl|bayesian|blaster/.test(n)) o.support = 1;
+  if (/\bswings?\b/.test(n)) o.swing = 1;
   return o;
 }
 // Equipment inferred from the variation's own title (wins over the family default).
@@ -23496,6 +23513,87 @@ function motionForVariation(uuid) {
   }
   return _motionByUuid[uuid] || null;
 }
+/* ============================================================
+   MOTION LAB (feat 473) — the motion-generation submodule.
+   One bounded module owns every cross-template pose mechanism, so a mechanical property of a variation
+   (seated, kneeling, single-arm, alternating…) is expressed as DATA — an opt detected from the title or
+   set in MOTION_VARS — and implemented ONCE here, instead of per-template ad-hoc code. motionPoseShapes
+   runs the pipeline after every template build, so all 46 templates gain each mechanism simultaneously
+   and behave consistently. (A git submodule would break the single-file architecture the static checks
+   enforce; this is the same in-file module pattern as EXTRA_FAMILIES.)
+   Chunk 1 mechanisms: seat · kneel/half-kneel · uni (single-arm) · alt (alternating). Template-specific
+   opts added alongside: support (preacher pad, biceps-curl) and swing (hip-hinge ballistic, hinge).
+   ============================================================ */
+// Templates whose SIDE view is a standing figure on a floor — the only ones a seat/kneel fold applies to.
+const MOTION_STANDING = new Set(['biceps-curl', 'vertical-press', 'front-raise', 'triceps-ext', 'shrug', 'generic', 'carry', 'calf-raise']);
+function _mlabGround(J) { let g = 0; (J.legs || []).forEach(l => { if (l.an) g = Math.max(g, l.an[1]); if (l.foot) g = Math.max(g, l.foot[1]); }); return g || 144; }
+function _mlabShiftUpper(J, dy) {
+  const S = pt => pt && [pt[0], pt[1] + dy];
+  J.head = S(J.head); J.shC = S(J.shC); J.hipC = S(J.hipC);
+  (J.arms || []).forEach(a => { a.sh = S(a.sh); a.el = S(a.el); a.wr = S(a.wr); });
+}
+// The load is drawn by the template at the ORIGINAL wrist — when a fold moves the body it must ride along
+// (a dumbbell floating where the hand used to be was chunk 1's first screenshot bug).
+function _mlabShiftShapes(list, dy) {
+  (list || []).forEach(sh => {
+    if (sh.t === 'line') { sh.a = [sh.a[0], sh.a[1] + dy]; sh.b = [sh.b[0], sh.b[1] + dy]; }
+    else if (sh.t === 'circle') sh.c = [sh.c[0], sh.c[1] + dy];
+    else if (sh.t === 'path') sh.ty = (sh.ty || 0) + dy;
+  });
+}
+// Front-view standing templates that can take a seated fold (legs fold toward the viewer, bench behind).
+const MOTION_STANDING_FRONT = new Set(['biceps-curl', 'vertical-press', 'lateral-raise', 'front-raise', 'shrug', 'generic']);
+function motionApplyMods(m, mid, view, r, o, u, equip, p) {
+  if (!r || !r.J || !o) return;
+  const J = r.J;
+  // ---- seat: fold a standing figure onto a bench (side view), or fold the legs viewer-ward (front) ----
+  if (o.seat && view === 'side' && MOTION_STANDING.has(mid)) {
+    const g = _mlabGround(J), hipY = g - 34, x = J.hipC[0], dy = hipY - J.hipC[1];
+    _mlabShiftUpper(J, dy); _mlabShiftShapes(r.front, dy);
+    J.legs = [{ hip: [x + 2, hipY], kn: [x + 22, hipY + 3], an: [x + 24, g], foot: [x + 32, g], dim: true },
+              { hip: [x, hipY], kn: [x + 20, hipY + 4], an: [x + 22, g], foot: [x + 30, g] }];
+    (r.behind = r.behind || []).push(_EQ(`M ${x - 14} ${hipY + 8} L ${x + 16} ${hipY + 8} L ${x + 16} ${hipY + 13} L ${x - 14} ${hipY + 13} Z`, 1.2, 'fig-bench'),
+      _EQL([x - 10, hipY + 13], [x - 10, g], 1.2), _EQL([x + 12, hipY + 13], [x + 12, g], 1.2));
+  }
+  if (o.seat && (view === 'front' || view === 'back') && MOTION_STANDING_FRONT.has(mid)) {
+    const g = _mlabGround(J), hip = J.hipC, benchY = hip[1] + 6;
+    J.legs = [-1, 1].map(sg => ({ hip: [hip[0] + 6 * sg, hip[1] + 4], kn: [hip[0] + 10 * sg, hip[1] + 12],
+      an: [hip[0] + 10 * sg, hip[1] + 38], foot: [hip[0] + 14 * sg, hip[1] + 40] }));
+    (r.behind = r.behind || []).push(_EQ(`M ${hip[0] - 17} ${benchY} L ${hip[0] + 17} ${benchY} L ${hip[0] + 17} ${benchY + 5} L ${hip[0] - 17} ${benchY + 5} Z`, 1.2, 'fig-bench'),
+      _EQL([hip[0] - 13, benchY + 5], [hip[0] - 13, g], 1.2), _EQL([hip[0] + 13, benchY + 5], [hip[0] + 13, g], 1.2));
+  }
+  // ---- kneel (front view): thighs drop to knees on the floor, shins point away — invisible ----
+  if (o.kneel && (view === 'front' || view === 'back') && MOTION_STANDING_FRONT.has(mid)) {
+    const g = _mlabGround(J), hip = J.hipC, hipY = g - 30, dy = hipY - hip[1];
+    _mlabShiftUpper(J, dy); _mlabShiftShapes(r.front, dy);
+    J.legs = [-1, 1].map(sg => ({ hip: [hip[0] + 6 * sg, hipY + 4], kn: [hip[0] + 8 * sg, g - 3],
+      an: [hip[0] + 9 * sg, g - 2], foot: [hip[0] + 11 * sg, g - 2] }));
+    if (o.kneel === 'half') { const f = J.legs[1]; f.kn = [hip[0] + 12, hipY + 8]; f.an = [hip[0] + 13, g - 2]; f.foot = [hip[0] + 16, g - 2]; }
+  }
+  // ---- kneel: both knees down, or half-kneeling (front foot planted) ----
+  if (o.kneel && view === 'side' && MOTION_STANDING.has(mid)) {
+    const g = _mlabGround(J), hipY = g - 28, x = J.hipC[0], dy = hipY - J.hipC[1];
+    _mlabShiftUpper(J, dy); _mlabShiftShapes(r.front, dy);
+    const down = off => ({ hip: [x + off, hipY], kn: [x + off - 1, g - 3], an: [x + off - 16, g - 2], foot: [x + off - 22, g - 2] });
+    J.legs = o.kneel === 'half'
+      ? [{ ...down(2), dim: true }, { hip: [x, hipY], kn: [x + 18, hipY + 2], an: [x + 19, g], foot: [x + 27, g] }]
+      : [{ ...down(3), dim: true }, down(0)];
+  }
+  // ---- uni: the far arm hangs instead of mirroring the working arm ----
+  if (o.uni && Array.isArray(J.arms) && J.arms.length >= 2) {
+    const far = view === 'side' || view === 'back' ? J.arms.find(a => a.dim) : J.arms[0];
+    if (far && far.sh) { far.el = [far.sh[0] + 1, far.sh[1] + 15]; far.wr = [far.sh[0] + 2, far.sh[1] + 29]; far.dim = true; }
+  }
+  // ---- alt: the far arm runs the OPPOSITE phase (rebuild at 1-u, borrow its working arm) ----
+  if (o.alt && Array.isArray(J.arms) && J.arms.length >= 2) {
+    try {
+      const r2 = m.build(view, 1 - u, equip, p, { ...o, alt: 0 });
+      const src = (r2.J.arms || []).find(a => !a.dim) || r2.J.arms[1] || r2.J.arms[0];
+      const dst = view === 'side' || view === 'back' ? J.arms.find(a => a.dim) : J.arms[0];
+      if (src && dst) { dst.sh = src.sh; dst.el = src.el; dst.wr = src.wr; }
+    } catch (_) {}
+  }
+}
 // Motion + view + rep position u (0 = top/start, 1 = bottom/contracted) → drawable shapes in the motion's box.
 // feat 410 — act + u drive the muscle-activation colour; feat 412 — opts carries tilt / act overrides per family.
 function motionPoseShapes(mid, view, u, equip, p, opts) {
@@ -23504,6 +23602,7 @@ function motionPoseShapes(mid, view, u, equip, p, opts) {
   p = p || figP();
   u = Math.max(0, Math.min(1, +u || 0));
   const r = m.build(view, u, equip || 'barbell', p, opts || {});
+  motionApplyMods(m, mid, view, r, opts || {}, u, equip || 'barbell', p); // feat 473 — MOTION LAB pipeline
   const act = (opts && opts.act) ? { ...m.act, ...opts.act } : m.act;
   const o = { ...(r.o || {}), act, pulse: u };
   return { shapes: (r.behind || []).concat(figBodyShapes(r.J, p, o)).concat(r.front || []), box: m.box[view], view };
@@ -28661,7 +28760,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 388 · 2026-08-12 03:14';
+const APP_BUILD = 'build 389 · 2026-08-12 03:33';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
