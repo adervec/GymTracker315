@@ -2581,7 +2581,7 @@ They share variation **UUIDs**.
   (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
   convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
   about-this-app screen, so the settings-drawer About section is left untouched.
-- **Log sheet tightening, round three (feat 471):** four savings plus the motion stage learning to show
+- **Log sheet tightening, round three (feat 472):** four savings plus the motion stage learning to show
   itself. (1) The *Tips & Insights* banner row **merged into the tab row** — the `.excar-tabs` row is now the
   `#trk-tips-header`, always visible; collapsed, the tabs *are* the closed state, and tapping a tab both
   opens the panel and lands on that slide. The end chip shows `▾`/`▴` and one `_tipsSetOpen()` helper flips

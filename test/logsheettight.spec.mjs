@@ -1,4 +1,4 @@
-// feat 471 — four space savings on the log sheet, plus the motion stage showing itself.
+// feat 472 — four space savings on the log sheet, plus the motion stage showing itself.
 // (1) The "Tips & Insights" banner row merged into the tab row — one row of chrome, and the tabs stay
 // visible while collapsed so a tab tap is also the open gesture. (2) The standalone "Sets" title is gone;
 // the header row's first column says "Set". (3) The Motion slide gets its full height instead of a
@@ -28,7 +28,7 @@ const openSheet = page => page.evaluate(() => {
   return v;
 });
 
-test('feat 471 — the banner row is gone: the tab row IS the header, visible even collapsed', async ({ page }) => {
+test('feat 472 — the banner row is gone: the tab row IS the header, visible even collapsed', async ({ page }) => {
   await openSheet(page);
   const r = await page.evaluate(() => {
     const sec = document.getElementById('trk-tips-section');
@@ -61,7 +61,7 @@ test('feat 471 — the banner row is gone: the tab row IS the header, visible ev
   expect(r.afterTap.chip, 'the chip follows the state').toBe('▴');
 });
 
-test('feat 471 — the chip toggles both ways and the row background still toggles too', async ({ page }) => {
+test('feat 472 — the chip toggles both ways and the row background still toggles too', async ({ page }) => {
   await openSheet(page);
   const r = await page.evaluate(() => {
     const sec = document.getElementById('trk-tips-section');
@@ -80,7 +80,7 @@ test('feat 471 — the chip toggles both ways and the row background still toggl
   expect(r.rowToggled, 'row tap after chip taps stays in sync').toBe(false);
 });
 
-test('feat 471 — no standalone Sets title; the first column header says Set', async ({ page }) => {
+test('feat 472 — no standalone Sets title; the first column header says Set', async ({ page }) => {
   await openSheet(page);
   const r = await page.evaluate(() => {
     const body = document.getElementById('trk-modal-body');
@@ -94,7 +94,7 @@ test('feat 471 — no standalone Sets title; the first column header says Set', 
   expect(r.cols, 'the header grid is otherwise untouched').toBeGreaterThanOrEqual(4);
 });
 
-test('feat 471 — the Motion slide shows the whole figure without a scrollbar; prose keeps the cap', async ({ page }) => {
+test('feat 472 — the Motion slide shows the whole figure without a scrollbar; prose keeps the cap', async ({ page }) => {
   await openSheet(page);
   const r = await page.evaluate(() => {
     const sec = document.getElementById('trk-tips-section');
@@ -120,7 +120,7 @@ test('feat 471 — the Motion slide shows the whole figure without a scrollbar; 
   expect(r.stageFullyVisible).toBe(true);
 });
 
-test('feat 471 — a multi-view stage flips viewpoint every 2 rep cycles, pills in step, pin stops it', async ({ page }) => {
+test('feat 472 — a multi-view stage flips viewpoint every 2 rep cycles, pills in step, pin stops it', async ({ page }) => {
   await openSheet(page);
   const r = await page.evaluate(() => {
     const sec = document.getElementById('trk-tips-section');

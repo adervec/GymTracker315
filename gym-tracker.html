@@ -1948,14 +1948,14 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .neighbor-hint-reps { font-size: 11px; color: var(--text2); }
   .neighbor-hint-date { font-size: 9.5px; color: var(--text3); margin-top: 1px; }
 
-  /* Collapsible tips section (feat 471 — the tab row IS the header; the old banner row is gone) */
+  /* Collapsible tips section (feat 472 — the tab row IS the header; the old banner row is gone) */
   .tips-section { background: #141414; border: 1px solid #1f1f1f; border-radius: 8px; margin: 8px 0; overflow: hidden; }
   .tips-ref-link { display: block; width: 100%; text-align: left; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); font-size: 12px; font-weight: 700; padding: 8px 11px; border-radius: 7px; cursor: pointer; font-family: inherit; margin-bottom: 10px; }
   .tips-ref-link:active { filter: brightness(1.1); }
   .tips-content { display: none; padding: 0 12px 11px 12px; border-top: 1px solid #1f1f1f; }
   /* feat 85 — cap tips height so long details never bury the sets */
   .tips-section.open .tips-content { display: block; padding-top: 10px; max-height: 22vh; overflow-y: auto; } /* feat 97 — capped so an open tips panel never pushes the sets pane off-screen */
-  /* feat 471 — the Motion slide is a fixed-size figure, not prose: give it its full height instead of a
+  /* feat 472 — the Motion slide is a fixed-size figure, not prose: give it its full height instead of a
      scrollbar. Chromium-only app, so :has() is safe. */
   .tips-section.open .tips-content:has(> [data-excar-slide="motion"]:not([hidden])) { max-height: none; overflow-y: visible; }
   /* feat 85 — SETS in their own resizable, independently-scrollable panel */
@@ -2780,7 +2780,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .injury-chip:hover { border-color: var(--accent); color: var(--text); }
   .picker-empty { padding: 20px; text-align: center; color: #666; font-size: 12.5px; }
 
-  .selected-exercise { background: linear-gradient(135deg, #1a1426 0%, #0f0c1a 100%); border-left: 3px solid #b48aff; padding: 8px 12px 9px; border-radius: 7px; margin-bottom: 8px; } /* feat 471 — trimmed */
+  .selected-exercise { background: linear-gradient(135deg, #1a1426 0%, #0f0c1a 100%); border-left: 3px solid #b48aff; padding: 8px 12px 9px; border-radius: 7px; margin-bottom: 8px; } /* feat 472 — trimmed */
   /* the strength sheet dropped this line in feat 470; the cardio + superset forms still use it */
   .selected-ex-label { font-size: 9.5px; color: #b48aff; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; margin-bottom: 2px; }
   .selected-ex-name { font-size: 14px; font-weight: 700; color: #fff; }
@@ -2849,7 +2849,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   @media (prefers-reduced-motion: reduce) { .ex-note-ticker-inner { animation: none; } }
 
   /* Subvariation in modal */
-  .sub-select-wrap { background: #1f1a2a; border: 1px solid #2e2640; border-radius: 7px; padding: 6px 10px; margin: 0 0 8px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } /* feat 471 — trimmed */
+  .sub-select-wrap { background: #1f1a2a; border: 1px solid #2e2640; border-radius: 7px; padding: 6px 10px; margin: 0 0 8px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } /* feat 472 — trimmed */
   .sub-select-label { font-size: 10px; color: #88b0ff; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; white-space: nowrap; }
   .sub-select { flex: 1; min-width: 0; padding: 8px 28px 8px 10px; background: #0e0e16; border: 1px solid #2e2640; border-radius: 5px; color: #e8e0ff; font-size: 13px; font-family: inherit; cursor: pointer; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2388b0ff' stroke-width='2'%3e%3cpath d='m6 9 6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; background-size: 14px; }
 
@@ -23529,7 +23529,7 @@ function motionRenderStage(st, u) {
   st.innerHTML = `<svg viewBox="0 0 ${ps.box[0]} ${ps.box[1]}" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1.1">${figSvg(ps.shapes)}</svg>`;
 }
 let _motionRaf = null;
-// feat 471 — a multi-view motion shows itself: the stage flips to the next viewpoint every 2 rep cycles
+// feat 472 — a multi-view motion shows itself: the stage flips to the next viewpoint every 2 rep cycles
 // (2 × 2400 ms), keeping the pills in step. Tapping a pill pins the stage and the auto-cycle stops.
 const MOTION_VIEW_CYCLES = 2;
 function motionAutoCycle(st, ts) {
@@ -23549,7 +23549,7 @@ function motionAutoCycle(st, ts) {
 function _motionLoop(ts) {
   const stages = document.querySelectorAll('.motion-stage');
   if (!stages.length) { _motionRaf = null; return; }
-  stages.forEach(st => { if (st.offsetParent) { motionAutoCycle(st, ts); motionRenderStage(st, motionStageU(ts, st.dataset.tempo)); } }); // feat 415 — per-stage tempo; feat 471 — auto view
+  stages.forEach(st => { if (st.offsetParent) { motionAutoCycle(st, ts); motionRenderStage(st, motionStageU(ts, st.dataset.tempo)); } }); // feat 415 — per-stage tempo; feat 472 — auto view
   _motionRaf = requestAnimationFrame(_motionLoop);
 }
 function motionEnsureLoop() { if (!_motionRaf && typeof requestAnimationFrame === 'function' && document.querySelector('.motion-stage')) _motionRaf = requestAnimationFrame(_motionLoop); }
@@ -23557,7 +23557,7 @@ function motionSetView(btn) {
   const panel = btn.closest('.motion-panel'); if (!panel) return;
   panel.querySelectorAll('.motion-view').forEach(b => b.classList.toggle('active', b === btn));
   const st = panel.querySelector('.motion-stage'); st.dataset.view = btn.dataset.mv;
-  st.dataset.pinned = '1'; // feat 471 — a manual choice stops the auto-cycle
+  st.dataset.pinned = '1'; // feat 472 — a manual choice stops the auto-cycle
   motionRenderStage(st, motionPhase(performance.now())); motionEnsureLoop();
 }
 // The reference-page panel: animated stage + one pill per profile the motion needs.
@@ -26953,7 +26953,7 @@ function renderSetsForm() {
     })();
     const SLIDES = { tips: `<button class="tips-ref-link" id="trk-tips-ref-btn" type="button">📚 Open full reference entry →</button>${tipBlocks}`,
       full: fullBlocks, motion: motionSlide, trends: trendSlide, history: exHistoryPreviewHtml(pending.varUuid, pending.subUuid), alts: altsSlide, brief: briefSlide };
-    // feat 471 — the "Tips & Insights" banner and the tab row are ONE row: the tabs are the header,
+    // feat 472 — the "Tips & Insights" banner and the tab row are ONE row: the tabs are the header,
     // always visible; the end chip toggles the panel. One row of chrome instead of two.
     tipsHtml = `<div class="tips-section ${isOpen ? 'open' : ''}" id="trk-tips-section">
       <div class="excar-tabs" id="trk-tips-header">${TABS.map(([k, ico, lbl]) => `<button type="button" class="excar-tab ${slide === k ? 'active' : ''}" data-excar="${k}" title="${lbl}" aria-label="${lbl}"><span class="excar-ico">${ico}</span><span class="excar-lbl">${lbl}</span></button>`).join('')}<button type="button" class="excar-collapse" id="trk-excar-collapse" title="Tips &amp; Insights" aria-label="${isOpen ? 'Collapse' : 'Expand'}">${isOpen ? '▴' : '▾'}</button></div>
@@ -27152,7 +27152,7 @@ function renderSetsForm() {
     ${(() => { if (modalState.isEditing) return ''; const pl = plateauAdvice(pending.varUuid, pending.subUuid); return pl ? `<div class="plateau-note">🧱 <b>${escapeHtml(pl.title)}:</b> ${escapeHtml(pl.text)}</div>` : ''; })()}
     ${renderSetupInline()}
 
-    ${''/* feat 471 — no standalone "Sets" title: the header row's first column says Set instead */}
+    ${''/* feat 472 — no standalone "Sets" title: the header row's first column says Set instead */}
     <div class="sets-section${rpeEnabled() ? ' rpe-on' : ''}" style="margin-top:10px;">
       <div class="set-header">
         <div>Set</div><div>${escapeHtml(M.wLabel)}</div><div>${escapeHtml(M.rLabel)}</div>${rpeEnabled() ? `<div>${rpeMode() === 'rir' ? 'RIR' : 'RPE'}</div>` : ''}<div></div>
@@ -27865,7 +27865,7 @@ function bindSetsForm() {
   document.getElementById('trk-podcast-btn')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 304
   document.getElementById('trk-ex-voice')?.addEventListener('click', exVoiceToggle); // feat 436 — page-scoped voice control
   document.getElementById('trk-ex-actions-toggle')?.addEventListener('click', toggleExActions); // feat 469
-  // feat 471 — one place flips the panel so the chip glyph can never go stale against the state.
+  // feat 472 — one place flips the panel so the chip glyph can never go stale against the state.
   const _tipsSetOpen = (open) => {
     const sec = document.getElementById('trk-tips-section'); if (!sec) return;
     sec.classList.toggle('open', open);
@@ -27893,7 +27893,7 @@ function bindSetsForm() {
     e.stopPropagation();
     modalState.exCarousel = b.dataset.excar;
     const sec = document.getElementById('trk-tips-section');
-    if (!sec.classList.contains('open')) _tipsSetOpen(true); // feat 471 — a tab tap on the collapsed bar opens it
+    if (!sec.classList.contains('open')) _tipsSetOpen(true); // feat 472 — a tab tap on the collapsed bar opens it
     sec.querySelectorAll('.excar-tab').forEach(x => x.classList.toggle('active', x === b));
     sec.querySelectorAll('[data-excar-slide]').forEach(sl => { sl.hidden = sl.dataset.excarSlide !== b.dataset.excar; });
     if (b.dataset.excar === 'motion' && typeof motionEnsureLoop === 'function') motionEnsureLoop();
@@ -28661,7 +28661,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 387 · 2026-08-12 03:13';
+const APP_BUILD = 'build 388 · 2026-08-12 03:14';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
