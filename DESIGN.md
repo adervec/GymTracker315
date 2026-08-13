@@ -2589,6 +2589,20 @@ They share variation **UUIDs**.
   media query matching `standalone` / `minimal-ui` / `fullscreen` / `window-controls-overlay`), so a
   normal browser tab never registers. Read-merge-write keeps sibling apps' entries intact; the whole
   thing is one `try`/`catch` in the boot block, no network and no other behaviour change.
+- **Log ▸ Plans (feat 480):** the List view answers *what did I lift*; this third view answers **which plans
+  have I actually done, and when** — the question you ask when deciding what to run next. Two readings of the
+  same history, because both earn their place: **By date** (one row per run — when, plan, steps done/total,
+  sets, grade) and **By plan** (one row per plan — run count, last run, average sets, best grade), which is
+  the one that exposes the plans you keep meaning to do. Every column sorts and re-tapping flips direction
+  (feat 456's house rule); a plan row drills into that plan's own runs; a date row opens the **existing**
+  Plan Execution View via the same `data-plan-exec-*` attributes, so there is no new detail screen. Unplanned
+  workouts are excluded by default — this view is about plans — behind a `＋ Unplanned` toggle that folds them
+  in dimmed, labelled by their inferred split, with no step count and no execution view to open. Step counts
+  prefer the historized `planExec` snapshot and otherwise re-evaluate at the revision the session ran
+  (`planAtRevision` + `_scalePlan`), matching how the session card already judges a past run.
+  Also fixed a same-millisecond race in feat 479 that this suite's timing exposed: queuing a plan again the
+  instant you finished it left `at === endedAt`, which read as "already done" and dropped it on the spot.
+  `queuePlan` now stamps strictly after the plan's last completed run.
 - **The try-later plan queue (feat 479):** favourites already answered "which plans do I like"; nothing
   answered "what am I going to do *next*". `state.planQueue` is an **ordered** list of `{ id, at }` — and
   the `at` is the whole design. It lets an entry **retire itself** once a session that ran that plan
