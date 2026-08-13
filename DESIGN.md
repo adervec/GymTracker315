@@ -2581,6 +2581,36 @@ They share variation **UUIDs**.
   (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
   convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
   about-this-app screen, so the settings-drawer About section is left untouched.
+- **Rest-cue enrichment (feat 481):** feat 104's rest timer had **one number for every lift**, which is wrong
+  twice over — 90 s is a stall after a heavy squat and a nap after a curl. The target is now *resolved per
+  rest*, in priority order: a **per-exercise pin** → **auto**, taking the length straight from feat 87's
+  recommended-rest band (`recommendRest().targetSec`, which already knows compound-vs-isolation, the previous
+  set's intensity, within-session fatigue and your own median rest) → the **fixed** global number. `restCueTarget(st)`
+  is the single resolver, read by the tick, the rest bar and the HUD alike; a 5 s memo on `recommendRest`
+  keeps that history scan off the 1 s tick path. On top of it:
+  - **Live nudge** — ±30 s scoped to the rest you are *in*. The rest period's identity is recovered from
+    `Date.now() - st.restMs` (the set that anchors it), so a new rest drops the nudge with no extra state
+    threaded through `computeRestState`. Nudging deliberately does **not** reset `_lastRestCueSec` — adjusting
+    the timer shouldn't make it beep at you.
+  - **Pin** — 📌 stores the target you're actually resting to under `state.restCuePins[trackingKey]`. This is
+    a new **synced** key (`SETTINGS_KEYS`, *not* `DEVICE_LOCAL_KEYS` — unlike `restCues` itself): which exercise
+    needs four minutes is a fact about the lift, so it follows you to whichever phone is in the gym.
+  - **Spoken cues** — `voice` says the time via the coach voice (`annunce`/`coachPhrase`): "two minutes",
+    "thirty seconds", "3… 2… 1… Go". The interval/tick beeps stand down while voice is on so they don't talk
+    over the words; the end triad survives as a landmark.
+  - **Between exercises** — previously hard-silenced (`st.interExercise` returned early). Now opt-in via
+    `interEx`, with its own `interTarget` (0 = the same target as a normal rest).
+  - **Overtime nag** — past the target the timer used to go quiet forever. `overtime` re-cues every N sec.
+  - **Skip** — silences the remaining cues for this break only.
+  - **In-sheet HUD** (`.rc-hud`, `refreshRestCueHud`) — the resolved remaining time, **where the target came
+    from** (📌 pinned / 🤖 auto / ⏱ fixed / ↔ between) and the −30 / +30 / 📌 / ⏭ controls, refreshed DOM-only
+    from the same 1 s tick as the rest bar. One delegated handler on the shell, since the innerHTML is swapped
+    every second and the shell is not.
+
+  Every addition defaults to the old behaviour (`interEx:false`, `overtime:0`, `voice:false`), so an existing
+  config sounds exactly as it did — except `auto`, which defaults **on**: adapting the length is the point of
+  the feature, and the fixed number stays as its fallback. The rest bar's `⏳` readout now counts against the
+  resolved target and keeps counting **past** it (`+1:20`) instead of sitting at zero.
 - **Installed-app beacon for the maker portal (feat 480):** feat 471 links out to the maker's app portal
   (`adervec.github.io`); this is the return signal. On boot the app writes `Date.now()` under its own
   `GymTracker315` key inside a shared same-origin `localStorage` registry (`portal-installed`), so the

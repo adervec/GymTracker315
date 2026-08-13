@@ -3154,6 +3154,21 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .target-btn.hit .tb-lbl { color: #3fb950; }
 .target-btn.hit .tb-ico::after { content: '✓'; margin-left: 2px; color: #3fb950; font-weight: 900; }
 .wt-pr-badge { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: rgba(63,185,80,0.18); border: 1px solid rgba(63,185,80,0.5); color: #3fb950; font-size: 11px; font-weight: 800; }
+/* feat 481 — the live rest-cue HUD inside the log sheet: what the target is, where it came from, and the
+   controls to bend it without a trip to Settings. Filled every second by refreshRestCueHud (DOM only). */
+.rc-hud { display: none; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; padding: 5px 8px;
+  border: 1px solid var(--border2); border-radius: 8px; background: var(--input-bg); font-size: 11.5px; }
+.rc-hud-main { font-weight: 800; font-size: 13.5px; font-variant-numeric: tabular-nums; color: var(--good); flex-shrink: 0; }
+.rc-hud-main.over { color: var(--danger); }
+.rc-hud-main.muted { color: var(--text3); }
+.rc-hud-src { color: var(--text3); flex: 1 1 60px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-hud-btns { display: flex; gap: 4px; flex: 0 0 auto; }
+.rc-hud-btn { padding: 3px 7px; font-size: 11px; font-weight: 700; font-family: inherit; border-radius: 6px;
+  border: 1px solid var(--border2); background: var(--card); color: var(--text2); cursor: pointer; }
+.rc-hud-btn.on { border-color: var(--good); color: var(--good); }
+.rc-pin-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); padding: 4px 0; border-bottom: 1px solid var(--border); }
+.rc-pin-row:last-child { border-bottom: none; }
+.rc-pin-row b { margin-left: auto; font-variant-numeric: tabular-nums; }
 /* feat 422 — all-weights table popup; feat 432 — its opener is a prominent full-width button */
 .wt-open-btn { display: block; width: 100%; margin: 8px 0 2px; padding: 11px 12px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 10px; color: var(--text); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; }
 .wt-sheet { max-width: 480px; }
@@ -6490,7 +6505,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','maxWeight
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions','profileSavedAt','timelapse','planQueue'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions','profileSavedAt','timelapse','planQueue','restCuePins'];
 
 /* ---- feat 328 — cross-device sync policy ---------------------------------------------------------
    SETTINGS_KEYS (above) is the "persisted + full-backup" allowlist. Cloud SYNC is narrower: it carries the
@@ -7103,7 +7118,12 @@ function normalizeState() {
   // (feat 208) bound them to the first/last X sets (0 = no limit); duck (feat 209) lowers other audio.
   state.annunciation = { start:false, end:false, startLimit:0, endLimit:0, duck:true, ...(state.annunciation && typeof state.annunciation === 'object' ? state.annunciation : {}) };
   // feat 104 — separate, richly-configurable audible rest timer (count up / countdown + interval cues)
-  state.restCues = { enabled:false, mode:'down', target:90, interval:30, countdown:3, endCue:true, audio:true, haptic:true, freq:784, ...(state.restCues && typeof state.restCues === 'object' ? state.restCues : {}) };
+  // feat 481 — auto (per-exercise) targets, spoken cues, between-exercise cues and an overtime nag
+  state.restCues = { enabled:false, mode:'down', target:90, auto:true, interval:30, countdown:3, endCue:true, audio:true,
+    haptic:true, voice:false, freq:784, interEx:false, interTarget:0, overtime:0, ...(state.restCues && typeof state.restCues === 'object' ? state.restCues : {}) };
+  // feat 481 — per-exercise rest targets (trackingKey → seconds). Not device-local: which exercise needs
+  // four minutes is a fact about the lift, so it follows you to whichever phone is in the gym.
+  if (!state.restCuePins || typeof state.restCuePins !== 'object' || Array.isArray(state.restCuePins)) state.restCuePins = {};
   // feat 118 — custom hi-res anatomy chart (image stored in IndexedDB; this holds the view pref + OCR label map)
   state.anatomyChart = { view:'detailed', map:[], ...(state.anatomyChart && typeof state.anatomyChart === 'object' ? state.anatomyChart : {}) };
   if (!Array.isArray(state.anatomyChart.map)) state.anatomyChart.map = [];
@@ -11295,7 +11315,7 @@ function renderSettingsDrawer() {
     </div>
 
     <div class="drawer-section-title">Rest timer cues</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">A separate audible rest timer (independent of the recommended-rest band). Counts up or down during rest between sets of the same exercise, with configurable interval beeps + an end cue.</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">A separate audible rest timer, independent of the recommended-rest band's colour zones. Counts up or down during your rest, with interval cues, a final countdown and an end cue. The length <b>adapts per exercise</b> rather than being one number for every lift, and the cues can speak instead of beep.</div>
     <div class="drawer-setting-row">
       <div class="drawer-setting-label">Enable rest cues</div>
       <div class="drawer-pill-group">
@@ -11311,9 +11331,22 @@ function renderSettingsDrawer() {
       </div>
     </div>
     <div class="drawer-setting-row">
-      <div><div class="drawer-setting-label">Target (sec)</div><div class="drawer-setting-sub">Countdown length / count-up finish point</div></div>
+      <div>
+        <div class="drawer-setting-label">🤖 Auto target</div>
+        <div class="drawer-setting-sub">Take the length from the recommended-rest band for the exercise you just did — minutes after a heavy squat, about a minute after a curl. Off = always the fixed number below. A per-exercise pin (📌 in the log sheet) beats both.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${restCueCfg().auto ? 'active' : ''}" data-rc="auto" data-rc-val="on">On</button>
+        <button class="drawer-pill ${!restCueCfg().auto ? 'active' : ''}" data-rc="auto" data-rc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div><div class="drawer-setting-label">Target (sec)</div><div class="drawer-setting-sub">Countdown length / count-up finish point${restCueCfg().auto ? ' · the fallback while Auto target is on' : ''}</div></div>
       <input type="number" id="drawer-rc-target" value="${restCueCfg().target}" min="5" max="900" step="5"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-pill-group" style="flex-wrap:wrap;margin:-4px 0 10px;">
+      ${RC_PRESETS.map(p => `<button class="drawer-pill ${restCueCfg().target === p ? 'active' : ''}" data-rc-preset="${p}">${formatDuration(p)}</button>`).join('')}
     </div>
     <div class="drawer-setting-row">
       <div><div class="drawer-setting-label">Beep every (sec)</div><div class="drawer-setting-sub">Interval cue · 0 = off</div></div>
@@ -11326,10 +11359,40 @@ function renderSettingsDrawer() {
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
+      <div><div class="drawer-setting-label">⏰ Overtime nag (sec)</div><div class="drawer-setting-sub">Past the target the timer used to go quiet — this re-cues every N sec so a glance at the phone doesn't quietly become six minutes · 0 = off</div></div>
+      <input type="number" id="drawer-rc-overtime" value="${restCueCfg().overtime}" min="0" max="300" step="5"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">↔ Between exercises</div>
+        <div class="drawer-setting-sub">Rest cues used to stop the moment you picked a different exercise. On = keep cueing the changeover too.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${restCueCfg().interEx ? 'active' : ''}" data-rc="interEx" data-rc-val="on">On</button>
+        <button class="drawer-pill ${!restCueCfg().interEx ? 'active' : ''}" data-rc="interEx" data-rc-val="off">Off</button>
+      </div>
+    </div>
+    ${restCueCfg().interEx ? `<div class="drawer-setting-row">
+      <div><div class="drawer-setting-label">Changeover target (sec)</div><div class="drawer-setting-sub">0 = use the same target as a normal rest</div></div>
+      <input type="number" id="drawer-rc-intertarget" value="${restCueCfg().interTarget}" min="0" max="900" step="5"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>` : ''}
+    <div class="drawer-setting-row">
       <div class="drawer-setting-label">End cue</div>
       <div class="drawer-pill-group">
         <button class="drawer-pill ${restCueCfg().endCue ? 'active' : ''}" data-rc="endCue" data-rc-val="on">On</button>
         <button class="drawer-pill ${!restCueCfg().endCue ? 'active' : ''}" data-rc="endCue" data-rc-val="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">🗣 Spoken cues</div>
+        <div class="drawer-setting-sub">The coach says the time instead of beeping it — “two minutes”, “thirty seconds”, then “3… 2… 1… Go”. The end triad still sounds; the other beeps stand down so they don't talk over the words.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${restCueCfg().voice ? 'active' : ''}" data-rc="voice" data-rc-val="on">On</button>
+        <button class="drawer-pill ${!restCueCfg().voice ? 'active' : ''}" data-rc="voice" data-rc-val="off">Off</button>
       </div>
     </div>
     <div class="drawer-setting-row">
@@ -11346,8 +11409,15 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${!restCueCfg().haptic ? 'active' : ''}" data-rc="haptic" data-rc-val="off">Off</button>
       </div>
     </div>
+    ${(() => { const L = restCuePinList(); if (!L.length) return '';
+      return `<div class="drawer-setting-row" style="display:block;">
+        <div class="drawer-setting-label">📌 Pinned rest targets</div>
+        <div class="drawer-setting-sub">Set from the 📌 button in the log sheet. These beat both Auto and the fixed number.</div>
+        <div style="margin-top:6px;">${L.map(e => `<div class="rc-pin-row"><span>${escapeHtml(e.name)}</span><b>${formatDuration(e.sec)}</b><button class="rc-hud-btn" data-rc-unpin="${escapeAttr(e.key)}" title="Remove this pin">✕</button></div>`).join('')}</div>
+      </div>`; })()}
     <div class="drawer-data-row">
       <button class="drawer-btn" id="drawer-rc-test">▶ Test end cue</button>
+      ${restCuePinList().length ? '<button class="drawer-btn" id="drawer-rc-unpin-all">📌 Clear all pins</button>' : ''}
     </div>
     <div class="drawer-setting-row">
       <div>
@@ -11983,6 +12053,14 @@ function renderSettingsDrawer() {
   if (rcInt) rcInt.addEventListener('change', () => { const v = parseInt(rcInt.value); if (!isNaN(v)) setRC({ interval: Math.max(0, Math.min(300, v)) }); });
   const rcCd = body.querySelector('#drawer-rc-countdown');
   if (rcCd) rcCd.addEventListener('change', () => { const v = parseInt(rcCd.value); if (!isNaN(v)) setRC({ countdown: Math.max(0, Math.min(10, v)) }); });
+  // feat 481 — overtime nag, changeover target, presets and the pin list
+  const rcOv = body.querySelector('#drawer-rc-overtime');
+  if (rcOv) rcOv.addEventListener('change', () => { const v = parseInt(rcOv.value); if (!isNaN(v)) setRC({ overtime: Math.max(0, Math.min(300, v)) }); });
+  const rcIt = body.querySelector('#drawer-rc-intertarget');
+  if (rcIt) rcIt.addEventListener('change', () => { const v = parseInt(rcIt.value); if (!isNaN(v)) setRC({ interTarget: Math.max(0, Math.min(900, v)) }); });
+  body.querySelectorAll('[data-rc-preset]').forEach(b => b.addEventListener('click', () => { setRC({ target: parseInt(b.dataset.rcPreset, 10) }); renderSettingsDrawer(); }));
+  body.querySelectorAll('[data-rc-unpin]').forEach(b => b.addEventListener('click', () => { if (clearRestCuePin(b.dataset.rcUnpin)) { renderSettingsDrawer(); toast('📌 Pin removed'); } }));
+  body.querySelector('#drawer-rc-unpin-all')?.addEventListener('click', () => { clearRestCuePins(); renderSettingsDrawer(); toast('📌 All rest pins cleared'); });
   body.querySelector('#drawer-rc-test')?.addEventListener('click', () => restCueFire('end'));
   // feat 105 — optional one-off permission to unlock audio-device labels for headphone detection
   body.querySelector('#drawer-hp-unlock')?.addEventListener('click', (e) => { e.preventDefault(); unlockHeadphoneDetection(); });
@@ -27803,6 +27881,8 @@ function renderSetsForm() {
         <button type="button" class="ex-act-toggle" id="trk-ex-actions-toggle" title="${exActionsOpen() ? 'Collapse to icons' : 'Show labels'}" aria-expanded="${exActionsOpen()}">${exActionsOpen() ? '▴' : '⋯'}</button>
       </div>
     </div>
+    ${''/* feat 481 — the rest-cue HUD; filled + shown/hidden by refreshRestCueHud on the 1 s tick */}
+    <div class="rc-hud" id="trk-rc-hud" style="display:none;"></div>
 
     ${sub ? `<div class="sub-select-wrap">
       <span class="sub-select-label">${escapeHtml(sub.label)}</span>
@@ -28668,6 +28748,17 @@ function bindSetsForm() {
   document.getElementById('trk-podcast-btn')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 304
   document.getElementById('trk-ex-voice')?.addEventListener('click', exVoiceToggle); // feat 436 — page-scoped voice control
   document.getElementById('trk-ex-actions-toggle')?.addEventListener('click', toggleExActions); // feat 469
+  // feat 481 — one delegated handler on the HUD shell; its innerHTML is swapped every second, the shell is not
+  const rcHud = document.getElementById('trk-rc-hud');
+  if (rcHud) {
+    rcHud.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.rcNudge) restCueNudge(parseInt(b.dataset.rcNudge, 10) || 0);
+      else if (b.dataset.rcPin) restCuePinToggle();
+      else if (b.dataset.rcSkip) restCueSkip();
+    });
+    refreshRestCueHud();
+  }
   // feat 472 — one place flips the panel so the chip glyph can never go stale against the state.
   const _tipsSetOpen = (open) => {
     const sec = document.getElementById('trk-tips-section'); if (!sec) return;
@@ -29469,7 +29560,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 398 · 2026-08-12 23:09';
+const APP_BUILD = 'build 399 · 2026-08-13 07:10';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -30607,10 +30698,11 @@ function refreshRestBar() {
         _lastRestZone = null;
       }
       // feat 104 — show the configured countdown remaining alongside the rest label
+      // feat 481 — against the RESOLVED target (pin → auto → fixed), and it keeps counting once you're over
       const rc = restCueCfg();
-      if (rc.enabled && rc.mode === 'down' && !st.interExercise) {
-        const remain = Math.max(0, (rc.target || 90) - Math.floor(restSec));
-        main += ' · ⏳ ' + formatDuration(remain);
+      if (rc.enabled && rc.mode === 'down' && (!st.interExercise || rc.interEx)) {
+        const remain = restCueTarget(st).sec - Math.floor(restSec);
+        main += remain >= 0 ? ' · ⏳ ' + formatDuration(remain) : ' · ⏳ +' + formatDuration(-remain);
       }
     }
   } else {
@@ -30676,47 +30768,206 @@ function refreshPlanStepBar() {
    feat 104 — REST CUE TIMER: a separate, richly-configurable audible rest timer (count up or
    countdown) with interval beeps, a last-N-second countdown, and a distinct end cue. Independent of
    the recommended-rest zone beeps; opt-in (default off). Fires at most once per integer second.
+
+   feat 481 — the enrichment. The old timer had ONE number for every lift, which is wrong twice over:
+   90 s is a stall after a heavy squat and a nap after a curl. So the target is now RESOLVED per rest:
+
+     per-exercise pin  →  auto (the feat-87 recommended-rest band)  →  the fixed global number
+
+   plus a live ±nudge for the rest you are actually in. On top of that: spoken cues (say the time
+   instead of beeping it), cues BETWEEN exercises (previously silent, opt-in, with its own target),
+   an overtime nag so a "quick check of the phone" doesn't quietly become six minutes, and a skip.
+   All additions default to the old behaviour, so an existing config sounds exactly as it did.
    ============================================================ */
+const RC_PRESETS = [45, 60, 90, 120, 180, 240];
 let _lastRestCueSec = -1;
+let _rcSince = null;    // ms timestamp of the set that started THIS rest — the identity of the rest period
+let _rcNudge = 0;       // live ±seconds, cleared when the rest period changes
+let _rcSkip = false;    // silence the rest of this rest period
 function restCueCfg() {
-  const d = { enabled:false, mode:'down', target:90, interval:30, countdown:3, endCue:true, audio:true, haptic:true, freq:784 };
+  const d = { enabled:false, mode:'down', target:90, auto:true, interval:30, countdown:3, endCue:true,
+              audio:true, haptic:true, voice:false, freq:784, interEx:false, interTarget:0, overtime:0 };
   return { ...d, ...(state.restCues || {}) };
 }
-function restCueFire(kind) { // kind: 'tick' | 'interval' | 'end'
+/* ---- per-exercise pins ---- */
+function restCuePins() {
+  if (!state.restCuePins || typeof state.restCuePins !== 'object' || Array.isArray(state.restCuePins)) state.restCuePins = {};
+  return state.restCuePins;
+}
+function restCuePin(varUuid, subUuid) { if (!varUuid) return null; const v = restCuePins()[trackingKey(varUuid, subUuid)]; return v > 0 ? v : null; }
+function setRestCuePin(varUuid, subUuid, sec) {
+  if (!varUuid) return false;
+  const P = restCuePins(), k = trackingKey(varUuid, subUuid);
+  if (sec > 0) P[k] = Math.max(5, Math.min(900, Math.round(sec))); else delete P[k];
+  saveState();
+  return true;
+}
+// Pins whose variation still exists — a deleted custom variation never shows up as a mystery row.
+function restCuePinList() {
+  const P = restCuePins();
+  return Object.keys(P).map(k => {
+    const v = k.split('|')[0], sub = k.split('|')[1] || null;
+    let name = null; try { name = VAR_INDEX.has(v) ? displayName(v, sub) : null; } catch (_) {}
+    return { key: k, name, sec: P[k] };
+  }).filter(e => e.name && e.sec > 0).sort((a, b) => a.name.localeCompare(b.name));
+}
+function clearRestCuePin(key) { const P = restCuePins(); if (!(key in P)) return false; delete P[key]; saveState(); return true; }
+function clearRestCuePins() { state.restCuePins = {}; saveState(); }
+/* ---- target resolution ---- */
+let _rcRecCache = null;
+// ponytail: 5 s memo — recommendRest scans history and this is read ~3× a second (tick + bar + HUD).
+function _rcRecommended(st) {
+  if (st.rec) return st.rec;                       // computeRestState already paid for it
+  if (!st.varUuid) return null;
+  const key = trackingKey(st.varUuid, st.subUuid);
+  if (_rcRecCache && _rcRecCache.key === key && Date.now() - _rcRecCache.at < 5000) return _rcRecCache.rec;
+  let rec = null;
+  try { rec = recommendRest(st.varUuid, st.subUuid, getActiveSession(), typeof pending !== 'undefined' ? pending : null); } catch (_) { rec = null; }
+  _rcRecCache = { key, at: Date.now(), rec };
+  return rec;
+}
+// The effective countdown length for THIS rest. `base` is the resolved target before the live nudge.
+function restCueTarget(st) {
   const c = restCueCfg();
-  if (c.audio) {
+  let sec = null, src = 'fixed';
+  if (st && st.interExercise && c.interTarget > 0) { sec = c.interTarget; src = 'inter'; }
+  if (sec == null && st) { const p = restCuePin(st.varUuid, st.subUuid); if (p) { sec = p; src = 'pin'; } }
+  if (sec == null && c.auto && st) { const rec = _rcRecommended(st); if (rec && rec.targetSec > 0) { sec = Math.round(rec.targetSec); src = 'auto'; } }
+  if (sec == null) sec = Math.max(5, c.target || 90);
+  const nudge = _rcNudge || 0;
+  return { sec: Math.max(5, Math.min(1800, sec + nudge)), base: sec, nudge, src };
+}
+/* ---- firing ---- */
+// Spoken form of a duration, for the voice cues. "Two minutes", "Ninety seconds", "1 minute 30".
+function _rcSpeakSecs(n) {
+  n = Math.max(0, Math.round(n));
+  if (n === 0) return 'Time';
+  if (n % 60 === 0) { const m = n / 60; return m === 1 ? 'One minute' : m + ' minutes'; }
+  if (n > 60) { const m = Math.floor(n / 60); return m + ' minute' + (m > 1 ? 's' : '') + ' ' + (n % 60); }
+  return n + ' seconds';
+}
+function restCuePhrase(kind, sec) {
+  if (kind === 'tick') return String(Math.max(1, Math.round(sec || 1)));
+  if (kind === 'interval') return _rcSpeakSecs(sec);
+  if (kind === 'over') return _rcSpeakSecs(sec) + ' over. Back to work.';
+  return coachPhrase('go', 'Time. Go.');            // 'end'
+}
+function restCueFire(kind, sec) { // kind: 'tick' | 'interval' | 'end' | 'over'
+  const c = restCueCfg();
+  if (c.voice) { const say = restCuePhrase(kind, sec); if (say) annunce(say); }
+  // ponytail: with voice on the beeps talk over the words — keep only the end triad, as a landmark.
+  if (c.audio && (!c.voice || kind === 'end')) {
     const f = c.freq || 784;
     if (kind === 'end') { restBeep(f * 1.5, 0.2); setTimeout(() => restBeep(f * 1.5, 0.2), 170); setTimeout(() => restBeep(f * 1.5, 0.26), 340); }
     else if (kind === 'tick') restBeep(f, 0.07);
+    else if (kind === 'over') { restBeep(f * 0.6, 0.16); setTimeout(() => restBeep(f * 0.6, 0.16), 220); }
     else restBeep(f, 0.13);
   }
   if (c.haptic) {
     if (kind === 'end') safeVibrate([120, 60, 120, 60, 180]);
     else if (kind === 'tick') safeVibrate([18]);
+    else if (kind === 'over') safeVibrate([200, 90, 200]);
     else safeVibrate([50]);
   }
+}
+/* ---- the rest period: nudge / skip / pin, all scoped to the rest you are in ---- */
+function restCueResetPeriod() { _lastRestCueSec = -1; _rcSince = null; _rcNudge = 0; _rcSkip = false; }
+// A new rest period starts when the set that anchors it changes. restMs is (now - that set's done time),
+// so the anchor is recoverable from any tick without threading extra state through computeRestState.
+function _rcTrackPeriod(st) {
+  const since = Date.now() - (st.restMs || 0);
+  if (_rcSince == null || Math.abs(since - _rcSince) > 1500) { _rcSince = since; _rcNudge = 0; _rcSkip = false; }
+}
+function restCueLiveState() {
+  const c = restCueCfg();
+  if (!c.enabled) return null;
+  let st; try { st = computeRestState(); } catch (_) { return null; }
+  if (!st || st.mode !== 'resting') return null;
+  if (st.interExercise && !c.interEx) return null;
+  return st;
+}
+function restCueNudge(delta) {
+  const st = restCueLiveState(); if (!st) return false;
+  _rcTrackPeriod(st);
+  const T = restCueTarget(st);
+  // clamp against the BASE so a −30 can never drive the target below 5 s
+  _rcNudge = Math.max(5 - T.base, Math.min(900, T.nudge + delta));
+  _rcSkip = false;
+  // deliberately NOT resetting _lastRestCueSec: nudging shouldn't make the timer beep at you
+  try { refreshRestBar(); } catch (_) {}
+  try { refreshRestCueHud(); } catch (_) {}
+  return true;
+}
+function restCueSkip() {
+  const st = restCueLiveState(); if (!st) return false;
+  _rcTrackPeriod(st); _rcSkip = true;
+  try { refreshRestCueHud(); } catch (_) {}
+  return true;
+}
+// Pin the target you are currently resting to, so this exercise keeps it. Tapping again clears it.
+function restCuePinToggle() {
+  const st = restCueLiveState(); if (!st || !st.varUuid) return false;
+  const had = restCuePin(st.varUuid, st.subUuid);
+  const T = restCueTarget(st);
+  setRestCuePin(st.varUuid, st.subUuid, had ? 0 : T.sec);
+  if (!had) _rcNudge = 0;                            // the nudge is baked into the pin now
+  try { toast(had ? '📌 Rest pin cleared — back to ' + (restCueCfg().auto ? 'auto' : 'the fixed target')
+                  : '📌 ' + formatDuration(T.sec) + ' rest pinned to ' + displayName(st.varUuid, st.subUuid)); } catch (_) {}
+  try { refreshRestBar(); refreshRestCueHud(); } catch (_) {}
+  return true;
 }
 function restCueTick() {
   if (holdCueActive()) { _lastRestCueSec = -1; return; } // feat 291 — the hold count cue overrides rest cues
   const c = restCueCfg();
   if (!c.enabled) { _lastRestCueSec = -1; return; }
   let st; try { st = computeRestState(); } catch (_) { return; }
-  if (!st || st.mode !== 'resting' || st.interExercise) { _lastRestCueSec = -1; return; } // only during same-exercise rest
+  if (!st || st.mode !== 'resting') { restCueResetPeriod(); return; }
+  if (st.interExercise && !c.interEx) { restCueResetPeriod(); return; } // feat 481 — between exercises is opt-in
+  _rcTrackPeriod(st);
   const sec = Math.floor((st.restMs || 0) / 1000);
   if (sec === _lastRestCueSec) return;             // one evaluation per integer second
   _lastRestCueSec = sec;
-  if (sec <= 0) return;
+  if (sec <= 0 || _rcSkip) return;
+  const target = restCueTarget(st).sec;
+  const over = c.overtime > 0;
   if (c.mode === 'down') {
-    const target = Math.max(1, c.target || 90);
     const remaining = target - sec;
-    if (remaining === 0) { if (c.endCue) restCueFire('end'); return; }
-    if (remaining < 0) return;                      // past target — go quiet (the bar keeps counting)
-    if (c.countdown > 0 && remaining <= c.countdown) { restCueFire('tick'); return; }
-    if (c.interval > 0 && remaining % c.interval === 0) restCueFire('interval');
+    if (remaining === 0) { if (c.endCue) restCueFire('end', 0); return; }
+    if (remaining < 0) { if (over && (-remaining) % c.overtime === 0) restCueFire('over', -remaining); return; }
+    if (c.countdown > 0 && remaining <= c.countdown) { restCueFire('tick', remaining); return; }
+    if (c.interval > 0 && remaining % c.interval === 0) restCueFire('interval', remaining);
   } else { // count up
-    if (c.endCue && c.target > 0 && sec === c.target) { restCueFire('end'); return; }
-    if (c.interval > 0 && sec % c.interval === 0) restCueFire('interval');
+    if (target > 0 && sec === target) { if (c.endCue) restCueFire('end', sec); return; }
+    if (target > 0 && sec > target) { if (over && (sec - target) % c.overtime === 0) restCueFire('over', sec - target); return; }
+    if (c.interval > 0 && sec % c.interval === 0) restCueFire('interval', sec);
   }
+}
+/* ---- the in-sheet HUD: the resolved target, where it came from, and the controls to bend it ---- */
+const RC_SRC_LABEL = { pin: '📌 pinned', auto: '🤖 auto', fixed: '⏱ fixed', inter: '↔ between' };
+function restCueHudHtml() {
+  const st = restCueLiveState(); if (!st) return '';
+  const c = restCueCfg(), T = restCueTarget(st), sec = Math.floor((st.restMs || 0) / 1000);
+  const left = T.sec - sec;
+  const main = _rcSkip ? '<span class="rc-hud-main muted">⏭ skipped</span>'
+    : c.mode === 'down'
+      ? `<span class="rc-hud-main${left < 0 ? ' over' : ''}">⏳ ${left >= 0 ? formatDuration(left) : '+' + formatDuration(-left)}</span>`
+      : `<span class="rc-hud-main${sec > T.sec ? ' over' : ''}">⏱ ${formatDuration(sec)}</span>`;
+  const pinned = !!restCuePin(st.varUuid, st.subUuid);
+  const nudge = T.nudge ? ` ${T.nudge > 0 ? '+' : ''}${T.nudge}s` : '';
+  return main
+    + `<span class="rc-hud-src">${RC_SRC_LABEL[T.src] || T.src}${nudge} · ${formatDuration(T.sec)}</span>`
+    + '<span class="rc-hud-btns">'
+    + '<button type="button" class="rc-hud-btn" data-rc-nudge="-30" title="30 seconds less rest">−30</button>'
+    + '<button type="button" class="rc-hud-btn" data-rc-nudge="30" title="30 seconds more rest">+30</button>'
+    + (st.varUuid ? `<button type="button" class="rc-hud-btn${pinned ? ' on' : ''}" data-rc-pin="1" title="${pinned ? 'Clear this exercise\'s own rest target' : 'Remember ' + formatDuration(T.sec) + ' as this exercise\'s rest target'}">📌</button>` : '')
+    + `<button type="button" class="rc-hud-btn${_rcSkip ? ' on' : ''}" data-rc-skip="1" title="Silence the cues for the rest of this break">⏭</button>`
+    + '</span>';
+}
+function refreshRestCueHud() {
+  const el = document.getElementById('trk-rc-hud'); if (!el) return;
+  const html = restCueHudHtml();
+  if (el.innerHTML !== html) el.innerHTML = html;   // cheap: the label changes once a second, the buttons never
+  el.style.display = html ? 'flex' : 'none';
 }
 let _restTickId = null;
 function restTick() {
@@ -30725,6 +30976,7 @@ function restTick() {
     // rest/elapsed bars can't keep counting on other pages after you've stopped training.
     if (typeof maybeAutoEndActive === 'function' && maybeAutoEndActive()) { if (typeof render === 'function') render(); }
     if (typeof refreshTopbarLive === 'function') refreshTopbarLive(); // feat 244 — tick the topbar HR/elapsed every second
+    refreshRestCueHud();                            // feat 481 — before the no-session bail, so it can't linger after a workout ends
     if (!getActiveSession()) { refreshRestBar(); _lastRestCueSec = -1; return; }
     reapAbandonedSet();
     refreshRestBar();
