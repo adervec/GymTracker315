@@ -2581,6 +2581,20 @@ They share variation **UUIDs**.
   (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
   convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
   about-this-app screen, so the settings-drawer About section is left untouched.
+- **The try-later plan queue (feat 479):** favourites already answered "which plans do I like"; nothing
+  answered "what am I going to do *next*". `state.planQueue` is an **ordered** list of `{ id, at }` — and
+  the `at` is the whole design. It lets an entry **retire itself** once a session that ran that plan
+  *ended after it was queued*, which is what separates a to-do list from another pile of stars: a plan you
+  ran last month then queued today stays (that old run wasn't this intention), a plan you queued and then
+  abandoned mid-workout stays, and finishing it clears it. The comparison is against `endedAt` rather than
+  the session's start date — caught by the spec, because comparing against the start meant **re-queuing a
+  plan the moment you finished it instantly re-marked it done**. Deleted plans self-heal out on read
+  (`planQueue()` filters; `planQueuePrune()` persists), so no migration is needed. UI: a ⏳ toggle beside
+  the ★ on every plan row, a **Try later** card at the top of the Plans page (front entry marked ▶ with a
+  one-tap Use, plus ▲▼ reorder, ✕ drop, total queued minutes, Clear), and a ⏳ Queued filter chip. The card
+  is hidden entirely when the queue is empty — an empty to-do list isn't worth a card. Reordering operates
+  on the *live* queue so a stale entry can't swallow a move. In `SETTINGS_KEYS`, not `SYNC_COLLECTION_KEYS`:
+  it is an ordered array, and a per-record merge would scramble the order that is the point of it.
 - **The targets section collapses too (feat 478):** the reference tiles and the All-weights button merged
   into one `.targets-sec` with a persistent header and a collapsible body, mirroring feat 477's blurb
   exactly (`_tgtCollapsed`/`_tgtPinned`, reset per sheet, auto-collapse driven from `updateRowLive`, a

@@ -1238,7 +1238,26 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .fav-star:active { transform: scale(0.85); }
   .pill.fav-pill { color: #e8b339; font-size: 12px; padding: 5px 9px; }
   .pill.fav-pill.active { background: #e8b339; border-color: #e8b339; color: #0a0a0a; }
-  .plan-chip-n { font-size: 10px; opacity: 0.7; font-weight: 700; }
+  /* feat 479 — the try-later queue */
+.pq-card { border: 1px solid var(--accent-border); border-radius: 10px; background: var(--accent-bg); padding: 9px 10px; margin-bottom: 10px; }
+.pq-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.pq-title { font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--accent); }
+.pq-count { font-size: 10.5px; color: var(--text3); flex: 1; min-width: 0; }
+.pq-clear { background: none; border: 1px solid var(--border2); border-radius: 7px; color: var(--text3); font-family: inherit; font-size: 10.5px; padding: 3px 8px; cursor: pointer; }
+.pq-row { display: flex; align-items: center; gap: 5px; padding: 4px 0; border-top: 1px solid var(--border2); }
+.pq-row.next { border-top: none; }
+.pq-pos { width: 16px; flex-shrink: 0; text-align: center; font-size: 10.5px; font-weight: 800; color: var(--text3); }
+.pq-row.next .pq-pos { color: var(--accent); }
+.pq-name { flex: 1; min-width: 0; background: none; border: 0; padding: 2px 0; text-align: left; font-family: inherit; font-size: 12px; font-weight: 700; color: var(--text); cursor: pointer; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+.pq-name .pq-meta { font-size: 9.5px; font-weight: 400; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pq-btn { flex-shrink: 0; background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px; color: var(--text2); font-family: inherit; font-size: 10.5px; padding: 4px 6px; cursor: pointer; }
+.pq-btn:disabled { opacity: .3; cursor: default; }
+.pq-use { color: var(--accent); font-weight: 800; padding: 4px 9px; }
+.pq-drop { color: var(--text3); }
+.pq-note { font-size: 9.5px; color: var(--text3); margin-top: 5px; }
+.plan-queue-btn { background: none; border: 0; padding: 2px 4px; font-size: 14px; cursor: pointer; opacity: .38; filter: grayscale(1); flex-shrink: 0; }
+.plan-queue-btn.on { opacity: 1; filter: none; }
+.plan-chip-n { font-size: 10px; opacity: 0.7; font-weight: 700; }
   .plan-filter-note { font-size: 10.5px; color: var(--text3); margin: 2px 2px 8px; }
   /* feat 374 — dual-thumb length range slider (two overlaid native range inputs) */
   .len-filter { margin: 2px 2px 10px; }
@@ -6451,7 +6470,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','maxWeight
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions','profileSavedAt','timelapse'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions','profileSavedAt','timelapse','planQueue'];
 
 /* ---- feat 328 — cross-device sync policy ---------------------------------------------------------
    SETTINGS_KEYS (above) is the "persisted + full-backup" allowlist. Cloud SYNC is narrower: it carries the
@@ -6974,6 +6993,11 @@ function normalizeState() {
   if (!Array.isArray(state.bodyComp)) state.bodyComp = [];
   if (!Array.isArray(state.trendExclude)) state.trendExclude = []; // feat 165 — muscle groups excluded from the overall trend
   if (!state.favoritePlans || typeof state.favoritePlans !== 'object') state.favoritePlans = {}; // feat 178 — { planId: true }
+  // feat 479 — the try-later queue: an ORDERED list of { id, at }. `at` is when you queued it, which is
+  // what lets a run count as "done" (an execution dated after you queued it) without a plan you have run
+  // before being dropped the moment you queue it again.
+  if (!Array.isArray(state.planQueue)) state.planQueue = [];
+  state.planQueue = state.planQueue.filter(e => e && e.id).map(e => ({ id: e.id, at: e.at || new Date().toISOString() }));
   if (!state.favoriteVars || typeof state.favoriteVars !== 'object') state.favoriteVars = {};   // feat 178 — { varUuid: true }
   if (!Array.isArray(state.customVariations)) state.customVariations = [];
   if (!Array.isArray(state.gyms)) state.gyms = [];
@@ -15958,6 +15982,52 @@ function isFavVar(uuid) { return !!(uuid && state.favoriteVars && state.favorite
 function toggleFavPlan(id) { if (!id) return; state.favoritePlans = state.favoritePlans || {}; if (state.favoritePlans[id]) delete state.favoritePlans[id]; else state.favoritePlans[id] = true; saveState(); }
 function toggleFavVar(uuid) { if (!uuid) return; state.favoriteVars = state.favoriteVars || {}; if (state.favoriteVars[uuid]) delete state.favoriteVars[uuid]; else state.favoriteVars[uuid] = true; saveState(); }
 function favPlanCount() { return Object.keys(state.favoritePlans || {}).filter(id => getPlan(id)).length; }
+
+/* ---- feat 479 — PLAN QUEUE ("try later") ----------------------------------------------------------
+   A favourite is "I like this"; a queue entry is "I intend to do this, next". So it is ORDERED, it has a
+   front, and it empties itself: an entry disappears once you have actually run that plan since queuing it
+   (an execution dated after `at`), which is the difference between a to-do list and another pile of stars.
+   Deleted plans self-heal out of the list on read rather than needing a migration. */
+function planQueueRaw() { return Array.isArray(state.planQueue) ? state.planQueue : (state.planQueue = []); }
+// True once a session that ran this plan ENDED after it was queued — queuing then abandoning keeps it.
+// The comparison is against `endedAt`, not the session's start date: a workout you began before queuing and
+// finished afterwards counts as done, and — the case that matters — re-queuing a plan the moment you finish
+// it must NOT instantly mark it done again, which comparing against the start date did.
+function planQueueDone(entry) {
+  if (!entry || !entry.at) return false;
+  const since = new Date(entry.at).getTime();
+  return (state.sessions || []).some(ss => ss.planId === entry.id && ss.endedAt && new Date(ss.endedAt).getTime() >= since);
+}
+// The live queue: existing plans only, completed ones dropped. Read-only view — call planQueuePrune to persist.
+function planQueue() { return planQueueRaw().filter(e => getPlan(e.id) && !planQueueDone(e)); }
+function planQueuePrune() {
+  const before = planQueueRaw().length;
+  const live = planQueue();
+  if (live.length !== before) { state.planQueue = live; saveState(); }
+  return before - live.length;
+}
+function isQueuedPlan(id) { return !!id && planQueue().some(e => e.id === id); }
+function planQueueCount() { return planQueue().length; }
+function queuePlan(id) {
+  if (!id || !getPlan(id) || isQueuedPlan(id)) return false;
+  planQueueRaw().push({ id, at: new Date().toISOString() });
+  saveState(); return true;
+}
+function unqueuePlan(id) {
+  const q = planQueueRaw(), i = q.findIndex(e => e.id === id);
+  if (i < 0) return false;
+  q.splice(i, 1); saveState(); return true;
+}
+function toggleQueuePlan(id) { return isQueuedPlan(id) ? (unqueuePlan(id), false) : (queuePlan(id), true); }
+// Move within the LIVE order (stale entries must not swallow a move).
+function queueMovePlan(id, dir) {
+  const live = planQueue(), i = live.findIndex(e => e.id === id), j = i + (dir < 0 ? -1 : 1);
+  if (i < 0 || j < 0 || j >= live.length) return false;
+  const t = live[i]; live[i] = live[j]; live[j] = t;
+  state.planQueue = live; saveState(); return true;
+}
+function queueClearPlans() { state.planQueue = []; saveState(); }
+function nextQueuedPlan() { const q = planQueue(); return q.length ? getPlan(q[0].id) : null; }
 function favStarHtml(on, attr) { return `<button class="fav-star ${on ? 'on' : ''}" ${attr} aria-pressed="${on ? 'true' : 'false'}" title="${on ? 'Unfavorite' : 'Favorite'}">${on ? '★' : '☆'}</button>`; }
 
 /* ---- feat 162 — plan authorship + revisions / audit trail ----
@@ -17434,6 +17504,7 @@ let _plansRevView = false; // feat 162 — when editing a plan, show its revisio
 const PLAN_LEN_MIN = 5, PLAN_LEN_MAX = 120, PLAN_LEN_STEP = 5;
 let _plansSearch = '', _plansCatFilter = new Set(), _plansLenRange = { min: PLAN_LEN_MIN, max: PLAN_LEN_MAX };
 const _plansLenActive = () => _plansLenRange.min > PLAN_LEN_MIN || _plansLenRange.max < PLAN_LEN_MAX;
+let _plansQueueOnly = false; // feat 479 — show only the try-later queue
 let _plansFavOnly = false; // feat 178 — show only favorited plans
 let _plansPage = 0; // feat 240 — paginate the (filtered) plan list
 /* feat 456 — the plan list is a sortable table with collapsed descriptions. Sorting by anything other than
@@ -17572,6 +17643,7 @@ const _planRowHtml = (p) => {
         <span class="plan-c-sets">${planTotalSets(p)}</span>
       </button>
       ${favStarHtml(isFavPlan(p.id), `data-fav-plan="${escapeAttr(p.id)}"`)}
+      ${(() => { const on = isQueuedPlan(p.id); return `<button type="button" class="plan-queue-btn${on ? ' on' : ''}" data-queue-plan="${escapeAttr(p.id)}" aria-pressed="${on}" title="${on ? 'Remove from the try-later queue' : 'Queue this to try later'}">⏳</button>`; })()}
       <button type="button" class="plan-c-chev" data-plan-expand="${escapeAttr(p.id)}" aria-expanded="${open}" aria-label="Show details">${open ? '▾' : '▸'}</button>
     </div>
     ${open ? `<div class="plan-row-detail">
@@ -17587,6 +17659,33 @@ const _planRowHtml = (p) => {
     </div>` : ''}
   </div>`;
 };
+/* feat 479 — the queue panel: the front of the list is the next thing you intend to do, so it gets a
+   one-tap Use. Everything else is reorder / drop. Hidden entirely when the queue is empty — an empty
+   to-do list is not worth a card. */
+function planQueueHtml() {
+  const q = planQueue();
+  if (!q.length) return '';
+  const rows = q.map((e, i) => {
+    const pl = getPlan(e.id);
+    return `<div class="pq-row${i === 0 ? ' next' : ''}">
+      <span class="pq-pos">${i === 0 ? '▶' : i + 1}</span>
+      <button type="button" class="pq-name" data-queue-open="${escapeAttr(e.id)}" title="Open this plan">${escapeHtml(pl.name)}<span class="pq-meta">${estimatePlanMinutes(pl)}m · ${planTotalSets(pl)} sets · ${escapeHtml(planCategory(pl))}</span></button>
+      <button type="button" class="pq-btn" data-queue-up="${escapeAttr(e.id)}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">▲</button>
+      <button type="button" class="pq-btn" data-queue-down="${escapeAttr(e.id)}" ${i === q.length - 1 ? 'disabled' : ''} aria-label="Move down">▼</button>
+      <button type="button" class="pq-btn pq-use" data-plan-use="${escapeAttr(e.id)}" title="Use for today's workout">Use</button>
+      <button type="button" class="pq-btn pq-drop" data-queue-plan="${escapeAttr(e.id)}" aria-label="Remove from queue">✕</button>
+    </div>`;
+  }).join('');
+  return `<div class="pq-card">
+    <div class="pq-head">
+      <span class="pq-title">⏳ Try later</span>
+      <span class="pq-count">${q.length} queued · ~${q.reduce((n, e) => n + estimatePlanMinutes(getPlan(e.id)), 0)} min</span>
+      <button type="button" class="pq-clear" id="pq-clear">Clear</button>
+    </div>
+    ${rows}
+    <div class="pq-note">Queued plans drop off once you have actually run them.</div>
+  </div>`;
+}
 const PLAN_TABLE_HEAD = `<div class="plan-thead"><span class="plan-c-name">Plan</span><span class="plan-c-cat">Category</span><span class="plan-c-int">Int</span><span class="plan-c-min">Time</span><span class="plan-c-sets">Sets</span><span class="plan-c-chev"></span></div>`;
 // feat 226 — the Quick Pick block at the top of the picker: a time selector + the top-3 recommendations
 // for that budget and your recent training. Shown only on the unfiltered list (it's a starting point).
@@ -17621,6 +17720,7 @@ function renderPlansList(body) {
     // feat 456 — "All" means your own library. Plans of the Day are a dated feed that would otherwise bury it;
     // they stay one tap away on their own chip (and a search still finds them).
     if (!_plansCatFilter.size && !q && planCategory(p) === PLAN_CAT_DAILY) return false;
+    if (_plansQueueOnly && !isQueuedPlan(p.id)) return false; // feat 479
     if (_plansCatFilter.size && !_plansCatFilter.has(planCategory(p))) return false; // feat 373 — multi-select (empty = all)
     if (_plansLenActive()) { // feat 374 — minute range; a thumb at the slider extreme means "open-ended" on that side
       const m = estimatePlanMinutes(p);
@@ -17679,13 +17779,15 @@ function renderPlansList(body) {
       ? '<div class="plan-list-empty">No plans match. <button class="plan-clear-filters" id="plan-clear-filters">Clear filters</button></div>'
       : `${pagerHtml}${pageRows}${pagerHtml}`);
   // feat 226 — Quick Pick only on the unfiltered landing view (hidden once you search/filter/favourite-only).
-  const showQuickPick = plans.length > 0 && !q && _plansCatFilter.size === 0 && !_plansLenActive() && !_plansFavOnly;
-  body.innerHTML = `${showQuickPick ? quickPickHtml() : ''}<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
+  const qN = planQueueCount(); // feat 479
+  const showQuickPick = plans.length > 0 && !q && _plansCatFilter.size === 0 && !_plansLenActive() && !_plansFavOnly && !_plansQueueOnly;
+  const queueHtml = planQueueHtml(); // feat 479
+  body.innerHTML = `${queueHtml}${showQuickPick ? quickPickHtml() : ''}<div class="plan-list-intro">Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today's workout.</div>
     <input type="search" id="plans-search" class="plans-search" placeholder="🔍 Search plans by name or theme…" value="${escapeAttr(_plansSearch)}" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <div class="plan-chips">${favN ? `<button class="plan-chip fav-chip ${_plansFavOnly?'active':''}" data-plan-fav="1" title="Show favorites only">★ Favorites <span class="plan-chip-n">${favN}</span></button>` : ''}${catChip('all','All',plans.filter(p => planCategory(p)!==PLAN_CAT_DAILY).length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
+    <div class="plan-chips">${favN ? `<button class="plan-chip fav-chip ${_plansFavOnly?'active':''}" data-plan-fav="1" title="Show favorites only">★ Favorites <span class="plan-chip-n">${favN}</span></button>` : ''}${qN ? `<button class="plan-chip queue-chip ${_plansQueueOnly?'active':''}" data-plan-queued="1" title="Show the try-later queue only">⏳ Queued <span class="plan-chip-n">${qN}</span></button>` : ''}${catChip('all','All',plans.filter(p => planCategory(p)!==PLAN_CAT_DAILY).length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
     ${sortChips}
     ${lenSliderHtml}
-    ${(_plansCatFilter.size || _plansLenActive() || q || _plansFavOnly) ? `<div class="plan-filter-note">${filtered.length} of ${plans.length} plans</div>` : ''}
+    ${(_plansCatFilter.size || _plansLenActive() || q || _plansFavOnly || _plansQueueOnly) ? `<div class="plan-filter-note">${filtered.length} of ${plans.length} plans</div>` : ''}
     ${listHtml}
     <div class="plan-new-row"><button class="drawer-btn" id="plan-new-btn">＋ New plan</button>${_freestyleSessions().length ? `<button class="drawer-btn" id="plan-new-from-workout">＋ From a past workout</button>` : ''}</div>`;
   bindPlansList(body);
@@ -17730,7 +17832,17 @@ function bindPlansList(body) {
   }
   body.querySelector('[data-plan-fav]')?.addEventListener('click', () => { _plansFavOnly = !_plansFavOnly; _plansPage = 0; renderPlansOverlay(); }); // feat 178
   body.querySelectorAll('[data-fav-plan]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); toggleFavPlan(b.dataset.favPlan); renderPlansOverlay(); })); // feat 178
-  body.querySelector('#plan-clear-filters')?.addEventListener('click', () => { _plansSearch = ''; _plansCatFilter = new Set(); _plansLenRange = { min: PLAN_LEN_MIN, max: PLAN_LEN_MAX }; _plansFavOnly = false; _plansPage = 0; renderPlansOverlay(); });
+  // feat 479 — queue: toggle from a row, reorder / drop / open from the panel
+  body.querySelectorAll('[data-queue-plan]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); toggleQueuePlan(b.dataset.queuePlan); renderPlansOverlay(); }));
+  body.querySelectorAll('[data-queue-up]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); queueMovePlan(b.dataset.queueUp, -1); renderPlansOverlay(); }));
+  body.querySelectorAll('[data-queue-down]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); queueMovePlan(b.dataset.queueDown, 1); renderPlansOverlay(); }));
+  body.querySelectorAll('[data-queue-open]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); _plansExpandId = b.dataset.queueOpen; renderPlansOverlay(); }));
+  body.querySelector('#pq-clear')?.addEventListener('click', () => {
+    guardedConfirm('Clear the try-later queue?', body.querySelector('#pq-clear')).then(ok => { if (ok) { queueClearPlans(); renderPlansOverlay(); toast('Queue cleared'); } });
+  });
+  body.querySelector('[data-plan-queued]')?.addEventListener('click', () => { _plansQueueOnly = !_plansQueueOnly; _plansPage = 0; renderPlansOverlay(); });
+  body.querySelector('#plan-clear-filters')?.addEventListener('click', () => {
+    _plansQueueOnly = false; /* feat 479 */ _plansSearch = ''; _plansCatFilter = new Set(); _plansLenRange = { min: PLAN_LEN_MIN, max: PLAN_LEN_MAX }; _plansFavOnly = false; _plansPage = 0; renderPlansOverlay(); });
   body.querySelectorAll('[data-plan-media]').forEach(b => b.addEventListener('click', () => openPlanMedia(b.dataset.planMedia)));
   body.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
   body.querySelectorAll('[data-plan-view]').forEach(b => b.addEventListener('click', () => { _plansEditId = b.dataset.planView; _plansViewMode = true; _plansRevView = false; renderPlansOverlay(); })); // feat 276 — read-only view
@@ -29223,7 +29335,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 395 · 2026-08-12 18:04';
+const APP_BUILD = 'build 396 · 2026-08-12 22:34';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
