@@ -29335,7 +29335,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 396 · 2026-08-12 22:34';
+const APP_BUILD = 'build 397 · 2026-08-12 22:36';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -30646,6 +30646,17 @@ try { navTo('workout', { replace: true }); } catch (_) { try { render(); } catch
 // feat 105 — probe audio output now and whenever devices change, for the headphone-only gate
 try { probeAudioOutput(); if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', probeAudioOutput); } catch (_) {}
 try { loadAnatomyImage(); } catch (_) {} // feat 118 — warm-load the custom anatomy chart from IndexedDB
+// feat 480 — let the maker's app portal (adervec.github.io, feat 471) know this app is installed, via a
+// shared same-origin localStorage registry. Written only when actually running installed (standalone /
+// fullscreen / minimal-ui / WCO), never in a normal browser tab. No network, nothing else recorded.
+try {
+  const _dm = ['standalone', 'minimal-ui', 'fullscreen', 'window-controls-overlay'];
+  if (navigator.standalone || _dm.some(m => matchMedia(`(display-mode: ${m})`).matches)) {
+    const _k = 'portal-installed', _reg = JSON.parse(localStorage.getItem(_k) || '{}');
+    _reg['GymTracker315'] = Date.now();
+    localStorage.setItem(_k, JSON.stringify(_reg));
+  }
+} catch (_) {}
 
 // Auto-load on startup — runs after initial render so UI is visible first
 // Uses setTimeout so handle permission prompt doesn't block page paint

@@ -2581,6 +2581,14 @@ They share variation **UUIDs**.
   (`https://adervec.github.io`, `target="_blank" rel="noopener"`, matching the app's existing external-link
   convention). One link, one surface: the router About page (`renderAboutPage`, feat 185) is the canonical
   about-this-app screen, so the settings-drawer About section is left untouched.
+- **Installed-app beacon for the maker portal (feat 480):** feat 471 links out to the maker's app portal
+  (`adervec.github.io`); this is the return signal. On boot the app writes `Date.now()` under its own
+  `GymTracker315` key inside a shared same-origin `localStorage` registry (`portal-installed`), so the
+  portal — same origin, so same storage — can show which of its apps are actually installed on this
+  device. The write is gated on genuinely running installed (`navigator.standalone`, or a `display-mode`
+  media query matching `standalone` / `minimal-ui` / `fullscreen` / `window-controls-overlay`), so a
+  normal browser tab never registers. Read-merge-write keeps sibling apps' entries intact; the whole
+  thing is one `try`/`catch` in the boot block, no network and no other behaviour change.
 - **The try-later plan queue (feat 479):** favourites already answered "which plans do I like"; nothing
   answered "what am I going to do *next*". `state.planQueue` is an **ordered** list of `{ id, at }` — and
   the `at` is the whole design. It lets an entry **retire itself** once a session that ran that plan
