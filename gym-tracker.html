@@ -206,6 +206,11 @@ body, html { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 @media (max-width: 560px) {
   body.has-topbar-live .gt-brand { font-size: 15px; }
   body.has-topbar-live .gt-brand-num { display: none; }
+  /* feat 483 — the track clips from the LEFT (flex-end + overflow:hidden), so a triple-digit bpm lost its
+     leading digit when the sparkline and the elapsed clock shared the row. The 50px sparkline is decoration:
+     drop it when the elapsed stat is also present (HR alone still fits with it), and tighten the gap. */
+  body.has-topbar-live .topbar-live { gap: 6px; }
+  .topbar-live .tbl-hr:not(:only-child) .spark { display: none; }
 }
 body.brand-hidden .topbar-brand-row { display: none; }
 body.brand-hidden { --topbar-h: 44px; } /* brand hidden → just the controls row; offsets shrink with it */
@@ -29610,7 +29615,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 400 · 2026-08-14 16:19';
+const APP_BUILD = 'build 401 · 2026-08-14 16:22';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -57,3 +57,27 @@ test('feat 244 — HR samples accumulate into the capped sparkline buffer and re
   expect(r.len).toBe(60);                 // ring buffer capped at 60
   expect(r.shown).toBe(String(r.last));   // hrOnSample refreshed the topbar to the latest bpm
 });
+
+// feat 483 — the live track clips from the LEFT (flex-end + overflow:hidden), so a triple-digit bpm lost
+// its leading digit when the sparkline and a long elapsed clock shared a narrow screen. The sparkline now
+// stands down when both stats are present on <=560px; the bpm digits must never be clipped.
+test('feat 483 — triple-digit bpm + h:mm:ss elapsed fit the live track without clipping', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    _hrConnected = true; _hrSpark = [150, 160, 170, 175, 178]; _hrLastBpm = 178;
+    state.sessions = [{ id: 's', date: new Date(Date.now() - 83 * 60000).toISOString(), updatedAt: new Date().toISOString(), exercises: [] }]; // 1:23:00
+    refreshTopbarLive();
+    const el = document.getElementById('topbar-live');
+    const box = el.getBoundingClientRect();
+    const first = el.firstElementChild.getBoundingClientRect();
+    const spark = el.querySelector('.tbl-hr .spark');
+    return {
+      narrow: window.innerWidth <= 560,
+      clipped: first.left < box.left - 0.5,
+      bpmLeft: el.querySelector('.tbl-hr b').getBoundingClientRect().left >= box.left - 0.5,
+      sparkShown: !!spark && getComputedStyle(spark).display !== 'none',
+    };
+  });
+  expect(r.clipped, 'the first stat must start inside the track').toBe(false);
+  expect(r.bpmLeft).toBe(true);
+  if (r.narrow) expect(r.sparkShown, 'narrow + both stats → the sparkline stands down').toBe(false);
+});

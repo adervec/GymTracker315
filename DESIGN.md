@@ -2637,6 +2637,14 @@ They share variation **UUIDs**.
   - **Numpad "was" reference** — editing a completed set's weight/reps starts with Clear, which erased the
     only copy of the original. `openNumpad` now keeps the value the field opened with (`np.orig`) and the head
     shows *· was 100* for the whole edit — a reference, deliberately not a tap target.
+- **Topbar HR no longer clipped (feat 483):** the brand row's right-hand live track (feat 244) is a `1fr`
+  grid track with `justify-content: flex-end` + `overflow: hidden`, so overflow spills — and clips — on the
+  **left**, which is exactly where the 💓 and a triple-digit bpm's leading digit sit. On phones the track
+  couldn't hold 💓178 + the 50px sparkline + a `1:23:00` elapsed clock at once. CSS-only fix under the
+  existing ≤560px media query: the sparkline (pure decoration) stands down when the elapsed stat is *also*
+  present (`.tbl-hr:not(:only-child) .spark`), and the inter-stat gap tightens 9→6px. HR alone keeps its
+  sparkline — it fits. `topbarlive.spec` pins it geometrically: the first stat's rect must start inside the
+  track's rect on the mobile project.
 - **Installed-app beacon for the maker portal (feat 480):** feat 471 links out to the maker's app portal
   (`adervec.github.io`); this is the return signal. On boot the app writes `Date.now()` under its own
   `GymTracker315` key inside a shared same-origin `localStorage` registry (`portal-installed`), so the
