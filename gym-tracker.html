@@ -857,6 +857,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .np-rep-hint b { color: var(--accent); font-weight: 700; }
   .np-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
   .np-title { font-size: 16px; font-weight: 800; color: var(--text); } /* feat 249 — the Set N · Weight/Reps label was a tiny 12px in a full-width header */
+  .np-was { font-size: 13px; font-weight: 600; color: var(--text3); } /* feat 482 — the value the field opened with, kept visible while you retype */
   .np-display { font-size: 30px; font-weight: 800; text-align: center; color: var(--text); font-variant-numeric: tabular-nums; padding: 4px 0 10px; min-height: 40px; }
   .np-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .np-key { font-size: 20px; font-weight: 700; padding: 14px 0; background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px; color: var(--text); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
@@ -3153,6 +3154,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .target-btn.hit { border-color: #3fb950 !important; background: rgba(63,185,80,0.13) !important; }
 .target-btn.hit .tb-lbl { color: #3fb950; }
 .target-btn.hit .tb-ico::after { content: '✓'; margin-left: 2px; color: #3fb950; font-weight: 900; }
+/* feat 482 — the tiny sort chips under the target tiles */
+.tgt-sort-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--text3); }
 .wt-pr-badge { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: rgba(63,185,80,0.18); border: 1px solid rgba(63,185,80,0.5); color: #3fb950; font-size: 11px; font-weight: 800; }
 /* feat 481 — the live rest-cue HUD inside the log sheet: what the target is, where it came from, and the
    controls to bend it without a trip to Settings. Filled every second by refreshRestCueHud (DOM only). */
@@ -6505,7 +6508,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','maxWeight
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions','profileSavedAt','timelapse','planQueue','restCuePins'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions','profileSavedAt','timelapse','planQueue','restCuePins','targetSort'];
 
 /* ---- feat 328 — cross-device sync policy ---------------------------------------------------------
    SETTINGS_KEYS (above) is the "persisted + full-backup" allowlist. Cloud SYNC is narrower: it carries the
@@ -7120,10 +7123,12 @@ function normalizeState() {
   // feat 104 — separate, richly-configurable audible rest timer (count up / countdown + interval cues)
   // feat 481 — auto (per-exercise) targets, spoken cues, between-exercise cues and an overtime nag
   state.restCues = { enabled:false, mode:'down', target:90, auto:true, interval:30, countdown:3, endCue:true, audio:true,
-    haptic:true, voice:false, freq:784, interEx:false, interTarget:0, overtime:0, ...(state.restCues && typeof state.restCues === 'object' ? state.restCues : {}) };
+    haptic:true, voice:false, freq:784, interEx:false, interTarget:0, overtime:0, setNag:0, ...(state.restCues && typeof state.restCues === 'object' ? state.restCues : {}) };
   // feat 481 — per-exercise rest targets (trackingKey → seconds). Not device-local: which exercise needs
   // four minutes is a fact about the lift, so it follows you to whichever phone is in the gym.
   if (!state.restCuePins || typeof state.restCuePins !== 'object' || Array.isArray(state.restCuePins)) state.restCuePins = {};
+  // feat 482 — how the target tiles are ordered in the log sheet
+  if (!['order', 'w', 'r', 'e1', 'vuln'].includes(state.targetSort)) state.targetSort = 'order';
   // feat 118 — custom hi-res anatomy chart (image stored in IndexedDB; this holds the view pref + OCR label map)
   state.anatomyChart = { view:'detailed', map:[], ...(state.anatomyChart && typeof state.anatomyChart === 'object' ? state.anatomyChart : {}) };
   if (!Array.isArray(state.anatomyChart.map)) state.anatomyChart.map = [];
@@ -11364,6 +11369,11 @@ function renderSettingsDrawer() {
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
+      <div><div class="drawer-setting-label">🐌 Slow-set nag (sec)</div><div class="drawer-setting-sub">A set still running after N seconds gets a nudge, and another every N after — for the set you started and then got distracted mid-way · 0 = off</div></div>
+      <input type="number" id="drawer-rc-setnag" value="${restCueCfg().setNag}" min="0" max="600" step="5"
+        style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+    </div>
+    <div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">↔ Between exercises</div>
         <div class="drawer-setting-sub">Rest cues used to stop the moment you picked a different exercise. On = keep cueing the changeover too.</div>
@@ -11388,7 +11398,7 @@ function renderSettingsDrawer() {
     <div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">🗣 Spoken cues</div>
-        <div class="drawer-setting-sub">The coach says the time instead of beeping it — “two minutes”, “thirty seconds”, then “3… 2… 1… Go”. The end triad still sounds; the other beeps stand down so they don't talk over the words.</div>
+        <div class="drawer-setting-sub">The coach says the time instead of beeping it — “thirty, twenty-nine” (two seconds, so you hear which way the clock runs), then “3… 2… 1… Go”. The end triad still sounds; the other beeps stand down so they don't talk over the words.</div>
       </div>
       <div class="drawer-pill-group">
         <button class="drawer-pill ${restCueCfg().voice ? 'active' : ''}" data-rc="voice" data-rc-val="on">On</button>
@@ -12056,6 +12066,8 @@ function renderSettingsDrawer() {
   // feat 481 — overtime nag, changeover target, presets and the pin list
   const rcOv = body.querySelector('#drawer-rc-overtime');
   if (rcOv) rcOv.addEventListener('change', () => { const v = parseInt(rcOv.value); if (!isNaN(v)) setRC({ overtime: Math.max(0, Math.min(300, v)) }); });
+  const rcSn = body.querySelector('#drawer-rc-setnag'); // feat 482 — slow-set nag
+  if (rcSn) rcSn.addEventListener('change', () => { const v = parseInt(rcSn.value); if (!isNaN(v)) setRC({ setNag: Math.max(0, Math.min(600, v)) }); });
   const rcIt = body.querySelector('#drawer-rc-intertarget');
   if (rcIt) rcIt.addEventListener('change', () => { const v = parseInt(rcIt.value); if (!isNaN(v)) setRC({ interTarget: Math.max(0, Math.min(900, v)) }); });
   body.querySelectorAll('[data-rc-preset]').forEach(b => b.addEventListener('click', () => { setRC({ target: parseInt(b.dataset.rcPreset, 10) }); renderSettingsDrawer(); }));
@@ -27913,12 +27925,13 @@ function renderSetsForm() {
         ['🏋️', 'Max wt', B.maxW, null], ['🔁', 'Max reps', B.maxR, null]];
       const seen = new Set(), btns = [];
       let hits = 0;
-      defs.forEach(([ico, lbl, t, odds]) => {
+      const tgtSort = ['w', 'r', 'e1', 'vuln'].includes(state.targetSort) ? state.targetSort : 'order';
+      sortTargetDefs(defs, tgtSort).forEach(([ico, lbl, t, odds]) => {
         if (!t || !(t.w > 0) || seen.has(t.w)) return; // same weight twice = one button
         seen.add(t.w);
         const hit = exTargetHit(pending.varUuid, pending.subUuid, t.w, t.r);
         if (hit) hits++;
-        btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}" data-w="${t.w}"
+        btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}" data-w="${t.w}" data-r="${t.r}"
           title="${escapeAttr(lbl + ' — ' + t.w + state.unit + ' × ' + t.r + (odds != null ? ' · ' + odds + '% PR odds' : '') + (hit ? ' — already done this session' : ''))}"
           ><span class="tb-ico">${ico}</span><span class="tb-lbl">${lbl}</span><b>${t.w}×${t.r}</b></button>`);
         // the odds live in the tooltip and the All-weights table — on a 3-up tile they only ate the label
@@ -27941,6 +27954,8 @@ function renderSetsForm() {
         </button>
         <div class="targets-body">
           ${btns.length ? `<div class="target-row">${btns.join('')}</div>` : ''}
+          ${btns.length > 1 ? `<div class="tgt-sort-row">↕${[['order', 'order'], ['w', 'weight'], ['r', 'reps'], ['e1', 'e1RM'], ['vuln', '🎯 odds']].map(([k, l]) =>
+            `<button type="button" class="rc-hud-btn${tgtSort === k ? ' on' : ''}" data-tgt-sort="${k}">${l}</button>`).join('')}</div>` : ''}
           ${wtBtn}
         </div>
       </div>`;
@@ -28042,6 +28057,18 @@ function exPrTargets(varUuid, subUuid, taken) {
   const e1 = eRow ? { w: eRow.w, r: need, odds: eRow.pv } : null;
   return { vuln, e1 };
 }
+// feat 482 — order the target tiles: 'order' keeps them as built; the rest sort descending by weight,
+// reps, e1RM, or vulnerability (PR odds — tiles without odds sink to the end).
+function sortTargetDefs(defs, key) {
+  if (!['w', 'r', 'e1', 'vuln'].includes(key)) return defs;
+  const val = (d) => { const t = d[2], odds = d[3];
+    if (!t) return -Infinity;
+    return key === 'w' ? t.w : key === 'r' ? t.r
+      : key === 'e1' ? (estimated1RM(t.w, t.r) || 0)
+      : (odds != null ? odds : -1);
+  };
+  return defs.slice().sort((a, b) => val(b) - val(a));
+}
 // The sets logged for THIS exercise today: the pending sheet plus anything already saved this session.
 function exSessionSets(varUuid, subUuid) {
   const out = [];
@@ -28080,6 +28107,23 @@ function exSessionPrCount(varUuid, subUuid) {
 let _tgtCollapsed = false, _tgtPinned = false, _tgtTotal = 0, _tgtHits = 0;
 function targetsOpen() { return !_tgtCollapsed; }
 function targetsResetForSheet() { _tgtCollapsed = false; _tgtPinned = false; }
+// feat 482 — a completed set turns its target tile green NOW, not on the next full render. DOM-only:
+// retint the .hit classes and the hits/total counter from the tiles' own data-w/data-r.
+function refreshTargetHits() {
+  const el = document.getElementById('trk-targets');
+  if (!el || !pending.varUuid) return;
+  let hits = 0, total = 0;
+  el.querySelectorAll('.target-btn').forEach(b => {
+    total++;
+    const hit = exTargetHit(pending.varUuid, pending.subUuid, parseFloat(b.dataset.w), parseFloat(b.dataset.r) || 1);
+    if (hit) hits++;
+    b.classList.toggle('hit', hit);
+  });
+  if (!total) return;
+  _tgtHits = hits; _tgtTotal = total;                     // targetsAutoCollapse reads these
+  const cnt = el.querySelector('.targets-count');
+  if (cnt) { cnt.textContent = hits + '/' + total + ' hit'; cnt.classList.toggle('all', hits === total); }
+}
 function targetsAutoCollapse() {
   if (_tgtPinned || _tgtCollapsed) return false;
   if (!_tgtTotal || _tgtHits < _tgtTotal) return false;   // still something to aim at
@@ -28109,7 +28153,9 @@ function prefillTargetWeight(w) {
   const cap = exMaxW(pending.varUuid); if (cap && w > cap) w = cap; // feat 434 — a reference above the cap prefills the cap
   let i = (pending.sets || []).findIndex(s => s && !isSetValid(s, pending.varUuid));
   if (i < 0) { pending.sets.push({ w: '', r: '' }); i = pending.sets.length - 1; }
-  pending.sets[i].w = w; savePending();
+  // feat 482 — through the canonical path (like the voice route) so wTs is stamped: without it the set never
+  // counted as STARTED, computeRestState stayed 'resting', and the rest cues kept firing mid-set.
+  commitSetField(i, 'w', w);
   if (typeof seedSetupForWeight === 'function') seedSetupForWeight(pending.varUuid, w);
   renderModal(); updateFAB(); updateSaveBtn();
 }
@@ -28344,6 +28390,7 @@ function renderNeighborHints() {
 // Live-update one set row's colours + bottom record hint (no full re-render). Module-scope (feat 57)
 // so both the native-input path and the on-screen numpad can refresh the row.
 function updateRowLive(idx) {
+  if (typeof refreshTargetHits === 'function') refreshTargetHits(); // feat 482 — tiles go green on the set that hit them
   if (typeof suggestionAutoCollapse === 'function' && suggestionAutoCollapse()) return; // feat 477 — a full re-render already happened
   if (typeof targetsAutoCollapse === 'function' && targetsAutoCollapse()) return;       // feat 478 — ditto
   const rows = document.querySelectorAll('#trk-sets-container .set-row');
@@ -28582,7 +28629,9 @@ function openNumpad(i, field) {
   let buf = (cur === '' || cur == null) ? '' : String(cur);
   // feat 288 — open a time field showing the clock form ("1:30"), so editing reads naturally; flush re-parses it.
   if (field === 'r' && buf !== '' && !isNaN(parseFloat(buf)) && pendingIsTimeMode()) buf = formatSecondsClock(buf);
-  modalState.numpad = { open: true, i: i, field: field, buf: buf };
+  // feat 482 — editing a filled field: keep the value it opened with on show, so after Clear + retype the
+  // original is still there for reference instead of gone.
+  modalState.numpad = { open: true, i: i, field: field, buf: buf, orig: buf };
   renderNumpad();
   document.getElementById('trk-numpad')?.classList.add('open');
   document.getElementById('trk-numpad-backdrop')?.classList.add('open');
@@ -28616,7 +28665,7 @@ function renderNumpad() {
   const disp = calc ? formatCalcDisplay(np.buf) : (np.buf === '' ? '0' : np.buf);
   const key = (k, txt, cls) => `<button class="np-key${cls ? ' ' + cls : ''}" data-np="${k}">${txt}</button>`;
   sheet.innerHTML = `
-    <div class="np-head"><span class="np-title">Set ${np.i + 1} · ${escapeHtml(label)}</span><button class="np-calc-toggle ${calc ? 'active' : ''}" data-np="calctoggle" title="Calculator (BEDMAS)">🧮</button><button class="np-key np-close" data-np="next">Next</button></div>
+    <div class="np-head"><span class="np-title">Set ${np.i + 1} · ${escapeHtml(label)}${np.orig ? ` <span class="np-was">· was ${escapeHtml(np.orig)}</span>` : ''}</span><button class="np-calc-toggle ${calc ? 'active' : ''}" data-np="calctoggle" title="Calculator (BEDMAS)">🧮</button><button class="np-key np-close" data-np="next">Next</button></div>
     ${isW ? renderNpSetup() : ''}
     <div class="np-display">${escapeHtml(disp)}</div>
     ${(!isW && (M.mode === 'standard' || M.mode === 'bodyweight')) ? `<div class="np-rep-hint">🎯 Strength <b>1–5</b> · Hypertrophy <b>6–12</b> · Pump <b>15–20+</b></div>` : ''}
@@ -28733,6 +28782,7 @@ function bindSetsForm() {
   // still log the reps you actually do), and pre-seed the plate/loader picker for it. Bound to EVERY target
   // button (prev top · best e1RM · max weight · max reps).
   document.querySelectorAll('.prog-prefill[data-w]').forEach(el => el.addEventListener('click', (e) => prefillTargetWeight(parseFloat(e.currentTarget.dataset.w))));
+  document.querySelectorAll('[data-tgt-sort]').forEach(el => el.addEventListener('click', (e) => { state.targetSort = e.currentTarget.dataset.tgtSort; saveState(); renderModal(); })); // feat 482
   document.getElementById('trk-wt-expand')?.addEventListener('click', showWeightTablePopup); // feat 422 — the all-weights table
 
   document.getElementById('trk-sub-select')?.addEventListener('change', e => {
@@ -29560,7 +29610,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 399 · 2026-08-13 07:10';
+const APP_BUILD = 'build 400 · 2026-08-14 16:19';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -30781,12 +30831,13 @@ function refreshPlanStepBar() {
    ============================================================ */
 const RC_PRESETS = [45, 60, 90, 120, 180, 240];
 let _lastRestCueSec = -1;
+let _lastSetNagSec = -1; // feat 482 — the slow-set nag's own once-per-second latch (open-set clock, not rest)
 let _rcSince = null;    // ms timestamp of the set that started THIS rest — the identity of the rest period
 let _rcNudge = 0;       // live ±seconds, cleared when the rest period changes
 let _rcSkip = false;    // silence the rest of this rest period
 function restCueCfg() {
   const d = { enabled:false, mode:'down', target:90, auto:true, interval:30, countdown:3, endCue:true,
-              audio:true, haptic:true, voice:false, freq:784, interEx:false, interTarget:0, overtime:0 };
+              audio:true, haptic:true, voice:false, freq:784, interEx:false, interTarget:0, overtime:0, setNag:0 };
   return { ...d, ...(state.restCues || {}) };
 }
 /* ---- per-exercise pins ---- */
@@ -30846,27 +30897,38 @@ function _rcSpeakSecs(n) {
   if (n > 60) { const m = Math.floor(n / 60); return m + ' minute' + (m > 1 ? 's' : '') + ' ' + (n % 60); }
   return n + ' seconds';
 }
-function restCuePhrase(kind, sec) {
+// feat 482 — interval cues speak TWO consecutive seconds ("30, 29" going down, "30, 31" going up) so one
+// utterance tells you which way the clock is running. Bare numbers; "1:39" reads naturally as one thirty-nine.
+function _rcSpeakNum(n) {
+  n = Math.max(0, Math.round(n));
+  if (n >= 60 && n % 60 === 0) { const m = n / 60; return m === 1 ? '1 minute' : m + ' minutes'; }
+  if (n > 60) return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+  return String(n);
+}
+function restCuePhrase(kind, sec, dir) {
   if (kind === 'tick') return String(Math.max(1, Math.round(sec || 1)));
-  if (kind === 'interval') return _rcSpeakSecs(sec);
+  if (kind === 'interval') return dir ? _rcSpeakNum(sec) + ', ' + _rcSpeakNum(sec + dir) : _rcSpeakSecs(sec);
   if (kind === 'over') return _rcSpeakSecs(sec) + ' over. Back to work.';
+  if (kind === 'slow') return _rcSpeakSecs(sec) + ' on this set.';   // feat 482 — the slow-set nag
   return coachPhrase('go', 'Time. Go.');            // 'end'
 }
-function restCueFire(kind, sec) { // kind: 'tick' | 'interval' | 'end' | 'over'
+function restCueFire(kind, sec, dir) { // kind: 'tick' | 'interval' | 'end' | 'over' | 'slow'
   const c = restCueCfg();
-  if (c.voice) { const say = restCuePhrase(kind, sec); if (say) annunce(say); }
+  if (c.voice) { const say = restCuePhrase(kind, sec, dir); if (say) annunce(say); }
   // ponytail: with voice on the beeps talk over the words — keep only the end triad, as a landmark.
   if (c.audio && (!c.voice || kind === 'end')) {
     const f = c.freq || 784;
     if (kind === 'end') { restBeep(f * 1.5, 0.2); setTimeout(() => restBeep(f * 1.5, 0.2), 170); setTimeout(() => restBeep(f * 1.5, 0.26), 340); }
     else if (kind === 'tick') restBeep(f, 0.07);
     else if (kind === 'over') { restBeep(f * 0.6, 0.16); setTimeout(() => restBeep(f * 0.6, 0.16), 220); }
+    else if (kind === 'slow') { restBeep(f * 0.75, 0.14); setTimeout(() => restBeep(f * 0.75, 0.14), 200); }
     else restBeep(f, 0.13);
   }
   if (c.haptic) {
     if (kind === 'end') safeVibrate([120, 60, 120, 60, 180]);
     else if (kind === 'tick') safeVibrate([18]);
     else if (kind === 'over') safeVibrate([200, 90, 200]);
+    else if (kind === 'slow') safeVibrate([90, 60, 90]);
     else safeVibrate([50]);
   }
 }
@@ -30921,6 +30983,15 @@ function restCueTick() {
   const c = restCueCfg();
   if (!c.enabled) { _lastRestCueSec = -1; return; }
   let st; try { st = computeRestState(); } catch (_) { return; }
+  // feat 482 — the slow-set nag: 'open' means a set is IN PROGRESS, so rest cues stand down and, if
+  // configured, a nudge fires every setNag seconds for the set you started and then wandered off from.
+  if (st && st.mode === 'open') {
+    restCueResetPeriod();
+    const oSec = Math.floor((st.sinceMs || 0) / 1000);
+    if (oSec !== _lastSetNagSec) { _lastSetNagSec = oSec; if (c.setNag > 0 && oSec > 0 && oSec % c.setNag === 0) restCueFire('slow', oSec); }
+    return;
+  }
+  _lastSetNagSec = -1;
   if (!st || st.mode !== 'resting') { restCueResetPeriod(); return; }
   if (st.interExercise && !c.interEx) { restCueResetPeriod(); return; } // feat 481 — between exercises is opt-in
   _rcTrackPeriod(st);
@@ -30935,11 +31006,11 @@ function restCueTick() {
     if (remaining === 0) { if (c.endCue) restCueFire('end', 0); return; }
     if (remaining < 0) { if (over && (-remaining) % c.overtime === 0) restCueFire('over', -remaining); return; }
     if (c.countdown > 0 && remaining <= c.countdown) { restCueFire('tick', remaining); return; }
-    if (c.interval > 0 && remaining % c.interval === 0) restCueFire('interval', remaining);
+    if (c.interval > 0 && remaining % c.interval === 0) restCueFire('interval', remaining, -1); // feat 482 — "30, 29"
   } else { // count up
     if (target > 0 && sec === target) { if (c.endCue) restCueFire('end', sec); return; }
     if (target > 0 && sec > target) { if (over && (sec - target) % c.overtime === 0) restCueFire('over', sec - target); return; }
-    if (c.interval > 0 && sec % c.interval === 0) restCueFire('interval', sec);
+    if (c.interval > 0 && sec % c.interval === 0) restCueFire('interval', sec, 1);              // feat 482 — "30, 31"
   }
 }
 /* ---- the in-sheet HUD: the resolved target, where it came from, and the controls to bend it ---- */

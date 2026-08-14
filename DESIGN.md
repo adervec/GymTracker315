@@ -2611,6 +2611,32 @@ They share variation **UUIDs**.
   config sounds exactly as it did — except `auto`, which defaults **on**: adapting the length is the point of
   the feature, and the fixed number stays as its fallback. The rest bar's `⏳` readout now counts against the
   resolved target and keeps counting **past** it (`+1:20`) instead of sitting at zero.
+- **Target-flow polish + the timer learns about the set itself (feat 482):** five field reports from using
+  feat 481 in the gym, one commit.
+  - **The bug** — starting a set from a 🎯 target tile left the rest cues firing *during the set*.
+    `prefillTargetWeight` wrote `pending.sets[i].w` directly, so `wTs` was never stamped, `computeRestState`
+    never saw an open set, and the timer thought you were still resting. Fixed by routing the prefill through
+    `commitSetField` — the canonical path the voice route already used — which stamps `wTs` (and honours
+    feat 291's hold-cue exception for timed holds, and the set-start annunciation) for free.
+  - **Sortable target tiles** — `sortTargetDefs(defs, key)` orders the tiles by session **order** (as built),
+    **weight**, **reps**, **e1RM** (`estimated1RM`), or **vulnerability** (the PR odds the 🎯/🚀 picks carry;
+    tiles without odds sink last). The choice lives in `state.targetSort` (synced via `SETTINGS_KEYS` — how you
+    read your targets is a preference, not a device fact) behind a row of tiny chips under the tiles.
+  - **Live hit state** — a tile used to go green only on the next full render (usually when the *next* set
+    started). `refreshTargetHits()` retints the `.hit` classes and the hits/total counter DOM-only from each
+    tile's own `data-w`/`data-r`, called from `updateRowLive` *before* `targetsAutoCollapse` so the
+    all-targets-hit auto-collapse now also triggers on the very set that finished the job.
+  - **Slow-set nag** — the timer knew about rest but not about the set: `setNag` (0 = off, the default) fires
+    a low double-beep / "N seconds on this set" every N seconds while `computeRestState` reports mode `'open'`,
+    for the set you started and then got distracted mid-way. Its own once-per-second latch (`_lastSetNagSec`),
+    since the open-set clock (`sinceMs`) is not the rest clock.
+  - **Directional spoken intervals** — "thirty seconds" doesn't tell you which way the clock runs; "30, 29"
+    does. Interval cues speak two consecutive seconds (`_rcSpeakNum` pair, "30, 31" counting up), with exact
+    minutes keeping their name and awkward values in clock form ("2 minutes, 1:59"). The single-value phrasing
+    survives for the overtime nag, whose "over" already carries the direction.
+  - **Numpad "was" reference** — editing a completed set's weight/reps starts with Clear, which erased the
+    only copy of the original. `openNumpad` now keeps the value the field opened with (`np.orig`) and the head
+    shows *· was 100* for the whole edit — a reference, deliberately not a tap target.
 - **Installed-app beacon for the maker portal (feat 480):** feat 471 links out to the maker's app portal
   (`adervec.github.io`); this is the return signal. On boot the app writes `Date.now()` under its own
   `GymTracker315` key inside a shared same-origin `localStorage` registry (`portal-installed`), so the

@@ -163,8 +163,9 @@ test('feat 481 — spoken cues say the time and stand the interval beeps down', 
     out.end = window.__said.slice(); out.endBeeps = window.__beeps;
     return out;
   });
-  expect(r.twoMin).toEqual(['2 minutes']);
-  expect(r.thirty).toEqual(['30 seconds']);
+  // feat 482 — interval cues now speak TWO consecutive seconds so one utterance tells the direction
+  expect(r.twoMin).toEqual(['2 minutes, 1:59']);
+  expect(r.thirty).toEqual(['30, 29']);
   expect(r.tick).toEqual(['2']);
   expect(r.beepsSoFar, "the beeps would talk over the words").toBe(0);
   expect(r.end.length).toBe(1);
