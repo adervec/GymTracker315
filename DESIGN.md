@@ -2637,6 +2637,24 @@ They share variation **UUIDs**.
   - **Numpad "was" reference** — editing a completed set's weight/reps starts with Clear, which erased the
     only copy of the original. `openNumpad` now keeps the value the field opened with (`np.orig`) and the head
     shows *· was 100* for the whole edit — a reference, deliberately not a tap target.
+- **The grip-tool haul (feat 484):** three parcels — a FitBeast hand-grip kit, a TOGIEEll 12 lb Burn
+  Machine, and a Lifepro hydraulic power twister (22–440 lb, rep counter) — and the catalogue had no
+  vocabulary for any of them. Eight compact rows (slots `0x27F–0x286`, next free `0x287`), homes chosen by
+  the feat-454 rule (small gear joins the pattern family; only real vocabularies get their own):
+  - **Grip Training** gains `grip-ring-squeeze` (the high-rep endurance/recovery counterpart to the CoC
+    max-crush that was already there) and `finger-trainer-press` (per-digit spring plungers — the ring and
+    pinky can hide inside a whole-hand crush; this finds them). The kit's other pieces were already covered:
+    the adjustable gripper by `gripper-crush` (feat 90 + the CoC masterclass) and the stretcher bands by
+    `finger-extension-band`.
+  - **Specialty Implements** gains the Burn Machine as a three-step progression (chest-height →
+    extended-arms → overhead rotation — the lever, then the position, is the load) and the power twister as
+    three bends (standard, reverse/underhand, overhead). The hydraulic dial *is* the progression, so the
+    setup lines say to log the dial number as the weight; timed Burn Machine sets stay standard-mode like
+    every other conditioning entry (Bulgarian Bag Spin, mace flows) rather than abusing the title-driven
+    time-mode regex.
+  - Reference-side `keywords` updated on both families ("burn machine", "power twister", "grip ring"…) —
+    the picker needs nothing, since it searches titles and every title names its tool. `griptools.spec`
+    pins slots, family membership, reference completeness, and global uuid uniqueness.
 - **Topbar HR no longer clipped (feat 483):** the brand row's right-hand live track (feat 244) is a `1fr`
   grid track with `justify-content: flex-end` + `overflow: hidden`, so overflow spills — and clips — on the
   **left**, which is exactly where the 💓 and a triple-digit bpm's leading digit sit. On phones the track
