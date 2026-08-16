@@ -2637,6 +2637,16 @@ They share variation **UUIDs**.
   - **Numpad "was" reference** — editing a completed set's weight/reps starts with Clear, which erased the
     only copy of the original. `openNumpad` now keeps the value the field opened with (`np.orig`) and the head
     shows *· was 100* for the whole edit — a reference, deliberately not a tap target.
+- **The rice bucket (feat 485):** the oldest hand-health tool there is, and the recovery-day counterpart to
+  feat 484's max-effort gear: dry rice resists the hand in *every direction at once* — crush, spread, twist
+  and dig in one medium — which no gripper, band or plunger can. Five rows in Grip Training (slots
+  `0x287–0x28B`, next free `0x28C`): grab-and-crush, finger spread (the extensor half almost every grip
+  program skips), buried twists (pronation/supination by friction instead of a mace's lever), depth digs,
+  and the classic dugout circuit as a timed finisher. The trackable number is the **rice weight** — more
+  rice packs tighter and fights harder — stated in the first row's setup line, same convention as the
+  power twister's dial. Deliberately *not* added: the adjacent breathwork/cold-exposure "biohacking"
+  territory — the catalogue's recovery families already cover breathing, and cold plunges aren't sets.
+  Covered by the same `griptools.spec` loop (one TOOLS line) and the keywords check.
 - **The grip-tool haul (feat 484):** three parcels — a FitBeast hand-grip kit, a TOGIEEll 12 lb Burn
   Machine, and a Lifepro hydraulic power twister (22–440 lb, rep counter) — and the catalogue had no
   vocabulary for any of them. Eight compact rows (slots `0x27F–0x286`, next free `0x287`), homes chosen by

@@ -1,5 +1,6 @@
 // feat 484 — the grip-tool haul: grip ring + finger trainer (into Grip Training), and the
 // Burn Machine + hydraulic power twister (into Specialty Implements). Slots 0x27F-0x286.
+// feat 485 — the rice bucket: crush, spread, twist, dig and the dugout circuit. Slots 0x287-0x28B.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -9,6 +10,7 @@ const TOOLS = [
   ['grip-training', 0x27F, ['grip-ring-squeeze', 'finger-trainer-press']],
   ['specialty-implements', 0x281, ['burn-machine-rotation', 'burn-machine-extended', 'burn-machine-overhead']],
   ['specialty-implements', 0x284, ['power-twister-bend', 'power-twister-reverse-bend', 'power-twister-overhead-bend']],
+  ['grip-training', 0x287, ['rice-grab-crush', 'rice-finger-spread', 'rice-twist', 'rice-dig', 'rice-circuit']],
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -46,7 +48,8 @@ test('feat 484 — the new slots collide with nothing and the tools are searchab
     // the picker searches titles; the REFERENCE search uses keywords, which live on `exercises`
     const kw = (id) => (exercises.find(e => e.id === id) || {}).keywords || '';
     return { dup,
-      gripKw: /grip ring/.test(kw('grip-training')) && /finger trainer/.test(kw('grip-training')),
+      gripKw: /grip ring/.test(kw('grip-training')) && /finger trainer/.test(kw('grip-training'))
+        && /rice bucket/.test(kw('grip-training')), // feat 485
       specKw: /burn machine/.test(kw('specialty-implements')) && /power twister/.test(kw('specialty-implements')) };
   });
   expect(r.dup).toEqual([]);
