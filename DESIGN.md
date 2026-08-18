@@ -2637,6 +2637,23 @@ They share variation **UUIDs**.
   - **Numpad "was" reference** — editing a completed set's weight/reps starts with Clear, which erased the
     only copy of the original. `openNumpad` now keeps the value the field opened with (`np.orig`) and the head
     shows *· was 100* for the whole edit — a reference, deliberately not a tap target.
+- **Forgiving search, everywhere, default on (feat 487):** feat 419's token matcher required every query
+  word as an exact substring, which quietly punished the gym vocabulary itself: "pushup" missed *Push-Up*,
+  "curls" missed *Curl*, "dumbell" missed everything. `searchMatchTokens` gains a forgiving layer behind
+  `state.fuzzySearch` (default **on**, toggle in Settings › More preferences; off = the pre-487 behaviour
+  verbatim), applied token-by-token only after a strict hit fails: **punctuation folding** ("pushup" ↔
+  "push-up"), **query-plural trim** ("curls" → curl), a **small unambiguous shorthand map** (db/bb/kb/ohp/
+  bp/rdl/sldl/dl/bw/ghr/lf/fm/coc/cgbp), and **one-edit typo tolerance** for tokens of 5+ letters (insert /
+  delete / substitute / swap via an O(n) one-edit check — no distance matrix), including against word
+  prefixes so a typo mid-typing still matches. Because the layer lives inside the one shared matcher, the
+  exercise picker and the in-app reference got it for free; the glossary (list + podcast queue), plans list,
+  plan-builder option picker, help-page search, settings-drawer search and both media searches were
+  re-routed through it. Two adjacent wins while in there: the picker's haystack now includes **family
+  keywords**, and `applyExtraFamilies` finally carries `keywords` across the merge (it silently dropped
+  them, so every EXTRA family's keywords were dead weight in the picker). Deliberately skipped: the
+  embedded standalone-reference export keeps its own primitive matcher (it has no access to the app's
+  helpers), and scoring/ranking of fuzzy hits — matches are still a flat filter. `fuzzysearch.spec` pins
+  each forgiveness class, the strict-off fallback, the default, and the picker integration.
 - **The Bruce Lee vocabulary, inside the safety margins (feat 486):** an audit against Lee's documented
   training (*The Art of Expressing the Human Body*) found the catalogue already carried most of it — dragon
   flag, fingertip and one-arm push-ups, Zottman curls, wrist roller, grippers, jump rope, heavy/speed bag,

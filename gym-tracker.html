@@ -5722,6 +5722,7 @@ function applyExtraFamilies() {
     // canonical), so just inject the extra family here as before.
     const fam = { id: ef.id, title: ef.title, mega: ef.mega, sub: ef.sub,
       equip: ef.equip || [], icon: ef.icon || '', quickCue: ef.quickCue || '', _extraFamily: true,
+      keywords: ef.keywords || '', // feat 487 — carried across so the picker's keyword haystack is real
       variations: ef.variations.map(v => ({ id: v.id, uuid: v.uuid, title: v.title, cue: v.cue || '',
         tip: v.tip || '', best: v.best || '', subvariation: null, _extra: true })) };
     FAMILIES.push(fam);
@@ -6587,7 +6588,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','maxWeight
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
-  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions','profileSavedAt','timelapse','planQueue','restCuePins','targetSort'];
+  'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions','profileSavedAt','timelapse','planQueue','restCuePins','targetSort','fuzzySearch'];
 
 /* ---- feat 328 — cross-device sync policy ---------------------------------------------------------
    SETTINGS_KEYS (above) is the "persisted + full-backup" allowlist. Cloud SYNC is narrower: it carries the
@@ -7208,6 +7209,8 @@ function normalizeState() {
   if (!state.restCuePins || typeof state.restCuePins !== 'object' || Array.isArray(state.restCuePins)) state.restCuePins = {};
   // feat 482 — how the target tiles are ordered in the log sheet
   if (!['order', 'w', 'r', 'e1', 'vuln'].includes(state.targetSort)) state.targetSort = 'order';
+  // feat 487 — forgiving search bars: default ON, opt out in Settings › More preferences
+  if (typeof state.fuzzySearch !== 'boolean') state.fuzzySearch = true;
   // feat 118 — custom hi-res anatomy chart (image stored in IndexedDB; this holds the view pref + OCR label map)
   state.anatomyChart = { view:'detailed', map:[], ...(state.anatomyChart && typeof state.anatomyChart === 'object' ? state.anatomyChart : {}) };
   if (!Array.isArray(state.anatomyChart.map)) state.anatomyChart.map = [];
@@ -7822,7 +7825,7 @@ function renderHelpPage(main) {
   if (inp) inp.addEventListener('input', () => {
     const q = inp.value.trim().toLowerCase();
     document.querySelectorAll('#help-page-content .help-sec').forEach(sec => {
-      const m = !q || sec.textContent.toLowerCase().includes(q);
+      const m = searchMatchTokens(q, sec.textContent); // feat 487 — forgiving
       sec.style.display = m ? '' : 'none';
       if (q && m) sec.open = true;                                   // auto-expand matches while searching
     });
@@ -10393,15 +10396,15 @@ function applySettingsFilter(q) {
       anyVisible = true;
       return;
     }
-    const nameMatch = name.includes(q);
+    const nameMatch = searchMatchTokens(q, name); // feat 487 — forgiving
     let visible = nameMatch;
     if (rows.length) {
       rows.forEach(r => {
-        const m = nameMatch || r.textContent.toLowerCase().includes(q);
+        const m = nameMatch || searchMatchTokens(q, r.textContent);
         r.style.display = m ? '' : 'none';
         if (m) visible = true;
       });
-    } else if (sec.textContent.toLowerCase().includes(q)) {
+    } else if (searchMatchTokens(q, sec.textContent)) {
       visible = true;
     }
     sec.style.display = visible ? '' : 'none';
@@ -10986,6 +10989,16 @@ function renderSettingsDrawer() {
       <div class="drawer-pill-group">
         <button class="drawer-pill ${state.alwaysConfirm !== false ? 'active' : ''}" data-pref-confirm="on">On</button>
         <button class="drawer-pill ${state.alwaysConfirm === false ? 'active' : ''}" data-pref-confirm="off">Off</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">🔍 Forgiving search</div>
+        <div class="drawer-setting-sub">Search bars forgive punctuation ("pushup" finds Push-Up), plurals ("curls" finds Curl), gym shorthand (db, bb, kb, ohp, rdl…) and a one-letter typo ("dumbell"). Off = exact words only.</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${state.fuzzySearch !== false ? 'active' : ''}" data-pref-fuzzy="on">On</button>
+        <button class="drawer-pill ${state.fuzzySearch === false ? 'active' : ''}" data-pref-fuzzy="off">Off</button>
       </div>
     </div>
     <div class="drawer-setting-row">
@@ -11979,6 +11992,7 @@ function renderSettingsDrawer() {
       if (btn.dataset.prefBrand) { state.hideBranding = btn.dataset.prefBrand === 'hide'; saveState(); applyBranding(); } // feat 170
       else if (btn.dataset.prefUnit) { state.unit = btn.dataset.prefUnit; saveState(); toast('Unit: ' + state.unit.toUpperCase()); }
       else if (btn.dataset.prefConfirm) { state.alwaysConfirm = btn.dataset.prefConfirm === 'on'; saveState(); toast('Confirmation: ' + (state.alwaysConfirm ? 'on' : 'off')); }
+      else if (btn.dataset.prefFuzzy) { state.fuzzySearch = btn.dataset.prefFuzzy === 'on'; saveState(); toast('Forgiving search: ' + (state.fuzzySearch ? 'on' : 'off')); } // feat 487
       else if (btn.dataset.prefWlimit) { state.maxWeightHard = btn.dataset.prefWlimit === 'hard'; saveState(); toast('Weight limit: ' + (state.maxWeightHard ? 'hard (blocks over-limit saves)' : 'soft (warns only)')); } // feat 364
       else if (btn.dataset.prefTipsMode) { state.tipsMode = btn.dataset.prefTipsMode; saveState(); toast('Tips: ' + state.tipsMode); }
       else if (btn.dataset.prefTipsExp) { state.tipsExpanded = btn.dataset.prefTipsExp === 'expanded'; saveState(); }
@@ -14404,7 +14418,7 @@ function mediaGalleryClips() {
   if (st.kind !== 'all') list = list.filter(c => c.owner.kind === st.kind);
   if (st.watch === 'watched') list = list.filter(c => c.watchedAt);
   else if (st.watch === 'unwatched') list = list.filter(c => !c.watchedAt);
-  if (q) list = list.filter(c => (c.owner.title + ' ' + c.owner.sub + ' ' + (c.creator || '') + ' ' + (c.m.watchUrl || c.m.url || '')).toLowerCase().includes(q));
+  if (q) list = list.filter(c => searchMatchTokens(q, c.owner.title, c.owner.sub, c.creator || '', c.m.watchUrl || c.m.url || '')); // feat 487 — forgiving
   // unwatched first (what you still need to see), then most-recently-watched, then alphabetical by exercise
   list.sort((a, b) => {
     if (!!a.watchedAt !== !!b.watchedAt) return a.watchedAt ? 1 : -1;
@@ -14512,7 +14526,7 @@ function mediaWizardRows() {
   const q = (mediaWizardState.search || '').trim().toLowerCase();
   const kind = mediaWizardState.kind || 'all', uncovered = mediaWizardState.uncoveredOnly;
   const withOnly = mediaWizardState.withMediaOnly && !uncovered; // feat 238 — "uncovered" overrides "with media only"
-  const matchq = (s) => !q || s.toLowerCase().includes(q);
+  const matchq = (s) => searchMatchTokens(q, s); // feat 487 — forgiving
   const rows = [];
   if (kind === 'all' || kind === 'movement') { // feat 236 — the MOVEMENT itself can hold a general demo clip
     FAMILIES.forEach(f => {
@@ -17910,7 +17924,7 @@ function renderPlansList(body) {
   const present = [...new Set(plans.map(planCategory))].sort((a, b) => planCatRank(a) - planCatRank(b));
   const matches = (p) => {
     if (_plansFavOnly && !isFavPlan(p.id)) return false; // feat 178
-    if (q && !(p.name.toLowerCase().includes(q) || (p.desc || '').toLowerCase().includes(q))) return false;
+    if (q && !searchMatchTokens(q, p.name, p.desc || '')) return false; // feat 487 — forgiving
     // feat 456 — "All" means your own library. Plans of the Day are a dated feed that would otherwise bury it;
     // they stay one tap away on their own chip (and a search still finds them).
     if (!_plansCatFilter.size && !q && planCategory(p) === PLAN_CAT_DAILY) return false;
@@ -18326,13 +18340,13 @@ function renderOptionPicker(body, plan) {
       <button class="drawer-btn" id="optpick-regex-add">+ Add name-match option</button>`;
   } else {
     const q = (_plansOptSearch || '').trim().toLowerCase();
-    const fams = FAMILIES.filter(f => !q || f.title.toLowerCase().includes(q) || (f.variations || []).some(v => v.title.toLowerCase().includes(q))).slice(0, q ? 40 : 16);
+    const fams = FAMILIES.filter(f => !q || searchMatchTokens(q, f.title) || (f.variations || []).some(v => searchMatchTokens(q, v.title, f.title))).slice(0, q ? 40 : 16); // feat 487
     inner = `<div style="font-size:11px;color:var(--text3);margin:8px 0;">Add a whole <b>movement</b> (any variation counts) or a specific <b>variation</b>. The equipment filter applies to <b>+ movement</b> only.</div>
       ${equipSel}
       <input type="text" id="optpick-search" placeholder="Search movements / variations…" value="${escapeAttr(_plansOptSearch)}" autocomplete="off" style="width:100%;margin-bottom:8px;padding:9px 11px;font-size:14px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
       <div id="optpick-list">${fams.map(f => `<div class="optpick-fam">
           <div class="optpick-fam-head"><span>${escapeHtml(f.title)}</span><button class="optpick-add" data-pick-mv="${f.id}">+ movement</button></div>
-          ${(q ? (f.variations || []).filter(v => f.title.toLowerCase().includes(q) || v.title.toLowerCase().includes(q)) : []).map(v => `<button class="optpick-var" data-pick-vr="${v.uuid}">+ ${escapeHtml(v.title)}</button>`).join('')}
+          ${(q ? (f.variations || []).filter(v => searchMatchTokens(q, v.title, f.title)) : []).map(v => `<button class="optpick-var" data-pick-vr="${v.uuid}">+ ${escapeHtml(v.title)}</button>`).join('')} ${''/* feat 487 */}
         </div>`).join('')}</div>`;
   }
   body.innerHTML = `<button class="drawer-btn" id="optpick-back">← Back to plan</button>
@@ -26897,10 +26911,51 @@ function resetPickerNormalFilters() {
 }
 // feat 419 — token search: every word must appear SOMEWHERE in the combined text, in any order —
 // "life fitness glute" finds "Glute Kickback Machine (Life Fitness)"; plain substring could not.
+// feat 487 — the FORGIVING layer (state.fuzzySearch, default ON): fold punctuation ("pushup" finds
+// Push-Up), forgive query plurals ("curls" finds Curl), expand gym shorthand (db/bb/kb/ohp/rdl…) and
+// tolerate one typo per word ("dumbell", "pulldwon"). Off = exactly the old strict behaviour.
+const FZ_SYNONYMS = { db:'dumbbell', bb:'barbell', kb:'kettlebell', ohp:'overhead press', bp:'bench press',
+  rdl:'romanian deadlift', sldl:'stiff leg deadlift', dl:'deadlift', bw:'bodyweight', ghr:'glute ham',
+  lf:'life fitness', fm:'freemotion', coc:'captains of crush', cgbp:'close grip bench press', flies:'fly' };
+function _fzNorm(s) { return s.replace(/[^a-z0-9\s]/g, ''); }        // callers pass lowercased text
+function _fzOneEdit(a, b) {  // true when a and b are within ONE edit (insert / delete / substitute / swap)
+  if (a === b) return true;
+  const la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0; const n = Math.min(la, lb);
+  while (i < n && a[i] === b[i]) i++;
+  if (la === lb) {
+    if (i < la - 1 && a[i] === b[i + 1] && a[i + 1] === b[i]) return a.slice(i + 2) === b.slice(i + 2); // swap
+    return a.slice(i + 1) === b.slice(i + 1);                                                          // substitute
+  }
+  const sh = la < lb ? a : b, lo = la < lb ? b : a;
+  return sh.slice(i) === lo.slice(i + 1);                                                              // insert/delete
+}
 function searchMatchTokens(q, ...texts) {
   if (!q) return true;
-  const hay = texts.join(' ').toLowerCase();
-  return String(q).toLowerCase().split(/\s+/).filter(Boolean).every(t => hay.includes(t));
+  const rawHay = texts.join(' ').toLowerCase();
+  const tokens = String(q).toLowerCase().split(/\s+/).filter(Boolean);
+  if (typeof state === 'undefined' || !state || state.fuzzySearch === false)
+    return tokens.every(t => rawHay.includes(t));       // the pre-487 strict behaviour, verbatim
+  const hay = _fzNorm(rawHay);
+  let words = null;                                     // split lazily — most tokens hit a substring
+  return tokens.every(tRaw => {
+    if (rawHay.includes(tRaw)) return true;             // a strict hit always wins first
+    const t = _fzNorm(tRaw);
+    if (t && hay.includes(t)) return true;              // "pushup" and "Push-Up" fold to the same thing
+    const syn = FZ_SYNONYMS[t];
+    if (syn && syn.split(' ').every(w => hay.includes(w))) return true;
+    const sing = t.replace(/(es|s)$/, '');
+    if (sing.length >= 3 && hay.includes(sing)) return true;  // "curls" finds Curl
+    if (t.length >= 5) {                                // one honest typo — short words stay strict
+      if (!words) words = hay.split(/\s+/).filter(Boolean);
+      for (const w of words) {
+        if (_fzOneEdit(t, w)) return true;
+        if (w.length > t.length + 1 && _fzOneEdit(t, w.slice(0, t.length))) return true; // typo mid-word while typing
+      }
+    }
+    return false;
+  });
 }
 function filterVariations() {
   const q = modalState.pickerSearch.trim().toLowerCase();
@@ -26931,7 +26986,7 @@ function filterVariations() {
       if (trendMap && varLastTrendDir(trendMap.get(v.uuid)) !== trendMode) return false; // feat 385 — trended up/down last time
       if (stepSet && !stepSet.has(v.uuid)) return false; // restrict to exactly the step's exercises
       if (!q) return true;
-      return searchMatchTokens(q, v.title, f.title); // feat 419 — word-order-independent
+      return searchMatchTokens(q, v.title, f.title, f.keywords || ''); // feat 419 — word-order-independent; feat 487 — + family keywords
     });
     matchingVars.sort((a, b) => (isFavVar(b.uuid) ? 1 : 0) - (isFavVar(a.uuid) ? 1 : 0)); // feat 178 — favorites float to the top of the family
     // feat 167 — variations whose SECONDARY parent is this family, appended at the bottom with a link to their home movement.
@@ -26945,7 +27000,7 @@ function filterVariations() {
       if (volStatus && varVolStatus(uuid, volStatus) !== volMode) return; // feat 383
       if (trendMap && varLastTrendDir(trendMap.get(uuid)) !== trendMode) return; // feat 385
       if (stepSet && !stepSet.has(uuid)) return;
-      if (q && !searchMatchTokens(q, v.title, f.title, primaryTitle || '')) return; // feat 419
+      if (q && !searchMatchTokens(q, v.title, f.title, f.keywords || '', primaryTitle || '')) return; // feat 419/487
       secondaryVars.push({ v, primaryId, primaryTitle });
     });
     if (matchingVars.length > 0 || secondaryVars.length > 0) results.push({ family: f, variations: matchingVars, secondaryVars });
@@ -29689,7 +29744,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 404 · 2026-08-17 22:07';
+const APP_BUILD = 'build 405 · 2026-08-18 11:06';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -38182,7 +38237,7 @@ function glossVisibleList() {
   return glossary.filter(g => {
     if (glossCat !== 'all' && g.cat !== glossCat) return false;
     if (!q) return true;
-    return g.term.toLowerCase().includes(q) || (g.aka && g.aka.toLowerCase().includes(q)) || g.def.toLowerCase().includes(q);
+    return searchMatchTokens(q, g.term, g.aka || '', g.def); // feat 487 — forgiving
   });
 }
 // The unread queue for the podcast: respects the current search/category filter, ordered logically
@@ -38474,9 +38529,7 @@ function renderGlossary() {
     if (glossReadFilter === 'unread' && isGlossRead(g.term)) return false; // feat 274
     if (glossReadFilter === 'read' && !isGlossRead(g.term)) return false;
     if (!q) return true;
-    return g.term.toLowerCase().includes(q) ||
-           (g.aka && g.aka.toLowerCase().includes(q)) ||
-           g.def.toLowerCase().includes(q);
+    return searchMatchTokens(q, g.term, g.aka || '', g.def); // feat 487 — forgiving
   });
   // Sort alphabetically by term
   filtered.sort((a,b) => a.term.toLowerCase().localeCompare(b.term.toLowerCase()));
