@@ -1,6 +1,7 @@
 // feat 484 — the grip-tool haul: grip ring + finger trainer (into Grip Training), and the
 // Burn Machine + hydraulic power twister (into Specialty Implements). Slots 0x27F-0x286.
 // feat 485 — the rice bucket: crush, spread, twist, dig and the dugout circuit. Slots 0x287-0x28B.
+// feat 486 — the Bruce Lee vocabulary: pin isometrics + weighted shadow boxing + kicking rounds. Slots 0x28C-0x291.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -11,6 +12,12 @@ const TOOLS = [
   ['specialty-implements', 0x281, ['burn-machine-rotation', 'burn-machine-extended', 'burn-machine-overhead']],
   ['specialty-implements', 0x284, ['power-twister-bend', 'power-twister-reverse-bend', 'power-twister-overhead-bend']],
   ['grip-training', 0x287, ['rice-grab-crush', 'rice-finger-spread', 'rice-twist', 'rice-dig', 'rice-circuit']],
+  // feat 486 - the Bruce Lee additions: pin isometrics homed by movement + the two striking staples
+  ['shoulder-press', 0x28C, ['rack-press-isometric']],
+  ['deadlift', 0x28D, ['rack-pull-isometric']],
+  ['squat', 0x28E, ['rack-squat-isometric']],
+  ['calf-raise', 0x28F, ['rack-calf-isometric']],
+  ['boxing-bag', 0x290, ['boxing-weighted-shadow', 'boxing-kick-rounds']],
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -55,4 +62,19 @@ test('feat 484 — the new slots collide with nothing and the tools are searchab
   expect(r.dup).toEqual([]);
   expect(r.gripKw).toBe(true);
   expect(r.specKw).toBe(true);
+});
+
+test('feat 486 - the pin isometrics log as weight x seconds (time mode), the striking rounds stay standard', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const bySlot = (slot) => {
+      const h = slot.toString(16).padStart(4, '0');
+      return 'b1a1' + h + '-' + h + '-4' + h.slice(1) + '-8' + h.slice(1) + '-aaaaaaaa' + h;
+    };
+    return {
+      isoModes: [0x28C, 0x28D, 0x28E, 0x28F].map(sl => exMode(bySlot(sl)).mode),
+      strikeModes: [0x290, 0x291].map(sl => exMode(bySlot(sl)).mode),
+    };
+  });
+  expect(r.isoModes).toEqual(['time', 'time', 'time', 'time']);
+  expect(r.strikeModes).toEqual(['standard', 'standard']);
 });

@@ -2637,6 +2637,23 @@ They share variation **UUIDs**.
   - **Numpad "was" reference** — editing a completed set's weight/reps starts with Clear, which erased the
     only copy of the original. `openNumpad` now keeps the value the field opened with (`np.orig`) and the head
     shows *· was 100* for the whole edit — a reference, deliberately not a tap target.
+- **The Bruce Lee vocabulary, inside the safety margins (feat 486):** an audit against Lee's documented
+  training (*The Art of Expressing the Human Body*) found the catalogue already carried most of it — dragon
+  flag, fingertip and one-arm push-ups, Zottman curls, wrist roller, grippers, jump rope, heavy/speed bag,
+  shadow boxing, wall sits, L-sits, neck work. Six rows fill what was genuinely missing (slots `0x28C-0x291`,
+  next free `0x292`):
+  - **The pin isometric routine** — press, pull, squat and toe-rise driven maximally into an immovable bar
+    for 6-12 s, homed by movement per the feat-454 rule (`shoulder-press`, `deadlift`, `squat`, `calf-raise`).
+    The word "Isometric" in each title routes them through `exMode`'s title regex into **time mode**, so they
+    log naturally as weight × seconds; the safety framing (breath kept moving, gradual release, 2-3 sessions
+    a week instead of Lee's daily) lives in the movement/mistake lines.
+  - **Weighted Shadow Boxing** and **Kicking Rounds (Heavy Bag)** into the boxing family — the punch
+    speed-endurance staple with the 1-3 kg cap stated as *the* safety line, and the lower-body half of
+    striking (teeps, roundhouses, the side kick) the punch rounds missed.
+  - Deliberately excluded on the same margins: EMS experiments and demonstration stunts (two-finger
+    push-ups, the one-inch punch) — a fingertip push-up with a build-slowly warning already covers that
+    territory's trainable core. `griptools.spec` gains the six rows in its TOOLS loop plus a dedicated
+    exMode assertion (isometrics → time, striking → standard).
 - **The rice bucket (feat 485):** the oldest hand-health tool there is, and the recovery-day counterpart to
   feat 484's max-effort gear: dry rice resists the hand in *every direction at once* — crush, spread, twist
   and dig in one medium — which no gripper, band or plunger can. Five rows in Grip Training (slots
