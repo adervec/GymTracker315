@@ -2,6 +2,7 @@
 // Burn Machine + hydraulic power twister (into Specialty Implements). Slots 0x27F-0x286.
 // feat 485 — the rice bucket: crush, spread, twist, dig and the dugout circuit. Slots 0x287-0x28B.
 // feat 486 — the Bruce Lee vocabulary: pin isometrics + weighted shadow boxing + kicking rounds. Slots 0x28C-0x291.
+// feat 488 - the rest of the power twister (0x292-0x297) and the whole ab roller progression (0x298-0x29F).
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -18,12 +19,18 @@ const TOOLS = [
   ['squat', 0x28E, ['rack-squat-isometric']],
   ['calf-raise', 0x28F, ['rack-calf-isometric']],
   ['boxing-bag', 0x290, ['boxing-weighted-shadow', 'boxing-kick-rounds']],
+  // feat 488 - the twister positions the bar actually reaches, and the ab roller as a real progression
+  ['specialty-implements', 0x292, ['power-twister-behind-neck', 'power-twister-behind-back', 'power-twister-single-arm',
+    'power-twister-side-bend', 'power-twister-iso-hold', 'power-twister-wrist-bend']],
+  ['core-stability', 0x298, ['ab-wheel-wall', 'ab-wheel-incline', 'ab-wheel-eccentric', 'ab-wheel-standing',
+    'ab-wheel-oblique', 'ab-wheel-single-arm', 'ab-wheel-hold', 'ab-wheel-band']],
 ];
 
 test.beforeEach(async ({ page }) => {
   await page.goto(APP, { waitUntil: 'load' });
   await page.waitForFunction(() => typeof VAR_INDEX !== 'undefined' && VAR_INDEX.size > 0
-    && typeof exercises !== 'undefined', null, { timeout: 15000 });
+    && typeof exercises !== 'undefined' && typeof filterVariations === 'function'
+    && typeof normalizeState === 'function', null, { timeout: 15000 });
 });
 
 test('feat 484 — every grip-tool movement is trackable, indexed at its slot, and documented', async ({ page }) => {
@@ -73,8 +80,31 @@ test('feat 486 - the pin isometrics log as weight x seconds (time mode), the str
     return {
       isoModes: [0x28C, 0x28D, 0x28E, 0x28F].map(sl => exMode(bySlot(sl)).mode),
       strikeModes: [0x290, 0x291].map(sl => exMode(bySlot(sl)).mode),
+      // feat 488 - the two static entries route to time mode by title; every bend/rollout stays reps
+      staticModes: [0x296, 0x29E].map(sl => exMode(bySlot(sl)).mode),
+      repModes: [0x292, 0x293, 0x294, 0x295, 0x297, 0x298, 0x299, 0x29A, 0x29B, 0x29C, 0x29D, 0x29F]
+        .map(sl => exMode(bySlot(sl)).mode),
     };
   });
   expect(r.isoModes).toEqual(['time', 'time', 'time', 'time']);
   expect(r.strikeModes).toEqual(['standard', 'standard']);
+  expect(r.staticModes).toEqual(['time', 'time']);
+  expect(r.repModes.every(m => m === 'standard')).toBe(true);
+});
+
+test('feat 488 - the twister and ab roller vocabulary is reachable from the search bars', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    normalizeState(); state.fuzzySearch = true;
+    const titlesFor = (q) => { modalState.pickerSearch = q;
+      return filterVariations().flatMap(g => g.variations.map(v => v.title)); };
+    const twister = titlesFor('twister');
+    const roller = titlesFor('ab roller');          // "roller" lives only in the family KEYWORDS
+    const rollout = titlesFor('rollout');
+    modalState.pickerSearch = '';
+    return { twisterCount: twister.length, rollerHit: roller.length > 0,
+      standing: rollout.some(t => /standing ab wheel/i.test(t)) };
+  });
+  expect(r.twisterCount).toBeGreaterThanOrEqual(9);   // 3 from feat 484 + 6 from feat 488
+  expect(r.rollerHit).toBe(true);
+  expect(r.standing).toBe(true);
 });

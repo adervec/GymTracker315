@@ -2637,6 +2637,24 @@ They share variation **UUIDs**.
   - **Numpad "was" reference** — editing a completed set's weight/reps starts with Clear, which erased the
     only copy of the original. `openNumpad` now keeps the value the field opened with (`np.orig`) and the head
     shows *· was 100* for the whole edit — a reference, deliberately not a tap target.
+- **The rest of the power twister, and the whole ab roller (feat 488):** two tools the catalogue only
+  half-covered. The **power twister** shipped with its three front bends (feat 484) and none of the other
+  positions the bar actually reaches; six rows finish it (slots `0x292-0x297`, Specialty Implements) —
+  behind-the-neck and behind-the-back bends (the two that reverse the line of pull into the rear delts,
+  upper back and triceps), the single-arm braced bend (one handle on the hip, so a coasting side gets
+  found), the side bend (bar vertical, lats and obliques closing it), an isometric closed-position hold,
+  and a narrow-grip wrist bend for the forearms. The **ab roller** had two entries — a tucked kneeling
+  crunch and one generic rollout — for a tool whose entire point is a *progression*; eight rows build it
+  (slots `0x298-0x29F`, Core Anti-Movement) in the order it is actually learned: wall-limited and elevated
+  first (both continuous dials — centimetres from the wall, one stair at a time — which is why they sit
+  ahead of the kneeling rollout, not behind it), then negatives as the bridge, then standing, then the
+  angled (oblique), single-arm (anti-rotation in a rollout costume), extended-hold and banded variants past
+  it. Both tools stay in their existing homes per the feat-454 rule rather than getting families of their
+  own. `exMode`'s title regex gives the two static entries (*Power Twister Isometric Hold*, *Ab Wheel
+  Extended Hold*) weight × seconds for free; every bend and rollout stays reps. Family keywords gained
+  “ab roller / rollout / …” and the new twister positions so feat 487's forgiving search reaches them.
+  `griptools.spec` covers the new slots with its existing generic loop, plus the mode split and a picker
+  reachability check.
 - **Forgiving search, everywhere, default on (feat 487):** feat 419's token matcher required every query
   word as an exact substring, which quietly punished the gym vocabulary itself: "pushup" missed *Push-Up*,
   "curls" missed *Curl*, "dumbell" missed everything. `searchMatchTokens` gains a forgiving layer behind
