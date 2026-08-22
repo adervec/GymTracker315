@@ -2637,6 +2637,13 @@ They share variation **UUIDs**.
   - **Numpad "was" reference** — editing a completed set's weight/reps starts with Clear, which erased the
     only copy of the original. `openNumpad` now keeps the value the field opened with (`np.orig`) and the head
     shows *· was 100* for the whole edit — a reference, deliberately not a tap target.
+- **The shared cowork panel (feat 490):** the AI cowork sync controls on the Analysis page are now the
+  maker's shared `<cowork-panel>` (https://adervec.github.io/cowork.js) — the same chrome every app and
+  CoworkSyncHub show: a channel per row with the hub's own state words (idle / PENDING / answered / STALE),
+  *Send requests* and *Check for replies* in the header. It's loaded at runtime from the portal so the
+  single-file rule holds; until it loads (or offline) the two plain buttons stay. Data comes from what we
+  already keep: the last ok push run is the request time, the ledger's newest consumed reply per channel
+  is the reply time. Its buttons call the existing export/poll paths, nothing new to maintain.
 - **Activity beacon for the maker portal's character sheet (feat 489):** feat 480 tells the portal we're
   installed; this tells it we *did* something. Ending a workout appends `[unixSeconds, 'GymTracker315',
   'lift', ~minutes/10]` and saving a cardio entry appends a `'cardio'` row to the same-origin

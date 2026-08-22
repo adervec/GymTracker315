@@ -8600,7 +8600,7 @@ function renderAnalysisPage(main) {
       <div style="font-size:13px;color:var(--text2);line-height:1.55;">Queue up questions about your training. On the next <b>AI cowork</b> sweep each one is answered from your logged data and the answer appears here.${deskCowork ? '' : ' <span style="color:var(--text3);">Set up the Cowork hub under <b>Settings › Cowork &amp; Sync</b> (desktop Chrome/Edge) to get answers — you can still queue requests from any device.</span>'}</div>
     </div>
     ${editing === '' ? composer('', null) : `<button class="drawer-btn" id="ar-new" style="margin-bottom:10px;">➕ New analysis request</button>`}
-    ${deskCowork ? `<div style="display:flex;gap:8px;margin-bottom:10px;"><button class="drawer-btn" id="ar-push" style="flex:1;">⤴ Push to cowork hub</button><button class="drawer-btn" id="ar-poll">↻ Check for answers</button></div>` : ''}
+    ${deskCowork ? `<div id="ar-cowork"><div style="display:flex;gap:8px;margin-bottom:10px;"><button class="drawer-btn" id="ar-push" style="flex:1;">⤴ Push to cowork hub</button><button class="drawer-btn" id="ar-poll">↻ Check for answers</button></div></div>` : ''}
     ${reqs.length ? reqs.map(r => editing === r.id ? composer(r.q, r.id) : renderAnalysisCard(r)).join('') : `<div class="card" style="text-align:center;color:var(--text3);font-size:13px;">No analysis requests yet.</div>`}`;
   const inp = main.querySelector('#ar-input'); if (inp) inp.focus();
   main.querySelector('#ar-new')?.addEventListener('click', () => { _analysisEditId = ''; refresh(); });
@@ -8608,6 +8608,7 @@ function renderAnalysisPage(main) {
   main.querySelector('#ar-save')?.addEventListener('click', () => { saveAnalysisRequest(inp.value, _analysisEditId || null); _analysisEditId = null; refresh(); });
   main.querySelector('#ar-push')?.addEventListener('click', () => coworkExportNow(false).then(ok => { if (ok) toast('🤝 Requests pushed to cowork hub'); }).catch(() => {}));
   main.querySelector('#ar-poll')?.addEventListener('click', () => coworkPollAll(true).catch(() => {}));
+  coworkMountPanel(main.querySelector('#ar-cowork')); // feat 490 — the shared cowork panel replaces the two buttons once it loads
   main.querySelectorAll('[data-ar-edit]').forEach(b => b.addEventListener('click', () => { _analysisEditId = b.dataset.arEdit; refresh(); }));
   main.querySelectorAll('[data-ar-del]').forEach(b => b.addEventListener('click', async () => {
     if (await confirmDialog('Delete this analysis request?', { danger: true, okLabel: 'Delete' })) { const id = b.dataset.arDel; deleteAnalysisRequest(id); if (_analysisEditId === id) _analysisEditId = null; refresh(); }
@@ -8619,6 +8620,50 @@ function renderAnalysisPage(main) {
    inbox/, skips already-consumed content (the ledger), routes by kind, imports, and moves the file to
    processed/. Importers reuse the existing Garmin/Strava paths; the logged sets/reps stay the master data.
    ============================================================ */
+/* feat 490 — the maker's shared AI cowork sync panel (https://adervec.github.io/cowork.js): the same chrome
+   every app and CoworkSyncHub show. Loaded at runtime from the portal so the single-file rule holds; offline
+   (or if it never loads) the plain push/poll buttons underneath stay. Data mode: we feed it our channel state
+   and answer its `cowork-action` events with the existing export/poll paths. */
+let _coworkPanelLoad = null;
+function coworkPanelReady() {
+  if (window.customElements && customElements.get('cowork-panel')) return Promise.resolve(true);
+  if (!_coworkPanelLoad) _coworkPanelLoad = new Promise(res => {
+    const sc = document.createElement('script'); sc.src = 'https://adervec.github.io/cowork.js'; sc.async = true;
+    sc.onload = () => res(!!(window.customElements && customElements.get('cowork-panel')));
+    sc.onerror = () => res(false);
+    document.head.appendChild(sc);
+  });
+  return _coworkPanelLoad;
+}
+function coworkPanelData() {
+  const ts = iso => iso ? Date.parse(iso) / 1000 : 0;
+  const lastPush = coworkRuns('push').find(r => r.ok);
+  const req = ts(lastPush && lastPush.at);
+  const led = (state.coworkLocal && state.coworkLocal.processed) || {};
+  return {
+    app: 'gymtracker', folder: (lastPush && lastPush.target) || 'AI export folder',
+    channels: coworkActiveChannels().map(c => {
+      const rep = Math.max(0, ...Object.values(led[c.dir] || {}).map(e => ts(e && e.at)));
+      return { channel: c.dir, request_mtime: req, reply_mtime: rep, pending: !!req && rep < req, answered: !!req && rep >= req };
+    }),
+    actions: [{ id: 'push', label: 'Send requests', primary: true }, { id: 'poll', label: 'Check for replies' }],
+    channelActions: [],
+  };
+}
+function coworkMountPanel(host) {
+  if (!host) return;
+  coworkPanelReady().then(ok => {
+    if (!ok || !host.isConnected) return;
+    const p = document.createElement('cowork-panel'); p.setAttribute('mode', 'data');
+    p.data = coworkPanelData();
+    p.addEventListener('cowork-action', ev => {
+      const a = ev.detail && ev.detail.action;
+      if (a === 'push') coworkExportNow(false).then(ok2 => { if (ok2) toast('🤝 Requests pushed to cowork hub'); p.data = coworkPanelData(); }).catch(() => {});
+      if (a === 'poll') coworkPollAll(true).then(() => { p.data = coworkPanelData(); }).catch(() => {});
+    });
+    host.replaceChildren(p);
+  });
+}
 function coworkImportGarmin(payload) { // reuse the canonical biometrics importer ({bodyComp, sleep})
   const r = importBiometrics(JSON.stringify(payload || {}), { silent: true });
   return { handled: true, kind: 'garmin', added: (r && r.added) || 0, sleep: (r && r.sleepN) || 0, recovery: (r && r.recoveryN) || 0 };
@@ -29777,7 +29822,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 407 · 2026-08-22 16:59';
+const APP_BUILD = 'build 408 · 2026-08-22 17:12';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
