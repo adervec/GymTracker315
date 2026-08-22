@@ -19885,6 +19885,7 @@ function finalizeEndWorkout(active, skipConfirm) {
     hrFinalize(active); // feat 72 — roll the recorded HR samples into the session's avg/max
     if (score) active.finalScore = score; // store final score for posterity
     finalizePlanExecution(active); // feat 164 — historize the plan execution + incomplete/skipped stats
+    try { const k = 'portal-activity', a = JSON.parse(localStorage.getItem(k) || '[]'); a.push([Math.round(Date.now() / 1000), 'GymTracker315', 'lift', Math.max(1, Math.round((stats.elapsedMin || 10) / 10))]); localStorage.setItem(k, JSON.stringify(a.slice(-2000))); } catch (_) { /* quota — ignore */ } // feat 489 — tell the maker portal's character sheet (same-origin, this browser only)
     saveState();
     render();
     // feat 287 — clear the live HUD the instant the workout ends (don't wait for the next 1 s rest tick):
@@ -29241,7 +29242,8 @@ function saveCardio() {
       if (ex) ex.cardio = cardio; else session.exercises.push(entry);
       touchSession(session); // feat 95
     }
-    saveState(); toast('Cardio updated');
+    try { const k = 'portal-activity', a = JSON.parse(localStorage.getItem(k) || '[]'); a.push([Math.round(Date.now() / 1000), 'GymTracker315', 'cardio', Math.max(1, Math.round(mins / 10))]); localStorage.setItem(k, JSON.stringify(a.slice(-2000))); } catch (_) { /* quota — ignore */ } // feat 489
+  saveState(); toast('Cardio updated');
   } else {
     const todayStr = new Date().toDateString();
     let session = state.sessions.find(s => new Date(s.date).toDateString() === todayStr);
@@ -29775,7 +29777,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 406 · 2026-08-18 22:43';
+const APP_BUILD = 'build 407 · 2026-08-22 16:59';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

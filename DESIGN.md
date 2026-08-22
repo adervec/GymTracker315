@@ -2637,6 +2637,11 @@ They share variation **UUIDs**.
   - **Numpad "was" reference** — editing a completed set's weight/reps starts with Clear, which erased the
     only copy of the original. `openNumpad` now keeps the value the field opened with (`np.orig`) and the head
     shows *· was 100* for the whole edit — a reference, deliberately not a tap target.
+- **Activity beacon for the maker portal's character sheet (feat 489):** feat 480 tells the portal we're
+  installed; this tells it we *did* something. Ending a workout appends `[unixSeconds, 'GymTracker315',
+  'lift', ~minutes/10]` and saving a cardio entry appends a `'cardio'` row to the same-origin
+  `localStorage['portal-activity']` array (capped at 2000, quota errors swallowed). The portal turns those
+  into STR/END/VIT on https://adervec.github.io; nothing leaves the browser and GymTracker reads nothing back.
 - **The rest of the power twister, and the whole ab roller (feat 488):** two tools the catalogue only
   half-covered. The **power twister** shipped with its three front bends (feat 484) and none of the other
   positions the bar actually reaches; six rows finish it (slots `0x292-0x297`, Specialty Implements) —
