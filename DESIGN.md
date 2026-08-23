@@ -2637,6 +2637,10 @@ They share variation **UUIDs**.
   - **Numpad "was" reference** — editing a completed set's weight/reps starts with Clear, which erased the
     only copy of the original. `openNumpad` now keeps the value the field opened with (`np.orig`) and the head
     shows *· was 100* for the whole edit — a reference, deliberately not a tap target.
+- **Hub-fetched data sources (feat 491):** every channel's INSTRUCTIONS now tell the agent that if
+  CoworkSyncHub's prompt lists a DATA SOURCES file (the Garmin / Strava export it already pulled once
+  for the whole sweep), it reads that file instead of contacting the service or running the tool
+  scripts. One Garmin pull per sweep no matter how many apps or channels ask.
 - **The shared cowork panel (feat 490):** the AI cowork sync controls on the Analysis page are now the
   maker's shared `<cowork-panel>` (https://adervec.github.io/cowork.js) — the same chrome every app and
   CoworkSyncHub show: a channel per row with the hub's own state words (idle / PENDING / answered / STALE),

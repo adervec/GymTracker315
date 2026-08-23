@@ -8459,7 +8459,7 @@ function buildInstructionsMd(channel) {
   // feat 458 — the two protocol obligations the agent side has to know about: echo the request hash so a
   // stale reply is detectable, and write a dead letter rather than nothing when the task can't be done.
   const proto = `\n### Protocol\n\n- \`context.json\` declares a \`requestHash\`. **Copy it verbatim** into your reply envelope's \`requestHash\` field — that is how the app tells an answer to *this* request from an answer to one it has already replaced.\n- If you **cannot** complete the task, write \`inbox/error-<ISO-date>.json\` containing \`{ "reason": "why" }\` **instead of** a reply. The app surfaces that reason in its run history; silence is indistinguishable from an agent that never ran.\n- Write exactly one reply file per sweep, and overwrite it if it already exists. Don't modify \`context.json\`, \`options.json\` or anything under \`processed/\`.\n`;
-  const head = `# GymTracker315 — Cowork channel: ${channel}\n\nRead \`../app-export.json\` for full context and \`context.json\` here for this channel's task. Emit your result as a JSON file dropped in **\`inbox/\`** named \`output-<ISO-date>.json\`, wrapped in this envelope:\n\n${env}\n${proto}\n`;
+  const head = `# GymTracker315 — Cowork channel: ${channel}\n\nRead \`../app-export.json\` for full context and \`context.json\` here for this channel's task. If the hub's prompt lists a **DATA SOURCES** file for this channel (a Garmin or Strava export it already fetched this sweep), read that file and do not contact the service or run any sync script yourself. Emit your result as a JSON file dropped in **\`inbox/\`** named \`output-<ISO-date>.json\`, wrapped in this envelope:\n\n${env}\n${proto}\n`;
   if (channel === 'garmin') return head +
 `## kind: \`garmin-output\`\nFill in biometrics, sleep + daily recovery from Garmin. Payload (matches the app's importer):\n\n\`\`\`json\n{ "bodyComp": [ { "date": "YYYY-MM-DD", "weightKg": 81.2, "bodyFatPct": 18.4, "muscleMassKg": 34.1, "bodyWaterPct": 55.1 } ],\n  "sleep": [ { "date": "YYYY-MM-DD", "score": 78, "note": "7h12m" } ],\n  "recovery": [ { "date": "YYYY-MM-DD", "sleepScore": 78, "sleepNote": "7h12m", "bodyBattery": 72, "hrv": 64, "restingHr": 52, "stress": 28 } ] }\n\`\`\`\n\n- \`context.json\` lists recent bodyComp dates, the session dates still lacking sleep, and \`lastRecoveryDate\` — backfill \`recovery\` for EVERY day since then (rest days too), not just workout days.\n- Body composition is merged by calendar day; \`sleep\` is matched to the workout that day; \`recovery\` is kept as a standalone daily log (sleep + body battery / HRV / resting HR / stress).\n`;
   if (channel === 'strava') return head +
@@ -29822,7 +29822,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 408 · 2026-08-22 17:12';
+const APP_BUILD = 'build 409 · 2026-08-23 08:18';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
