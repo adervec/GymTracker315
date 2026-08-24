@@ -3,6 +3,8 @@
 // feat 485 — the rice bucket: crush, spread, twist, dig and the dugout circuit. Slots 0x287-0x28B.
 // feat 486 — the Bruce Lee vocabulary: pin isometrics + weighted shadow boxing + kicking rounds. Slots 0x28C-0x291.
 // feat 488 - the rest of the power twister (0x292-0x297) and the whole ab roller progression (0x298-0x29F).
+// feat 492 - sliders (new family, 0x2A0-0x2A9), hangboard + pinch (climbing, 0x2AA-0x2AE), chest expander
+// (0x2AF-0x2B3), the reel KB moves (0x2B4-0x2B5) and the eagle claw gripper (0x2B6-0x2B8).
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -24,6 +26,17 @@ const TOOLS = [
     'power-twister-side-bend', 'power-twister-iso-hold', 'power-twister-wrist-bend']],
   ['core-stability', 0x298, ['ab-wheel-wall', 'ab-wheel-incline', 'ab-wheel-eccentric', 'ab-wheel-standing',
     'ab-wheel-oblique', 'ab-wheel-single-arm', 'ab-wheel-hold', 'ab-wheel-band']],
+  // feat 492 - sliders (new family), the climbing finger tools, the expander strand work,
+  // the two reel moves and the eagle claw gripper
+  ['slider-work', 0x2A0, ['slider-mountain-climber', 'slider-knee-tuck', 'slider-pike', 'slider-body-saw',
+    'slider-plank-jack', 'slider-chest-fly', 'slider-hamstring-curl', 'slider-reverse-lunge',
+    'slider-lateral-lunge', 'slider-bear-crawl']],
+  ['climbing', 0x2AA, ['hangboard-dead-hang', 'hangboard-half-crimp', 'hangboard-open-hand',
+    'hangboard-repeater', 'pinch-block-hold']],
+  ['specialty-implements', 0x2AF, ['expander-front-pull', 'expander-overhead-pulldown', 'expander-back-press',
+    'expander-archer-pull', 'expander-curl']],
+  ['kettlebell-specific', 0x2B4, ['kb-gorilla-high-pull', 'kb-seated-trident']],
+  ['grip-training', 0x2B6, ['claw-gripper-press', 'claw-gripper-single', 'claw-gripper-hold']],
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -107,4 +120,45 @@ test('feat 488 - the twister and ab roller vocabulary is reachable from the sear
   expect(r.twisterCount).toBeGreaterThanOrEqual(9);   // 3 from feat 484 + 6 from feat 488
   expect(r.rollerHit).toBe(true);
   expect(r.standing).toBe(true);
+});
+
+test('feat 492 - the hangs, holds and the plank jack route to time mode; everything else stays reps', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const bySlot = (slot) => {
+      const h = slot.toString(16).padStart(4, '0');
+      return 'b1a1' + h + '-' + h + '-4' + h.slice(1) + '-8' + h.slice(1) + '-aaaaaaaa' + h;
+    };
+    return {
+      // plank jack (0x2A4), the four hangboard hangs + the pinch hold (0x2AA-0x2AE), the claw hold (0x2B8)
+      timeModes: [0x2A4, 0x2AA, 0x2AB, 0x2AC, 0x2AD, 0x2AE, 0x2B8].map(sl => exMode(bySlot(sl)).mode),
+      repModes: [0x2A0, 0x2A1, 0x2A2, 0x2A3, 0x2A5, 0x2A6, 0x2A7, 0x2A8, 0x2A9,
+        0x2AF, 0x2B0, 0x2B1, 0x2B2, 0x2B3, 0x2B4, 0x2B5, 0x2B6, 0x2B7].map(sl => exMode(bySlot(sl)).mode),
+    };
+  });
+  expect(r.timeModes.every(m => m === 'time')).toBe(true);
+  expect(r.repModes.every(m => m === 'standard')).toBe(true);
+});
+
+test('feat 492 - sliders, hangboard, expander, claw and the reel moves are reachable from search', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    normalizeState(); state.fuzzySearch = true;
+    const titlesFor = (q) => { modalState.pickerSearch = q;
+      return filterVariations().flatMap(g => g.variations.map(v => v.title)); };
+    const slider = titlesFor('slider');
+    const hangboard = titlesFor('hangboard');
+    const expander = titlesFor('chest expander');
+    const claw = titlesFor('claw');
+    const gorilla = titlesFor('gorilla');
+    const world = titlesFor('mace around the world'); // "around the world" lives only in the family KEYWORDS
+    modalState.pickerSearch = '';
+    return { sliderCount: slider.length, hangboardCount: hangboard.length, expanderCount: expander.length,
+      claw: claw.some(t => /eagle claw/i.test(t)), highPull: gorilla.some(t => /high pull/i.test(t)),
+      world: world.some(t => /mace/i.test(t)) };
+  });
+  expect(r.sliderCount).toBeGreaterThanOrEqual(10);
+  expect(r.hangboardCount).toBeGreaterThanOrEqual(4);
+  expect(r.expanderCount).toBeGreaterThanOrEqual(5);
+  expect(r.claw).toBe(true);
+  expect(r.highPull).toBe(true);
+  expect(r.world).toBe(true);
 });

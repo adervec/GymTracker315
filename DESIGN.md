@@ -2653,6 +2653,26 @@ They share variation **UUIDs**.
   'lift', ~minutes/10]` and saving a cardio entry appends a `'cardio'` row to the same-origin
   `localStorage['portal-activity']` array (capped at 2000, quota errors swallowed). The portal turns those
   into STR/END/VIT on https://adervec.github.io; nothing leaves the browser and GymTracker reads nothing back.
+- **Sliders, fingers, strands and a pair of reels (feat 492):** the "more" sweep, steered by five
+  screenshots. **Sliders / gliding discs** had zero coverage for a genuinely family-sized vocabulary, so
+  `slider-work` joins the extra families (slots `0x2A0-0x2A9`): mountain climber, knee tuck, pike, body
+  saw, plank jack (time mode via "plank"), chest fly, hamstring curl, reverse/lateral lunge, bear crawl —
+  the tool is friction, so nothing ever unloads mid-rep. **Hangboard + pinch block** fill the 3-entry
+  climbing family (`0x2AA-0x2AE`, all five time-mode via hang/hold): jug dead hang, half-crimp, open-hand,
+  repeater hang, pinch block hold. They are spread straight into the climbing `EXTRA_FAMILIES` entry
+  rather than pushed, because `pushCompactRows` into an extra family would route through
+  `injectExtraIntoReference`'s `adopt()`, which rebuilds the reference entry from FAMILIES — where an
+  extra family's variations are all `_extra` — and would silently drop the three existing climbing
+  entries. Every row repeats the guide's own rule: no hangboarding until ~a year of consistent climbing.
+  **Chest expander** (`0x2AF-0x2B3`, Specialty Implements) finally backs the keyword feat 484 left
+  dangling: front pull-apart, overhead pull-down, behind-the-back press-out, archer pull, strand curl.
+  **The reels**: gorilla high pull and the seated kettlebell trident (`0x2B4-0x2B5`, kettlebell-specific;
+  the hand-exchange/juggling vocabulary was already in from feat 445), and mace "around the world / 360 /
+  10 to 2" added as keywords only — the moves themselves already exist. **Eagle claw gripper**
+  (`0x2B6-0x2B8`, Grip Training) for the JY-8819 in hand: five-finger press, single-finger audit,
+  closed-claw hold (time mode). Reference keywords updated for grip-training, mace-club-work, climbing
+  and specialty-implements; `griptools.spec` asserts slots, docs, modes and searchability. Next free
+  slot: `0x2B9`.
 - **The rest of the power twister, and the whole ab roller (feat 488):** two tools the catalogue only
   half-covered. The **power twister** shipped with its three front bends (feat 484) and none of the other
   positions the bar actually reaches; six rows finish it (slots `0x292-0x297`, Specialty Implements) —
