@@ -5,6 +5,8 @@
 // feat 488 - the rest of the power twister (0x292-0x297) and the whole ab roller progression (0x298-0x29F).
 // feat 492 - sliders (new family, 0x2A0-0x2A9), hangboard + pinch (climbing, 0x2AA-0x2AE), chest expander
 // (0x2AF-0x2B3), the reel KB moves (0x2B4-0x2B5) and the eagle claw gripper (0x2B6-0x2B8).
+// feat 493 - BFR (tempo-methods, 0x2B9-0x2BB), agility ladder (plyometrics, 0x2BC-0x2BF), BOSU + balance
+// board (core-stability, 0x2C0-0x2C3) and the recovery tools (foam-rolling, 0x2C4-0x2C7).
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -37,6 +39,12 @@ const TOOLS = [
     'expander-archer-pull', 'expander-curl']],
   ['kettlebell-specific', 0x2B4, ['kb-gorilla-high-pull', 'kb-seated-trident']],
   ['grip-training', 0x2B6, ['claw-gripper-press', 'claw-gripper-single', 'claw-gripper-hold']],
+  // feat 493 - the audit shortlist: BFR as a method, the ladder, the balance tools, the recovery drawer
+  ['tempo-methods', 0x2B9, ['bfr-arm-training', 'bfr-leg-training', 'bfr-walking']],
+  ['plyometrics', 0x2BC, ['ladder-two-in-two-out', 'ladder-lateral-in-out', 'ladder-icky-shuffle',
+    'ladder-single-leg-hop']],
+  ['core-stability', 0x2C0, ['bosu-squat', 'bosu-push-up', 'bosu-single-leg-hold', 'balance-board-hold']],
+  ['foam-rolling', 0x2C4, ['massage-gun', 'peanut-ball', 'yoga-wheel', 'stretching-strap']],
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -161,4 +169,46 @@ test('feat 492 - sliders, hangboard, expander, claw and the reel moves are reach
   expect(r.claw).toBe(true);
   expect(r.highPull).toBe(true);
   expect(r.world).toBe(true);
+});
+
+test('feat 493 - the balance holds go to time, the BOSU push-up to bodyweight, the rest stay reps', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const bySlot = (slot) => {
+      const h = slot.toString(16).padStart(4, '0');
+      return 'b1a1' + h + '-' + h + '-4' + h.slice(1) + '-8' + h.slice(1) + '-aaaaaaaa' + h;
+    };
+    return {
+      timeModes: [0x2C2, 0x2C3].map(sl => exMode(bySlot(sl)).mode),                 // the two balance holds
+      bwMode: exMode(bySlot(0x2C1)).mode,                                           // BOSU push-up
+      repModes: [0x2B9, 0x2BA, 0x2BB, 0x2BC, 0x2BD, 0x2BE, 0x2BF, 0x2C0,
+        0x2C4, 0x2C5, 0x2C6, 0x2C7].map(sl => exMode(bySlot(sl)).mode),
+    };
+  });
+  expect(r.timeModes).toEqual(['time', 'time']);
+  expect(r.bwMode).toBe('bodyweight');
+  expect(r.repModes.every(m => m === 'standard')).toBe(true);
+});
+
+test('feat 493 - BFR, the ladder, the balance tools and the recovery drawer are reachable from search', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    normalizeState(); state.fuzzySearch = true;
+    const titlesFor = (q) => { modalState.pickerSearch = q;
+      return filterVariations().flatMap(g => g.variations.map(v => v.title)); };
+    const bfr = titlesFor('bfr');
+    const occl = titlesFor('occlusion');                 // lives only in the family KEYWORDS
+    const ladder = titlesFor('agility ladder');
+    const bosu = titlesFor('bosu');
+    const gun = titlesFor('massage gun');
+    const wheel = titlesFor('yoga wheel');
+    modalState.pickerSearch = '';
+    return { bfrCount: bfr.length, occl: occl.some(t => /bfr/i.test(t)),
+      ladderCount: ladder.length, bosuCount: bosu.length,
+      gun: gun.some(t => /massage gun/i.test(t)), wheel: wheel.some(t => /yoga wheel/i.test(t)) };
+  });
+  expect(r.bfrCount).toBeGreaterThanOrEqual(3);
+  expect(r.occl).toBe(true);
+  expect(r.ladderCount).toBeGreaterThanOrEqual(4);
+  expect(r.bosuCount).toBeGreaterThanOrEqual(3);
+  expect(r.gun).toBe(true);
+  expect(r.wheel).toBe(true);
 });

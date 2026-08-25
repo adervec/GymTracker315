@@ -2653,6 +2653,19 @@ They share variation **UUIDs**.
   'lift', ~minutes/10]` and saving a cardio entry appends a `'cardio'` row to the same-origin
   `localStorage['portal-activity']` array (capped at 2000, quota errors swallowed). The portal turns those
   into STR/END/VIT on https://adervec.github.io; nothing leaves the browser and GymTracker reads nothing back.
+- **BFR, the ladder, the wobble and the recovery drawer (feat 493):** the rest of the audit shortlist.
+  **BFR / occlusion** homes with Tempo & Tension Methods (slots `0x2B9-0x2BB`) because it is a method,
+  not a movement: arm work, leg work and the original Kaatsu walking protocol — written safety-first,
+  with the medical rule-outs (clotting history, uncontrolled BP, pregnancy) in the setup lines,
+  partial-pressure-only guidance (arms snug ~4-5/10, legs ~6-7/10, never a tourniquet), 20-30% 1RM, the
+  30-15-15-15 scheme, cuff-time caps and hard stop signs leading the mistakes. **Agility ladder** fills
+  thin Plyometrics (`0x2BC-0x2BF`): two-in two-out, lateral in-in-out-out, the Icky Shuffle, single-leg
+  hops. **BOSU + balance board** join Core Anti-Movement per the feat-454 homing rule (`0x2C0-0x2C3`):
+  BOSU squat, BOSU push-up (bodyweight mode via title), single-leg balance hold and balance board hold
+  (both time mode). **Recovery tools** fill thin Foam Rolling / SMR (`0x2C4-0x2C7`): massage gun sweep,
+  peanut ball t-spine, yoga wheel spine extension, stretching strap series. Keywords updated on all four
+  families; `griptools.spec` asserts slots, docs, the three-way mode split and searchability. Next free
+  slot: `0x2C8`.
 - **Sliders, fingers, strands and a pair of reels (feat 492):** the "more" sweep, steered by five
   screenshots. **Sliders / gliding discs** had zero coverage for a genuinely family-sized vocabulary, so
   `slider-work` joins the extra families (slots `0x2A0-0x2A9`): mountain climber, knee tuck, pike, body
