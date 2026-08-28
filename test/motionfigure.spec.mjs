@@ -176,7 +176,7 @@ test('feat 414 — every machine-titled variation draws its station; brand names
     const STATION = /fig-(stack|pad|arm-lever|tower|rail|sled|cable|wheel|crank|bench)/;
     const noStation = [];
     for (const f of FAMILIES) for (const v of (f.variations || [])) {
-      if (!/machine/i.test(v.title) || /smith/i.test(v.title) || !v.uuid) continue;
+      if (!/machine/i.test(v.title) || /smith|burn machine/i.test(v.title) || !v.uuid) continue; // feat 496 — the Burn Machine is a handheld brand, not a station
       const mv = motionForVariation(v.uuid);
       if (!mv) { noStation.push(v.id + ': unresolved'); continue; }
       const views = MOTIONS[mv.motion].views;

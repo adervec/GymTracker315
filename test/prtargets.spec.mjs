@@ -64,8 +64,9 @@ test('feat 477 — a target flips to satisfied once this session matches or beat
   const v = await seed(page);
   const r = await page.evaluate((v) => {
     const before = [...document.querySelectorAll('.target-btn')].map(b => b.classList.contains('hit'));
-    // 166×6 beats the 155×6 "prev top" on both weight and reps
-    commitSetField(0, 'w', 166); commitSetField(0, 'r', 6);
+    // feat 494 — the prev-top tile now asks for 155×7 (one more rep than the 155×6 record set);
+    // 166×7 beats that ask on both weight and reps
+    commitSetField(0, 'w', 166); commitSetField(0, 'r', 7);
     const tiles = [...document.querySelectorAll('.target-btn')].map(b => ({ txt: b.textContent, hit: b.classList.contains('hit') }));
     return { before, tiles,
       exact: exTargetHit(v, null, 166, 6),

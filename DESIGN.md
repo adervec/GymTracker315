@@ -2653,6 +2653,20 @@ They share variation **UUIDs**.
   'lift', ~minutes/10]` and saving a cardio entry appends a `'cardio'` row to the same-origin
   `localStorage['portal-activity']` array (capped at 2000, quota errors swallowed). The portal turns those
   into STR/END/VIT on https://adervec.github.io; nothing leaves the browser and GymTracker reads nothing back.
+- **The masked test debt paid down (feat 496):** four tests had been failing silently since feats
+  492/493 — the shard commands piped Playwright through `tail`/`grep`, which swallowed the exit code,
+  so "all green" was really "the pipe exited 0". The debts: (1) `slider-work` (feat 492's new family)
+  was never added to `FAMILY_MOTION`, leaving all ten sliders with no motion figure — they glide on
+  the floor, so they get the plank pattern; (2) the Burn Machine is a HANDHELD rotating implement
+  whose brand name tripped the feat-414 "machine-titled ⇒ draws a station" scan — it now renders a
+  held tool via `MOTION_VARS` (like the mace family) and the scan excludes the brand like it excludes
+  "smith"; (3) the biggest one: every keyword line ever written on a BASE family's reference entry
+  ("occlusion", "mace around the world", …) was dead weight for the picker, because only EXTRA
+  families carry keywords into FAMILIES — a one-loop backfill after both datasets load makes all of
+  them (and feat 495's new back-extension keywords) genuinely searchable. Plus the one real feat-494
+  regression: prtargets' hit test logged a set that beat the old matching ask but fell one rep short
+  of the new beating ask — the seed set gains that rep. Lesson recorded: never pipe the suite through
+  anything; the exit code is the verdict.
 - **The reverse hyper corner and the roman chair leftovers (feat 495):** the catalogue owned the
   Reverse Hyper Machine but none of its training vocabulary, and sixteen Roman chair positions but not
   the last three. Into the base `back-extension` family (slots `0x2C8-0x2CB`, via `pushCompactRows` —

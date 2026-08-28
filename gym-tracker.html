@@ -24214,6 +24214,10 @@ const MOTION_VARS = {
   'bb-flat-bench': ['bench-press', 'barbell'], 'db-flat-bench': ['bench-press', 'dumbbell'],
   'bb-curl': ['biceps-curl', 'barbell'], 'db-curl': ['biceps-curl', 'dumbbell'],
   'standard-pulldown': ['lat-pulldown', 'cable'],
+  // feat 496 — the Burn Machine is a HANDHELD rotating implement (brand name, not a station):
+  // show a held tool, same as the mace & club family
+  'burn-machine-rotation': ['generic', 'dumbbell'], 'burn-machine-extended': ['generic', 'dumbbell'],
+  'burn-machine-overhead': ['generic', 'dumbbell'],
   // feat 413 — the Roc-It line: SEATED machines with the signature rocking seat, not free-weight motions.
   'roc-it-flat-press': ['machine-press', 'machine', { rock: 1 }],
   'roc-it-incline-press': ['machine-press', 'machine', { rock: 1, angle: 35 }],
@@ -24298,6 +24302,7 @@ const FAMILY_MOTION = {
   'trx-work': ['row', 'band'], 'resistance-bands': ['generic', 'band'],
   'kettlebell-specific': ['hinge', 'kettlebell'], 'medicine-ball': ['generic', 'dumbbell'],
   'mace-club-work': ['generic', 'dumbbell'], 'landmine-work': ['vertical-press', 'barbell'],
+  'slider-work': ['plank', 'none'], // feat 496 — feat 492's new family never got a motion (floor gliding = plank pattern)
   'sandbag-work': ['generic', 'dumbbell'], // feat 461 — one awkward object carried every which way; the generic template like ybell
   'ybell-work': ['generic', 'dumbbell'], // feat 446 — four grips in one family, so the generic template like mace/club
   'swiss-ball-work': ['crunch', 'none'], // feat 448 — mostly supine/prone core work; bodyweight by default
@@ -29971,7 +29976,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 413 · 2026-08-28 13:39';
+const APP_BUILD = 'build 414 · 2026-08-28 13:53';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -38029,6 +38034,17 @@ equipFilter.querySelectorAll('.equip-pill').forEach(pill => {
       variations: ef.variations.map(v => ({ ...v })),
     });
   });
+})();
+
+// feat 496 — the reference keyword lines become load-bearing for the PICKER too: base families in
+// FAMILIES carry no keywords (only extra families do, via applyExtraFamilies), so searches like
+// "occlusion" or "mace around the world" matched nothing even though the reference entry knew the
+// words. Backfill once, now that both datasets exist. VAR_INDEX holds the same family objects, so
+// the coach-page haystack (feat 424) picks the words up too.
+(function backfillFamilyKeywords() {
+  if (typeof FAMILIES === 'undefined' || !Array.isArray(exercises)) return;
+  const kw = new Map(exercises.map(e => [e.id, e.keywords || '']));
+  FAMILIES.forEach(f => { if (!f.keywords && kw.get(f.id)) f.keywords = kw.get(f.id); });
 })();
 
 renderSubFilters();
