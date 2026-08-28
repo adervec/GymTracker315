@@ -26747,6 +26747,7 @@ function openStepPicker(idx) {
   openLogModal();
   modalState.showPicker = true; // force the picker even if a pending exercise lingers
   renderModal();
+  annunceStepDesc(); // feat 494 — speak the step's detailed description
 }
 
 // feat 192 — Exercise page: the log-sets sheet (#trk-modal) is router-integrated — opening it marks currentPage
@@ -27216,6 +27217,27 @@ function bindPickerCycles() {
       'Reset');
   });
 }
+// feat 494 — the picker SPEAKS the selected step's detailed description: once when it opens on a
+// step, and again whenever the selection moves to a different step. Never the same one twice in a row.
+let _stepDescSpoken = '';
+function annunceStepDesc() {
+  try {
+    if (typeof _glossPod !== 'undefined' && _glossPod) return; // feat 274 — don't talk over the study podcast
+    if (state.ttsTips === false) return;                       // rides the spoken-tips preference (feat 66)
+    const plan = getActivePlan();
+    const st = (plan && modalState.planStepFilter != null) ? plan.steps[modalState.planStepFilter] : null;
+    const text = st ? String(st.desc || '').trim() : '';
+    if (!text || text === _stepDescSpoken) return;
+    if (!sndAudioOn() || !headphoneGatePasses()) return;
+    if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
+    _stepDescSpoken = text;
+    const u = new SpeechSynthesisUtterance(text.slice(0, 240));
+    u.rate = 1; u.lang = 'en-US'; u.volume = sndVol();
+    coachify(u); // feat 210 — the gruff coach voice profile
+    window.speechSynthesis.cancel();                 // never stack utterances
+    window.speechSynthesis.speak(u);
+  } catch (_) {}
+}
 function renderPicker() {
   const subFilters = SUB_FILTERS[modalState.pickerMega] || [{id:'all',label:'All'}];
   // feat 107 — escape hatch: if you misclicked "Change exercise", get back to the current one.
@@ -27456,6 +27478,7 @@ function bindPicker() {
   // feat 107 — abort a mis-tapped "Change exercise": return to the current exercise unchanged
   document.getElementById('trk-picker-back-current')?.addEventListener('click', () => {
     modalState.showPicker = false;
+    modalState.planStepFilter = null; // feat 494 — an aborted browse must not leave a stale step selection behind
     renderModal();
   });
   // feat 112/115 — plan step chips: filter the picker to a step's exercises (or clear back to all)
@@ -27463,6 +27486,7 @@ function bindPicker() {
     modalState.planStepFilter = b.dataset.pickerStep === 'clear' ? null : +b.dataset.pickerStep;
     if (modalState.planStepFilter != null) { resetPickerNormalFilters(); const plan = getActivePlan(); const st = plan && plan.steps[modalState.planStepFilter]; _planLoadCtx = st ? (st.load || 'moderate') : null; } // feat 179 — switching to a step resets the pills/search (they then stack)
     renderModal();
+    annunceStepDesc(); // feat 494 — speak the newly selected step's detailed description
   }));
   // feat 396 — the mega filter is one toggle: tap cycles All→Push→Pull→Lower→Core→Full→All; hold reverts to All
   const megaBtn = document.getElementById('trk-picker-mega');
@@ -28226,11 +28250,18 @@ function renderSetsForm() {
     ${(() => { // feat 420 — reference-set buttons; feat 478 — targets + All-weights are ONE collapsible section
       if (!pending.varUuid || pending.cardio) return '';
       const B = exBestSets(pending.varUuid, pending.subUuid, currentSessionDate);
-      const claimed = [B.prevTop, B.bestE1, B.maxW, B.maxR].filter(x => x && x.w > 0).map(x => x.w);
+      // feat 494 — every tile proposes a set that BEATS its record instead of matching it: one more
+      // rep than the record set (which also out-does its e1RM), or one weight increment up for the
+      // max-weight tile (falling back to +1 rep at the max when the ⚖️ cap forbids going heavier).
+      const beat = t => (t && t.w > 0) ? { w: t.w, r: (parseFloat(t.r) || 0) + 1 } : null;
+      const wInc = state.unit === 'lb' ? 5 : 2.5, wCap = exMaxW(pending.varUuid);
+      const heavier = t => (t && t.w > 0) ? ((wCap && t.w + wInc > wCap) ? beat(t) : { w: t.w + wInc, r: 1 }) : null;
+      const T = { prevTop: beat(B.prevTop), bestE1: beat(B.bestE1), maxW: heavier(B.maxW), maxR: beat(B.maxR) };
+      const claimed = [T.prevTop, T.bestE1, T.maxW, T.maxR].filter(x => x && x.w > 0).map(x => x.w);
       const P = exPrTargets(pending.varUuid, pending.subUuid, claimed); // feat 477 — PR picks avoid taken weights
-      const defs = [['↩', 'Prev top', B.prevTop, null], ['🏆', 'Best e1RM', B.bestE1, null],
+      const defs = [['↩', 'Prev top', T.prevTop, null], ['🏆', 'Best e1RM', T.bestE1, null],
         ['🎯', 'Wt PR', P.vuln, P.vuln && P.vuln.odds], ['🚀', 'e1RM PR', P.e1, P.e1 && P.e1.odds],
-        ['🏋️', 'Max wt', B.maxW, null], ['🔁', 'Max reps', B.maxR, null]];
+        ['🏋️', 'Max wt', T.maxW, null], ['🔁', 'Max reps', T.maxR, null]];
       const seen = new Set(), btns = [];
       let hits = 0;
       const tgtSort = ['w', 'r', 'e1', 'vuln'].includes(state.targetSort) ? state.targetSort : 'order';
@@ -29076,7 +29107,7 @@ function bindSetsForm() {
     renderModal();
   });
   document.getElementById('trk-change-exercise')?.addEventListener('click', () => {
-    const go = () => { modalState.showPicker = true; modalState.exNoteEditing = false; renderModal(); };
+    const go = () => { modalState.showPicker = true; modalState.planStepFilter = null; modalState.exNoteEditing = false; renderModal(); }; // feat 494 — Change exercise browses ALL: drop any lingering step filter (no more manual deselect)
     // feat 151 — guard real work: if 2+ sets have been entered (and aren't saved yet), confirm before
     // switching, since picking a different exercise discards the in-progress sets.
     const entered = (pending.sets || []).filter(s => s && s.w !== '' && s.w != null && !isNaN(parseFloat(s.w))).length;
@@ -29703,6 +29734,7 @@ function saveSets(endingWorkout) {
     modalState.planStepFilter = (plan && idx != null && idx < plan.steps.length) ? idx : null;
     if (modalState.planStepFilter != null) { resetPickerNormalFilters(); _planLoadCtx = plan.steps[modalState.planStepFilter].load || 'moderate'; } // feat 179 — advancing to the next step resets the pills/search
     renderModal();
+    annunceStepDesc(); // feat 494 — announce the auto-advanced step's detailed description
     return true;
   };
   // Confirmation popup: show if any infeasible weight OR alwaysConfirm is on.
@@ -29919,7 +29951,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 411 · 2026-08-24 20:12';
+const APP_BUILD = 'build 412 · 2026-08-28 10:30';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -30347,8 +30379,9 @@ function annunceSetStart() {
 // feat 207 — set-END cues, spoken when a set completes (reps land): "One down — 3 to go",
 // "2 of 4 down", "Half done", "One more, then Squat", "All done — time for Squat".
 function stepLabelShort(st) { const o = ((st && st.options) || [])[0]; return o ? optionLabel(o) : ((st && st.desc) || 'the next step'); }
-// The step to call out once the CURRENT exercise's step wraps: the next incomplete step after it
-// (wrapping around), or null when nothing else is left in the plan.
+// The step to call out once the CURRENT exercise's step wraps: the FIRST incomplete step in plan order
+// (skipping the current exercise's own step — feat 494; it used to be the next one after the current,
+// wrapping around), or null when nothing else is left in the plan.
 function nextStepLabelAfterCurrent() {
   const plan = (typeof getActivePlan === 'function') ? getActivePlan() : null;
   const session = (typeof getActiveSession === 'function') ? getActiveSession() : null;
@@ -30356,8 +30389,7 @@ function nextStepLabelAfterCurrent() {
   const steps = plan.steps || [];
   const i = steps.findIndex(st => (st.options || []).some(o => optionMatchesVar(o, pending.varUuid)));
   if (i < 0) return null;
-  for (let j = i + 1; j < steps.length; j++) if (!stepStatus(session, steps[j], plan).done) return stepLabelShort(steps[j]);
-  for (let j = 0; j < i; j++) if (!stepStatus(session, steps[j], plan).done) return stepLabelShort(steps[j]);
+  for (let j = 0; j < steps.length; j++) if (j !== i && !stepStatus(session, steps[j], plan).done) return stepLabelShort(steps[j]);
   return null;
 }
 function setEndPhrase(pos, nextLabel) {

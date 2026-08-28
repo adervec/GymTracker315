@@ -3,6 +3,8 @@
 // deduped by weight, each a one-tap weight prefill (feat 247 reuse-the-open-set behaviour preserved). The
 // baseline cards keep ▼ lighter / ▲ heavier and gain a ⭐ best-e1RM card with the reps needed at the
 // CURRENT weight to at least match it.
+// feat 494 — the tiles now propose sets that BEAT their record (one more rep, or one weight increment
+// up for the max-weight tile) instead of merely matching it.
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -28,13 +30,18 @@ const openWith = (page, sessions) => page.evaluate((sessions) => {
 const readBtns = (page) => page.evaluate(() =>   // reference buttons only — the ⤢ expand (feat 422) is not one
   [...document.querySelectorAll('#trk-modal-body .prog-prefill.target-btn')].map(b => ({ w: b.dataset.w, label: b.textContent.trim() })));
 
-test('identical prev/best/max sets collapse to ONE button; the Aim-for blurb is gone', async ({ page }) => {
+test('identical prev/best/max sets collapse to a rep-beat + a weight-beat button; the Aim-for blurb is gone', async ({ page }) => {
   await openWith(page, [{ daysAgo: 2, sets: [[135, 12]] }]);
   const btns = await readBtns(page);
   const blurbGone = await page.evaluate(() => !document.querySelector('#trk-modal-body .prog-target'));
-  expect(btns.length).toBe(1);                   // prev top = best e1RM = max weight = max reps → one weight, one button
+  // feat 494 — prev top / best e1RM / max reps all ask for one more rep (135×13 → one deduped button);
+  // the max-weight tile asks for one increment heavier (lb → +5) at a single rep.
+  expect(btns.length).toBe(2);
   expect(btns[0].w).toBe('135');
-  expect(btns[0].label).toContain('135×12');
+  expect(btns[0].label).toContain('135×13');
+  expect(btns[1].label).toContain('Max wt');
+  expect(btns[1].w).toBe('140');
+  expect(btns[1].label).toContain('140×1');
   expect(blurbGone).toBe(true);
 });
 

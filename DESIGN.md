@@ -2653,6 +2653,20 @@ They share variation **UUIDs**.
   'lift', ~minutes/10]` and saving a cardio entry appends a `'cardio'` row to the same-origin
   `localStorage['portal-activity']` array (capped at 2000, quota errors swallowed). The portal turns those
   into STR/END/VIT on https://adervec.github.io; nothing leaves the browser and GymTracker reads nothing back.
+- **Targets that beat records, and a picker that talks steps (feat 494):** four flow fixes in one.
+  The six target tiles now propose sets that BEAT their record instead of matching it — matching ties,
+  and a tie is not a PR: +1 rep on the record set for prev-top / best-e1RM / max-reps (one more rep at
+  the same weight always out-does the recorded e1RM too), one weight increment up (kg +2.5 / lb +5) at
+  a single rep for max-weight — falling back to +1 rep when the ⚖️ cap forbids going heavier. The two
+  feat-477 PR tiles already beat by construction. "Change exercise" (and the feat-107 back-to-current
+  abort) now clear `planStepFilter`, so the picker opens browsing ALL exercises — the stale step
+  selection that forced a manual deselect came from aborted step browses that never cleared it. The
+  feat-207 end-of-exercise callout ("One more, then X") now names the FIRST incomplete step in plan
+  order instead of the next one after the current (wrapping) — plans are ordered for a reason; a
+  skipped early step should be called back first. And the picker now SPEAKS the selected step's
+  detailed description (`st.desc`) — on `openStepPicker`, on step-chip change, and on the feat-114
+  post-save auto-advance — through the same coachified speech path as the feat-66 tips (and gated by
+  the same preference), deduped module-level so the same description is never spoken twice in a row.
 - **BFR, the ladder, the wobble and the recovery drawer (feat 493):** the rest of the audit shortlist.
   **BFR / occlusion** homes with Tempo & Tension Methods (slots `0x2B9-0x2BB`) because it is a method,
   not a movement: arm work, leg work and the original Kaatsu walking protocol — written safety-first,
