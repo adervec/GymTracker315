@@ -2653,6 +2653,15 @@ They share variation **UUIDs**.
   'lift', ~minutes/10]` and saving a cardio entry appends a `'cardio'` row to the same-origin
   `localStorage['portal-activity']` array (capped at 2000, quota errors swallowed). The portal turns those
   into STR/END/VIT on https://adervec.github.io; nothing leaves the browser and GymTracker reads nothing back.
+- **The reverse hyper corner and the roman chair leftovers (feat 495):** the catalogue owned the
+  Reverse Hyper Machine but none of its training vocabulary, and sixteen Roman chair positions but not
+  the last three. Into the base `back-extension` family (slots `0x2C8-0x2CB`, via `pushCompactRows` —
+  base families are adopt()-safe): Single-Leg, Banded and Strict (dead-stop) Reverse Hypers, plus the
+  Sorensen Hold — titled with "Hold" so `exMode` routes it to time, dosed as the Biering-Sorensen
+  endurance test it is. Into the base `roman-chair` family (slots `0x2CC-0x2CE`): Twisting Back
+  Extension (the QL/oblique rotation), Single-Leg Back Extension, and the GHD Sit-Up — written with
+  the rhabdo warning up front, since the catalogue carried the GHR but nowhere named the sit-up half
+  of the machine. The back-extension reference keywords pick up the new vocabulary. Next free: `0x2CF`.
 - **Targets that beat records, and a picker that talks steps (feat 494):** four flow fixes in one.
   The six target tiles now propose sets that BEAT their record instead of matching it — matching ties,
   and a tie is not a PR: +1 rep on the record set for prev-top / best-e1RM / max-reps (one more rep at

@@ -7,6 +7,8 @@
 // (0x2AF-0x2B3), the reel KB moves (0x2B4-0x2B5) and the eagle claw gripper (0x2B6-0x2B8).
 // feat 493 - BFR (tempo-methods, 0x2B9-0x2BB), agility ladder (plyometrics, 0x2BC-0x2BF), BOSU + balance
 // board (core-stability, 0x2C0-0x2C3) and the recovery tools (foam-rolling, 0x2C4-0x2C7).
+// feat 495 - the reverse hyper corner (back-extension, 0x2C8-0x2CB) and the roman chair leftovers
+// (roman-chair, 0x2CC-0x2CE).
 import { test, expect } from '@playwright/test';
 
 const APP = '/gym-tracker.html';
@@ -45,6 +47,10 @@ const TOOLS = [
     'ladder-single-leg-hop']],
   ['core-stability', 0x2C0, ['bosu-squat', 'bosu-push-up', 'bosu-single-leg-hold', 'balance-board-hold']],
   ['foam-rolling', 0x2C4, ['massage-gun', 'peanut-ball', 'yoga-wheel', 'stretching-strap']],
+  // feat 495 - the reverse hyper vocabulary + the missing roman chair moves
+  ['back-extension', 0x2C8, ['single-leg-reverse-hyper', 'banded-reverse-hyper', 'strict-reverse-hyper',
+    'sorensen-hold']],
+  ['roman-chair', 0x2CC, ['roman-twisting-back-ext', 'roman-single-leg-back-ext', 'ghd-sit-up']],
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -211,4 +217,48 @@ test('feat 493 - BFR, the ladder, the balance tools and the recovery drawer are 
   expect(r.bosuCount).toBeGreaterThanOrEqual(3);
   expect(r.gun).toBe(true);
   expect(r.wheel).toBe(true);
+});
+
+test('feat 495 - the Sorensen hold goes to time, the rest stay reps', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const bySlot = (slot) => {
+      const h = slot.toString(16).padStart(4, '0');
+      return 'b1a1' + h + '-' + h + '-4' + h.slice(1) + '-8' + h.slice(1) + '-aaaaaaaa' + h;
+    };
+    return {
+      timeMode: exMode(bySlot(0x2CB)).mode,                                         // Sorensen Hold
+      repModes: [0x2C8, 0x2C9, 0x2CA, 0x2CC, 0x2CD, 0x2CE].map(sl => exMode(bySlot(sl)).mode),
+    };
+  });
+  expect(r.timeMode).toBe('time');
+  expect(r.repModes.every(m => m === 'standard')).toBe(true);
+});
+
+test('feat 495 - the reverse hyper corner and the roman chair moves are reachable from search', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    normalizeState(); state.fuzzySearch = true;
+    const titlesFor = (q) => { modalState.pickerSearch = q;
+      return filterVariations().flatMap(g => g.variations.map(v => v.title)); };
+    const revHyper = titlesFor('reverse hyper');
+    const roman = titlesFor('roman chair');
+    const sorensen = titlesFor('sorensen');
+    const ghd = titlesFor('ghd sit up');
+    const twist = titlesFor('twisting back extension');
+    modalState.pickerSearch = '';
+    return { revHyperCount: revHyper.length, romanCount: roman.length,
+      singleLeg: revHyper.some(t => /single-leg reverse hyper/i.test(t)),
+      banded: revHyper.some(t => /banded reverse hyper/i.test(t)),
+      strict: revHyper.some(t => /strict reverse hyper/i.test(t)),
+      sorensen: sorensen.some(t => /sorensen hold/i.test(t)),
+      ghd: ghd.some(t => /ghd sit-up/i.test(t)),
+      twist: twist.some(t => /twisting back extension/i.test(t)) };
+  });
+  expect(r.revHyperCount).toBeGreaterThanOrEqual(5);   // machine + single-leg + banded + strict + the roman chair one
+  expect(r.romanCount).toBeGreaterThanOrEqual(15);     // the family title carries the whole roster
+  expect(r.singleLeg).toBe(true);
+  expect(r.banded).toBe(true);
+  expect(r.strict).toBe(true);
+  expect(r.sorensen).toBe(true);
+  expect(r.ghd).toBe(true);
+  expect(r.twist).toBe(true);
 });
