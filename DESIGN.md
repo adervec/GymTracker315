@@ -2653,6 +2653,23 @@ They share variation **UUIDs**.
   'lift', ~minutes/10]` and saving a cardio entry appends a `'cardio'` row to the same-origin
   `localStorage['portal-activity']` array (capped at 2000, quota errors swallowed). The portal turns those
   into STR/END/VIT on https://adervec.github.io; nothing leaves the browser and GymTracker reads nothing back.
+- **The cross-link table brought up to date (feat 497):** feat 453 swept the implement families that
+  existed then; everything added since (sliders, roman chair, pilates mat, gymnastics core, specialty
+  implements/bars, pin lifts, equipment hacks, climbing, ATG, Hyrox, advanced plyos) went in with **zero**
+  cross-links, so a Hamstring Curl plan step never offered the Slider Hamstring Curl and a Back Extension
+  step never offered the roman chair work. A title-pattern sweep over all 1,606 variations proposed 323
+  candidates; the reviewed result adds **168 links across 41 base movements**, taking
+  `SECONDARY_PARENTS_BY_ID` from 310 to 478. Eleven base movements had no entry at all and now do
+  (`obliques`, `leg-extension`, `tibialis`, `calf-raise`, `pull-up`, `dips`, `lat-pulldown`, `rower`,
+  `plyometrics`, `treadmill`, `neck-training`). The sweep's false positives were the interesting part and
+  are deliberately excluded: a *Hyperextension Bench* Sissy Squat is not a back extension (it's a
+  knee-extension movement that borrows the bench, so it links to `leg-extension`), a Close-Grip Bench Press
+  is not grip work, a Pike *Push-Up* is a shoulder press not an ab pike, and the Supple Leopard wall squats
+  are mobility, not squats. Same doctrine as feat 453 — additive, nothing suppressed, authored by readable
+  `family/variationId`. New `test/crosslinks.spec.mjs` (the file the feat-453 comment always claimed
+  existed) asserts 20 representative links satisfy the base plan step while staying visible at home, that
+  the eleven newly-linked bases are non-empty, and that a roman chair *sit-up* does **not** leak into a
+  Back Extension step; the feat-453 no-dangle and no-suppressed-link invariants still cover the whole table.
 - **The masked test debt paid down (feat 496):** four tests had been failing silently since feats
   492/493 — the shard commands piped Playwright through `tail`/`grep`, which swallowed the exit code,
   so "all green" was really "the pipe exited 0". The debts: (1) `slider-work` (feat 492's new family)
