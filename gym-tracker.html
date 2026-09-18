@@ -26739,6 +26739,7 @@ let modalState = {
   pickerExplored: 'all', // feat 378 — 'all' | 'explored' (trained before) | 'unexplored' (never trained)
   pickerVolStatus: 'all', // feat 383 — 'all' | 'lagging' | 'neutral' | 'leading' (the primary muscle's recent-volume status)
   pickerTrend: 'all', // feat 385 — 'all' | 'up' | 'down' (which way the variation's e1RM moved last session)
+  pickerRecent: 'all', // feat 498 — 'all' | '1' | '2' | '3' | '4' | '6' | '12': only exercises logged within that many months
   tipsExpanded: false, // session-level — inherits from state.tipsExpanded on modal open
   tipsMode: 'concise', // session-level — inherits from state.tipsMode on modal open
   exNoteEditing: false, // feat 54 — per-exercise note editor open in the header
@@ -27178,7 +27179,11 @@ function filterVariations() {
   // feat 378 — explored / unexplored filter: a variation is "explored" once you've actually logged it (it's in the
   // touch map). Build the map only when the filter is active.
   const exploredMode = modalState.pickerExplored || 'all';
-  const touch = exploredMode !== 'all' ? buildTouchMap() : null;
+  // feat 498 — only exercises you actually logged within the last N months (same touch map, its lastMs)
+  const recentMode = modalState.pickerRecent || 'all';
+  const recentCut = recentMode !== 'all' ? Date.now() - (+recentMode) * 30.44 * 864e5 : 0; // ponytail: 30.44-day months, not calendar-exact
+  const touch = (exploredMode !== 'all' || recentCut) ? buildTouchMap() : null;
+  const failsRecent = (uuid) => recentCut > 0 && !(((touch.get(uuid) || {}).lastMs || 0) >= recentCut);
   const failsExplored = (uuid) => exploredMode === 'explored' ? !touch.has(uuid) : (exploredMode === 'unexplored' ? touch.has(uuid) : false);
   // feat 383 — lagging / neutral / leading filter by the variation's primary-muscle recent-volume status
   const volMode = modalState.pickerVolStatus || 'all';
@@ -27197,6 +27202,7 @@ function filterVariations() {
       if (!varVisibleInPicker(f, v)) return false; // feat 23 + 36 (hide flags + active gym) + 167 (suppressed duplicate)
       if (favOnly && !isFavVar(v.uuid)) return false; // feat 178 — favorites-only filter
       if (touch && failsExplored(v.uuid)) return false; // feat 378 — explored / unexplored
+      if (failsRecent(v.uuid)) return false; // feat 498 — done in the last N months
       if (volStatus && varVolStatus(v.uuid, volStatus) !== volMode) return false; // feat 383 — lagging/neutral/leading
       if (trendMap && varLastTrendDir(trendMap.get(v.uuid)) !== trendMode) return false; // feat 385 — trended up/down last time
       if (stepSet && !stepSet.has(v.uuid)) return false; // restrict to exactly the step's exercises
@@ -27212,6 +27218,7 @@ function filterVariations() {
       if (!varVisibleInPicker(i.family, v)) return; // honor hide flags via its PRIMARY family
       if (favOnly && !isFavVar(uuid)) return; // feat 178
       if (touch && failsExplored(uuid)) return; // feat 378 — explored / unexplored
+      if (failsRecent(uuid)) return; // feat 498
       if (volStatus && varVolStatus(uuid, volStatus) !== volMode) return; // feat 383
       if (trendMap && varLastTrendDir(trendMap.get(uuid)) !== trendMode) return; // feat 385
       if (stepSet && !stepSet.has(uuid)) return;
@@ -27235,6 +27242,9 @@ const PICKER_CYCLES = [
   { id: 'equip', field: 'pickerEquip', off: '🏋 Equipment', title: 'Equipment — tap to cycle · hold to reset' },
   { id: 'explored', field: 'pickerExplored', off: '✓✨ Trained?', title: 'Trained before? — tap to cycle · hold to reset',
     states: [['all', '✓✨ Trained?'], ['explored', '✓ Explored'], ['unexplored', '✨ New']] },
+  { id: 'recent', field: 'pickerRecent', off: '🗓 Recent?', title: 'Only exercises you did recently — tap to widen the window · hold to reset',
+    states: [['all', '🗓 Recent?'], ['1', '🗓 Last 1 mo'], ['2', '🗓 Last 2 mo'], ['3', '🗓 Last 3 mo'], ['4', '🗓 Last 4 mo'],
+      ['6', '🗓 Last 6 mo'], ['12', '🗓 Last 12 mo']] }, // feat 498
   { id: 'volstatus', field: 'pickerVolStatus', off: '📊 Volume', title: 'Recent muscle volume vs target — tap to cycle · hold to reset',
     states: [['all', '📊 Volume'], ['lagging', '📉 Lagging'], ['neutral', '⚖ Neutral'], ['leading', '📈 Leading']] },
   { id: 'trend', field: 'pickerTrend', off: '↕ Last time', title: 'Last-session e1RM direction — tap to cycle · hold to reset',
@@ -27319,6 +27329,7 @@ function renderPicker() {
       <div class="pill-row">
         <div class="pill fav-pill ${modalState.pickerFavOnly ? 'active' : ''}" id="trk-picker-fav" title="Show favorites only">★</div>
         ${pickerCyclePillHtml('explored')}
+        ${pickerCyclePillHtml('recent')}
         ${pickerCyclePillHtml('volstatus')}
         ${pickerCyclePillHtml('trend')}
         <div class="pill pill-dice" id="trk-picker-random" title="Pick a random exercise from the filtered list" aria-label="Random pick">🎲</div>
@@ -29991,7 +30002,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 415 · 2026-09-03 11:48';
+const APP_BUILD = 'build 416 · 2026-09-18 07:47';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

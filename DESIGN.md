@@ -2653,6 +2653,15 @@ They share variation **UUIDs**.
   'lift', ~minutes/10]` and saving a cardio entry appends a `'cardio'` row to the same-origin
   `localStorage['portal-activity']` array (capped at 2000, quota errors swallowed). The portal turns those
   into STR/END/VIT on https://adervec.github.io; nothing leaves the browser and GymTracker reads nothing back.
+- **"Done recently" picker filter (feat 498):** a seventh cycling pill (`🗓 Recent?`, feat-397 pattern, default
+  off) limits the exercise picker to variations you actually logged within the last **1 / 2 / 3 / 4 / 6 / 12
+  months** — tap widens the window, a full cycle returns to off, a hold resets. It reads the feat-378 touch map's
+  `lastMs`, so "done" means a logged set or cardio entry (an exercise opened with nothing logged doesn't count),
+  and a variation's newest log wins over older ones. Months are 30.44 days (`ponytail:` note in
+  `filterVariations`) — calendar-exact month math buys nothing a lifter would notice. It filters both the
+  primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
+  🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
+  `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
 - **The cross-link table brought up to date (feat 497):** feat 453 swept the implement families that
   existed then; everything added since (sliders, roman chair, pilates mat, gymnastics core, specialty
   implements/bars, pin lifts, equipment hacks, climbing, ATG, Hyrox, advanced plyos) went in with **zero**
