@@ -12,6 +12,7 @@ more weight, or more sets. Strength sets are compared with estimated 1RM,
 
 The feature backlog lives in **`Fitness App Features.xls`** (legacy BIFF `.xls`).
 Status legend used there: **DONE** shipped · **ONHOLD** deferred.
+Open items raised since that file went stale are tracked in **`TODO.md`**.
 
 ---
 
