@@ -135,3 +135,49 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   misclassification — feat 495 deliberately named "Sorensen Hold" to land in time mode. If the icon
   makes a wrong mode visible, that is the regex to fix (or the point at which an explicit per-variation
   mode field starts earning its keep), not the badge.
+
+- [ ] **Target buttons should advance to the next target instead of just going green, with a session
+  streak counter — and PRs must stay un-juiceable.**
+  Requested 2026-10-09: *"currently after hitting the target for a given button it fills in green and
+  a record is counted. I would rather it show a green border and then update to the next target for
+  that particular button counting what I just did today; and in the corner of the button show the #
+  of times it has been hit this session successively if >1. However the # of PRs hit this exercise
+  should only count the first one; that number can't be juiced by milking one easy button. Also this
+  needs to handle if accidentally enter something big then delete it."*
+
+  Four changes to the feat-494 targets block (`exBestSets` `:28374`, `exPrTargets` `:28433`,
+  `exTargetHit` `:28476`, `exSessionPrCount` `:28480`, `refreshTargetHits` `:28502`):
+
+  1. **Green border, not a green fill.** `.target-btn.hit` (`:3159`) currently sets both
+     `border-color` *and* a `rgba(63,185,80,0.13)` background — drop the background, keep the border.
+  2. **Advance the target.** On a hit, recompute that button's ask from today's work: the tile that
+     asked for 100×11 and got it should now ask 100×12 (and the Max-weight tile should step up
+     another increment). Today each tile's value comes from the pre-session history only —
+     `exWeightRows`/`exBestSets` deliberately *exclude* the pending sheet — so the advance means
+     folding today's sets into that baseline per button.
+  3. **Streak badge in the corner**, shown only when >1: how many times that button has been hit
+     this session in a row.
+  4. **PR count counts the first hit per button only.** `exSessionPrCount` (`:28480`) currently
+     counts distinct *weights* whose e1RM beat the previous best at that weight. Once tiles advance,
+     re-hitting the same advancing tile must not keep adding PRs — one PR per button per session.
+
+  **The hard constraint, and it shapes the whole design:** *"handle if accidentally enter something
+  big then delete it."* So nothing here may be an incrementing counter — the streak, the advanced
+  target and the PR credit all have to be **derived from the session's current sets on every
+  recompute**, the way `exTargetHit` already is. Enter 300 kg by mistake and the tile advances three
+  rungs and shows a streak of 3; delete it and all of that must roll back to exactly where it was.
+  Deriving it means that falls out for free, whereas a `streak++` on hit would strand a phantom.
+
+  Two existing behaviours this collides with — settle both before building:
+  - **feat 478 auto-collapse** closes the targets section the moment every target is hit
+    (`_tgtHits === _tgtTotal`, `targetsAutoCollapse` `:28517`). If tiles always advance there is
+    never an all-hit state, so the section would never auto-collapse again. Decide whether that
+    feature retires, or whether "hit once" still counts as satisfied for collapse purposes.
+  - **feat 482's DOM-only retint** (`refreshTargetHits` `:28502`) just toggles the `.hit` class and
+    the counter from each tile's `data-w`/`data-r`. Advancing changes the tile's *label and its
+    data attributes*, so this needs to rewrite the tile contents (or re-render the block) while
+    keeping feat 482's promise that it updates immediately, not on the next full render.
+
+  `test/beatrecords.spec.mjs` and `test/prtargets.spec.mjs` cover the current semantics and will
+  both need reworking; the "milking one button" rule deserves a test of its own (hit the same tile
+  three times → streak 3, PR count 1).
