@@ -109,3 +109,29 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   Diagnostics to add if it stays unreproducible: `logInfo` already exists (`:3588`) — have the
   workout clock log a heartbeat and log every auto-end with the idle minutes that triggered it, so
   the next occurrence leaves a trail instead of a guess.
+
+- [ ] **Mark time-based holds in the picker with an icon, and make mode a filterable criterion.**
+  Requested 2026-10-09: *"exercise picker should indicate which exercises are time-based holds with
+  some sort of icon and this should be a filterable criteria."*
+
+  Both halves ride on `exMode(varUuid)` (`:13908`), which already classifies every variation from
+  its title into four modes — **`time`** (hang / hold / plank / L-sit / wall sit / isometric),
+  `distance` (carries, sled, yoke), `bodyweight` (pull-up, dip, push-up, pistol, nordic) and
+  `standard` (reps). Nothing in the picker surfaces that today: you only discover an exercise is a
+  hold when the sets form opens with a **Time** field instead of Reps.
+
+  - **Icon:** add a mode badge to the picker row's right-hand cluster, which already stacks
+    `lastDoneBadge` · fav star · `spotterBadge` · `vulnerableBadge` · `pickerTrendBadge` ·
+    `touchBadgeHtml` (built at `:27485` for primary rows and `:27494` for cross-linked ones — both
+    need it). ⏱ for `time` is the ask; consider whether `distance` (📏) and `bodyweight` earn one
+    too, or whether badging everything just adds noise — `standard` should certainly stay bare.
+  - **Filter:** a new `PICKER_CYCLES` entry is the whole job (`:30109`-ish region, same pattern as
+    feat 498's `🗓 Recent?`): `modalState.pickerMode` with states
+    `all → ⏱ Holds → 📏 Distance → 💪 Bodyweight → reps-only`, plus one check in
+    `filterVariations()` applied to both the primary and secondary loops. Default off like its
+    siblings.
+
+  Note `exMode` is a title regex with no per-variation override, so the badge inherits any
+  misclassification — feat 495 deliberately named "Sorensen Hold" to land in time mode. If the icon
+  makes a wrong mode visible, that is the regex to fix (or the point at which an explicit per-variation
+  mode field starts earning its keep), not the badge.
