@@ -181,3 +181,34 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   `test/beatrecords.spec.mjs` and `test/prtargets.spec.mjs` cover the current semantics and will
   both need reworking; the "milking one button" rule deserves a test of its own (hit the same tile
   three times → streak 3, PR count 1).
+
+- [ ] **On a plan step, a cross-linked exercise can be listed twice — as itself and as a cross-link.**
+  Reported 2026-10-11: *"sometimes for a plan step I see 'crosslinked' exercises appear twice (as
+  themselves and as a crosslink) - this is clutter."*
+
+  Confirmed by reading `filterVariations()` (`:27176`). With a plan-step filter active, `stepSet`
+  holds every uuid that satisfies the step — which by design includes the cross-linked ones — and
+  then two separate passes each emit a row for the same uuid:
+  - the **primary** pass keeps it under its own family, because it is in `stepSet` (`:27208`);
+  - the **secondary** pass also emits it under the step's base family, with the "from <home
+    movement>" label and jump link (`:27224`-`:27226`, feat 167).
+
+  So a Back Extension step shows *Single-Leg Back Extension* once under **Roman Chair Work** and
+  again as a cross-link under **Back Extension**. It happens when browsing unfiltered too, but there
+  the two copies sit in far-apart family sections and read as intentional; a step filter shortens the
+  list until they land next to each other and just look like a bug. Feat 497 took the table from 310
+  to 478 links, which is almost certainly why this became noticeable now.
+
+  Likely fix: when the primary row for a uuid is already in the result set, drop its secondary row —
+  at minimum while `modalState.planStepFilter` is active, and possibly always, since the duplication
+  is the same either way.
+
+  **Do not dedupe blindly** — some variations appear *only* as a secondary row and would vanish:
+  - feat 167's reconciled duplicates are suppressed in their home family (`isSuppressedVar`), so the
+    cross-link row is the only way to reach them;
+  - the home family may be filtered out by the mega/sub/equip pills or hidden by the active gym, so
+    the primary row is absent even though the exercise is valid for the step.
+  Condition the drop on the primary row actually being present in this result set, not on the mere
+  existence of a primary family. `test/secondaryparents.spec.mjs` asserts the cross-link row renders
+  with its jump link, and `test/crosslinks.spec.mjs` (feat 497) asserts cross-linked variations stay
+  visible at home — keep both true.
