@@ -5,7 +5,7 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
 
 ## Bugs
 
-- [ ] **Clicking around the Plan tab can still change the exercise and lose the current sets.**
+- [x] **Clicking around the Plan tab can still change the exercise and lose the current sets.** — fixed in **feat 499**: one `guardPendingDiscard` helper applied at the destruction points (plan-option chips, `editExisting`, the Change-exercise button). The lead below was correct.
   Reported 2026-10-09: *"I can sometimes still accidentally change the exercise and lose my
   current sets when clicking around the 'plan' tab."* Intermittent — the exact click path that
   triggers it is not pinned down yet, so **reproduce it first**.
@@ -281,3 +281,21 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   Elite) instead of inventing an unreachable number. `test/objtier.spec.mjs` covers the tiering —
   the retune wants fixture sets per family asserting a known-strong-but-human set does **not** read
   Inhuman.
+
+- [ ] **Switching exercises from the PICKER carries your typed sets over to the new exercise.**
+  Found while fixing feat 499 (2026-10-11), verified by probe: with 100×10 and 100×9 entered for
+  Barbell Bench, clicking *Dumbbell Flat Bench* in the picker switches `pending.varUuid` and **keeps
+  both sets** — `bindPickerResults` (`:27583`) never resets `pending.sets` for a strength→strength
+  switch. So they would save under the wrong exercise. feat 151's dialog says "will discard them",
+  which is simply wrong for this route (it is right for the plan-chip route, which does reset).
+
+  feat 499 **did** guard the one picker outcome that genuinely destroys — picking a *cardio* exercise empties
+  `pending.sets`, so that now asks first. The strength→strength carry-over below is what remains open.
+
+  Not fixed in feat 499 because it is a **product decision, not a defect to settle unilaterally**:
+  - carrying over is arguably a *feature* — you typed 100×10, realised you picked Barbell instead of
+    Dumbbell bench, switch, and your numbers follow you;
+  - or it is misattribution waiting to happen, and the sheet should reset like every other route.
+  Pick one, then make the dialog wording tell the truth for whichever it is. If carry-over stays, the
+  confirm on that route should say "move to" rather than "discard" — and arguably should not require a
+  confirm at all, since nothing is lost.

@@ -482,9 +482,11 @@ They share variation **UUIDs**.
 - **Plan-aware picker (feat 112 + 115):** when a plan is active, the exercise picker shows its **incomplete steps as
   chips** (`renderPicker`); tapping one sets `modalState.planStepFilter` so `filterVariations()` returns **exactly
   that step's exercises** — the union of its options (`stepQualifyingVarSet`) — **overriding** the mega/sub/equip
-  pills (a set no normal filter could produce). A "✕ all exercises" chip clears it. From the **dashboard**, tapping a
-  `.plan-step` calls `openStepPicker(idx)` to open the same filtered picker (and seeds the suggested weight via
-  `_planLoadCtx`). The filter clears on pick / modal close. Covered by `test/planpicker.spec.mjs`.
+  pills (a set no normal filter could produce). A "✕ all exercises" chip clears it. `openStepPicker(idx)` opens the same filtered
+  picker and seeds the suggested weight via `_planLoadCtx`; **since feat 419 the dashboard `.plan-step` row calls
+  `showStepVariationsPopup` instead** (informational — nothing starts), leaving `openStepPicker` with no in-app
+  caller, kept alive by `test/planpicker.spec.mjs` + `test/beatrecords.spec.mjs`. Starting happens explicitly via a
+  step's option pill. The filter clears on pick / modal close. Covered by `test/planpicker.spec.mjs`.
 - **Log-Sets current-step indicator (feat 116):** the strength Log-Sets form now leads with a banner
   (`planStepIndicatorHtml`) naming the plan step the current exercise belongs to (`planStepForVar` — earliest
   incomplete matching step), its **sets logged/target with a progress bar**, and whether the **effort is on target**
@@ -2663,6 +2665,35 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **One guard for discarding the in-progress sheet (feat 499):** tapping a plan-step **option chip** destroyed
+  2+ entered-but-unsaved sets with no warning at all, and because `startExerciseFromSuggestion` ends in
+  `savePending()` the localStorage copy went with them. Root cause: feat 151's confirm was written **inline in the
+  `#trk-change-exercise` handler**, and it guarded only a *state flip* (`showPicker = true`) — the actual
+  destruction happens in `startExerciseFromSuggestion` / `startExerciseFromPlanOption` / `editExisting`, so every
+  route that did not go through that one button inherited **zero** protection. Now there is one named
+  `guardPendingDiscard(run, opts)` next to `hasUnsavedSets`, applied at the destruction points so future entry
+  points are covered by construction: the plan-option chips (both the `variation` and `movement` branches, the
+  former delegating so one tap can never prompt twice), `editExisting` (whose comment falsely claimed it stashed
+  `pending` — nothing ever did), and the Change-exercise button itself, which keeps its exact wording. Counting
+  stays feat 151's — rows with a *parseable weight*, prompt at **2+**, never while `modalState.isEditing` —
+  deliberately **not** `hasUnsavedSets()`, which is a looser weight-OR-reps predicate built for `endWorkout` and
+  would nag on a single typed weight. The guard stays **synchronous when there is nothing to lose**, which is what
+  keeps `test/firstsetblank.spec.mjs:31` (a direct call plus an immediate assertion) green. `test/planoptguard.spec.mjs`
+  covers the reported regression, Keep-logging losing nothing, the confirm path, the 1-set passthrough, the
+  logged-row overwrite, and the synchronous case.
+  Three things a design review of the first cut turned up, all fixed here: **(a)** the message double-escaped the
+  exercise name, because `choiceDialog` already escapes `opts.message` — the 14 variation titles holding an
+  apostrophe or `&` read "Farmer&#39;s Carry" (a feat-151 bug, inherited by the extraction and now gone);
+  **(b)** the picker row has *two* outcomes and only one destroys — a **cardio** pick empties `pending.sets`,
+  so that case is guarded (`_applyPickedVar` split out so it can run after a confirm), while a
+  strength→strength pick *carries the typed sets over* and deliberately does **not** claim to discard;
+  **(c)** `editExisting` re-resolves its exercise inside the callback instead of closing over it, since a feat-124
+  cloud pull can replace `state.sessions` while the confirm is open. Because the Change-exercise button asks
+  *before* the picker and a cardio row can ask *after* it, a `_discardGrant` keyed to `{varUuid, n}` records an
+  approval so one intent prompts once; it is self-invalidating (the discard it authorises changes `varUuid` and
+  zeroes `n`) and is withdrawn by the feat-107 "Back to current" abort.
+  **Still open, filed in `TODO.md`:** that strength→strength carry-over is re-attribution rather than loss — the
+  sets would save under the exercise you switched *to*. Which behaviour is wanted is a product decision.
 - **The cross-link table brought up to date (feat 497):** feat 453 swept the implement families that
   existed then; everything added since (sliders, roman chair, pilates mat, gymnastics core, specialty
   implements/bars, pin lifts, equipment hacks, climbing, ATG, Hyrox, advanced plyos) went in with **zero**
@@ -4119,7 +4150,7 @@ They share variation **UUIDs**.
   compatible variations shows, and the pills/search then **stack** with (intersect) the step set instead of being
   ignored — letting you narrow *within* a step. The result count reads **"X of Y step-compatible variations shown"**
   while a step is active (`filterVariations` / `renderPickerResults`). Wired at all three step entry points: the
-  picker step chip, `openStepPicker` (dashboard), and the post-save auto-advance. Covered by
+  picker step chip, `openStepPicker` (no longer dashboard-reachable since feat 419), and the post-save auto-advance. Covered by
   `test/planpicker.spec.mjs` (stacking intersection, filter-reset on entry, X-of-Y count).
 - **Favorite plans & variations (feat 178):** a ★ toggle on every plan row and every exercise-picker row, backed by
   two synced settings maps (`state.favoritePlans` / `state.favoriteVars`, both in `SETTINGS_KEYS`, defaulted in
