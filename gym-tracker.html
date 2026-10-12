@@ -28471,6 +28471,17 @@ function exBestSets(varUuid, subUuid, beforeDate) {
 // PR-odds indices — pw = odds of beating that weight's OWN e1RM record, pv = odds of beating the variation's
 // all-time e1RM at that weight. Odds = logistic((predicted reps at w) − (reps needed)); the prediction comes
 // from the 90-day-best e1RM (fallback: all-time). ponytail: heuristic sigmoid (k=1.5), not a fitted model.
+/* feat 501 — the e1RM-path target used to solve Epley for reps and print whatever came out, so a light
+   candidate weight asked for a set nobody has ever done (a 150 e1RM against 10kg solves to 421 reps).
+   Epley is only meaningful to ~10-12 reps; past that it stops describing humans. Worse, the ranking could
+   not tell a sane ask from an absurd one: `pv` compares 30*(cap/w-1) against this same need, so when `cap`
+   is close to `allBest` the two Epley terms cancel and every weight scores a narrow ~34-50%, whatever it
+   is asking for. So the FIX is at candidate selection, not in the formula: a weight is only eligible for
+   the e1RM tile if the ask lands in a range a human would actually attempt. If none qualify the tile is
+   simply absent, which is honest; `estimated1RM` itself is untouched (it feeds trends, achievements,
+   objectiveSetTier and the PR count, a far larger blast radius). */
+const E1_PATH_MAX_REPS = 12;
+function e1NeedAt(w, allBest) { return Math.max(1, Math.floor(30 * (allBest / w - 1)) + 1); }
 function exWeightRows(varUuid, subUuid) {
   const hist = getHistoryByKey(varUuid, subUuid); // recent-first
   const cut90 = Date.now() - 90 * 86400000;
@@ -28494,7 +28505,7 @@ function exWeightRows(varUuid, subUuid) {
   const odds = (need, w) => Math.round(100 / (1 + Math.exp(-((30 * (cap / w - 1)) - need) / 1.5)));
   rows.forEach(r => {
     r.pw = odds(r.best.r + 1, r.w);                                            // one more rep than this weight's record set
-    r.pv = odds(Math.max(1, Math.floor(30 * (allBest / r.w - 1)) + 1), r.w);   // enough reps to out-e1RM the all-time best
+    r.pv = odds(e1NeedAt(r.w, allBest), r.w);                                  // enough reps to out-e1RM the all-time best
   });
   return { rows, cap, allBest };
 }
@@ -28513,13 +28524,15 @@ function exPrTargets(varUuid, subUuid, taken) {
   const used = new Set(taken || []);
   const usable = R.rows.filter(r => r.w > 0 && (!cap || r.w <= cap) && !used.has(r.w));
   if (!usable.length) return { vuln: null, e1: null };
-  const pick = (key, skip) => usable.reduce((b, r) => (r.w === skip) ? b
+  const pick = (rows, key, skip) => rows.reduce((b, r) => (r.w === skip) ? b
     : (!b || r[key] > b[key] || (r[key] === b[key] && r.w > b.w)) ? r : b, null);
-  const vRow = pick('pw'), eRow = pick('pv', vRow && vRow.w) || pick('pv');
+  const vRow = pick(usable, 'pw');
+  // feat 501 — the vulnerability pick is grounded in a set you really did (its own record + 1 rep) so it can
+  // never go absurd, but the e1RM path is solved from Epley: only offer weights whose ask is humanly plausible.
+  const plausible = usable.filter(r => e1NeedAt(r.w, R.allBest) <= E1_PATH_MAX_REPS);
+  const eRow = pick(plausible, 'pv', vRow && vRow.w) || pick(plausible, 'pv');
   const vuln = vRow ? { w: vRow.w, r: vRow.best.r + 1, odds: vRow.pw } : null;
-  // the reps at that weight that would actually clear the all-time best e1RM
-  const need = eRow ? Math.max(1, Math.floor(30 * (R.allBest / eRow.w - 1)) + 1) : 0;
-  const e1 = eRow ? { w: eRow.w, r: need, odds: eRow.pv } : null;
+  const e1 = eRow ? { w: eRow.w, r: e1NeedAt(eRow.w, R.allBest), odds: eRow.pv } : null;
   return { vuln, e1 };
 }
 // feat 482 — order the target tiles: 'order' keeps them as built; the rest sort descending by weight,
@@ -30071,7 +30084,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 424 · 2026-10-12 05:14';
+const APP_BUILD = 'build 425 · 2026-10-12 05:31';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

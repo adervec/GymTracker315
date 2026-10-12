@@ -213,7 +213,7 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   with its jump link, and `test/crosslinks.spec.mjs` (feat 497) asserts cross-linked variations stay
   visible at home — keep both true.
 
-- [ ] **The "best path to e1RM" target can ask for absurd rep counts at a light weight.**
+- [x] **The "best path to e1RM" target can ask for absurd rep counts at a light weight.** — fixed in **feat 501**: candidates are gated by `E1_PATH_MAX_REPS = 12` and the tile is absent if none qualify. The `pv` cancellation described below was confirmed.
   Reported 2026-10-11: *"the 'best path to e1rm' target sometimes suggests enormous rep counts of
   light weight; I think this seems off - when is the last time you saw I guy do a 423 rep set."*
   Right — the suggestion is arithmetically correct and physiologically nonsense.

@@ -2665,6 +2665,23 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **No target asks for a 423-rep set (feat 501):** the `🚀 e1RM PR` tile solved Epley for reps and printed
+  whatever fell out — `need = floor(30 × (allBest/w − 1)) + 1`, which against a light candidate weight is
+  hundreds of reps (a 150 e1RM vs 10 kg solves to 421). Epley only describes humans to ~10-12 reps.
+  The deeper fault was that the **ranking could not tell a sane ask from an absurd one**: `pv` compares
+  `30 × (cap/w − 1)` against that same `need`, so both sides are the identical Epley extrapolation and when
+  `cap ≈ allBest` they cancel — `X − need = frac(X) − 1 ∈ [−1, 0)` at **every** weight, pinning `pv` into a
+  narrow ~34-50% band whether the tile is asking "4 reps at 186" or "23 at 116". So the fix is at **candidate
+  selection**, not in the formula: `E1_PATH_MAX_REPS = 12` gates which weights are eligible, and if none
+  qualify the tile is **absent** rather than fantasy. `e1NeedAt(w, allBest)` is now the single source for that
+  arithmetic, shared with `pv` so the two cannot drift. `estimated1RM` is deliberately untouched — it feeds
+  trends, achievements, `objectiveSetTier` and `exSessionPrCount`, a far larger blast radius than this tile.
+  The `🎯 Wt PR` pick needs no ceiling: its reps are *that weight's own record + 1*, grounded in a set you
+  really did. Why this showed up in practice: the render claims the four classic tiles' weights first
+  (feat 494's `claimed`), so the weight holding the record is usually taken and the e1RM pick fell through to
+  the lightest row in your history — exactly where the arithmetic goes mad. `test/prtargets.spec.mjs` pins
+  both halves (the plausible weight wins; with it claimed there is **no** tile instead of a 103-rep one) plus
+  a render-level sweep that no `.target-btn` ever asks beyond the ceiling.
 - **One row per exercise on a plan step (feat 500):** a plan-step filter listed cross-linked exercises
   **twice** — a Back Extension step showed *Single-Leg Back Extension* under **Roman Chair Work** and again as
   a feat-167 cross-link under **Back Extension**. Both passes in `filterVariations` legitimately matched: the

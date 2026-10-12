@@ -259,3 +259,45 @@ test('feat 478 — a partially-hit section stays open', async ({ page }) => {
   expect(r.count).toBe(r.hits + '/' + r.total + ' hit');
   expect(r.allClass).toBe(false);
 });
+
+/* feat 501 — the e1RM-path tile solved Epley for reps and printed whatever fell out, so a light candidate
+   weight asked for a set nobody does ("when is the last time you saw a guy do a 423 rep set"). Candidates are
+   now restricted to weights whose ask lands within E1_PATH_MAX_REPS; if none qualify there is no tile. */
+test('feat 501 — no e1RM target ever asks for an inhuman rep count', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let v = null; for (const [u] of VAR_INDEX) if (VAR_INDEX.get(u).variation.id === 'bb-flat-bench') { v = u; break; }
+    state.unit = 'kg';
+    // 200×3 (e1RM 220) and a light 50kg day. Beating 220 at 50kg needs 103 reps; at 200kg it needs 4.
+    state.sessions = [{ date: new Date(Date.now() - 3 * 86400000).toISOString(),
+      exercises: [{ varUuid: v, subUuid: null, sets: [{ w: 200, r: 3 }, { w: 50, r: 10 }], topSet: { w: 200, r: 3 } }] }];
+    const R = exWeightRows(v, null);
+    const free = exPrTargets(v, null);
+    // the real render claims the classic tiles' weights first, which is how the light weight used to win
+    const claimed = exPrTargets(v, null, [200]);
+    return { allBest: Math.round(R.allBest), ceiling: E1_PATH_MAX_REPS,
+      needAt50: e1NeedAt(50, R.allBest), needAt200: e1NeedAt(200, R.allBest),
+      freeE1: free.e1, claimedE1: claimed.e1, claimedVuln: claimed.vuln };
+  });
+  expect(r.allBest).toBe(220);
+  expect(r.needAt50, 'the light weight really would need a 3-digit set').toBeGreaterThan(100);
+  expect(r.needAt200).toBe(4);
+  expect(r.freeE1.w, 'the plausible weight wins the tile').toBe(200);
+  expect(r.freeE1.r).toBe(4);
+  expect(r.freeE1.r).toBeLessThanOrEqual(r.ceiling);
+  // with 200 already claimed by a classic tile, the only weight left is the absurd one → no tile at all
+  expect(r.claimedE1, 'no tile beats a fantasy tile').toBeNull();
+  // …while the vulnerability pick still works: its reps come from a set you really did
+  expect(r.claimedVuln).not.toBeNull();
+  expect(r.claimedVuln.r).toBe(11);   // 50kg×10 record + 1
+});
+
+test('feat 501 — no rendered target tile asks for more than the ceiling', async ({ page }) => {
+  const v = await seed(page);
+  const r = await page.evaluate(() => {
+    renderModal();
+    const asks = [...document.querySelectorAll('#trk-targets .target-btn')].map(b => parseFloat(b.dataset.r) || 1);
+    return { asks, ceiling: E1_PATH_MAX_REPS };
+  }, v);
+  expect(r.asks.length).toBeGreaterThan(1);
+  r.asks.forEach(n => expect(n, 'every tile asks for a set a human would attempt').toBeLessThanOrEqual(r.ceiling));
+});
