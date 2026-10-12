@@ -212,3 +212,38 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   existence of a primary family. `test/secondaryparents.spec.mjs` asserts the cross-link row renders
   with its jump link, and `test/crosslinks.spec.mjs` (feat 497) asserts cross-linked variations stay
   visible at home — keep both true.
+
+- [ ] **The "best path to e1RM" target can ask for absurd rep counts at a light weight.**
+  Reported 2026-10-11: *"the 'best path to e1rm' target sometimes suggests enormous rep counts of
+  light weight; I think this seems off - when is the last time you saw I guy do a 423 rep set."*
+  Right — the suggestion is arithmetically correct and physiologically nonsense.
+
+  **Where it comes from.** The tile's reps are solved straight out of Epley in `exPrTargets`
+  (`:28446`):
+  `need = floor(30 × (allBest / w − 1)) + 1`. With an all-time best e1RM of 150 and a 10 kg
+  candidate weight, that is `30 × (15 − 1) + 1` = **421 reps**. Epley is only meaningful to roughly
+  10-12 reps; extrapolated past that it stops describing humans.
+
+  **Why a silly weight gets picked at all (strong hypothesis, not yet verified).** The weight is
+  chosen as the highest `pv` odds from `exWeightRows` (`:28399`), where
+  `odds(need, w) = 100 / (1 + exp(−((30 × (cap/w − 1)) − need) / 1.5))`
+  and `pv` passes in that same `need`. Both sides of the comparison are the *same* Epley
+  extrapolation — predicted capacity at `w` from the 90-day `cap`, minus reps needed to beat
+  `allBest`. When `cap ≈ allBest` the two terms cancel at **every** weight, so a 10 kg row scores
+  about the same ~50% as a near-maximal one, and `pick('pv')` is free to land on the lightest row in
+  the history. The odds model cannot tell "3 more reps at 140" from "421 reps at 10" because the
+  formula it trusts is linear in reps without limit.
+
+  **Fix direction** (pick one, or both):
+  - Constrain the candidates: only consider weights where `need` lands in a believable range
+    (≈1-12, maybe up to 15), so the tile can only ever ask for a set someone would actually
+    perform. If no weight qualifies, show no e1RM tile rather than a fantasy one.
+  - Make the odds honest about rep count: penalise high `need` explicitly (or switch the capacity
+    estimate to a model that flattens out past ~12 reps) so the cancellation stops happening and
+    heavier, closer-to-maximal weights win the pick on their own.
+
+  Check the same extrapolation elsewhere before changing the shared helper — `estimated1RM` feeds
+  trends, achievements, the vulnerability tile and `exSessionPrCount`, so a global change to the
+  formula is a much bigger blast radius than fixing the target's candidate filter.
+  `test/prtargets.spec.mjs` and `test/vulrecord.spec.mjs` cover the current picks; a regression test
+  should assert no target ever asks for more than the chosen rep ceiling.
