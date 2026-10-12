@@ -27269,6 +27269,28 @@ function filterVariations() {
     });
     if (matchingVars.length > 0 || secondaryVars.length > 0) results.push({ family: f, variations: matchingVars, secondaryVars });
   });
+  /* feat 500 — on a PLAN STEP the same exercise could appear twice: once under its own family (it is in
+     stepSet, so the primary pass keeps it) and again as a feat-167 cross-link under the step's base
+     movement. A Back Extension step listed Single-Leg Back Extension under Roman Chair Work AND as a
+     cross-link under Back Extension. feat 497 took the table from 310 to 478 links, which is what made it
+     obvious. Drop the cross-link copy — but ONLY when the primary row is genuinely in this result set:
+     a feat-167 reconciled duplicate is suppressed in its home family, and a home family can be filtered
+     out by the pills or hidden by the active gym, and in both cases the cross-link row is the ONLY way to
+     reach that exercise. Scoped to the step filter on purpose: while browsing, the cross-link under a base
+     movement is the affordance that says roman chair work IS back-extension work, and the two copies sit in
+     distant family sections rather than side by side. */
+  if (stepSet) {
+    const shown = new Set();
+    results.forEach(g => g.variations.forEach(v => shown.add(v.uuid)));   // every row that stands on its own
+    results.forEach(g => {
+      g.secondaryVars = g.secondaryVars.filter(s => {
+        if (shown.has(s.v.uuid)) return false;   // listed already — as itself, or as an earlier cross-link
+        shown.add(s.v.uuid);                     // …and a movement cross-linked into TWO base families
+        return true;                             //    (feat 497 put the glute-focused back extension under
+      });                                        //    both back-extension and glute-accessories) keeps one row
+    });
+    return results.filter(g => g.variations.length > 0 || g.secondaryVars.length > 0);
+  }
   return results;
 }
 
@@ -30049,7 +30071,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 423 · 2026-10-11 22:47';
+const APP_BUILD = 'build 424 · 2026-10-12 05:14';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

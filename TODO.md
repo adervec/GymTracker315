@@ -182,7 +182,7 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   both need reworking; the "milking one button" rule deserves a test of its own (hit the same tile
   three times → streak 3, PR count 1).
 
-- [ ] **On a plan step, a cross-linked exercise can be listed twice — as itself and as a cross-link.**
+- [x] **On a plan step, a cross-linked exercise can be listed twice — as itself and as a cross-link.** — fixed in **feat 500**, which also collapsed a second case: an exercise cross-linked into two base families showed as two cross-link rows.
   Reported 2026-10-11: *"sometimes for a plan step I see 'crosslinked' exercises appear twice (as
   themselves and as a crosslink) - this is clutter."*
 

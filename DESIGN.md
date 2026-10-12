@@ -2665,6 +2665,25 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **One row per exercise on a plan step (feat 500):** a plan-step filter listed cross-linked exercises
+  **twice** — a Back Extension step showed *Single-Leg Back Extension* under **Roman Chair Work** and again as
+  a feat-167 cross-link under **Back Extension**. Both passes in `filterVariations` legitimately matched: the
+  step's qualifying set deliberately includes cross-linked variations, so the primary pass keeps the exercise
+  under its own family while the secondary pass emits it under the step's base movement. feat 497 taking the
+  table from 310 to 478 links is what made it obvious. Now, **when a step filter is active**, a cross-link row
+  is dropped once that uuid is already listed — which also collapses the second case the first cut missed: a
+  movement cross-linked into *two* base families (feat 497 filed the glute-focused back extension under both
+  `back-extension` and `glute-accessories`) was showing as two cross-link rows with no primary row at all.
+  One `Set` seeded with every primary row, then first-wins across the secondaries, handles both.
+  **Deliberately conditional on the step filter:** while browsing, the cross-link under a base movement is the
+  affordance that tells you roman chair work *is* back-extension work, and the two copies sit in distant family
+  sections rather than side by side. And the drop is keyed on the primary row being **genuinely in this result
+  set**, never on a home family merely existing — a reconciled duplicate is suppressed in its home family, and
+  a home family can be filtered out by the mega/sub/equip pills or hidden by the active gym, and in both cases
+  the cross-link row is the only way to reach that exercise. `test/crosslinks.spec.mjs` covers all three: every
+  exercise exactly once on a step, the cross-link surviving when its own family is filtered out (step on
+  `back-extension` with the mega pill on *lower*, so the core-mega roman chair rows have no primary row), and
+  unfiltered browsing keeping the feat-167 listing intact.
 - **One guard for discarding the in-progress sheet (feat 499):** tapping a plan-step **option chip** destroyed
   2+ entered-but-unsaved sets with no warning at all, and because `startExerciseFromSuggestion` ends in
   `savePending()` the localStorage copy went with them. Root cause: feat 151's confirm was written **inline in the

@@ -94,3 +94,67 @@ test('feat 497 — a Back Extension plan step now offers the roman chair and rev
   expect(r.twisting).toBe(true);
   expect(r.sitUpExcluded).toBe(true);
 });
+
+/* feat 500 — a cross-linked exercise was listed TWICE on a plan step: once under its own family (it is in
+   stepSet, so the primary pass keeps it) and again as the feat-167 cross-link under the step's base movement.
+   The cross-link copy is now dropped, but only when the primary row is genuinely present. */
+const stepOn = (page, familyId, mega) => page.evaluate(({ familyId, mega }) => {
+  state.plans = [{ id: 'P', name: 'XL', steps: [{ id: 's1', sets: 3, options: [{ type: 'movement', familyId }] }] }];
+  state.sessions = [{ id: 'cur', date: new Date().toISOString(), planId: 'P', planRev: 1, exercises: [] }];
+  Object.assign(modalState, { planStepFilter: 0, pickerSearch: '', pickerSub: 'all', pickerEquip: 'all',
+    pickerFavOnly: false, pickerExplored: 'all', pickerVolStatus: 'all', pickerTrend: 'all', pickerRecent: 'all',
+    pickerMega: mega || 'all' });
+  const rows = [];
+  filterVariations().forEach(g => {
+    g.variations.forEach(v => rows.push({ uuid: v.uuid, fam: g.family.id, kind: 'primary' }));
+    (g.secondaryVars || []).forEach(x => rows.push({ uuid: x.v.uuid, fam: g.family.id, kind: 'secondary' }));
+  });
+  const counts = {};
+  rows.forEach(r => { counts[r.uuid] = (counts[r.uuid] || 0) + 1; });
+  const romanOf = id => (FAMILIES.find(f => f.id === 'roman-chair').variations.find(v => v.id === id) || {}).uuid;
+  return { rows, dupes: Object.keys(counts).filter(u => counts[u] > 1).length, total: rows.length,
+    bwUuid: romanOf('roman-back-ext-bw') };
+}, { familyId, mega });
+
+test('feat 500 — on a plan step every exercise is listed exactly once', async ({ page }) => {
+  const r = await stepOn(page, 'back-extension');
+  expect(r.total).toBeGreaterThan(5);
+  expect(r.dupes, 'no exercise may appear as both itself and a cross-link').toBe(0);
+  // the roman chair work is reachable, as a primary row under its own family
+  const bw = r.rows.filter(x => x.uuid === r.bwUuid);
+  expect(bw.length).toBe(1);
+  expect(bw[0].kind).toBe('primary');
+  expect(bw[0].fam).toBe('roman-chair');
+});
+
+test('feat 500 — a cross-link row SURVIVES when its own family is filtered out of the step list', async ({ page }) => {
+  // back-extension is 'lower', roman-chair is 'core': with the mega pill on lower the roman rows have no
+  // primary row of their own, so the cross-link is the only way to reach them and must be kept.
+  const r = await stepOn(page, 'back-extension', 'lower');
+  const bw = r.rows.filter(x => x.uuid === r.bwUuid);
+  expect(r.rows.some(x => x.fam === 'roman-chair'), 'its own family is filtered out').toBe(false);
+  expect(bw.length, 'still reachable exactly once').toBe(1);
+  expect(bw[0].kind, 'as the cross-link under the base movement').toBe('secondary');
+  expect(bw[0].fam).toBe('back-extension');
+  expect(r.dupes).toBe(0);
+});
+
+test('feat 500 — browsing without a step filter keeps the feat-167 cross-link listing', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const romanOf = id => FAMILIES.find(f => f.id === 'roman-chair').variations.find(v => v.id === id).uuid;
+    const bw = romanOf('roman-back-ext-bw');
+    state.plans = []; state.sessions = [];
+    Object.assign(modalState, { planStepFilter: null, pickerSearch: '', pickerMega: 'all', pickerSub: 'all',
+      pickerEquip: 'all', pickerFavOnly: false, pickerExplored: 'all', pickerVolStatus: 'all',
+      pickerTrend: 'all', pickerRecent: 'all' });
+    const hits = [];
+    filterVariations().forEach(g => {
+      g.variations.forEach(v => { if (v.uuid === bw) hits.push({ fam: g.family.id, kind: 'primary' }); });
+      (g.secondaryVars || []).forEach(x => { if (x.v.uuid === bw) hits.push({ fam: g.family.id, kind: 'secondary' }); });
+    });
+    return { hits };
+  });
+  // unchanged by feat 500: its own family AND the base movement it cross-links into
+  expect(r.hits.some(h => h.kind === 'primary' && h.fam === 'roman-chair')).toBe(true);
+  expect(r.hits.some(h => h.kind === 'secondary' && h.fam === 'back-extension')).toBe(true);
+});
