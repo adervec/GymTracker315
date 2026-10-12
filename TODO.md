@@ -247,3 +247,37 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   formula is a much bigger blast radius than fixing the target's candidate filter.
   `test/prtargets.spec.mjs` and `test/vulrecord.spec.mjs` cover the current picks; a regression test
   should assert no target ever asks for more than the chosen rep ceiling.
+
+- [ ] **"Inhuman" is still awarded too freely on some movements.**
+  Reported 2026-10-11: *"the inhuman rating is still given too freely for some movements indicating
+  weak understanding of what they entail. That is supposed to be for eddie hall /david goggins type
+  feats."*
+
+  The tier comes from `STRENGTH_STANDARDS` (`:13358`) — per family, four e1RM÷bodyweight cutoffs
+  (`light → average → heavy → elite → inhuman`), consumed by `objectiveSetTier` (`:13392`). feat 438
+  already moved every bound a full tier stricter; this is about the **top** bound specifically, and
+  on specific movements rather than across the board.
+
+  **Prime suspects — machines and isolation work, where the 4th cutoff is a number ordinary gym
+  regulars hit.** At 80 kg bodyweight the current "inhuman" line means:
+  - `leg-press` 4.50× = **360 kg** — routine on a 45° sled, and the plates are not the limit.
+  - `calf-raise` 2.50× = **200 kg** — a standing calf raise at 200 kg is common, not legendary.
+  - `hip-thrust` 3.10× = **248 kg** — plenty of people train above this.
+  - `leg-extension` 2.05× = **164 kg** and `leg-curl` 1.50× = **120 kg** — often just the full stack.
+  - `shrugs` 2.80× = **224 kg** — heavy, but strapped shrugs go well past it.
+  These share a cause: machine leverage varies between manufacturers, stacks cap out, and partial
+  ROM inflates the number — so a bodyweight ratio means much less than it does on a barbell lift.
+
+  **The deeper modelling problem.** A pure e1RM÷BW ratio cannot express "Eddie Hall". Hall's 500 kg
+  deadlift at ~196 kg bodyweight is about **2.55×BW — below** this table's 3.00 "inhuman" deadlift
+  line, while a 60 kg lifter pulling 180 kg lands exactly on 3.00× and gets the badge. The ratio
+  model systematically flatters light lifters and under-rates the actual strongman feats the tier is
+  named for. Worth deciding whether the top tier needs an **absolute-load** component (or a
+  Wilks/DOTS-style allometric scale) rather than another round of cutoff nudging.
+
+  Suggested approach: go movement by movement rather than scaling the column. For each of the 23
+  families with standards, ask what the real-world record-ish load actually is and whether a ratio
+  can express it at all; for machine lifts consider dropping the top tier entirely (cap them at
+  Elite) instead of inventing an unreachable number. `test/objtier.spec.mjs` covers the tiering —
+  the retune wants fixture sets per family asserting a known-strong-but-human set does **not** read
+  Inhuman.
