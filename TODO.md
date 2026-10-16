@@ -83,7 +83,7 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
     and anything new needs the usual: reference entry, `FAMILY_MOTION`/`MOTION_VARS` coverage, and a
     cross-link pass per feat 497 if it is a base pattern on different support.
 
-- [ ] **Timer functions appeared to stop working ~2.5 h into a workout (seen once).**
+- [~] **Timer functions appeared to stop working ~2.5 h into a workout (seen once).** — **feat 506** added the diagnostics rather than a fix, since there is still no repro: a 10-minute heartbeat on the render path (so a freeze is bounded by its last entry) and a visible, logged auto-end carrying the idle minutes. **Next occurrence: export the log from the Data page** — it will show either an auto-end with its idle minutes, or heartbeats stopping at the freeze. Lead 2 below (twelve `setInterval` sites with no revive-on-visible path) is still open and unproven.
   Reported 2026-10-09: *"timer functions appeared to stop working about 2.5h into a workout one
   time."* One occurrence, no repro, and "timer functions" is not pinned to a specific timer yet —
   next time it happens, note **which** timer froze (rest countdown, hold timer, workout clock,

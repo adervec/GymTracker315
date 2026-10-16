@@ -19676,11 +19676,42 @@ function shouldAutoEnd(session) {
   return (now - lastTs) >= autoEndMin * 60000 && session.exercises.length > 0;
 }
 
+/* feat 506 — "timer functions appeared to stop working about 2.5h into a workout" (seen once, no repro).
+   Two things make the next occurrence diagnosable instead of a guess.
+   (1) A heartbeat. It rides the RENDER path rather than a timer of its own, which is the point: if the UI
+       stops updating, heartbeats simply stop, and their absence timestamps the freeze. Throttled to 10
+       minutes so a long session costs ~20 entries of the 500-entry ring.
+   (2) The auto-end is no longer silent. `shouldAutoEnd` ends a session after `autoEndMinutes` (default 40)
+       of inactivity SINCE THE LAST SET — not after a total duration — so one long rest (a phone call, a
+       queue for the rack) ends the workout and every timer legitimately stops. Over 2.5h that is easy to
+       hit by accident, and it is the leading suspect for the report. It now toasts and logs the idle
+       minutes that triggered it, so the cause is on the record either way. */
+let _hbAt = 0;
+function workoutHeartbeat() {
+  try {
+    const s = getActiveSession();
+    if (!s || s.endedAt) return;
+    const now = Date.now();
+    if (now - _hbAt < 600000) return;
+    _hbAt = now;
+    const last = lastSetTs(s);
+    logInfo('Workout heartbeat', 'elapsed ' + Math.round((now - new Date(s.date).getTime()) / 60000)
+      + 'm · idle ' + Math.round((now - last) / 60000) + 'm · sets '
+      + (s.exercises || []).reduce((n, e) => n + ((e.sets || []).length), 0)
+      + ' · page ' + (typeof document !== 'undefined' ? document.visibilityState : '?'));
+  } catch (_) {}
+}
 // Check for auto-end on render and stamp the session
 function maybeAutoEndActive() {
   const active = getActiveSession();
+  workoutHeartbeat(); // feat 506
   if (active && shouldAutoEnd(active)) {
     const last = lastSetTs(active);
+    // feat 506 — say so, and record why: a silent auto-end is indistinguishable from the timers breaking
+    const idleMin = Math.round((Date.now() - last) / 60000);
+    const limMin = (state.workoutControls || {}).autoEndMinutes || 40;
+    logWarn('Workout auto-ended (inactivity)', idleMin + 'm since the last set · limit ' + limMin + 'm');
+    try { toast('⏹ Workout auto-ended — ' + idleMin + ' min since your last set', 6000); } catch (_) {}
     active.endedAt = new Date(last).toISOString(); // end timestamp = last set time
     active.endReason = 'auto-inactivity';
     // feat 403 — an auto-end is a real end: run the same wrap-up as finalizeEndWorkout so the live timers, metronome
@@ -30147,7 +30178,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 429 · 2026-10-16 14:27';
+const APP_BUILD = 'build 430 · 2026-10-16 14:45';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

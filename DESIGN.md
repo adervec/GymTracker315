@@ -2665,6 +2665,22 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **A workout leaves a trail, and an auto-end says so (feat 506):** *"timer functions appeared to stop
+  working about 2.5 h into a workout"* — one occurrence, no repro, no evidence. Two changes so the next one is
+  diagnosable rather than a guess. **(1) A heartbeat** (`workoutHeartbeat`, throttled to 10 minutes) logging
+  elapsed / idle / set-count / `document.visibilityState` into the existing 500-entry `logEvent` ring, which
+  the Data page can already export. It deliberately rides the **render** path (`maybeAutoEndActive`) rather
+  than a timer of its own: if the UI stops updating, heartbeats simply stop, and their last entry timestamps
+  the freeze — a heartbeat on its own `setInterval` could keep ticking while the screen was dead and prove
+  nothing. ~20 entries for a long session. **(2) The inactivity auto-end is no longer silent.** `shouldAutoEnd`
+  ends a session after `autoEndMinutes` (**default 40**) of inactivity *since the last set* — not after a
+  total duration — so one long rest (a phone call, a queue for the rack) ends the workout and every timer
+  legitimately stops, which is indistinguishable from the timers breaking. Over 2.5 h that is easy to hit by
+  accident, and it is the **leading suspect** for the report. It now toasts (6 s) and logs a `warn` with the
+  idle minutes and the limit that triggered it. Still unproven: the other twelve `setInterval` sites have no
+  revive-on-visible path (only the rest tick does, feat 248) — see `TODO.md`, which keeps that lead open.
+  `test/workoutheartbeat.spec.mjs` seeds a session 2.5 h in and covers the throttle, the ended-workout
+  silence, the auto-end's toast + `warn` detail, and a within-limit session being left alone.
 - **The quick 🔊 menu covers the spoken timers (feat 505):** `soundSources()` stopped at four rows —
   metronome, rest cues, spoken tips, button taps — so tuning anything else mid-workout meant leaving the
   screen for the Settings drawer. Six more rows join them, the spoken timers first: **Hold timer voice**
