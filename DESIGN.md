@@ -2665,6 +2665,20 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The picker says how an exercise is logged (feat 502):** `exMode` has always classified every variation
+  from its title — **time** (hang / hold / plank / L-sit / wall sit / isometric), **distance** (carries, sled,
+  yoke), **bodyweight** (pull-up, dip, push-up, pistol, nordic) and **standard** — but nothing surfaced it, so
+  you discovered a movement was a hold only when the sets form opened with a **Time** field instead of Reps.
+  Two halves: **(a)** a `.mode-badge` in the picker row's right-hand cluster (both the primary rows and the
+  feat-167 cross-link rows), ⏱ for a timed hold and 📏 for distance. Only those two get a badge — they are the
+  modes that *replace* the reps field; bodyweight still counts reps, so badging it would be noise, and plain
+  rep work stays bare. **(b)** a sixth cycling pill (`⏱ How logged?`, feat-397 pattern, default off) walking
+  `all → ⏱ Holds → 📏 Distance → 💪 Bodyweight → 🔢 Reps`, so **all four** modes are filterable even though only
+  two are badged. One `failsMode` check in `filterVariations`, applied to both loops, stacks with every other
+  pill and the plan-step filter. Note `exMode` is a title regex with no per-variation override, so the badge
+  inherits any misclassification — feat 495 deliberately named "Sorensen Hold" to land in time mode. If the
+  icon ever makes a wrong mode visible, that regex is the thing to fix (or the point at which an explicit
+  per-variation mode field starts earning its keep), not the badge. `test/pickermode.spec.mjs`.
 - **No target asks for a 423-rep set (feat 501):** the `🚀 e1RM PR` tile solved Epley for reps and printed
   whatever fell out — `need = floor(30 × (allBest/w − 1)) + 1`, which against a light candidate weight is
   hundreds of reps (a 150 e1RM vs 10 kg solves to 421). Epley only describes humans to ~10-12 reps.

@@ -110,7 +110,7 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   workout clock log a heartbeat and log every auto-end with the idle minutes that triggered it, so
   the next occurrence leaves a trail instead of a guess.
 
-- [ ] **Mark time-based holds in the picker with an icon, and make mode a filterable criterion.**
+- [x] **Mark time-based holds in the picker with an icon, and make mode a filterable criterion.** — shipped as **feat 502**: ⏱/📏 badges on the rows, and a `⏱ How logged?` pill covering all four modes.
   Requested 2026-10-09: *"exercise picker should indicate which exercises are time-based holds with
   some sort of icon and this should be a filterable criteria."*
 
