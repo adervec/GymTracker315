@@ -26,7 +26,7 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
 
 ## Enhancements
 
-- [ ] **Put more of the audio settings in the quick 🔊 menu, especially the spoken timers.**
+- [x] **Put more of the audio settings in the quick 🔊 menu, especially the spoken timers.** — shipped as **feat 505**: six new boolean rows (hold-timer voice, set start/end calls, exercise voice, quality tone, rest timer); the numeric fields and voice picker stay in the drawer, whose link now lands on the audio section.
   Requested 2026-10-09: *"want more complete control over more of the audio settings from the
   quick audio tab including the various spoken timers."*
 

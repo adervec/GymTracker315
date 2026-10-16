@@ -28554,8 +28554,10 @@ function exWeightRows(varUuid, subUuid) {
      `pw`, i.e. one more rep than its own record is most reachable), and the weight × reps most likely to
      take the overall e1RM record (highest `pv`, shown with the reps that would actually do it).
    • exTargetHit: a target is SATISFIED once a valid logged set this session matches its weight and at
-     least its reps — the tile stops being a suggestion and becomes a receipt.
-   • exSessionPrCount: how many distinct weights have beaten their own all-time e1RM record today. */
+     least its reps. feat 504 — that no longer retires the tile: exTargetProgress turns the same comparison
+     into a RUNG COUNT, so the tile advances and keeps a streak instead of becoming a receipt.
+   • exSessionPrCount is gone (feat 504): it counted distinct weights, which the Max-wt ladder could mint a
+     fresh PR on at every rung. The badge now counts tiles beaten, one apiece. */
 function exPrTargets(varUuid, subUuid, taken) {
   const R = exWeightRows(varUuid, subUuid);
   if (!R.rows.length) return { vuln: null, e1: null };
@@ -30145,7 +30147,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 428 · 2026-10-16 14:09';
+const APP_BUILD = 'build 429 · 2026-10-16 14:27';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -30268,6 +30270,29 @@ function soundSources() {
       { kind: 'audio',  get: () => (state.uiFeedback || {}).audio !== false, set: v => { (state.uiFeedback || (state.uiFeedback = {})).audio = v; } },
       { kind: 'haptic', get: () => (state.uiFeedback || {}).haptic !== false, set: v => { (state.uiFeedback || (state.uiFeedback = {})).haptic = v; } },
     ] },
+    /* feat 505 — the quick menu used to stop at those four, so tuning anything else mid-workout meant
+       leaving the screen for the Settings drawer. These are the rest of the audio switches that are
+       genuinely BOOLEAN, the spoken timers first. The numeric ones (hold-voice buffer seconds, the
+       callout caps) and the voice picker stay in the drawer behind "Sound settings →" below — a popover
+       anchored to the top bar is the wrong place for steppers, and its whole point is being quick. */
+    { emoji: '⏱', label: 'Hold timer voice', chips: [
+      { kind: 'audio', get: () => !!wc.holdVoiceStop, set: v => { wc.holdVoiceStop = v; } },
+    ] },
+    { emoji: '📣', label: 'Set start call', chips: [
+      { kind: 'audio', get: () => !!annunciationCfg().start, set: v => { state.annunciation = { ...annunciationCfg(), start: v }; } },
+    ] },
+    { emoji: '🏁', label: 'Set end call', chips: [
+      { kind: 'audio', get: () => !!annunciationCfg().end, set: v => { state.annunciation = { ...annunciationCfg(), end: v }; } },
+    ] },
+    { emoji: '🗣', label: 'Exercise voice', chips: [
+      { kind: 'audio', get: () => !!wc.exVoice, set: v => { wc.exVoice = v; } },
+    ] },
+    { emoji: '🔔', label: 'Set quality tone', chips: [
+      { kind: 'audio', get: () => !!wc.setQualityTone, set: v => { wc.setQualityTone = v; } },
+    ] },
+    { emoji: '⏲', label: 'Rest timer', chips: [
+      { kind: 'audio', get: () => wc.restTimer !== false, set: v => { wc.restTimer = v; } },
+    ] },
   ];
 }
 function renderSoundMenu() {
@@ -30332,7 +30357,13 @@ function renderSoundMenu() {
     };
   });
   menu.querySelector('#snd-test-btn').onclick = () => { soundPreviewBeep(); if (sndHapticOn()) safeVibrate([40]); if (!sndAudioOn() && !sndHapticOn()) toast('Audio and haptics are both off'); };
-  menu.querySelector('#snd-more-btn').onclick = () => { closeSoundMenu(); openSettingsDrawer(); };
+  // feat 505 — land on the AUDIO settings, not the top of a long drawer: drive the real search box so the
+  // filter path stays the one thing that knows how to narrow it.
+  menu.querySelector('#snd-more-btn').onclick = () => {
+    closeSoundMenu(); openSettingsDrawer();
+    const inp = document.getElementById('settings-search');
+    if (inp) { inp.value = 'sound'; inp.dispatchEvent(new Event('input', { bubbles: true })); }
+  };
 }
 let _restAudioCtx = null;
 function restBeep(freq, dur) {

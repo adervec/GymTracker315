@@ -2665,6 +2665,21 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The quick 🔊 menu covers the spoken timers (feat 505):** `soundSources()` stopped at four rows —
+  metronome, rest cues, spoken tips, button taps — so tuning anything else mid-workout meant leaving the
+  screen for the Settings drawer. Six more rows join them, the spoken timers first: **Hold timer voice**
+  (`wc.holdVoiceStop`), **Set start call** and **Set end call** (`annunciation.start` / `.end`, both default
+  off), **Exercise voice** (`wc.exVoice`), **Set quality tone** (`wc.setQualityTone`) and **Rest timer**
+  (`wc.restTimer`). Each is audio-only — no haptic chip, since none of them vibrate. Only settings that are
+  genuinely **boolean** came across: the numeric ones (hold-voice buffer seconds, the callout caps) and the
+  voice picker stay in the drawer, because a popover anchored to the top bar is the wrong place for steppers
+  and its whole point is being quick. The start/end callouts write through `annunciationCfg()` spread rather
+  than replacing `state.annunciation`, so toggling from the popover cannot flatten the caps or the feat-209
+  ducking preference. The menu already had `max-height` + `overflow-y: auto`, so ten rows scroll rather than
+  overflow. The existing "Sound settings →" link now **lands on the audio settings** instead of the top of a
+  long drawer, by driving the real search box's `input` event so the filter path stays the one thing that
+  knows how to narrow it. `test/audioquick.spec.mjs` round-trips every new row against its real setting,
+  pins the caps surviving a toggle, and checks the menu still fits a phone.
 - **Target tiles are ladders now (feat 504):** beating a target used to fill the tile green and retire it,
   and the "PRs today" badge counted distinct WEIGHTS that beat their own record — so climbing the Max-wt tile
   minted a fresh PR at every rung, exactly the "milking one easy button" problem. Four changes:
