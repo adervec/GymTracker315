@@ -2665,6 +2665,29 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Target tiles are ladders now (feat 504):** beating a target used to fill the tile green and retire it,
+  and the "PRs today" badge counted distinct WEIGHTS that beat their own record — so climbing the Max-wt tile
+  minted a fresh PR at every rung, exactly the "milking one easy button" problem. Four changes:
+  **(a)** a green **border**, not a fill (`.target-btn.hit` loses its background tint and the ✓, because the
+  tile is still live — it just moved up); **(b)** the tile **advances**: `exTargetProgress(varUuid, subUuid, w,
+  r, axis, inc)` counts how many rungs this session has cleared and returns the next ask. Most tiles climb the
+  **reps** axis (one more rep at the same weight); the **Max-wt** tile climbs the **weight** axis in `wInc`
+  increments, which is why the defs array grew a 5th "axis" slot; **(c)** a `.tb-streak` pill in the tile's
+  corner once `n > 1`, showing the rungs cleared; **(d)** the PR badge counts **tiles beaten, one apiece**,
+  however many rungs you climb — `exSessionPrCount` is retired.
+  **The design constraint that shaped all of it:** *"this needs to handle if accidentally enter something big
+  then delete it."* So nothing is an incrementing counter — the rung count, the advanced ask, the streak and
+  the PR credit are all **derived from the session's current sets on every recompute**, the way hit-detection
+  always was. Fat-finger 300 kg and every tile jumps several rungs; delete it and all of it rolls back, which
+  falls out for free rather than needing cleanup. `refreshTargetHits` judges a tile by its **base** ask
+  (`data-w0`/`data-r0`, with `data-w`/`data-r` holding wherever the ladder reached) and keeps feat 482's
+  DOM-only promise while nothing has moved; once a rung changes, the printed ask is stale and only a real
+  render can rewrite it, so it defers to `renderModal()`. Tile identity — and the "same weight twice = one
+  button" dedupe — stays keyed on the **base** ask, so a tile cannot collide with itself as it climbs.
+  feat 478's auto-collapse is kept rather than retired: a tile counts as satisfied once **hit at least once**,
+  so `N/N hit` is still reachable and you still get the screen room back. `test/targetladder.spec.mjs` covers
+  both ladders rung by rung, the border-not-fill computed style, the streak threshold, the auto-collapse, and
+  the fat-finger roll-back asserting the state is byte-identical to before.
 - **"Inhuman" means record territory again (feat 503):** the top tier was still handed out too freely, and on
   some movements a bodyweight ratio cannot express the feats it is named for. Two changes. **(a) Machine and
   heavy-isolation families carry only THREE cutoffs** and so cap at **Elite** — `leg-press`, `leg-curl`,

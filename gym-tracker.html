@@ -3150,16 +3150,16 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 /* feat 477 — six targets in at most TWO rows: a 3-up grid, so the row height is predictable. */
 .target-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 8px 0 4px; }
 /* minmax(0,1fr) — a plain 1fr refuses to shrink below its content and the third tile slides off the card */
-.target-btn { font-size: 10.5px; padding: 6px 4px; display: flex; align-items: baseline; justify-content: center; gap: 3px; min-width: 0; width: 100%; overflow: hidden; white-space: nowrap; }
+.target-btn { position: relative; font-size: 10.5px; padding: 6px 4px; display: flex; align-items: baseline; justify-content: center; gap: 3px; min-width: 0; width: 100%; overflow: hidden; white-space: nowrap; }
 .target-btn > * { flex-shrink: 0; }
 .target-btn .tb-lbl { overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; min-width: 0; }
 .target-btn .tb-ico { font-size: 11px; }
 .target-btn .tb-lbl { color: var(--text3); font-weight: 600; }
 .target-btn b { font-weight: 800; }
 /* satisfied: this session already matched or beat it — a receipt, not a suggestion */
-.target-btn.hit { border-color: #3fb950 !important; background: rgba(63,185,80,0.13) !important; }
+.target-btn.hit { border-color: #3fb950 !important; } /* feat 504 — a BORDER, not a fill: the tile is still live, it just moved up a rung */
 .target-btn.hit .tb-lbl { color: #3fb950; }
-.target-btn.hit .tb-ico::after { content: '✓'; margin-left: 2px; color: #3fb950; font-weight: 900; }
+.tb-streak { position: absolute; top: -5px; right: -4px; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; background: #3fb950; color: #04140a; font-size: 8.5px; font-weight: 900; line-height: 13px; text-align: center; } /* feat 504 */
 /* feat 482 — the tiny sort chips under the target tiles */
 .tgt-sort-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--text3); }
 .wt-pr-badge { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: rgba(63,185,80,0.18); border: 1px solid rgba(63,185,80,0.5); color: #3fb950; font-size: 11px; font-weight: 800; }
@@ -28422,24 +28422,27 @@ function renderSetsForm() {
       const T = { prevTop: beat(B.prevTop), bestE1: beat(B.bestE1), maxW: heavier(B.maxW), maxR: beat(B.maxR) };
       const claimed = [T.prevTop, T.bestE1, T.maxW, T.maxR].filter(x => x && x.w > 0).map(x => x.w);
       const P = exPrTargets(pending.varUuid, pending.subUuid, claimed); // feat 477 — PR picks avoid taken weights
-      const defs = [['↩', 'Prev top', T.prevTop, null], ['🏆', 'Best e1RM', T.bestE1, null],
-        ['🎯', 'Wt PR', P.vuln, P.vuln && P.vuln.odds], ['🚀', 'e1RM PR', P.e1, P.e1 && P.e1.odds],
-        ['🏋️', 'Max wt', T.maxW, null], ['🔁', 'Max reps', T.maxR, null]];
+      // feat 504 — the 5th slot is the axis the tile advances along: Max wt climbs weight, the rest climb reps
+      const defs = [['↩', 'Prev top', T.prevTop, null, 'reps'], ['🏆', 'Best e1RM', T.bestE1, null, 'reps'],
+        ['🎯', 'Wt PR', P.vuln, P.vuln && P.vuln.odds, 'reps'], ['🚀', 'e1RM PR', P.e1, P.e1 && P.e1.odds, 'reps'],
+        ['🏋️', 'Max wt', T.maxW, null, 'weight'], ['🔁', 'Max reps', T.maxR, null, 'reps']];
       const seen = new Set(), btns = [];
-      let hits = 0;
+      let hits = 0, prs = 0;
       const tgtSort = ['w', 'r', 'e1', 'vuln'].includes(state.targetSort) ? state.targetSort : 'order';
-      sortTargetDefs(defs, tgtSort).forEach(([ico, lbl, t, odds]) => {
-        if (!t || !(t.w > 0) || seen.has(t.w)) return; // same weight twice = one button
+      sortTargetDefs(defs, tgtSort).forEach(([ico, lbl, t, odds, axis]) => {
+        if (!t || !(t.w > 0) || seen.has(t.w)) return; // same BASE weight twice = one button (identity is the base ask)
         seen.add(t.w);
-        const hit = exTargetHit(pending.varUuid, pending.subUuid, t.w, t.r);
-        if (hit) hits++;
-        btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}" data-w="${t.w}" data-r="${t.r}"
-          title="${escapeAttr(lbl + ' — ' + t.w + state.unit + ' × ' + t.r + (odds != null ? ' · ' + odds + '% PR odds' : '') + (hit ? ' — already done this session' : ''))}"
-          ><span class="tb-ico">${ico}</span><span class="tb-lbl">${lbl}</span><b>${t.w}×${t.r}</b></button>`);
+        const pg = exTargetProgress(pending.varUuid, pending.subUuid, t.w, t.r, axis, wInc); // feat 504
+        const hit = pg.n > 0;
+        if (hit) { hits++; prs++; }   // one PR per tile however many rungs you climb — un-juiceable
+        const streak = pg.n > 1 ? '<span class="tb-streak" title="Beaten ' + pg.n + ' times this session">' + pg.n + '</span>' : '';
+        btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}" data-w="${pg.w}" data-r="${pg.r}"
+          data-w0="${t.w}" data-r0="${t.r}" data-axis="${axis}" data-n="${pg.n}"
+          title="${escapeAttr(lbl + ' — ' + pg.w + state.unit + ' × ' + pg.r + (odds != null ? ' · ' + odds + '% PR odds' : '') + (pg.n === 1 ? ' — beaten once this session; here is the next rung' : pg.n > 1 ? ' — beaten ' + pg.n + ' times this session' : ''))}"
+          ><span class="tb-ico">${ico}</span><span class="tb-lbl">${lbl}</span><b>${pg.w}×${pg.r}</b>${streak}</button>`);
         // the odds live in the tooltip and the All-weights table — on a 3-up tile they only ate the label
       });
-      const R = exWeightRows(pending.varUuid, pending.subUuid);
-      const prs = exSessionPrCount(pending.varUuid, pending.subUuid); // feat 477 — today's scoreboard
+      const R = exWeightRows(pending.varUuid, pending.subUuid); // feat 504 — `prs` is now counted per TILE, above
       const wtBtn = R.rows.length
         ? `<button type="button" class="wt-open-btn" id="trk-wt-expand" title="Sortable table of every weight logged — records, 90-day bests &amp; PR odds${prs ? ' · ' + prs + ' PR' + (prs === 1 ? '' : 's') + ' this session' : ''}">📊 All weights${prs ? `<span class="wt-pr-badge">🏅 ${prs} PR${prs === 1 ? '' : 's'} today</span>` : ' — records &amp; PR odds'}</button>`
         : '';
@@ -28602,18 +28605,29 @@ function exTargetHit(varUuid, subUuid, w, r) {
   if (!(w > 0)) return false;
   return exSessionSets(varUuid, subUuid).some(st => st.w >= w && st.r >= (r > 0 ? r : 1));
 }
-function exSessionPrCount(varUuid, subUuid) {
-  const done = exSessionSets(varUuid, subUuid);
-  if (!done.length) return 0;
-  const R = exWeightRows(varUuid, subUuid);            // history EXCLUDES the pending sheet
-  const prevBest = new Map(R.rows.map(r => [r.w, r.best.e]));
-  const hit = new Set();
-  done.forEach(st => {
-    const e = estimated1RM(st.w, st.r) || 0;
-    const was = prevBest.get(st.w);
-    if (was === undefined || e > was) hit.add(st.w);    // a brand-new weight counts as its own record
-  });
-  return hit.size;
+/* feat 504 — a target is a LADDER, not pass/fail. Beating the ask does not retire the tile: it advances to
+   the next rung (one more rep, or one increment heavier for the Max-wt tile, which climbs the weight axis)
+   and counts how many rungs this session has cleared. `n` drives the green border (n > 0), the corner streak
+   (n > 1) and the PR scoreboard (ONE per tile, however many rungs you climb).
+   Everything here is DERIVED from the session's current sets — nothing is incremented and stored — which is
+   exactly what makes an accidental 300 kg entry roll all the way back the moment you delete it.
+   feat 477's exSessionPrCount is retired with this: it counted distinct WEIGHTS beating their own record, so
+   climbing the Max-wt ladder minted a fresh PR at every rung — the "milking one easy button" this prevents. */
+function exTargetProgress(varUuid, subUuid, w, r, axis, inc) {
+  const need = r > 0 ? r : 1;
+  if (!(w > 0)) return { n: 0, w: w, r: need };
+  const sets = exSessionSets(varUuid, subUuid);
+  if (axis === 'weight') {
+    const step = inc > 0 ? inc : 1;
+    let best = 0;
+    sets.forEach(st => { if (st.r >= need && st.w > best) best = st.w; });
+    const n = best >= w ? Math.floor((best - w) / step) + 1 : 0;
+    return { n: n, w: w + n * step, r: need };
+  }
+  let best = 0;
+  sets.forEach(st => { if (st.w >= w && st.r > best) best = st.r; });
+  const n = best >= need ? best - need + 1 : 0;
+  return { n: n, w: w, r: need + n };
 }
 /* feat 478 — the whole targets section (reference tiles + All-weights) collapses too, and AUTO-COLLAPSES
    the moment every target it offered has been hit: there is nothing left to aim at, so the sets get the
@@ -28627,13 +28641,23 @@ function targetsResetForSheet() { _tgtCollapsed = false; _tgtPinned = false; }
 function refreshTargetHits() {
   const el = document.getElementById('trk-targets');
   if (!el || !pending.varUuid) return;
-  let hits = 0, total = 0;
+  let hits = 0, total = 0, moved = false;
   el.querySelectorAll('.target-btn').forEach(b => {
     total++;
-    const hit = exTargetHit(pending.varUuid, pending.subUuid, parseFloat(b.dataset.w), parseFloat(b.dataset.r) || 1);
+    // feat 504 — judge a tile by its BASE ask (data-w0/r0); data-w/r is wherever the ladder has reached.
+    // A tile with no base (a test fragment, or one rendered before feat 504) falls back to the shown ask.
+    const w0 = parseFloat(b.dataset.w0 != null ? b.dataset.w0 : b.dataset.w);
+    const r0 = parseFloat(b.dataset.r0 != null ? b.dataset.r0 : b.dataset.r) || 1;
+    const pg = exTargetProgress(pending.varUuid, pending.subUuid, w0, r0, b.dataset.axis || 'reps',
+      state.unit === 'lb' ? 5 : 2.5);
+    const hit = pg.n > 0;
     if (hit) hits++;
     b.classList.toggle('hit', hit);
+    // the rung moved, so the printed ask is now stale — only a real render can rewrite it. feat 482's
+    // DOM-only promise still holds for the common case where nothing moved.
+    if (b.dataset.n != null && +b.dataset.n !== pg.n) moved = true;
   });
+  if (moved) { renderModal(); return; }
   if (!total) return;
   _tgtHits = hits; _tgtTotal = total;                     // targetsAutoCollapse reads these
   const cnt = el.querySelector('.targets-count');
@@ -30121,7 +30145,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 427 · 2026-10-16 13:48';
+const APP_BUILD = 'build 428 · 2026-10-16 14:09';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -136,8 +136,8 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   makes a wrong mode visible, that is the regex to fix (or the point at which an explicit per-variation
   mode field starts earning its keep), not the badge.
 
-- [ ] **Target buttons should advance to the next target instead of just going green, with a session
-  streak counter — and PRs must stay un-juiceable.**
+- [x] **Target buttons should advance to the next target instead of just going green, with a session
+  streak counter — and PRs must stay un-juiceable.** — shipped as **feat 504**: green border, per-tile ladders (reps axis, weight axis for Max wt), corner streak past one, PR badge capped at one per tile, everything derived so a deleted set rolls it all back. feat 478's auto-collapse kept, with hit-once as satisfied.
   Requested 2026-10-09: *"currently after hitting the target for a given button it fills in green and
   a record is counted. I would rather it show a green border and then update to the next target for
   that particular button counting what I just did today; and in the corner of the button show the #

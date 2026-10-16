@@ -8,7 +8,7 @@ const APP = '/gym-tracker.html';
 
 test.beforeEach(async ({ page }) => {
   await page.goto(APP, { waitUntil: 'load' });
-  await page.waitForFunction(() => typeof exPrTargets === 'function' && typeof exSessionPrCount === 'function'
+  await page.waitForFunction(() => typeof exPrTargets === 'function' && typeof exTargetProgress === 'function'
     && typeof VAR_INDEX !== 'undefined' && VAR_INDEX.size > 0, null, { timeout: 15000 });
 });
 
@@ -84,27 +84,34 @@ test('feat 477 — a target flips to satisfied once this session matches or beat
   expect(r.notWeight).toBe(false);
 });
 
-test('feat 477 — the All-weights button counts the weights PRd this session', async ({ page }) => {
+/* feat 504 replaced feat 477's weight-based PR count: it counted distinct WEIGHTS beating their own record,
+   so climbing the Max-wt ladder minted a fresh PR at every rung. The badge now counts TILES BEATEN, one
+   apiece however many times you beat them, so one easy button cannot inflate it. */
+test('feat 504 — the PR badge counts tiles beaten, never rungs climbed', async ({ page }) => {
   const v = await seed(page);
-  const r = await page.evaluate((v) => {
-    const none = document.querySelector('.wt-pr-badge');
-    commitSetField(0, 'w', 166); commitSetField(0, 'r', 6);   // 166 record was 3 reps → PR
-    const one = { n: exSessionPrCount(v, null), badge: (document.querySelector('.wt-pr-badge') || {}).textContent };
-    pending.sets.push({ w: 155, r: 9 }); renderModal();        // 155 record was 8 reps → second PR
-    const two = { n: exSessionPrCount(v, null), badge: (document.querySelector('.wt-pr-badge') || {}).textContent };
-    pending.sets.push({ w: 116, r: 4 }); renderModal();        // 116 record is 10 reps → NOT a PR
-    const still = exSessionPrCount(v, null);
-    pending.sets.push({ w: 205, r: 2 }); renderModal();        // a weight never used before is its own record
-    const novel = exSessionPrCount(v, null);
-    return { hadNone: !none, one, two, still, novel };
+  const r = await page.evaluate(() => {
+    const badgeNum = () => { const t = (document.querySelector('.wt-pr-badge') || {}).textContent || ''; const m = t.match(/(\d+)\s*PR/); return m ? +m[1] : 0; };
+    const snap = () => {
+      const hit = [...document.querySelectorAll('.target-btn.hit')];
+      const rungs = hit.reduce((n, b) => n + (+b.dataset.n || 0), 0);
+      return { prs: badgeNum(), tilesHit: hit.length, rungs,
+        streaks: hit.map(b => +b.dataset.n).filter(n => n > 1).length };
+    };
+    const none = badgeNum();
+    commitSetField(0, 'w', 166); commitSetField(0, 'r', 7);
+    const first = snap();
+    // keep climbing the same weight: many more rungs cleared, but no tile can be counted twice
+    pending.sets.push({ w: 166, r: 14 }); renderModal();
+    const milked = snap();
+    return { none, first, milked };
   }, v);
-  expect(r.hadNone, 'no badge before anything is logged').toBe(true);
-  expect(r.one.n).toBe(1);
-  expect(r.one.badge).toContain('1 PR today');
-  expect(r.two.n).toBe(2);
-  expect(r.two.badge).toContain('2 PRs today');
-  expect(r.still, 'a set below the record at that weight adds nothing').toBe(2);
-  expect(r.novel, 'a brand-new weight counts as its own record').toBe(3);
+  expect(r.none, 'no badge before anything is logged').toBe(0);
+  // the invariant: the PR number is exactly the number of tiles beaten, never the rungs climbed
+  expect(r.first.prs).toBe(r.first.tilesHit);
+  expect(r.milked.prs).toBe(r.milked.tilesHit);
+  expect(r.milked.streaks, 'milking builds streaks').toBeGreaterThan(0);
+  expect(r.milked.rungs, 'and many more rungs than tiles').toBeGreaterThan(r.milked.tilesHit);
+  expect(r.milked.prs, 'yet the PR count stays capped at one per tile').toBeLessThan(r.milked.rungs);
 });
 
 test('feat 477 — every target tile fits, in at most two rows', async ({ page }) => {
