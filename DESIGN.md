@@ -2665,6 +2665,23 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **"Inhuman" means record territory again (feat 503):** the top tier was still handed out too freely, and on
+  some movements a bodyweight ratio cannot express the feats it is named for. Two changes. **(a) Machine and
+  heavy-isolation families carry only THREE cutoffs** and so cap at **Elite** — `leg-press`, `leg-curl`,
+  `leg-extension`, `calf-raise`, `hip-thrust`, `shrugs`. Machine leverage differs by manufacturer, stacks run
+  out and partial ROM inflates the load, so "4.5× bodyweight on a leg press" describes a sled's geometry, not a
+  human; at 80 kg the old top bounds meant a 360 kg leg press, a 200 kg calf raise, a 248 kg hip thrust and a
+  120 kg leg curl, all loads plenty of gym regulars hit. `objectiveSetTier`'s loop is now bounded by
+  `table.length` rather than a hard-coded `4` — a 3-entry table used to stop only because `ratio >= undefined`
+  is false, which worked by accident. **(b) Where a lift has real raw records, Inhuman sits near them**
+  (~90% of the all-time raw world-record ratio for an ~83-93 kg lifter): squat `2.75 → 3.25`, deadlift
+  `3.00 → 3.85`, bench `2.15 → 2.50`, with incline/decline scaled off bench (`2.10` / `2.55`). The old 3.00×
+  deadlift line was **below** Eddie Hall's 500 kg at ~196 kg bodyweight (~2.55×), so the scale flattered light
+  lifters and under-rated the actual strongman feats. Lower bounds are untouched (feat 438 tuned those, and the
+  complaint was only about the top), and lifts with no comparable record reference keep their feat-438 number —
+  see `TODO.md`, since guessing a number for a cable fly is how the tier lost its meaning in the first place.
+  `test/objtier.spec.mjs` pins the Elite cap for all six capped families however heavy the load, that a 2.8×
+  squat now reads Elite while 3.4× reads Inhuman, and Hall's ratio as the motivating absurdity.
 - **The picker says how an exercise is logged (feat 502):** `exMode` has always classified every variation
   from its title — **time** (hang / hold / plank / L-sit / wall sit / isometric), **distance** (carries, sled,
   yoke), **bodyweight** (pull-up, dip, push-up, pistol, nordic) and **standard** — but nothing surfaced it, so

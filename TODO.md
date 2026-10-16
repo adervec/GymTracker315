@@ -248,7 +248,7 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   `test/prtargets.spec.mjs` and `test/vulrecord.spec.mjs` cover the current picks; a regression test
   should assert no target ever asks for more than the chosen rep ceiling.
 
-- [ ] **"Inhuman" is still awarded too freely on some movements.**
+- [x] **"Inhuman" is still awarded too freely on some movements.** — **feat 503** (code written, suite NOT yet run, NOT committed): six machine/isolation families cap at Elite; squat/deadlift/bench/incline/decline tops re-anchored near raw records. **Still open:** the isolation lifts with no record reference (`chest-fly`, `pullover`, `tricep-extension`, `lat-pulldown`, `row`, `lunge`, `bicep-curl`, `hammer-curl`, `lateral-raise`, `front-raise`, `shoulder-press`) keep their feat-438 top bound — they need either a per-movement reference or the same Elite cap.
   Reported 2026-10-11: *"the inhuman rating is still given too freely for some movements indicating
   weak understanding of what they entail. That is supposed to be for eddie hall /david goggins type
   feats."*

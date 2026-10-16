@@ -13359,25 +13359,38 @@ function getOverloadScore(varUuid, subUuid, set, currentSessionDate) {
 const STRENGTH_STANDARDS = { // family id → [light→average, →heavy, →elite, →inhuman] e1RM÷BW cutoffs (male, ~25-35y)
   // feat 438 — retuned a full tier stricter after field feedback ("mediocre sets read elite"): bounds now
   // sit on strengthlevel-style novice / intermediate / advanced / elite 1RM ratios.
-  'squat':               [1.25, 1.75, 2.25, 2.75],
-  'deadlift':            [1.50, 2.00, 2.50, 3.00],
-  'flat-bench-press':    [0.85, 1.25, 1.75, 2.15],
-  'incline-bench-press': [0.75, 1.10, 1.55, 1.90],
-  'decline-bench-press': [0.90, 1.30, 1.80, 2.20],
+  /* feat 503 — the TOP bound specifically was still handed out too freely, and on some movements a bodyweight
+     ratio cannot express the feats the tier is named for. Two changes:
+     (a) MACHINE / HEAVY-ISOLATION families get only THREE cutoffs, so they cap at Elite and can never read
+         Inhuman. Machine leverage differs by manufacturer, stacks run out, and partial ROM inflates the
+         number, so "4.5× bodyweight on a leg press" is a sled geometry statement, not a human one. At 80 kg
+         the old top bounds meant a 360 kg leg press, a 200 kg calf raise, a 248 kg hip thrust, a 120 kg leg
+         curl — loads plenty of gym regulars hit.
+     (b) Where a lift HAS real raw records, Inhuman is set near them (~90% of the all-time raw world-record
+         ratio for an ~83-93 kg lifter) instead of at merely-very-strong. The old 3.00× deadlift line was
+         BELOW Eddie Hall's 500 kg at ~196 kg bodyweight (~2.55×), so the scale flattered light lifters and
+         under-rated the actual strongman feats. Incline/decline scale off bench by their usual ratios.
+     Lifts with no comparable record reference keep their feat-438 number — see TODO.md; guessing a number
+     for a cable fly is how the tier lost its meaning in the first place. Lower bounds are untouched. */
+  'squat':               [1.25, 1.75, 2.25, 3.25], // feat 503 — raw WR ~3.6x at 83kg
+  'deadlift':            [1.50, 2.00, 2.50, 3.85], // feat 503 — raw WR ~4.3x at 83kg
+  'flat-bench-press':    [0.85, 1.25, 1.75, 2.50], // feat 503 — raw WR ~2.75x at 83kg
+  'incline-bench-press': [0.75, 1.10, 1.55, 2.10], // feat 503 — ~0.85x of bench
+  'decline-bench-press': [0.90, 1.30, 1.80, 2.55], // feat 503 — ~1.02x of bench
   'shoulder-press':      [0.55, 0.80, 1.05, 1.35],
   'row':                 [0.80, 1.10, 1.40, 1.70],
   'lat-pulldown':        [0.70, 1.00, 1.25, 1.55],
-  'leg-press':           [2.00, 2.75, 3.50, 4.50],
-  'hip-thrust':          [1.30, 1.90, 2.50, 3.10],
+  'leg-press':           [2.00, 2.75, 3.50], // feat 503 — machine/isolation: caps at Elite, no Inhuman
+  'hip-thrust':          [1.30, 1.90, 2.50], // feat 503 — machine/isolation: caps at Elite, no Inhuman
   'lunge':               [0.70, 1.00, 1.35, 1.70],
-  'leg-extension':       [0.85, 1.25, 1.65, 2.05],
-  'leg-curl':            [0.60, 0.90, 1.20, 1.50],
-  'calf-raise':          [1.00, 1.50, 2.00, 2.50],
+  'leg-extension':       [0.85, 1.25, 1.65], // feat 503 — machine/isolation: caps at Elite, no Inhuman
+  'leg-curl':            [0.60, 0.90, 1.20], // feat 503 — machine/isolation: caps at Elite, no Inhuman
+  'calf-raise':          [1.00, 1.50, 2.00], // feat 503 — machine/isolation: caps at Elite, no Inhuman
   'bicep-curl':          [0.40, 0.60, 0.85, 1.10],
   'hammer-curl':         [0.28, 0.45, 0.60, 0.75],
   'tricep-extension':    [0.45, 0.65, 0.90, 1.15],
   'chest-fly':           [0.60, 0.90, 1.25, 1.60],
-  'shrugs':              [1.20, 1.70, 2.20, 2.80],
+  'shrugs':              [1.20, 1.70, 2.20], // feat 503 — machine/isolation: caps at Elite, no Inhuman
   'pullover':            [0.45, 0.65, 0.90, 1.15],
   'lateral-raise':       [0.12, 0.22, 0.33, 0.45],
   'front-raise':         [0.14, 0.25, 0.36, 0.50],
@@ -13411,7 +13424,9 @@ function objectiveSetTier(varUuid, set) {
     && /(?:^|\W)(?:single|one)[- ]?(?:leg|arm)|unilateral|pistol/i.test((info.variation.title || '') + ' ' + (info.variation.id || ''))) ? 0.55 : 1; // one limb ≈ 55% of the pair
   const ratio = estimated1RM(w, Math.min(r, 12)) / bw; // feat 438 — Epley runs wild past ~12 reps; cap the inflation
   let tier = 0;
-  while (tier < 4 && ratio >= table[tier] * genderF * ageF * dbF * uniF) tier++;
+  // feat 503 — bound by the family's OWN cutoff count: a 3-entry table caps at Elite and never reads Inhuman
+  // (it used to stop only because `ratio >= undefined` is false, which worked by accident).
+  while (tier < table.length && ratio >= table[tier] * genderF * ageF * dbF * uniF) tier++;
   return { tier, key: OBJ_TIERS[tier].key, label: OBJ_TIERS[tier].label, ratio: Math.round(ratio * 100) / 100 };
 }
 function objectiveTierTagHtml(varUuid, set) {
@@ -30106,7 +30121,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 426 · 2026-10-16 07:52';
+const APP_BUILD = 'build 427 · 2026-10-16 13:48';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

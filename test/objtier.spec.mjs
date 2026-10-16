@@ -43,7 +43,7 @@ test('feat 438 — male squat tiers at 100 kg BW span light → inhuman on the s
     average: objectiveSetTier(v, { w: 120, r: 5 }).key,  // 140 → 1.40
     heavy: objectiveSetTier(v, { w: 160, r: 5 }).key,    // 187 → 1.87
     elite: objectiveSetTier(v, { w: 200, r: 5 }).key,    // 233 → 2.33
-    inhuman: objectiveSetTier(v, { w: 240, r: 5 }).key,  // 280 → 2.80
+    inhuman: objectiveSetTier(v, { w: 290, r: 5 }).key,  // 338 → 3.38 (feat 503 raised the bar to 3.25)
     ratio: objectiveSetTier(v, { w: 100, r: 3 }).ratio,
   }), v);
   expect(r).toEqual({ light: 'light', average: 'average', heavy: 'heavy', elite: 'elite', inhuman: 'inhuman', ratio: 1.1 });
@@ -114,4 +114,59 @@ test('feat 428 — the log sheet renders the 🌍 chip, and drops it without bio
   expect(withBio.cls).toContain('obj-average');
   expect(withBio.text).toContain('🌍 Average');
   expect(withoutBio).toBe(false);
+});
+
+/* feat 503 — the TOP tier was handed out too freely. Machine / heavy-isolation families now carry only three
+   cutoffs and cap at Elite (a 4.5×BW leg press describes a sled's geometry, not a human), and where a lift has
+   real raw records Inhuman sits near them instead of at merely-very-strong. */
+test('feat 503 — machine and heavy-isolation lifts cap at Elite and can never read Inhuman', async ({ page }) => {
+  await seedBio(page, 'male', {});
+  const r = await page.evaluate(() => {
+    const CAPPED = ['leg-press', 'leg-curl', 'leg-extension', 'calf-raise', 'hip-thrust', 'shrugs'];
+    const out = {};
+    CAPPED.forEach(fam => {
+      const t = STRENGTH_STANDARDS[fam];
+      // a load far past the top cutoff: at 100kg BW, ratio = e1RM/100
+      let v = null;
+      for (const [u, i] of VAR_INDEX) {
+        if (i.family.id !== fam || exMode(u).mode !== 'standard') continue;
+        if (autoSetupKind(u) === 'dumbbell' || autoSetupKind(u) === 'kettlebell') continue;
+        if (/(?:^|\W)(?:single|one)[- ]?(?:leg|arm)|unilateral|pistol/i.test(i.variation.title + ' ' + i.variation.id)) continue;
+        v = u; break;
+      }
+      const absurd = v ? objectiveSetTier(v, { w: Math.ceil(t[t.length - 1] * 100 * 2), r: 5 }) : null;
+      out[fam] = { cutoffs: t.length, top: absurd && absurd.key, found: !!v };
+    });
+    return out;
+  });
+  Object.entries(r).forEach(([fam, x]) => {
+    expect(x.found, fam + ' needs a plain barbell/machine variation to test').toBe(true);
+    expect(x.cutoffs, fam + ' must carry only 3 cutoffs').toBe(3);
+    expect(x.top, fam + ' must top out at Elite however heavy the load').toBe('elite');
+  });
+});
+
+test('feat 503 — Inhuman on the recorded lifts now means record territory', async ({ page }) => {
+  await seedBio(page, 'male', {});   // 100 kg bodyweight, so ratio = e1RM / 100
+  const r = await page.evaluate(() => {
+    const pick = (fam, vid) => { for (const [u, i] of VAR_INDEX) if (i.family.id === fam && i.variation.id === vid) return u; return null; };
+    const squat = pick('squat', 'bb-back-squat');
+    const dl = pick('deadlift', 'conventional-dl') || (() => { for (const [u, i] of VAR_INDEX) if (i.family.id === 'deadlift' && autoSetupKind(u) === 'barbell' && exMode(u).mode === 'standard') return u; return null; })();
+    return {
+      squatTops: STRENGTH_STANDARDS['squat'][3], dlTops: STRENGTH_STANDARDS['deadlift'][3],
+      // a 280 kg squat at 100 kg BW: very strong, but not record territory — Elite, not Inhuman
+      squat280: objectiveSetTier(squat, { w: 280, r: 1 }).key,
+      // 340 kg clears 3.25× and does read Inhuman
+      squat340: objectiveSetTier(squat, { w: 340, r: 1 }).key,
+      // Eddie Hall's 500 kg at ~196 kg bodyweight is ~2.55× — under the OLD 3.00 deadlift line
+      hallRatio: Math.round((500 / 196) * 100) / 100,
+      dlUnderOld: 500 / 196 < 3.00,
+    };
+  });
+  expect(r.squatTops).toBe(3.25);
+  expect(r.dlTops).toBe(3.85);
+  expect(r.squat280, 'a 2.8x squat is Elite, not Inhuman').toBe('elite');
+  expect(r.squat340).toBe('inhuman');
+  expect(r.hallRatio).toBeLessThan(3.0);   // the motivating absurdity, pinned
+  expect(r.dlUnderOld).toBe(true);
 });
