@@ -1963,6 +1963,20 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .set-overload-tag.baseline { background: #1f1f2e; color: #aab0c8; border: 1px solid #2a2a40; }
   /* feat 428 — objective population-standard tier chip, rendered beside/under the overload tag */
   .set-obj-tag { grid-column: 2 / 4; font-size: 9.5px; padding: 1px 6px; border-radius: 4px; font-weight: 700; justify-self: start; margin-top: 1px; letter-spacing: 0.3px; }
+  /* feat 509 — the Tiers slide */
+  .tiers-head { font-size: 11.5px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+  .tiers-who { font-weight: 600; color: var(--text3); margin-left: 4px; }
+  .tiers-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tiers-tbl th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text3); padding: 3px 6px; }
+  .tiers-tbl td { padding: 5px 6px; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .tiers-row td:first-child { font-weight: 700; border-left: 3px solid transparent; }
+  .tiers-row.obj-light td:first-child { border-left-color: #9fb2c8; } .tiers-row.obj-average td:first-child { border-left-color: #7fc49a; }
+  .tiers-row.obj-heavy td:first-child { border-left-color: #e8b04b; } .tiers-row.obj-elite td:first-child { border-left-color: #cf9fff; }
+  .tiers-row.obj-inhuman td:first-child { border-left-color: #e06090; }
+  .tiers-row.mine td { background: rgba(255,255,255,0.05); font-weight: 800; }
+  .tiers-below { color: var(--text3); font-style: italic; }
+  .tiers-note { font-size: 10.5px; color: var(--text3); margin-top: 6px; line-height: 1.35; }
+  .tiers-you { font-size: 12px; margin-top: 8px; color: var(--text2); }
   .set-obj-tag.obj-light,   .wt-obj.obj-light   { background: #1f2630; color: #9fb2c8; border: 1px solid #2a3340; }
   .set-obj-tag.obj-average, .wt-obj.obj-average { background: #1d3a25; color: #80e090; border: 1px solid #2e6f3a; }
   .set-obj-tag.obj-heavy,   .wt-obj.obj-heavy   { background: #2e2a18; color: #e0c070; border: 1px solid #4a4220; }
@@ -13407,16 +13421,15 @@ const OBJ_TIERS = [
   { key: 'elite',   label: 'Elite' },
   { key: 'inhuman', label: 'Inhuman' },
 ];
-function objectiveSetTier(varUuid, set) {
-  const info = VAR_INDEX.get(varUuid);
-  if (!info || exMode(varUuid).mode !== 'standard') return null;
-  const table = STRENGTH_STANDARDS[info.family.id];
-  if (!table) return null;
-  const w = parseFloat(set.w), r = parseFloat(set.r);
-  if (!(w > 0) || !(r > 0)) return null;
+/* feat 509 — the bodyweight / gender / age / dumbbell / one-limb scaling objectiveSetTier applies, factored out
+   so the Tiers slide shows EXACTLY the thresholds the per-set 🌍 chip judges against. The lines were moved
+   verbatim, multiplication order included, so the two cannot disagree on a borderline set. */
+function objectiveTierFactors(varUuid, info) {
+  info = info || VAR_INDEX.get(varUuid);
+  if (!info) return null;
   const g = state.profile && state.profile.gender;
   const bwKg = getCurrentBodyweightKg();
-  if (!g || !bwKg) return null; // insufficient biometrics → no objective read
+  if (!g || !bwKg) return null; // insufficient biometrics
   const bw = state.unit === 'kg' ? bwKg : kgToLb(bwKg);
   const genderF = g === 'male' ? 1 : g === 'female' ? 0.65 : 0.82; // 'other' → midpoint of the two tables
   const age = state.profile.dob ? ageFromDob(state.profile.dob) : null;
@@ -13426,12 +13439,63 @@ function objectiveSetTier(varUuid, set) {
     : (!STANDARDS_PER_HAND.has(info.family.id) && kind === 'kettlebell') ? 0.35 : 1; // one DB/KB ≈ 40/35% of the barbell total
   const uniF = (kind !== 'dumbbell' && kind !== 'kettlebell'
     && /(?:^|\W)(?:single|one)[- ]?(?:leg|arm)|unilateral|pistol/i.test((info.variation.title || '') + ' ' + (info.variation.id || ''))) ? 0.55 : 1; // one limb ≈ 55% of the pair
+  return { bw, genderF, ageF, dbF, uniF, kind, gender: g, age };
+}
+function objectiveSetTier(varUuid, set) {
+  const info = VAR_INDEX.get(varUuid);
+  if (!info || exMode(varUuid).mode !== 'standard') return null;
+  const table = STRENGTH_STANDARDS[info.family.id];
+  if (!table) return null;
+  const w = parseFloat(set.w), r = parseFloat(set.r);
+  if (!(w > 0) || !(r > 0)) return null;
+  const F = objectiveTierFactors(varUuid, info); // feat 509 — the scaling now lives in one shared helper
+  if (!F) return null; // insufficient biometrics → no objective read
+  const { bw, genderF, ageF, dbF, uniF } = F;
   const ratio = estimated1RM(w, Math.min(r, 12)) / bw; // feat 438 — Epley runs wild past ~12 reps; cap the inflation
   let tier = 0;
   // feat 503 — bound by the family's OWN cutoff count: a 3-entry table caps at Elite and never reads Inhuman
   // (it used to stop only because `ratio >= undefined` is false, which worked by accident).
   while (tier < table.length && ratio >= table[tier] * genderF * ageF * dbF * uniF) tier++;
   return { tier, key: OBJ_TIERS[tier].key, label: OBJ_TIERS[tier].label, ratio: Math.round(ratio * 100) / 100 };
+}
+/* feat 509 — "add an option in the tips carousel showing the calculated tiers". The 🌍 chip says which tier a
+   set landed in; this says what EACH tier would take, in your units, for your bodyweight / gender / age — so the
+   label stops being a verdict you cannot argue with. Shown as a 1-rep and a 5-rep load, snapped to plates. */
+function tiersSlideHtml(varUuid, subUuid) {
+  const info = VAR_INDEX.get(varUuid);
+  const table = (info && exMode(varUuid).mode === 'standard') ? STRENGTH_STANDARDS[info.family.id] : null;
+  if (!table) return '<div class="excar-empty">No population strength standard for this movement, so it has no tiers. They exist for the main compounds and accessories with comparable data.</div>';
+  const F = objectiveTierFactors(varUuid, info);
+  if (!F) return `<div class="excar-empty">Add your ${(state.profile && state.profile.gender) ? 'bodyweight' : 'gender'} in Profile to see what each tier means in ${escapeHtml(state.unit)} for you.</div>`;
+  const u = state.unit, step = u === 'lb' ? 5 : 2.5;
+  const snap = x => Math.round(x / step) * step;
+  const mult = F.genderF * F.ageF * F.dbF * F.uniF;
+  // your best ever, read the way objectiveSetTier reads a set (Epley capped at 12 reps)
+  let best = 0;
+  getHistoryByKey(varUuid, subUuid).forEach(h => (h.sets || []).forEach(s => {
+    const w = parseFloat(s.w), r = parseFloat(s.r);
+    if (!(w > 0) || !(r > 0)) return;
+    const e = estimated1RM(w, Math.min(r, 12)) || 0;
+    if (e > best) best = e;
+  }));
+  const mine = best > 0 ? objectiveSetTier(varUuid, { w: best, r: 1 }) : null;
+  const perDb = STANDARDS_PER_HAND.has(info.family.id) || F.dbF < 1;
+  const rows = OBJ_TIERS.map((t, i) => {
+    const cls = `tiers-row obj-${t.key}${mine && mine.key === t.key ? ' mine' : ''}`;
+    if (i === 0) return `<tr class="${cls}"><td>${t.label}</td><td colspan="2" class="tiers-below">below Average</td></tr>`;
+    if (i - 1 >= table.length) return '';                 // a capped family has no Inhuman row
+    const e1 = table[i - 1] * mult * F.bw;
+    return `<tr class="${cls}"><td>${t.label}</td><td>${snap(e1)}</td><td>${snap(e1 / (1 + 5 / 30))}</td></tr>`;
+  }).join('');
+  const capped = table.length < OBJ_TIERS.length - 1;
+  const who = [F.bw.toFixed(0) + u, F.gender, F.age != null ? F.age + 'y' : null].filter(Boolean).join(' · ');
+  return `<div class="tiers-wrap">
+    <div class="tiers-head">What each tier takes for you <span class="tiers-who">${escapeHtml(who)}</span></div>
+    <table class="tiers-tbl"><thead><tr><th>Tier</th><th>1 rep</th><th>5 reps</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="tiers-note">${escapeHtml(u)}${perDb ? ' per dumbbell' : ''}, snapped to the nearest ${step}. The tier is judged on your estimated 1RM, reps capped at 12.</div>
+    ${capped ? '<div class="tiers-note">No Inhuman tier here — a machine or cable stack caps it, or the lever makes a maximal rep a cheat rather than a feat.</div>' : ''}
+    <div class="tiers-you">${mine ? `Your best: ≈${snap(best)}${escapeHtml(u)} e1RM → <b>${mine.label}</b>` : 'Log a set to see where you sit.'}</div>
+  </div>`;
 }
 function objectiveTierTagHtml(varUuid, set) {
   const o = objectiveSetTier(varUuid, set);
@@ -28234,7 +28298,8 @@ function renderSetsForm() {
     // feat 470 — one row of icon tabs: only the SELECTED tab spells its name, so seven tabs fit a phone
     // without wrapping. The last chip collapses the whole panel from inside it.
     // feat 474 — Motion moved out to its own 🏃 button + carousel beside 🎬; the tips row is text slides only
-    const TABS = [['tips', '💡', 'Tips'], ['full', '📖', 'Full'], ['trends', '📈', 'Trends'], ['history', '🕓', 'History'], ['alts', '⇄', 'Alts'], ['brief', '🎧', 'Brief']];
+    // feat 509 — 🌍 Tiers is the seventh tab: feat 470 sized this row for seven before feat 474 moved Motion out
+    const TABS = [['tips', '💡', 'Tips'], ['full', '📖', 'Full'], ['trends', '📈', 'Trends'], ['history', '🕓', 'History'], ['alts', '⇄', 'Alts'], ['brief', '🎧', 'Brief'], ['tiers', '🌍', 'Tiers']];
     const trendSlide = renderTrendPeek(pending.varUuid, pending.subUuid) || '<div class="excar-empty">Not enough history for a trend yet — log a couple of sessions.</div>';
     const altsSlide = (() => { // feat 418 — the reference's alternatives, in the sheet
       const alts = (typeof computeAlternatives === 'function' && fam) ? (computeAlternatives(fam.mega, fam.sub, pending.varUuid) || []) : [];
@@ -28251,7 +28316,8 @@ function renderSetsForm() {
         built.segs.map(s => `<div class="tip-block"><div class="tip-block-label">${escapeHtml(s.label)}</div><div class="tip-block-text">${escapeHtml(s.text)}</div></div>`).join('');
     })();
     const SLIDES = { tips: `<button class="tips-ref-link" id="trk-tips-ref-btn" type="button">📚 Open full reference entry →</button>${tipBlocks}`,
-      full: fullBlocks, trends: trendSlide, history: exHistoryPreviewHtml(pending.varUuid, pending.subUuid), alts: altsSlide, brief: briefSlide };
+      full: fullBlocks, trends: trendSlide, history: exHistoryPreviewHtml(pending.varUuid, pending.subUuid), alts: altsSlide, brief: briefSlide,
+      tiers: tiersSlideHtml(pending.varUuid, pending.subUuid) }; // feat 509
     // feat 472 — the "Tips & Insights" banner and the tab row are ONE row: the tabs are the header,
     // always visible; the end chip toggles the panel. One row of chrome instead of two.
     tipsHtml = `<div class="tips-section ${isOpen ? 'open' : ''}" id="trk-tips-section">
@@ -30181,7 +30247,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 432 · 2026-10-17 05:41';
+const APP_BUILD = 'build 433 · 2026-10-17 06:04';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

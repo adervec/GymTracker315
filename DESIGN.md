@@ -2665,6 +2665,19 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **A 🌍 Tiers slide in the tips carousel (feat 509):** the per-set 🌍 chip told you which tier a set landed in,
+  but never what any tier would actually *take*, so the label read as a verdict you could not argue with. The
+  carousel gains a seventh tab — feat 470 sized the row for seven before feat 474 moved Motion out — showing,
+  for **this exercise, in your units, for your bodyweight / gender / age**, the load each tier needs as a 1-rep
+  and a 5-rep set (Epley, snapped to the nearest plate increment), with your best-ever set marked on its row.
+  A capped family (feat 503/508) shows no Inhuman row and says why; a movement with no standard says so; with
+  no gender or bodyweight it asks for the specific missing one rather than guessing. **The scaling was factored
+  out** of `objectiveSetTier` into `objectiveTierFactors(varUuid, info)` — the lines moved verbatim, the
+  comparison's multiplication order included — so the slide and the chip cannot disagree on a borderline set;
+  the unchanged `objtier.spec.mjs` passing is the proof the refactor is behaviour-identical, and
+  `test/tierslide.spec.mjs` asserts that a 1-rep set just above each printed load reads exactly that tier on the
+  chip. Also pins the cutoffs, the capped-family row set, the best-set marker, the missing-biometrics messages,
+  and that all seven tabs still sit on one row on the phone profile.
 - **The rest of the tier table, from what each lift physically entails (feat 508):** feat 503 re-anchored the
   lifts with real records and capped the six obvious machines, leaving eleven families on their feat-438 top
   bound because there was no record to anchor to. Rather than invent numbers, each was set from **what the

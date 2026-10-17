@@ -119,8 +119,8 @@ test('feat 470 — the carousel is one row: icons only, words on the selected ta
       fits: sec.querySelector('.excar-tabs').scrollWidth <= sec.querySelector('.excar-tabs').clientWidth + 1,
     };
   });
-  expect(r.count, 'the six text slides').toBe(6);
-  expect(r.keys).toEqual(['tips', 'full', 'trends', 'history', 'alts', 'brief']); // feat 474 — Motion moved out
+  expect(r.count, 'the seven text slides').toBe(7);
+  expect(r.keys).toEqual(['tips', 'full', 'trends', 'history', 'alts', 'brief', 'tiers']); // feat 474 — Motion moved out; feat 509 — Tiers in
   expect(r.everyHasIcon).toBe(true);
   expect(r.rows, 'one row — the wrap onto two is the thing being fixed').toBe(1);
   expect(r.labelsShownAtFirst, 'exactly one tab spells its name').toBe(1);
@@ -150,6 +150,6 @@ test('feat 470 — a chip inside the panel collapses it, and the choice sticks',
   expect(r.inPanel, 'the header scrolls away once you are inside a slide — hence a chip in the panel').toBe(true);
   expect(r.closed).toEqual({ open: false, flag: false });
   expect(r.tabKeys).not.toContain(undefined);
-  expect(r.tabKeys.length).toBe(6); // feat 474 — Motion left the tips row for its own carousel
+  expect(r.tabKeys.length).toBe(7); // feat 474 — Motion left the tips row; feat 509 — 🌍 Tiers joined it
   expect(r.reopened, 'the header toggle still works').toBe(true);
 });
