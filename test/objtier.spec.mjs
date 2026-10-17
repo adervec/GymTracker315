@@ -170,3 +170,46 @@ test('feat 503 — Inhuman on the recorded lifts now means record territory', as
   expect(r.hallRatio).toBeLessThan(3.0);   // the motivating absurdity, pinned
   expect(r.dlUnderOld).toBe(true);
 });
+
+/* feat 508 — the families feat 503 left alone were set from what each movement PHYSICALLY entails: its lever,
+   what truly limits it, whether a stack caps it, and whether a heavy rep is a feat or a cheat. */
+test('feat 508 — every strength standard now carries a deliberate top tier', async ({ page }) => {
+  await seedBio(page, 'male', {});
+  const r = await page.evaluate(() => {
+    const CAPPED = ['leg-press', 'leg-curl', 'leg-extension', 'calf-raise', 'hip-thrust', 'shrugs',   // feat 503
+      'lat-pulldown', 'tricep-extension', 'chest-fly', 'pullover'];                                   // feat 508
+    const sizes = Object.fromEntries(Object.entries(STRENGTH_STANDARDS).map(([k, t]) => [k, t.length]));
+    return {
+      sizes, CAPPED,
+      cappedAll3: CAPPED.every(f => sizes[f] === 3),
+      othersAll4: Object.keys(sizes).filter(f => !CAPPED.includes(f)).every(f => sizes[f] === 4),
+      rowTop: STRENGTH_STANDARDS['row'][3],
+      keptShoulder: STRENGTH_STANDARDS['shoulder-press'][3],
+      keptCurl: STRENGTH_STANDARDS['bicep-curl'][3],
+    };
+  });
+  expect(r.cappedAll3, 'machine / cable / long-lever accessory families cap at Elite').toBe(true);
+  expect(r.othersAll4, 'everything else keeps an Inhuman tier').toBe(true);
+  expect(Object.keys(r.sizes).length).toBe(22);   // no family dropped or added by the retune
+  expect(r.rowTop, 'row raised above cheat-row territory').toBe(2.0);
+  expect(r.keptShoulder).toBe(1.35);
+  expect(r.keptCurl).toBe(1.1);
+});
+
+test('feat 508 — a capped accessory never reads Inhuman, however heavy', async ({ page }) => {
+  await seedBio(page, 'male', {});
+  const r = await page.evaluate(() => {
+    const out = {};
+    ['lat-pulldown', 'tricep-extension', 'chest-fly', 'pullover'].forEach(fam => {
+      let v = null;
+      for (const [u, i] of VAR_INDEX) {
+        if (i.family.id !== fam || exMode(u).mode !== 'standard') continue;
+        if (/(?:^|\W)(?:single|one)[- ]?(?:leg|arm)|unilateral/i.test(i.variation.title + ' ' + i.variation.id)) continue;
+        v = u; break;
+      }
+      out[fam] = v ? objectiveSetTier(v, { w: 500, r: 5 }).key : 'no-var';
+    });
+    return out;
+  });
+  Object.entries(r).forEach(([fam, key]) => expect(key, fam).toBe('elite'));
+});

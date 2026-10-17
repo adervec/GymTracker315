@@ -2665,6 +2665,24 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The rest of the tier table, from what each lift physically entails (feat 508):** feat 503 re-anchored the
+  lifts with real records and capped the six obvious machines, leaving eleven families on their feat-438 top
+  bound because there was no record to anchor to. Rather than invent numbers, each was set from **what the
+  movement physically entails** — its lever, what truly limits it, whether a machine or cable stack caps it,
+  and whether a heavy rep is a feat or merely a cheat — and every line now carries its own one-line rationale
+  in `STRENGTH_STANDARDS`. **Capped at Elite (4):** `lat-pulldown` (a machine; past bodyweight the thigh pad is
+  what holds you down, so the top end tests the stack), `tricep-extension` (mostly stack-capped pushdowns, plus
+  skull crushers where the elbow sets the limit), `chest-fly` (the long lever keeps a true fly light; load it
+  heavy and it bends into a press), `pullover` (long-lever shoulder extension at end range — grinding one is an
+  injury, not a feat). **Raised (1):** `row` 1.70 → 2.00, since grip and a lower-back isometric limit it and
+  body english routinely inflates the load. **Kept (6)**, because their top already marks a genuine physical
+  ceiling: strict `shoulder-press` 1.35, `lunge` 1.70 (balance-limited, one working leg), `bicep-curl` 1.10
+  (the strict-curl record), `hammer-curl` 0.75 per dumbbell, and `lateral-raise` / `front-raise` at 0.45 / 0.50
+  per dumbbell (very long levers on small muscles — heavy laterals are swung, not raised). Ten of the 22
+  families now cap at Elite. Before choosing, the equipment mix was measured from the catalogue: lat-pulldown is
+  14/14 cable/machine and the other three capped families are majority cable/machine or mixed.
+  `test/objtier.spec.mjs` pins that every family is deliberately 3 or 4 cutoffs and that a capped accessory
+  tops out at Elite however heavy the load.
 - **Carrying your sets to another exercise is a feature (feat 507):** feat 499 found that a strength→strength
   pick in the picker never discarded anything — `_applyPickedVar` leaves `pending.sets` alone, so the typed
   sets travel to the new exercise — which made feat 151's "Picking a different exercise will discard them"
