@@ -282,7 +282,7 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   the retune wants fixture sets per family asserting a known-strong-but-human set does **not** read
   Inhuman.
 
-- [ ] **Switching exercises from the PICKER carries your typed sets over to the new exercise.**
+- [x] **Switching exercises from the PICKER carries your typed sets over to the new exercise.** — decided: **a feature**. **feat 507** drops the false "will discard" warning from Change exercise, announces the carry with a toast, and keeps the cardio pick (which does empty the sheet) guarded.
   Found while fixing feat 499 (2026-10-11), verified by probe: with 100×10 and 100×9 entered for
   Barbell Bench, clicking *Dumbbell Flat Bench* in the picker switches `pending.varUuid` and **keeps
   both sets** — `bindPickerResults` (`:27583`) never resets `pending.sets` for a strength→strength

@@ -2665,6 +2665,19 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Carrying your sets to another exercise is a feature (feat 507):** feat 499 found that a strength→strength
+  pick in the picker never discarded anything — `_applyPickedVar` leaves `pending.sets` alone, so the typed
+  sets travel to the new exercise — which made feat 151's "Picking a different exercise will discard them"
+  untrue of every route through the Change-exercise button. Settled as **a feature** (you picked the barbell
+  bench, meant the dumbbell one, and your numbers follow you), so the button **no longer warns**: opening the
+  picker discards nothing. The carry is no longer *silent* either — a 4 s toast says "↪ 2 sets moved to
+  <exercise>", which is the honest replacement for the false warning and stops a set being re-attributed by
+  surprise. The one destructive pick, **switching to cardio** (it empties the sheet), is still guarded at its
+  own destruction point by feat 499, and every cardio pick now routes through `guardPendingDiscard`, which runs
+  synchronously below its threshold. With the early prompt gone no route can chain two guards, so feat 499's
+  `_discardGrant` — which existed only to stop Change-exercise and a cardio pick asking twice for one intent —
+  is **deleted** along with its reset on the feat-107 abort. `test/changeexconfirm.spec.mjs` is rewritten to the
+  new contract (no prompt, sets carried with a toast, cardio still asks, no toast with nothing entered).
 - **A workout leaves a trail, and an auto-end says so (feat 506):** *"timer functions appeared to stop
   working about 2.5 h into a workout"* — one occurrence, no repro, no evidence. Two changes so the next one is
   diagnosable rather than a guess. **(1) A heartbeat** (`workoutHeartbeat`, throttled to 10 minutes) logging

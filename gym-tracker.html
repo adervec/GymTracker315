@@ -14012,23 +14012,18 @@ function hasUnsavedSets() {
 function enteredPendingSets() {
   return (pending.sets || []).filter(s => s && s.w !== '' && s.w != null && !isNaN(parseFloat(s.w))).length;
 }
-let _discardGrant = null;   // feat 499 — a discard the user ALREADY approved for this exact sheet
-function _discardGranted(n) {
-  return !!(_discardGrant && _discardGrant.varUuid === pending.varUuid && _discardGrant.n === n);
-}
 function guardPendingDiscard(run, opts) {
   opts = opts || {};
   const n = enteredPendingSets();
   if (n < 2 || modalState.isEditing || !pending.varUuid) { run(); return; } // nothing worth protecting — stay synchronous
-  // Change exercise → confirm → then pick the row is ONE intent, so don't ask twice. Keyed to the sheet it
-  // authorised, which makes it self-invalidating: the discard changes varUuid and zeroes n.
-  if (_discardGranted(n)) { run(); return; }
+  // (feat 507 retired feat 499's "grant": it only existed to stop Change exercise and a cardio pick prompting
+  // twice for one intent. Change exercise no longer prompts, so no route can chain two guards.)
   // NB: no escapeHtml on the name — choiceDialog already escapes the message, and double-escaping rendered
   // the 14 titles holding an apostrophe or & as "Farmer&#39;s Carry".
   confirmDialog(`You've entered ${n} sets for ${displayName(pending.varUuid, pending.subUuid)} that aren't saved yet. ${opts.action || 'Picking a different exercise'} will discard them. Continue?`,
     { title: opts.title || 'Change exercise?', okLabel: opts.okLabel || 'Change exercise',
       cancelLabel: 'Keep logging', danger: true })
-    .then(ok => { if (!ok) return; _discardGrant = { varUuid: pending.varUuid, n: n }; run(); });
+    .then(ok => { if (ok) run(); });
 }
 
 /* Reusable promise-based choice dialog (feat 62). Resolves to the chosen value, or null if dismissed. */
@@ -27660,7 +27655,6 @@ function bindPicker() {
   });
   // feat 107 — abort a mis-tapped "Change exercise": return to the current exercise unchanged
   document.getElementById('trk-picker-back-current')?.addEventListener('click', () => {
-    _discardGrant = null; // feat 499 — backing out withdraws the discard the user approved
     modalState.showPicker = false;
     modalState.planStepFilter = null; // feat 494 — an aborted browse must not leave a stale step selection behind
     renderModal();
@@ -27714,12 +27708,14 @@ function bindPickerResults() {
         return;
       }
       // feat 499 — of the picker's two outcomes only ONE destroys: a cardio pick empties pending.sets.
-      // A strength→strength switch carries the typed sets over (filed in TODO.md), so no discard prompt there.
-      if (isCardioVar(varUuid) && enteredPendingSets() >= 2 && !modalState.isEditing && pending.varUuid && !_discardGranted(enteredPendingSets())) {
-        guardPendingDiscard(() => _applyPickedVar(varUuid, info), { action: 'Switching to a cardio exercise' });
-        return;
-      }
+      // (guardPendingDiscard runs synchronously below its threshold, so routing every cardio pick through it is safe.)
+      if (isCardioVar(varUuid)) { guardPendingDiscard(() => _applyPickedVar(varUuid, info), { action: 'Switching to a cardio exercise' }); return; }
+      // feat 507 — a strength→strength pick CARRIES the typed sets to the new exercise. That is a feature
+      // (you picked the barbell bench, meant the dumbbell one, and your numbers follow you), so it is not
+      // guarded — but it is no longer silent: a toast says where the sets went, so nothing is re-attributed by surprise.
+      const moved = (pending.varUuid && pending.varUuid !== varUuid) ? enteredPendingSets() : 0;
       _applyPickedVar(varUuid, info);
+      if (moved > 0) toast('↪ ' + moved + ' set' + (moved === 1 ? '' : 's') + ' moved to ' + displayName(pending.varUuid, pending.subUuid), 4000);
     });
   });
   // feat 167 — the "↳ primarily a <movement>" link on a cross-listed (secondary) variation jumps to its home
@@ -29341,7 +29337,10 @@ function bindSetsForm() {
   });
   document.getElementById('trk-change-exercise')?.addEventListener('click', () => {
     const go = () => { modalState.showPicker = true; modalState.planStepFilter = null; modalState.exNoteEditing = false; renderModal(); }; // feat 494 — Change exercise browses ALL: drop any lingering step filter (no more manual deselect)
-    guardPendingDiscard(go); // feat 151, now via the feat-499 shared guard
+    // feat 507 — no confirm. Opening the picker discards NOTHING: a strength pick carries the sets over (a feature,
+    // announced by a toast) and the only destructive pick — cardio — is guarded where it happens (feat 499).
+    // feat 151's "Picking a different exercise will discard them" was true of no route through this button.
+    go();
   });
 
   // feat 234/420 — one-tap prefill: load a reference weight into the first incomplete set (weight only — you
@@ -30178,7 +30177,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 430 · 2026-10-16 14:45';
+const APP_BUILD = 'build 431 · 2026-10-17 05:20';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

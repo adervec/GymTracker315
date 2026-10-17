@@ -157,7 +157,9 @@ test('feat 499 — picking a CARDIO exercise asks (it empties the sheet); streng
   expect(r.strengthSwitched).toBe(true);
 });
 
-test('feat 499 — one intent asks once: Change exercise then a cardio row does not double-prompt', async ({ page }) => {
+test('feat 507 — Change exercise then a cardio row prompts exactly once', async ({ page }) => {
+  // feat 499 needed a "grant" so this sequence did not ask twice. feat 507 dropped the Change-exercise
+  // prompt (it discards nothing), so the cardio pick is the ONLY prompt and the grant is gone.
   const r = await page.evaluate(() => {
     let s1 = null, cardio = null;
     for (const [u] of VAR_INDEX) {
@@ -166,27 +168,15 @@ test('feat 499 — one intent asks once: Change exercise then a cardio row does 
       if (isCardioVar(u)) { if (!cardio) cardio = u; continue; }
       if (!s1 && exMode(u).mode === 'standard') s1 = u;
     }
-    _discardGrant = null;
     pending = { varUuid: s1, subUuid: null, sets: [{ w: 100, r: 10 }, { w: 100, r: 9 }] };
     openLogModal(); modalState.isEditing = false; modalState.showPicker = false; renderModal();
-    document.getElementById('trk-change-exercise').click();          // prompt #1
-    const asked = !!document.querySelector('.choice-backdrop');
-    [...document.querySelectorAll('.choice-backdrop button')].find(b => /change exercise/i.test(b.textContent)).click();
-    return { asked };
+    document.getElementById('trk-change-exercise').click();
+    const afterChange = document.querySelectorAll('.choice-backdrop').length;
+    document.querySelector(`.picker-var[data-varuuid="${cardio}"]`).click();
+    const afterCardio = document.querySelectorAll('.choice-backdrop').length;
+    return { afterChange, afterCardio, grantGone: typeof _discardGrant === 'undefined' };
   });
-  expect(r.asked).toBe(true);
-  // the approval is recorded when the dialog's promise resolves (a microtask), so wait for it
-  await page.waitForFunction(() => !!_discardGrant, null, { timeout: 3000 });
-  await page.waitForFunction(() => !document.querySelector('.choice-backdrop'), null, { timeout: 3000 });
-  // the picker is now open on the granted sheet — a cardio row must apply without asking again
-  const second = await page.evaluate(() => {
-    let cardio = null;
-    for (const [u] of VAR_INDEX) { const i = VAR_INDEX.get(u); if (isCardioVar(u) && varVisibleInPicker(i.family, i.variation)) { cardio = u; break; } }
-    modalState.showPicker = true; renderModal();
-    const row = document.querySelector(`.picker-var[data-varuuid="${cardio}"]`);
-    if (row) row.click();
-    return { asked: !!document.querySelector('.choice-backdrop'), switched: pending.varUuid === cardio };
-  });
-  expect(second.asked, 'the same intent must not prompt twice').toBe(false);
-  expect(second.switched).toBe(true);
+  expect(r.afterChange, 'Change exercise asks nothing').toBe(0);
+  expect(r.afterCardio, 'the cardio pick asks exactly once').toBe(1);
+  expect(r.grantGone, 'no grant left to keep in sync').toBe(true);
 });
