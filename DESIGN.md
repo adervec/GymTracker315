@@ -2665,6 +2665,23 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The Arnold press splits into seated and standing (feat 510):** it was one entry whose own reference setup
+  read *"Seated or standing"*, so a seated set and a standing set shared one progression line even though
+  standing costs far more trunk and leg stability. Split as **two separate variations**, not a sub-option: a
+  sub-option starts a fresh tracking key per option (`trackingKey` is `varUuid|subUuid`) while old sets keep the
+  bare uuid, so the existing history would have landed under neither. The **existing entry keeps its uuid and
+  id** (`arnold-press`, so every logged set, plan option and cross-link still resolves) and is retitled
+  **Seated Arnold Press** — per the rule *"assume the one I have already done is the EASIER one"*, and seated is
+  the easier version since the backrest takes the trunk and legs out of it; its reference setup now says
+  "back against the pad" instead of "seated or standing". **Standing Arnold Press** is new, via
+  `pushCompactRows` on `shoulder-press` at slot **0x2CF** (next free is now 0x2D0), with its own reference entry
+  and a tip saying to expect less weight than seated. It gets the same `VAR_EQUIP_OVERRIDES` dumbbell entry as
+  its twin — without it a title with no equipment word inherits the family's first-listed *barbell* loader,
+  which is the exact original Arnold-press bug — and the same `adv` difficulty. The sweep that found it: every
+  other press, curl, raise, shrug, row and calf family was checked; the DB press, lateral raise and calf raise
+  are already split by position, and the DB overhead extension already carries Seated/Standing as sub-options.
+  The Barbell Overhead Press was deliberately left alone — conventionally it *means* standing, so relabelling
+  its history as seated would misdescribe what was logged. `test/arnoldsplit.spec.mjs`.
 - **A 🌍 Tiers slide in the tips carousel (feat 509):** the per-set 🌍 chip told you which tier a set landed in,
   but never what any tier would actually *take*, so the label read as a verdict you could not argue with. The
   carousel gains a seventh tab — feat 470 sized the row for seven before feat 474 moved Motion out — showing,

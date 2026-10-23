@@ -54,7 +54,7 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   keep the chips and add a "more audio settings →" link that deep-links into the drawer section.
   Ask which before picking — the quick menu's whole point is staying small.
 
-- [ ] **Split the exercises that conflate seated and standing into separate variations.**
+- [x] **Split the exercises that conflate seated and standing into separate variations.** — **feat 510**: decided as separate variations. The Arnold press was the one genuine conflation; the existing entry kept its uuid as **Seated Arnold Press** (the easier one, where the history belongs) and **Standing Arnold Press** was added. The other candidates were already split or modelled as sub-options; the Barbell OHP was left alone since it conventionally means standing.
   Requested 2026-10-09: *"some exercises are missing division into seated and standed variations
   such as arnold press. Assume the one I have already done is the EASIER one."*
 
@@ -299,3 +299,56 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
   Pick one, then make the dialog wording tell the truth for whichever it is. If carry-over stays, the
   confirm on that route should say "move to" rather than "discard" — and arguably should not require a
   confirm at all, since nothing is lost.
+
+## Shelved — AI Cowork integrations
+
+Brainstormed 2026-10-20 and **parked on purpose** — not scheduled. Marked ⏸ rather than `[ ]` so they never
+read as open work; promote one to `- [ ]` to activate it.
+
+Every idea fits the hub's existing pattern: the app writes a channel's `context.json`, the agent drops a reply
+envelope in `inbox/`, and the app **validates before importing** (Plan of the Day checks every step against real
+movements via `validateImportedPlan`; logged sets always stay master). So most are one feat each — a row in
+`COWORK_CHANNELS` (`gym-tracker.html:7034`), a context builder, an importer, and a validator.
+
+**Suggested order if picked up:** POD feedback → log anomaly sweep → diagnostics channel. Strength-standards
+research is the one to take if the tiers should rest on cited numbers rather than reasoning.
+
+**Close the loops that already exist**
+- ⏸ **Plan of the Day feedback.** Send back what you actually did after a POD — steps done or skipped, loads hit,
+  time taken. The data already exists in the plan execution recap (`planExecutionSummary`, feats 111/164); today
+  the agent writes each plan with no idea whether the last one was followed. *Top pick.*
+- ⏸ **Multi-week blocks.** POD covers one day. Let the agent propose a 4–8 week block with progression rules,
+  validated step by step by the same `validateImportedPlan`.
+- ⏸ **Weekly review.** Analysis (feat 450) answers free-text questions on demand. A standing weekly request —
+  what improved, what stalled, what is neglected, one change for next week — rendered on Reflect.
+
+**Let the agent do the tedious audits — the user approves, nothing applies automatically**
+- ⏸ **Log anomaly sweep.** Flag fat-finger sets (the 300 kg case feat 504 was built to survive), lb/kg mix-ups,
+  machine-total entries that should be one stack (the `fixweights` case), duplicate sessions, impossible e1RM
+  jumps. Each reply is a proposed fix accepted one at a time. *Top pick.*
+- ⏸ **Cross-link proposals.** The job done by hand in feat 497, where the raw title sweep was mostly false
+  positives. The agent proposes `family/variationId → base` links; the app rejects any that dangle or point at a
+  suppressed variation, reusing the invariants `wristroller.spec` and `dedupe.spec` already enforce.
+- ⏸ **Strength-standards research.** What feat 508 deliberately refused to guess. The agent finds population
+  data per movement *with sources*; the user approves each cutoff, stored with its citation.
+- ⏸ **Catalogue gaps.** Read free-text notes for exercises the user does that the catalogue lacks, and propose
+  custom variations (feat 16) for them.
+
+**Diagnostics**
+- ⏸ **Diagnostics channel.** Send the `logEvent` ring — including feat 506's heartbeats and auto-end warnings —
+  so the agent can explain an incident. The natural follow-up to the 2.5-hour timer item above: the agent reads
+  the log instead of the user. *Top pick.*
+
+**Context-aware planning**
+- ⏸ **Gym substitution.** Gyms already declare their equipment (feats 36–38). Training somewhere new, the agent
+  rewrites the plan around what is there, validated against that gym's kit.
+- ⏸ **Injury-aware changes.** The export vocab already carries the injury taxonomy (`INJURY_REGIONS`). Log a
+  tweak and the agent proposes a plan that avoids movements likely to aggravate it.
+- ⏸ **Readiness-driven deloads.** Garmin sleep and body data already come in and the export carries training
+  readiness. The agent could recommend a deload week or lighten today's plan from the trend.
+
+**Transport**
+- ⏸ **Ask from the phone.** Only the desktop polls the hub (`coworkPollAll` is desktop-only), so the phone cannot
+  start an agent run. A synced "request now" flag the desktop picks up on its next cycle would cut the wait.
+- ⏸ **Calendar placement.** Export upcoming planned sessions and let the agent place them in a calendar. It
+  writes outside the app, so it must propose events for the user to confirm rather than add them itself.
