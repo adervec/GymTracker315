@@ -8585,6 +8585,43 @@ function buildAppExportPayload(opts) {
     },
   };
 }
+/* feat 514 — DIAGNOSTICS, through the existing Analysis channel rather than a sixth one. Analysis already has a
+   question queue, an agent that answers and a page that shows the answers; what it lacked was EVIDENCE about the
+   app itself. diagnosticsTrail() is that evidence, derived from feat 506's heartbeats (which ride the render
+   path, so silence is the signal): a HEARTBEAT GAP is the screen going quiet for 20+ minutes mid-workout and
+   coming back (backgrounded, or frozen and recovered); a SILENT END is a workout that ended 20+ minutes after its
+   last heartbeat — it went quiet and never came back, the exact shape of "the timers stopped 2.5 h in". */
+function diagnosticsTrail(nowMs) {
+  const now = nowMs || Date.now(), DAY = 86400000, QUIET_MIN = 20;
+  const inWin = ts => { const t = new Date(ts).getTime(); return t <= now && (now - t) <= 14 * DAY; };
+  const num = (re, s) => { const m = re.exec(s || ''); return m ? +m[1] : null; };
+  const log = (typeof _eventLog !== 'undefined' && Array.isArray(_eventLog)) ? _eventLog : [];
+  const recent = log.filter(e => inWin(e.ts));
+  const beats = recent.filter(e => e.msg === 'Workout heartbeat').map(e => ({ ts: e.ts, elapsed: num(/elapsed (\d+)m/, e.detail),
+    page: ((/page (\w+)/.exec(e.detail || '')) || [])[1] || null }));
+  const heartbeatGaps = [];
+  for (let i = 1; i < beats.length; i++) {
+    const a = beats[i - 1], b = beats[i], gapMin = Math.round((new Date(b.ts) - new Date(a.ts)) / 60000);
+    // same workout (elapsed kept counting up) and longer than two missed beats
+    if (a.elapsed != null && b.elapsed != null && b.elapsed > a.elapsed && gapMin > QUIET_MIN)
+      heartbeatGaps.push({ from: a.ts, to: b.ts, gapMin, elapsedAtResume: b.elapsed, pageBefore: a.page, pageAfter: b.page });
+  }
+  const sessions = (state.sessions || []).filter(s => inWin(s.date)).map(s => {
+    const start = new Date(s.date).getTime(), end = s.endedAt ? new Date(s.endedAt).getTime() : null;
+    const mine = beats.filter(b => { const t = new Date(b.ts).getTime(); return t >= start && (end == null || t <= end); });
+    const lastBeat = mine.length ? mine[mine.length - 1].ts : null;
+    const silent = (end && lastBeat) ? Math.round((end - new Date(lastBeat).getTime()) / 60000) : null;
+    return { date: s.date, endedAt: s.endedAt || null, endReason: s.endReason || null,
+      durationMin: end ? Math.round((end - start) / 60000) : null,
+      sets: (s.exercises || []).reduce((n, e) => n + ((e.sets || []).length), 0),
+      heartbeats: mine.length, lastHeartbeat: lastBeat, silentBeforeEndMin: (silent != null && silent > QUIET_MIN) ? silent : null };
+  }).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const runs = (typeof coworkHistory === 'function' ? (coworkHistory() || []) : []).filter(r => r && inWin(r.at));
+  return { windowDays: 14, appBuild: (typeof APP_BUILD !== 'undefined' ? APP_BUILD : null),
+    userAgent: (typeof navigator !== 'undefined' ? navigator.userAgent : null),
+    autoEndLimitMin: (state.workoutControls || {}).autoEndMinutes || 40,
+    heartbeatGaps, sessions, coworkFailures: runs.filter(r => !r.ok).slice(-20), log: recent.slice(-300) };
+}
 // Per-channel context the agent needs to do its specific job.
 function buildChannelContext(channel) {
   const safe = (fn, fb) => { try { return fn(); } catch (_) { return fb; } };
@@ -8605,7 +8642,7 @@ function buildChannelContext(channel) {
     // feat 450 — the still-open analysis requests the agent should answer (answered ones drop out).
     const requests = (state.analysisRequests || []).filter(r => r && r.status !== 'answered')
       .map(r => ({ id: r.id, question: r.q, note: r.note || '', created: r.created }));
-    return { requests };
+    return { requests, diagnostics: safe(() => diagnosticsTrail(), null) }; // feat 514 — evidence for questions about the app itself
   }
   if (channel === 'logreview') {
     // feat 513 — the sets the app flagged as possible typos, each with that lift's recent history so the agent can
@@ -8644,7 +8681,7 @@ function buildInstructionsMd(channel) {
   if (channel === 'logreview') return head +
 `## kind: \`log-review-output\`\nThe app flagged possible data-entry errors in \`context.json\` \u2192 \`anomalies\`. For each, judge whether it is a typo and, if so, what was most likely meant. Payload:\n\n\`\`\`json\n{ "proposals": [\n  { "id": "<anomaly id>", "action": "fix", "intended": { "w": 30, "r": 12 }, "reason": "a slipped decimal \u2014 every other set that week was 27.5-32.5" },\n  { "id": "<anomaly id>", "action": "keep", "reason": "consistent with the lift's steady climb" } ] }\n\`\`\`\n\n- Judge each one from its \`recentHistory\`. Propose \`fix\` only when the intended value is CLEARLY a typo \u2014 a slipped decimal, weight and reps swapped, a lb/kg mix-up, a doubled digit. When unsure, propose \`keep\` with your reason, or leave it out.\n- **Nothing is changed automatically.** The user approves every fix in the app, one at a time; an unusable \`intended\` is dropped, never half-applied.\n`;
   if (channel === 'analysis') return head +
-`## kind: \`analysis-output\`\nAnswer the open analysis requests in \`context.json\` using the training data in \`../app-export.json\`. Payload:\n\n\`\`\`json\n{ "answers": [ { "id": "<request id from context.json>", "answer": "Your written analysis — plain text, newlines ok." } ] }\n\`\`\`\n\n- Answer EVERY request in \`context.json\` → \`requests\`; match each answer to its request \`id\` exactly (unknown ids are ignored).\n- Ground every claim in the actual logged data (sessions, volume, bodyComp, trends) — cite lifts, dates, numbers. No medical advice.\n`;
+`## kind: \`analysis-output\`\nAnswer the open analysis requests in \`context.json\` using the training data in \`../app-export.json\`. Payload:\n\n\`\`\`json\n{ "answers": [ { "id": "<request id from context.json>", "answer": "Your written analysis — plain text, newlines ok." } ] }\n\`\`\`\n\n- Answer EVERY request in \`context.json\` → \`requests\`; match each answer to its request \`id\` exactly (unknown ids are ignored).\n- Ground every claim in the actual logged data (sessions, volume, bodyComp, trends) — cite lifts, dates, numbers. No medical advice.\n- **Questions about the app itself** (timers stopping, a workout ending on its own, sync not happening): answer from \`context.json\` \u2192 \`diagnostics\`. \`heartbeatGaps\` = the screen went quiet for 20+ min mid-workout and came back (usually backgrounded or locked). A session's \`silentBeforeEndMin\` = it went quiet and NEVER came back before the workout ended \u2014 a freeze, or the page being reclaimed. \`endReason: "auto-inactivity"\` = the app ended it after \`autoEndLimitMin\` minutes with no logged set, which stops every timer legitimately and looks exactly like breakage. Also read \`coworkFailures\` and the raw \`log\`. Cite timestamps, and say plainly when the evidence is not there rather than guessing.\n`;
   return head +
 `## kind: \`pod-output\`\nGenerate one or more "Plan of the Day" plans. Honour \`options.json\` (notes, injuries to avoid, available gyms/equipment, available minutes, target mode, fitness focus) and \`context.json\` (recovery readiness, recent split, equipment, focus). Payload:\n\n\`\`\`json\n{ "date": "YYYY-MM-DD", "rationale": "why these",\n  "plans": [ { "name": "...", "desc": "...", "intensity": 4,\n    "steps": [ { "sets": 4, "load": "heavy", "desc": "...", "options": [ { "type": "movement", "familyId": "squat" } ] } ] } ] }\n\`\`\`\n\n- **Reference only REAL ids** from \`app-export.json\` → \`vocab\` (\`movementFamilies[].id\` for \`familyId\`, \`cardioVariations[].uuid\` for \`{type:"variation",uuid}\`). The importer drops unknown options and rejects empty plans.\n- Avoid anything contraindicated by the selected injuries.\n- **Read \`context.json\` \u2192 \`recentOutcomes\` first** \u2014 what happened to the plans you already wrote: \`status\` (done / not-done / pending), each step's sets logged against target, whether it was \`skipped\`, whether the \`load\` target was hit, the real \`durationMin\` against your \`estimatedMin\`, and \`didInstead\` when a different workout replaced yours. Adapt to it: shorten plans that keep running long, stop prescribing what keeps getting skipped, progress what was completed with loads hit, and if plans are routinely not done, make them easier to start.\n- \`options.availableMinutes\` is a **range** \`{ min, max }\`. Keep every plan's estimated time within it, and offer a few options spanning the range — but **always include at least one plan that uses most of the available maximum** (close to \`max\`). Don't return only short plans when lots of time is available (e.g. for a 180-min max, don't propose just 75 and 45-min plans), even if recovery is low — bias the longer option toward volume/accessory work, not heavier load.\n`;
 }
@@ -9090,7 +9127,7 @@ function renderAnalysisPage(main) {
   const deskCowork = ('showDirectoryPicker' in window) && state.cowork && state.cowork.enabled;
   const composer = (val, id) => `<div class="card">
     <div class="card-title">${id ? '✏️ Edit request' : '➕ New analysis request'}</div>
-    <textarea id="ar-input" rows="3" placeholder="e.g. How has my bench press progressed over the last 3 months? Am I neglecting any muscle group?"
+    <textarea id="ar-input" rows="3" placeholder="e.g. How has my bench press progressed over the last 3 months? Am I neglecting any muscle group? Why did my timers stop on Tuesday?"
       style="width:100%;box-sizing:border-box;padding:8px;font-size:13px;font-family:inherit;border-radius:6px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);resize:vertical;">${escapeHtml(val || '')}</textarea>
     <div style="display:flex;gap:8px;margin-top:8px;">
       <button class="drawer-btn" id="ar-save" style="flex:1;">${id ? 'Save' : 'Add request'}</button>
@@ -30682,7 +30719,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 437 · 2026-10-23 14:02';
+const APP_BUILD = 'build 438 · 2026-10-23 14:19';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -83,7 +83,7 @@ Open items, not yet scheduled. Shipped work is logged in `DESIGN.md` §3; the or
     and anything new needs the usual: reference entry, `FAMILY_MOTION`/`MOTION_VARS` coverage, and a
     cross-link pass per feat 497 if it is a base pattern on different support.
 
-- [~] **Timer functions appeared to stop working ~2.5 h into a workout (seen once).** — **feat 506** added the diagnostics rather than a fix, since there is still no repro: a 10-minute heartbeat on the render path (so a freeze is bounded by its last entry) and a visible, logged auto-end carrying the idle minutes. **Next occurrence: export the log from the Data page** — it will show either an auto-end with its idle minutes, or heartbeats stopping at the freeze. Lead 2 below (twelve `setInterval` sites with no revive-on-visible path) is still open and unproven.
+- [~] **Timer functions appeared to stop working ~2.5 h into a workout (seen once).** — **feat 506** added the diagnostics rather than a fix, since there is still no repro: a 10-minute heartbeat on the render path (so a freeze is bounded by its last entry) and a visible, logged auto-end carrying the idle minutes. **Next occurrence: ask it as an Analysis question** ("why did my timers stop on <day>?") — feat 514 gives the agent the heartbeat gaps and silent ends to answer from; exporting the log from the Data page still works too — it will show either an auto-end with its idle minutes, or heartbeats stopping at the freeze. Lead 2 below (twelve `setInterval` sites with no revive-on-visible path) is still open and unproven.
   Reported 2026-10-09: *"timer functions appeared to stop working about 2.5h into a workout one
   time."* One occurrence, no repro, and "timer functions" is not pinned to a specific timer yet —
   next time it happens, note **which** timer froze (rest countdown, hold timer, workout clock,
@@ -335,7 +335,7 @@ research is the one to take if the tiers should rest on cited numbers rather tha
   custom variations (feat 16) for them.
 
 **Diagnostics**
-- ⏸ **Diagnostics channel.** *(Partly covered by feat 511: the brief carries the last heartbeat, auto-ends and recent warnings. Still shelved: a dedicated channel where the agent explains an incident.)* Send the `logEvent` ring — including feat 506's heartbeats and auto-end warnings —
+- [x] **Diagnostics channel.** — done as **feat 514**, through the existing Analysis channel rather than a sixth one: ask "why did my timers stop?" as a normal analysis question; its context now carries heartbeat gaps, silent ends, auto-ends and the event log. Send the `logEvent` ring — including feat 506's heartbeats and auto-end warnings —
   so the agent can explain an incident. The natural follow-up to the 2.5-hour timer item above: the agent reads
   the log instead of the user. *Top pick.*
 

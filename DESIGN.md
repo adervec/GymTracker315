@@ -2665,6 +2665,20 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Diagnostics through the Analysis channel (feat 514):** the shelved plan was a sixth cowork channel for
+  diagnosing incidents, but the **Analysis** channel already has everything such a channel needs — a question
+  queue, an agent that answers, and a page that shows answers. What it lacked was *evidence about the app
+  itself*. So instead of a new channel, its `context.json` gains a `diagnostics` block from `diagnosticsTrail()`,
+  and you ask "why did my timers stop on Tuesday?" like any other question (the placeholder now suggests it).
+  The trail is derived from feat 506's heartbeats — which ride the render path, so *silence* is the signal: a
+  **heartbeat gap** is the screen going quiet for 20+ minutes mid-workout and coming back (usually backgrounded
+  or locked); a session's **`silentBeforeEndMin`** is a workout that ended 20+ minutes after its last heartbeat —
+  it went quiet and never came back, which is precisely the shape of "the timers stopped 2.5 h in" — as distinct
+  from **`endReason: auto-inactivity`**, the app's own 40-minute auto-end, which stops every timer legitimately
+  and looks identical from the outside. Plus the last 14 days of the event log (capped at 300 entries), recent
+  cowork failures, the app build and the user agent. The Analysis `INSTRUCTIONS.md` explains how to read each
+  signal and to say plainly when the evidence is not there rather than guess. With this, the open 2.5-hour timer
+  todo becomes answerable the next time it happens. `test/diagtrail.spec.mjs`.
 - **The log review (feat 513):** feat 511 started flagging sets that look like typos (`findLogAnomalies`), but
   there was nowhere to *act* on them. Now: every flagged set gets a **stable per-set id** (a hash of session date,
   variation, set index, weight and reps — two checks on one set share it). A **fifth cowork channel,
