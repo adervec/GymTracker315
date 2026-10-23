@@ -2665,6 +2665,38 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **A morning-brief digest in the cowork folder (feat 511):** `app-export.json` ships RAW data — sessions,
+  Strava, body comp, plans, a recovery snapshot — so a separate morning-brief task reading the folder had to
+  re-derive every conclusion the app already draws (e1RM trends, PRs, tiers, plateaus, muscle balance,
+  readiness), and could land on numbers subtly different from what the app shows. The hub now also writes
+  **`brief.json`** (a `morning-brief` envelope) and **`BRIEF.md`**, both from one pure `buildMorningBrief()`
+  built entirely on the app's own functions: the **last workout** with PRs judged against everything before it;
+  **training load** for the last 7 / prior 7 / last 28 days; every **lift** trained in 90 days with its best
+  e1RM, 30-day trend, objective tier, plateau flag and whether it set a new all-time best; **muscle balance**
+  (3-week average weekly sets vs target); **readiness** and 7-day **recovery** averages; **bodyweight** and its
+  30-day change; the **active plan / today's Plan of the Day**; possible **data-entry errors**; the feat-506
+  **diagnostic** trail; open **analysis questions**; and a **Method** section saying exactly how each number is
+  computed. Two things make it trustworthy rather than merely present: a **Data gaps** list states what is
+  missing (no Garmin data means recovery is *empty*, not zero; no gender means no tiers) so a brief never invents
+  around it, and `BRIEF.md` closes with **guidance on writing the brief** (lead with today, cite the numbers,
+  treat anomalies as "worth checking", no medical advice). `findLogAnomalies` is the seed of the shelved log
+  sweep: it flags a set more than 25% above that lift's prior *sessions'* best, a weight above the exercise's
+  max, or 50+ reps on a rep-counted lift — and changes nothing.
+  **Freshness:** the brief is rewritten on every hub export (after workouts and on the feat-458 schedule) and
+  by the periodic inbox poll whenever its *content* changed — the timestamp is excluded from that hash, so an
+  idle folder is not rewritten identically every few minutes, yet freshly imported Garmin/Strava data reaches
+  it. That hash first failed because `compositeRecovery()` is an unrounded fraction that creeps up continuously;
+  it is carried as a whole percent. **A review of a rendered brief caught a real error before shipping:** a
+  squat re-matching 142.5×5 for six sessions was labelled "all-time best this month", beside an open question
+  asking why the squat had stalled — the flag meant *matched* where it must mean *beaten*, and the app's
+  plateau detector does not fire when the best keeps being re-matched. It is now `newAllTimeBest30` (strictly
+  above everything before 30 days), and a 0% trend across 3+ sessions reads "flat for 30 days". A second bug was
+  caught before shipping too: `dailyDate` is a plain `YYYY-MM-DD`, and parsing it with `new Date()` reads UTC
+  midnight — in any timezone west of UTC that is the *previous* local day, so today's Plan of the Day would never
+  have matched. It is compared as a string; the regression test pins `timezoneId: 'America/New_York'` because in
+  UTC (where CI runs) the bug happens to give the right answer, and it was confirmed to fail with the bug put back.
+  The README now sends any agent to `BRIEF.md` first. `test/morningbrief.spec.mjs` (12 tests, including the stall
+  and the timezone case).
 - **The Arnold press splits into seated and standing (feat 510):** it was one entry whose own reference setup
   read *"Seated or standing"*, so a seated set and a standing set shared one progression line even though
   standing costs far more trunk and leg stability. Split as **two separate variations**, not a sub-option: a

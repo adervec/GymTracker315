@@ -8626,8 +8626,281 @@ function buildInstructionsMd(channel) {
   return head +
 `## kind: \`pod-output\`\nGenerate one or more "Plan of the Day" plans. Honour \`options.json\` (notes, injuries to avoid, available gyms/equipment, available minutes, target mode, fitness focus) and \`context.json\` (recovery readiness, recent split, equipment, focus). Payload:\n\n\`\`\`json\n{ "date": "YYYY-MM-DD", "rationale": "why these",\n  "plans": [ { "name": "...", "desc": "...", "intensity": 4,\n    "steps": [ { "sets": 4, "load": "heavy", "desc": "...", "options": [ { "type": "movement", "familyId": "squat" } ] } ] } ] }\n\`\`\`\n\n- **Reference only REAL ids** from \`app-export.json\` → \`vocab\` (\`movementFamilies[].id\` for \`familyId\`, \`cardioVariations[].uuid\` for \`{type:"variation",uuid}\`). The importer drops unknown options and rejects empty plans.\n- Avoid anything contraindicated by the selected injuries.\n- \`options.availableMinutes\` is a **range** \`{ min, max }\`. Keep every plan's estimated time within it, and offer a few options spanning the range — but **always include at least one plan that uses most of the available maximum** (close to \`max\`). Don't return only short plans when lots of time is available (e.g. for a 180-min max, don't propose just 75 and 45-min plans), even if recovery is low — bias the longer option toward volume/accessory work, not heavier load.\n`;
 }
+/* ============================================================
+   feat 511 — MORNING BRIEF DIGEST. app-export.json ships RAW data (sessions, Strava, body comp, plans), so a
+   separate "morning brief" task reading this folder had to re-derive every conclusion the app already draws —
+   e1RM trends, PRs, tiers, plateaus, muscle balance, readiness — and could easily land on numbers subtly
+   different from what the app itself shows. brief.json carries the CONCLUSIONS, computed with the app's own
+   functions, and BRIEF.md renders them as a ready-to-read digest with guidance on writing the brief.
+   Every section is wrapped in safe(): one failing helper blanks its own section, never the whole brief.
+   ============================================================ */
+const BRIEF_LIFT_LIMIT = 30, BRIEF_ANOMALY_LIMIT = 15, BRIEF_JUMP_PCT = 25;
+// Possible data-entry errors — the seed of the shelved "log anomaly sweep". The APP detects; an agent may
+// explain or propose a fix, but nothing is ever changed automatically (logged sets stay master).
+function findLogAnomalies(nowMs) {
+  const now = nowMs || Date.now(), DAY = 86400000, out = [], best = new Map();
+  const ordered = (state.sessions || []).slice().sort((a, b) => new Date(a.date) - new Date(b.date)); // oldest first
+  ordered.forEach(s => (s.exercises || []).forEach(ex => {
+    if (ex.cardio || !ex.varUuid || !(ex.sets && ex.sets.length)) return;
+    const key = trackingKey(ex.varUuid, ex.subUuid);
+    const prior = best.get(key) || 0;                       // measured against EARLIER sessions only
+    const recent = (now - new Date(s.date).getTime()) <= 60 * DAY;
+    const cap = exMaxW(ex.varUuid), standard = exMode(ex.varUuid).mode === 'standard';
+    let top = 0;
+    ex.sets.forEach((st, i) => {
+      const w = parseFloat(st.w), r = parseFloat(st.r);
+      if (!(w > 0) || !(r > 0)) return;
+      const e = estimated1RM(w, Math.min(r, 12)) || 0;
+      if (recent) {
+        const at = { date: String(s.date).slice(0, 10), exercise: displayName(ex.varUuid, ex.subUuid), set: i + 1, w, r };
+        if (prior > 0 && e > prior * (1 + BRIEF_JUMP_PCT / 100))
+          out.push({ ...at, kind: 'jump', detail: 'e1RM ' + Math.round(e) + ' vs prior best ' + Math.round(prior) + ' (+' + Math.round((e / prior - 1) * 100) + '%)' });
+        if (cap && w > cap) out.push({ ...at, kind: 'over-cap', detail: w + ' is above this exercise\'s max weight of ' + cap });
+        if (standard && r > 50) out.push({ ...at, kind: 'reps', detail: r + ' reps on a rep-counted lift' });
+      }
+      if (e > top) top = e;
+    });
+    if (top > prior) best.set(key, top);
+  }));
+  return out.slice(-BRIEF_ANOMALY_LIMIT).reverse();          // newest first
+}
+function buildMorningBrief(nowMs) {
+  const now = nowMs || Date.now(), DAY = 86400000;
+  const safe = (fn, fb) => { try { const v = fn(); return v === undefined ? fb : v; } catch (_) { return fb; } };
+  const u = state.unit || 'lb';
+  const r1 = x => Math.round(x * 10) / 10;
+  const ago = d => Math.floor((now - new Date(d).getTime()) / DAY);
+  const within = (d, days) => { const t = new Date(d).getTime(); return t <= now && (now - t) <= days * DAY; };
+  const localDay = d => { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+  const toU = kg => u === 'kg' ? r1(kg) : r1(kgToLb(kg));
+  const done = (state.sessions || []).filter(s => (s.exercises || []).some(e => (e.sets && e.sets.length) || e.cardio))
+    .slice().sort((a, b) => new Date(b.date) - new Date(a.date));                // newest first
+  const last = done[0] || null;
+  const bwKg = safe(() => getCurrentBodyweightKg(), null);
+  const recLog = safe(() => recoveryLogSorted(), []);
+  const seriesOf = (vu, su) => safe(() => getHistoryByKey(vu, su), []).map(h => ({ date: h.date, e: safe(() => sessionBestE1RM(h), 0) || 0 }));
+
+  // ---- last workout, with PRs judged against everything BEFORE it
+  const lastWorkout = safe(() => last ? {
+    date: last.date, daysAgo: ago(last.date),
+    durationMin: last.endedAt ? Math.round((new Date(last.endedAt) - new Date(last.date)) / 60000) : null,
+    endReason: last.endReason || null,
+    plan: last.planId ? (((state.plans || []).find(p => p.id === last.planId)) || {}).name || null : null,
+    exercises: (last.exercises || []).map(ex => {
+      const name = displayName(ex.varUuid, ex.subUuid);
+      if (ex.cardio) return { exercise: name, cardio: true, minutes: ex.cardio.elapsedMin || null, distance: ex.cardio.distance || null };
+      const sets = (ex.sets || []).filter(s => parseFloat(s.w) > 0 && parseFloat(s.r) > 0);
+      if (!sets.length) return { exercise: name, sets: 0 };
+      const top = sets.reduce((b, s) => (estimated1RMSet(s) > estimated1RMSet(b) ? s : b), sets[0]);
+      const e = Math.round(estimated1RMSet(top));
+      const prior = seriesOf(ex.varUuid, ex.subUuid).filter(h => new Date(h.date) < new Date(last.date)).reduce((m, h) => Math.max(m, h.e), 0);
+      return { exercise: name, sets: sets.length, topSet: top.w + '×' + top.r, e1RM: e,
+        pr: prior > 0 && e > prior, firstTime: prior === 0, priorBestE1RM: prior ? Math.round(prior) : null };
+    }),
+  } : null, null);
+
+  // ---- training load
+  const span = (from, to) => done.filter(s => { const a = ago(s.date); return a >= from && a < to; });
+  const stats = list => ({ sessions: list.length,
+    sets: list.reduce((n, s) => n + (s.exercises || []).reduce((m, e) => m + ((e.sets || []).length), 0), 0),
+    minutes: Math.round(list.reduce((n, s) => n + (s.endedAt ? Math.max(0, (new Date(s.endedAt) - new Date(s.date)) / 60000) : 0), 0)) });
+  const training = { last7: stats(span(0, 7)), prior7: stats(span(7, 14)), last28: stats(span(0, 28)),
+    megaLast7: safe(() => recentMegaLoad(7), {}) };
+
+  // ---- every lift trained in the last 90 days
+  const lifts = safe(() => allTrackedKeys().map(k => {
+    const s = seriesOf(k.varUuid, k.subUuid);
+    if (!s.length || !within(s[0].date, 90)) return null;
+    const max = arr => arr.reduce((m, x) => Math.max(m, x.e), 0);
+    const win = (a, b) => s.filter(x => { const d = ago(x.date); return d >= a && d < b; });
+    const best = max(s), b30 = max(win(0, 30)), p30 = max(win(30, 60)), before30 = max(s.filter(x => ago(x.date) >= 30));
+    const pl = safe(() => detectPlateau(k.varUuid, k.subUuid), null);
+    const tier = best > 0 ? safe(() => objectiveSetTier(k.varUuid, { w: best, r: 1 }), null) : null; // estimated1RM(w,1) === w
+    return { exercise: displayName(k.varUuid, k.subUuid), lastDone: String(s[0].date).slice(0, 10), daysSince: ago(s[0].date),
+      sessions90: s.filter(x => within(x.date, 90)).length, sessions30: win(0, 30).length,
+      bestE1RM: Math.round(best), best30: b30 ? Math.round(b30) : null, prior30: p30 ? Math.round(p30) : null,
+      trend30Pct: (b30 && p30) ? r1((b30 / p30 - 1) * 100) : null,
+      // BEATEN, not merely matched: a lift re-hitting the same top weight for weeks is a stall, and calling it
+      // "an all-time best this month" would contradict the very plateau the user is asking about
+      newAllTimeBest30: b30 > 0 && b30 > before30,
+      tier: tier ? tier.label : null,
+      plateau: pl ? { sessions: pl.sessions, spanDays: pl.spanDays, bestE1RM: pl.bestE1RM } : null };
+  }).filter(Boolean).sort((a, b) => a.daysSince - b.daysSince).slice(0, BRIEF_LIFT_LIMIT), []);
+
+  // ---- muscle balance (3-week average weekly sets vs each muscle's target)
+  const muscles = safe(() => {
+    const status = muscleVolStatusMap('muscle'), weekly = recentMuscleWeekly('muscle', 3), out = [];
+    MUSCLE_GROUPS_MODEL.forEach(g => g.muscles.forEach(m => out.push({ muscle: m.label, group: g.label,
+      weeklySets: r1(weekly[m.id] || 0), target: r1((m.mav || 0) * safe(() => muscleWeight(m.id), 1)), status: status[m.id] || 'neutral' })));
+    return out;
+  }, []);
+
+  // ---- recovery
+  const last7 = recLog.filter(r => within(r.date, 7));
+  const avg = k => { const v = last7.map(r => r[k]).filter(x => x != null && !isNaN(x)); return v.length ? r1(v.reduce((a, b) => a + b, 0) / v.length) : null; };
+  const recovery = {
+    readiness: safe(() => { const t = trainingReadiness(); if (!t) return null;
+      return { score: t.score, status: (t.status && typeof t.status === 'object') ? (t.status.label || t.status.key) : t.status,
+        action: t.action || null, factors: t.factors || null }; }, null),
+    // a whole percent: compositeRecovery() is a fraction that creeps up continuously, so the raw float made every
+    // brief differ and defeated the skip-unchanged check; as a percent it moves every couple of hours at most
+    compositePct: safe(() => { const c = compositeRecovery(); return typeof c === 'number' ? Math.round(c * 100) : null; }, null),
+    last7: { days: last7.length, sleepScore: avg('sleepScore'), hrv: avg('hrv'), restingHr: avg('restingHr'), bodyBattery: avg('bodyBattery') },
+    latest: recLog.length ? recLog[recLog.length - 1] : null,
+  };
+
+  // ---- bodyweight
+  const body = safe(() => {
+    const bc = (state.bodyComp || []).filter(b => b.weightKg > 0).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    if (!bc.length) return null;
+    const latest = bc[bc.length - 1], old = bc.filter(b => ago(b.date) >= 30).pop();
+    return { latest: toU(latest.weightKg), date: String(latest.date).slice(0, 10), change30: old ? r1(toU(latest.weightKg) - toU(old.weightKg)) : null };
+  }, null);
+
+  // ---- plans
+  const today = localDay(now);
+  const plans = safe(() => {
+    const a = getActivePlan();
+    return { active: a ? { name: a.name, steps: (a.steps || []).length } : null,
+      // dailyDate is a plain 'YYYY-MM-DD' string: compare it as one. Parsing it with new Date() reads UTC midnight,
+      // which in any timezone west of UTC is the PREVIOUS local day — today's plan would never have matched.
+      planOfTheDay: (state.plans || []).filter(p => p.source === 'daily' && p.dailyDate && String(p.dailyDate).slice(0, 10) === today)
+        .map(p => ({ name: p.name, rationale: p.dailyRationale || '', estMin: safe(() => estimatePlanMinutes(p), null) })) };
+  }, { active: null, planOfTheDay: [] });
+
+  // ---- diagnostics (feat 506's heartbeat + auto-end trail)
+  const log = (typeof _eventLog !== 'undefined' && Array.isArray(_eventLog)) ? _eventLog : [];
+  const beats = log.filter(e => e.msg === 'Workout heartbeat');
+  const diagnostics = {
+    lastHeartbeat: beats.length ? { at: beats[beats.length - 1].ts, detail: beats[beats.length - 1].detail } : null,
+    autoEnds: log.filter(e => e.msg === 'Workout auto-ended (inactivity)' && within(e.ts, 14)).map(e => ({ at: e.ts, detail: e.detail })),
+    warnings: log.filter(e => (e.level === 'warn' || e.level === 'error') && e.msg !== 'Workout auto-ended (inactivity)' && within(e.ts, 7))
+      .slice(-10).map(e => ({ at: e.ts, level: e.level, msg: e.msg, detail: e.detail })),
+  };
+
+  // ---- what is missing, said out loud so the brief never invents it
+  const gaps = [];
+  if (!last) gaps.push('No workouts logged yet.');
+  else if (ago(last.date) >= 7) gaps.push('No workout in ' + ago(last.date) + ' days.');
+  if (!recLog.length) gaps.push('No Garmin recovery data has been imported — recovery fields are EMPTY, not zero.');
+  else if (ago(recLog[recLog.length - 1].date) >= 2) gaps.push('Garmin recovery data is ' + ago(recLog[recLog.length - 1].date) + ' days old — the Garmin channel may not have run.');
+  if (!bwKg) gaps.push('No bodyweight on record, so strength tiers are unavailable.');
+  if (!(state.profile && state.profile.gender)) gaps.push('No gender set, so strength tiers are unavailable.');
+
+  return {
+    meta: { generatedAt: new Date(now).toISOString(), today, appBuild: (typeof APP_BUILD !== 'undefined' ? APP_BUILD : null), unit: u,
+      profile: { bodyweight: bwKg ? toU(bwKg) : null, gender: (state.profile && state.profile.gender) || null,
+        age: safe(() => state.profile.dob ? ageFromDob(state.profile.dob) : null, null) },
+      freshness: { lastWorkoutAt: last ? last.date : null, daysSinceLastWorkout: last ? ago(last.date) : null,
+        lastRecoveryDate: recLog.length ? String(recLog[recLog.length - 1].date).slice(0, 10) : null },
+      gaps },
+    lastWorkout, training, lifts, muscles, recovery, body, plans,
+    anomalies: safe(() => findLogAnomalies(now), []),
+    diagnostics,
+    openQuestions: (state.analysisRequests || []).filter(r => r && r.status !== 'answered').map(r => ({ id: r.id, question: r.q, created: r.created })),
+    method: {
+      e1RM: 'Epley — weight × (1 + reps/30), RPE-aware when RPE was logged. The same number the app\'s trends and targets use.',
+      tier: 'Objective population standard for this bodyweight / gender / age, reps capped at 12. Machine and isolation lifts cap at Elite (feats 503/508).',
+      trend30Pct: 'Best e1RM in the last 30 days against the best in the 30 days before that.',
+      plateau: 'Top e1RM has held within ±2% for 3+ sessions spanning 2+ weeks, with the best 3+ sessions old. A lift that keeps RE-MATCHING its best does not trip this — so also read trend30Pct: 0% across 3+ sessions in 30 days is a stall too.',
+      newAllTimeBest30: 'The best e1RM of the last 30 days is strictly ABOVE everything before it — matching an old best does not count.',
+      muscleStatus: '3-week average weekly sets against the muscle\'s target: lagging under 55% of target, leading above it.',
+      anomalies: 'POSSIBLE data-entry errors: a set more than ' + BRIEF_JUMP_PCT + '% above that lift\'s prior best, above its max weight, or over 50 reps. Say "worth checking", never treat them as fact.',
+    },
+  };
+}
+// The same digest as Markdown, so a brief task can read it top to bottom and quote it directly.
+function buildMorningBriefMd(b) {
+  const u = b.meta.unit, L = [];
+  const pct = x => (x == null ? '—' : (x > 0 ? '+' : '') + x + '%');
+  L.push('# GymTracker — morning brief data', '');
+  L.push('Generated ' + b.meta.generatedAt + ' (' + (b.meta.appBuild || 'unknown build') + '). Weights in **' + u + '**.', '');
+  L.push('**Every number here was computed by the app with its own formulas** (see Method at the end). Use them as given rather than re-deriving them from `app-export.json` — that file is there for detail you cannot find here.', '');
+  if (b.meta.gaps.length) { L.push('## Data gaps — do not invent around these', ''); b.meta.gaps.forEach(g => L.push('- ' + g)); L.push(''); }
+
+  L.push('## At a glance', '');
+  const lw = b.lastWorkout;
+  if (lw) {
+    const prs = lw.exercises.filter(e => e.pr).length;
+    L.push('- **Last workout:** ' + String(lw.date).slice(0, 10) + ' (' + lw.daysAgo + ' day' + (lw.daysAgo === 1 ? '' : 's') + ' ago)' +
+      (lw.plan ? ', plan "' + lw.plan + '"' : '') + (lw.durationMin != null ? ', ' + lw.durationMin + ' min' : '') +
+      (prs ? ', **' + prs + ' PR' + (prs === 1 ? '' : 's') + '**' : '') + (lw.endReason === 'auto-inactivity' ? ' — ended automatically for inactivity' : ''));
+  }
+  const t = b.training;
+  L.push('- **Last 7 days:** ' + t.last7.sessions + ' sessions, ' + t.last7.sets + ' sets, ' + t.last7.minutes + ' min (prior 7 days: ' + t.prior7.sessions + ' sessions, ' + t.prior7.sets + ' sets, ' + t.prior7.minutes + ' min).');
+  const rd = b.recovery.readiness;
+  if (rd) L.push('- **Readiness:** ' + rd.score + ' — ' + rd.status + (rd.action ? '. ' + rd.action : ''));
+  if (b.body) L.push('- **Bodyweight:** ' + b.body.latest + ' ' + u + ' on ' + b.body.date + (b.body.change30 != null ? ' (' + (b.body.change30 > 0 ? '+' : '') + b.body.change30 + ' over 30 days)' : ''));
+  if (b.plans.planOfTheDay.length) L.push('- **Plan of the Day:** ' + b.plans.planOfTheDay.map(p => '"' + p.name + '"' + (p.estMin ? ' (~' + p.estMin + ' min)' : '')).join(', '));
+  else if (b.plans.active) L.push('- **Active plan:** "' + b.plans.active.name + '" (' + b.plans.active.steps + ' steps)');
+  L.push('');
+
+  if (lw && lw.exercises.length) {
+    L.push('## Last workout', '');
+    lw.exercises.forEach(e => {
+      if (e.cardio) { L.push('- ' + e.exercise + ' — cardio' + (e.minutes ? ', ' + e.minutes + ' min' : '')); return; }
+      if (!e.sets) { L.push('- ' + e.exercise + ' — no completed sets'); return; }
+      L.push('- ' + e.exercise + ' — ' + e.sets + ' sets, top ' + e.topSet + ' (e1RM ' + e.e1RM + ')' +
+        (e.pr ? ' — **PR** (was ' + e.priorBestE1RM + ')' : e.firstTime ? ' — first time logged' : ''));
+    });
+    L.push('');
+  }
+
+  if (b.lifts.length) {
+    L.push('## Lifts trained in the last 90 days', '', '| Exercise | Last done | Best e1RM | 30-day trend | Tier | Note |', '|---|---|---|---|---|---|');
+    b.lifts.forEach(l => {
+      const note = l.plateau ? 'plateau: ~' + l.plateau.bestE1RM + ' for ' + l.plateau.sessions + ' sessions'
+        : l.newAllTimeBest30 ? 'new all-time best this month'
+        : (l.trend30Pct === 0 && l.sessions30 >= 3) ? 'flat for 30 days (' + l.sessions30 + ' sessions, no gain)' : '';
+      L.push('| ' + l.exercise + ' | ' + l.lastDone + ' (' + l.daysSince + 'd) | ' + l.bestE1RM + ' | ' + pct(l.trend30Pct) + ' | ' + (l.tier || '—') + ' | ' + note + ' |');
+    });
+    L.push('');
+  }
+
+  const lag = b.muscles.filter(m => m.status === 'lagging'), lead = b.muscles.filter(m => m.status === 'leading');
+  if (b.muscles.length) {
+    L.push('## Muscle balance (3-week average weekly sets vs target)', '');
+    const worst = lag.slice().sort((a, b) => (a.weeklySets / (a.target || 1)) - (b.weeklySets / (b.target || 1)));
+    L.push('- **Lagging (' + lag.length + '):** ' + (lag.length ? worst.slice(0, 6).map(m => m.muscle + ' ' + m.weeklySets + '/' + m.target).join(', ')
+      + (lag.length > 6 ? ', +' + (lag.length - 6) + ' more in brief.json' : '') : 'none'));
+    L.push('- **Leading:** ' + (lead.length ? lead.map(m => m.muscle + ' ' + m.weeklySets + '/' + m.target).join(', ') : 'none'), '');
+  }
+
+  const r7 = b.recovery.last7;
+  if (r7.days) L.push('## Recovery — last 7 days (' + r7.days + ' days logged)', '', '- Average sleep score ' + (r7.sleepScore ?? '—') + ', HRV ' + (r7.hrv ?? '—') + ', resting HR ' + (r7.restingHr ?? '—') + ', body battery ' + (r7.bodyBattery ?? '—') + '.', '');
+
+  const needs = [];
+  b.anomalies.forEach(a => needs.push('Worth checking — ' + a.exercise + ' on ' + a.date + ', set ' + a.set + ' (' + a.w + '×' + a.r + '): ' + a.detail));
+  b.diagnostics.autoEnds.forEach(a => needs.push('A workout auto-ended for inactivity at ' + a.at + ' — ' + a.detail));
+  b.diagnostics.warnings.forEach(w => needs.push('App ' + w.level + ' at ' + w.at + ': ' + w.msg + (w.detail ? ' — ' + w.detail : '')));
+  b.openQuestions.forEach(q => needs.push('Open analysis question: "' + q.question + '"'));
+  if (needs.length) { L.push('## Needs attention', ''); needs.forEach(n => L.push('- ' + n)); L.push(''); }
+
+  L.push('## Writing the brief', '',
+    '- Lead with what to do **today**: the Plan of the Day if there is one, otherwise what readiness and muscle balance suggest.',
+    '- Then what changed since the last brief: PRs, trends, plateaus, lagging muscles.',
+    '- Cite the numbers above. If something is listed under *Data gaps*, say it is missing rather than guessing.',
+    '- Anomalies are possible typos, not achievements — suggest checking them, never celebrate them.',
+    '- No medical advice.', '');
+  L.push('## Method', '');
+  Object.entries(b.method).forEach(([k, v]) => L.push('- **' + k + '** — ' + v));
+  return L.join('\n') + '\n';
+}
+// Rewritten on every hub export, and by the periodic poll whenever its CONTENT changed (generatedAt aside), so
+// a morning task always finds a current digest without the file being rewritten identically every few minutes.
+async function coworkWriteBrief(root, force) {
+  const brief = buildMorningBrief();
+  const { generatedAt, ...stableMeta } = brief.meta;
+  const hash = coworkHashText(JSON.stringify({ ...brief, meta: stableMeta }));
+  const local = state.coworkLocal || (state.coworkLocal = {});
+  if (!force && hash === local.lastBriefHash) return false;
+  await _coworkWriteFile(root, 'brief.json', JSON.stringify(buildCoworkEnvelope('morning-brief', brief), null, 2));
+  await _coworkWriteFile(root, 'BRIEF.md', buildMorningBriefMd(brief));
+  local.lastBriefHash = hash;
+  return true;
+}
 function buildCoworkReadme() {
-  return `# GymTracker315 — AI Cowork hub\n\nThis folder is a two-way bridge between the GymTracker315 web app (desktop) and an **AI cowork agent**. It is model-agnostic — any agent that can read and write this folder (e.g. Claude or GPT) can do the work.\n\n- \`cowork.json\` — the **discovery manifest** (\`cowork-manifest\` v1). A hub or agent that speaks the house cowork protocol can drive this folder from that file alone, with no GymTracker-specific code.\n- \`app-export.json\` — the app's current state + context (read this first). Versioned envelope, protocol \`${COWORK_PROTOCOL}\` v${COWORK_PROTOCOL_VERSION}.\n- ${COWORK_DIRS.map(d => '\\`' + d + '/\\`').join(', ')} — one task each. See each folder's \`INSTRUCTIONS.md\` + \`context.json\`.\n- Drop your results as JSON in each channel's \`inbox/\`. The app imports them, moves them to \`processed/\`, and cloud-syncs so the phone is up to date.\n\n## Two obligations\n\n1. **Echo \`requestHash\`.** Every \`context.json\` declares one; copy it verbatim into your reply envelope so a reply written against a superseded request is detectable.\n2. **Write a dead letter on failure.** If a task can't be done, write \`<channel>/inbox/error-<ISO-date>.json\` containing \`{ "reason": "why" }\` instead of a reply. The app shows that reason in its run history — silence looks identical to an agent that never ran.\n\nThe app re-writes these files after each workout and on a schedule. Don't edit \`app-export.json\`/\`context.json\`/\`cowork.json\` by hand.\n`;
+  return `# GymTracker315 — AI Cowork hub\n\nThis folder is a two-way bridge between the GymTracker315 web app (desktop) and an **AI cowork agent**. It is model-agnostic — any agent that can read and write this folder (e.g. Claude or GPT) can do the work.\n\n- \`cowork.json\` — the **discovery manifest** (\`cowork-manifest\` v1). A hub or agent that speaks the house cowork protocol can drive this folder from that file alone, with no GymTracker-specific code.\n- \`BRIEF.md\` + \`brief.json\` — **start here for a morning brief.** The app's own conclusions, precomputed: last workout with PRs, every lift's e1RM trend, tier and plateau flag, muscle balance, readiness and recovery averages, bodyweight trend, today's plan, possible data-entry errors, diagnostics, and what data is missing. Refreshed on every export and whenever it changes.\n- \`app-export.json\` — the app's raw state + context, for detail the brief does not carry. Versioned envelope, protocol \`${COWORK_PROTOCOL}\` v${COWORK_PROTOCOL_VERSION}.\n- ${COWORK_DIRS.map(d => '\\`' + d + '/\\`').join(', ')} — one task each. See each folder's \`INSTRUCTIONS.md\` + \`context.json\`.\n- Drop your results as JSON in each channel's \`inbox/\`. The app imports them, moves them to \`processed/\`, and cloud-syncs so the phone is up to date.\n\n## Two obligations\n\n1. **Echo \`requestHash\`.** Every \`context.json\` declares one; copy it verbatim into your reply envelope so a reply written against a superseded request is detectable.\n2. **Write a dead letter on failure.** If a task can't be done, write \`<channel>/inbox/error-<ISO-date>.json\` containing \`{ "reason": "why" }\` instead of a reply. The app shows that reason in its run history — silence looks identical to an agent that never ran.\n\nThe app re-writes these files after each workout and on a schedule. Don't edit \`app-export.json\`/\`context.json\`/\`cowork.json\` by hand.\n`;
 }
 // ---- Thin I/O (desktop only; not unit-tested — all logic is in the pure builders above) ----
 async function _coworkWriteFile(dirHandle, name, text) {
@@ -8685,6 +8958,7 @@ async function coworkExportNow(silent) {
       wroteExport = true;
     }
     await _coworkWriteFile(root, 'README-COWORK.md', buildCoworkReadme());
+    await coworkWriteBrief(root, true); // feat 511 — the morning-brief digest, every export
     await _coworkWriteFile(root, 'cowork.json', JSON.stringify(buildCoworkManifest(), null, 2)); // feat 458 — discovery manifest
     for (const c of coworkActiveChannels()) {   // feat 459 — skip channels the user switched off
       const envelope = buildCoworkEnvelope('context', buildChannelContext(c.key));
@@ -8915,6 +9189,7 @@ async function coworkPollAll(interactive) {
       }
     }
     state.coworkLocal.lastPollAt = new Date().toISOString();
+    try { await coworkWriteBrief(res.root, false); } catch (_) {} // feat 511 — keep the morning brief current (skipped when unchanged)
     if (imported > 0) { saveState(); if (typeof render === 'function') render(); toast('🤝 Cowork imported ' + imported + ' file' + (imported === 1 ? '' : 's') + (stale ? ' (' + stale + ' answered an older request)' : '')); }
     else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {} } // persist the ledger/lastPollAt without a cloud push
     if (errors > 0 && interactive) toast('⚠ Cowork agent reported ' + errors + ' failure' + (errors === 1 ? '' : 's') + ' — see Settings › Cowork');
@@ -30257,7 +30532,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 434 · 2026-10-23 07:45';
+const APP_BUILD = 'build 435 · 2026-10-23 13:23';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
