@@ -314,7 +314,7 @@ movements via `validateImportedPlan`; logged sets always stay master). So most a
 research is the one to take if the tiers should rest on cited numbers rather than reasoning.
 
 **Close the loops that already exist**
-- ⏸ **Plan of the Day feedback.** Send back what you actually did after a POD — steps done or skipped, loads hit,
+- [x] **Plan of the Day feedback.** — shipped as **feat 512**: `recentOutcomes` in the POD context and the morning brief. Send back what you actually did after a POD — steps done or skipped, loads hit,
   time taken. The data already exists in the plan execution recap (`planExecutionSummary`, feats 111/164); today
   the agent writes each plan with no idea whether the last one was followed. *Top pick.*
 - ⏸ **Multi-week blocks.** POD covers one day. Let the agent propose a 4–8 week block with progression rules,

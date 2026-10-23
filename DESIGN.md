@@ -2665,6 +2665,20 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Plan of the Day feedback (feat 512):** the agent wrote every Plan of the Day blind — it never learned whether
+  the last one was used, which steps were skipped, whether the loads landed, or whether "45 minutes" really took
+  80. `podOutcomes()` reports exactly that from data the app already keeps (`planExecutionSummary`, `stepStatus`,
+  `stepEffort`, `skippedSteps`): for each daily plan still on record, a **status** — `done`, `not-done`, or
+  `pending` (today's, not done *yet*, which is not the same as passed over) — and for a done plan the real
+  duration against the agent's own `estimatedMin`, steps satisfied, sets logged against target, and per step
+  whether it was skipped and whether its load target was hit. A plan that was not done reports **`didInstead`**
+  when another workout replaced it that day ("a free workout", or the other plan's name), which is the strongest
+  signal there is that the plan was wrong. It goes into the POD channel's `context.json` as `recentOutcomes`,
+  and the POD `INSTRUCTIONS.md` now tells the agent to read it first and adapt — shorten plans that run long,
+  stop prescribing what keeps getting skipped, progress what was completed with loads hit, make routinely-undone
+  plans easier to start. The morning brief carries the three most recent finished outcomes and a one-line
+  "Last Plan of the Day" summary. `dailyDate` is compared as a string, per the feat-511 timezone fix.
+  `test/podfeedback.spec.mjs`. This was the first of the shelved cowork integrations.
 - **A morning-brief digest in the cowork folder (feat 511):** `app-export.json` ships RAW data — sessions,
   Strava, body comp, plans, a recovery snapshot — so a separate morning-brief task reading the folder had to
   re-derive every conclusion the app already draws (e1RM trends, PRs, tiers, plateaus, muscle balance,

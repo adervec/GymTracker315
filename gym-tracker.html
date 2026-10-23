@@ -8605,6 +8605,7 @@ function buildChannelContext(channel) {
     gym: safe(() => { const g = getActiveGym(); return g ? { name: g.name, equipment: g.equip ? Object.keys(g.equip).filter(k => g.equip[k]) : [] } : null; }, null),
     focus: safe(() => fitnessFocus(), null),
     options: state.podOptions || {},
+    recentOutcomes: safe(() => podOutcomes(), []), // feat 512 — what happened to the plans you wrote
   };
 }
 // The Plan-of-the-Day options file (app-owned, written on edit + each export).
@@ -8624,7 +8625,7 @@ function buildInstructionsMd(channel) {
   if (channel === 'analysis') return head +
 `## kind: \`analysis-output\`\nAnswer the open analysis requests in \`context.json\` using the training data in \`../app-export.json\`. Payload:\n\n\`\`\`json\n{ "answers": [ { "id": "<request id from context.json>", "answer": "Your written analysis — plain text, newlines ok." } ] }\n\`\`\`\n\n- Answer EVERY request in \`context.json\` → \`requests\`; match each answer to its request \`id\` exactly (unknown ids are ignored).\n- Ground every claim in the actual logged data (sessions, volume, bodyComp, trends) — cite lifts, dates, numbers. No medical advice.\n`;
   return head +
-`## kind: \`pod-output\`\nGenerate one or more "Plan of the Day" plans. Honour \`options.json\` (notes, injuries to avoid, available gyms/equipment, available minutes, target mode, fitness focus) and \`context.json\` (recovery readiness, recent split, equipment, focus). Payload:\n\n\`\`\`json\n{ "date": "YYYY-MM-DD", "rationale": "why these",\n  "plans": [ { "name": "...", "desc": "...", "intensity": 4,\n    "steps": [ { "sets": 4, "load": "heavy", "desc": "...", "options": [ { "type": "movement", "familyId": "squat" } ] } ] } ] }\n\`\`\`\n\n- **Reference only REAL ids** from \`app-export.json\` → \`vocab\` (\`movementFamilies[].id\` for \`familyId\`, \`cardioVariations[].uuid\` for \`{type:"variation",uuid}\`). The importer drops unknown options and rejects empty plans.\n- Avoid anything contraindicated by the selected injuries.\n- \`options.availableMinutes\` is a **range** \`{ min, max }\`. Keep every plan's estimated time within it, and offer a few options spanning the range — but **always include at least one plan that uses most of the available maximum** (close to \`max\`). Don't return only short plans when lots of time is available (e.g. for a 180-min max, don't propose just 75 and 45-min plans), even if recovery is low — bias the longer option toward volume/accessory work, not heavier load.\n`;
+`## kind: \`pod-output\`\nGenerate one or more "Plan of the Day" plans. Honour \`options.json\` (notes, injuries to avoid, available gyms/equipment, available minutes, target mode, fitness focus) and \`context.json\` (recovery readiness, recent split, equipment, focus). Payload:\n\n\`\`\`json\n{ "date": "YYYY-MM-DD", "rationale": "why these",\n  "plans": [ { "name": "...", "desc": "...", "intensity": 4,\n    "steps": [ { "sets": 4, "load": "heavy", "desc": "...", "options": [ { "type": "movement", "familyId": "squat" } ] } ] } ] }\n\`\`\`\n\n- **Reference only REAL ids** from \`app-export.json\` → \`vocab\` (\`movementFamilies[].id\` for \`familyId\`, \`cardioVariations[].uuid\` for \`{type:"variation",uuid}\`). The importer drops unknown options and rejects empty plans.\n- Avoid anything contraindicated by the selected injuries.\n- **Read \`context.json\` \u2192 \`recentOutcomes\` first** \u2014 what happened to the plans you already wrote: \`status\` (done / not-done / pending), each step's sets logged against target, whether it was \`skipped\`, whether the \`load\` target was hit, the real \`durationMin\` against your \`estimatedMin\`, and \`didInstead\` when a different workout replaced yours. Adapt to it: shorten plans that keep running long, stop prescribing what keeps getting skipped, progress what was completed with loads hit, and if plans are routinely not done, make them easier to start.\n- \`options.availableMinutes\` is a **range** \`{ min, max }\`. Keep every plan's estimated time within it, and offer a few options spanning the range — but **always include at least one plan that uses most of the available maximum** (close to \`max\`). Don't return only short plans when lots of time is available (e.g. for a 180-min max, don't propose just 75 and 45-min plans), even if recovery is low — bias the longer option toward volume/accessory work, not heavier load.\n`;
 }
 /* ============================================================
    feat 511 — MORNING BRIEF DIGEST. app-export.json ships RAW data (sessions, Strava, body comp, plans), so a
@@ -8663,6 +8664,43 @@ function findLogAnomalies(nowMs) {
     if (top > prior) best.set(key, top);
   }));
   return out.slice(-BRIEF_ANOMALY_LIMIT).reverse();          // newest first
+}
+/* feat 512 — PLAN OF THE DAY FEEDBACK. The agent wrote every Plan of the Day blind: it never learned whether the
+   last one was used, which steps were skipped, whether the loads landed, or whether "45 minutes" really took 80.
+   podOutcomes() reports exactly that from data the app already keeps (planExecutionSummary / stepStatus /
+   stepEffort / skippedSteps). It goes into the POD channel's context.json so the next plan can adapt, and a
+   compact copy into the morning brief. Status is honest about the difference between a plan not done YET
+   (today's) and one passed over — and says when you trained something else that day instead. */
+function podOutcomes(nowMs) {
+  const now = nowMs || Date.now();
+  const safe = (fn, fb) => { try { const v = fn(); return v === undefined ? fb : v; } catch (_) { return fb; } };
+  const localDay = d => { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+  const today = localDay(now);
+  const sessions = state.sessions || [];
+  const worked = s => (s.exercises || []).some(e => (e.sets && e.sets.length) || e.cardio);
+  return (state.plans || []).filter(p => p.source === 'daily' && p.dailyDate).map(p => {
+    const day = String(p.dailyDate).slice(0, 10);        // a plain YYYY-MM-DD — compared as a string (see feat 511)
+    const base = { planDate: day, plan: p.name, rationale: p.dailyRationale || '', estimatedMin: safe(() => estimatePlanMinutes(p), null) };
+    const runs = sessions.filter(s => s.planId === p.id && worked(s)).sort((a, b) => new Date(b.date) - new Date(a.date));
+    if (!runs.length) {
+      const other = sessions.filter(s => s.planId !== p.id && worked(s) && localDay(s.date) === day);
+      const instead = other.map(s => s.planId ? ((((state.plans || []).find(x => x.id === s.planId)) || {}).name || 'another plan') : 'a free workout');
+      return { ...base, status: day >= today && !other.length ? 'pending' : 'not-done', didInstead: instead.length ? instead : null };
+    }
+    const s = runs[0];
+    const sum = safe(() => planExecutionSummary(s, p), null);
+    const skipped = safe(() => sessionSkippedSteps(s), []);
+    return { ...base, status: 'done', performedAt: s.date,
+      durationMin: s.endedAt ? Math.round((new Date(s.endedAt) - new Date(s.date)) / 60000) : null,
+      summary: sum ? { stepsDone: sum.stepsDone, stepsTotal: sum.stepsTotal, setsDone: sum.setsDone, setsTarget: sum.setsTarget,
+        effortHits: sum.effortHits, effortApplicable: sum.effortApplicable, complete: sum.complete } : null,
+      steps: (p.steps || []).map((st, i) => {
+        const ss = safe(() => stepStatus(s, st, p), {}) || {}, ef = safe(() => stepEffort(s, st), {}) || {};
+        return { step: i + 1, desc: st.desc || '', load: st.load || null, targetSets: st.sets || 0, loggedSets: ss.logged || 0,
+          satisfied: !!ss.satisfied, skipped: skipped.includes(st.id), loadHit: ef.applicable ? !!ef.hit : null };
+      }),
+      exercisesUsed: (s.exercises || []).filter(e => (e.sets && e.sets.length) || e.cardio).map(e => displayName(e.varUuid, e.subUuid)) };
+  }).sort((a, b) => b.planDate.localeCompare(a.planDate));
 }
 function buildMorningBrief(nowMs) {
   const now = nowMs || Date.now(), DAY = 86400000;
@@ -8765,7 +8803,8 @@ function buildMorningBrief(nowMs) {
       // dailyDate is a plain 'YYYY-MM-DD' string: compare it as one. Parsing it with new Date() reads UTC midnight,
       // which in any timezone west of UTC is the PREVIOUS local day — today's plan would never have matched.
       planOfTheDay: (state.plans || []).filter(p => p.source === 'daily' && p.dailyDate && String(p.dailyDate).slice(0, 10) === today)
-        .map(p => ({ name: p.name, rationale: p.dailyRationale || '', estMin: safe(() => estimatePlanMinutes(p), null) })) };
+        .map(p => ({ name: p.name, rationale: p.dailyRationale || '', estMin: safe(() => estimatePlanMinutes(p), null) })),
+      recentOutcomes: safe(() => podOutcomes(now), []).filter(o => o.status !== 'pending').slice(0, 3) }; // feat 512
   }, { active: null, planOfTheDay: [] });
 
   // ---- diagnostics (feat 506's heartbeat + auto-end trail)
@@ -8833,6 +8872,12 @@ function buildMorningBriefMd(b) {
   if (b.body) L.push('- **Bodyweight:** ' + b.body.latest + ' ' + u + ' on ' + b.body.date + (b.body.change30 != null ? ' (' + (b.body.change30 > 0 ? '+' : '') + b.body.change30 + ' over 30 days)' : ''));
   if (b.plans.planOfTheDay.length) L.push('- **Plan of the Day:** ' + b.plans.planOfTheDay.map(p => '"' + p.name + '"' + (p.estMin ? ' (~' + p.estMin + ' min)' : '')).join(', '));
   else if (b.plans.active) L.push('- **Active plan:** "' + b.plans.active.name + '" (' + b.plans.active.steps + ' steps)');
+  const lo = (b.plans.recentOutcomes || [])[0]; // feat 512 — how the last Plan of the Day actually went
+  if (lo) L.push('- **Last Plan of the Day** (' + lo.planDate + ', "' + lo.plan + '"): ' + (lo.status === 'done'
+    ? (lo.summary ? lo.summary.stepsDone + '/' + lo.summary.stepsTotal + ' steps, ' + lo.summary.setsDone + '/' + lo.summary.setsTarget + ' sets' : 'done')
+      + (lo.durationMin != null ? ', ' + lo.durationMin + ' min' + (lo.estimatedMin ? ' (estimated ' + lo.estimatedMin + ')' : '') : '')
+      + (lo.steps && lo.steps.some(s => s.skipped) ? ', skipped: ' + lo.steps.filter(s => s.skipped).map(s => 'step ' + s.step).join(', ') : '')
+    : 'not done' + (lo.didInstead ? ' — did ' + lo.didInstead.join(', ') + ' instead' : '')));
   L.push('');
 
   if (lw && lw.exercises.length) {
@@ -30532,7 +30577,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 435 · 2026-10-23 13:23';
+const APP_BUILD = 'build 436 · 2026-10-23 13:42';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
