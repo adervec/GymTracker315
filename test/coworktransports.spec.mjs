@@ -44,11 +44,11 @@ test('feat 459 — a channel switched off is neither declared in the manifest no
     delete state.cowork.channels; normalizeState();
     return { allOn, defaults, some, active, afterMigrate: COWORK_CHANNELS.map(c => coworkChannelOn(c.key)) };
   });
-  expect(r.defaults, 'every channel is on by default').toEqual([true, true, true, true]);
-  expect(r.allOn.length).toBe(4);
-  expect(r.some).toEqual(['plan-of-the-day', 'analysis']);
-  expect(r.active).toEqual(['pod', 'analysis']);
-  expect(r.afterMigrate, 'an absent key reads as on, so existing folders keep working').toEqual([true, true, true, true]);
+  expect(r.defaults, 'every channel is on by default').toEqual([true, true, true, true, true]); // feat 513 — five channels
+  expect(r.allOn.length).toBe(5);
+  expect(r.some).toEqual(['plan-of-the-day', 'analysis', 'log-review']);
+  expect(r.active).toEqual(['pod', 'analysis', 'logreview']);
+  expect(r.afterMigrate, 'an absent key reads as on, so existing folders keep working').toEqual([true, true, true, true, true]);
 });
 
 test('feat 459 — the activity calendar is a Monday-first 42-cell grid counting runs and failures', async ({ page }) => {

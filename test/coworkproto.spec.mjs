@@ -33,7 +33,7 @@ test('feat 458 — cowork.json is a valid cowork-manifest v1 and declares only f
   expect(r.man.protocol).toBe('cowork-manifest');
   expect(r.man.protocolVersion).toBe(1);
   expect(r.man.app).toBe('gymtracker');
-  expect(r.man.channels.length).toBe(4);
+  expect(r.man.channels.length).toBe(5); // feat 513 — log-review joined garmin / strava / pod / analysis
   expect(r.dangling, 'the manifest must not declare a file the exporter never writes').toEqual([]);
   r.man.channels.forEach(ch => {
     expect(ch.name, 'name is required').toBeTruthy();

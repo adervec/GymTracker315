@@ -2665,6 +2665,23 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The log review (feat 513):** feat 511 started flagging sets that look like typos (`findLogAnomalies`), but
+  there was nowhere to *act* on them. Now: every flagged set gets a **stable per-set id** (a hash of session date,
+  variation, set index, weight and reps — two checks on one set share it). A **fifth cowork channel,
+  `log-review`**, sends each one to the agent together with that lift's recent history, so it can tell a slipped
+  decimal from a genuine PR by context rather than by the number alone; its `INSTRUCTIONS.md` says to propose
+  `fix` only for a *clear* typo (a slipped decimal, weight and reps swapped, a lb/kg mix-up, a doubled digit) and
+  `keep` otherwise. `coworkImportLogReview` stores replies as **proposals and nothing else** — a proposal for a
+  set the app no longer flags is ignored, and an unusable `intended` (non-positive, reps over 100) is dropped,
+  never half-applied. A **🔎 Worth checking** card on the Analysis page lists each flagged set with the agent's
+  view and three actions: **Apply** the proposed fix (after a confirm that spells out the change), **Edit…**
+  by hand through feat 499's guarded `editExisting`, or **It's right**, which records a dismissal so the set
+  stops being flagged — in the list, the cowork context *and* the morning brief. `logReviewApply` refuses if the
+  set no longer holds the values that were flagged, so a stale proposal can never overwrite a later hand edit.
+  A dismissed set still counts toward the lift's best: if you say 300 kg was real, it was a PR. `state.logReview`
+  is normalised, and syncs per entry through `mergeMap` + `SYNC_COLLECTION_KEYS`, so a "keep" on the phone reaches
+  the desktop. `coworkproto.spec` and `coworktransports.spec` pinned the channel count at four and now expect
+  five. `test/logreview.spec.mjs`.
 - **Plan of the Day feedback (feat 512):** the agent wrote every Plan of the Day blind — it never learned whether
   the last one was used, which steps were skipped, whether the loads landed, or whether "45 minutes" really took
   80. `podOutcomes()` reports exactly that from data the app already keeps (`planExecutionSummary`, `stepStatus`,

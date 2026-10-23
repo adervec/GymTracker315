@@ -1963,6 +1963,14 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .set-overload-tag.baseline { background: #1f1f2e; color: #aab0c8; border: 1px solid #2a2a40; }
   /* feat 428 — objective population-standard tier chip, rendered beside/under the overload tag */
   .set-obj-tag { grid-column: 2 / 4; font-size: 9.5px; padding: 1px 6px; border-radius: 4px; font-weight: 700; justify-self: start; margin-top: 1px; letter-spacing: 0.3px; }
+  /* feat 513 — the log review */
+  .lr-intro { font-size: 12px; color: var(--text3); margin-bottom: 8px; }
+  .lr-row { padding: 9px 0; border-top: 1px solid var(--border); }
+  .lr-what { font-size: 13px; color: var(--text); }
+  .lr-why { font-size: 11.5px; color: var(--text3); margin-top: 2px; }
+  .lr-ai { font-size: 12px; color: var(--text2); margin-top: 5px; line-height: 1.4; }
+  .lr-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+  .lr-acts .drawer-btn { flex: 0 0 auto; padding: 6px 10px; font-size: 12px; }
   /* feat 509 — the Tiers slide */
   .tiers-head { font-size: 11.5px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
   .tiers-who { font-weight: 600; color: var(--text3); margin-left: 4px; }
@@ -6797,7 +6805,7 @@ const DEVICE_LOCAL_KEYS = new Set(['theme','sound','metronome','annunciation','t
 // User-data collections merged per-record below (so the coarse savedAt race can't block them).
 const SYNC_COLLECTION_KEYS = new Set(['plans','bodyComp','stravaActivities','customVariations','gyms','seededPlanIds',
   'exerciseMedia','exerciseSetup','cardioGoals','favoritePlans','favoriteVars','hiddenVars','hiddenMovements',
-  'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod']);
+  'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod','logReview']); // feat 513 — logReview syncs per entry
 // Beyond DEVICE_LOCAL_KEYS, these top-level slices are connection/identity that must never be pushed to the cloud.
 const NEVER_SYNC_EXTRA = ['cloudSync','coworkLocal','deviceId','lastSettingAnchor','aiApi','backupLocal']; // feat 459 — the Anthropic key stays on the device that entered it; feat 465 — "when did I last export" is per-device
 // The object actually written to the cloud file: everything EXCEPT device-local + connection/identity state.
@@ -6888,7 +6896,7 @@ function applyImport(data, mode) {
   state.analysisRequests = mergeKeyedArray(state.analysisRequests, data.analysisRequests, r => r && r.id, (inc, cur) => ((inc && inc.updatedAt) || '') >= ((cur && cur.updatedAt) || ''));
   if ('seededPlanIds' in data) state.seededPlanIds = mergeIdSet(state.seededPlanIds, data.seededPlanIds);
   ['exerciseMedia','exerciseSetup','cardioGoals','favoritePlans','favoriteVars','hiddenVars','hiddenMovements',
-   'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod'].forEach(k => { if (k in data) state[k] = mergeMap(state[k], data[k]); });
+   'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod','logReview'].forEach(k => { if (k in data) state[k] = mergeMap(state[k], data[k]); });
   applyKeyedTombstones(state, 'plans', 'deletedPlans', data, p => p && p.id, planEditTs);
   applyKeyedTombstones(state, 'bodyComp', 'deletedBody', data, bodyDayKey, b => (b && b.updatedAt) || '');
   state.archetypeHistory = mergeKeyedArray(state.archetypeHistory, data.archetypeHistory, h => h && h.at, () => true) // feat 338 — union by timestamp
@@ -7036,6 +7044,7 @@ const COWORK_CHANNELS = [
   { key: 'strava',   dir: 'strava-reconciliation', replyKind: 'strava-output',   request: ['context.json'] },
   { key: 'pod',      dir: 'plan-of-the-day',       replyKind: 'pod-output',      request: ['context.json', 'options.json'] },
   { key: 'analysis', dir: 'analysis',              replyKind: 'analysis-output', request: ['context.json'] },
+  { key: 'logreview', dir: 'log-review',           replyKind: 'log-review-output', request: ['context.json'] }, // feat 513
 ];
 const COWORK_DIRS = COWORK_CHANNELS.map(c => c.dir);
 const coworkChannelByDir = (dir) => COWORK_CHANNELS.find(c => c.dir === dir) || null;
@@ -7308,6 +7317,7 @@ function normalizeState() {
   if (!Array.isArray(state.customVariations)) state.customVariations = [];
   if (!Array.isArray(state.gyms)) state.gyms = [];
   if (!Array.isArray(state.analysisRequests)) state.analysisRequests = []; // feat 450 — cowork analysis-request queue
+  if (!state.logReview || typeof state.logReview !== 'object' || Array.isArray(state.logReview)) state.logReview = {}; // feat 513
   if (!state.hiddenVars || typeof state.hiddenVars !== 'object') state.hiddenVars = {};
   if (!state.hiddenMovements || typeof state.hiddenMovements !== 'object') state.hiddenMovements = {};
   if (state.glossaryHighlight === undefined) state.glossaryHighlight = true;
@@ -8597,6 +8607,15 @@ function buildChannelContext(channel) {
       .map(r => ({ id: r.id, question: r.q, note: r.note || '', created: r.created }));
     return { requests };
   }
+  if (channel === 'logreview') {
+    // feat 513 — the sets the app flagged as possible typos, each with that lift's recent history so the agent can
+    // tell a slipped decimal from a genuine PR by context rather than by the number alone
+    return { unit: state.unit, anomalies: safe(() => findLogAnomalies(), []).map(a => ({
+      id: a.id, date: a.date, exercise: a.exercise, set: a.set, w: a.w, r: a.r, kind: a.kind, detail: a.detail,
+      recentHistory: safe(() => getHistoryByKey(a.varUuid, a.subUuid), []).slice(0, 6)
+        .map(h => ({ date: String(h.date).slice(0, 10), top: h.topSet ? h.topSet.w + '×' + h.topSet.r : null })),
+      proposal: (state.logReview || {})[a.id] || null })) };
+  }
   // pod
   return {
     recovery: safe(() => recoveryReadiness(), {}),
@@ -8622,6 +8641,8 @@ function buildInstructionsMd(channel) {
 `## kind: \`garmin-output\`\nFill in biometrics, sleep + daily recovery from Garmin. Payload (matches the app's importer):\n\n\`\`\`json\n{ "bodyComp": [ { "date": "YYYY-MM-DD", "weightKg": 81.2, "bodyFatPct": 18.4, "muscleMassKg": 34.1, "bodyWaterPct": 55.1 } ],\n  "sleep": [ { "date": "YYYY-MM-DD", "score": 78, "note": "7h12m" } ],\n  "recovery": [ { "date": "YYYY-MM-DD", "sleepScore": 78, "sleepNote": "7h12m", "bodyBattery": 72, "hrv": 64, "restingHr": 52, "stress": 28 } ] }\n\`\`\`\n\n- \`context.json\` lists recent bodyComp dates, the session dates still lacking sleep, and \`lastRecoveryDate\` — backfill \`recovery\` for EVERY day since then (rest days too), not just workout days.\n- Body composition is merged by calendar day; \`sleep\` is matched to the workout that day; \`recovery\` is kept as a standalone daily log (sleep + body battery / HRV / resting HR / stress).\n`;
   if (channel === 'strava') return head +
 `## kind: \`strava-output\`\nProvide Strava activities so the app can link them to workouts and insert orphan cardio. Payload:\n\n\`\`\`json\n{ "activities": [ { "id": "123", "name": "Evening Run", "sport_type": "Run", "start_date": "ISO", "elapsed_time": 2400, "distance": 6000, "average_heartrate": 150, "calories": 480 } ] }\n\`\`\`\n\n- The app time-matches each activity to a workout (±${(typeof STRAVA_MATCH_WINDOW_MIN !== 'undefined' ? STRAVA_MATCH_WINDOW_MIN : 120)} min) and backfills HR/calories/duration; **the logged sets/reps stay the master data**.\n- Activities with no matching workout (e.g. outdoor runs) are inserted into History as cardio.\n- \`context.json\` has the current activities + reconciliation buckets (linked / proposed / gymOnly / stravaOnly).\n`;
+  if (channel === 'logreview') return head +
+`## kind: \`log-review-output\`\nThe app flagged possible data-entry errors in \`context.json\` \u2192 \`anomalies\`. For each, judge whether it is a typo and, if so, what was most likely meant. Payload:\n\n\`\`\`json\n{ "proposals": [\n  { "id": "<anomaly id>", "action": "fix", "intended": { "w": 30, "r": 12 }, "reason": "a slipped decimal \u2014 every other set that week was 27.5-32.5" },\n  { "id": "<anomaly id>", "action": "keep", "reason": "consistent with the lift's steady climb" } ] }\n\`\`\`\n\n- Judge each one from its \`recentHistory\`. Propose \`fix\` only when the intended value is CLEARLY a typo \u2014 a slipped decimal, weight and reps swapped, a lb/kg mix-up, a doubled digit. When unsure, propose \`keep\` with your reason, or leave it out.\n- **Nothing is changed automatically.** The user approves every fix in the app, one at a time; an unusable \`intended\` is dropped, never half-applied.\n`;
   if (channel === 'analysis') return head +
 `## kind: \`analysis-output\`\nAnswer the open analysis requests in \`context.json\` using the training data in \`../app-export.json\`. Payload:\n\n\`\`\`json\n{ "answers": [ { "id": "<request id from context.json>", "answer": "Your written analysis — plain text, newlines ok." } ] }\n\`\`\`\n\n- Answer EVERY request in \`context.json\` → \`requests\`; match each answer to its request \`id\` exactly (unknown ids are ignored).\n- Ground every claim in the actual logged data (sessions, volume, bodyComp, trends) — cite lifts, dates, numbers. No medical advice.\n`;
   return head +
@@ -8652,8 +8673,13 @@ function findLogAnomalies(nowMs) {
       const w = parseFloat(st.w), r = parseFloat(st.r);
       if (!(w > 0) || !(r > 0)) return;
       const e = estimated1RM(w, Math.min(r, 12)) || 0;
-      if (recent) {
-        const at = { date: String(s.date).slice(0, 10), exercise: displayName(ex.varUuid, ex.subUuid), set: i + 1, w, r };
+      // feat 513 — a stable per-SET id (two checks on one set share it), and a set the user confirmed as right
+      // stops being flagged. The best-so-far below still counts it: if the user says 300 kg was real, it was a PR.
+      const id = 'set-' + coworkHashText([s.date, ex.varUuid, ex.subUuid || '', i, w, r].join('|'));
+      const rv = (state.logReview || {})[id];
+      if (recent && !(rv && rv.dismissed)) {
+        const at = { id, sessionDate: s.date, varUuid: ex.varUuid, subUuid: ex.subUuid || null,
+          date: String(s.date).slice(0, 10), exercise: displayName(ex.varUuid, ex.subUuid), set: i + 1, w, r };
         if (prior > 0 && e > prior * (1 + BRIEF_JUMP_PCT / 100))
           out.push({ ...at, kind: 'jump', detail: 'e1RM ' + Math.round(e) + ' vs prior best ' + Math.round(prior) + ' (+' + Math.round((e / prior - 1) * 100) + '%)' });
         if (cap && w > cap) out.push({ ...at, kind: 'over-cap', detail: w + ' is above this exercise\'s max weight of ' + cap });
@@ -9077,6 +9103,7 @@ function renderAnalysisPage(main) {
     </div>
     ${editing === '' ? composer('', null) : `<button class="drawer-btn" id="ar-new" style="margin-bottom:10px;">➕ New analysis request</button>`}
     ${deskCowork ? `<div id="ar-cowork"><div style="display:flex;gap:8px;margin-bottom:10px;"><button class="drawer-btn" id="ar-push" style="flex:1;">⤴ Push to cowork hub</button><button class="drawer-btn" id="ar-poll">↻ Check for answers</button></div></div>` : ''}
+    ${renderLogReviewCards()}
     ${reqs.length ? reqs.map(r => editing === r.id ? composer(r.q, r.id) : renderAnalysisCard(r)).join('') : `<div class="card" style="text-align:center;color:var(--text3);font-size:13px;">No analysis requests yet.</div>`}`;
   const inp = main.querySelector('#ar-input'); if (inp) inp.focus();
   main.querySelector('#ar-new')?.addEventListener('click', () => { _analysisEditId = ''; refresh(); });
@@ -9085,6 +9112,17 @@ function renderAnalysisPage(main) {
   main.querySelector('#ar-push')?.addEventListener('click', () => coworkExportNow(false).then(ok => { if (ok) toast('🤝 Requests pushed to cowork hub'); }).catch(() => {}));
   main.querySelector('#ar-poll')?.addEventListener('click', () => coworkPollAll(true).catch(() => {}));
   coworkMountPanel(main.querySelector('#ar-cowork')); // feat 490 — the shared cowork panel replaces the two buttons once it loads
+  // feat 513 — the log review: keep, edit by hand (feat 499's guarded editor), or apply the agent's proposal after a confirm
+  const lrFind = id => findLogAnomalies().find(x => x.id === id);
+  main.querySelectorAll('[data-lr-keep]').forEach(b => b.addEventListener('click', () => { logReviewKeep(b.dataset.lrKeep); refresh(); }));
+  main.querySelectorAll('[data-lr-edit]').forEach(b => b.addEventListener('click', () => { const a = lrFind(b.dataset.lrEdit); if (a) editExisting(a.sessionDate, a.varUuid, a.subUuid); }));
+  main.querySelectorAll('[data-lr-apply]').forEach(b => b.addEventListener('click', async () => {
+    const id = b.dataset.lrApply, a = lrFind(id), p = (state.logReview || {})[id];
+    if (!a || !p || !p.intended) return;
+    if (!(await confirmDialog('Change ' + a.exercise + ' on ' + a.date + ', set ' + a.set + ', from ' + a.w + '×' + a.r + ' to ' + p.intended.w + '×' + p.intended.r + '?', { okLabel: 'Apply fix' }))) return;
+    toast(logReviewApply(id) ? '✓ Set corrected' : 'That set has changed since — tap Edit to fix it by hand');
+    refresh();
+  }));
   main.querySelectorAll('[data-ar-edit]').forEach(b => b.addEventListener('click', () => { _analysisEditId = b.dataset.arEdit; refresh(); }));
   main.querySelectorAll('[data-ar-del]').forEach(b => b.addEventListener('click', async () => {
     if (await confirmDialog('Delete this analysis request?', { danger: true, okLabel: 'Delete' })) { const id = b.dataset.arDel; deleteAnalysisRequest(id); if (_analysisEditId === id) _analysisEditId = null; refresh(); }
@@ -9158,6 +9196,72 @@ function coworkImportStrava(payload) {
   return { handled: true, kind: 'strava', added: (r && r.added) || 0, updated: (r && r.updated) || 0, linked, orphansInserted };
 }
 // feat 450 — fill answers onto the matching analysis requests (by id); the request queue is the only thing touched.
+/* feat 513 — the agent's opinion on each flagged set is stored as a PROPOSAL and nothing else: the user applies
+   it, edits the set themselves, or confirms it is right. Proposals for sets the app no longer flags are ignored. */
+function coworkImportLogReview(payload) {
+  const props = (payload && Array.isArray(payload.proposals)) ? payload.proposals : null;
+  if (!props) return { handled: false, reason: 'no proposals array' };
+  const live = new Set(findLogAnomalies().map(a => a.id));
+  const rv = state.logReview || (state.logReview = {});
+  let n = 0;
+  props.forEach(p => {
+    if (!p || !live.has(p.id)) return;
+    const action = p.action === 'fix' ? 'fix' : p.action === 'keep' ? 'keep' : null;
+    if (!action) return;
+    let intended = null;
+    if (action === 'fix') {
+      const w = parseFloat(p.intended && p.intended.w), r = parseFloat(p.intended && p.intended.r);
+      if (!(w > 0) || !(r > 0) || r > 100) return;          // an unusable fix is dropped, never half-applied
+      intended = { w, r };
+    }
+    rv[p.id] = { ...(rv[p.id] || {}), action, intended, reason: String(p.reason || '').slice(0, 300), proposedAt: new Date().toISOString() };
+    n++;
+  });
+  return { handled: true, proposals: n };
+}
+function _logReviewSet(a) {
+  const s = (state.sessions || []).find(x => x.date === a.sessionDate);
+  const ex = s && (s.exercises || []).find(e => e.varUuid === a.varUuid && (e.subUuid || null) === (a.subUuid || null));
+  return { s, st: ex && ex.sets ? ex.sets[a.set - 1] : null };
+}
+// Apply the proposed fix to the real set — only if that set still holds the values that were flagged.
+function logReviewApply(id) {
+  const a = findLogAnomalies().find(x => x.id === id), p = (state.logReview || {})[id];
+  if (!a || !p || p.action !== 'fix' || !p.intended) return false;
+  const { s, st } = _logReviewSet(a);
+  if (!st || parseFloat(st.w) !== a.w || parseFloat(st.r) !== a.r) return false; // it changed since — never overwrite blind
+  st.w = p.intended.w; st.r = p.intended.r;
+  if (typeof touchSession === 'function') touchSession(s);
+  state.logReview[id] = { ...p, appliedAt: new Date().toISOString() };
+  saveState();
+  logInfo('Log review fix applied', a.exercise + ' ' + a.date + ' set ' + a.set + ': ' + a.w + '×' + a.r + ' → ' + p.intended.w + '×' + p.intended.r);
+  return true;
+}
+function logReviewKeep(id) {
+  const rv = state.logReview || (state.logReview = {});
+  rv[id] = { ...(rv[id] || {}), dismissed: true, dismissedAt: new Date().toISOString() };
+  saveState();
+}
+// One card per flagged SET (a set can trip two checks), with the agent's view when there is one.
+function renderLogReviewCards() {
+  const list = findLogAnomalies(); if (!list.length) return '';
+  const bySet = new Map();
+  list.forEach(a => { const g = bySet.get(a.id) || { ...a, details: [] }; g.details.push(a.detail); bySet.set(a.id, g); });
+  const rv = state.logReview || {};
+  return `<div class="card"><div class="card-title">🔎 Worth checking (${bySet.size})</div>
+    <div class="lr-intro">Sets that look like a typo. Nothing changes unless you tap.</div>
+    ${[...bySet.values()].map(a => { const p = rv[a.id], fix = p && p.action === 'fix' && p.intended;
+      return `<div class="lr-row" data-lr="${a.id}">
+        <div class="lr-what"><b>${escapeHtml(a.exercise)}</b> · ${a.date} · set ${a.set}: <b>${a.w}×${a.r}</b></div>
+        <div class="lr-why">${a.details.map(d => escapeHtml(d)).join(' · ')}</div>
+        ${p ? `<div class="lr-ai">🤖 ${fix ? 'Probably <b>' + p.intended.w + '×' + p.intended.r + '</b> — ' : 'Looks right — '}${escapeHtml(p.reason || '')}</div>` : ''}
+        <div class="lr-acts">
+          ${fix ? `<button class="drawer-btn" data-lr-apply="${a.id}">Apply ${p.intended.w}×${p.intended.r}</button>` : ''}
+          <button class="drawer-btn" data-lr-edit="${a.id}">Edit…</button>
+          <button class="drawer-btn" data-lr-keep="${a.id}">It's right</button>
+        </div></div>`; }).join('')}
+  </div>`;
+}
 function coworkImportAnalysis(payload) {
   const answers = (payload && Array.isArray(payload.answers)) ? payload.answers : [];
   const byId = new Map((state.analysisRequests || []).map(r => [r.id, r]));
@@ -9177,6 +9281,7 @@ function coworkApplyImport(kind, payload) {
   if (kind === 'garmin-output') return coworkImportGarmin(payload);
   if (kind === 'strava-output') return coworkImportStrava(payload);
   if (kind === 'analysis-output') return coworkImportAnalysis(payload);
+  if (kind === 'log-review-output') return coworkImportLogReview(payload); // feat 513
   if (kind === 'pod-output') return (typeof coworkImportPlanOfDay === 'function') ? coworkImportPlanOfDay(payload) : { handled: false, reason: 'pod import not available yet' };
   return { handled: false, reason: 'unknown kind ' + kind };
 }
@@ -30577,7 +30682,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 436 · 2026-10-23 13:42';
+const APP_BUILD = 'build 437 · 2026-10-23 14:02';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -323,7 +323,7 @@ research is the one to take if the tiers should rest on cited numbers rather tha
   what improved, what stalled, what is neglected, one change for next week — rendered on Reflect.
 
 **Let the agent do the tedious audits — the user approves, nothing applies automatically**
-- ⏸ **Log anomaly sweep.** *(Detection shipped in feat 511: `findLogAnomalies` flags them in `brief.json` / `BRIEF.md`. Still shelved: the agent channel that proposes fixes and the one-at-a-time approval UI.)* Flag fat-finger sets (the 300 kg case feat 504 was built to survive), lb/kg mix-ups,
+- [x] **Log anomaly sweep.** — detection in feat 511, and **feat 513** added the `log-review` channel (agent proposes fixes) plus the one-at-a-time **🔎 Worth checking** review on the Analysis page. Flag fat-finger sets (the 300 kg case feat 504 was built to survive), lb/kg mix-ups,
   machine-total entries that should be one stack (the `fixweights` case), duplicate sessions, impossible e1RM
   jumps. Each reply is a proposed fix accepted one at a time. *Top pick.*
 - ⏸ **Cross-link proposals.** The job done by hand in feat 497, where the raw title sweep was mostly false
