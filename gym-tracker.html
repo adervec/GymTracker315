@@ -2059,13 +2059,13 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   /* feat 257 — live hold timer for timed sets (planks / dead hangs / wall sits / L-sits). Once the set has
      started (weight entered → wTs) the open row shows a count-up button; a tap drops the elapsed seconds into
      the Seconds field. Pulses subtly so it reads as live. */
-  .hold-timer-btn { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin: 3px 0 7px; padding: 9px 10px; border: 1px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-family: inherit; font-weight: 800; font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; animation: hold-timer-pulse 1.8s ease-in-out infinite; }
+  .hold-timer-btn, .hold-start-btn { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin: 3px 0 7px; padding: 9px 10px; border: 1px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-family: inherit; font-weight: 800; font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; animation: hold-timer-pulse 1.8s ease-in-out infinite; }
   .hold-timer-btn:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .hold-timer-btn[hidden] { display: none; } /* feat 454 — author display:flex would otherwise beat the UA hidden rule */
   .hold-timer-btn .ht-time { font-size: 17px; letter-spacing: 0.3px; }
-  .hold-timer-btn .ht-tap { font-size: 11px; font-weight: 600; opacity: 0.82; }
+  .hold-timer-btn .ht-tap, .hold-start-btn .ht-tap { font-size: 11px; font-weight: 600; opacity: 0.82; }
   @keyframes hold-timer-pulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); } 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); } }
-  @media (prefers-reduced-motion: reduce) { .hold-timer-btn { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .hold-timer-btn, .hold-start-btn { animation: none; } }
   .set-remove:active { color: #ff9090; }
   .set-header { display: grid; grid-template-columns: 30px 1fr 1fr 30px; gap: 8px; font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.4px; padding-bottom: 4px; }
   /* feat 261 — RPE/RIR adds one column; only when the feature is on (else the original 4-col layout is untouched) */
@@ -28913,9 +28913,12 @@ function renderSetsForm() {
     // while editing a past session, where wTs may be days old).
     const holdStartMs = (M.mode === 'time' && !modalState.isEditing && s.wTs && !s.ts && (s.r === '' || s.r == null))
       ? new Date(s.wTs).getTime() : null;
-    const holdTimerHtml = (holdStartMs && holdStartMs > 0)
-      ? `<button type="button" class="hold-timer-btn" data-hold-idx="${i}" data-hold-start="${holdStartMs}" title="Tap to log the current hold time as this set's seconds">⏱ <span class="ht-time">${formatDuration((Date.now() - holdStartMs) / 1000)}</span> <span class="ht-tap">— tap to log</span></button>`
-      : '';
+    // feat 516 — a bodyweight hold (plank, dead hang) has no weight to type, so it never STARTED and never got a
+    // timer. The active set offers "Start hold" instead: it logs weight 0 through the canonical path (wTs, cue).
+    const holdTimerHtml = (holdStartMs && holdStartMs > 0) ? holdTimerBtnHtml(i, holdStartMs)
+      : (M.mode === 'time' && !modalState.isEditing && !s.ts && (s.w === '' || s.w == null) && i === activeSetIndex(pending.sets))
+        ? `<button type="button" class="hold-start-btn" data-hold-begin="${i}" title="Start the hold timer — no weight needed">⏱ Start hold <span class="ht-tap">— bodyweight</span></button>`
+        : '';
     // feat 457 — each set is one block (row + its hold timer + its sub-variation select) so newest-first can
     // flip the VISUAL order with flex column-reverse without touching DOM order. Every positional lookup in
     // the sheet (updateRowLive's rows[idx], the numpad's data-i selectors) keeps working untouched.
@@ -29016,21 +29019,29 @@ function renderSetsForm() {
       // feat 494 — every tile proposes a set that BEATS its record instead of matching it: one more
       // rep than the record set (which also out-does its e1RM), or one weight increment up for the
       // max-weight tile (falling back to +1 rep at the max when the ⚖️ cap forbids going heavier).
-      const beat = t => (t && t.w > 0) ? { w: t.w, r: (parseFloat(t.r) || 0) + 1 } : null;
+      // feat 516 — a timed hold: "reps" are seconds and weight 0 is a real set (a plank), so the tiles accept it,
+      // and the e1RM-based tiles go — Epley over seconds is meaningless. +1 s beats a hold like +1 rep beats a set.
+      const tm = M.mode === 'time', okW = w => w > 0 || (tm && w === 0);
+      const beat = t => (t && okW(t.w)) ? { w: t.w, r: (parseFloat(t.r) || 0) + 1 } : null;
       const wInc = state.unit === 'lb' ? 5 : 2.5, wCap = exMaxW(pending.varUuid);
       const heavier = t => (t && t.w > 0) ? ((wCap && t.w + wInc > wCap) ? beat(t) : { w: t.w + wInc, r: 1 }) : null;
-      const T = { prevTop: beat(B.prevTop), bestE1: beat(B.bestE1), maxW: heavier(B.maxW), maxR: beat(B.maxR) };
+      const T = { prevTop: beat(B.prevTop), bestE1: tm ? null : beat(B.bestE1), maxW: tm ? beat(B.maxW && B.maxW.w > 0 ? B.maxW : null) : heavier(B.maxW), maxR: beat(B.maxR) }; // a hold beats the heaviest by holding it longer
       const claimed = [T.prevTop, T.bestE1, T.maxW, T.maxR].filter(x => x && x.w > 0).map(x => x.w);
-      const P = exPrTargets(pending.varUuid, pending.subUuid, claimed); // feat 477 — PR picks avoid taken weights
+      const P = tm ? { vuln: null, e1: null } : exPrTargets(pending.varUuid, pending.subUuid, claimed); // feat 477 — PR picks avoid taken weights
       // feat 504 — the 5th slot is the axis the tile advances along: Max wt climbs weight, the rest climb reps
       const defs = [['↩', 'Prev top', T.prevTop, null, 'reps'], ['🏆', 'Best e1RM', T.bestE1, null, 'reps'],
         ['🎯', 'Wt PR', P.vuln, P.vuln && P.vuln.odds, 'reps'], ['🚀', 'e1RM PR', P.e1, P.e1 && P.e1.odds, 'reps'],
-        ['🏋️', 'Max wt', T.maxW, null, 'weight'], ['🔁', 'Max reps', T.maxR, null, 'reps']];
+        ['🏋️', tm ? 'Heaviest' : 'Max wt', T.maxW, null, tm ? 'reps' : 'weight'], ['🔁', tm ? 'Longest' : 'Max reps', T.maxR, null, 'reps']];
+      // feat 516 — one tile per base weight, and it is the HARDEST ask at that weight. First-come used to win,
+      // so Prev top (+1 over last time) hid Max reps (+1 over the record) whenever both sat at one weight —
+      // always, for a bodyweight hold — and the record ended up above every tile on screen.
+      const hardest = new Map();
+      defs.forEach(d => { const t = d[2]; if (t && okW(t.w) && !(hardest.has(t.w) && hardest.get(t.w)[2].r >= t.r)) hardest.set(t.w, d); });
       const seen = new Set(), btns = [];
       let hits = 0, prs = 0;
       const tgtSort = ['w', 'r', 'e1', 'vuln'].includes(state.targetSort) ? state.targetSort : 'order';
-      sortTargetDefs(defs, tgtSort).forEach(([ico, lbl, t, odds, axis]) => {
-        if (!t || !(t.w > 0) || seen.has(t.w)) return; // same BASE weight twice = one button (identity is the base ask)
+      sortTargetDefs(defs, tgtSort).forEach(d => { const [ico, lbl, t, odds, axis] = d;
+        if (!t || !okW(t.w) || seen.has(t.w) || hardest.get(t.w) !== d) return; // same BASE weight twice = one button (identity is the base ask)
         seen.add(t.w);
         const pg = exTargetProgress(pending.varUuid, pending.subUuid, t.w, t.r, axis, wInc); // feat 504
         const hit = pg.n > 0;
@@ -29039,7 +29050,7 @@ function renderSetsForm() {
         btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}" data-w="${pg.w}" data-r="${pg.r}"
           data-w0="${t.w}" data-r0="${t.r}" data-axis="${axis}" data-n="${pg.n}"
           title="${escapeAttr(lbl + ' — ' + pg.w + state.unit + ' × ' + pg.r + (odds != null ? ' · ' + odds + '% PR odds' : '') + (pg.n === 1 ? ' — beaten once this session; here is the next rung' : pg.n > 1 ? ' — beaten ' + pg.n + ' times this session' : ''))}"
-          ><span class="tb-ico">${ico}</span><span class="tb-lbl">${lbl}</span><b>${pg.w}×${pg.r}</b>${streak}</button>`);
+          ><span class="tb-ico">${ico}</span><span class="tb-lbl">${lbl}</span><b>${tm ? (pg.w > 0 ? pg.w + '×' : '') + formatSecondsClock(pg.r) : pg.w + '×' + pg.r}</b>${streak}</button>`);
         // the odds live in the tooltip and the All-weights table — on a 3-up tile they only ate the label
       });
       const R = exWeightRows(pending.varUuid, pending.subUuid); // feat 504 — `prs` is now counted per TILE, above
@@ -29090,10 +29101,11 @@ function exBestSets(varUuid, subUuid, beforeDate) {
   const hist = getHistoryByKey(varUuid, subUuid); // recent-first
   const cutoff = beforeDate ? new Date(beforeDate).getTime() : Infinity;
   let prevTop = null, bestE1 = null, maxW = null, maxR = null;
+  const w0 = exMode(varUuid).mode === 'time'; // feat 516 — a plank at weight 0 is still a set; skipping it hid every record
   hist.forEach(h => {
     (h.sets || []).forEach(s => {
       const w = parseFloat(s.w) || 0, r = parseFloat(s.r) || 0;
-      if (!(w > 0) || !(r > 0)) return;
+      if (!(w > 0 || w0) || !(r > 0)) return;
       const e = estimated1RM(w, r) || 0;
       if (!bestE1 || e > bestE1.e) bestE1 = { w, r, e };
       if (!maxW || w > maxW.w || (w === maxW.w && r > maxW.r)) maxW = { w, r };
@@ -29101,7 +29113,7 @@ function exBestSets(varUuid, subUuid, beforeDate) {
     });
     if (!prevTop && new Date(h.date).getTime() < cutoff && h.topSet) {
       const w = parseFloat(h.topSet.w) || 0, r = parseFloat(h.topSet.r) || 0;
-      if (w > 0 && r > 0) prevTop = { w, r };
+      if ((w > 0 || w0) && r > 0) prevTop = { w, r };
     }
   });
   return { prevTop, bestE1, maxW, maxR };
@@ -29191,14 +29203,15 @@ function sortTargetDefs(defs, key) {
 }
 // The sets logged for THIS exercise today: the pending sheet plus anything already saved this session.
 function exSessionSets(varUuid, subUuid) {
-  const out = [];
-  (pending.sets || []).forEach(st => { const w = parseFloat(st.w), r = parseFloat(st.r); if (w > 0 && r > 0) out.push({ w, r }); });
+  const out = [], w0 = exMode(varUuid).mode === 'time'; // feat 516
+  const add = st => { const w = parseFloat(st.w) || 0, r = parseFloat(st.r); if ((w > 0 || w0) && r > 0) out.push({ w, r }); };
+  (pending.sets || []).forEach(add);
   const today = new Date().toDateString();
   (state.sessions || []).forEach(ss => {
     if (new Date(ss.date).toDateString() !== today) return;
     (ss.exercises || []).forEach(ex => {
       if (ex.varUuid !== varUuid || (ex.subUuid || null) !== (subUuid || null)) return;
-      (ex.sets || []).forEach(st => { const w = parseFloat(st.w), r = parseFloat(st.r); if (w > 0 && r > 0) out.push({ w, r }); });
+      (ex.sets || []).forEach(add);
     });
   });
   return out;
@@ -29217,7 +29230,7 @@ function exTargetHit(varUuid, subUuid, w, r) {
    climbing the Max-wt ladder minted a fresh PR at every rung — the "milking one easy button" this prevents. */
 function exTargetProgress(varUuid, subUuid, w, r, axis, inc) {
   const need = r > 0 ? r : 1;
-  if (!(w > 0)) return { n: 0, w: w, r: need };
+  if (!(w > 0) && !(w === 0 && exMode(varUuid).mode === 'time')) return { n: 0, w: w, r: need };
   const sets = exSessionSets(varUuid, subUuid);
   if (axis === 'weight') {
     const step = inc > 0 ? inc : 1;
@@ -29290,7 +29303,7 @@ function suggestionAutoCollapse() {
 }
 // One-tap weight prefill (feat 234/247/420): first incomplete set gets the weight — reps stay yours to log.
 function prefillTargetWeight(w) {
-  if (!(w > 0)) return;
+  if (!(w > 0) && !(w === 0 && pendingIsTimeMode())) return; // feat 516 — 0 = a bodyweight hold
   const cap = exMaxW(pending.varUuid); if (cap && w > cap) w = cap; // feat 434 — a reference above the cap prefills the cap
   let i = (pending.sets || []).findIndex(s => s && !isSetValid(s, pending.varUuid));
   if (i < 0) { pending.sets.push({ w: '', r: '' }); i = pending.sets.length - 1; }
@@ -29811,7 +29824,7 @@ function commitSetField(i, f, val) {
     const ht = document.querySelector('#trk-sets-container .hold-timer-btn[data-hold-idx="' + i + '"]');
     if (ht && ht.hidden !== !!s.ts) { ht.hidden = !!s.ts; ensureHoldTimers(); }
   }
-  if (f === 'w') renderNeighborHints();
+  if (f === 'w') { renderNeighborHints(); syncHoldTimerBtn(i); }
   if (typeof refreshRestBar === 'function') refreshRestBar();
   if (s[f] !== prev) flashSetField(i, f); // feat 149 — visual confirmation the field changed
 }
@@ -29820,6 +29833,34 @@ function commitSetField(i, f, val) {
 // count-up button; this repaints every second from each button's data-hold-start. Self-terminating once no
 // button remains in the DOM (a re-render or modal close clears them), and re-armed by bindSetsForm.
 let _holdTimerInt = null;
+function holdTimerBtnHtml(i, startMs) {
+  return `<button type="button" class="hold-timer-btn" data-hold-idx="${i}" data-hold-start="${startMs}" title="Tap to log the current hold time as this set's seconds">⏱ <span class="ht-time">${formatDuration((Date.now() - startMs) / 1000)}</span> <span class="ht-tap">— tap to log</span></button>`;
+}
+function holdTimerTap(btn) {
+  const i = parseInt(btn.dataset.holdIdx, 10);
+  const start = parseInt(btn.dataset.holdStart, 10);
+  if (!(start > 0) || !pending.sets[i]) return;
+  const sec = Math.max(1, Math.round((Date.now() - start) / 1000)); // at least 1s
+  commitSetField(i, 'r', sec);  // Seconds → stamps ts (set done) + fires the set-end cue (feat 207)
+  renderModal();                // re-render: the now-completed set drops its timer button
+}
+// feat 516 — typing a weight stamps wTs but only updates the row in place (a re-render would steal focus
+// mid-typing), so without the ready/set/go cue (whose "Go" re-renders) the timer never appeared. Sync this
+// one set's timer button in place: add it when the hold starts, drop it when the weight is cleared.
+function syncHoldTimerBtn(i) {
+  const block = document.querySelectorAll('#trk-sets-container .set-block')[i];
+  const s = pending.sets[i];
+  if (!block || !s || !pendingIsTimeMode() || modalState.isEditing) return;
+  const cur = block.querySelector('.hold-timer-btn, .hold-start-btn');
+  const want = !!(s.wTs && !s.ts && (s.r === '' || s.r == null));
+  if (want && cur && cur.dataset.holdStart) return;
+  if (cur) cur.remove();
+  if (want) {
+    block.children[0].insertAdjacentHTML('afterend', holdTimerBtnHtml(i, new Date(s.wTs).getTime()));
+    block.children[1].addEventListener('click', e => holdTimerTap(e.currentTarget));
+  }
+  ensureHoldTimers();
+}
 function tickHoldTimers() {
   const btns = document.querySelectorAll('.hold-timer-btn[data-hold-start]:not([hidden])');
   if (!btns.length) { stopHoldTimers(); return; }
@@ -30193,16 +30234,11 @@ function bindSetsForm() {
     input.addEventListener('input', () => commitSetField(parseInt(input.dataset.i), input.dataset.field, input.value));
   });
   // feat 257 — tap the live hold timer to record the current elapsed seconds as this timed set's value.
-  document.querySelectorAll('.hold-timer-btn[data-hold-idx]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const i = parseInt(btn.dataset.holdIdx, 10);
-      const start = parseInt(btn.dataset.holdStart, 10);
-      if (!(start > 0) || !pending.sets[i]) return;
-      const sec = Math.max(1, Math.round((Date.now() - start) / 1000)); // at least 1s
-      commitSetField(i, 'r', sec);  // Seconds → stamps ts (set done) + fires the set-end cue (feat 207)
-      renderModal();                // re-render: the now-completed set drops its timer button
-    });
-  });
+  document.querySelectorAll('.hold-timer-btn[data-hold-idx]').forEach(btn => btn.addEventListener('click', () => holdTimerTap(btn)));
+  document.querySelectorAll('.hold-start-btn[data-hold-begin]').forEach(btn => btn.addEventListener('click', () => { // feat 516
+    commitSetField(parseInt(btn.dataset.holdBegin, 10), 'w', 0);
+    renderModal();
+  }));
   // feat 88 — per-set sub-variation selection
   document.querySelectorAll('#trk-sets-container [data-set-sub]').forEach(sel => {
     sel.addEventListener('change', () => { const i = parseInt(sel.dataset.setSub); if (pending.sets[i]) { pending.sets[i].subUuid = sel.value; savePending(); } });
@@ -30892,7 +30928,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 439 · 2026-10-29 08:14';
+const APP_BUILD = 'build 440 · 2026-10-29 08:34';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -2665,6 +2665,20 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Holds: the timer always shows, and the targets beat the record (feat 516):** two separate holes.
+  *Timer* — a hold STARTS when a weight is entered (`wTs`), but typing a weight only updates the row in place
+  (a re-render would steal focus mid-typing), so unless the ready/set/go cue was on (its "Go" re-renders) the
+  ⏱ button never appeared. `syncHoldTimerBtn(i)` now adds/removes that one set's button in place on every
+  weight commit. And a bodyweight hold (plank, dead hang) has no weight to type, so it never started at all:
+  the active blank set now shows **⏱ Start hold**, which logs weight 0 through the canonical path (wTs, cue,
+  set-start annunciation) and unlocks the Seconds field. *Targets* — weight-0 holds were skipped as "not a set"
+  by `exBestSets` / `exSessionSets` / `exTargetProgress`, and one-tile-per-weight kept the **first** ask at a
+  weight, so Prev top (+1 s over last time) hid the record tile whenever both sat at one weight — always, for a
+  bodyweight hold. Now weight 0 counts for timed exercises, the tile kept at each weight is the **hardest** ask
+  (this also fixes regular lifts where Prev top shared a weight with Max reps), the Epley tiles (Best e1RM, Wt
+  PR, e1RM PR) are dropped for holds, Max wt becomes **Heaviest** (hold the heaviest weight 1 s longer, not
+  1 s at +5 lb), Max reps becomes **Longest**, and asks print as a clock (`1:31`, `25×0:46`).
+  `test/holdstart.spec.mjs`, `test/holdtargets.spec.mjs`.
 - **All weights as a chart (feat 515):** the All-weights sheet gains a **Table | Chart** toggle (the table stays
   the default; the choice sticks for the session via `_wtView`). The chart is **two stacked plots on one shared
   weight axis** — e1RM (Best / 90-day best / Last session) above, PR odds (at this weight / new overall best, 0–100%)
