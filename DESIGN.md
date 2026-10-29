@@ -2665,6 +2665,17 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **All weights as a chart (feat 515):** the All-weights sheet gains a **Table | Chart** toggle (the table stays
+  the default; the choice sticks for the session via `_wtView`). The chart is **two stacked plots on one shared
+  weight axis** — e1RM (Best / 90-day best / Last session) above, PR odds (at this weight / new overall best, 0–100%)
+  below — because kilograms and percentages never share a y-axis. Lines are 2px, gaps in a series are never bridged,
+  dots carry a 2px surface ring; colours are the validated dataviz slots 1–5, stepped separately for dark and light
+  surfaces (light aqua/yellow/magenta are sub-3:1, so every series is also direct-labelled at its end and the table
+  stays one tap away). End labels that would collide are won by the headline series, and when ≥30% of weights have
+  coinciding lines a note says so rather than letting a series look missing. Tapping or dragging moves a crosshair
+  shared by both plots and fills a **docked readout** listing every series at that weight; only its **Load** button
+  prefills the set — exploring never changes it. Arrow keys + Enter do the same from the keyboard. It opens on the
+  weight with the best e1RM; fewer than two weights shows a message instead of a lone dot. `test/wtchart.spec.mjs`.
 - **Diagnostics through the Analysis channel (feat 514):** the shelved plan was a sixth cowork channel for
   diagnosing incidents, but the **Analysis** channel already has everything such a channel needs — a question
   queue, an agent that answers, and a page that shows answers. What it lacked was *evidence about the app
