@@ -2665,6 +2665,22 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Holds and bodyweight lifts in their own words (feat 517):** feat 516 fixed the hold tiles, but the rest of
+  the page still talked barbell. The root was one number: history ranked and compared sets by Epley e1RM on the
+  *weight field* — seconds-as-reps for a hold, and added load for a bodyweight lift, so every pure-bodyweight
+  pull-up or plank scored 0 and the "top set" was whichever came first. `setScorer(varUuid)` now defines "better"
+  per movement — **seconds** for a hold, **e1RM on bodyweight + added (− assist)** for a bodyweight lift, Epley
+  otherwise — and `getHistoryByKey`'s top set, the overload tag, the progression suggestion and the History
+  exercise page all go through it. `fmtSetFor` prints a set the movement's way (`1:30`, `25×1:30`, `BW×8`,
+  `+25×6`, `−20×8`). The record hint was two drifting copies (render + live update); it is one `recordHintText`
+  now. On a hold or bodyweight lift: no e1RM neighbour card, no All-weights table (its columns are e1RM and
+  Epley odds), sort chips are order/weight/time (or reps), and no "lighter" baseline below a bodyweight set.
+  Bodyweight targets: 0 / negative added load counts, Max wt climbs toward less assistance (−20 → −15), an
+  assisted set is never the rep record while an unassisted one exists, and a −20 base is not "beaten" by an
+  empty session (the weight ladder starts from −∞, not 0). Both page types show the **bodyweight they are measured
+  against with its age**, amber + "stale" past the same threshold as the workout-start warning, or a prompt when
+  none is logged. ponytail: today's bodyweight scores past sets too — store a per-set snapshot if that ever
+  matters. `test/bwholdwords.spec.mjs`.
 - **Holds: the timer always shows, and the targets beat the record (feat 516):** two separate holes.
   *Timer* — a hold STARTS when a weight is entered (`wTs`), but typing a weight only updates the row in place
   (a re-render would steal focus mid-typing), so unless the ready/set/go cue was on (its "Go" re-renders) the

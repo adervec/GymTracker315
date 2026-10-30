@@ -2059,6 +2059,8 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   /* feat 257 — live hold timer for timed sets (planks / dead hangs / wall sits / L-sits). Once the set has
      started (weight entered → wTs) the open row shows a count-up button; a tap drops the elapsed seconds into
      the Seconds field. Pulses subtly so it reads as live. */
+  .ex-bw-line { margin-top: 4px; font-size: 12px; color: var(--text2); }
+  .ex-bw-line.stale { color: var(--warn); }
   .hold-timer-btn, .hold-start-btn { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin: 3px 0 7px; padding: 9px 10px; border: 1px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-family: inherit; font-weight: 800; font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; animation: hold-timer-pulse 1.8s ease-in-out infinite; }
   .hold-timer-btn:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   .hold-timer-btn[hidden] { display: none; } /* feat 454 — author display:flex would otherwise beat the UA hidden rule */
@@ -13705,16 +13707,38 @@ function getNeighborBaselines(varUuid, subUuid, currentWeightNum) {
   return { lighter, heavier };
 }
 
+/* feat 517 — what "better" means depends on the movement. A hold is better when it is LONGER (seconds, whatever
+   the added load); a bodyweight lift moves bodyweight + added (− assist), so its e1RM runs on that effective load —
+   on added load alone every pure-bodyweight set scored 0 and the record was whichever set came first. Everything
+   that ranks or compares a set (top set, overload tag, progression, history) goes through this one scorer. */
+function bwInUnit() { const kg = getCurrentBodyweightKg(); return kg ? (state.unit === 'kg' ? kg : kgToLb(kg)) : 0; }
+function setScorer(varUuid) {
+  const m = exMode(varUuid).mode;
+  if (m === 'time') return (w, r) => parseFloat(r) || 0;
+  if (m === 'bodyweight') {
+    const base = bwInUnit(); // ponytail: today's bodyweight scores past sets too — a per-set bodyweight snapshot if that ever matters
+    return (w, r) => { const L = base + (parseFloat(w) || 0); return L > 0 ? estimated1RM(L, parseFloat(r) || 0) : 0; };
+  }
+  return (w, r) => estimated1RM(w, r);
+}
+// A set in the movement's own words: "1:30" / "25×1:30" for a hold, "BW×8" / "+25×6" / "−20×8" for a bodyweight lift.
+function fmtSetFor(varUuid, w, r) {
+  const m = exMode(varUuid).mode, n = parseFloat(w) || 0;
+  if (m === 'time') return (n > 0 ? n + '×' : '') + formatSecondsClock(r);
+  if (m === 'bodyweight') return (n > 0 ? '+' + n : n < 0 ? '−' + (-n) : 'BW') + '×' + r;
+  return w + '×' + r;
+}
 function getHistoryByKey(varUuid, subUuid) {
   const key = trackingKey(varUuid, subUuid);
   const history = [];
+  const score = setScorer(varUuid); // feat 517
   state.sessions.forEach(s => {
     s.exercises.forEach(ex => {
       if (ex.cardio || !ex.sets || ex.sets.length === 0) return; // strength-only — cardio has no top set (feat 6)
       const exKey = trackingKey(ex.varUuid, ex.subUuid);
       if (exKey === key) {
         const topSet = ex.sets.reduce((top, set) => {
-          const oneRM = estimated1RM(set.w, set.r);
+          const oneRM = score(set.w, set.r);
           return (!top || oneRM > top.oneRM) ? { ...set, oneRM } : top;
         }, null);
         history.push({ date: s.date, sets: ex.sets, topSet, volume: exerciseVolume(ex) });
@@ -13828,8 +13852,8 @@ function getBestWeightAtReps(varUuid, subUuid, reps) {
 // Returns: { score: number, label: string, level: 'pr' | 'progress' | 'mild' | 'match' | 'mild-down' | 'down' | 'baseline' }
 // score is delta% in e1RM vs the comparison baseline (top set from PREVIOUS session).
 function getOverloadScore(varUuid, subUuid, set, currentSessionDate) {
-  if (!set.w || !set.r) return null;
-  const setOneRM = estimated1RM(set.w, set.r);
+  if (!set.r || (!set.w && exMode(varUuid).mode === 'standard')) return null; // feat 517 — a plank / pull-up at 0 added is a real set
+  const setOneRM = setScorer(varUuid)(set.w, set.r);
   const history = getHistoryByKey(varUuid, subUuid);
   // Only compare to sessions BEFORE the current one — never the future
   const currentDate = new Date(currentSessionDate).getTime();
@@ -14008,11 +14032,14 @@ function objectiveTierTagHtml(varUuid, set) {
 function getProgressionSuggestion(varUuid, subUuid) {
   const history = getHistoryByKey(varUuid, subUuid);
   if (history.length === 0) return null;
+  // feat 517 — a hold is measured in seconds, a bodyweight lift on bodyweight + added: say it that way
+  const tm = exMode(varUuid).mode === 'time', F = t => fmtSetFor(varUuid, t.w, t.r);
+  const metric = tm ? 'longest hold' : 'est. 1RM', addOne = tm ? 'add a few seconds' : 'add a rep';
   if (history.length === 1) {
     const recent = history[0];
     return {
       label: 'Baseline set',
-      text: `Last logged: <b>${recent.topSet.w} × ${recent.topSet.r}</b>. Next session, try to <b>beat ${recent.topSet.w} × ${recent.topSet.r}</b> — add a rep, then add weight.`
+      text: `Last logged: <b>${F(recent.topSet)}</b>. Next session, try to <b>beat ${F(recent.topSet)}</b> — ${addOne}, then add weight.`
     };
   }
   const recent = history[0];
@@ -14023,19 +14050,19 @@ function getProgressionSuggestion(varUuid, subUuid) {
     const delta = Math.round(((recentOneRM - prevOneRM) / prevOneRM) * 1000) / 10;
     return {
       label: 'Progressing ✓',
-      text: `Up <b>${delta}%</b> est. 1RM from last session. Top set: <b>${recent.topSet.w} × ${recent.topSet.r}</b>. Next time, beat <b>${recent.topSet.w} × ${recent.topSet.r}</b>.`
+      text: `Up <b>${delta}%</b> ${metric} from last session. Top set: <b>${F(recent.topSet)}</b>. Next time, beat <b>${F(recent.topSet)}</b>.`
     };
   }
   if (recentOneRM === prevOneRM) {
     return {
       label: 'Stalled',
-      text: `Same top set as last time (<b>${recent.topSet.w} × ${recent.topSet.r}</b>). Try harder: add a rep, or drop weight 5% to rebuild form. If stalled 2+ weeks, consider deload.`
+      text: `Same top set as last time (<b>${F(recent.topSet)}</b>). Try harder: ${addOne}, or drop weight 5% to rebuild form. If stalled 2+ weeks, consider deload.`
     };
   }
   const delta = Math.round(((prevOneRM - recentOneRM) / prevOneRM) * 1000) / 10;
   return {
     label: 'Down ' + delta + '%',
-    text: `Down from last session. Check sleep, food, stress. Repeat the previous weight (<b>${prev.topSet.w} × ${prev.topSet.r}</b>) next time.`
+    text: `Down from last session. Check sleep, food, stress. Repeat the previous ${tm ? 'hold' : 'weight'} (<b>${F(prev.topSet)}</b>) next time.`
   };
 }
 
@@ -14531,6 +14558,15 @@ function formatSecondsClock(sec) {
 }
 // Is the active log entry in time mode? (drives the Seconds→Time field + hh:mm:ss entry across the numpad path)
 function pendingIsTimeMode() { return !!(pending && pending.varUuid && exMode(pending.varUuid).mode === 'time'); }
+// feat 517 — the bodyweight a bodyweight lift or hold is measured against, on its page, with its age: a stale
+// reading silently skews every effective-load record, so it says so (same threshold as the workout-start warning).
+function bodyweightLineHtml() {
+  const e = latestBodyCompWith('weightKg');
+  if (!e) return `<div class="ex-bw-line stale">⚖️ No bodyweight logged — add it in the Body tab so records count it.</div>`;
+  const d = Math.floor(daysSinceIso(e.date)), stale = d > biometricStaleDays();
+  const age = d < 1 ? 'today' : d === 1 ? 'yesterday' : d + ' days ago';
+  return `<div class="ex-bw-line${stale ? ' stale' : ''}">⚖️ Bodyweight <b>${bodyDispW(e.weightKg)}${state.bodyCompUnit}</b> · ${age}${stale ? ' — ⚠ stale, update it in the Body tab' : ''}</div>`;
+}
 function getCurrentBodyweightKg() {
   const s = sortedBodyComp();
   return s.length ? s[0].weightKg : null;
@@ -21571,6 +21607,7 @@ function renderExerciseDetail(main, key) {
   const history = cutoff ? allHistory.filter(h => new Date(h.date).getTime() >= cutoff) : allHistory;
   const suggestion = getProgressionSuggestion(key.varUuid, key.subUuid);
   const best1RM = history.reduce((max, h) => Math.max(max, h.topSet.oneRM), 0);
+  const dM = exMode(key.varUuid).mode, dT = n => dM === 'time' ? formatSecondsClock(n) : n; // feat 517 — a hold's score is seconds
   const totalSets = history.reduce((s, h) => s + h.sets.length, 0);
   const info = VAR_INDEX.get(key.varUuid);
   const subOpt = key.subUuid && info && info.variation.subvariation
@@ -21587,7 +21624,7 @@ function renderExerciseDetail(main, key) {
   <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">${escapeHtml(family)}${info ? ` · ${BP_LABELS[info.bp] || info.bp}` : ''}</div>
   ${rangeChip}
   <div class="stats-grid">
-    <div class="stat-tile"><div class="stat-label">Best e1RM</div><div class="stat-value">${best1RM}</div><div class="stat-sub">${state.unit}</div></div>
+    <div class="stat-tile"><div class="stat-label">${dM === 'time' ? 'Longest hold' : 'Best e1RM'}</div><div class="stat-value">${dT(best1RM)}</div><div class="stat-sub">${dM === 'time' ? 'm:ss' : state.unit + (dM === 'bodyweight' ? ' incl. bodyweight' : '')}</div></div>
     <div class="stat-tile"><div class="stat-label">Total Sets</div><div class="stat-value">${totalSets}</div><div class="stat-sub">${history.length} sessions</div></div>
   </div>
   ${suggestion ? `<div class="suggestion">
@@ -21601,14 +21638,14 @@ function renderExerciseDetail(main, key) {
     let deltaHtml = '<div class="eh-delta same">·</div>';
     if (prev) {
       const diff = h.topSet.oneRM - prev.topSet.oneRM;
-      if (diff > 0) deltaHtml = `<div class="eh-delta up">+${diff}</div>`;
-      else if (diff < 0) deltaHtml = `<div class="eh-delta down">${diff}</div>`;
+      if (diff > 0) deltaHtml = `<div class="eh-delta up">+${diff}${dM === 'time' ? 's' : ''}</div>`;
+      else if (diff < 0) deltaHtml = `<div class="eh-delta down">${diff}${dM === 'time' ? 's' : ''}</div>`;
       else deltaHtml = `<div class="eh-delta same">—</div>`;
     }
     html += `<div class="eh-row">
       <div class="eh-date">${fmtDate(h.date)}</div>
-      <div class="eh-top-set">${h.topSet.w}×${h.topSet.r}</div>
-      <div class="eh-1rm">${h.topSet.oneRM}</div>
+      <div class="eh-top-set">${fmtSetFor(key.varUuid, h.topSet.w, h.topSet.r)}</div>
+      <div class="eh-1rm">${dT(h.topSet.oneRM)}</div>
       ${deltaHtml}
       <div class="eh-actions">
         <button class="eh-action-btn edit" data-edit-session="${h.date}" data-varuuid="${key.varUuid}" ${key.subUuid ? `data-subuuid="${key.subUuid}"` : ''}>Edit</button>
@@ -28861,8 +28898,8 @@ function renderSetsForm() {
     const wNum = s.w === '' ? null : parseFloat(s.w);
     const rNum = s.r === '' ? null : parseFloat(s.r);
 
-    // Color row if both weight and reps specified
-    if (wNum > 0 && rNum > 0) {
+    // Color row if both weight and reps specified (feat 517 — 0 / negative added load counts for holds + bodyweight)
+    if ((wNum > 0 || (M.mode !== 'standard' && wNum != null && !isNaN(wNum))) && rNum > 0) {
       const score = getOverloadScore(pending.varUuid, pending.subUuid, { w: wNum, r: rNum }, currentSessionDate);
       if (score) {
         rowClass += ` overload-${score.level}`;
@@ -28871,29 +28908,8 @@ function renderSetsForm() {
       overloadTagHtml += objectiveTierTagHtml(pending.varUuid, { w: wNum, r: rNum }); // feat 428 — population-standard read next to the history-relative tag
     }
 
-    // Record hint on bottom set with one input filled
-    if (isLast) {
-      if (wNum > 0 && (rNum == null || rNum <= 0)) {
-        // Weight only → show best reps at this weight
-        const rec = getBestRepsAtWeight(pending.varUuid, pending.subUuid, wNum);
-        if (rec) {
-          const dateStr = fmtDate(rec.date);
-          const exactnessNote = rec.exact ? '' : ` <span style="color:#6f88c0">(at ${rec.weight}${state.unit})</span>`;
-          recordHintHtml = `<div class="record-hint"><span class="hint-action">Best reps at ${wNum}${state.unit}:</span> <b>${rec.reps} reps</b> on ${dateStr}${exactnessNote} — beat <b>${rec.reps + 1}</b> for a record</div>`;
-        } else {
-          recordHintHtml = `<div class="record-hint"><span class="hint-action">${wNum}${state.unit}:</span> first time at this weight — set a baseline</div>`;
-        }
-      } else if (rNum > 0 && (wNum == null || wNum <= 0)) {
-        // Reps only → show best weight at these reps
-        const rec = getBestWeightAtReps(pending.varUuid, pending.subUuid, rNum);
-        if (rec) {
-          const dateStr = fmtDate(rec.date);
-          recordHintHtml = `<div class="record-hint"><span class="hint-action">Best weight at ${rNum} reps:</span> <b>${rec.weight}${state.unit}</b> on ${dateStr} — beat it to set a record</div>`;
-        } else {
-          recordHintHtml = `<div class="record-hint"><span class="hint-action">${rNum} reps:</span> first time at this rep count — set a baseline</div>`;
-        }
-      }
-    }
+    // Record hint on bottom set with one input filled (feat 517 — one shared copy, see recordHintText)
+    if (isLast) { const h = recordHintText(wNum, rNum); if (h) recordHintHtml = `<div class="record-hint">${h}</div>`; }
 
     const maxW = effectiveMaxW(pending.varUuid); // feat 434 — the exercise cap reddens the input too
     const wOver = s.w !== '' && s.w != null && parseFloat(s.w) > maxW;
@@ -28974,10 +28990,10 @@ function renderSetsForm() {
         (() => { const t = exerciseTiming(pending.varUuid, pending.subUuid); return t ? ` · <span class="ex-time-stat">⏱ <b>${formatDuration(t.totalMs / 1000)}</b>${t.pctActive != null ? ` · <b>${t.pctActive}%</b> active` : ''}</span>` : ''; })()
       }</div>
       ${M.mode !== 'standard' ? `<div class="ex-mode-hint">${
-        M.mode==='bodyweight' ? `Bodyweight baseline — log <b>added load</b> in the weight field (use a negative number for assistance, 0 for pure bodyweight).${(() => { const bw = getCurrentBodyweightKg(); return bw ? ` Effective ≈ bodyweight ${bodyDispW(bw)}${state.bodyCompUnit} + added.` : ''; })()}` :
+        M.mode==='bodyweight' ? `Bodyweight lift — log <b>added load</b> in the weight field (0 or blank = bodyweight, negative = assistance). Records count bodyweight + added.` :
         M.mode==='distance' ? `Carry — log <b>weight × distance</b> instead of reps (distance in your preferred unit).` :
-        `Hold — log <b>weight × seconds</b> instead of reps.`
-      }</div>` : ''}
+        `Hold — log <b>time</b>; weight is <b>added load</b> (0 or blank = bodyweight).`
+      }${M.mode !== 'distance' ? bodyweightLineHtml() : ''}</div>` : ''}
       ${(() => { const h = weightRecordHint(pending.varUuid); return h ? `<div class="weight-record-hint">${escapeHtml(h)}</div>` : ''; })()}
       ${exNoteHtml ? `<div class="ex-note-row">${exNoteHtml}</div>` : ''}
       <div class="ex-actions${exActionsOpen() ? ' open' : ''}" id="trk-ex-actions">
@@ -29021,13 +29037,16 @@ function renderSetsForm() {
       // max-weight tile (falling back to +1 rep at the max when the ⚖️ cap forbids going heavier).
       // feat 516 — a timed hold: "reps" are seconds and weight 0 is a real set (a plank), so the tiles accept it,
       // and the e1RM-based tiles go — Epley over seconds is meaningless. +1 s beats a hold like +1 rep beats a set.
-      const tm = M.mode === 'time', okW = w => w > 0 || (tm && w === 0);
+      // feat 517 — and a bodyweight lift: 0 added is pure bodyweight and a negative is assistance, both real sets;
+      // its Epley tiles go too (they ran on added load, so every pure-bodyweight set "weighed" 0). Carries likewise.
+      const tm = M.mode === 'time', bwm = M.mode === 'bodyweight', noE1 = M.mode !== 'standard';
+      const okW = w => w > 0 || (tm && w === 0) || (bwm && isFinite(w));
       const beat = t => (t && okW(t.w)) ? { w: t.w, r: (parseFloat(t.r) || 0) + 1 } : null;
       const wInc = state.unit === 'lb' ? 5 : 2.5, wCap = exMaxW(pending.varUuid);
-      const heavier = t => (t && t.w > 0) ? ((wCap && t.w + wInc > wCap) ? beat(t) : { w: t.w + wInc, r: 1 }) : null;
-      const T = { prevTop: beat(B.prevTop), bestE1: tm ? null : beat(B.bestE1), maxW: tm ? beat(B.maxW && B.maxW.w > 0 ? B.maxW : null) : heavier(B.maxW), maxR: beat(B.maxR) }; // a hold beats the heaviest by holding it longer
+      const heavier = t => (t && okW(t.w)) ? ((wCap && t.w + wInc > wCap) ? beat(t) : { w: t.w + wInc, r: 1 }) : null; // −20 assist → −15: less help
+      const T = { prevTop: beat(B.prevTop), bestE1: noE1 ? null : beat(B.bestE1), maxW: tm ? beat(B.maxW && B.maxW.w > 0 ? B.maxW : null) : heavier(B.maxW), maxR: beat(B.maxR) }; // a hold beats the heaviest by holding it longer
       const claimed = [T.prevTop, T.bestE1, T.maxW, T.maxR].filter(x => x && x.w > 0).map(x => x.w);
-      const P = tm ? { vuln: null, e1: null } : exPrTargets(pending.varUuid, pending.subUuid, claimed); // feat 477 — PR picks avoid taken weights
+      const P = noE1 ? { vuln: null, e1: null } : exPrTargets(pending.varUuid, pending.subUuid, claimed); // feat 477 — PR picks avoid taken weights
       // feat 504 — the 5th slot is the axis the tile advances along: Max wt climbs weight, the rest climb reps
       const defs = [['↩', 'Prev top', T.prevTop, null, 'reps'], ['🏆', 'Best e1RM', T.bestE1, null, 'reps'],
         ['🎯', 'Wt PR', P.vuln, P.vuln && P.vuln.odds, 'reps'], ['🚀', 'e1RM PR', P.e1, P.e1 && P.e1.odds, 'reps'],
@@ -29039,7 +29058,9 @@ function renderSetsForm() {
       defs.forEach(d => { const t = d[2]; if (t && okW(t.w) && !(hardest.has(t.w) && hardest.get(t.w)[2].r >= t.r)) hardest.set(t.w, d); });
       const seen = new Set(), btns = [];
       let hits = 0, prs = 0;
-      const tgtSort = ['w', 'r', 'e1', 'vuln'].includes(state.targetSort) ? state.targetSort : 'order';
+      const sortKeys = noE1 ? [['order', 'order'], ['w', 'weight'], ['r', tm ? 'time' : 'reps']]
+        : [['order', 'order'], ['w', 'weight'], ['r', 'reps'], ['e1', 'e1RM'], ['vuln', '🎯 odds']]; // feat 517
+      const tgtSort = sortKeys.some(([k]) => k === state.targetSort) ? state.targetSort : 'order';
       sortTargetDefs(defs, tgtSort).forEach(d => { const [ico, lbl, t, odds, axis] = d;
         if (!t || !okW(t.w) || seen.has(t.w) || hardest.get(t.w) !== d) return; // same BASE weight twice = one button (identity is the base ask)
         seen.add(t.w);
@@ -29049,12 +29070,12 @@ function renderSetsForm() {
         const streak = pg.n > 1 ? '<span class="tb-streak" title="Beaten ' + pg.n + ' times this session">' + pg.n + '</span>' : '';
         btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}" data-w="${pg.w}" data-r="${pg.r}"
           data-w0="${t.w}" data-r0="${t.r}" data-axis="${axis}" data-n="${pg.n}"
-          title="${escapeAttr(lbl + ' — ' + pg.w + state.unit + ' × ' + pg.r + (odds != null ? ' · ' + odds + '% PR odds' : '') + (pg.n === 1 ? ' — beaten once this session; here is the next rung' : pg.n > 1 ? ' — beaten ' + pg.n + ' times this session' : ''))}"
-          ><span class="tb-ico">${ico}</span><span class="tb-lbl">${lbl}</span><b>${tm ? (pg.w > 0 ? pg.w + '×' : '') + formatSecondsClock(pg.r) : pg.w + '×' + pg.r}</b>${streak}</button>`);
+          title="${escapeAttr(lbl + ' — ' + (noE1 ? fmtSetFor(pending.varUuid, pg.w, pg.r) : pg.w + state.unit + ' × ' + pg.r) + (odds != null ? ' · ' + odds + '% PR odds' : '') + (pg.n === 1 ? ' — beaten once this session; here is the next rung' : pg.n > 1 ? ' — beaten ' + pg.n + ' times this session' : ''))}"
+          ><span class="tb-ico">${ico}</span><span class="tb-lbl">${lbl}</span><b>${fmtSetFor(pending.varUuid, pg.w, pg.r)}</b>${streak}</button>`);
         // the odds live in the tooltip and the All-weights table — on a 3-up tile they only ate the label
       });
       const R = exWeightRows(pending.varUuid, pending.subUuid); // feat 504 — `prs` is now counted per TILE, above
-      const wtBtn = R.rows.length
+      const wtBtn = (R.rows.length && !noE1) // feat 517 — its columns are e1RM + Epley odds: meaningless off the barbell model
         ? `<button type="button" class="wt-open-btn" id="trk-wt-expand" title="Sortable table of every weight logged — records, 90-day bests &amp; PR odds${prs ? ' · ' + prs + ' PR' + (prs === 1 ? '' : 's') + ' this session' : ''}">📊 All weights${prs ? `<span class="wt-pr-badge">🏅 ${prs} PR${prs === 1 ? '' : 's'} today</span>` : ' — records &amp; PR odds'}</button>`
         : '';
       if (!btns.length && !wtBtn) return '';
@@ -29064,13 +29085,13 @@ function renderSetsForm() {
         <button type="button" class="targets-head" id="trk-targets-toggle" aria-expanded="${open}">
           <span class="targets-title">🎯 Targets</span>
           ${btns.length ? `<span class="targets-count${hits === btns.length ? ' all' : ''}">${hits}/${btns.length} hit</span>` : ''}
-          ${(prs && !open) ? `<span class="wt-pr-badge">🏅 ${prs} PR${prs === 1 ? '' : 's'}</span>` : ''}
+          ${(prs && (!open || !wtBtn)) ? `<span class="wt-pr-badge">🏅 ${prs} PR${prs === 1 ? '' : 's'}</span>` : ''}
           ${''/* only while collapsed — open, the All-weights button below already carries it */}
           <span class="targets-chev">${open ? '▴' : '▾'}</span>
         </button>
         <div class="targets-body">
           ${btns.length ? `<div class="target-row">${btns.join('')}</div>` : ''}
-          ${btns.length > 1 ? `<div class="tgt-sort-row">↕${[['order', 'order'], ['w', 'weight'], ['r', 'reps'], ['e1', 'e1RM'], ['vuln', '🎯 odds']].map(([k, l]) =>
+          ${btns.length > 1 ? `<div class="tgt-sort-row">↕${sortKeys.map(([k, l]) =>
             `<button type="button" class="rc-hud-btn${tgtSort === k ? ' on' : ''}" data-tgt-sort="${k}">${l}</button>`).join('')}</div>` : ''}
           ${wtBtn}
         </div>
@@ -29101,15 +29122,18 @@ function exBestSets(varUuid, subUuid, beforeDate) {
   const hist = getHistoryByKey(varUuid, subUuid); // recent-first
   const cutoff = beforeDate ? new Date(beforeDate).getTime() : Infinity;
   let prevTop = null, bestE1 = null, maxW = null, maxR = null;
-  const w0 = exMode(varUuid).mode === 'time'; // feat 516 — a plank at weight 0 is still a set; skipping it hid every record
+  const asst = exMode(varUuid).mode === 'bodyweight';
+  const w0 = exMode(varUuid).mode === 'time' || asst; // feat 516 — a plank at weight 0 is still a set; skipping it hid every record (feat 517: a pull-up at 0 / −assist too)
   hist.forEach(h => {
     (h.sets || []).forEach(s => {
       const w = parseFloat(s.w) || 0, r = parseFloat(s.r) || 0;
       if (!(w > 0 || w0) || !(r > 0)) return;
       const e = estimated1RM(w, r) || 0;
-      if (!bestE1 || e > bestE1.e) bestE1 = { w, r, e };
+      if (w > 0 && (!bestE1 || e > bestE1.e)) bestE1 = { w, r, e };
       if (!maxW || w > maxW.w || (w === maxW.w && r > maxW.r)) maxW = { w, r };
-      if (!maxR || r > maxR.r || (r === maxR.r && w > maxR.w)) maxR = { w, r };
+      // feat 517 — on a bodyweight lift an ASSISTED set is not a rep record once an unassisted one exists
+      const splitAsst = maxR && asst && (maxR.w < 0) !== (w < 0); // one assisted, one not → the unassisted one wins
+      if (!maxR || (splitAsst ? w >= 0 : (r > maxR.r || (r === maxR.r && w > maxR.w)))) maxR = { w, r };
     });
     if (!prevTop && new Date(h.date).getTime() < cutoff && h.topSet) {
       const w = parseFloat(h.topSet.w) || 0, r = parseFloat(h.topSet.r) || 0;
@@ -29203,7 +29227,7 @@ function sortTargetDefs(defs, key) {
 }
 // The sets logged for THIS exercise today: the pending sheet plus anything already saved this session.
 function exSessionSets(varUuid, subUuid) {
-  const out = [], w0 = exMode(varUuid).mode === 'time'; // feat 516
+  const out = [], w0 = exMode(varUuid).mode === 'time' || exMode(varUuid).mode === 'bodyweight'; // feat 516/517
   const add = st => { const w = parseFloat(st.w) || 0, r = parseFloat(st.r); if ((w > 0 || w0) && r > 0) out.push({ w, r }); };
   (pending.sets || []).forEach(add);
   const today = new Date().toDateString();
@@ -29230,11 +29254,12 @@ function exTargetHit(varUuid, subUuid, w, r) {
    climbing the Max-wt ladder minted a fresh PR at every rung — the "milking one easy button" this prevents. */
 function exTargetProgress(varUuid, subUuid, w, r, axis, inc) {
   const need = r > 0 ? r : 1;
-  if (!(w > 0) && !(w === 0 && exMode(varUuid).mode === 'time')) return { n: 0, w: w, r: need };
+  const m = exMode(varUuid).mode;
+  if (!(w > 0) && !(w === 0 && m === 'time') && !(m === 'bodyweight' && isFinite(w))) return { n: 0, w: w, r: need };
   const sets = exSessionSets(varUuid, subUuid);
   if (axis === 'weight') {
     const step = inc > 0 ? inc : 1;
-    let best = 0;
+    let best = -Infinity; // feat 517 — a −20 assist base must not count as "beaten" by an empty session
     sets.forEach(st => { if (st.r >= need && st.w > best) best = st.w; });
     const n = best >= w ? Math.floor((best - w) / step) + 1 : 0;
     return { n: n, w: w + n * step, r: need };
@@ -29303,7 +29328,8 @@ function suggestionAutoCollapse() {
 }
 // One-tap weight prefill (feat 234/247/420): first incomplete set gets the weight — reps stay yours to log.
 function prefillTargetWeight(w) {
-  if (!(w > 0) && !(w === 0 && pendingIsTimeMode())) return; // feat 516 — 0 = a bodyweight hold
+  const pm = exMode(pending.varUuid).mode; // feat 516/517 — 0 = a bodyweight hold; 0 / −assist on a bodyweight lift
+  if (!(w > 0) && !(w === 0 && pm === 'time') && !(pm === 'bodyweight' && isFinite(w))) return;
   const cap = exMaxW(pending.varUuid); if (cap && w > cap) w = cap; // feat 434 — a reference above the cap prefills the cap
   let i = (pending.sets || []).findIndex(s => s && !isSetValid(s, pending.varUuid));
   if (i < 0) { pending.sets.push({ w: '', r: '' }); i = pending.sets.length - 1; }
@@ -29639,7 +29665,8 @@ function renderNeighborHints() {
   // feat 420 — the all-time-best e1RM card, with the reps needed AT THE CURRENT WEIGHT to at least match it
   // (r = 30·(e1RM/w − 1), the estimated1RM formula solved for reps). Shows whenever a weight is entered.
   let e1Card = '';
-  if (currentW > 0) {
+  const nM = exMode(pending.varUuid).mode;
+  if (currentW > 0 && nM === 'standard') { // feat 517 — e1RM on added load means nothing for a hold or a bodyweight lift
     const best = exBestSets(pending.varUuid, pending.subUuid).bestE1;
     if (best && best.e > 0) {
       const needR = Math.max(1, Math.ceil(30 * (best.e / currentW - 1)));
@@ -29652,6 +29679,8 @@ function renderNeighborHints() {
     }
   }
 
+  // feat 517 — on a hold / bodyweight lift "no weight" means bodyweight, not 0 lb: nothing is lighter than it
+  if (currentW === null && nM !== 'standard') { el.innerHTML = ''; return; }
   // Check whether this weight already has a baseline (if so, only the e1RM card shows)
   const hasBaseline = currentW !== null && getBestRepsAtWeight(pending.varUuid, pending.subUuid, currentW) !== null;
   if (hasBaseline && currentW !== null) { el.innerHTML = e1Card; return; }
@@ -29671,7 +29700,7 @@ function renderNeighborHints() {
     return `<div class="neighbor-hint ${dir}">
       <div class="neighbor-hint-dir">${label}${gapStr}</div>
       <div class="neighbor-hint-weight">${data.w}<span style="font-size:10px;font-weight:400;"> ${state.unit}</span></div>
-      <div class="neighbor-hint-reps">best: ${data.r} rep${data.r === 1 ? '' : 's'}</div>
+      <div class="neighbor-hint-reps">best: ${nM === 'time' ? formatSecondsClock(data.r) : data.r + ' rep' + (data.r === 1 ? '' : 's')}</div>
       <div class="neighbor-hint-date">${fmtDate(data.date)}</div>
     </div>`;
   }
@@ -29685,6 +29714,24 @@ function renderNeighborHints() {
 
 // Live-update one set row's colours + bottom record hint (no full re-render). Module-scope (feat 57)
 // so both the native-input path and the on-screen numpad can refresh the row.
+// The hint under the open bottom set: weight only → the best reps (a hold: the longest time) at that weight;
+// reps only → the best weight at those reps. feat 517 — was two drifting copies that said "reps" on holds.
+function recordHintText(wNum, rNum) {
+  const tm = exMode(pending.varUuid).mode === 'time';
+  const rTxt = n => tm ? formatSecondsClock(n) : n + ' reps';
+  if (wNum > 0 && (rNum == null || rNum <= 0)) {
+    const rec = getBestRepsAtWeight(pending.varUuid, pending.subUuid, wNum);
+    if (!rec) return `<span class="hint-action">${wNum}${state.unit}:</span> first time at this weight — set a baseline`;
+    const exactnessNote = rec.exact ? '' : ` <span style="color:#6f88c0">(at ${rec.weight}${state.unit})</span>`;
+    return `<span class="hint-action">${tm ? 'Longest hold' : 'Best reps'} at ${wNum}${state.unit}:</span> <b>${rTxt(rec.reps)}</b> on ${fmtDate(rec.date)}${exactnessNote} — beat <b>${tm ? rTxt(rec.reps + 1) : rec.reps + 1}</b> for a record`;
+  }
+  if (rNum > 0 && (wNum == null || wNum <= 0)) {
+    const rec = getBestWeightAtReps(pending.varUuid, pending.subUuid, rNum);
+    if (!rec) return `<span class="hint-action">${rTxt(rNum)}:</span> first time at this ${tm ? 'length' : 'rep count'} — set a baseline`;
+    return `<span class="hint-action">Best weight at ${rTxt(rNum)}:</span> <b>${rec.weight}${state.unit}</b> on ${fmtDate(rec.date)} — beat it to set a record`;
+  }
+  return null;
+}
 function updateRowLive(idx) {
   if (typeof refreshTargetHits === 'function') refreshTargetHits(); // feat 482 — tiles go green on the set that hit them
   if (typeof suggestionAutoCollapse === 'function' && suggestionAutoCollapse()) return; // feat 477 — a full re-render already happened
@@ -29718,7 +29765,7 @@ function updateRowLive(idx) {
   row.querySelectorAll('.set-overload-tag, .set-obj-tag, .record-hint').forEach(el => el.remove());
   paintActiveSet(); // feat 463 — className was just reset, and finishing a set moves the marker to ANOTHER row
 
-  if (wNum > 0 && rNum > 0) {
+  if ((wNum > 0 || (exMode(pending.varUuid).mode !== 'standard' && wNum != null && !isNaN(wNum))) && rNum > 0) { // feat 517
     const score = getOverloadScore(pending.varUuid, pending.subUuid, { w: wNum, r: rNum }, currentSessionDate);
     if (score) {
       row.classList.add(`overload-${score.level}`);
@@ -29734,25 +29781,7 @@ function updateRowLive(idx) {
   // Bottom-row record hint
   const isLast = idx === pending.sets.length - 1;
   if (isLast) {
-    let hintHtml = null;
-    if (wNum > 0 && (rNum == null || rNum <= 0)) {
-      const rec = getBestRepsAtWeight(pending.varUuid, pending.subUuid, wNum);
-      if (rec) {
-        const dateStr = fmtDate(rec.date);
-        const exactnessNote = rec.exact ? '' : ` <span style="color:#6f88c0">(at ${rec.weight}${state.unit})</span>`;
-        hintHtml = `<span class="hint-action">Best reps at ${wNum}${state.unit}:</span> <b>${rec.reps} reps</b> on ${dateStr}${exactnessNote} — beat <b>${rec.reps + 1}</b> for a record`;
-      } else {
-        hintHtml = `<span class="hint-action">${wNum}${state.unit}:</span> first time at this weight — set a baseline`;
-      }
-    } else if (rNum > 0 && (wNum == null || wNum <= 0)) {
-      const rec = getBestWeightAtReps(pending.varUuid, pending.subUuid, rNum);
-      if (rec) {
-        const dateStr = fmtDate(rec.date);
-        hintHtml = `<span class="hint-action">Best weight at ${rNum} reps:</span> <b>${rec.weight}${state.unit}</b> on ${dateStr} — beat it to set a record`;
-      } else {
-        hintHtml = `<span class="hint-action">${rNum} reps:</span> first time at this rep count — set a baseline`;
-      }
-    }
+    const hintHtml = recordHintText(wNum, rNum); // feat 517
     if (hintHtml) {
       const hint = document.createElement('div');
       hint.className = 'record-hint';
@@ -30928,7 +30957,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 440 · 2026-10-29 08:34';
+const APP_BUILD = 'build 441 · 2026-10-30 08:21';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
