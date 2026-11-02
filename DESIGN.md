@@ -2665,6 +2665,20 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The mainstream-gap sweep (feat 522):** after the single-limb and plyo sweeps, every family was listed by size
+  and each candidate name checked against the whole catalogue. The holes were in everyday vocabulary: Olympic
+  lifting had 8 power variants and **no full clean, snatch, jerk or pull**; no barbell / cable / dumbbell upright
+  row; no rope climb, wall walk, devil press, DB snatch, sumo deadlift high pull, cluster or bar-facing burpee; no
+  atlas stone, axle, keg, frame or circus dumbbell; and a run of staple accessories — standing and dumbbell leg
+  curls, DB hip thrust, feet-elevated bridge, fire hydrant, donkey kick, forward lunge, FFE / Smith split squats,
+  lateral and crossover step-ups, cable triceps kickback, rolling DB and lying cable extensions, crucifix curl,
+  Yates row, chest-supported rear-delt raise and rear-delt row, seated barbell and Smith shoulder press, EZ-bar
+  pullover, incline cable fly, squeeze press, Lu raise, hanging and captain’s-chair knee raises, plank shoulder
+  taps / up-downs / side-plank hip dips, the barbell wrist curls and wrist deviation, side-lying adduction, shuttle
+  runs, hill sprints, med-ball scoop and backward tosses. 70 rows in `GAP_ROWS` (slots 0x324-0x369). Two logging
+  bugs it exposed, both fixed in `exMode`: **"hang" made every lift from the hang a timed hold** (the existing Hang
+  Power Clean and the KB Hang Snatch logged as seconds), and a plank you *move* in would have been a hold; "dips"
+  in "hip dips" read as a ± dip; a rope climb names a rope but is bodyweight. `test/gapsweep.spec.mjs`.
 - **The plyo + calisthenics sweep (feat 521):** "a lot of plyo (including with kettlebells and plates) and
   calisthenics stuff on instagram that is missing here". Plyometrics held 17 entries across two families — almost
   no loaded jumps, no pogos, hurdle hops or landing drills — and the calisthenics *skills* were absent apart from a
