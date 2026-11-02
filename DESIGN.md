@@ -2665,6 +2665,23 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The plyo + calisthenics sweep (feat 521):** "a lot of plyo (including with kettlebells and plates) and
+  calisthenics stuff on instagram that is missing here". Plyometrics held 17 entries across two families — almost
+  no loaded jumps, no pogos, hurdle hops or landing drills — and the calisthenics *skills* were absent apart from a
+  wall handstand and the dragon flag. Every candidate name was checked against the full catalogue first; 54 added
+  in `PLYO_CALI_ROWS` (slots 0x2EE-0x323, rows lead with their family id): **bodyweight lower** (pogo and
+  single-leg pogo, hurdle and lateral hurdle hops, box jump-over, seated box jump, kneeling jump, star, frog,
+  single-leg broad, Bulgarian split squat jump, 180° jump squat, depth drop, snap down, high knees, A-skip, butt
+  kicks); **loaded** (trap bar jump, DB jump squat, KB goblet and sumo jump squats, plate and overhead-plate jump
+  squats, plus bell and plate hop-over drills where the implement is only a target); **upper plyo** (explosive and
+  clapping pull-ups, KB alternating plyo push-up, plate push-up hops, incline plyo push-up); **pull / dip skills**
+  (chest-to-bar, typewriter, around-the-world, muscle-up negative, hanging windshield wiper, skin the cat, straight
+  bar and Russian dips); **holds and skills** (tuck and full front lever, front lever raise, back lever, planche
+  lean, tuck and straddle planche, human flag, freestanding handstand, handstand shoulder taps and walk, crow,
+  elbow lever); **single-leg squats** (shrimp, dragon pistol, box pistol). Holds carry "Hold" so they log as time;
+  feat 519's reps-only list learned hops, sprint drills, snap downs and skin the cat, vest-style learned the shrimp
+  squat, and "(Plate Target)" no longer reads as a load; `VAR_EQUIP_OVERRIDES` drops the loading tool where a bell
+  or plate is a marker or a hand position. `test/plyocali.spec.mjs`.
 - **A fresh, granular plan stack (feat 520):** ten seed plans where every step aims at a variation, a head or an
   equipment line instead of a whole family, and its desc carries the reps and the intent. Six are a PPL **A/B
   rotation** in which B changes the angle, the implement and the rep range instead of repeating A — Push A heavy
