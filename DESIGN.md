@@ -2665,6 +2665,31 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The second external-database pass (feat 525):** the same comparison against **free-exercise-db** (876
+  categorised entries). Its strongman, Olympic, powerlifting and speed-drill categories were where the catalogue
+  was still thin; of 241 unmatched names, after naming variants and stretches, 29 were real (`PASS4_ROWS`,
+  0x39C-0x3B8): clean and snatch from blocks, power and squat jerks, clean deadlift, jerk dip squat, Frankenstein
+  squat; board press and speed squat; Conan’s wheel, rickshaw carry, power stairs, car deadlift, keg and sandbag
+  loads; flat sprints, carioca, sledgehammer swings, single-leg lateral hops; med-ball overhead forward and supine
+  chest throws; landmine linear jammer, KB pirate ships, spell caster, DB around-the-world, gorilla chin/crunch,
+  seated leg tuck, finger curls; inline / ice skating. "Jerk dip" is not a ± dip. Also from 524's verification:
+  every variation needs a motion figure — Outdoor Cardio runs on the running figure and the rides on the bike —
+  and Chin Tucks sit in Corrective, because targeting `neck-training` (which the reference dataset only knows as
+  `neck`) adopted a second copy of the neck family into the reference set. `test/outdoorcardio.spec.mjs`.
+- **The external-database pass (feat 524):** instead of another judgment sweep, the catalogue was compared name by
+  name against **wger** (an open exercise database, 904 English entries). 344 had no close match; most were naming
+  variants ("Burpees", "Deadbug", "Facepull") or stretches, but two kinds of real gap stood out. **Outdoor cardio
+  had no home** — running, cycling, swimming, walking and paddling existed only as gym machines, and Strava runs and
+  rides were being filed under the *treadmill* and the *stationary bike*. A new **Outdoor Cardio** family (17:
+  outdoor / easy / zone 2 / tempo / trail runs, track intervals, walking, hiking, road and mountain biking, pool
+  swim, swim intervals, open water, kayak/canoe, SUP, cross-country and downhill skiing) takes them, and
+  `_STRAVA_CARDIO_MAP` now sends outdoor sports there while only Virtual runs / rides stay on the machines.
+  Previously imported activities keep the variation they were saved under — only new imports land outdoors.
+  Plus 22 strength / mobility gaps in `PASS3_ROWS` (slots 0x386-0x39B): recumbent bike, jumping jacks, squat
+  thrusts, sit-outs, the Bronco test, scaption, W-raise, Trap-3 raise, reverse snow angel, Meadows' shotgun row,
+  speed deadlift, DB deadlift, DB hang power clean, incline skull crusher, scapular push-up, back bridge hold, heel
+  touches, lying windshield wipers, plank leg lifts, chin tucks, stomach vacuum and pelvic-floor holds.
+  `test/outdoorcardio.spec.mjs`; `coworkcardio.spec` now expects kayaking / swimming on their real entries.
 - **The coach / creator sweep (feat 523):** "dip shrugs? search online for the signature exercises of the top
   current insta/tiktok coaches". Web research across creator rankings and coach-specific write-ups (Nippard,
   Israetel, Contreras, Knees-Over-Toes Guy, Squat University, Gironda, the calisthenics and glute-TikTok crowds, the

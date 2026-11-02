@@ -5340,7 +5340,79 @@ const COACH_ROWS = [
   ['loaded-carries','rucking','Rucking (Backpack Carry)','Weighted Walk','Walking with a loaded backpack or weighted vest.','A backpack or ruck with weight high on the back|Good shoes','Walk briskly, tall|Keep the pack snug|Build distance before weight','Too heavy too soon|Pack sagging low|Leaning forward','Conditioning:30-60 min','Start with 10% of bodyweight; add distance before load.'],
 ];
 compactRowsToVars(COACH_ROWS.map(r => r.slice(1)), 0x36A)                       // rows lead with their family id
-  .forEach((v, i) => EXTRA_VARIATIONS.push({ movementId: COACH_ROWS[i][0], ...v })); // slots 0x36A-0x385 — next free: 0x386
+  .forEach((v, i) => EXTRA_VARIATIONS.push({ movementId: COACH_ROWS[i][0], ...v })); // slots 0x36A-0x385 — then PASS3_ROWS
+/* feat 524 — the external-database pass. The catalogue was compared name by name against wger, an open exercise
+   database of 904 English entries; of the 344 with no close match most were naming variants or stretches, but the
+   real gaps were outdoor cardio (now its own family) and these. Rows lead with their family id. */
+const PASS3_ROWS = [
+  ['bike','recumbent-bike','Recumbent Bike','Seated-Back Cycling','A stationary bike with a backrest and the pedals in front — easy on the back and hips.','Seat set so the knee stays slightly bent at full extension|Back against the rest','Pedal at a steady cadence|Push through the whole foot|Adjust resistance for the zone','Seat too close|Slouching|Pedalling with no resistance','Base:20-45 min','Great for zone 2 when running or upright bikes hurt.'],
+  ['conditioning','jumping-jacks','Jumping Jacks','Classic Warm-Up','Jump the feet out while the arms swing overhead, then back together.','Stand tall, feet together','Jump the feet wide, arms overhead|Jump back together, arms down|Stay light on the feet','Landing flat-footed|Half-height arms|Rushing until form goes','Warm-up:2 × 30-60 s;Conditioning:4 × 45 s','The warm-up every school knows — still works.'],
+  ['conditioning','squat-thrust','Squat Thrust','Burpee Without the Jump','Squat, hands down, jump the feet back to a plank, jump them in and stand — no push-up, no jump.','Stand tall','Squat and place the hands|Jump the feet back to a plank|Jump them in and stand','Hips sagging in the plank|Rounding the back|Feet landing wide','Conditioning:4 × 10-15','The military classic — faster than a burpee, easier on the shoulders.'],
+  ['conditioning','sit-outs','Sit-Outs','Rotational Conditioning','From all fours with the knees lifted, thread one leg through and kick it out, rotating, then switch.','Bear position: hands and toes, knees hovering','Thread one leg under and across|Rotate the hips and kick it out|Return and switch sides','Hips too high|Slow, sloppy switches|Hands collapsing','Conditioning:3 × 30 s','A wrestling and animal-flow staple.'],
+  ['conditioning','bronco-test','Bronco (Shuttle Test)','Rugby Fitness Test','Shuttles of 20, 40 and 60 m repeated five times (1.2 km) for time — the rugby conditioning test.','Mark 0, 20, 40 and 60 m|Warm up well','Run 0-20-0, 0-40-0, 0-60-0|Repeat the set five times|Stop the clock at the end','Slow turns|Going out too fast|Skipping the warm-up','Test:1 × for time','Log the time in the notes — and re-test every 6-8 weeks.'],
+  ['lateral-raise','db-scaption','Dumbbell Scaption','Scapular-Plane Raise','Raise the dumbbells at about 30° in front of the body (the plane of the shoulder blade), thumbs up.','Light dumbbells, thumbs up|Stand tall','Raise the arms at ~30° forward of the sides|Stop at shoulder height|Lower slowly','Shrugging|Arching the back|Too heavy','Hypertrophy:3 × 12-15;Prehab:2 × 15','The most shoulder-friendly raise there is.'],
+  ['rear-delt','w-raise','W-Raise','Rear Delts + External Rotation','Elbows bent at the sides, rotate the forearms out and squeeze the shoulder blades into a W.','Light dumbbells or bands|Stand or lie chest-down on an incline','Squeeze the shoulder blades back|Rotate the hands out into a W|Pause and return','Shrugging|Flaring the ribs|Too heavy','Prehab:3 × 12-15','Pairs with Y-raises for complete lower-trap and cuff work.'],
+  ['rear-delt','trap-3-raise','Trap-3 Raise','Lower-Trap Isolation','Hinge with one hand braced, raise the other arm up and out at a Y-angle, thumb up.','Hinge forward, one hand on a bench|Very light dumbbell','Raise the arm overhead in a Y line|Squeeze the lower trap|Lower slowly','Shrugging the upper trap|Too heavy|Rotating the torso','Prehab:3 × 10-12 per arm','Featherweight — the lower trap is small and weak in most people.'],
+  ['rear-delt','reverse-snow-angel','Reverse Snow Angel','Prone Upper Back','Lying face down, sweep the arms from the hips to overhead and back, hovering off the floor.','Lie face down, forehead on a towel|Arms at the sides, palms down','Lift the arms and sweep them out to overhead|Sweep back to the hips|Keep them off the floor','Shrugging|Arching the low back|Rushing','Prehab:2-3 × 8-12','Postural endurance for desk days — add light plates once easy.'],
+  ['row','shotgun-row','Shotgun Row','Single-Arm Cable Row','John Meadows’ cable row: one handle, rotate slightly, row with the elbow travelling back and out.','Low or mid pulley with a single handle|Staggered stance or seated','Row with the elbow back and slightly out|Rotate the torso a little|Stretch fully forward','Jerking the weight|Over-rotating|Short stretch','Hypertrophy:3 × 10-12 per arm','Let the shoulder blade travel forward on the stretch.'],
+  ['deadlift','speed-deadlift','Speed Deadlift','Dynamic Effort Pull','Light deadlifts (50-60%) pulled as fast as possible for crisp singles or doubles — the Westside dynamic day.','Bar at 50-60% of max, bands optional|Reset each rep','Pull the bar as fast as possible|Lock out|Reset fully','Going too heavy (slow reps)|Rushing the setup|Grinding','Power:6-10 × 1-2','Every rep should look fast — if it slows, it is too heavy.'],
+  ['deadlift','db-deadlift','Dumbbell Deadlift','Conventional with Dumbbells','A deadlift with a dumbbell in each hand at the sides or in front — the easy way to learn the hinge.','Dumbbells at the sides or between the feet|Hips back, chest up','Push the floor away|Stand tall|Lower with the hips back','Rounding the back|Squatting it|Bells drifting away','Strength:3 × 8-12','A beginner\'s first deadlift.'],
+  ['olympic-lifts','db-hang-power-clean','Dumbbell Hang Power Clean','DB Clean','Dumbbells from the hang to the shoulders with a hip snap — a friendlier way into the clean.','A dumbbell in each hand at the thighs|Feet hip-width','Hinge to above the knee|Extend explosively|Catch the bells on the shoulders in a quarter squat','Curling them up|Bells swinging out|Landing on the toes','Power:4 × 4-6','The hips throw the bells — the arms only guide.'],
+  ['tricep-extension','incline-skull-crusher','Incline Skull Crusher','Long-Head Skull Crusher','A skull crusher on an incline bench — the arm angle puts the long head under more stretch.','Incline bench at 30-45°|EZ bar or dumbbells','Lower behind the head with the upper arms still|Extend to lockout|Repeat','Elbows flaring|Upper arms moving|Too heavy for the elbows','Hypertrophy:3 × 10-12','The incline pre-stretches the long head.'],
+  ['serratus-scap','scapular-push-up','Scapular Push-Up','Serratus Activation','In a push-up position with locked arms, let the chest sink between the shoulder blades, then push the floor away.','Push-up or forearm plank position|Arms locked','Let the shoulder blades pinch together|Push the floor away to spread them|Keep the elbows straight','Bending the elbows|Hips sagging|Tiny range','Prehab:2-3 × 10-15','Serratus control — the foundation for planche work and healthy shoulders.'],
+  ['gymnastics-core','back-bridge-hold','Back Bridge Hold (Wheel)','Spinal Extension','The gymnastics bridge: hands and feet on the floor, hips and chest pushed up into an arch.','Lie on your back, feet flat, hands by the ears|Warm up the shoulders and hips','Press up into the arch|Push the chest toward the wall behind the hands|Hold and lower slowly','Forcing the low back|Bent arms|Hands too far from the feet','Mobility:3-5 × 10-30 s','Open the shoulders first — the arch should come from there, not the low back.'],
+  ['abs-dynamic','heel-touches','Heel Touches','Oblique Crunch Lite','Lying with the knees bent, shoulders lifted, reach side to side to touch each heel.','Lie on your back, knees bent, feet flat|Shoulders off the floor','Reach to one heel|Then the other|Keep the shoulders lifted','Pulling the neck|Dropping the shoulders|Rushing','Hypertrophy:3 × 20 per side','Small and fast — the obliques do the reaching.'],
+  ['abs-dynamic','lying-windshield-wiper','Lying Windshield Wiper','Rotational Abs','On your back, legs raised to vertical, lower them side to side under control.','Lie on your back, arms out, palms down|Legs up, knees bent or straight','Lower the legs to one side|Bring them back through the middle|Lower to the other side','Shoulders lifting|Dropping the legs fast|Arching the back','Hypertrophy:3 × 8-10 per side','Bend the knees to regress; straight legs to progress.'],
+  ['core-stability','plank-leg-lifts','Plank Leg Lifts','Plank + Glute','In a forearm or high plank, alternately lift each straight leg without the hips rotating.','Forearm plank|Brace','Lift one straight leg|Hold a beat|Lower and switch','Hips rotating|Arching the low back|Rushing','Stability:3 × 10 per leg','Square hips — the anti-rotation is the point.'],
+  ['corrective','chin-tucks','Chin Tucks','Deep Neck Flexors','Glide the head straight back, making a double chin, without tilting it down.','Sit or stand tall, or lie on your back','Glide the chin straight back|Hold 3-5 s|Release','Tilting the head down|Shrugging|Holding the breath','Prehab:2-3 × 10','The desk-posture fix physios hand out most.'],
+  ['core-stability','stomach-vacuum-hold','Stomach Vacuum Hold','Transverse Abdominis','Exhale fully and draw the belly button hard in toward the spine, holding without breathing in.','Stand, kneel or lie down','Exhale all the air|Draw the navel in and up|Hold, then breathe','Holding the breath before exhaling|Sucking in the chest|Too long a hold','Core:3-5 × 15-30 s','The old-school bodybuilding classic for a tight waist and deep core control.'],
+  ['corrective','pelvic-floor-hold','Pelvic Floor (Kegel) Hold','Pelvic Floor','Contract the pelvic floor muscles as if stopping the flow of urine, hold, then fully relax.','Lie, sit or stand|Breathe normally','Contract and lift the pelvic floor|Hold 3-10 s|Relax fully for the same time','Squeezing the glutes or abs instead|Holding the breath|Never fully relaxing','Health:3 × 10','Full relaxation between holds matters as much as the squeeze.'],
+];
+compactRowsToVars(PASS3_ROWS.map(r => r.slice(1)), 0x386)                        // rows lead with their family id
+  .forEach((v, i) => EXTRA_VARIATIONS.push({ movementId: PASS3_ROWS[i][0], ...v })); // slots 0x386-0x39B — then PASS4_ROWS
+/* feat 525 — the second external-database pass, against free-exercise-db (876 entries with categories). Its
+   strongman, Olympic, powerlifting and speed-drill categories were where the catalogue was still thin; 241
+   names had no close match, and after dropping naming variants and stretches these were the real gaps. */
+const PASS4_ROWS = [
+  // --- olympic-lifts: blocks, jerks and drills ---
+  ['olympic-lifts','clean-from-blocks','Clean from Blocks','Above-Knee Clean','A clean started from blocks with the bar above the knee — no first pull, all speed off a dead start.','Blocks set so the bar sits at or just above the knee|Clean grip, shoulders over the bar','Extend explosively from the dead start|Pull under into the front rack|Stand','Rocking into the start|Arm-pulling|Missing the full extension','Power:5 × 2-3','Teaches the second pull without the swing a hang allows.'],
+  ['olympic-lifts','snatch-from-blocks','Snatch from Blocks','Above-Knee Snatch','A snatch from blocks above the knee — speed and turnover from a dead start.','Blocks at or just above the knee|Snatch grip','Extend explosively|Pull under fast|Receive overhead and stand','Arm-pulling|Bar looping away|Soft elbows in the catch','Power:5 × 2-3','Blocks remove the first pull so the finish gets all your attention.'],
+  ['olympic-lifts','power-jerk','Power Jerk','Jerk in a Partial Squat','Dip, drive and re-bend the knees to catch the bar overhead in a quarter squat, feet barely moving.','Bar in the front rack|Feet hip-width','Short vertical dip|Drive hard|Punch under into a quarter squat, arms locked','Pressing it out|Dipping forward|Catching on the toes','Strength:5 × 2-3','Between a push press and a split jerk — fast feet, no split.'],
+  ['olympic-lifts','squat-jerk','Squat Jerk','Jerk into a Full Squat','A jerk caught in a full overhead squat — rare, demanding, and the strongest receipt if you have the mobility.','Bar in the front rack|Excellent overhead-squat mobility','Dip and drive|Drop into a full overhead squat|Stand with the bar locked out','Not enough mobility to catch it|Bar drifting forward|Rushing','Technique:5 × 1-2','Only for lifters with a rock-solid overhead squat.'],
+  ['olympic-lifts','clean-deadlift','Clean Deadlift','Clean-Position Pull','A deadlift from the floor in exact clean position, slow and controlled to the hips — strength for the first pull.','Bar over the mid-foot|Clean grip, hips higher than a powerlifting pull','Push the floor away, keeping the clean back angle|Bar close to the body|Stand tall, then lower slowly','Hips shooting up|Bar drifting forward|Rounding the back','Strength:4 × 3-5','Slower than a clean pull on purpose — it is about positions, not speed.'],
+  ['olympic-lifts','jerk-dip-squat','Jerk Dip Squat','Dip Strength','A loaded jerk dip and drive without releasing the bar — builds the leg drive and a vertical torso.','Bar in the front rack, often heavier than your jerk|Feet hip-width','Dip straight down, a short quarter|Drive up hard onto the toes|Reset each rep','Leaning forward in the dip|Dipping too deep|Losing the rack','Strength:4 × 3-5','Keeps the dip honest — the torso stays vertical or the bar runs forward.'],
+  ['olympic-lifts','frankenstein-squat','Frankenstein Squat','Front Rack Drill','A front squat with the arms held straight out in front and the bar balanced on the shoulders — no hands allowed.','Bar on the front delts|Arms straight out in front','Squat with the chest and elbows high|Stand up|Keep the bar balanced','Dropping the chest|Grabbing the bar|Going too heavy','Technique:3 × 5','If the chest drops, the bar falls — instant feedback for an upright front squat.'],
+  // --- powerlifting ---
+  ['flat-bench-press','board-press','Board Press','Partial-Range Bench','A bench press to a board (or two) laid on the chest — overloads the lockout.','Partner holds a 1-3 board stack on the chest, or a strapped board|Normal bench setup','Lower to the board|Pause lightly|Press to lockout','Bouncing off the board|Losing the setup|Too heavy too soon','Strength:4 × 3-5','The board height sets where you train — higher is more lockout.'],
+  ['squat','speed-squat','Speed Squat','Dynamic Effort Squat','Light squats (50-60%) moved as fast as possible for crisp doubles — the Westside speed day.','Bar at 50-60% of max, bands or chains optional|Box optional','Descend under control|Explode up as fast as possible|Reset each rep','Too heavy to stay fast|Grinding|Rushing the setup','Power:8-12 × 2','Short rests (45-60 s). Every rep should look fast.'],
+  // --- strongman ---
+  ['strongman','conans-wheel','Conan’s Wheel','Loaded Carry in a Circle','Hug a weighted arm in the crook of the elbows and walk it around in a circle for distance or time.','Arm at stomach height, loaded|Hug it in the crook of the elbows','Walk forward in a circle|Short, quick steps|Breathe behind the brace','Leaning back|Long strides|Dropping it','Strength:3 × max distance','A bear-hug carry that never ends — the abs and upper back pay.'],
+  ['strongman','rickshaw-carry','Rickshaw Carry','Frame Pull-Walk','Lift the handles of a rickshaw frame and walk it forward; the frame rolls or drags behind.','Stand inside the frame|Grip the handles','Deadlift the handles|Walk forward with fast steps|Keep the chest up','Letting the frame swing|Long strides|Rounding on the pick','Strength:4 × 20 m','Grip and upper back like a farmers walk, with less balance.'],
+  ['strongman','power-stairs','Power Stairs','Stair Lifts','Lift a heavy implement up a set of stairs, one step at a time, as fast as possible.','Implement at the base of the stairs|Hip-width stance','Hinge and lift the implement onto the next step|Step up behind it|Repeat to the top','Rounding the back|Lifting with the arms|No rest between heavy lifts','Strength:3 × 3 steps','A deadlift and a hip extension on every step.'],
+  ['strongman','car-deadlift','Car Deadlift','Frame Deadlift for Reps','Deadlift the handles of a car-deadlift frame, usually for maximum reps.','Stand between the handles|Hips back, chest up','Pull to lockout|Lower under control|Reset and repeat','Rounding the back|Bouncing|Hyperextending at the top','Strength:3 × max reps','The handles are higher than a bar — it is closer to a rack pull.'],
+  ['strongman','keg-load','Keg Load','Keg to Platform','Lift a keg from the floor and load it onto a platform.','Keg on its side|Hug or grip the rims','Lift the keg to the lap or chest|Drive the hips|Load it on the platform','Lifting with a rounded back|Slipping grip|Over-reaching','Strength:5 × 1-3','Shifting water inside fights you every time.'],
+  ['strongman','sandbag-load','Sandbag Load','Bag to Platform','Lap a heavy sandbag and load it onto a platform or shoulder height.','Bag between the feet|Arms wrapped under','Lap the bag|Re-grip high|Extend the hips and load it','Rounding without bracing|Lifting with the arms|Bag too heavy','Strength:5 × 3-5','The safest atlas-stone substitute.'],
+  // --- speed + conditioning ---
+  ['conditioning','flat-sprints','Flat Sprints','Max-Speed Sprints','Short all-out sprints on flat ground with full rest.','Track or a flat stretch, 20-60 m|Thorough warm-up and strides','Sprint all out|Drive the arms and knees|Walk back to recover fully','Not warming up|Too little rest|Overstriding','Speed:6-10 × 20-60 m','Full rest keeps it speed, not conditioning.'],
+  ['conditioning','carioca','Carioca','Lateral Grapevine','Moving sideways, the trailing leg crosses in front and then behind the lead leg, hips rotating.','Clear lane|Athletic stance','Move sideways, crossing the trailing leg in front|Then behind|Rotate the hips, keep the shoulders square','Shoulders turning|Tripping on the cross|Too slow','Warm-up:2 × 20 m each way','A sports warm-up for hip mobility and footwork.'],
+  ['conditioning','sledgehammer-swings','Sledgehammer Swings','Tire Strikes','Swing a sledgehammer down onto a tyre, alternating sides.','Large tyre|Sledgehammer, hands slide on the swing','Swing the hammer overhead|Strike the tyre|Switch the lead hand','Using only the arms|Standing too close|No grip on the rebound','Conditioning:4 × 30-45 s','Rotation and grip conditioning — hips drive the strike.'],
+  ['plyometrics','single-leg-lateral-hop','Single-Leg Lateral Hop','Lateral Single-Leg Power','Hop sideways off one leg and stick the landing on the same leg.','Stand on one leg|A line or low hurdle beside you','Hop sideways over the line|Land on the same leg and stick it|Hop back','Knee caving on landing|Not sticking it|Too big a hop','Power:3 × 6-8 per leg','Stick every landing — the deceleration is what protects the knee.'],
+  // --- medicine-ball ---
+  ['medicine-ball','med-ball-overhead-forward-throw','Med Ball Overhead Forward Throw','Overhead Power','Throw a med ball forward from overhead with both hands, like a soccer throw-in with a step.','Med ball overhead|Staggered stance or a step in','Arch slightly to load|Throw forward hard|Follow through','Throwing only with the arms|Arching too much|Ball too heavy','Power:4 × 5','Core and lats drive the throw.'],
+  ['medicine-ball','med-ball-supine-chest-throw','Med Ball Supine Chest Throw','Lying Chest Power','Lying on your back, throw a med ball straight up from the chest and catch it.','Lie on the back, knees bent|Med ball at the chest|A light ball and a partner or clear space','Throw the ball straight up explosively|Catch it and absorb|Repeat','Ball too heavy|Throwing off-line|Not catching cleanly','Power:4 × 5-6','Upper-body power without a bench press.'],
+  // --- strength oddities with real followings ---
+  ['landmine-work','landmine-linear-jammer','Landmine Linear Jammer','Squat to Press','From a squat, drive the landmine bar up and out overhead in one explosive motion.','Landmine bar held at the chest with both hands|Feet shoulder-width','Squat down|Drive up and press the bar out and up|Return under control','Pressing only with the arms|Leaning back|Too heavy','Power:4 × 5-6','A thruster on the landmine arc — far kinder to the shoulders.'],
+  ['kettlebell-specific','kb-pirate-ships','Kettlebell Pirate Ships','Shoulder Rotation','A kettlebell held by the horns at arm’s length, swung in an arc from side to side.','Stand tall|KB held by the horns, arms straight','Swing the bell in an arc to one side|Through the middle to the other side|Hips stay square','Bending the arms|Rotating the hips|Too heavy','Hypertrophy:3 × 10 per side','Shoulders and core resist the swing.'],
+  ['obliques','spell-caster','Spell Caster','Rotational DB Oblique','Two dumbbells swept from one hip across and up past the opposite shoulder.','Dumbbell in each hand at one hip|Stand tall','Sweep the bells across and up past the opposite shoulder|Pivot the back foot|Return under control','Using the arms only|Rounding the back|Rushing','Hypertrophy:3 × 10 per side','A cable chop with dumbbells.'],
+  ['chest-fly','db-around-the-world','Dumbbell Around-the-World','Arc Fly','Lying on a bench, light dumbbells swept in a wide arc from the hips to overhead and back.','Lie on a bench|Light dumbbells at the hips, palms up','Sweep the arms out and overhead in a wide arc|Sweep back to the hips|Keep the elbows soft','Too heavy|Bending into a press|Arching hard','Hypertrophy:3 × 10-12','Very light — the long lever does the work.'],
+  ['pull-up','gorilla-chin-crunch','Gorilla Chin / Crunch','Chin-Up + Knee Raise','Hang in a chin-up and, at the top, raise the knees to the chest.','Underhand grip, dead hang','Chin up|Hold the top and raise the knees to the chest|Lower the legs, then yourself','Kipping|Dropping fast|Half reps','Hypertrophy:3 × 6-10','Abs and lats in one movement.'],
+  ['abs-dynamic','seated-leg-tuck','Seated Leg Tuck','Bench Knee Tuck','Sitting on a bench, lean back and pull the knees to the chest, then extend.','Sit on a bench, hands behind the hips|Lean back slightly, feet off the floor','Pull the knees to the chest|Extend the legs out|Repeat','Rocking|Rushing|Leaning back too far','Hypertrophy:3 × 15-20','The beginner leg raise.'],
+  ['wrist-curl','finger-curls','Finger Curls','Finger Flexors','Forearms on the thighs, let the bar roll down to the fingertips, then curl it back into the palm.','Forearms on the thighs, palms up|Light barbell or dumbbells','Let the bar roll to the fingertips|Curl it back into the palm|Close the fist','Too heavy|Lifting the forearms|Rushing','Hypertrophy:3 × 15-20','Grip strength the hand gripper misses.'],
+  // --- outdoor cardio ---
+  ['outdoor-cardio','skating','Skating (Inline / Ice)','Skating','Inline or ice skating for fitness — a low-impact leg and hip session.','Skates, helmet and pads|Smooth surface','Push to the side, not back|Glide|Bend the knees, chest forward','Standing upright|Pushing backwards|No protective gear','Base:30-90 min','Skaters build the glute med that runners neglect.'],
+];
+compactRowsToVars(PASS4_ROWS.map(r => r.slice(1)), 0x39C)                        // rows lead with their family id
+  .forEach((v, i) => EXTRA_VARIATIONS.push({ movementId: PASS4_ROWS[i][0], ...v })); // slots 0x39C-0x3B8 — next free: 0x3B9
 
 /* ---- feat 448 — the Swiss ball, its own family ----
    The catalogue had two Swiss-ball entries (`swiss-ball-curl` in Leg Curl, `stir-the-pot` in Core
@@ -5798,6 +5870,137 @@ const EXTRA_FAMILIES = [
         mistakes:['Maximal force on the TMJ','Letting the jaw shift sideways','Holding the breath'],
         programming:{'Endurance':'3 × 10-20s'},
         tip:'Equipment-free way to load the jaw isometrically — the gentlest entry point.' },
+    ] },
+  // feat 524 — outdoor cardio had no home: running, cycling, swimming, walking and paddling only existed as gym
+  // machines (and Strava runs / rides were filed under the treadmill and the stationary bike).
+  { id:'outdoor-cardio', title:'Outdoor Cardio', tag:'Cardio • Run / Ride / Swim / Paddle', mega:'cardio', sub:'outdoor',
+    equip:['bodyweight'], icon:'cardio',
+    keywords:'running run jog jogging road trail zone 2 tempo intervals track walk walking hike hiking cycling bike ride road bike mountain bike mtb swim swimming pool laps open water kayak canoe paddle sup paddleboard ski cross-country nordic downhill snowboard',
+    quickCue:'Logged like a cardio session — duration, distance, effort and notes. Most of the week easy; a little hard.',
+    general:{
+      setup:['Warm up 5-10 minutes easy before anything hard','Gear for the conditions — light, layers, water','Tell someone your route for long or remote sessions'],
+      movement:['Most sessions conversational; one or two hard ones a week','Build volume gradually — tendons adapt slower than the heart','Log distance and duration; add HR or elevation in the notes'],
+      mistakes:['Every session moderately hard','Increasing volume too fast','Ignoring weather and safety'] },
+    variations:[
+      { id:'outdoor-run', uuid:'c0ad0010-0010-4010-8010-000000000010', title:'Outdoor Run', best:'Road Running',
+        cue:'Running outside on roads or paths — the pace is yours, the ground is real, and there is wind.',
+        setup:['Shoes suited to the surface','Warm up with 5-10 min easy'],
+        movement:['Run tall, relaxed shoulders','Land under the hips, quick cadence','Breathe rhythmically'],
+        mistakes:['Starting too fast','Overstriding onto the heel','Ramping weekly distance too quickly'],
+        programming:{'Base':'3-5 runs/week, mostly easy'},
+        tip:'Keep weekly distance increases modest — tendons adapt slower than lungs.' },
+      { id:'easy-recovery-run', uuid:'c0ad0011-0011-4011-8011-000000000011', title:'Easy / Recovery Run', best:'Conversational Pace',
+        cue:'A genuinely easy run you could hold a conversation through — most of a runner\'s week.',
+        setup:['Flat route','No watch pressure'],
+        movement:['Keep it truly easy','Short, light strides','Walk breaks are fine'],
+        mistakes:['Turning easy days into tempo days','Skipping them entirely'],
+        programming:{'Base':'20-45 min'},
+        tip:'Easy days make the hard days possible.' },
+      { id:'zone-2-run', uuid:'c0ad0012-0012-4012-8012-000000000012', title:'Zone 2 Run', best:'Aerobic Base',
+        cue:'A steady run held in heart-rate zone 2 — easy enough to nasal-breathe, long enough to build the engine.',
+        setup:['Heart-rate strap or watch','Know your zone 2 range'],
+        movement:['Hold the heart rate in zone 2','Slow down or walk hills to stay in it','Keep it steady'],
+        mistakes:['Drifting up into zone 3','Too short to matter'],
+        programming:{'Base':'30-75 min'},
+        tip:'Log the average HR — a falling HR at the same pace is your fitness rising.' },
+      { id:'tempo-run', uuid:'c0ad0013-0013-4013-8013-000000000013', title:'Tempo Run', best:'Threshold',
+        cue:'A sustained comfortably-hard run near threshold pace, after a warm-up.',
+        setup:['Warm up 10-15 min easy','Pick a flat stretch'],
+        movement:['Run 15-30 min at a hard-but-steady pace','Cool down easy'],
+        mistakes:['Going too hard and fading','Skipping the warm-up'],
+        programming:{'Threshold':'1 × 20 min or 3 × 8 min'},
+        tip:'"Comfortably hard" — you could speak a few words, not sentences.' },
+      { id:'track-intervals', uuid:'c0ad0014-0014-4014-8014-000000000014', title:'Track Intervals', best:'Speed Work',
+        cue:'Repeats on a track (400 m-1 km) with recovery jogs between — the classic speed session.',
+        setup:['Track or a measured stretch','Thorough warm-up and strides'],
+        movement:['Run each repeat at target pace','Jog or walk the recovery','Keep the repeats even'],
+        mistakes:['First repeat too fast','Cutting recoveries short','Doing them on tired legs'],
+        programming:{'Speed':'6-10 × 400 m or 4-6 × 1 km'},
+        tip:'Even pacing beats heroic first reps.' },
+      { id:'trail-run', uuid:'c0ad0015-0015-4015-8015-000000000015', title:'Trail Run', best:'Off-Road Running',
+        cue:'Running on trails — uneven ground, climbs and descents. Effort, not pace, is the measure.',
+        setup:['Trail shoes','Water for longer runs'],
+        movement:['Shorter steps on technical ground','Power-hike steep climbs','Eyes a few metres ahead'],
+        mistakes:['Chasing road pace','Bombing descents untrained','Running alone without telling anyone'],
+        programming:{'Base':'45-120 min'},
+        tip:'Log elevation gain in the notes — it matters more than distance here.' },
+      { id:'outdoor-walk', uuid:'c0ad0016-0016-4016-8016-000000000016', title:'Outdoor Walk', best:'Walking',
+        cue:'A brisk walk outside — the most underrated cardio there is.',
+        setup:['Comfortable shoes'],
+        movement:['Walk briskly, arms swinging','Tall posture'],
+        mistakes:['Strolling when you meant to train','Poor shoes on long walks'],
+        programming:{'Base':'30-60 min daily'},
+        tip:'Steps add up — this is where most daily movement lives.' },
+      { id:'hiking', uuid:'c0ad0017-0017-4017-8017-000000000017', title:'Hiking', best:'Trail Walking',
+        cue:'Walking trails and hills, often with a pack — long, low-intensity work with climbing.',
+        setup:['Footwear for the terrain','Water, layers, a plan'],
+        movement:['Steady pace on climbs','Poles help on descents','Short steps on steep ground'],
+        mistakes:['Overpacking','Underestimating time and weather'],
+        programming:{'Base':'1-6 h'},
+        tip:'Add a pack and it becomes rucking.' },
+      { id:'road-cycling', uuid:'c0ad0018-0018-4018-8018-000000000018', title:'Road Cycling', best:'Outdoor Ride',
+        cue:'Riding outdoors on the road — endurance rides, climbs and group rides.',
+        setup:['Helmet, lights, a fitted bike','Check tyres before you go'],
+        movement:['Keep a steady cadence (80-95 rpm)','Shift before the climbs','Ride predictably in traffic'],
+        mistakes:['Grinding big gears','Going out too hard','Riding without lights'],
+        programming:{'Base':'1-4 h'},
+        tip:'Log average power or HR if you have it — distance alone flatters tailwinds.' },
+      { id:'mountain-biking', uuid:'c0ad0019-0019-4019-8019-000000000019', title:'Mountain Biking', best:'Off-Road Ride',
+        cue:'Riding trails — bursts of climbing power, technical descents, full-body effort.',
+        setup:['Helmet, gloves, a serviced bike','Know the trail grade'],
+        movement:['Stand on technical sections','Look where you want to go','Spin on climbs'],
+        mistakes:['Riding beyond the trail grade','Locked arms on descents'],
+        programming:{'Base':'1-3 h'},
+        tip:'Upper body and grip work far harder than on the road.' },
+      { id:'pool-swim', uuid:'c0ad001a-001a-401a-801a-00000000001a', title:'Pool Swim (Laps)', best:'Swimming',
+        cue:'Lap swimming in a pool — continuous freestyle or mixed strokes.',
+        setup:['Goggles and cap','Know the pool length'],
+        movement:['Long, relaxed strokes','Exhale under water, breathe every 2-3 strokes','Steady pace'],
+        mistakes:['Holding the breath','Head too high (legs sink)','Going out too fast'],
+        programming:{'Base':'20-45 min'},
+        tip:'Log distance — and the stroke in the notes.' },
+      { id:'swim-intervals', uuid:'c0ad001b-001b-401b-801b-00000000001b', title:'Swim Intervals', best:'Swim Sets',
+        cue:'Repeats on the pool clock (e.g. 10 × 100 m) with short rests — the swimmer\'s staple session.',
+        setup:['Pool with a pace clock','Warm-up 200-400 m'],
+        movement:['Swim each repeat at target pace','Rest a fixed time on the wall','Hold form as you tire'],
+        mistakes:['First reps too fast','Rests drifting long','Form falling apart'],
+        programming:{'Speed':'8-12 × 50-100 m'},
+        tip:'Same rest every rep — that is what makes the set measurable.' },
+      { id:'open-water-swim', uuid:'c0ad001c-001c-401c-801c-00000000001c', title:'Open-Water Swim', best:'Lake / Sea Swim',
+        cue:'Swimming in a lake or the sea — no walls, sighting and conditions.',
+        setup:['Bright cap, ideally a tow float','Never alone; know the water'],
+        movement:['Sight every 6-10 strokes','Settle the breathing early','Swim parallel to shore when learning'],
+        mistakes:['Swimming alone','Cold-water shock unprepared','Fighting waves instead of timing them'],
+        programming:{'Base':'20-60 min'},
+        tip:'Safety first: a buddy, a float and known conditions.' },
+      { id:'kayaking', uuid:'c0ad001d-001d-401d-801d-00000000001d', title:'Kayaking / Canoeing', best:'Paddling',
+        cue:'Paddling a kayak or canoe — trunk rotation, back and shoulders over long durations.',
+        setup:['Buoyancy aid always','Know the water and weather'],
+        movement:['Rotate the torso to drive the paddle','Pull with the back, not the arms','Steady rhythm'],
+        mistakes:['Arm-only paddling','No buoyancy aid','Going out in poor conditions'],
+        programming:{'Base':'30-120 min'},
+        tip:'The power comes from rotation — the arms just hold the paddle.' },
+      { id:'stand-up-paddle', uuid:'c0ad001e-001e-401e-801e-00000000001e', title:'Stand-Up Paddleboarding', best:'SUP',
+        cue:'Standing on a board and paddling — balance, trunk and shoulders.',
+        setup:['Leash and buoyancy aid','Calm water to start'],
+        movement:['Paddle with straight arms, rotating the trunk','Knees soft','Switch sides regularly'],
+        mistakes:['Bending at the waist','Looking at the feet','Ignoring wind'],
+        programming:{'Base':'30-90 min'},
+        tip:'Kneel to start; stand once the board feels stable.' },
+      { id:'cross-country-skiing', uuid:'c0ad001f-001f-401f-801f-00000000001f', title:'Cross-Country Skiing', best:'Nordic Skiing',
+        cue:'Classic or skate skiing on groomed trails — one of the most demanding full-body endurance sports.',
+        setup:['Waxed or skin skis, poles','Layers'],
+        movement:['Drive with the legs, push with the poles','Rhythm over force','Glide between strides'],
+        mistakes:['Poling only with the arms','Overdressing','Starting too hard'],
+        programming:{'Base':'45-120 min'},
+        tip:'Heart rates run high — keep most sessions easy.' },
+      { id:'downhill-skiing', uuid:'c0ad0020-0020-4020-8020-000000000020', title:'Downhill Skiing / Snowboarding', best:'Alpine',
+        cue:'Lift-served skiing or snowboarding — intermittent, leg-heavy effort.',
+        setup:['Helmet, checked bindings','Warm up on easy runs'],
+        movement:['Stay centred over the feet','Rest between runs as needed'],
+        mistakes:['Skiing tired late in the day','Skipping the warm-up'],
+        programming:{'Session':'2-5 h'},
+        tip:'Note runs or vertical in the notes; the effort is mostly legs.' }
     ] },
   { id:'climbing', title:'Climbing & Bouldering', tag:'Cardio • Grip + Full Body', mega:'cardio', sub:'climbing',
     equip:['bodyweight'], icon:'cardio',
@@ -9869,15 +10072,26 @@ async function coworkAnalysisViaApi(auto) {
    cardio shave a few points off the composite Training Readiness only (a systemic, not muscle-specific, tax).
    ============================================================ */
 const _STRAVA_CARDIO_MAP = [
-  [/run|jog|trail/i, '41cb3500-9d9d-40e1-ac39-3b3f05fdecc2'],       // Steady-State Run
-  [/walk|hike/i, '10e6a133-b61a-4cab-8c99-aab26149a669'],           // Brisk Walk
-  [/ride|bike|cycl/i, 'cb5464ea-e79d-43f0-bbb2-a7ffccb22d0e'],      // Steady-State Bike
+  // feat 524 — outdoor sports go to the Outdoor Cardio family; only the virtual (treadmill / trainer) ones stay on machines
+  [/virtualrun/i, '41cb3500-9d9d-40e1-ac39-3b3f05fdecc2'],          // Steady-State Run (treadmill)
+  [/virtualride/i, 'cb5464ea-e79d-43f0-bbb2-a7ffccb22d0e'],         // Steady-State Bike (trainer)
+  [/trail ?run/i, 'c0ad0015-0015-4015-8015-000000000015'],                                            // Trail Run
+  [/run|jog/i, 'c0ad0010-0010-4010-8010-000000000010'],                                               // Outdoor Run
+  [/hike/i, 'c0ad0017-0017-4017-8017-000000000017'],                                                  // Hiking
+  [/walk/i, 'c0ad0016-0016-4016-8016-000000000016'],                                                  // Outdoor Walk
+  [/mountain|gravel/i, 'c0ad0019-0019-4019-8019-000000000019'],                                       // Mountain Biking
+  [/ride|bike|cycl/i, 'c0ad0018-0018-4018-8018-000000000018'],                                        // Road Cycling
+  [/swim/i, 'c0ad001a-001a-401a-801a-00000000001a'],                                                  // Pool Swim
+  [/kayak|canoe/i, 'c0ad001d-001d-401d-801d-00000000001d'],                                           // Kayaking / Canoeing
+  [/paddl/i, 'c0ad001e-001e-401e-801e-00000000001e'],                                                 // Stand-Up Paddleboarding
+  [/nordicski|backcountryski/i, 'c0ad001f-001f-401f-801f-00000000001f'],                              // Cross-Country Skiing
+  [/alpineski|snowboard/i, 'c0ad0020-0020-4020-8020-000000000020'],                                   // Downhill Skiing / Snowboarding
   [/row/i, 'd119b32b-6207-4576-b193-a34c62018719'],                 // Steady-State Row
   [/stair|climb/i, '1df5066f-cb8f-42d1-8286-596dadeda51d'],         // Steady Climb (stairmaster)
   [/ski/i, '3a802e5e-a11f-41b2-a83f-7d5e13c25fec'],                 // Ski Erg
   [/elliptical/i, '11104a65-56db-4b58-8dc2-dc484a9f76fc'],          // Steady Elliptical
 ];
-const _STRAVA_CARDIO_FALLBACK = 'b1a10013-0013-4013-8013-aaaaaaaa0013'; // feat 323 — generic "Other / Outdoor Cardio" (don't mislabel kayak/swim/etc. as a machine)
+const _STRAVA_CARDIO_FALLBACK = 'b1a10013-0013-4013-8013-aaaaaaaa0013'; // feat 323 — generic "Other / Outdoor Cardio" (don't mislabel an unknown sport as a machine)
 function stravaActivityUrl(id) { return id != null ? ('https://www.strava.com/activities/' + encodeURIComponent(id)) : null; }
 function stravaSportToCardioVar(sportType) {
   const t = String(sportType || '');
@@ -14800,14 +15014,14 @@ function updateFAB() {
 //  distance   → weight × distance (carries)
 const BW_IMPLEMENT_RE = /dumbbell|\bdb\b|kettlebell|\bkb\b|barbell|\bbb\b|\bplate(?! target)|cable|machine|weighted|kas\b|smith|roc[- ]?it|\bmts\b|landmine|sandbag|\bmace\b|\bclub\b|ybell|med(icine)? ball|slam ball|\bsled\b|ez[- ]?bar|trap[- ]?bar|life fitness|\blf\b|freemotion|nautilus|hammer strength|leverage|\bvest\b|\bpin\b|stack|\brope\b|\bgoblet\b|zercher|\bloaded\b|expander|ghd|glute[- ]?ham|\bdrive\b|booty|\bpadded\b|\bhack\b|power twister|bulgarian bag/; // a band is not a weight you can log: band-resisted push-ups stay bodyweight
 // reps are the whole story — nobody straps a vest on for these
-const BW_NONE_RE = /crunch|sit-?ups?\b|leg raise|knee raise|v-?ups?\b|burpee|mountain climber|superman|bird ?dog|dead ?bug|bear crawl|crab walk|inchworm|flutter|scissor kick|jackknife|bicycle|heel tap|windshield|russian twist|hollow rock|jumping jack|\bjump\b|jumps\b|\bbound\b|ab wheel|rollout|fallout|knee tuck|tuck to pike|clamshell|frog pump|donkey kick|fire hydrant|copenhagen|side bend|\bpike\b(?! push)|shoulder tap|glute bridge march|toes?[- ]to[- ]bar|dragon flag|high knees|a-skip|butt kicks|hip dips?\b|up-?downs?\b|wall walk|ice cream maker|elephant walk|hip airplane|terminal knee|banded abduction|shuttle run|hill sprint|\bhops?\b|hop-overs|snap down|depth drop|skin the cat/;
+const BW_NONE_RE = /crunch|sit-?ups?\b|leg raise|knee raise|v-?ups?\b|burpee|mountain climber|superman|bird ?dog|dead ?bug|bear crawl|crab walk|inchworm|flutter|scissor kick|jackknife|bicycle|heel tap|windshield|russian twist|hollow rock|jumping jack|\bjump\b|jumps\b|\bbound\b|ab wheel|rollout|fallout|knee tuck|tuck to pike|clamshell|frog pump|donkey kick|fire hydrant|copenhagen|side bend|\bpike\b(?! push)|shoulder tap|glute bridge march|toes?[- ]to[- ]bar|dragon flag|high knees|a-skip|butt kicks|hip dips?\b|up-?downs?\b|wall walk|jumping jacks?|squat thrusts?|sit-?outs?|bronco|snow angels?|heel touch(es)?|leg lifts?|chin tucks?|leg tucks?|ice cream maker|elephant walk|hip airplane|terminal knee|banded abduction|shuttle run|hill sprint|\bhops?\b|hop-overs|snap down|depth drop|skin the cat/;
 // load CAN go up — a vest, a plate on the hips, a backpack — but blank is the normal case
-const BW_VEST_RE = /push-?ups?\b|inverted row|ring row|pistol|nordic|lunges?\b|step-?ups?\b|split squat|bodyweight squat|air squat|prisoner squat|sissy squat|cossack|skater squat|sprinter|back extension|hyperextension|glute bridge|handstand|hanging (leg|knee)|front lever|back lever|planche|human flag|archer|shrimp|slant board|ring fly|squat thrust|step[- ]?down|reverse nordic/;
+const BW_VEST_RE = /push-?ups?\b|inverted row|ring row|pistol|nordic|lunges?\b|step-?ups?\b|split squat|bodyweight squat|air squat|prisoner squat|sissy squat|cossack|skater squat|sprinter|back extension|hyperextension|glute bridge|handstand|hanging (leg|knee)|front lever|back lever|planche|human flag|archer|shrimp|slant board|ring fly|step[- ]?down|reverse nordic/;
 function exMode(varUuid) {
   const info = VAR_INDEX.get(varUuid);
   const t = info ? (info.variation.title || '').toLowerCase() : '';
   const fid = info ? info.family.id : '';
-  if (/\b(dead ?hang|hang|hold|plank|l-?sit|wall sit|isometric|iso hold)\b/.test(t) && !/shoulder taps?|up-?downs?|hip dips?|\bhang (power )?(clean|snatch)|\bhang snatch/.test(t)) // feat 522 — a plank you move in, or a lift from the hang, is reps
+  if (/\b(dead ?hang|hang|hold|plank|l-?sit|wall sit|isometric|iso hold)\b/.test(t) && !/shoulder taps?|up-?downs?|hip dips?|leg lifts?|\bhang (power )?(clean|snatch)|\bhang snatch/.test(t)) // feat 522 — a plank you move in, or a lift from the hang, is reps
     return { mode:'time', wLabel:'Weight', rLabel:'Time' }; // feat 288 — "Time" (stored as seconds; entered as raw seconds or hh:mm:ss)
   if (fid === 'carries' || /\b(carry|carries|farmer|yoke|suitcase carry|waiter|sled (push|drag|pull))\b/.test(t))
     return { mode:'distance', wLabel:'Weight', rLabel:'Distance' };
@@ -14815,7 +15029,7 @@ function exMode(varUuid) {
   // can REALLY change. Three load styles: 'assist' — a belt adds, a band or counterweight subtracts (±);
   // 'vest' — only a vest or a held plate could add (≥ 0, usually blank); 'none' — reps are the whole story (no field).
   // Anything naming an implement (DB, plate, cable, machine, band…) stays a loaded lift.
-  if (/\b(pull-?ups?|chin-?ups?|dips?|muscle-?ups?)\b/.test(t) && !/machine|assisted|lat ?pulldown|banded|band\b|hip dips?/.test(t))
+  if (/\b(pull-?ups?|chin-?ups?|dips?|muscle-?ups?)\b/.test(t) && !/machine|assisted|lat ?pulldown|banded|band\b|hip dips?|jerk dip/.test(t))
     return { mode:'bodyweight', load:'assist', wLabel:'Added (− assist)', rLabel:'Reps' };
   // a push-up is bodyweight whatever its hands rest on (mace, kettlebell or dumbbell handles); a vest is the only load
   if (/rope climb/.test(t)) return { mode:'bodyweight', load:'none', wLabel:'BW', rLabel:'Reps' }; // feat 522 — the rope is the apparatus, not the load
@@ -25274,6 +25488,7 @@ const MOTIONS = {
 };
 // Per-variation overrides (the feat-408 dev set keeps its bespoke assignments).
 const MOTION_VARS = {
+  'road-cycling': ['bike', 'machine'], 'mountain-biking': ['bike', 'machine'], // feat 524
   'bb-flat-bench': ['bench-press', 'barbell'], 'db-flat-bench': ['bench-press', 'dumbbell'],
   'bb-curl': ['biceps-curl', 'barbell'], 'db-curl': ['biceps-curl', 'dumbbell'],
   'standard-pulldown': ['lat-pulldown', 'cable'],
@@ -25373,6 +25588,7 @@ const FAMILY_MOTION = {
   'cable-attachments': ['generic', 'cable'], 'equipment-hacks': ['generic', 'dumbbell'], 'tempo-methods': ['squat', 'barbell'],
   // runtime-added families (EXTRA content beyond the base FAMILIES JSON)
   'neck-training': ['mobility', 'none'], 'jaw-training': ['mobility', 'none'], climbing: ['pull-up', 'none'],
+  'outdoor-cardio': ['run', 'none'], // feat 524 — the rides override below
   'pilates-mat': ['crunch', 'none'], 'tai-chi': ['mobility', 'none'], systema: ['mobility', 'none'],
   'boxing-bag': ['generic', 'none', { act: { upArm: 0.7, torso: 0.3, torsoZone: 0.3 } }], 'jump-rope-skills': ['jump', 'none'],
 };
@@ -28801,6 +29017,8 @@ const VAR_EQUIP_OVERRIDES = {
   'single-arm-overhead-tri': 'dumbbell', 'batwing-row': 'dumbbell', 'kroc-row': 'dumbbell',
   'side-lying-er': 'dumbbell', 'preacher-rear-delt': 'dumbbell', 'suitcase-deadlift': 'dumbbell',
   'snatch-grip-shrug': 'barbell',
+  'spell-caster': 'dumbbell', 'conans-wheel': null, 'power-stairs': null, 'car-deadlift': null, 'keg-load': null, 'sandbag-load': null, // feat 525
+  'w-raise': 'dumbbell', 'trap-3-raise': 'dumbbell', 'shotgun-row': 'pin', 'incline-skull-crusher': 'barbell', // feat 524
   'ring-fly': null, // feat 523 — gymnastic rings: bodyweight, no loading tool
   // feat 522 — apparatus or an odd object, not a stack / bar; and the titles that do not say their implement
   'rope-climb': null, 'legless-rope-climb': null, 'atlas-stone-load': null, 'keg-carry': null, 'sandbag-over-bar': null, 'side-lying-adduction': null,
@@ -31338,7 +31556,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 446 · 2026-11-02 10:21';
+const APP_BUILD = 'build 447 · 2026-11-02 11:33';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

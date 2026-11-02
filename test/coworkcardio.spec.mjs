@@ -20,11 +20,12 @@ test('feat 323 — unknown sports map to the generic Other Cardio (not a wrong m
     const info = VAR_INDEX.get(kayak.varUuid);
     return { kayak: kayak.varUuid, swim: swim.varUuid, pickle: pickle.varUuid, GEN, mega: info && info.family.mega, title: info && info.variation.title, url: stravaActivityUrl('123456') };
   });
-  expect(r.kayak).toBe(r.GEN);     // kayaking is NOT forced to elliptical anymore
-  expect(r.swim).toBe(r.GEN);
+  // feat 524 — kayaking and swimming now have real Outdoor Cardio entries; a sport with none still falls back
+  expect(r.kayak).not.toBe(r.GEN);
+  expect(r.swim).not.toBe(r.GEN);
   expect(r.pickle).toBe(r.GEN);
   expect(r.mega).toBe('cardio');   // still recovery-neutral
-  expect(r.title).toMatch(/Other/);
+  expect(r.title).toMatch(/Kayak/);
   expect(r.url).toBe('https://www.strava.com/activities/123456');
 });
 
