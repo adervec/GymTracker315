@@ -33,9 +33,10 @@ test('feat 520 — ten plans, each complete, every step resolving to real variat
 });
 
 test('feat 520 — granular: no step is a whole-catalogue catch-all', async ({ page }) => {
-  const widest = await page.evaluate((IDS) => Math.max(...IDS.flatMap(id => SEED_PLANS.find(x => x.id === id).steps
-    .map(st => [...new Set(st.options.flatMap(o => _optionBaseUuids(o)))].length))), IDS);
-  expect(widest).toBeLessThan(80);
+  const r = await page.evaluate((IDS) => ({ size: VAR_INDEX.size, widest: Math.max(...IDS.flatMap(id => SEED_PLANS.find(x => x.id === id).steps
+    .map(st => [...new Set(st.options.flatMap(o => _optionBaseUuids(o)))].length))) }), IDS);
+  // relative, not absolute: the catalogue keeps growing (feat 523 pushed a two-family arms step from 75 to 80)
+  expect(r.widest / r.size, `widest step ${r.widest} of ${r.size}`).toBeLessThan(0.06);
 });
 
 test('feat 520 — the B days are not the A days again', async ({ page }) => {

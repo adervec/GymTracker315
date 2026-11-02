@@ -2665,6 +2665,18 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The coach / creator sweep (feat 523):** "dip shrugs? search online for the signature exercises of the top
+  current insta/tiktok coaches". Web research across creator rankings and coach-specific write-ups (Nippard,
+  Israetel, Contreras, Knees-Over-Toes Guy, Squat University, Gironda, the calisthenics and glute-TikTok crowds, the
+  viral walking formats) produced a candidate list; each name was checked against the full catalogue and 28 were
+  missing: **Kelso shrug** and **dip shrug**, Gironda **sternum chin-up**, chest-supported T-bar row, deficit Pendlay
+  row, Israetel's **lying dumbbell curl**, **cuffed cable lateral**, cable Y-raise, Nippard's **side-lying rear-delt
+  fly**, prone incline Y-T-W, Contreras's **American deadlift** and **barbell kneeling squat**, kickstand RDL, seated
+  banded abduction, the ATG **slant board squat** and **elephant walk**, Smith reverse lunge, lateral step-down,
+  banded TKE, hip airplane, **planche push-up**, **ice cream maker**, tuck front lever row, pike compression lift,
+  ring fly, and the **12-3-30** incline walk, **Japanese interval walking** and **rucking**. Moves only a single
+  unverified source described (wall pilates, the teardrop squat) were left out rather than guessed at. Rows in
+  `COACH_ROWS` (slots 0x36A-0x385); the reps-only and vest-style lists learned the new names. `test/coachsweep.spec.mjs`.
 - **The mainstream-gap sweep (feat 522):** after the single-limb and plyo sweeps, every family was listed by size
   and each candidate name checked against the whole catalogue. The holes were in everyday vocabulary: Olympic
   lifting had 8 power variants and **no full clean, snatch, jerk or pull**; no barbell / cable / dumbbell upright
