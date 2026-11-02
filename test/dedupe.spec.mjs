@@ -24,7 +24,10 @@ const SYN = {
 const NOISE = ['the', 'a', 'an', 'with', 'and', 'to', 'on', 'in', 'of', 'for', 'or', 'at', 'from', 'variation', 'standard'];
 
 // Pairs a human has confirmed are DIFFERENT movements. Empty is the goal; each entry needs a reason.
-const ALLOW = [];
+const ALLOW = [
+  // feat 518 — two dumbbells (the option) vs ONE arm lowered across the body: different lifts; "single"/"arm" are noise here
+  'tricep-extension/skull-crusher [Dumbbells]  ==  tricep-extension/db-skull-crusher-1arm :: Single-Arm DB Skull Crusher',
+];
 
 test.beforeEach(async ({ page }) => {
   await page.goto(APP, { waitUntil: 'load' });

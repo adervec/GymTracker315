@@ -2665,6 +2665,21 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The single-limb sweep (feat 518):** "there is a 1-arm variation for the LF triceps machine but NOT the LF
+  preacher machine". All 1,611 variations were dumped from `VAR_INDEX`; 149 were already one-sided by title, id or
+  sub-option, and every two-limb one was matched against them by title tokens. Of the ~470 strength candidates
+  left without a twin, a one-sided twin was added where (a) one limb can drive the equipment — an independent-arm
+  or single-bar pin/plate machine, a cable, a dumbbell pair — and (b) the one-sided lift is one people actually
+  program (a weaker side, anti-rotation, a longer stretch or a past-midline squeeze). 30 rows in `ONE_LIMB_ROWS`
+  across 17 families, slots 0x2D0-0x2ED; each row leads with its family id because they span families. Left alone
+  on purpose: lifts that are one-sided by nature but don't say so (concentration curl, kickback, Kroc row, most
+  kettlebell work, landmine press, cable laterals); ones a generic twin or sub-option already covers (Single-Leg
+  Press / Curl, Single-Arm Pulldown, the 1-arm handle options on Cable Curl, Seated Cable Row and Rope Pushdown);
+  barbell and bodyweight lifts with no one-sided form; and brand twins of a machine whose generic one-arm version
+  now exists (Roc-It, the padded pec deck, the half-dome Freemotion fly). Titles carry "Single-Arm"/"Single-Leg",
+  so the tier scaling's one-limb factor applies on its own. Bundled: the Life Fitness preacher's hammer and
+  reverse grips (two-arm and new one-arm) were loading as dumbbell / barbell from the family's first equipment —
+  `VAR_EQUIP_OVERRIDES` makes them `pin`. `test/onelimb.spec.mjs` pins all 31 pairs.
 - **Holds and bodyweight lifts in their own words (feat 517):** feat 516 fixed the hold tiles, but the rest of
   the page still talked barbell. The root was one number: history ranked and compared sets by Epley e1RM on the
   *weight field* — seconds-as-reps for a hold, and added load for a bodyweight lift, so every pure-bodyweight
