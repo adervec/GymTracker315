@@ -2060,6 +2060,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
      started (weight entered → wTs) the open row shows a count-up button; a tap drops the elapsed seconds into
      the Seconds field. Pulses subtly so it reads as live. */
   .ex-bw-line { margin-top: 4px; font-size: 12px; color: var(--text2); }
+  .set-bw-cell { display: flex; align-items: center; justify-content: center; color: var(--text3); font-weight: 700; letter-spacing: 0.5px; }
   .ex-bw-line.stale { color: var(--warn); }
   .hold-timer-btn, .hold-start-btn { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin: 3px 0 7px; padding: 9px 10px; border: 1px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-family: inherit; font-weight: 800; font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; animation: hold-timer-pulse 1.8s ease-in-out infinite; }
   .hold-timer-btn:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
@@ -13771,8 +13772,8 @@ function getNeighborBaselines(varUuid, subUuid, currentWeightNum) {
    that ranks or compares a set (top set, overload tag, progression, history) goes through this one scorer. */
 function bwInUnit() { const kg = getCurrentBodyweightKg(); return kg ? (state.unit === 'kg' ? kg : kgToLb(kg)) : 0; }
 function setScorer(varUuid) {
-  const m = exMode(varUuid).mode;
-  if (m === 'time') return (w, r) => parseFloat(r) || 0;
+  const M = exMode(varUuid), m = M.mode;
+  if (m === 'time' || M.load === 'none') return (w, r) => parseFloat(r) || 0; // feat 519 — a crunch is better by reps
   if (m === 'bodyweight') {
     const base = bwInUnit(); // ponytail: today's bodyweight scores past sets too — a per-set bodyweight snapshot if that ever matters
     return (w, r) => { const L = base + (parseFloat(w) || 0); return L > 0 ? estimated1RM(L, parseFloat(r) || 0) : 0; };
@@ -14092,7 +14093,7 @@ function getProgressionSuggestion(varUuid, subUuid) {
   if (history.length === 0) return null;
   // feat 517 — a hold is measured in seconds, a bodyweight lift on bodyweight + added: say it that way
   const tm = exMode(varUuid).mode === 'time', F = t => fmtSetFor(varUuid, t.w, t.r);
-  const metric = tm ? 'longest hold' : 'est. 1RM', addOne = tm ? 'add a few seconds' : 'add a rep';
+  const metric = tm ? 'longest hold' : exMode(varUuid).load === 'none' ? 'reps' : 'est. 1RM', addOne = tm ? 'add a few seconds' : 'add a rep'; // feat 519
   if (history.length === 1) {
     const recent = history[0];
     return {
@@ -14120,7 +14121,7 @@ function getProgressionSuggestion(varUuid, subUuid) {
   const delta = Math.round(((prevOneRM - recentOneRM) / prevOneRM) * 1000) / 10;
   return {
     label: 'Down ' + delta + '%',
-    text: `Down from last session. Check sleep, food, stress. Repeat the previous ${tm ? 'hold' : 'weight'} (<b>${F(prev.topSet)}</b>) next time.`
+    text: `Down from last session. Check sleep, food, stress. Repeat the previous ${tm ? 'hold' : exMode(varUuid).mode === 'bodyweight' ? 'set' : 'weight'} (<b>${F(prev.topSet)}</b>) next time.`
   };
 }
 
@@ -14577,6 +14578,11 @@ function updateFAB() {
 //  bodyweight → ADDED load × reps (weight may be 0 = pure bodyweight, negative = assisted)
 //  time       → weight × seconds (holds, dead hangs)
 //  distance   → weight × distance (carries)
+const BW_IMPLEMENT_RE = /dumbbell|\bdb\b|kettlebell|\bkb\b|barbell|\bbb\b|\bplate|cable|machine|weighted|kas\b|smith|roc[- ]?it|\bmts\b|landmine|sandbag|\bmace\b|\bclub\b|ybell|med(icine)? ball|slam ball|\bsled\b|ez[- ]?bar|trap[- ]?bar|life fitness|\blf\b|freemotion|nautilus|hammer strength|leverage|\bvest\b|\bpin\b|stack|\brope\b|\bgoblet\b|zercher|\bloaded\b|expander|ghd|glute[- ]?ham|\bdrive\b|booty|\bpadded\b|\bhack\b|power twister|bulgarian bag/; // a band is not a weight you can log: band-resisted push-ups stay bodyweight
+// reps are the whole story — nobody straps a vest on for these
+const BW_NONE_RE = /crunch|sit-?ups?\b|leg raise|knee raise|v-?ups?\b|burpee|mountain climber|superman|bird ?dog|dead ?bug|bear crawl|crab walk|inchworm|flutter|scissor kick|jackknife|bicycle|heel tap|windshield|russian twist|hollow rock|jumping jack|\bjump\b|jumps\b|\bbound\b|ab wheel|rollout|fallout|knee tuck|tuck to pike|clamshell|frog pump|donkey kick|fire hydrant|copenhagen|side bend|\bpike\b(?! push)|shoulder tap|glute bridge march|toes?[- ]to[- ]bar|dragon flag/;
+// load CAN go up — a vest, a plate on the hips, a backpack — but blank is the normal case
+const BW_VEST_RE = /push-?ups?\b|inverted row|ring row|pistol|nordic|lunges?\b|step-?ups?\b|split squat|bodyweight squat|air squat|prisoner squat|sissy squat|cossack|skater squat|sprinter|back extension|hyperextension|glute bridge|handstand|hanging (leg|knee)|front lever|back lever|planche|human flag|archer|squat thrust|step[- ]?down|reverse nordic/;
 function exMode(varUuid) {
   const info = VAR_INDEX.get(varUuid);
   const t = info ? (info.variation.title || '').toLowerCase() : '';
@@ -14585,8 +14591,18 @@ function exMode(varUuid) {
     return { mode:'time', wLabel:'Weight', rLabel:'Time' }; // feat 288 — "Time" (stored as seconds; entered as raw seconds or hh:mm:ss)
   if (fid === 'carries' || /\b(carry|carries|farmer|yoke|suitcase carry|waiter|sled (push|drag|pull))\b/.test(t))
     return { mode:'distance', wLabel:'Weight', rLabel:'Distance' };
-  if (/\b(pull-?up|chin-?up|dip|muscle-?up|push-?up|inverted row|pistol|nordic)\b/.test(t) && !/machine|assisted|lat ?pulldown|banded/.test(t))
-    return { mode:'bodyweight', wLabel:'Added (− assist)', rLabel:'Reps' };
+  // feat 519 — bodyweight is more than the pull-up/dip/push-up trio, and "± bodyweight" only makes sense where load
+  // can REALLY change. Three load styles: 'assist' — a belt adds, a band or counterweight subtracts (±);
+  // 'vest' — only a vest or a held plate could add (≥ 0, usually blank); 'none' — reps are the whole story (no field).
+  // Anything naming an implement (DB, plate, cable, machine, band…) stays a loaded lift.
+  if (/\b(pull-?ups?|chin-?ups?|dips?|muscle-?ups?)\b/.test(t) && !/machine|assisted|lat ?pulldown|banded|band\b/.test(t))
+    return { mode:'bodyweight', load:'assist', wLabel:'Added (− assist)', rLabel:'Reps' };
+  // a push-up is bodyweight whatever its hands rest on (mace, kettlebell or dumbbell handles); a vest is the only load
+  if (/push-?ups?\b/.test(t) && !/machine|smith|superman/.test(t)) return { mode:'bodyweight', load:'vest', wLabel:'Added (+)', rLabel:'Reps' };
+  if (!BW_IMPLEMENT_RE.test(t) && !/kettlebell|mace|ybell|sandbag|medicine|specialty-implements|strongman|landmine/.test(fid)) { // an implement family's moves hold the implement
+    if (BW_NONE_RE.test(t)) return { mode:'bodyweight', load:'none', wLabel:'BW', rLabel:'Reps' };
+    if (BW_VEST_RE.test(t)) return { mode:'bodyweight', load:'vest', wLabel:'Added (+)', rLabel:'Reps' };
+  }
   return { mode:'standard', wLabel:'Weight', rLabel:'Reps' };
 }
 // feat 288 — time-mode (holds/planks) sets store SECONDS in the reps field, but may be ENTERED as raw seconds
@@ -17026,6 +17042,78 @@ const SEED_PLANS = [
     _pstep(4,[_mvOpt('adductor')],'Adductors — then the inner line pays too.','light'),
     _pstep(4,[_mvOpt('abs-dynamic')],'Loaded ab work while the legs shake.','moderate'),
     _pstep(3,[_mvOpt('obliques')],'Obliques to seal it.','light') ] },
+  // —— feat 520 — a fresh, GRANULAR stack: steps aim at a variation, a head or an equipment line rather than a whole
+  //    family, and the desc carries the reps and the intent. Six PPL days run as an A/B rotation where the B day
+  //    changes the angle, the implement and the rep range instead of repeating A; four more round it out. ——
+  { id:'seed-ppl2-push-a', name:'PPL 2.0 — Push A (Heavy Flat)', intensity:4, desc:'Push A of a six-day A/B rotation. A heavy flat barbell press, then a dumbbell incline for the upper chest, a strict seated overhead press, and a side-delt + triceps finish split head by head. Pair with Push B, which flips the emphasis to overhead and incline.', steps:[
+    _pstep(4,[_regexOpt('^barbell flat bench')],'Barbell bench — 4 × 4-6, 2-3 min rest.','heavy'),
+    _pstep(3,[_mvOpt('incline-bench-press','dumbbell')],'Incline dumbbells — 3 × 8-10, deep stretch.','moderate'),
+    _pstep(3,[_regexOpt('db shoulder press|seated.*shoulder press|machine shoulder press')],'Seated overhead press — 3 × 8-10, back supported.','moderate'),
+    _pstep(3,[_regexOpt('cable lateral|leaning cable lateral')],'Cable laterals — 3 × 12-15 per arm, slow negative.','light'),
+    _pstep(3,[_regexOpt('overhead.*(tri|extension)')],'Overhead triceps — long head, 3 × 10-12.','light'),
+    _pstep(2,[_regexOpt('pushdown')],'Pushdowns — lateral + medial heads, 2 × 15.','light') ] },
+  { id:'seed-ppl2-pull-a', name:'PPL 2.0 — Pull A (Vertical Width)', intensity:4, desc:'Pull A — width day. Weighted or bodyweight pull-ups first, a single-arm pulldown for a longer lat line, a chest-supported row so the low back stays out of it, then rear delts and a supinated curl. Pull B is the thickness day.', steps:[
+    _pstep(4,[_regexOpt('^(wide-grip )?pull-up|chin-up \\(supinated\\)|neutral-grip pull-up'),_mvOpt('lat-pulldown')],'Pull-ups — 4 × 5-8 (add load once 8 is easy).','heavy'),
+    _pstep(3,[_regexOpt('single-arm (lat )?pulldown')],'Single-arm pulldown — 3 × 10-12 per arm, elbow to hip.','moderate'),
+    _pstep(3,[_regexOpt('chest-supported')],'Chest-supported row — 3 × 10, pause at the top.','moderate'),
+    _pstep(3,[_muscleOpt('rear-delt','muscle',false)],'Rear delts — 3 × 15-20.','light'),
+    _pstep(3,[_regexOpt('incline db curl|preacher curl')],'Stretched-position curl — 3 × 10-12.','light') ] },
+  { id:'seed-ppl2-legs-a', name:'PPL 2.0 — Legs A (Quad Squat)', intensity:5, desc:'Legs A — quad-led. Back squat, then a hack squat or leg press, single-leg extensions to even the sides, a seated or lying leg curl, and standing calves. Legs B is the hinge-and-glute day.', steps:[
+    _pstep(4,[_regexOpt('^barbell back squat|front squat|safety squat bar')],'Squat — 4 × 5-6, full depth.','heavy'),
+    _pstep(3,[_regexOpt('hack squat(?! calf)|^standard \\(mid feet\\)')],'Hack squat or leg press — 3 × 8-12.','moderate'),
+    _pstep(3,[_regexOpt('single-leg extension')],'Single-leg extension — 3 × 12-15 per leg, squeeze at the top.','light'),
+    _pstep(3,[_mvOpt('leg-curl')],'Leg curl — 3 × 10-12, slow negatives.','moderate'),
+    _pstep(4,[_mvOpt('calf-raise')],'Standing calves — 4 × 10-15, 2 s pause in the stretch.','moderate') ] },
+  { id:'seed-ppl2-push-b', name:'PPL 2.0 — Push B (Overhead & Incline)', intensity:4, desc:'Push B — overhead and upper-chest led, lighter and higher-rep than A. Standing barbell press, low-incline press, dips for the lower chest and triceps, a single-arm pec deck to squeeze past the midline, and a cross-body triceps finish.', steps:[
+    _pstep(4,[_regexOpt('^barbell overhead press|z-press')],'Standing overhead press — 4 × 5-8.','heavy'),
+    _pstep(3,[_regexOpt('low incline|incline barbell|incline db press')],'Low-incline press — 3 × 8-10.','moderate'),
+    _pstep(3,[_mvOpt('dips')],'Dips — 3 × AMRAP minus 2.','moderate'),
+    _pstep(3,[_regexOpt('single-arm pec deck|single-arm freemotion cable crossover|high cable fly')],'One-arm fly — 3 × 12-15 per side, cross the midline.','light'),
+    _pstep(3,[_regexOpt('single-arm db skull crusher|single-arm reverse-grip pushdown')],'One-arm triceps — 3 × 12 per arm.','light'),
+    _pstep(2,[_mvOpt('lateral-raise','dumbbell')],'DB laterals — 2 × 20, a burnout.','light') ] },
+  { id:'seed-ppl2-pull-b', name:'PPL 2.0 — Pull B (Rows & Thickness)', intensity:4, desc:'Pull B — thickness day. A heavy barbell or Pendlay row, a one-arm dumbbell row, a neutral close-grip pulldown, heavy shrugs, face pulls for the cuff, and hammers. Pull A is the width day.', steps:[
+    _pstep(4,[_regexOpt('barbell bent-over row|pendlay row')],'Barbell row — 4 × 6-8, strict.','heavy'),
+    _pstep(3,[_regexOpt('single-arm db row|kroc row')],'One-arm DB row — 3 × 8-12 per arm.','moderate'),
+    _pstep(3,[_regexOpt('close-grip pulldown|neutral-grip pulldown')],'Close neutral pulldown — 3 × 10-12.','moderate'),
+    _pstep(3,[_mvOpt('shrugs')],'Shrugs — 3 × 10-12, 2 s hold at the top.','heavy'),
+    _pstep(3,[_regexOpt('face pull')],'Face pulls — 3 × 15-20, finish the rotation.','light'),
+    _pstep(3,[_muscleOpt('brachialis','muscle',false)],'Hammer / brachialis — 3 × 10-12.','light') ] },
+  { id:'seed-ppl2-legs-b', name:'PPL 2.0 — Legs B (Hinge & Glutes)', intensity:5, desc:'Legs B — posterior chain. Romanian deadlifts, heavy hip thrusts, Bulgarian split squats, a single-leg curl, hip abduction, and seated calves for the soleus. Legs A is the quad day.', steps:[
+    _pstep(4,[_regexOpt('romanian deadlift|^dumbbell rdl')],'RDL — 4 × 6-8, hips back, long hamstrings.','heavy'),
+    _pstep(4,[_mvOpt('hip-thrust')],'Hip thrust — 4 × 8-10, 1 s squeeze.','heavy'),
+    _pstep(3,[_regexOpt('bulgarian split squat')],'Bulgarian split squat — 3 × 8-10 per leg.','moderate'),
+    _pstep(3,[_regexOpt('single-leg curl')],'Single-leg curl — 3 × 10-12 per leg.','moderate'),
+    _pstep(3,[_muscleOpt('glute-med-min','muscle',false)],'Abduction — 3 × 15-20.','light'),
+    _pstep(3,[_muscleOpt('soleus','head',true)],'Seated / bent-knee calves — 3 × 15.','light') ] },
+  { id:'seed-one-limb-full', name:'One Side at a Time — Full Body', intensity:3, desc:'Every lift single-arm or single-leg: the weaker side goes first and sets the rep count for the stronger one. Built on the one-limb twins — good after a layoff, an injury, or when you suspect one side is doing more than its share.', steps:[
+    _pstep(3,[_regexOpt('bulgarian split squat|single-leg hack squat|single-leg press')],'Single-leg squat pattern — 3 × 8-10 per leg.','moderate'),
+    _pstep(3,[_regexOpt('single-arm db bench press|single-arm chest press machine|single-arm incline db press')],'One-arm press — 3 × 8-10 per arm, no rolling.','moderate'),
+    _pstep(3,[_regexOpt('single-arm db row|single-arm lf dual pulley row|single-arm cable row')],'One-arm row — 3 × 10 per arm.','moderate'),
+    _pstep(3,[_regexOpt('single-leg rdl|single-leg hip thrust|single-leg glute drive')],'Single-leg hinge / thrust — 3 × 10 per leg.','moderate'),
+    _pstep(2,[_regexOpt('single-arm seated db shoulder press|single-arm shoulder press machine|1-arm cable shoulder press')],'One-arm overhead — 2 × 10 per arm.','light'),
+    _pstep(2,[_regexOpt('suitcase carry|suitcase hold')],'Suitcase carry — 2 × 30 m per side.','moderate') ] },
+  { id:'seed-upper-power', name:'Upper Power — Heavy Then Volume', intensity:5, desc:'Two heavy compounds at low reps while you are fresh, then a fast volume block of pairs to build what the triples cannot. Long rests up top, short rests below.', steps:[
+    _pstep(5,[_regexOpt('^barbell flat bench|paused bench')],'Bench — 5 × 3, 3 min rest.','heavy'),
+    _pstep(5,[_regexOpt('barbell bent-over row|pendlay row|weighted.*pull|^chin-up')],'Heavy pull — 5 × 3-5.','heavy'),
+    _pstep(3,[_mvOpt('incline-bench-press','dumbbell')],'Pair A1 — incline DB, 3 × 10, 60 s.','moderate'),
+    _pstep(3,[_mvOpt('lat-pulldown')],'Pair A2 — pulldown, 3 × 10, 60 s.','moderate'),
+    _pstep(3,[_mvOpt('lateral-raise')],'Pair B1 — laterals, 3 × 15.','light'),
+    _pstep(3,[_mvOpt('bicep-curl'),_mvOpt('tricep-extension')],'Pair B2 — arms, 3 × 12.','light') ] },
+  { id:'seed-delts-arms-detail', name:'Delts & Arms — Head by Head', intensity:3, desc:'Every delt and arm head gets its own, named step: front, side and rear delt; biceps long and short; brachialis; triceps long, lateral and medial. Mostly cables and one-arm work, so each side is honest.', steps:[
+    _pstep(3,[_regexOpt('front raise')],'Front delt — raises, 3 × 10-12.','moderate'),
+    _pstep(4,[_muscleOpt('side-delt','muscle',false)],'Side delt — 4 × 15, one arm at a time.','light'),
+    _pstep(3,[_muscleOpt('rear-delt','muscle',false)],'Rear delt — 3 × 15-20.','light'),
+    _pstep(3,[_regexOpt('incline db curl|bayesian|drag curl')],'Biceps long head — arm behind the body (incline / Bayesian), 3 × 10-12.','light'),
+    _pstep(3,[_regexOpt('preacher|spider curl|concentration curl')],'Biceps short head — arm in front (preacher / spider), 3 × 10-12.','light'),
+    _pstep(2,[_muscleOpt('brachialis','muscle',false)],'Brachialis — hammer grip, 2 × 12.','light'),
+    _pstep(3,[_regexOpt('overhead.*(tri|extension)')],'Triceps long head — overhead, 3 × 10-12.','light'),
+    _pstep(3,[_regexOpt('reverse-grip pushdown|pushdown')],'Triceps lateral + medial — pushdowns, 3 × 12-15.','light') ] },
+  { id:'seed-bw-anywhere', name:'Bodyweight Anywhere', intensity:3, desc:'No equipment beyond a bar to hang from: push, pull, a single-leg squat, a hinge, and core, with harder progressions listed so it keeps working as you get stronger. Swap to the next variation once the top of the rep range is easy.', steps:[
+    _pstep(4,[_regexOpt('^push-up|close-grip push-up|archer push-up|pseudo-planche push-up')],'Push-ups — 4 × 8-15; progress to archer, then pseudo-planche.','moderate'),
+    _pstep(4,[_regexOpt('^(wide-grip )?pull-up|chin-up \\(supinated\\)|inverted row')],'Pull-ups (or inverted rows) — 4 × 5-10.','moderate'),
+    _pstep(3,[_regexOpt('^bulgarian split squat|pistol squat|sprinter / skater squat')],'Single-leg squat — 3 × 8-10 per leg; progress to skater, then pistol.','moderate'),
+    _pstep(3,[_regexOpt('nordic hamstring|single-leg rdl|bodyweight glute bridge')],'Hinge — 3 × 6-10 (Nordics once bridges are easy).','moderate'),
+    _pstep(3,[_regexOpt('hollow|hanging leg raise|^plank$|^side plank')],'Core — 3 × 30-45 s or 10-12 reps.','light') ] },
 ];
 function cloneSeedPlan(sp) {
   return { id:sp.id, name:sp.name, desc:sp.desc||'', intensity:sp.intensity||3, steps:sp.steps.map(s => ({ id:newUuid(), sets:s.sets, desc:s.desc||'', load:s.load||'moderate', options:s.options.map(o => ({ ...o })) })) };
@@ -21682,7 +21770,7 @@ function renderExerciseDetail(main, key) {
   <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">${escapeHtml(family)}${info ? ` · ${BP_LABELS[info.bp] || info.bp}` : ''}</div>
   ${rangeChip}
   <div class="stats-grid">
-    <div class="stat-tile"><div class="stat-label">${dM === 'time' ? 'Longest hold' : 'Best e1RM'}</div><div class="stat-value">${dT(best1RM)}</div><div class="stat-sub">${dM === 'time' ? 'm:ss' : state.unit + (dM === 'bodyweight' ? ' incl. bodyweight' : '')}</div></div>
+    <div class="stat-tile"><div class="stat-label">${dM === 'time' ? 'Longest hold' : exMode(key.varUuid).load === 'none' ? 'Most reps' : 'Best e1RM'}</div><div class="stat-value">${dT(best1RM)}</div><div class="stat-sub">${dM === 'time' ? 'm:ss' : exMode(key.varUuid).load === 'none' ? 'reps' : state.unit + (dM === 'bodyweight' ? ' incl. bodyweight' : '')}</div></div>
     <div class="stat-tile"><div class="stat-label">Total Sets</div><div class="stat-value">${totalSets}</div><div class="stat-sub">${history.length} sessions</div></div>
   </div>
   ${suggestion ? `<div class="suggestion">
@@ -28521,7 +28609,9 @@ function autoSetupKind(varUuid) {
   if (/machine|selectoriz|\bstack\b|fixed/.test(t)) return 'pin';
   if (/\bbodyweight\b|body ?weight/.test(t)) return null;                          // explicitly bodyweight → no loading tool
   const mode = (typeof exMode === 'function') ? exMode(varUuid).mode : 'standard';
-  if (mode === 'bodyweight') return /weighted/.test(t) ? 'plate' : null;          // added-load calisthenics → plate picker; pure BW → none
+  const bwLoad = mode === 'bodyweight' ? exMode(varUuid).load : null;             // feat 519
+  if (bwLoad === 'none' || (bwLoad === 'vest' && i.family.id !== 'lunge')) return null; // lunges are often dumbbells; an inverted row never is
+  if (mode === 'bodyweight' && bwLoad !== 'vest') return /weighted/.test(t) ? 'plate' : null; // added-load calisthenics → plate picker; pure BW → none
   if (mode === 'time' || mode === 'distance') return null;                        // holds / carries — no loading tool by default
   const eq = i.family.equip || [], map = { barbell: 'barbell', dumbbell: 'dumbbell', kettlebell: 'kettlebell', cable: 'pin', machine: 'pin' };
   for (let n = 0; n < eq.length; n++) { if (map[eq[n]]) return map[eq[n]]; }      // silent variation → the family's primary (first-listed) equipment
@@ -28959,7 +29049,7 @@ function renderSetsForm() {
     const rNum = s.r === '' ? null : parseFloat(s.r);
 
     // Color row if both weight and reps specified (feat 517 — 0 / negative added load counts for holds + bodyweight)
-    if ((wNum > 0 || (M.mode !== 'standard' && wNum != null && !isNaN(wNum))) && rNum > 0) {
+    if ((wNum > 0 || (M.mode !== 'standard' && wNum != null && !isNaN(wNum)) || M.mode === 'bodyweight') && rNum > 0) { // feat 519 — blank = bodyweight
       const score = getOverloadScore(pending.varUuid, pending.subUuid, { w: wNum, r: rNum }, currentSessionDate);
       if (score) {
         rowClass += ` overload-${score.level}`;
@@ -29001,8 +29091,9 @@ function renderSetsForm() {
     return `<div class="set-block">
       <div class="${rowClass}">
         <div class="set-num">${i + 1}</div>
-        <input class="set-input${npCls}" ${wAttrs} placeholder="${M.wLabel}" value="${s.w}" data-i="${i}" data-field="w" style="${wOver ? 'color:#ff4444;font-weight:700;' : ''}">
-        <input class="set-input${npCls}" ${rAttrs} placeholder="${M.rLabel}" value="${rVal}" data-i="${i}" data-field="r" ${(s.w !== '' && s.w != null) ? '' : 'disabled title="Enter weight first"'}>
+        ${M.load === 'none' ? `<div class="set-input set-bw-cell" title="Bodyweight — just log reps">BW</div>` /* feat 519 */
+          : `<input class="set-input${npCls}" ${wAttrs} placeholder="${M.wLabel}" value="${s.w}" data-i="${i}" data-field="w" style="${wOver ? 'color:#ff4444;font-weight:700;' : ''}">`}
+        <input class="set-input${npCls}" ${rAttrs} placeholder="${M.rLabel}" value="${rVal}" data-i="${i}" data-field="r" ${(s.w !== '' && s.w != null) || M.mode === 'bodyweight' ? '' : 'disabled title="Enter weight first"'}>
         ${rpeSelectHtml(s, i)}
         <button class="set-remove" data-remove="${i}">×</button>
         ${overloadTagHtml}
@@ -29040,7 +29131,7 @@ function renderSetsForm() {
       ${/* feat 470 — two lines, not four. The name (with an Editing chip only in the state that is NOT the
             default, since the sheet title always reads "Log Sets") and then one meta line carrying family,
             body part, recovery and elapsed time. */''}
-      <div class="selected-ex-name">${modalState.isEditing ? '<span class="ex-editing-chip">Editing</span>' : ''}${escapeHtml(info.variation.title)}${M.mode!=='standard'?`<span class="ex-mode-tag">${M.mode==='bodyweight'?'BW+':M.mode==='distance'?'dist':'time'}</span>`:''}</div>
+      <div class="selected-ex-name">${modalState.isEditing ? '<span class="ex-editing-chip">Editing</span>' : ''}${escapeHtml(info.variation.title)}${M.mode!=='standard'?`<span class="ex-mode-tag">${M.mode==='bodyweight'?(M.load==='assist'?'BW±':M.load==='vest'?'BW+':'BW'):M.mode==='distance'?'dist':'time'}</span>`:''}</div>
       <div class="selected-ex-family">${escapeHtml(info.family.title)} · ${BP_LABELS[info.bp] || info.bp}${
         (() => { const h = exerciseRecoveryHint(pending.varUuid); if (!h) return '';
           const bpLbl = BP_LABELS[info.bp] || info.bp;
@@ -29050,10 +29141,12 @@ function renderSetsForm() {
         (() => { const t = exerciseTiming(pending.varUuid, pending.subUuid); return t ? ` · <span class="ex-time-stat">⏱ <b>${formatDuration(t.totalMs / 1000)}</b>${t.pctActive != null ? ` · <b>${t.pctActive}%</b> active` : ''}</span>` : ''; })()
       }</div>
       ${M.mode !== 'standard' ? `<div class="ex-mode-hint">${
-        M.mode==='bodyweight' ? `Bodyweight lift — log <b>added load</b> in the weight field (0 or blank = bodyweight, negative = assistance). Records count bodyweight + added.` :
+        M.mode==='bodyweight' ? (M.load === 'assist' ? `Bodyweight lift — blank = bodyweight; a <b>belt</b> adds load, a <b>band or counterweight</b> is a negative number. Records count bodyweight + added.`
+          : M.load === 'vest' ? `Bodyweight lift — leave weight <b>blank</b>; enter added load only if you wear a <b>vest</b> or hold a plate or dumbbells. Records count bodyweight + added.`
+          : `Bodyweight — just log <b>reps</b>.`) :
         M.mode==='distance' ? `Carry — log <b>weight × distance</b> instead of reps (distance in your preferred unit).` :
         `Hold — log <b>time</b>; weight is <b>added load</b> (0 or blank = bodyweight).`
-      }${M.mode !== 'distance' ? bodyweightLineHtml() : ''}</div>` : ''}
+      }${M.mode !== 'distance' && M.load !== 'none' ? bodyweightLineHtml() : ''}</div>` : ''}
       ${(() => { const h = weightRecordHint(pending.varUuid); return h ? `<div class="weight-record-hint">${escapeHtml(h)}</div>` : ''; })()}
       ${exNoteHtml ? `<div class="ex-note-row">${exNoteHtml}</div>` : ''}
       <div class="ex-actions${exActionsOpen() ? ' open' : ''}" id="trk-ex-actions">
@@ -29103,7 +29196,8 @@ function renderSetsForm() {
       const okW = w => w > 0 || (tm && w === 0) || (bwm && isFinite(w));
       const beat = t => (t && okW(t.w)) ? { w: t.w, r: (parseFloat(t.r) || 0) + 1 } : null;
       const wInc = state.unit === 'lb' ? 5 : 2.5, wCap = exMaxW(pending.varUuid);
-      const heavier = t => (t && okW(t.w)) ? ((wCap && t.w + wInc > wCap) ? beat(t) : { w: t.w + wInc, r: 1 }) : null; // −20 assist → −15: less help
+      const heavier = t => (t && okW(t.w) && !(M.load === 'none') && !(M.load === 'vest' && !(t.w > 0))) // feat 519
+        ? ((wCap && t.w + wInc > wCap) ? beat(t) : { w: t.w + wInc, r: 1 }) : null; // −20 assist → −15: less help
       const T = { prevTop: beat(B.prevTop), bestE1: noE1 ? null : beat(B.bestE1), maxW: tm ? beat(B.maxW && B.maxW.w > 0 ? B.maxW : null) : heavier(B.maxW), maxR: beat(B.maxR) }; // a hold beats the heaviest by holding it longer
       const claimed = [T.prevTop, T.bestE1, T.maxW, T.maxR].filter(x => x && x.w > 0).map(x => x.w);
       const P = noE1 ? { vuln: null, e1: null } : exPrTargets(pending.varUuid, pending.subUuid, claimed); // feat 477 — PR picks avoid taken weights
@@ -29803,7 +29897,7 @@ function updateRowLive(idx) {
   // feat 51 — enforce order: reps stay locked until this row has a weight.
   const repsInput = row.querySelector('[data-field="r"]');
   if (repsInput) {
-    const wFilled = s.w !== '' && s.w != null;
+    const wFilled = (s.w !== '' && s.w != null) || exMode(pending.varUuid).mode === 'bodyweight'; // feat 519 — blank = bodyweight
     repsInput.disabled = !wFilled;
     repsInput.title = wFilled ? '' : 'Enter weight first';
   }
@@ -29825,7 +29919,7 @@ function updateRowLive(idx) {
   row.querySelectorAll('.set-overload-tag, .set-obj-tag, .record-hint').forEach(el => el.remove());
   paintActiveSet(); // feat 463 — className was just reset, and finishing a set moves the marker to ANOTHER row
 
-  if ((wNum > 0 || (exMode(pending.varUuid).mode !== 'standard' && wNum != null && !isNaN(wNum))) && rNum > 0) { // feat 517
+  if ((wNum > 0 || (exMode(pending.varUuid).mode !== 'standard' && wNum != null && !isNaN(wNum)) || exMode(pending.varUuid).mode === 'bodyweight') && rNum > 0) { // feat 517/519 — blank = bodyweight
     const score = getOverloadScore(pending.varUuid, pending.subUuid, { w: wNum, r: rNum }, currentSessionDate);
     if (score) {
       row.classList.add(`overload-${score.level}`);
@@ -30743,7 +30837,7 @@ function saveSets(endingWorkout) {
     .map(s => ({ w: s.w, r: s.r, wTs: s.wTs || undefined, ts: s.ts || nowIso, rpe: (s.rpe === '' || s.rpe == null) ? undefined : s.rpe, _sub: (mix ? (s.subUuid || pending.subUuid) : pending.subUuid) || null }));
   if (validSets.length === 0) { toast('Enter at least one set'); return Promise.resolve(false); }
   // feat 63 — a bodyweight exercise needs a recorded bodyweight to be meaningful; block until one exists.
-  if (exMode(pending.varUuid).mode === 'bodyweight' && getCurrentBodyweightKg() == null) {
+  if (exMode(pending.varUuid).load === 'assist' && getCurrentBodyweightKg() == null) { // feat 519 — a crunch never needed it
     toast('⚖️ Log your bodyweight first (Body tab) to save bodyweight exercises'); return Promise.resolve(false);
   }
   const clean = s => { const o = { w: s.w, r: s.r, wTs: s.wTs, ts: s.ts }; if (s.rpe != null && s.rpe !== '') o.rpe = s.rpe; return o; }; // drop the temp _sub; keep rpe only when set (feat 261)
@@ -31017,7 +31111,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 442 · 2026-11-02 08:34';
+const APP_BUILD = 'build 443 · 2026-11-02 09:04';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

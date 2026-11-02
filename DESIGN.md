@@ -2665,6 +2665,30 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **A fresh, granular plan stack (feat 520):** ten seed plans where every step aims at a variation, a head or an
+  equipment line instead of a whole family, and its desc carries the reps and the intent. Six are a PPL **A/B
+  rotation** in which B changes the angle, the implement and the rep range instead of repeating A — Push A heavy
+  flat barbell / Push B overhead, low incline and one-arm flyes; Pull A vertical width / Pull B rows and
+  thickness; Legs A quad-led squat / Legs B hinge and glutes. Plus **One Side at a Time** (built on the feat-518
+  twins), **Upper Power** (heavy triples, then paired volume), **Delts & Arms — Head by Head**, and **Bodyweight
+  Anywhere** with progressions in the step text. Muscle-head options were avoided where their secondary-target
+  allowance drags in presses or pull-ups; named regexes are used instead. `test/plans520.spec.mjs` pins that
+  every step resolves to real variations and says its reps, no step is a catalogue-wide catch-all, and A/B days
+  overlap under 50%.
+- **Bodyweight, and which load can really change (feat 519):** "a lot of exercises that should be bodyweight are
+  not. Also it is bodyweight ± for all of these but that only makes sense when there is a counterweight or a vest".
+  `exMode` knew only pull-ups, dips, muscle-ups, push-ups, inverted rows, pistols and Nordics — all as "± added".
+  It now returns a `load` style: **assist** (pull-ups, chin-ups, dips, muscle-ups — a belt adds, a band or
+  counterweight is negative; `BW±`), **vest** (push-ups, lunges, split squats, step-ups, inverted rows, Nordics,
+  back extensions, bodyweight squats… — blank is normal, `Added (+)` only for a vest, plate or dumbbells; `BW+`)
+  and **none** (crunches, sit-ups, leg raises, burpees, jumps, mountain climbers, superman, bird dog… — no weight
+  field at all, a `BW` cell; `BW`). 88 → 231 bodyweight variations. Anything naming an implement (DB, plate,
+  cable, machine, smith, sandbag…) or living in an implement family (kettlebell, mace, sandbag…) stays loaded;
+  push-ups are bodyweight whatever the hands rest on; a band is not a loggable load. Reps no longer wait for a
+  weight on any bodyweight lift; a reps-only lift is scored on reps (History: "Most reps"); no "+5 lb × 1" tile
+  appears on a crunch, nor a vest tile until a vest has been used; only a ± lift still needs a bodyweight on file
+  to save. Vest-style lifts draw empty-handed except lunges, which keep their dumbbell picker. Tests that meant
+  "not time mode" now say so (`!== 'time'`) instead of `=== 'standard'`. `test/bwload.spec.mjs`.
 - **The single-limb sweep (feat 518):** "there is a 1-arm variation for the LF triceps machine but NOT the LF
   preacher machine". All 1,611 variations were dumped from `VAR_INDEX`; 149 were already one-sided by title, id or
   sub-option, and every two-limb one was matched against them by title tokens. Of the ~470 strength candidates

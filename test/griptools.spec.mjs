@@ -116,7 +116,7 @@ test('feat 486 - the pin isometrics log as weight x seconds (time mode), the str
   expect(r.isoModes).toEqual(['time', 'time', 'time', 'time']);
   expect(r.strikeModes).toEqual(['standard', 'standard']);
   expect(r.staticModes).toEqual(['time', 'time']);
-  expect(r.repModes.every(m => m === 'standard')).toBe(true);
+  expect(r.repModes.every(m => m !== 'time')).toBe(true); // feat 519 — reps, loaded or bodyweight
 });
 
 test('feat 488 - the twister and ab roller vocabulary is reachable from the search bars', async ({ page }) => {
@@ -150,7 +150,7 @@ test('feat 492 - the hangs, holds and the plank jack route to time mode; everyth
     };
   });
   expect(r.timeModes.every(m => m === 'time')).toBe(true);
-  expect(r.repModes.every(m => m === 'standard')).toBe(true);
+  expect(r.repModes.every(m => m !== 'time')).toBe(true); // feat 519 — reps, loaded or bodyweight
 });
 
 test('feat 492 - sliders, hangboard, expander, claw and the reel moves are reachable from search', async ({ page }) => {
@@ -192,7 +192,7 @@ test('feat 493 - the balance holds go to time, the BOSU push-up to bodyweight, t
   });
   expect(r.timeModes).toEqual(['time', 'time']);
   expect(r.bwMode).toBe('bodyweight');
-  expect(r.repModes.every(m => m === 'standard')).toBe(true);
+  expect(r.repModes.every(m => m !== 'time')).toBe(true); // feat 519 — reps, loaded or bodyweight
 });
 
 test('feat 493 - BFR, the ladder, the balance tools and the recovery drawer are reachable from search', async ({ page }) => {
@@ -231,7 +231,7 @@ test('feat 495 - the Sorensen hold goes to time, the rest stay reps', async ({ p
     };
   });
   expect(r.timeMode).toBe('time');
-  expect(r.repModes.every(m => m === 'standard')).toBe(true);
+  expect(r.repModes.every(m => m !== 'time')).toBe(true); // feat 519 — reps, loaded or bodyweight
 });
 
 test('feat 495 - the reverse hyper corner and the roman chair moves are reachable from search', async ({ page }) => {

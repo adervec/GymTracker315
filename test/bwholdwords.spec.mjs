@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 
 // mode: 'time' | 'bodyweight'; sessions: [[w, r, daysAgo]]; bwDaysAgo: null = no bodyweight logged
 const open = (page, mode, sessions, cur, bwDaysAgo = 1) => page.evaluate(({ mode, sessions, cur, bwDaysAgo }) => {
-  let v = null; for (const [u] of VAR_INDEX) if (exMode(u).mode === mode) { v = u; break; }
+  let v = null; for (const [u] of VAR_INDEX) if (exMode(u).mode === mode && (mode !== 'bodyweight' || exMode(u).load === 'assist')) { v = u; break; } // feat 519 — the ± style
   state.readonly = false; state.unit = 'lb'; state.targetSort = 'order';
   const at = d => new Date(Date.now() - d * 864e5).toISOString();
   state.bodyComp = bwDaysAgo == null ? [] : [{ date: at(bwDaysAgo), weightKg: 80 }];
