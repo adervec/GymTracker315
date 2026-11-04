@@ -1030,6 +1030,22 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .gmap-tiles img { position: absolute; width: 256px; height: 256px; pointer-events: none; }
   .gmap-pin { position: absolute; transform: translate(-50%, -100%); font-size: 22px; line-height: 1; cursor: grab; filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); z-index: 2; }
   .gmap-pin.active { font-size: 28px; z-index: 3; }
+  .gmap-pin.dir { width: 9px; height: 9px; border-radius: 50%; background: var(--text3); border: 2px solid var(--bg2); transform: translate(-50%, -50%); font-size: 0; opacity: .75; }
+  .gmap-pin.hot2 { font-size: 26px; } .gmap-pin.hot3 { font-size: 30px; }
+  .gmap-pin.hot1 .gmap-lbl, .gmap-pin.hot2 .gmap-lbl, .gmap-pin.hot3 .gmap-lbl { border-color: var(--accent); }
+  .gu-sel { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 6px; }
+  .gu-table { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+  .gu-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 12px; }
+  .gu-name { color: var(--text); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gu-n { color: var(--text2); text-align: right; }
+  .gu-bar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--border2); overflow: hidden; }
+  .gu-bar span { display: block; height: 100%; background: var(--accent); }
+  .gu-when { grid-column: 1 / -1; font-size: 10.5px; color: var(--text3); }
+  .gu-note, .gu-sub { font-size: 11px; color: var(--text3); margin: 6px 0 4px; }
+  .gu-sub { font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+  .gu-untouched { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .gu-u { font-size: 11px; padding: 3px 8px; border-radius: 10px; border: 1px dashed var(--border2); color: var(--text2); }
+  .gu-u i { color: var(--text3); font-style: normal; }
   .gmap-pin .gmap-lbl { position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); margin-bottom: 1px; background: var(--bg2); color: var(--text); font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 6px; white-space: nowrap; border: 1px solid var(--border2); }
   .gmap-me { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #2a7fff; border: 2px solid #fff; transform: translate(-50%, -50%); box-shadow: 0 0 0 4px rgba(42,127,255,.3); z-index: 1; pointer-events: none; }
   .gmap-wo { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: rgba(255,140,0,.75); border: 1px solid #fff; transform: translate(-50%, -50%); z-index: 1; pointer-events: none; }
@@ -6708,7 +6724,7 @@ function stampActiveSessionGym() {
   const s = (typeof getActiveSession === 'function') ? getActiveSession() : null;
   if (!s) return;
   const g = getActiveGym();
-  if (g) { s.notes = s.notes || {}; s.notes.location = g.name; if (typeof touchSession === 'function') touchSession(s); } // feat 95
+  if (g) { s.notes = s.notes || {}; s.notes.location = g.name; s.gymId = g.id; if (typeof touchSession === 'function') touchSession(s); } // feat 95 · feat 539 — the id too, so a rename keeps the history
 }
 function gymForcesShow(uuid) { const g = getActiveGym(); return !!(g && g.show && g.show[uuid]); }
 function gymForcesHideVar(uuid) { const g = getActiveGym(); return !!(g && g.hide && g.hide[uuid]); }
@@ -7339,7 +7355,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 // On overwrite imports, these are replaced with the file's values.
 const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','maxWeightHard','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
-  'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
+  'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','gymMemberships','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
   'hiddenCategories','cardioGoals','bioAutoLoad','sound','exerciseMedia','refView','stravaActivities','exerciseSetup','pinProfiles','stravaAutoLoad','uiFeedback','trackerPress','restCues','audioHeadphonesOnly','anatomyChart','planDefaults','trendExclude','hideBranding','favoritePlans','favoriteVars','avatar','planPickMinutes','splitPlan','program','meso','mediaWatched','brandMark','aiExport','glossaryRead','studyRead','studyPod','studyNudge','spUI','holdCue','cowork','podOptions','profileSavedAt','timelapse','planQueue','restCuePins','targetSort','fuzzySearch'];
 
@@ -7602,6 +7618,7 @@ const COWORK_CHANNELS = [
   { key: 'pod',      dir: 'plan-of-the-day',       replyKind: 'pod-output',      request: ['context.json', 'options.json'] },
   { key: 'analysis', dir: 'analysis',              replyKind: 'analysis-output', request: ['context.json'] },
   { key: 'logreview', dir: 'log-review',           replyKind: 'log-review-output', request: ['context.json'] }, // feat 513
+  { key: 'gyms',     dir: 'gym-directory',         replyKind: 'gym-directory-output', request: ['context.json'] }, // feat 539
 ];
 const COWORK_DIRS = COWORK_CHANNELS.map(c => c.dir);
 const coworkChannelByDir = (dir) => COWORK_CHANNELS.find(c => c.dir === dir) || null;
@@ -7873,6 +7890,7 @@ function normalizeState() {
   if (!state.favoriteVars || typeof state.favoriteVars !== 'object') state.favoriteVars = {};   // feat 178 — { varUuid: true }
   if (!Array.isArray(state.customVariations)) state.customVariations = [];
   if (!Array.isArray(state.gyms)) state.gyms = [];
+  if (!Array.isArray(state.gymMemberships)) state.gymMemberships = []; // feat 539
   if (!Array.isArray(state.analysisRequests)) state.analysisRequests = []; // feat 450 — cowork analysis-request queue
   if (!state.logReview || typeof state.logReview !== 'object' || Array.isArray(state.logReview)) state.logReview = {}; // feat 513
   if (!state.hiddenVars || typeof state.hiddenVars !== 'object') state.hiddenVars = {};
@@ -9201,6 +9219,7 @@ function buildChannelContext(channel) {
       .map(r => ({ id: r.id, question: r.q, note: r.note || '', created: r.created }));
     return { requests, diagnostics: safe(() => diagnosticsTrail(), null) }; // feat 514 — evidence for questions about the app itself
   }
+  if (channel === 'gyms') return gymDirectoryContext(); // feat 539
   if (channel === 'logreview') {
     // feat 513 — the sets the app flagged as possible typos, each with that lift's recent history so the agent can
     // tell a slipped decimal from a genuine PR by context rather than by the number alone
@@ -9235,6 +9254,8 @@ function buildInstructionsMd(channel) {
 `## kind: \`garmin-output\`\nFill in biometrics, sleep + daily recovery from Garmin. Payload (matches the app's importer):\n\n\`\`\`json\n{ "bodyComp": [ { "date": "YYYY-MM-DD", "weightKg": 81.2, "bodyFatPct": 18.4, "muscleMassKg": 34.1, "bodyWaterPct": 55.1 } ],\n  "sleep": [ { "date": "YYYY-MM-DD", "score": 78, "note": "7h12m" } ],\n  "recovery": [ { "date": "YYYY-MM-DD", "sleepScore": 78, "sleepNote": "7h12m", "bodyBattery": 72, "hrv": 64, "restingHr": 52, "stress": 28 } ] }\n\`\`\`\n\n- \`context.json\` lists recent bodyComp dates, the session dates still lacking sleep, and \`lastRecoveryDate\` — backfill \`recovery\` for EVERY day since then (rest days too), not just workout days.\n- Body composition is merged by calendar day; \`sleep\` is matched to the workout that day; \`recovery\` is kept as a standalone daily log (sleep + body battery / HRV / resting HR / stress).\n`;
   if (channel === 'strava') return head +
 `## kind: \`strava-output\`\nProvide Strava activities so the app can link them to workouts and insert orphan cardio. Payload:\n\n\`\`\`json\n{ "activities": [ { "id": "123", "name": "Evening Run", "sport_type": "Run", "start_date": "ISO", "elapsed_time": 2400, "distance": 6000, "average_heartrate": 150, "calories": 480 } ] }\n\`\`\`\n\n- The app time-matches each activity to a workout (±${(typeof STRAVA_MATCH_WINDOW_MIN !== 'undefined' ? STRAVA_MATCH_WINDOW_MIN : 120)} min) and backfills HR/calories/duration; **the logged sets/reps stay the master data**.\n- Activities with no matching workout (e.g. outdoor runs) are inserted into History as cardio.\n- \`context.json\` has the current activities + reconciliation buckets (linked / proposed / gymOnly / stravaOnly).\n`;
+  if (channel === 'gyms') return head + // feat 539
+`## kind: \`gym-directory-output\`\nList the locations of every gym chain in \`context.json\` → \`memberships\`, looked up on **Google Maps** (Places search, or the Maps website). Payload:\n\n\`\`\`json\n{ "gyms": [ { "chain": "GoodLife Fitness", "name": "GoodLife Fitness Barrie Bayfield", "address": "320 Bayfield St, Barrie, ON", "lat": 44.4089, "lng": -79.6870, "placeId": "ChIJ…", "mapsUrl": "https://www.google.com/maps/place/?q=place_id:ChIJ…" } ] }\n\`\`\`\n\n- \`chain\` must be the membership's chain name as written in \`context.json\`; gyms of any other chain are ignored.\n- \`scope: "all"\` = every location of that chain in the country of \`home\`; \`scope: "near"\` = only those within \`radiusKm\` of \`home\`.\n- \`lat\`/\`lng\` are required (decimal degrees). Include \`placeId\` whenever Maps gives one: it is how a re-run updates a club instead of duplicating it.\n- \`knownGyms\` is what the app already has — still return those clubs (they are matched and updated), just don't invent new ones.\n- Skip clubs Maps marks permanently closed. With no memberships, reply \`{ "gyms": [] }\`.\n`;
   if (channel === 'logreview') return head +
 `## kind: \`log-review-output\`\nThe app flagged possible data-entry errors in \`context.json\` \u2192 \`anomalies\`. For each, judge whether it is a typo and, if so, what was most likely meant. Payload:\n\n\`\`\`json\n{ "proposals": [\n  { "id": "<anomaly id>", "action": "fix", "intended": { "w": 30, "r": 12 }, "reason": "a slipped decimal \u2014 every other set that week was 27.5-32.5" },\n  { "id": "<anomaly id>", "action": "keep", "reason": "consistent with the lift's steady climb" } ] }\n\`\`\`\n\n- Judge each one from its \`recentHistory\`. Propose \`fix\` only when the intended value is CLEARLY a typo \u2014 a slipped decimal, weight and reps swapped, a lb/kg mix-up, a doubled digit. When unsure, propose \`keep\` with your reason, or leave it out.\n- **Nothing is changed automatically.** The user approves every fix in the app, one at a time; an unusable \`intended\` is dropped, never half-applied.\n`;
   if (channel === 'analysis') return head +
@@ -9876,6 +9897,7 @@ function coworkApplyImport(kind, payload) {
   if (kind === 'strava-output') return coworkImportStrava(payload);
   if (kind === 'analysis-output') return coworkImportAnalysis(payload);
   if (kind === 'log-review-output') return coworkImportLogReview(payload); // feat 513
+  if (kind === 'gym-directory-output') return coworkImportGymDirectory(payload); // feat 539
   if (kind === 'pod-output') return (typeof coworkImportPlanOfDay === 'function') ? coworkImportPlanOfDay(payload) : { handled: false, reason: 'pod import not available yet' };
   return { handled: false, reason: 'unknown kind ' + kind };
 }
@@ -11732,6 +11754,172 @@ function openSettingsToLastChanged() {
 
 // Gym management section (feat 36/37/38)
 let gymEditId = null;
+/* ============================================================
+   feat 539 — GYM DIRECTORY + USAGE. Memberships (`state.gymMemberships`: chain, tier, all locations or within
+   N km of home) go to the cowork agent on the `gym-directory` channel; it looks every location up on Google
+   Maps and replies with name / address / lat / lng / placeId, and coworkImportGymDirectory merges them into
+   state.gyms — by placeId, else onto a gym you already made within 150 m (your name and pin are kept), else
+   as a new gym that copies the equipment of a gym you set up at the same chain. GPS auto-select (2 km) then
+   picks the right club on its own. The usage side reads which gym each session was at (sessionGymId).
+   ponytail: a club the directory stops listing is not removed — closures are rare; delete it by hand.
+   ============================================================ */
+const _gymNorm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function gymMemberships() { return Array.isArray(state.gymMemberships) ? state.gymMemberships : (state.gymMemberships = []); }
+function gymMembershipFor(chain) {
+  const c = _gymNorm(chain); if (!c) return null;
+  return gymMemberships().find(m => { const k = _gymNorm(m.chain); return k && (c.includes(k) || k.includes(c)); }) || null;
+}
+function addGymMembership(chain, tier, scope) {
+  chain = String(chain || '').trim(); if (!chain) return null;
+  if (gymMembershipFor(chain)) { toast('Already a member of ' + chain); return null; }
+  const m = { id: newUuid(), chain, tier: String(tier || '').trim(), scope: scope === 'all' ? 'all' : 'near',
+    radiusKm: scope === 'all' ? null : (parseFloat(scope) || 25), addedAt: new Date().toISOString() };
+  gymMemberships().push(m); saveState();
+  if (state.cowork && state.cowork.enabled && typeof coworkAutoAllowed === 'function' && coworkAutoAllowed()) coworkExportNow(true).catch(() => {});
+  return m;
+}
+// which gym a session happened at: the stamped id, else the feat-259 location name, else the nearest gym
+// within 300 m of the feat-371 start location
+function sessionGymId(s, gyms) {
+  gyms = gyms || state.gyms || [];
+  if (s.gymId && gyms.some(g => g.id === s.gymId)) return s.gymId;
+  const loc = s.notes && s.notes.location;
+  if (loc) { const g = gyms.find(x => x.name === loc); if (g) return g.id; }
+  const L = s.startLoc;
+  if (L && L.lat != null) {
+    let best = null, bd = 0.3;
+    gyms.forEach(g => { const d = gpsDistanceKm(L.lat, L.lng, g.lat, g.lng); if (d < bd) { bd = d; best = g; } });
+    if (best) return best.id;
+  }
+  return null;
+}
+function gymUsageStats() {
+  const gyms = state.gyms || [];
+  const by = new Map(gyms.map(g => [g.id, { gym: g, days: new Set(), sets: 0, first: 0, last: 0, byDay: {} }]));
+  let unplaced = 0;
+  (state.sessions || []).forEach(s => {
+    const sets = (s.exercises || []).reduce((n, e) => n + ((e.sets && e.sets.length) || (e.cardio ? 1 : 0)), 0);
+    if (!sets) return;
+    const u = by.get(sessionGymId(s, gyms)); if (!u) { unplaced++; return; }
+    const k = _dayKey(s.date), t = new Date(s.date).getTime();
+    u.days.add(k); u.sets += sets; (u.byDay[k] = u.byDay[k] || []).push(s);
+    if (!u.first || t < u.first) u.first = t;
+    if (t > u.last) u.last = t;
+  });
+  const rows = [...by.values()].map(u => ({ ...u, visits: u.days.size }));
+  return { rows, unplaced, total: rows.reduce((n, r) => n + r.visits, 0) };
+}
+// "home" for distances and the directory radius: your most-visited gym, else your latest workout start
+function gymHome(stats) {
+  const top = (stats || gymUsageStats()).rows.filter(r => r.visits && r.gym.lat != null).sort((a, b) => b.visits - a.visits)[0];
+  if (top) return { lat: top.gym.lat, lng: top.gym.lng, from: top.gym.name };
+  const s = (state.sessions || []).filter(x => x.startLoc && x.startLoc.lat != null).sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  return s ? { lat: s.startLoc.lat, lng: s.startLoc.lng, from: 'your latest workout' } : null;
+}
+function gymDirectoryContext() {
+  return {
+    memberships: gymMemberships().map(m => ({ chain: m.chain, tier: m.tier || '', scope: m.scope, radiusKm: m.radiusKm })),
+    home: gymHome(),
+    knownGyms: (state.gyms || []).map(g => ({ name: g.name, chain: g.chain || null, placeId: g.placeId || null, lat: g.lat, lng: g.lng, address: g.address || null })),
+  };
+}
+function _gymMapsUrl(u, placeId) {
+  const s = String(u || '');
+  if (/^https:\/\/(www\.)?google\.[a-z.]+\/maps|^https:\/\/maps\.app\.goo\.gl\//.test(s)) return s.slice(0, 400);
+  return placeId ? 'https://www.google.com/maps/place/?q=place_id:' + encodeURIComponent(placeId) : null;
+}
+function coworkImportGymDirectory(payload) {
+  const list = payload && Array.isArray(payload.gyms) ? payload.gyms : null;
+  if (!list) return { handled: false, reason: 'no gyms array' };
+  state.gyms = Array.isArray(state.gyms) ? state.gyms : [];
+  const now = new Date().toISOString();
+  let added = 0, updated = 0, skipped = 0;
+  const perChain = {};
+  list.forEach(p => {
+    const m = p && gymMembershipFor(p.chain);
+    const lat = parseFloat(p && p.lat), lng = parseFloat(p && p.lng), name = String((p && p.name) || '').trim().slice(0, 120);
+    // trust boundary: only chains you are a member of, with a real coordinate and a name
+    if (!m || !name || !isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) { skipped++; return; }
+    const placeId = p.placeId ? String(p.placeId).slice(0, 200) : null;
+    const info = { chain: m.chain, placeId, address: String(p.address || '').trim().slice(0, 200) || null,
+      mapsUrl: _gymMapsUrl(p.mapsUrl, placeId), directoryAt: now };
+    let g = (placeId && state.gyms.find(x => x.placeId === placeId))
+      || state.gyms.find(x => x.lat != null && !(x.placeId && placeId && x.placeId !== placeId) && gpsDistanceKm(lat, lng, x.lat, x.lng) < 0.15);
+    if (g) {
+      Object.assign(g, info);
+      if (g.source === 'directory') { g.name = name; g.lat = lat; g.lng = lng; }   // a gym you made keeps your name + pin
+      updated++;
+    } else {
+      const t = state.gyms.find(x => x.chain === m.chain && x.source !== 'directory') || state.gyms.find(x => x.chain === m.chain);
+      const equip = {}; GYM_EQUIP.forEach(e => equip[e.id] = t ? t.equip[e.id] !== false : true);
+      state.gyms.push({ id: newUuid(), name, lat, lng, equip, show: t ? { ...(t.show || {}) } : {}, hide: t ? { ...(t.hide || {}) } : {},
+        ...(t && t.stable ? { stable: JSON.parse(JSON.stringify(t.stable)) } : {}), ...info, source: 'directory' });
+      added++;
+    }
+    perChain[m.id] = (perChain[m.id] || 0) + 1;
+  });
+  gymMemberships().forEach(m => { if (perChain[m.id]) { m.syncedAt = now; m.count = state.gyms.filter(g => g.chain === m.chain).length; } });
+  saveState();
+  logInfo('Gym directory imported', `+${added} · ${updated} updated · ${skipped} skipped`);
+  return { handled: true, added, updated, skipped };
+}
+
+let _gymHeatSel = 'all', _gymDirAll = false, _gymVisitCache = new Map(), _gymUntouchedAll = false;
+function gymMembershipsHtml() {
+  const rows = gymMemberships().map(m => `<div class="cv-row gm-mem">
+      <div style="min-width:0;flex:1;"><div style="font-size:13px;color:var(--text);"><b>${escapeHtml(m.chain)}</b>${m.tier ? ' · ' + escapeHtml(m.tier) : ''}</div>
+        <div style="font-size:10px;color:var(--text3);">${m.scope === 'all' ? 'all locations' : 'within ' + m.radiusKm + ' km of home'} · ${m.syncedAt
+          ? `${m.count || 0} club${m.count === 1 ? '' : 's'} · looked up ${escapeHtml(fmtAgo(m.syncedAt))}` : 'waiting for the cowork agent'}</div></div>
+      <button class="drawer-btn danger" data-mem-del="${m.id}" title="Remove the membership (its gyms stay)">✕</button></div>`).join('');
+  return `<div class="drawer-section-title">Memberships</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:6px;line-height:1.5;">Chains you belong to. The cowork agent looks every location up on Google Maps (channel <b>gym-directory</b>) and adds them below, so 📍 GPS picks the right club on its own.</div>
+    ${rows}
+    <div class="drawer-data-row" style="flex-wrap:wrap;">
+      <input type="text" id="mem-chain" placeholder="Chain, e.g. GoodLife Fitness" style="flex:2;min-width:130px;padding:7px 9px;font-size:13px;border-radius:7px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+      <input type="text" id="mem-tier" placeholder="Tier (optional)" style="flex:1;min-width:80px;padding:7px 9px;font-size:13px;border-radius:7px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
+      <select id="mem-scope" class="vw-select" style="max-width:130px;"><option value="all">All locations</option><option value="10">Within 10 km</option><option value="25">Within 25 km</option><option value="50">Within 50 km</option><option value="100">Within 100 km</option></select>
+      <button class="drawer-btn" id="mem-add">+ Add</button>
+    </div>`;
+}
+function gymUsageHtml(st) {
+  const used = st.rows.filter(r => r.visits).sort((a, b) => b.visits - a.visits || b.last - a.last);
+  if (!used.length && !st.unplaced) return '';
+  if (_gymHeatSel !== 'all' && !used.some(r => r.gym.id === _gymHeatSel)) _gymHeatSel = 'all';
+  const byDay = {};
+  used.forEach(r => { if (_gymHeatSel === 'all' || r.gym.id === _gymHeatSel) for (const k in r.byDay) (byDay[k] = byDay[k] || []).push(...r.byDay[k]); });
+  const setsOn = list => list.reduce((n, s) => n + (s.exercises || []).reduce((a, e) => a + ((e.sets && e.sets.length) || (e.cardio ? 1 : 0)), 0), 0);
+  const month = t => new Date(t).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  const home = gymHome(st);
+  const untouched = st.rows.filter(r => !r.visits).map(r => ({ g: r.gym, d: home ? gpsDistanceKm(home.lat, home.lng, r.gym.lat, r.gym.lng) : Infinity }))
+    .sort((a, b) => a.d - b.d || a.g.name.localeCompare(b.g.name));
+  const shownU = _gymUntouchedAll ? untouched : untouched.slice(0, 8);
+  return `<div class="drawer-section-title">Gym usage</div>
+    <div class="gu-sel">${[['all', 'All gyms']].concat(used.map(r => [r.gym.id, r.gym.name])).map(([id, l]) =>
+      `<button type="button" class="drawer-pill ${_gymHeatSel === id ? 'active' : ''}" data-gu-heat="${escapeAttr(id)}">${escapeHtml(l)}</button>`).join('')}</div>
+    ${yearHeatmapHtml(byDay, setsOn)}
+    <div class="gu-table">${used.map(r => `<div class="gu-row">
+      <span class="gu-name">${escapeHtml(r.gym.name)}</span>
+      <span class="gu-bar"><span style="width:${Math.round(r.visits / st.total * 100)}%"></span></span>
+      <span class="gu-n"><b>${r.visits}</b> visit${r.visits === 1 ? '' : 's'} · ${Math.round(r.visits / st.total * 100)}%</span>
+      <span class="gu-when">last ${escapeHtml(fmtAgo(r.last))} · since ${month(r.first)}</span></div>`).join('')}</div>
+    ${st.unplaced ? `<div class="gu-note">${st.unplaced} session${st.unplaced === 1 ? '' : 's'} not placed at any gym (no gym was active and no location matched one).</div>` : ''}
+    ${untouched.length ? `<div class="gu-sub">Never trained at · ${untouched.length}${home ? ` · nearest to ${escapeHtml(home.from)} first` : ''}</div>
+      <div class="gu-untouched">${shownU.map(u => `<span class="gu-u">${escapeHtml(u.g.name)}${isFinite(u.d) ? ` <i>${u.d < 10 ? u.d.toFixed(1) : Math.round(u.d)} km</i>` : ''}</span>`).join('')}
+      ${untouched.length > 8 ? `<button type="button" class="drawer-btn" id="gu-untouched-more">${_gymUntouchedAll ? 'Show fewer' : 'Show all ' + untouched.length}</button>` : ''}</div>` : ''}`;
+}
+function bindGymDirectory(main, refresh) {
+  main.querySelector('#mem-add')?.addEventListener('click', () => {
+    const m = addGymMembership(main.querySelector('#mem-chain').value, main.querySelector('#mem-tier').value, main.querySelector('#mem-scope').value);
+    if (m) { toast(`🏷 ${m.chain} added — the cowork agent fills in its clubs on its next sweep`); refresh(); }
+  });
+  main.querySelectorAll('[data-mem-del]').forEach(b => b.addEventListener('click', () => {
+    state.gymMemberships = gymMemberships().filter(m => m.id !== b.dataset.memDel); saveState(); refresh();
+  }));
+  main.querySelectorAll('[data-gu-heat]').forEach(b => b.addEventListener('click', () => { _gymHeatSel = b.dataset.guHeat; refresh(); }));
+  main.querySelector('#gu-untouched-more')?.addEventListener('click', () => { _gymUntouchedAll = !_gymUntouchedAll; refresh(); });
+  main.querySelector('#gym-dir-more')?.addEventListener('click', () => { _gymDirAll = !_gymDirAll; refresh(); });
+  main.querySelectorAll('.yh-scroll').forEach(e => { e.scrollLeft = e.scrollWidth; }); // open on today, like the Log calendar
+}
 function renderGymsSection() {
   const active = getActiveGym();
   let html = `<div class="drawer-section-title">Gyms</div>
@@ -11748,7 +11936,9 @@ function renderGymsSection() {
     ${(state.gyms||[]).some(g=>g.lat!=null) ? `<div class="drawer-data-row"><button class="drawer-btn" id="gym-ping-btn">📍 Use my location</button></div>` : ''}`;
 
   // Gym list
+  let dirHidden = 0; // feat 539 — directory clubs you have never trained at fold away (a chain can be 200 clubs)
   (state.gyms||[]).forEach(g => {
+    if (g.source === 'directory' && !_gymDirAll && !_gymVisitCache.get(g.id) && state.activeGymId !== g.id && gymEditId !== g.id) { dirHidden++; return; }
     const equipOn = GYM_EQUIP.filter(e => g.equip[e.id] !== false).map(e => e.label).join(' · ') || 'none';
     const showCount = Object.keys(g.show||{}).length;
     html += `<div class="cv-row">
@@ -11762,6 +11952,7 @@ function renderGymsSection() {
     if (gymEditId === g.id) html += renderGymEditor(g);
   });
 
+  if (dirHidden || _gymDirAll) html += `<button type="button" class="drawer-btn" id="gym-dir-more" style="margin-top:6px;">${_gymDirAll ? 'Hide clubs never visited' : `＋ ${dirHidden} more club${dirHidden === 1 ? '' : 's'} from your memberships (never visited)`}</button>`;
   html += `<div class="drawer-data-row" style="margin-top:8px;flex-wrap:wrap;">
       <input type="text" id="gym-new-name" placeholder="New gym name" style="flex:1;min-width:120px;padding:7px 9px;font-size:13px;border-radius:7px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
       <select id="gym-new-template" class="vw-select" style="max-width:140px;">
@@ -11776,6 +11967,7 @@ function renderGymEditor(g) {
   return `<div class="vol-weights-panel">
     <div class="vw-row"><div class="vw-label">Name</div>
       <input type="text" data-gym-name="${g.id}" value="${escapeAttr(g.name)}" style="flex:1;padding:5px 7px;font-size:12px;border-radius:6px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);"></div>
+    ${g.chain || g.address ? `<div style="font-size:11px;color:var(--text3);margin-top:6px;">${g.chain ? '🏷 ' + escapeHtml(g.chain) : ''}${g.address ? ' · ' + escapeHtml(g.address) : ''}${g.mapsUrl ? ` · <a href="${escapeAttr(g.mapsUrl)}" target="_blank" rel="noopener">Google Maps</a>` : ''}</div>` : ''}
     <div style="font-size:10.5px;color:var(--text3);margin:8px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">Equipment available</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;">
       ${GYM_EQUIP.map(e => `<button class="drawer-pill ${g.equip[e.id]!==false?'active':''}" data-gym-equip="${g.id}" data-equip-id="${e.id}">${e.label}</button>`).join('')}
@@ -11953,7 +12145,9 @@ function _gmRender() {
     if (g.lat == null || g.lng == null) return;
     const sx = P.x(g.lng) + ox, sy = P.y(g.lat) + oy;
     if (sx < -50 || sx > w + 50 || sy < -50 || sy > h + 50) return;
-    mh += `<div class="gmap-pin ${g.id === state.activeGymId ? 'active' : ''}" data-gm-pin="${g.id}" style="left:${sx}px;top:${sy}px"><span class="gmap-lbl">${escapeHtml(g.name)}</span>📍</div>`;
+    const vis = _gymVisitCache.get(g.id) || 0; // feat 539 — the map doubles as the usage heat map
+    if (!vis && g.source === 'directory' && g.id !== state.activeGymId) { mh += `<div class="gmap-pin dir" data-gm-pin="${g.id}" style="left:${sx}px;top:${sy}px" title="${escapeAttr(g.name)} — never visited"></div>`; return; }
+    mh += `<div class="gmap-pin ${g.id === state.activeGymId ? 'active' : ''} ${vis >= 20 ? 'hot3' : vis >= 5 ? 'hot2' : vis ? 'hot1' : ''}" data-gm-pin="${g.id}" style="left:${sx}px;top:${sy}px"><span class="gmap-lbl">${escapeHtml(g.name)}${vis ? ' · ' + vis + '×' : ''}</span>📍</div>`;
   });
   // feat 371 — faint dots for recorded workout start locations, so you can SEE where you've trained and drop a gym
   // there (tap ➕) to reconcile them. Skipped for sessions already at a saved gym's spot (within 100 m).
@@ -12029,8 +12223,12 @@ function renderGymsTab(main) {
   const refresh = () => renderGymsTab(main);
   main.innerHTML = `<div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:6px;">
     Define your gyms by the equipment they stock. The <b>active</b> gym overrides hidden flags — it can even force-show an exercise you've hidden everywhere else.
-  </div>` + gymMapHtml() + renderGymsSection();
+  </div>` + gymMapHtml() + (() => {
+    const st = gymUsageStats(); _gymVisitCache = new Map(st.rows.map(r => [r.gym.id, r.visits])); // feat 539 — read by the map + list
+    return gymMembershipsHtml() + gymUsageHtml(st);
+  })() + renderGymsSection();
   bindGymsSection(main, refresh);
+  bindGymDirectory(main, refresh); // feat 539
   bindGymMap(refresh); // feat 370 — interactive map: tap ➕ then the map to add, drag a pin to move, tap a pin to edit
 }
 
@@ -32024,7 +32222,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 453 · 2026-11-04 15:06';
+const APP_BUILD = 'build 454 · 2026-11-04 17:00';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

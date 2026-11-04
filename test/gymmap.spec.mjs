@@ -36,7 +36,7 @@ test('feat 370 — the Gyms page renders the map; pins appear only for gyms with
       pins: document.querySelectorAll('#gmap-markers [data-gm-pin]').length,
       activePin: !!document.querySelector('#gmap-markers .gmap-pin.active[data-gm-pin="a"]'),
       centeredOnA: Math.abs(_gmap.lat - 40.0) < 0.001 && Math.abs(_gmap.lng - (-74.0)) < 0.001,
-      noGoogle: !document.body.innerHTML.includes('google.com/maps'),
+      noGoogle: !document.getElementById('gym-map').innerHTML.includes('google.com/maps'), // feat 539 — the map; directory clubs may carry a Maps link in their editor
     };
   });
   expect(r.hasMap).toBe(true);

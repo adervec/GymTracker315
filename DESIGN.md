@@ -2665,6 +2665,20 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Gym directory + usage (feat 539):** **Memberships** (`state.gymMemberships`: chain, tier, all locations
+  or within N km of home) go to the cowork agent on a sixth channel, `gym-directory`; it looks each chain's
+  clubs up on Google Maps and replies `{ gyms: [{ chain, name, address, lat, lng, placeId, mapsUrl }] }`.
+  `coworkImportGymDirectory` only accepts chains you are a member of, with real coordinates. It matches by
+  placeId, else onto a gym you made within 150 m (your name and pin win; the club gets its chain / address /
+  Maps link), else adds a `source: 'directory'` gym copying the equipment, overrides and stable of a gym you
+  set up at that chain. Re-runs update instead of duplicating; a mapsUrl that is not Google Maps is replaced
+  by one built from the placeId. Setting the active gym now stamps `session.gymId` as well as the location
+  name, and `sessionGymId` places older sessions by that name or by a start location within 300 m. The Gyms
+  tab gains **Gym usage**: a 12-month heat map filterable per gym, visits / share / last / since per gym, the
+  count of sessions not placed anywhere, and **Never trained at**, nearest to your most-visited gym first.
+  On the map, visited pins grow with visits and carry "· N×"; never-visited directory clubs are small dots,
+  and in the gym list they fold behind "＋ N more clubs". Closed clubs are not auto-removed.
+  `test/gymdir.spec.mjs`.
 - **Next-set coach (feat 538):** a card above the target tiles, "🧠 Next set 95kg × 8 · 78% · ~1 in reserve",
   with Use (prefills the weight, like a tile) and a "why" list naming every factor that moved it. `nextSetCoach`
   builds it in seven steps: (1) capacity from a recency-weighted (21-day half-life) session-best e1RM blended
