@@ -9,7 +9,13 @@ on:
 jobs:
   test:
     runs-on: ubuntu-24.04 # ponytail: pinned — Playwright 1.60 cannot install chromium on ubuntu-latest (26.04); unpin once it supports it
-    timeout-minutes: 15
+    timeout-minutes: 30
+    # ~2,760 tests at CI's 1 worker outran the 15-min job, so split them: project × 4 shards, 2 workers each
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop-chromium, mobile-pixel]
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -32,12 +38,12 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Behavioral tests (headless Chromium)
-        run: npx playwright test
+        run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/4 --workers=2
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.project }}-${{ matrix.shard }}
           path: playwright-report/
           retention-days: 7
