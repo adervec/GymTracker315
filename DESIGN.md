@@ -2665,6 +2665,32 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Sub-variations pick from in-app chips (feat 532):** the exercise page's attachment / grip / stance choice was a
+  native `<select>`, which opens the phone's OS picker and can show nothing but labels. It is now a row of chips
+  (`#trk-sub-select [data-sub-pick]`), each saying whether you have trained that option (`subTrainedMap`: sessions and
+  how long ago, counting a mixed-sub set toward the sub it was done with) or "not trained yet". The per-set picker in
+  mixed-sub mode stays a compact select.
+- **Borrowed from other open-source trackers (feats 527-531):** five features picked from a survey of public
+  GitHub workout apps (gym-gym, gymcoach, Fud AI, Skulpt). **527 — year heatmap:** under the Log calendar, the
+  last 53 weeks as one square per day (`yearHeatmapHtml`), shaded in four steps by sets logged (1-9 / 10-19 /
+  20-29 / 30+). It scrolls horizontally inside its own box and opens scrolled to today; a square jumps the month
+  view to that day. **528 — one-tap recap:** the "Workout ended" toast now reads "tap to share recap" and stays
+  for 8 s; tapping it sends `buildWorkoutText([session])` to the share sheet, or the clipboard where there is no
+  share sheet (`shareWorkoutRecap`). The tap is the user gesture the share sheet needs. **529 — bodyweight goal:**
+  `profile.goalWeightKg` (inside the already-synced profile, so no new sync key) draws a dashed line on the Weight
+  trend chart, with the y-range widened to include it, plus a line saying the distance left and, from a
+  least-squares slope over the last 4 weeks, an estimated date to reach it ("not trending toward it" when the
+  slope points away, or the ETA is over two years). Blank clears it. **530 — follow what I did:** a program can
+  run "📅 By the calendar" (unchanged) or "✅ By what I did" (`program.follow`). In the second mode,
+  `programToday`/`programNextUp` return the pool session after the last one you finished (A → B → C → A), so a
+  missed day shifts the cycle instead of skipping a session. A program session finished today stays "today" until
+  midnight. Weekly adherence keeps scoring against the calendar. **531 — trisets and giant sets:** the live
+  superset form takes 2-6 exercises (`pending.superset.list`; a set's `which` is a member index). "+ Exercise C"
+  goes back to the picker (its banner's "back" returns to the form without discarding), the title becomes
+  Superset / Triset / Giant set, and every member saves under one `supersetId`. Old `{a, b}` pendings migrate on
+  read (`ssList`). Log cards tag groups ⇄ SS / TRI / GIANT by size. `test/borrowed.spec.mjs`.
+- **Zombie Squat (feat 526):** the Frankenstein Squat is the lift creators call the Zombie Squat; its title
+  carries both names so search finds either, and it is cross-linked into the Squat family.
 - **The second external-database pass (feat 525):** the same comparison against **free-exercise-db** (876
   categorised entries). Its strongman, Olympic, powerlifting and speed-drill categories were where the catalogue
   was still thin; of 241 unmatched names, after naming variants and stretches, 29 were real (`PASS4_ROWS`,
