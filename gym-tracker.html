@@ -2877,6 +2877,12 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .injury-chip { font-size: 11.5px; background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); border-radius: 999px; padding: 4px 10px; cursor: pointer; font-family: inherit; }
   .injury-chip:hover { border-color: var(--accent); color: var(--text); }
   .picker-empty { padding: 20px; text-align: center; color: #666; font-size: 12.5px; }
+  .pf-sheet[hidden] { display: none; }
+  .pf-active { display: flex; flex-wrap: wrap; gap: 4px; margin: -2px 0 6px; }
+  .pf-chip { font: inherit; font-size: 11px; padding: 4px 9px; border-radius: 12px; border: 1px solid var(--accent); background: var(--accent-bg); color: var(--text); cursor: pointer; }
+  .pf-chip.clear { border-color: var(--border2); background: transparent; color: var(--text3); }
+  .picker-dym { margin-top: 10px; font-size: 12.5px; }
+  .picker-usual .picker-family-header { color: var(--accent); }
 
   .selected-exercise { background: linear-gradient(135deg, #1a1426 0%, #0f0c1a 100%); border-left: 3px solid #b48aff; padding: 8px 12px 9px; border-radius: 7px; margin-bottom: 8px; } /* feat 472 — trimmed */
   /* the strength sheet dropped this line in feat 470; the cardio + superset forms still use it */
@@ -28522,19 +28528,25 @@ const FZ_SYNONYMS = { db:'dumbbell', bb:'barbell', kb:'kettlebell', ohp:'overhea
   rdl:'romanian deadlift', sldl:'stiff leg deadlift', dl:'deadlift', bw:'bodyweight', ghr:'glute ham',
   lf:'life fitness', fm:'freemotion', coc:'captains of crush', cgbp:'close grip bench press', flies:'fly' };
 function _fzNorm(s) { return s.replace(/[^a-z0-9\s]/g, ''); }        // callers pass lowercased text
-function _fzOneEdit(a, b) {  // true when a and b are within ONE edit (insert / delete / substitute / swap)
-  if (a === b) return true;
-  const la = a.length, lb = b.length;
-  if (Math.abs(la - lb) > 1) return false;
-  let i = 0; const n = Math.min(la, lb);
-  while (i < n && a[i] === b[i]) i++;
-  if (la === lb) {
-    if (i < la - 1 && a[i] === b[i + 1] && a[i + 1] === b[i]) return a.slice(i + 2) === b.slice(i + 2); // swap
-    return a.slice(i + 1) === b.slice(i + 1);                                                          // substitute
+// feat 535 — edit distance (insert / delete / substitute / adjacent swap), giving up as soon as it passes `max`.
+function _fzDist(a, b, max) {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let p2 = null, p = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const c = [i]; let lo = i;
+    for (let j = 1; j <= b.length; j++) {
+      let v = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (p2 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, p2[j - 2] + 1);
+      c[j] = v; if (v < lo) lo = v;
+    }
+    if (lo > max) return max + 1;
+    p2 = p; p = c;
   }
-  const sh = la < lb ? a : b, lo = la < lb ? b : a;
-  return sh.slice(i) === lo.slice(i + 1);                                                              // insert/delete
+  return p[b.length];
 }
+// ponytail: 2 typos only from 10 letters — at 8, "pulldown" is 2 edits from "pushdown"
+const _fzMaxEdits = t => t.length >= 10 ? 2 : 1;
 function searchMatchTokens(q, ...texts) {
   if (!q) return true;
   const rawHay = texts.join(' ').toLowerCase();
@@ -28553,13 +28565,69 @@ function searchMatchTokens(q, ...texts) {
     if (sing.length >= 3 && hay.includes(sing)) return true;  // "curls" finds Curl
     if (t.length >= 5) {                                // one honest typo — short words stay strict
       if (!words) words = hay.split(/\s+/).filter(Boolean);
+      const k = _fzMaxEdits(t);
       for (const w of words) {
-        if (_fzOneEdit(t, w)) return true;
-        if (w.length > t.length + 1 && _fzOneEdit(t, w.slice(0, t.length))) return true; // typo mid-word while typing
+        if (_fzDist(t, w, k) <= k) return true;
+        if (w.length > t.length + 1 && _fzDist(t, w.slice(0, t.length), k) <= k) return true; // typo mid-word while typing
       }
     }
     return false;
   });
+}
+/* feat 533 — the picker search reads more than the name: the attachment / grip options, the muscles the
+   movement mainly trains (≥25% of the set — lower and "back squat" would match every squat via the erectors),
+   its equipment and body part. feat 534 — plus EX_ALIASES, the other names a lift goes by. One string per
+   variation, cached until the picker next fully renders (typing only re-renders the list). */
+const EX_ALIASES = [
+  [/lying tri(cep|ceps)? extension|skull/, 'skullcrusher skull crusher lying triceps extension'],
+  [/overhead press|shoulder press|military/, 'ohp military press shoulder press overhead press'],
+  [/leg curl/, 'hamstring curl'], [/leg extension/, 'quad extension'],
+  [/bulgarian|rear.foot elevated/, 'bulgarian rfess bss rear foot elevated split squat'],
+  [/preacher/, 'scott curl'], [/nordic/, 'nordic ham curl razor curl'],
+  [/glute.ham raise/, 'ghr'], [/back extension|hyperextension/, 'hyper hyperextension back extension'],
+  [/farmer/, 'farmers walk carry'], [/trap bar|hex bar/, 'trap bar hex bar'],
+  [/pec deck|butterfly/, 'pec deck butterfly machine fly'], [/push.?down|press.?down/, 'pushdown pressdown'],
+  [/lateral raise/, 'side raise side delt raise'], [/face pull/, 'rear delt'],
+  [/pallof/, 'anti rotation'], [/ab wheel|rollout/, 'ab wheel ab roller rollout'],
+  [/hanging leg raise/, 'hlr'], [/push.?up/, 'press up pressup'], [/chin.?up/, 'chinup'],
+  [/t.bar row/, 'tbar row'], [/seal row|chest.supported row/, 'seal row chest supported row'],
+  [/kettlebell swing/, 'kb swing'], [/clean and jerk/, 'c&j cj'], [/ez.?bar/, 'ez bar curl bar'],
+  [/frankenstein/, 'zombie'], [/stiff.leg/, 'sldl'], [/hip thrust/, 'glute bridge hip thruster'],
+  [/sissy/, 'sissy squat'], [/goblet/, 'goblet'], [/zercher/, 'zercher'],
+];
+let _pickHay = new Map();
+function pickerSearchHay(v, f) {
+  const key = v.uuid || v.title;
+  let h = _pickHay.get(key); if (h != null) return h;
+  const parts = [v.title, f.title, f.keywords || '', (f.equip || []).join(' '), getBP(f) || ''];
+  subOptions(v).forEach(o => parts.push(o.label));
+  const mc = (v.uuid && muscleContribForVar(v.uuid)) || {};
+  for (const id in mc) {
+    const mu = MUSCLE_INDEX[id]; if (!mu || mc[id] < 0.25) continue;
+    parts.push(mu.label, mu.group); if (mu.parent && MUSCLE_INDEX[mu.parent]) parts.push(MUSCLE_INDEX[mu.parent].label);
+  }
+  const name = (v.title + ' ' + f.title).toLowerCase();
+  EX_ALIASES.forEach(([re, w]) => { if (re.test(name)) parts.push(w); });
+  h = parts.join(' '); _pickHay.set(key, h); return h;
+}
+// feat 535 — nothing matched: suggest the query with each unmatched word swapped for the closest word the
+// catalogue actually uses — offered only when that suggestion really finds something.
+function pickerDidYouMean(q) {
+  const all = [..._pickHay.values()].join(' ').toLowerCase();
+  const vocab = [...new Set(_fzNorm(all).split(/\s+/).filter(w => w.length >= 3))];
+  let changed = false;
+  const out = q.toLowerCase().split(/\s+/).filter(Boolean).map(t => {
+    if (searchMatchTokens(t, all)) return t;
+    const k = Math.max(2, Math.floor(t.length / 3));
+    let best = t, bd = k + 1;
+    vocab.forEach(w => { const d = _fzDist(_fzNorm(t), w, Math.min(k, bd - 1)); if (d < bd) { bd = d; best = w; } });
+    if (best !== t) changed = true;
+    return best;
+  });
+  if (!changed) return null;
+  const sug = out.join(' '), prev = modalState.pickerSearch;
+  modalState.pickerSearch = sug; const ok = filterVariations().length > 0; modalState.pickerSearch = prev;
+  return ok ? sug : null;
 }
 function filterVariations() {
   const q = modalState.pickerSearch.trim().toLowerCase();
@@ -28598,7 +28666,7 @@ function filterVariations() {
       if (trendMap && varLastTrendDir(trendMap.get(v.uuid)) !== trendMode) return false; // feat 385 — trended up/down last time
       if (stepSet && !stepSet.has(v.uuid)) return false; // restrict to exactly the step's exercises
       if (!q) return true;
-      return searchMatchTokens(q, v.title, f.title, f.keywords || ''); // feat 419 — word-order-independent; feat 487 — + family keywords
+      return searchMatchTokens(q, pickerSearchHay(v, f)); // feat 419 word-order-free · 487 keywords · 533 subs/muscles/equipment · 534 aliases
     });
     matchingVars.sort((a, b) => (isFavVar(b.uuid) ? 1 : 0) - (isFavVar(a.uuid) ? 1 : 0)); // feat 178 — favorites float to the top of the family
     // feat 167 — variations whose SECONDARY parent is this family, appended at the bottom with a link to their home movement.
@@ -28614,7 +28682,7 @@ function filterVariations() {
       if (volStatus && varVolStatus(uuid, volStatus) !== volMode) return; // feat 383
       if (trendMap && varLastTrendDir(trendMap.get(uuid)) !== trendMode) return; // feat 385
       if (stepSet && !stepSet.has(uuid)) return;
-      if (q && !searchMatchTokens(q, v.title, f.title, f.keywords || '', primaryTitle || '')) return; // feat 419/487
+      if (q && !searchMatchTokens(q, pickerSearchHay(v, i.family), f.title, f.keywords || '', primaryTitle || '')) return; // feat 419/487/533
       secondaryVars.push({ v, primaryId, primaryTitle });
     });
     if (matchingVars.length > 0 || secondaryVars.length > 0) results.push({ family: f, variations: matchingVars, secondaryVars });
@@ -28705,7 +28773,25 @@ function annunceStepDesc() {
     window.speechSynthesis.speak(u);
   } catch (_) {}
 }
+// feat 536 — every filter that is not at its "all" state, as [id, label], for the active-filter chips.
+function pickerActiveFilters() {
+  const out = [];
+  if (modalState.pickerMega !== 'all') out.push(['mega', MEGA_LABELS[modalState.pickerMega] || modalState.pickerMega]);
+  if (modalState.pickerFavOnly) out.push(['fav', '★ Favorites']);
+  PICKER_CYCLES.forEach(c => {
+    const st = _pickerCycleStates(c), cur = modalState[c.field];
+    if (st.length > 1 && cur != null && cur !== st[0][0]) { const x = st.find(e => e[0] === cur); out.push([c.id, (c.id === 'equip' ? '🏋 ' : '') + (x ? x[1] : cur)]); }
+  });
+  return out;
+}
+function clearPickerFilter(id) {
+  const all = id === '*';
+  if (all || id === 'mega') { modalState.pickerMega = 'all'; modalState.pickerSub = 'all'; }
+  if (all || id === 'fav') modalState.pickerFavOnly = false;
+  PICKER_CYCLES.forEach(c => { if (all || id === c.id) modalState[c.field] = _pickerCycleStates(c)[0][0]; });
+}
 function renderPicker() {
+  _pickHay = new Map(); // feat 533 — a fresh search index each time the picker opens / fully re-renders
   const subFilters = SUB_FILTERS[modalState.pickerMega] || [{id:'all',label:'All'}];
   // feat 107 — escape hatch: if you misclicked "Change exercise", get back to the current one.
   const backCurrent = (pending.varUuid && !modalState.isEditing && !modalState.supersetMode)
@@ -28742,16 +28828,19 @@ function renderPicker() {
         <div class="pill mega-toggle ${modalState.pickerMega !== 'all' ? 'active' : ''}" id="trk-picker-mega" data-mega="${modalState.pickerMega}" title="Category — tap to cycle · hold to reset to All">${escapeHtml(MEGA_LABELS[modalState.pickerMega] || modalState.pickerMega)}${modalState.pickerMega === 'all' ? '' : ' ▸'}</div>
         ${pickerCyclePillHtml('sub')}
         ${pickerCyclePillHtml('equip')}
+        ${(() => { const n = pickerActiveFilters().filter(([id]) => !['mega', 'sub', 'equip'].includes(id)).length;
+          return `<div class="pill pf-toggle ${modalState.pickerFiltersOpen || n ? 'active' : ''}" id="trk-picker-filters" aria-expanded="${!!modalState.pickerFiltersOpen}" title="More filters">⚙ Filters${n ? ' · ' + n : ''} ${modalState.pickerFiltersOpen ? '▴' : '▾'}</div>`; })()}
+        <div class="pill pill-dice" id="trk-picker-random" title="Pick a random exercise from the filtered list" aria-label="Random pick">🎲</div>
       </div>
-      <div class="pill-row">
+      <div class="pill-row pf-sheet" ${modalState.pickerFiltersOpen ? '' : 'hidden'}>
         <div class="pill fav-pill ${modalState.pickerFavOnly ? 'active' : ''}" id="trk-picker-fav" title="Show favorites only">★</div>
         ${pickerCyclePillHtml('explored')}
         ${pickerCyclePillHtml('recent')}
         ${pickerCyclePillHtml('mode')}
         ${pickerCyclePillHtml('volstatus')}
         ${pickerCyclePillHtml('trend')}
-        <div class="pill pill-dice" id="trk-picker-random" title="Pick a random exercise from the filtered list" aria-label="Random pick">🎲</div>
       </div>
+      ${(() => { const a = pickerActiveFilters(); return a.length ? `<div class="pf-active">${a.map(([id, l]) => `<button type="button" class="pf-chip" data-pf-clear="${id}" title="Remove this filter">${escapeHtml(l)} ✕</button>`).join('')}${a.length > 1 ? `<button type="button" class="pf-chip clear" data-pf-clear="*">Clear all</button>` : ''}</div>` : ''; })()}
     </div>
     <div id="trk-picker-results-wrap">${renderPickerResults()}</div>
   `;
@@ -28911,21 +29000,35 @@ function renderPickerResults() {
   } else {
     countLabel = `${shown} variation${shown === 1 ? '' : 's'}`;
   }
+  const varRow = (v, fam, cls = '', sub = '') => `
+              <div class="picker-var${cls}" data-varuuid="${v.uuid}">
+                <div class="picker-var-main">
+                  <div class="picker-var-name">${escapeHtml(v.title)}${v._custom ? '<span class="manual-tag">manual</span>' : ''}${v.subvariation ? `<span class="sub-tag">${escapeHtml(v.subvariation.label)}</span>` : ''}</div>${sub}
+                </div>
+                <div class="picker-var-right">${v.uuid ? modeBadgeHtml(v.uuid) : ''}${v.uuid ? lastDoneBadge(v.uuid, lastVar.get(fam.id)) : ''}${v.uuid ? favStarHtml(isFavVar(v.uuid), `data-fav-var="${v.uuid}"`) : ''}${spotterBadge(v, fam)}${v.uuid && vul.has(v.uuid) ? vulnerableBadge() : ''}${v.uuid ? pickerTrendBadge(trend.get(v.uuid)) : ''}${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
+              </div>`;
+  // feat 537 — "Your usual": no search typed and a long list → the (filtered) exercises you trained on the most
+  // days in the last 120 lead it. They stay in their family below too; 🎲 ignores these copies.
+  let usual = '';
+  if (!modalState.pickerSearch.trim() && shown > 12) {
+    const cut = Date.now() - 120 * 864e5, cand = [];
+    results.forEach(r => r.variations.forEach(v => {
+      const t = v.uuid && touch.get(v.uuid); if (!t || t.lastMs < cut) return;
+      const n = [...t.days].filter(d => new Date(d).getTime() >= cut).length;
+      if (n >= 2) cand.push({ v, fam: r.family, n, last: t.lastMs });
+    }));
+    cand.sort((a, b) => b.n - a.n || b.last - a.last);
+    if (cand.length) usual = `<div class="picker-family-group picker-usual"><div class="picker-family-header">⭐ Your usual</div>${cand.slice(0, 6).map(c => varRow(c.v, c.fam, ' usual', `<div class="picker-var-secfrom">${escapeHtml(c.fam.title)} · ${c.n} days lately</div>`)).join('')}</div>`;
+  }
+  const dym = !results.length && modalState.pickerSearch.trim() ? pickerDidYouMean(modalState.pickerSearch.trim()) : null;
   return `<div style="font-size:10.5px;color:#666;margin:4px 0 6px 2px;">${countLabel}</div>
     <div class="picker-results">
       ${results.length === 0
-        ? `<div class="picker-empty">No exercises match</div>`
-        : results.map(r => `
+        ? `<div class="picker-empty">No exercises match${dym ? `<br><button type="button" class="pf-chip picker-dym" data-dym="${escapeAttr(dym)}">Did you mean “${escapeHtml(dym)}”?</button>` : ''}</div>`
+        : usual + results.map(r => `
           <div class="picker-family-group">
             <div class="picker-family-header">${escapeHtml(r.family.title)}</div>
-            ${r.variations.map(v => `
-              <div class="picker-var" data-varuuid="${v.uuid}">
-                <div class="picker-var-main">
-                  <div class="picker-var-name">${escapeHtml(v.title)}${v._custom ? '<span class="manual-tag">manual</span>' : ''}${v.subvariation ? `<span class="sub-tag">${escapeHtml(v.subvariation.label)}</span>` : ''}</div>
-                </div>
-                <div class="picker-var-right">${v.uuid ? modeBadgeHtml(v.uuid) : ''}${v.uuid ? lastDoneBadge(v.uuid, lastVar.get(r.family.id)) : ''}${v.uuid ? favStarHtml(isFavVar(v.uuid), `data-fav-var="${v.uuid}"`) : ''}${spotterBadge(v, r.family)}${v.uuid && vul.has(v.uuid) ? vulnerableBadge() : ''}${v.uuid ? pickerTrendBadge(trend.get(v.uuid)) : ''}${v.uuid ? touchBadgeHtml(touch.get(v.uuid)) : ''}<div class="picker-var-arrow">›</div></div>
-              </div>
-            `).join('')}
+            ${r.variations.map(v => varRow(v, r.family)).join('')}
             ${(r.secondaryVars || []).map(s => `
               <div class="picker-var secondary" data-varuuid="${s.v.uuid}">
                 <div class="picker-var-main">
@@ -28977,8 +29080,10 @@ function bindPicker() {
     'Reset to All');
   bindPickerCycles(); // feat 397 — sub · equip · explored · volume · trend are all single cycling toggles (tap = next, hold = reset)
   document.getElementById('trk-picker-fav')?.addEventListener('click', () => { modalState.pickerFavOnly = !modalState.pickerFavOnly; renderModal(); }); // feat 178
+  document.getElementById('trk-picker-filters')?.addEventListener('click', () => { modalState.pickerFiltersOpen = !modalState.pickerFiltersOpen; renderModal(); }); // feat 536
+  document.querySelectorAll('[data-pf-clear]').forEach(b => b.addEventListener('click', () => { clearPickerFilter(b.dataset.pfClear); renderModal(); }));
   document.getElementById('trk-picker-random')?.addEventListener('click', () => { // feat 384 — random pick from the filtered list (for the indecisive)
-    const rows = [...document.querySelectorAll('#trk-picker-results-wrap .picker-var')];
+    const rows = [...document.querySelectorAll('#trk-picker-results-wrap .picker-var:not(.usual)')]; // feat 537 — not the usual copies
     if (!rows.length) { toast('No exercises match — loosen the filters'); return; }
     const pick = rows[Math.floor(Math.random() * rows.length)];
     const info = VAR_INDEX.get(pick.dataset.varuuid);
@@ -28998,6 +29103,7 @@ function bindPicker() {
 
 // feat 68 — bind just the result rows; re-callable after a results-only re-render.
 function bindPickerResults() {
+  document.querySelectorAll('[data-dym]').forEach(b => b.addEventListener('click', () => { modalState.pickerSearch = b.dataset.dym; renderModal(); })); // feat 535
   document.querySelectorAll('.picker-var').forEach(el => {
     el.addEventListener('click', () => {
       const varUuid = el.dataset.varuuid;
@@ -31679,7 +31785,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 449 · 2026-11-03 19:54';
+const APP_BUILD = 'build 450 · 2026-11-04 07:01';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

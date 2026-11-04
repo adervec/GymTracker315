@@ -2665,6 +2665,19 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Exercise picker pass (feats 533-537):** **533 — search reads more than the name:** `pickerSearchHay` builds one
+  string per variation from its title, family, keywords, equipment, body part, every attachment / grip option and
+  the muscles it mainly trains (≥25% of the set; lower and "back squat" matched every squat through the erectors).
+  Cached per full picker render; typing re-renders only the list. **534 — alternate names:** `EX_ALIASES`
+  (regex on the name → extra words), e.g. skullcrusher ↔ lying triceps extension, RFESS/BSS ↔ Bulgarian, zombie ↔
+  Frankenstein. **535 — typos:** the one-edit check became a bounded edit distance (`_fzDist`), two edits from 10
+  letters (at 8, "pulldown" is two edits from "pushdown"). When nothing matches, `pickerDidYouMean` swaps each
+  unmatched word for the closest catalogue word and offers it only if that query finds something. **536 — one
+  Filters sheet:** ★ / trained / recent / how-logged / volume / last-time moved behind "⚙ Filters · N" (still the
+  feat-397 cycling pills, inside a `hidden` row), and every active filter shows as a chip under the pills — tap ✕
+  to drop it, "Clear all" for the lot. **537 — Your usual:** with no search and more than 12 rows, the (filtered)
+  exercises trained on the most days in the last 120 (2+ days) lead the list, up to six; they also stay in their
+  family, and 🎲 ignores the copies. `test/picker2.spec.mjs`.
 - **Sub-variations pick from in-app chips (feat 532):** the exercise page's attachment / grip / stance choice was a
   native `<select>`, which opens the phone's OS picker and can show nothing but labels. It is now a row of chips
   (`#trk-sub-select [data-sub-pick]`), each saying whether you have trained that option (`subTrainedMap`: sessions and
