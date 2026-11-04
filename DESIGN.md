@@ -2665,6 +2665,23 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Next-set coach (feat 538):** a card above the target tiles, "🧠 Next set 95kg × 8 · 78% · ~1 in reserve",
+  with Use (prefills the weight, like a tile) and a "why" list naming every factor that moved it. `nextSetCoach`
+  builds it in seven steps: (1) capacity from a recency-weighted (21-day half-life) session-best e1RM blended
+  60/40 with the 90-day best, a rising-trend nudge, a layoff cut, +2.5% when the last session had no RPE (logged
+  sets are rarely true failure); session spread, thin history and a long gap widen σ. (2) Per-hard-set fatigue
+  LEARNED from your history (`nsLearnedDrop`: median e1RM drop between consecutive working sets at ~the same
+  load; 3.5% / 2.5% defaults until 6 pairs exist), scaled by each set's hardness (RPE, else % of capacity).
+  (3) Today's sets back-projected to fresh-equivalent e1RM pull the estimate toward the day you are having.
+  (4) Rest: the last set's acute fatigue fades exponentially against `recommendRest` (~80% at its target; up
+  to −6% going in early). (5) Live HR vs the median bpm you started this session's sets at: up to −4% and a
+  "wait 30-60 s". (6) Before the first set only: muscle recovery, low readiness; a deload week is −10% and
+  +2 RIR. (7) The ask: rep window from the plan step's load (heavy 3-6 / moderate 6-12 / light 12-20) or your
+  habitual reps; RIR 2 → 1.5 → 1 on the last planned set; every weight the equipment can make (`progRound`)
+  scored in "reps of error" — distance from the wanted reserve, odds below 70%, plate changes (−0.25/step
+  from today's weight), the window's middle, a bonus for beating a record. Scoring on raw e1RM was tried and
+  rejected: Epley always favours the lightest, longest ask (it jumped 100 → 85 × 12 after one set). The card
+  repaints every 5 s from the rest tick. Weight × reps lifts only. `test/nextset.spec.mjs`.
 - **Exercise picker pass (feats 533-537):** **533 — search reads more than the name:** `pickerSearchHay` builds one
   string per variation from its title, family, keywords, equipment, body part, every attachment / grip option and
   the muscles it mainly trains (≥25% of the set; lower and "back squat" matched every squat through the erectors).

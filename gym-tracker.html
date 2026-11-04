@@ -3194,6 +3194,18 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .step-var-item { font-size: 12.5px; color: var(--text2); padding: 6px 4px; border-bottom: 1px solid var(--border); }
 .step-var-item:last-child { border-bottom: none; }
 /* feat 420 — reference-set target buttons + the best-e1RM baseline card */
+/* feat 538 — the next-set coach card */
+.ns-card { margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent-bg); }
+.ns-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+.ns-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--accent); }
+.ns-ask { font-size: 16px; }
+.ns-odds { font-size: 12px; }
+.ns-rir { font-size: 11px; color: var(--text3); }
+.ns-use, .ns-why-btn { font: inherit; font-size: 11px; padding: 4px 10px; border-radius: 12px; cursor: pointer; }
+.ns-use { margin-left: auto; border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+.ns-why-btn { border: 1px solid var(--border2); background: transparent; color: var(--text3); }
+.ns-beats { font-size: 11px; color: var(--good); margin-top: 4px; }
+.ns-why { margin: 6px 0 0; padding-left: 4px; list-style: none; font-size: 11px; line-height: 1.5; color: var(--text2); }
 /* feat 478 — the targets section: header always visible, body collapsible. */
 .targets-sec { margin: 8px 0 2px; }
 .targets-head { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 2px 0 4px; font-family: inherit; text-align: left; cursor: pointer; color: inherit; }
@@ -29848,6 +29860,7 @@ function renderSetsForm() {
       </button>
       <div class="suggestion-text">${suggestion.text}</div>
     </div>`; })() : ''}
+    ${nextSetCardHtml()}
     ${(() => { // feat 420 — reference-set buttons; feat 478 — targets + All-weights are ONE collapsible section
       if (!pending.varUuid || pending.cardio) return '';
       const B = exBestSets(pending.varUuid, pending.subUuid, currentSessionDate);
@@ -30088,6 +30101,228 @@ function exTargetProgress(varUuid, subUuid, w, r, axis, inc) {
   sets.forEach(st => { if (st.w >= w && st.r > best) best = st.r; });
   const n = best >= need ? best - need + 1 : 0;
   return { n: n, w: w, r: need + n };
+}
+/* ============================================================
+   feat 538 — NEXT-SET COACH. One concrete ask for the set you are about to do: a weight × reps that is
+   challenging but achievable, the odds you make it, and every reason behind it. Weight × reps lifts only.
+   The model, in order:
+     1. CAPACITY before today — recency-weighted session-best e1RM (RPE-aware, 21-day half-life) blended 60/40
+        with the 90-day best; nudged up by a rising 3-session trend, down for a layoff. Logged sets with no RPE
+        are assumed to have had ~1 rep left (people rarely log true failure). Spread between sessions, thin
+        history and a long gap widen the uncertainty σ.
+     2. FATIGUE PER HARD SET, learned from YOUR history — the median e1RM drop between consecutive working sets
+        at about the same load (3.5% compound / 2.5% isolation until 6 such pairs exist). A set's cost scales
+        with how hard it was: its RPE if logged, else how close it sat to capacity. Warm-ups barely count.
+     3. TODAY — each set already done here is back-projected to a fresh-equivalent e1RM; a strong or weak day
+        pulls the estimate toward what you actually did (more so the more working sets), and tightens σ.
+     4. REST — the last set's acute fatigue fades exponentially against the recommended rest (recommendRest):
+        ~80% recovered at the target; going in early costs up to 6% more.
+     5. HEART RATE — with a live monitor: current bpm vs the bpm you usually START sets at this session. Still
+        elevated costs up to 4% and says so.
+     6. RECOVERY / READINESS / DELOAD — before the first set only (after that today's sets already show it): a
+        muscle still recovering from an earlier day, a low readiness score; a deload week is 10% lighter with
+        2 more reps in reserve.
+     7. THE ASK — the rep window comes from the plan step's load (heavy 3-6 · moderate 6-12 · light 12-20) or
+        your habitual reps; reps in reserve 2 on the first set, 1.5 after, 1 on the last planned set. Every
+        weight your equipment can make near the ideal (progRound / progLoadStep) is scored: Epley-predicted max
+        reps there, odds = logistic((predicted − asked + ½)/σ), and the pick maximises how close the ask sits
+        to what you have right now while keeping the odds ≥ 70%. Small bonuses for staying on the same plates,
+        for the middle of the window and for beating a record.
+   ponytail: hand-tuned constants (half-life, default drops, penalties), not a fitted model — the learned
+   per-set drop is the one personalised term; fit the rest once there is logged ask-vs-actual data. */
+const NS_RANGES = { heavy: [3, 6], moderate: [6, 12], light: [12, 20] };
+function _nsMedian(a) { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+function _nsSetE1(s) { const w = parseFloat(s && s.w), r = parseFloat(s && s.r); return w > 0 && r > 0 ? estimated1RMSet({ ...s, w, r }) : 0; }
+function _nsHardness(s, e1, cap) {
+  const rpe = setRpe(s);
+  if (rpe != null) return Math.max(0.3, Math.min(1.2, (rpe - 5) / 4));     // RPE 9 → 1.0
+  return Math.max(0.2, Math.min(1.2, (e1 / cap - 0.6) / 0.33));            // ~93% of capacity → 1.0
+}
+function nsLearnedDrop(hist, varUuid) {
+  const drops = [];
+  hist.forEach(h => {
+    const sets = (h.sets || []).map(s => ({ w: parseFloat(s.w), e: _nsSetE1(s) })).filter(x => x.e > 0);
+    const best = sets.reduce((m, x) => Math.max(m, x.e), 0);
+    for (let i = 1; i < sets.length; i++) {
+      const a = sets[i - 1], b = sets[i];
+      if (a.e < best * 0.85 || Math.abs(b.w - a.w) > a.w * 0.1) continue;   // working set → working set, ~same load
+      drops.push(Math.max(-0.05, Math.min(0.15, 1 - b.e / a.e)));
+    }
+  });
+  if (drops.length >= 6) return { drop: Math.max(0.005, Math.min(0.1, _nsMedian(drops))), learned: drops.length };
+  const info = VAR_INDEX.get(varUuid), compound = isBarbellVar(varUuid) || !!(info && info.family.sub === 'compound');
+  return { drop: compound ? 0.035 : 0.025, learned: 0 };
+}
+let _nsReady = { at: 0, v: null };   // trainingReadiness scans every lift for plateaus — once a minute is plenty
+function _nsReadiness() { if (Date.now() - _nsReady.at > 60000) _nsReady = { at: Date.now(), v: trainingReadiness() }; return _nsReady.v; }
+function nextSetCoach(varUuid, subUuid) {
+  if (!varUuid || isCardioVar(varUuid) || exMode(varUuid).mode !== 'standard') return null; // ponytail: holds / carries / bodyweight need their own model
+  const session = getActiveSession(), nowMs = Date.now(), DAY = 864e5, U = state.unit, pct = x => (x * 100).toFixed(1) + '%';
+  const sameSession = h => session ? new Date(h.date).getTime() === new Date(session.date).getTime()
+    : new Date(h.date).toDateString() === new Date().toDateString();
+  const hist = getHistoryByKey(varUuid, subUuid).filter(h => !sameSession(h));          // recent-first, today excluded
+  const done = sessionSetsForExercise(session, pending, varUuid, subUuid)
+    .map(s => ({ s, e: _nsSetE1(s), w: parseFloat(s.w), r: parseFloat(s.r) })).filter(x => x.e > 0);
+  if (!hist.length && !done.length) return null;
+  const why = [];
+
+  // 1. capacity before today
+  const sess = hist.slice(0, 8).map(h => ({ e: sessionBestE1RM(h), age: (nowMs - new Date(h.date).getTime()) / DAY,
+    r: parseFloat(h.topSet && h.topSet.r) || 0, w: parseFloat(h.topSet && h.topSet.w) || 0,
+    rpe: (h.sets || []).some(s => setRpe(s) != null) })).filter(x => x.e > 0);
+  let base = 0, sigma = 2.6;
+  if (sess.length) {
+    let ws = 0, acc = 0;
+    sess.slice(0, 5).forEach(x => { const k = Math.pow(0.5, x.age / 21); ws += k; acc += k * x.e; });
+    const wMean = acc / ws, best90 = sess.filter(x => x.age <= 90).reduce((m, x) => Math.max(m, x.e), 0) || wMean;
+    base = 0.6 * wMean + 0.4 * best90;
+    if (!sess[0].rpe) base *= 1.025;
+    why.push(`🏋️ Capacity ≈ ${Math.round(base)}${U} e1RM from your last ${Math.min(5, sess.length)} session${sess.length === 1 ? '' : 's'}${sess[0].rpe ? ' (RPE-adjusted)' : ', assuming ~1 rep was left in them'}`);
+    const s3 = sess.slice(0, 3);
+    if (s3.length === 3 && s3[0].e > s3[1].e && s3[1].e > s3[2].e) {
+      const g = Math.min(0.03, (s3[0].e - s3[2].e) / 2 / s3[2].e) / 2; base *= 1 + g;
+      why.push(`📈 Up three sessions running — +${pct(g)} for the trend`);
+    }
+    const gap = sess[0].age;
+    if (gap > 14) { const cut = Math.min(0.08, (gap - 14) * 0.003); base *= 1 - cut; why.push(`🗓 ${Math.round(gap)} days since you last did it — −${pct(cut)} for the layoff`); }
+    const es = sess.slice(0, 5).map(x => x.e), mean = es.reduce((a, b) => a + b, 0) / es.length;
+    const cv = Math.sqrt(es.reduce((a, b) => a + (b - mean) * (b - mean), 0) / es.length) / mean;
+    sigma = 1.1 + 1.4 / Math.sqrt(sess.length) + Math.min(1.5, cv * 12) + (gap > 21 ? 0.6 : 0);
+  }
+
+  // 2 + 3. fatigue learned from history, then today's evidence
+  const D = nsLearnedDrop(hist, varUuid);
+  let est = base || done.reduce((m, x) => Math.max(m, x.e), 0) * 1.03;  // first time ever: the best set had a little left
+  let F = 0, todayBest = 0, nHard = 0;
+  done.forEach(x => {
+    const hard = x.e >= est * 0.75;
+    if (hard) { nHard++; todayBest = Math.max(todayBest, x.e / (1 - F)); }
+    x.h = _nsHardness(x.s, x.e, est) * (hard ? 1 : 0.25);
+    F += D.drop * x.h;
+  });
+  if (nHard && base) {
+    const k = Math.min(0.75, 0.3 + 0.15 * nHard), before = est;
+    est = (1 - k) * est + k * todayBest;
+    const d = est / before - 1;
+    if (d >= 0.01) why.push(`💪 Today's sets are running ${pct(d)} above your usual — raised`);
+    else if (d <= -0.01) why.push(`🔻 Today's sets are ${pct(-d)} under your usual — eased off`);
+    sigma *= Math.max(0.6, 1 - 0.12 * nHard);
+  }
+  F = Math.min(0.3, F);
+  let avail = est * (1 - F);
+  if (F > 0.005) why.push(`🔋 ${nHard} working set${nHard === 1 ? '' : 's'} done — ~${pct(F)} fatigue (${D.learned
+    ? `your own drop-off, ${pct(D.drop)}/set from ${D.learned} set pairs` : `default ${pct(D.drop)}/set until your history teaches it`})`);
+
+  // 4. rest
+  const last = done[done.length - 1];
+  if (last && setDoneMs(last.s) != null) {
+    const restSec = (nowMs - setDoneMs(last.s)) / 1000, rec = recommendRest(varUuid, subUuid, session, pending);
+    if (rec) {
+      const recov = 1 - Math.exp(-restSec / (rec.targetSec / 1.6)), pen = 0.06 * Math.min(1.2, last.h) * Math.max(0, 1 - recov / 0.8);
+      avail *= 1 - pen;
+      why.push(pen > 0.003 ? `⏱ Rested ${formatDuration(restSec)} of ~${formatDuration(rec.targetSec)} — −${pct(pen)} until you're recovered`
+        : `⏱ Rested ${formatDuration(restSec)} — recovered from the last set`);
+    }
+  }
+
+  // 5. heart rate
+  let hrWait = false;
+  if (typeof _hrConnected !== 'undefined' && _hrConnected && _hrLastBpm > 0 && session && Array.isArray(session.hrSamples) && session.hrSamples.length) {
+    const t0 = new Date(session.date).getTime(), S = session.hrSamples;
+    const at = ms => { let b = null; for (const p of S) if (Math.abs(p[0] - ms) <= 15000 && (!b || Math.abs(p[0] - ms) < Math.abs(b[0] - ms))) b = p; return b ? b[1] : null; };
+    const starts = [];
+    const add = s => { const m = setStartMs(s); if (m != null) { const v = at(m - t0); if (v) starts.push(v); } };
+    (session.exercises || []).forEach(ex => (ex.sets || []).forEach(add));
+    if (!modalState.isEditing) (pending.sets || []).forEach(add);
+    if (starts.length >= 2) {
+      const ready = _nsMedian(starts), over = _hrLastBpm - ready;
+      if (over > 8) {
+        const pen = Math.min(0.04, 0.005 + (over - 8) * 0.002); avail *= 1 - pen; hrWait = true;
+        why.push(`💓 HR ${_hrLastBpm} — ${Math.round(over)} above the ${Math.round(ready)} you usually start sets at: −${pct(pen)} (a little more rest wins it back)`);
+      } else why.push(`💓 HR ${_hrLastBpm} — back to your usual set-start level (${Math.round(ready)})`);
+    }
+  }
+
+  // 6. recovery / readiness / deload
+  if (!done.length) {
+    const rh = exerciseRecoveryHint(varUuid);
+    if (rh) { const pen = Math.max(0, 0.85 - rh.readiness) * 0.12; avail *= 1 - pen; why.push(`🩹 ${rh.label} ${rh.pct}% recovered from an earlier session — −${pct(pen)}`); }
+    const tr = _nsReadiness();
+    if (tr && tr.score < 45) { avail *= 0.98; why.push(`🧭 Readiness ${tr.score}/100 — −2%`); }
+  }
+  const meso = mesoCurrentWeek(), deload = !!(meso && meso.phase === 'Deload');
+  if (deload) { avail *= 0.9; why.push('🌙 Deload week — 10% lighter, 2 more reps in reserve'); }
+
+  // 7. the ask
+  const plan = getActivePlan(), si = plan ? planStepForVar(session, plan, varUuid) : -1, step = si >= 0 ? plan.steps[si] : null;
+  let lo, hi, src;
+  if (step && NS_RANGES[step.load]) { [lo, hi] = NS_RANGES[step.load]; src = step.load + ' plan step'; }
+  else {
+    const m = _nsMedian(sess.slice(0, 5).map(x => x.r).filter(r => r > 0)) || _nsMedian(done.map(x => x.r)) || 8;
+    ({ lo, hi } = progRepRange(m)); src = 'your usual reps';
+  }
+  const setNo = nHard + 1, planned = step ? step.sets : 0;
+  let rir = setNo === 1 ? 2 : 1.5;
+  if (planned && setNo >= planned) rir = 1;
+  if (deload) rir += 2;
+  why.push(`🎯 ${lo}-${hi} reps (${src}) · set ${setNo}${planned ? ' of ' + planned : ''} → aim to leave ~${rir} in reserve`);
+
+  const cap = exMaxW(varUuid), lastW = last ? last.w : (sess[0] ? sess[0].w : null), mid = (lo + hi) / 2;
+  const allBest = Math.max(0, ...sess.map(x => x.e), ...done.map(x => x.e));
+  const B = exBestSets(varUuid, subUuid, session ? session.date : null);
+  const cand = new Set();
+  for (let r = lo; r <= hi; r++) cand.add(progRound(varUuid, avail / (1 + (r + rir) / 30)));
+  if (lastW) cand.add(lastW);
+  [...cand].forEach(w => { const st = progLoadStep(varUuid, w); cand.add(progRound(varUuid, w + st)); if (w - st > 0) cand.add(progRound(varUuid, w - st)); });
+  const oddsAt = (pm, r) => 1 / (1 + Math.exp(-1.7 * (pm - r + 0.5) / (sigma * (1 + 0.03 * r))));
+  let best = null;
+  cand.forEach(w => {
+    if (!(w > 0) || (cap && w > cap)) return;
+    const pm = 30 * (avail / w - 1);                         // Epley-predicted max reps at w right now
+    if (pm < Math.max(1, lo - 1)) return;                    // too heavy for the window
+    let r = Math.max(lo, Math.floor(pm - rir + 1e-9));
+    const inRange = r <= hi; if (!inRange) r = hi;           // too light: capped, and it scores low on challenge
+    const odds = oddsAt(pm, r), e = estimated1RM(w, r);
+    const beats = [];
+    if (B.prevTop && w >= B.prevTop.w && r >= B.prevTop.r + (w > B.prevTop.w ? 0 : 1)) beats.push('last session');
+    if (allBest && e > allBest) beats.push('e1RM record');
+    else if (B.maxR && w >= B.maxR.w && r > B.maxR.r) beats.push('rep record');
+    // Score in "reps of error": miss the reserve you are aiming for by one rep = −0.5; each plate step away from
+    // the weight you are already on today = −0.25 (−0.1 from last session's); a pinch for the window's middle.
+    // Proximity to failure, not raw e1RM, is the yardstick: Epley e1RM always favours the lightest, longest ask.
+    const steps = lastW ? Math.abs(w - lastW) / progLoadStep(varUuid, Math.min(w, lastW)) : 0;
+    const score = -0.5 * Math.abs(pm - r - rir) - 2.5 * Math.max(0, 0.7 - odds) - (inRange ? 0 : 1)
+      - 0.15 * Math.abs(r - mid) / Math.max(1, hi - lo) - steps * (last ? 0.25 : 0.1)
+      + (beats.length ? 0.1 : 0) + 0.02 * e / avail;
+    if (!best || score > best.score) best = { w, r, pm, odds, score, beats };
+  });
+  if (!best) return null;
+  if (hrWait) why.push('⏳ Give it 30-60 s more and this ask gets easier');
+  return { w: best.w, r: best.r, odds: Math.round(best.odds * 100), rir: Math.max(0, Math.round((best.pm - best.r) * 2) / 2),
+    lo, hi, beats: best.beats, why, avail: Math.round(avail), sigma: Math.round(sigma * 10) / 10, learnedDrop: D.learned ? D.drop : null,
+    stretch: { w: best.w, r: best.r + 1, odds: Math.round(oddsAt(best.pm, best.r + 1) * 100) } };
+}
+let _nsOpen = false, _nsTick = 0;
+function nextSetInnerHtml() {
+  const c = pending.varUuid ? nextSetCoach(pending.varUuid, pending.subUuid) : null; if (!c) return '';
+  const F = (w, r) => escapeHtml(fmtSetFor(pending.varUuid, w, r));
+  return `<div class="ns-row"><span class="ns-lbl">🧠 Next set</span><b class="ns-ask">${F(c.w, c.r)}</b>
+    <span class="ns-odds" style="${_wtPctColor(c.odds)}" title="Odds you make all ${c.r} reps">${c.odds}%</span>
+    <span class="ns-rir">~${c.rir} in reserve</span>
+    <button type="button" class="ns-use" data-ns-use="${c.w}" title="Put ${c.w}${state.unit} in the next set">Use</button>
+    <button type="button" class="ns-why-btn" data-ns-why aria-expanded="${_nsOpen}">${_nsOpen ? 'why ▴' : 'why ▾'}</button></div>
+    ${c.beats.length ? `<div class="ns-beats">🏅 Would beat your ${escapeHtml(c.beats.join(' and '))}</div>` : ''}
+    ${_nsOpen ? `<ul class="ns-why">${c.why.map(x => `<li>${escapeHtml(x)}</li>`).join('')}<li>🚀 Feeling good? ${F(c.stretch.w, c.stretch.r)} is ${c.stretch.odds}%</li></ul>` : ''}`;
+}
+function nextSetCardHtml() {
+  if (modalState.isEditing || !pending.varUuid || pending.cardio) return '';
+  const h = nextSetInnerHtml(); return h ? `<div class="ns-card" id="trk-nextset">${h}</div>` : '';
+}
+// the ask moves as you rest and as your HR settles — repaint the card every 5 s from the rest tick
+function refreshNextSet() {
+  if (++_nsTick % 5) return;
+  const el = document.getElementById('trk-nextset'); if (!el) return;
+  const h = nextSetInnerHtml(); if (h && el.innerHTML !== h) el.innerHTML = h;
 }
 /* feat 478 — the whole targets section (reference tiles + All-weights) collapses too, and AUTO-COLLAPSES
    the moment every target it offered has been hit: there is nothing left to aim at, so the sets get the
@@ -31004,6 +31239,10 @@ function bindSetsForm() {
   document.getElementById('trk-suggestion-toggle')?.addEventListener('click', () => { // feat 477
     _sugCollapsed = !_sugCollapsed; _sugPinned = true; renderModal();
   });
+  document.getElementById('trk-nextset')?.addEventListener('click', e => { // feat 538
+    const u = e.target.closest('[data-ns-use]'); if (u) { prefillTargetWeight(parseFloat(u.dataset.nsUse)); return; }
+    if (e.target.closest('[data-ns-why]')) { _nsOpen = !_nsOpen; e.currentTarget.innerHTML = nextSetInnerHtml(); }
+  });
   document.getElementById('trk-targets-toggle')?.addEventListener('click', () => { // feat 478
     _tgtCollapsed = !_tgtCollapsed; _tgtPinned = true; renderModal();
   });
@@ -31785,7 +32024,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 452 · 2026-11-04 07:54';
+const APP_BUILD = 'build 453 · 2026-11-04 15:06';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -33255,6 +33494,7 @@ function restTick() {
     if (!getActiveSession()) { refreshRestBar(); _lastRestCueSec = -1; return; }
     reapAbandonedSet();
     refreshRestBar();
+    refreshNextSet();                               // feat 538 — the next-set ask moves with rest and heart rate
     restCueTick();                                  // feat 104 — configurable audible rest cues
   } catch(e) { if (typeof logError === 'function') logError('restTick failed', e && e.message); }
 }
