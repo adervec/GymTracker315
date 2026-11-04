@@ -2665,6 +2665,15 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Next-set coach: your weights, your pick, full-rest preview (feat 540):** candidates are now only the
+  weights you have actually used on that exercise (history + today), never a computed 92.5 your gym may not
+  have. A weight already typed into the set you are about to do (weight in, reps empty) is THE weight: the
+  coach works out reps for it, the label reads "at your weight", Use disappears, and typing a weight repaints
+  the card at once. Rest and HR penalties are now collected separately, and the same pick is re-run without
+  them as "⏱ At full rest (in 1:20): 97.5kg × 7 · 72%". Retuned at the same time: reps in reserve 1.5 / 1 /
+  0.5 (it was 2 / 1.5 / 1 with reps floored, which put the first ask near 88%); reps now round; and falling
+  below the rep window is priced (0.15 for the first rep, then 0.35 each) instead of forbidden, so going in
+  early gets an achievable 95 × 6 rather than a 42% 95 × 8.
 - **Gym directory + usage (feat 539):** **Memberships** (`state.gymMemberships`: chain, tier, all locations
   or within N km of home) go to the cowork agent on a sixth channel, `gym-directory`; it looks each chain's
   clubs up on Google Maps and replies `{ gyms: [{ chain, name, address, lat, lng, placeId, mapsUrl }] }`.

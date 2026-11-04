@@ -27,7 +27,7 @@ test('feat 538 — a fresh first set asks about last time, inside the usual rep 
   const c = await page.evaluate(() => nextSetCoach(_v, null));
   expect(c.w).toBeGreaterThanOrEqual(95);
   expect(c.w).toBeLessThanOrEqual(102.5);
-  expect(c.r).toBeGreaterThanOrEqual(c.lo);
+  expect(c.r).toBeGreaterThanOrEqual(c.lo - 1);    // feat 540 — one rep under the window to stay on the plates
   expect(c.r).toBeLessThanOrEqual(c.hi);
   expect(c.odds).toBeGreaterThanOrEqual(65);
   expect(c.odds).toBeLessThanOrEqual(95);
@@ -79,7 +79,7 @@ test('feat 538 — a heavy plan step moves the window to 3-6; a deload week ligh
   });
   expect(r.heavy.slice(0, 2)).toEqual([3, 6]);
   expect(r.heavy[2]).toBeLessThanOrEqual(6);
-  expect(r.heavy[3]).toBeGreaterThan(r.normalW);    // fewer reps → heavier
+  expect(r.heavy[3]).toBeGreaterThanOrEqual(r.normalW); // fewer reps → at least as heavy (feat 540: 100 is the heaviest ever used)
   expect(r.deloadAvail).toBeLessThan(r.normalAvail);
   expect(r.deloadRir).toBeGreaterThan(r.normalRir);
 });
@@ -107,4 +107,43 @@ test('feat 538 — no card for a hold, a cardio pick or an exercise never done',
   });
   expect(r.hold).toBeNull();
   expect(r.fresh).toBeNull();
+});
+
+test('feat 540 — only weights you have used are offered, a typed weight is worked around, and full rest is previewed', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const used = new Set([60, 95, 97.5, 100]);
+    const asks = [nextSetCoach(_v, null)];
+    _done(100, 7, 30); asks.push(nextSetCoach(_v, null));                       // went in early
+    const early = asks[1];
+    pending.sets[0].ts = new Date(Date.now() - 400e3).toISOString(); asks.push(nextSetCoach(_v, null));
+    const rested = asks[2];
+    pending.sets.push({ w: 80, r: '', wTs: new Date().toISOString() });          // you typed 80 for the next set
+    const at80 = nextSetCoach(_v, null);
+    pending.sets[1].w = 105; const at105 = nextSetCoach(_v, null);
+    openLogModal(); modalState.showPicker = false; modalState.isEditing = false; renderModal();
+    const card = document.getElementById('trk-nextset');
+    return { allUsed: asks.every(c => used.has(c.w)), early: early.rested, restedNow: rested.rested,
+      at80: [at80.w, at80.r, at80.picked], at105: [at105.w, at105.r], noUse: !card.querySelector('[data-ns-use]'),
+      lbl: card.querySelector('.ns-lbl').textContent };
+  });
+  expect(r.allUsed).toBe(true);
+  expect(r.early).not.toBeNull();                       // resting → the full-rest ask is previewed
+  expect(r.early.inSec).toBeGreaterThan(0);
+  expect(r.restedNow).toBeNull();                       // already recovered → nothing to preview
+  expect(r.at80[0]).toBe(80);                           // 80 was never used, but you picked it
+  expect(r.at80[2]).toBe(true);
+  expect(r.at80[1]).toBeGreaterThan(r.at105[1]);        // lighter → more reps
+  expect(r.at105[0]).toBe(105);
+  expect(r.noUse).toBe(true);                           // the weight is already in: no Use button
+  expect(r.lbl).toContain('at your weight');
+});
+
+test('feat 540 — the card shows the full-rest preview line while resting', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    _done(100, 7, 20);
+    openLogModal(); modalState.showPicker = false; modalState.isEditing = false; renderModal();
+    const el = document.querySelector('#trk-nextset .ns-rest');
+    return el ? el.textContent : null;
+  });
+  expect(r).toMatch(/At full rest \(in \d/);
 });

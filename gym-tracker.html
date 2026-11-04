@@ -3221,6 +3221,7 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .ns-use { margin-left: auto; border: 1px solid var(--accent); background: var(--accent); color: #fff; }
 .ns-why-btn { border: 1px solid var(--border2); background: transparent; color: var(--text3); }
 .ns-beats { font-size: 11px; color: var(--good); margin-top: 4px; }
+.ns-rest { font-size: 11.5px; color: var(--text2); margin-top: 4px; }
 .ns-why { margin: 6px 0 0; padding-left: 4px; list-style: none; font-size: 11px; line-height: 1.5; color: var(--text2); }
 /* feat 478 — the targets section: header always visible, body collapsible. */
 .targets-sec { margin: 8px 0 2px; }
@@ -30321,11 +30322,12 @@ function exTargetProgress(varUuid, subUuid, w, r, axis, inc) {
         muscle still recovering from an earlier day, a low readiness score; a deload week is 10% lighter with
         2 more reps in reserve.
      7. THE ASK — the rep window comes from the plan step's load (heavy 3-6 · moderate 6-12 · light 12-20) or
-        your habitual reps; reps in reserve 2 on the first set, 1.5 after, 1 on the last planned set. Every
-        weight your equipment can make near the ideal (progRound / progLoadStep) is scored: Epley-predicted max
-        reps there, odds = logistic((predicted − asked + ½)/σ), and the pick maximises how close the ask sits
-        to what you have right now while keeping the odds ≥ 70%. Small bonuses for staying on the same plates,
-        for the middle of the window and for beating a record.
+        your habitual reps; reps in reserve 1.5 on the first set, 1 after, 0.5 on the last planned set. Only
+        weights you have actually used on this exercise are candidates (feat 540), or just the one you have
+        typed into the set you are about to do. Each is scored: Epley-predicted max reps there, odds =
+        logistic((predicted − asked + ½)/σ), and the pick lands closest to the wanted reserve while keeping the
+        odds ≥ 70%, with costs for plate changes and for falling below the window. The same pick is re-run with
+        the rest / HR penalties lifted, as the "at full rest" preview.
    ponytail: hand-tuned constants (half-life, default drops, penalties), not a fitted model — the learned
    per-set drop is the one personalised term; fit the rest once there is logged ask-vs-actual data. */
 const NS_RANGES = { heavy: [3, 6], moderate: [6, 12], light: [12, 20] };
@@ -30411,13 +30413,14 @@ function nextSetCoach(varUuid, subUuid) {
   if (F > 0.005) why.push(`🔋 ${nHard} working set${nHard === 1 ? '' : 's'} done — ~${pct(F)} fatigue (${D.learned
     ? `your own drop-off, ${pct(D.drop)}/set from ${D.learned} set pairs` : `default ${pct(D.drop)}/set until your history teaches it`})`);
 
-  // 4. rest
+  // 4. rest — collected into restMul (not applied yet) so the card can also preview the ask at full rest
   const last = done[done.length - 1];
+  let restMul = 1, restLeft = 0;
   if (last && setDoneMs(last.s) != null) {
     const restSec = (nowMs - setDoneMs(last.s)) / 1000, rec = recommendRest(varUuid, subUuid, session, pending);
     if (rec) {
       const recov = 1 - Math.exp(-restSec / (rec.targetSec / 1.6)), pen = 0.06 * Math.min(1.2, last.h) * Math.max(0, 1 - recov / 0.8);
-      avail *= 1 - pen;
+      restMul *= 1 - pen; restLeft = Math.max(0, rec.targetSec - restSec);
       why.push(pen > 0.003 ? `⏱ Rested ${formatDuration(restSec)} of ~${formatDuration(rec.targetSec)} — −${pct(pen)} until you're recovered`
         : `⏱ Rested ${formatDuration(restSec)} — recovered from the last set`);
     }
@@ -30435,7 +30438,7 @@ function nextSetCoach(varUuid, subUuid) {
     if (starts.length >= 2) {
       const ready = _nsMedian(starts), over = _hrLastBpm - ready;
       if (over > 8) {
-        const pen = Math.min(0.04, 0.005 + (over - 8) * 0.002); avail *= 1 - pen; hrWait = true;
+        const pen = Math.min(0.04, 0.005 + (over - 8) * 0.002); restMul *= 1 - pen; hrWait = true;
         why.push(`💓 HR ${_hrLastBpm} — ${Math.round(over)} above the ${Math.round(ready)} you usually start sets at: −${pct(pen)} (a little more rest wins it back)`);
       } else why.push(`💓 HR ${_hrLastBpm} — back to your usual set-start level (${Math.round(ready)})`);
     }
@@ -30450,6 +30453,7 @@ function nextSetCoach(varUuid, subUuid) {
   }
   const meso = mesoCurrentWeek(), deload = !!(meso && meso.phase === 'Deload');
   if (deload) { avail *= 0.9; why.push('🌙 Deload week — 10% lighter, 2 more reps in reserve'); }
+  const availRested = avail; avail *= restMul;
 
   // 7. the ask
   const plan = getActivePlan(), si = plan ? planStepForVar(session, plan, varUuid) : -1, step = si >= 0 ? plan.steps[si] : null;
@@ -30460,55 +30464,73 @@ function nextSetCoach(varUuid, subUuid) {
     ({ lo, hi } = progRepRange(m)); src = 'your usual reps';
   }
   const setNo = nHard + 1, planned = step ? step.sets : 0;
-  let rir = setNo === 1 ? 2 : 1.5;
-  if (planned && setNo >= planned) rir = 1;
+  // feat 540 — 1.5 / 1 / 0.5: with 2 in reserve and reps floored the first ask sat near 88% — achievable, not challenging
+  let rir = setNo === 1 ? 1.5 : 1;
+  if (planned && setNo >= planned) rir = 0.5;
   if (deload) rir += 2;
   why.push(`🎯 ${lo}-${hi} reps (${src}) · set ${setNo}${planned ? ' of ' + planned : ''} → aim to leave ~${rir} in reserve`);
 
   const cap = exMaxW(varUuid), lastW = last ? last.w : (sess[0] ? sess[0].w : null), mid = (lo + hi) / 2;
   const allBest = Math.max(0, ...sess.map(x => x.e), ...done.map(x => x.e));
   const B = exBestSets(varUuid, subUuid, session ? session.date : null);
-  const cand = new Set();
-  for (let r = lo; r <= hi; r++) cand.add(progRound(varUuid, avail / (1 + (r + rir) / 30)));
-  if (lastW) cand.add(lastW);
-  [...cand].forEach(w => { const st = progLoadStep(varUuid, w); cand.add(progRound(varUuid, w + st)); if (w - st > 0) cand.add(progRound(varUuid, w - st)); });
+  // feat 540 — the weight you have already typed into the set you are about to do is the weight: the coach
+  // works out the reps for it instead of arguing. Otherwise it only offers weights you have actually used on
+  // this exercise (your plates / dumbbells / pin stops), never a computed one.
+  const act = (!modalState.isEditing && pending.varUuid === varUuid) ? (pending.sets || [])[activeSetIndex(pending.sets)] : null;
+  const pickedW = act && act.w !== '' && act.w != null && !(act.r !== '' && act.r != null) && parseFloat(act.w) > 0 ? parseFloat(act.w) : null;
+  const used = new Set();
+  hist.forEach(h => (h.sets || []).forEach(s => { const w = parseFloat(s.w), r = parseFloat(s.r); if (w > 0 && r > 0) used.add(w); }));
+  done.forEach(x => used.add(x.w));
+  const cand = pickedW ? [pickedW] : [...used].filter(w => !cap || w <= cap);
+  if (pickedW) why.push(`🎛 Working around the ${pickedW}${U} you entered`);
   const oddsAt = (pm, r) => 1 / (1 + Math.exp(-1.7 * (pm - r + 0.5) / (sigma * (1 + 0.03 * r))));
-  let best = null;
-  cand.forEach(w => {
-    if (!(w > 0) || (cap && w > cap)) return;
-    const pm = 30 * (avail / w - 1);                         // Epley-predicted max reps at w right now
-    if (pm < Math.max(1, lo - 1)) return;                    // too heavy for the window
-    let r = Math.max(lo, Math.floor(pm - rir + 1e-9));
-    const inRange = r <= hi; if (!inRange) r = hi;           // too light: capped, and it scores low on challenge
-    const odds = oddsAt(pm, r), e = estimated1RM(w, r);
-    const beats = [];
-    if (B.prevTop && w >= B.prevTop.w && r >= B.prevTop.r + (w > B.prevTop.w ? 0 : 1)) beats.push('last session');
-    if (allBest && e > allBest) beats.push('e1RM record');
-    else if (B.maxR && w >= B.maxR.w && r > B.maxR.r) beats.push('rep record');
-    // Score in "reps of error": miss the reserve you are aiming for by one rep = −0.5; each plate step away from
-    // the weight you are already on today = −0.25 (−0.1 from last session's); a pinch for the window's middle.
-    // Proximity to failure, not raw e1RM, is the yardstick: Epley e1RM always favours the lightest, longest ask.
-    const steps = lastW ? Math.abs(w - lastW) / progLoadStep(varUuid, Math.min(w, lastW)) : 0;
-    const score = -0.5 * Math.abs(pm - r - rir) - 2.5 * Math.max(0, 0.7 - odds) - (inRange ? 0 : 1)
-      - 0.15 * Math.abs(r - mid) / Math.max(1, hi - lo) - steps * (last ? 0.25 : 0.1)
-      + (beats.length ? 0.1 : 0) + 0.02 * e / avail;
-    if (!best || score > best.score) best = { w, r, pm, odds, score, beats };
-  });
-  if (!best) return null;
+  const choose = (av) => {
+    let best = null;
+    const tryW = (w, strict) => {
+      const pm = 30 * (av / w - 1);                          // Epley-predicted max reps at w
+      if (pm < 1) return;                                    // can't make a single rep there right now
+      // the reps you can make with ~rir left — below the window costs 0.15 for the first rep (100×7 after
+      // 100×8 is just staying on the plates) and 0.35 for each one after (an achievable 95×5 beats a 42% 95×8
+      // when you went in early); above it is capped at the top of the window and scores low
+      let r = Math.max(1, Math.round(pm - rir));
+      const inRange = r >= lo && r <= hi, below = Math.max(0, lo - r); if (strict && r > hi) r = hi;
+      const odds = oddsAt(pm, r), e = estimated1RM(w, r);
+      const beats = [];
+      if (B.prevTop && w >= B.prevTop.w && r >= B.prevTop.r + (w > B.prevTop.w ? 0 : 1)) beats.push('last session');
+      if (allBest && e > allBest) beats.push('e1RM record');
+      else if (B.maxR && w >= B.maxR.w && r > B.maxR.r) beats.push('rep record');
+      // Score in "reps of error": miss the reserve you are aiming for by one rep = −0.5; each plate step away from
+      // the weight you are already on today = −0.25 (−0.1 from last session's); a pinch for the window's middle.
+      // Proximity to failure, not raw e1RM, is the yardstick: Epley e1RM always favours the lightest, longest ask.
+      const steps = lastW ? Math.abs(w - lastW) / progLoadStep(varUuid, Math.min(w, lastW)) : 0;
+      const score = -0.5 * Math.abs(pm - r - rir) - 2.5 * Math.max(0, 0.7 - odds) - (below ? 0.35 * below - 0.2 : inRange ? 0 : 1)
+        - (below ? 0 : 0.15 * Math.abs(r - mid) / Math.max(1, hi - lo)) - steps * (last ? 0.25 : 0.1)
+        + (beats.length ? 0.1 : 0) + 0.02 * e / av;
+      if (!best || score > best.score) best = { w, r, pm, odds, score, beats };
+    };
+    cand.forEach(w => { if (w > 0) tryW(w, !pickedW); });   // a weight you picked is never capped to the window
+    return best;
+  };
+  const best = choose(avail); if (!best) return null;
+  const restedPick = restMul < 0.997 ? choose(availRested) : null;
   if (hrWait) why.push('⏳ Give it 30-60 s more and this ask gets easier');
   return { w: best.w, r: best.r, odds: Math.round(best.odds * 100), rir: Math.max(0, Math.round((best.pm - best.r) * 2) / 2),
     lo, hi, beats: best.beats, why, avail: Math.round(avail), sigma: Math.round(sigma * 10) / 10, learnedDrop: D.learned ? D.drop : null,
+    picked: !!pickedW,
+    rested: restedPick ? { w: restedPick.w, r: restedPick.r, odds: Math.round(restedPick.odds * 100), inSec: Math.round(restLeft), hr: hrWait } : null,
     stretch: { w: best.w, r: best.r + 1, odds: Math.round(oddsAt(best.pm, best.r + 1) * 100) } };
 }
 let _nsOpen = false, _nsTick = 0;
 function nextSetInnerHtml() {
   const c = pending.varUuid ? nextSetCoach(pending.varUuid, pending.subUuid) : null; if (!c) return '';
   const F = (w, r) => escapeHtml(fmtSetFor(pending.varUuid, w, r));
-  return `<div class="ns-row"><span class="ns-lbl">🧠 Next set</span><b class="ns-ask">${F(c.w, c.r)}</b>
+  const R = c.rested, restSame = R && R.w === c.w && R.r === c.r;
+  return `<div class="ns-row"><span class="ns-lbl">🧠 Next set${c.picked ? ' at your weight' : ''}</span><b class="ns-ask">${F(c.w, c.r)}</b>
     <span class="ns-odds" style="${_wtPctColor(c.odds)}" title="Odds you make all ${c.r} reps">${c.odds}%</span>
     <span class="ns-rir">~${c.rir} in reserve</span>
-    <button type="button" class="ns-use" data-ns-use="${c.w}" title="Put ${c.w}${state.unit} in the next set">Use</button>
+    ${c.picked ? '' : `<button type="button" class="ns-use" data-ns-use="${c.w}" title="Put ${c.w}${state.unit} in the next set">Use</button>`}
     <button type="button" class="ns-why-btn" data-ns-why aria-expanded="${_nsOpen}">${_nsOpen ? 'why ▴' : 'why ▾'}</button></div>
+    ${R ? `<div class="ns-rest">⏱ At full rest${R.inSec > 0 ? ` (in ${formatDuration(R.inSec)})` : R.hr ? ' (once your HR settles)' : ''}: <b>${F(R.w, R.r)}</b> · ${R.odds}%${restSame ? ' — same ask, better odds' : ''}</div>` : ''}
     ${c.beats.length ? `<div class="ns-beats">🏅 Would beat your ${escapeHtml(c.beats.join(' and '))}</div>` : ''}
     ${_nsOpen ? `<ul class="ns-why">${c.why.map(x => `<li>${escapeHtml(x)}</li>`).join('')}<li>🚀 Feeling good? ${F(c.stretch.w, c.stretch.r)} is ${c.stretch.odds}%</li></ul>` : ''}`;
 }
@@ -30516,9 +30538,10 @@ function nextSetCardHtml() {
   if (modalState.isEditing || !pending.varUuid || pending.cardio) return '';
   const h = nextSetInnerHtml(); return h ? `<div class="ns-card" id="trk-nextset">${h}</div>` : '';
 }
-// the ask moves as you rest and as your HR settles — repaint the card every 5 s from the rest tick
-function refreshNextSet() {
-  if (++_nsTick % 5) return;
+// the ask moves as you rest and as your HR settles — repaint the card every 5 s from the rest tick, and at
+// once when a weight is typed (feat 540 — it re-plans around the weight you chose)
+function refreshNextSet(now) {
+  if (!now && ++_nsTick % 5) return;
   const el = document.getElementById('trk-nextset'); if (!el) return;
   const h = nextSetInnerHtml(); if (h && el.innerHTML !== h) el.innerHTML = h;
 }
@@ -31075,6 +31098,7 @@ function commitSetField(i, f, val) {
   }
   const wFilled = s.w !== '' && s.w != null;
   if (f === 'w') {
+    try { refreshNextSet(true); } catch (_) {} // feat 540 — the next-set card re-plans around the weight you typed
     if (wFilled && !s.wTs) {
       // feat 291 — on a TIMED hold with the count cue on, don't start the timer yet: run "ready/set/go" first
       // and stamp wTs on "go". Otherwise stamp now + speak the set-start position (feat 206).
@@ -32222,7 +32246,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 454 · 2026-11-04 17:00';
+const APP_BUILD = 'build 455 · 2026-11-04 18:12';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
