@@ -10,7 +10,9 @@ as a file. This script logs in locally with YOUR credentials (nothing leaves you
 except the call to Garmin) and writes a JSON in the exact shape the app imports.
 
 Index S2 smart-scale metrics (weight / body fat / muscle mass / bone mass / body water)
-map 1:1 to the app's body-composition entry, plus optional last-night sleep score.
+map 1:1 to the app's body-composition entry, plus optional last-night sleep score, and a daily
+"recovery" log (HRV, resting HR, sleep, Body Battery, stress, Training Readiness, respiration,
+SpO2) that the app trends and feeds into its next-set suggestion.
 
 NOTE (unofficial - read before using): Garmin provides no public per-user read API, so this relies
 on the community `garminconnect` library, which talks to Garmin Connect's private, undocumented
@@ -46,7 +48,10 @@ OUTPUT SHAPE (also accepted hand-made or from any source):
         {"date":"2026-06-01","weightKg":81.2,"bodyFatPct":18.4,
          "muscleMassKg":34.1,"boneMassKg":3.2,"bodyWaterPct":55.1}
       ],
-      "sleep": [ {"date":"2026-06-01","score":78,"note":"7h12m"} ]
+      "sleep": [ {"date":"2026-06-01","score":78,"note":"7h12m"} ],
+      "recovery": [ {"date":"2026-06-01","hrv":64,"restingHr":52,"sleepScore":78,"sleepMin":432,
+                     "bodyBattery":72,"stress":28,"readiness":70,"respiration":14.2,"spo2":95,
+                     "source":"garmin"} ]
     }
 weightKg/muscleMassKg/boneMassKg are kilograms; *Pct are percentages. Missing fields are
 fine (use null or omit). The app dedupes by calendar day and merges into existing data.
@@ -67,6 +72,57 @@ def _g(d, *keys):
         if isinstance(d, dict) and d.get(k) is not None:
             return d.get(k)
     return None
+
+
+def _num(v):
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def recovery_for_day(api, d, sleep_dto):
+    """Best-effort daily recovery metrics. Every call is optional: an endpoint that fails or a key Garmin
+    renamed just leaves that field out (the app treats missing fields as unknown, never as zero)."""
+    r = {"date": d, "source": "garmin"}
+    def tryget(fn):
+        try:
+            return fn()
+        except Exception:
+            return None
+    # sleep (already fetched): score, minutes asleep, overnight respiration / SpO2 when the DTO carries them
+    if sleep_dto:
+        sc = (sleep_dto.get("sleepScores") or {}).get("overall") or {}
+        r["sleepScore"] = _num(sc.get("value"))
+        secs = _num(sleep_dto.get("sleepTimeSeconds"))
+        r["sleepMin"] = round(secs / 60) if secs else None
+        r["respiration"] = _num(_g(sleep_dto, "averageRespirationValue", "avgSleepRespirationValue"))
+        r["spo2"] = _num(_g(sleep_dto, "averageSpO2Value", "avgSpo2"))
+    hrv = tryget(lambda: api.get_hrv_data(d)) or {}
+    r["hrv"] = _num(((hrv.get("hrvSummary") or {}).get("lastNightAvg")))
+    rhr = tryget(lambda: api.get_rhr_day(d)) or {}
+    try:
+        r["restingHr"] = _num(rhr["allMetrics"]["metricsMap"]["WELLNESS_RESTING_HEART_RATE"][0]["value"])
+    except Exception:
+        pass
+    st = tryget(lambda: api.get_stress_data(d)) or {}
+    r["stress"] = _num(_g(st, "avgStressLevel"))
+    bb = tryget(lambda: api.get_body_battery(d, d)) or []
+    try:  # the morning peak of the day's Body Battery curve
+        vals = [v[1] for v in (bb[0].get("bodyBatteryValuesArray") or []) if isinstance(v, list) and len(v) > 1 and _num(v[1]) is not None]
+        r["bodyBattery"] = max(vals) if vals else None
+    except Exception:
+        pass
+    tr = tryget(lambda: api.get_training_readiness(d))
+    if isinstance(tr, list) and tr:
+        tr = tr[0]
+    if isinstance(tr, dict):
+        r["readiness"] = _num(tr.get("score"))
+    if r.get("respiration") is None:
+        rs = tryget(lambda: api.get_respiration_data(d)) or {}
+        r["respiration"] = _num(_g(rs, "avgSleepRespirationValue"))
+    if r.get("spo2") is None:
+        sp = tryget(lambda: api.get_spo2_data(d)) or {}
+        r["spo2"] = _num(_g(sp, "averageSpO2", "avgSleepSpO2"))
+    out = {k: v for k, v in r.items() if v is not None}
+    return out if len(out) > 2 else None   # more than just date + source
 
 
 def grams_to_kg(v):
@@ -104,6 +160,7 @@ def main():
     start = today - datetime.timedelta(days=days - 1)
     body_comp = []
     sleep = []
+    recovery = []
 
     # --- Body composition: one range call, iterate each scale reading ---------------
     try:
@@ -135,6 +192,7 @@ def main():
     # --- Sleep score: per-day (no range endpoint) -----------------------------------
     for i in range(days):
         d = (today - datetime.timedelta(days=i)).isoformat()
+        dto = {}
         try:
             sl = api.get_sleep_data(d)
             dto = (sl or {}).get("dailySleepDTO") or {}
@@ -148,12 +206,15 @@ def main():
                 sleep.append({"date": d, "score": score, "note": note})
         except Exception:
             pass  # a given day may simply have no sleep record
+        rec = recovery_for_day(api, d, dto)
+        if rec:
+            recovery.append(rec)
 
-    data = {"bodyComp": body_comp, "sleep": sleep}
+    data = {"bodyComp": body_comp, "sleep": sleep, "recovery": recovery}
     with open(out, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    print("Wrote %d body-composition + %d sleep record(s) -> %s"
-          % (len(body_comp), len(sleep), os.path.abspath(out)))
+    print("Wrote %d body-composition + %d sleep + %d recovery record(s) -> %s"
+          % (len(body_comp), len(sleep), len(recovery), os.path.abspath(out)))
     print("Now in GymTracker315: Body tab -> Import biometrics -> pick this file.")
 
 

@@ -2665,6 +2665,26 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Wearable recovery metrics + switchable next-set factors (feat 543):** `RECOVERY_METRICS` is the one table
+  for HRV, resting HR, sleep score, sleep minutes, readiness (Garmin Training Readiness / Whoop Recovery / Oura
+  Readiness / Suunto Resources), Body Battery, stress, strain (Whoop / Garmin load / TSS), respiration, SpO₂,
+  skin-temperature deviation and VO₂max. Each lists the vendor field names it accepts (`normRecoveryFields`,
+  also `sleepHours` and a "7h12m" note → `sleepMin`), so a Whoop or Oura export imports as-is. `recoveryToday`
+  reads the latest entry (if within 36 h) against the 28 days before it, and `recoveryNextSetAdjust` turns
+  that into a capacity shade for the next-set coach: HRV more than 8% under your mean, resting HR 3+ over,
+  sleep score 8+ under, under 6 h asleep, readiness in the red or low, Body Battery under 40, stress 15+ over,
+  yesterday's strain at 1.5× normal, and illness flags (respiration +1/min, skin temp +0.5 °C, SpO₂ < 93).
+  Correlated signals don't stack: the worst counts in full, the rest at half, capped at 7%; a green day earns
+  at most +1%, and only with nothing flagged. It shades pre-session capacity, so today's sets overrule it as
+  they accumulate. The Body page card adds a sparkline per metric with today vs your baseline, coloured by
+  whether that direction is good, and folds the daily log away. The cowork `garmin` channel now asks for
+  every metric from any wearable (`fieldsWanted` in the context, vendor names in INSTRUCTIONS.md), and
+  `tools/garmin-sync.py` writes a best-effort `recovery` log (HRV, resting HR, sleep, Body Battery, stress,
+  Training Readiness, respiration, SpO₂). **Factors:** `NS_FACTORS` × `nsOn` gate trend & layoff, sleep &
+  recovery, per-set fatigue, today's sets, rest, live HR, muscle recovery & readiness, deload, plan and the
+  record bonus. All are on by default (`workoutControls.nsFactors` stores only the ones switched off). The
+  chips sit in the card's why panel and in Settings › Workout controls, and the why list names what is off.
+  `test/wearables.spec.mjs`.
 - **Live exercise grade, plan-aware next set, grade trend at the end (feat 542):** the per-exercise scoring
   inside `computeWorkoutScore` moved to `scoreExerciseVsPrior` so the live grade can never disagree with the
   final one. `exerciseLiveGrade` scores the exercise on screen from its sets so far (saved + typed) and names

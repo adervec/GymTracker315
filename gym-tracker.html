@@ -3226,6 +3226,16 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .wgt-k-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text2); }
 .wgt-k-line { width: 14px; height: 2px; background: var(--accent); margin-left: 8px; }
 .wgt-list { margin: 6px 0 0; padding-left: 18px; font-size: 11.5px; color: var(--text2); display: flex; flex-direction: column; gap: 3px; }
+/* feat 543 — wearable trends + next-set factor switches */
+.rcv-trends { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 10px; }
+.rcv-trend { display: grid; grid-template-columns: minmax(96px, 1fr) 90px minmax(0, 1.3fr); align-items: center; gap: 8px; font-size: 12px; }
+.rcv-t-lbl { color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rcv-spark { width: 90px; height: 22px; } .rcv-spark polyline { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.rcv-t-val { color: var(--text); text-align: right; } .rcv-t-d { font-size: 10.5px; color: var(--text3); }
+.rcv-t-d.good { color: var(--good); } .rcv-t-d.bad { color: var(--warn); }
+.rcv-details summary { font-size: 11px; color: var(--text3); cursor: pointer; margin-bottom: 4px; }
+.ns-f-head { font-size: 9.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text3); margin: 8px 0 4px; }
+.ns-factors { display: flex; flex-wrap: wrap; gap: 4px; }
 /* feat 538 — the next-set coach card */
 .ns-card { margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent-bg); }
 .ns-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
@@ -9223,8 +9233,9 @@ function buildChannelContext(channel) {
     // feat 339 — daily recovery log: report the last covered day + recent entries so the agent backfills the gap.
     const recLog = safe(() => recoveryLogSorted(), []);
     const lastRecoveryDate = recLog.length ? recLog[recLog.length - 1].date.slice(0, 10) : null;
-    const recentRecovery = recLog.slice(-7).map(r => ({ date: r.date.slice(0, 10), sleepScore: r.sleepScore != null ? r.sleepScore : null, bodyBattery: r.bodyBattery != null ? r.bodyBattery : null, hrv: r.hrv != null ? r.hrv : null, restingHr: r.restingHr != null ? r.restingHr : null }));
-    return { recentBodyComp: recent, sleepGaps, lastRecoveryDate, recentRecovery };
+    const recentRecovery = recLog.slice(-7).map(r => { const o = { date: r.date.slice(0, 10) }; RECOVERY_METRICS.forEach(m => { o[m.key] = r[m.key] != null ? r[m.key] : null; }); return o; }); // feat 543 — every metric
+    const fieldsWanted = RECOVERY_METRICS.map(m => ({ key: m.key, what: m.src }));
+    return { recentBodyComp: recent, sleepGaps, lastRecoveryDate, recentRecovery, fieldsWanted };
   }
   if (channel === 'strava') {
     const buckets = safe(() => reconcileStravaBuckets(), null);
@@ -9268,7 +9279,7 @@ function buildInstructionsMd(channel) {
   const proto = `\n### Protocol\n\n- \`context.json\` declares a \`requestHash\`. **Copy it verbatim** into your reply envelope's \`requestHash\` field — that is how the app tells an answer to *this* request from an answer to one it has already replaced.\n- If you **cannot** complete the task, write \`inbox/error-<ISO-date>.json\` containing \`{ "reason": "why" }\` **instead of** a reply. The app surfaces that reason in its run history; silence is indistinguishable from an agent that never ran.\n- Write exactly one reply file per sweep, and overwrite it if it already exists. Don't modify \`context.json\`, \`options.json\` or anything under \`processed/\`.\n`;
   const head = `# GymTracker315 — Cowork channel: ${channel}\n\nRead \`../app-export.json\` for full context and \`context.json\` here for this channel's task. If the hub's prompt lists a **DATA SOURCES** file for this channel (a Garmin or Strava export it already fetched this sweep), read that file and do not contact the service or run any sync script yourself. Emit your result as a JSON file dropped in **\`inbox/\`** named \`output-<ISO-date>.json\`, wrapped in this envelope:\n\n${env}\n${proto}\n`;
   if (channel === 'garmin') return head +
-`## kind: \`garmin-output\`\nFill in biometrics, sleep + daily recovery from Garmin. Payload (matches the app's importer):\n\n\`\`\`json\n{ "bodyComp": [ { "date": "YYYY-MM-DD", "weightKg": 81.2, "bodyFatPct": 18.4, "muscleMassKg": 34.1, "bodyWaterPct": 55.1 } ],\n  "sleep": [ { "date": "YYYY-MM-DD", "score": 78, "note": "7h12m" } ],\n  "recovery": [ { "date": "YYYY-MM-DD", "sleepScore": 78, "sleepNote": "7h12m", "bodyBattery": 72, "hrv": 64, "restingHr": 52, "stress": 28 } ] }\n\`\`\`\n\n- \`context.json\` lists recent bodyComp dates, the session dates still lacking sleep, and \`lastRecoveryDate\` — backfill \`recovery\` for EVERY day since then (rest days too), not just workout days.\n- Body composition is merged by calendar day; \`sleep\` is matched to the workout that day; \`recovery\` is kept as a standalone daily log (sleep + body battery / HRV / resting HR / stress).\n`;
+`## kind: \`garmin-output\`\nFill in biometrics, sleep + daily recovery from Garmin. Payload (matches the app's importer):\n\n\`\`\`json\n{ "bodyComp": [ { "date": "YYYY-MM-DD", "weightKg": 81.2, "bodyFatPct": 18.4, "muscleMassKg": 34.1, "bodyWaterPct": 55.1 } ],\n  "sleep": [ { "date": "YYYY-MM-DD", "score": 78, "note": "7h12m" } ],\n  "recovery": [ { "date": "YYYY-MM-DD", "sleepScore": 78, "sleepNote": "7h12m", "bodyBattery": 72, "hrv": 64, "restingHr": 52, "stress": 28 } ] }\n\`\`\`\n\n- \`context.json\` lists recent bodyComp dates, the session dates still lacking sleep, and \`lastRecoveryDate\` — backfill \`recovery\` for EVERY day since then (rest days too), not just workout days.\n- Body composition is merged by calendar day; \`sleep\` is matched to the workout that day; \`recovery\` is kept as a standalone daily log (sleep + body battery / HRV / resting HR / stress).\n- **Every recovery field (any wearable, not only Garmin)** — fill what the source has, omit the rest: ${RECOVERY_METRICS.map(m => '\`' + m.key + '\` (' + m.src + ')').join('; ')}. Also accepted: \`source\` (e.g. "whoop") and vendor names such as ${RECOVERY_METRICS.filter(m => m.aliases.length).map(m => '\`' + m.aliases[0] + '\`').join(', ')}.\n- Date each night by the morning you woke up; strain/load by the day it was accrued. These feed the next-set coach against the user's own 28-day baseline, so consistent units matter more than completeness.\n`;
   if (channel === 'strava') return head +
 `## kind: \`strava-output\`\nProvide Strava activities so the app can link them to workouts and insert orphan cardio. Payload:\n\n\`\`\`json\n{ "activities": [ { "id": "123", "name": "Evening Run", "sport_type": "Run", "start_date": "ISO", "elapsed_time": 2400, "distance": 6000, "average_heartrate": 150, "calories": 480 } ] }\n\`\`\`\n\n- The app time-matches each activity to a workout (±${(typeof STRAVA_MATCH_WINDOW_MIN !== 'undefined' ? STRAVA_MATCH_WINDOW_MIN : 120)} min) and backfills HR/calories/duration; **the logged sets/reps stay the master data**.\n- Activities with no matching workout (e.g. outdoor runs) are inserted into History as cardio.\n- \`context.json\` has the current activities + reconciliation buckets (linked / proposed / gymOnly / stravaOnly).\n`;
   if (channel === 'gyms') return head + // feat 539
@@ -12742,6 +12753,13 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${!(state.workoutControls||{}).holdVoiceStop ? 'active' : ''}" data-holdvoice="off">Off</button>
       </div>
     </div>` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">🎙 Hold timer: spoken stop word</div><div class="drawer-setting-sub">This device doesn't support speech recognition, so the stop word isn't available here.</div></div></div>`}
+    <div class="drawer-setting-row" style="flex-wrap:wrap;">
+      <div>
+        <div class="drawer-setting-label">🧠 Next-set factors</div>
+        <div class="drawer-setting-sub">What the next-set coach may use. All on by default — switch one off and it is ignored (the "why" list says so).</div>
+      </div>
+      ${nsFactorChipsHtml()}
+    </div>
     ${hrSupported() ? `<div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">💓 Auto-connect HR on start</div>
@@ -13759,6 +13777,7 @@ function renderSettingsDrawer() {
   body.querySelectorAll('[data-cowork-sched]').forEach(sel => sel.addEventListener('change', () => {
     state.cowork.schedules[sel.dataset.coworkSched] = sel.value; saveState(); renderSettingsDrawer();
   }));
+  body.querySelectorAll('[data-ns-factor]').forEach(b => b.addEventListener('click', () => { nsToggleFactor(b.dataset.nsFactor); renderSettingsDrawer(); })); // feat 543
   body.querySelectorAll('[data-cowork-chan]').forEach(b => b.addEventListener('click', () => { // feat 459
     const k = b.dataset.coworkChan;
     state.cowork.channels[k] = !coworkChannelOn(k); saveState(); renderSettingsDrawer();
@@ -28149,6 +28168,129 @@ function recoveryDayKey(v) { const t = String(v); const d = t.length > 10 ? new 
 function recoveryAnchorIso(v) { const t = String(v); return t.length > 10 ? new Date(t).toISOString() : (t.slice(0, 10) + 'T12:00:00.000Z'); }
 function recoveryLogSorted() { return (state.recoveryLog || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date))); }
 function latestRecovery() { const a = recoveryLogSorted(); return a.length ? a[a.length - 1] : null; }
+/* feat 543 — WEARABLE RECOVERY METRICS, vendor-neutral. One table drives the importer (with each vendor's own
+   field names as aliases), the trend card, the cowork instructions and the next-set coach. `better`: +1 higher
+   is better, −1 lower is better, 0 context only. Every judgement is against YOUR baseline (the 28 days before
+   the reading), except the few with well-known absolute floors (sleep under 6 h, readiness in the red, SpO₂). */
+const RECOVERY_METRICS = [
+  { key: 'hrv',         label: 'HRV',          icon: '〰️', unit: 'ms',  better: 1,  aliases: ['hrvRmssd', 'hrvMs', 'avgHrv', 'lastNightAvg'], src: 'overnight average — Garmin HRV Status, Whoop, Oura, Suunto, Polar, Apple' },
+  { key: 'restingHr',   label: 'Resting HR',   icon: '❤️', unit: 'bpm', better: -1, aliases: ['rhr', 'restingHeartRate', 'lowestHr'], src: 'Garmin, Whoop, Oura, Suunto, Polar, Apple' },
+  { key: 'sleepScore',  label: 'Sleep score',  icon: '😴', unit: '',    better: 1,  aliases: ['score', 'sleepPerformance'], src: 'Garmin, Oura, Whoop sleep performance %, Polar Sleep score' },
+  { key: 'sleepMin',    label: 'Sleep',        icon: '🛏', unit: 'min', better: 1,  aliases: ['totalSleepMin', 'sleepDurationMin', 'asleepMin'], src: 'total time asleep, minutes' },
+  { key: 'readiness',   label: 'Readiness',    icon: '🧭', unit: '',    better: 1,  aliases: ['recoveryScore', 'readinessScore', 'trainingReadiness', 'resources', 'nightlyRecharge'], src: 'Garmin Training Readiness, Whoop Recovery %, Oura Readiness, Suunto Resources — 0-100' },
+  { key: 'bodyBattery', label: 'Body Battery', icon: '🔋', unit: '',    better: 1,  aliases: ['bodyBatteryMorning'], src: 'Garmin morning Body Battery, 0-100' },
+  { key: 'stress',      label: 'Stress',       icon: '🧠', unit: '',    better: -1, aliases: ['avgStress', 'stressAvg'], src: 'Garmin average stress, 0-100' },
+  { key: 'strain',      label: 'Strain',       icon: '🔥', unit: '',    better: 0,  aliases: ['dayStrain', 'trainingLoad', 'acuteLoad'], src: "the day's load — Whoop Strain 0-21, Garmin acute load, Suunto TSS" },
+  { key: 'respiration', label: 'Respiration',  icon: '🫁', unit: 'br/min', better: -1, aliases: ['respiratoryRate', 'avgSleepRespiration', 'breathingRate'], src: 'overnight breaths per minute' },
+  { key: 'spo2',        label: 'SpO₂',         icon: '🩸', unit: '%',   better: 1,  aliases: ['avgSpo2', 'bloodOxygen'], src: 'overnight average %' },
+  { key: 'skinTempDev', label: 'Skin temp',    icon: '🌡', unit: '°C',  better: -1, aliases: ['temperatureDeviation', 'skinTempDelta', 'tempDeviation'], src: 'deviation from your baseline, °C (Oura, Whoop, Garmin)' },
+  { key: 'vo2max',      label: 'VO₂max',       icon: '🫀', unit: '',    better: 1,  aliases: ['vo2Max'], src: 'Garmin, Apple, Polar, Suunto estimate' },
+];
+function _recNum(v) { return (v == null || v === '' || isNaN(+v)) ? null : Math.round(+v * 10) / 10; }
+// one recovery row from any vendor's field names → the canonical keys (sleepNote "7h12m" also yields sleepMin)
+function normRecoveryFields(r) {
+  const out = { sleepNote: r.sleepNote || r.note || '' };
+  RECOVERY_METRICS.forEach(m => { for (const k of [m.key].concat(m.aliases)) { const v = _recNum(r[k]); if (v != null) { out[m.key] = v; break; } } });
+  if (out.sleepMin == null && r.sleepHours != null) out.sleepMin = _recNum(+r.sleepHours * 60);
+  if (out.sleepMin == null) { const m = /(\d+)\s*h\s*(\d+)?/.exec(out.sleepNote); if (m) out.sleepMin = +m[1] * 60 + (+m[2] || 0); }
+  if (r.source) out.source = String(r.source).slice(0, 40);
+  return out;
+}
+function fmtRecVal(m, v) {
+  if (v == null) return '–';
+  if (m.key === 'sleepMin') return Math.floor(v / 60) + 'h' + String(Math.round(v % 60)).padStart(2, '0');
+  if (m.key === 'skinTempDev') return (v > 0 ? '+' : '') + v.toFixed(1) + '°C';
+  return (Math.round(v * 10) / 10) + (m.unit && m.unit !== 'min' ? ' ' + m.unit : '');
+}
+// the latest reading (within 36 h — wearables date the night by the wake-up day) against the 28 days before it
+function recoveryToday(nowMs) {
+  const log = recoveryLogSorted(); if (!log.length) return null;
+  const now = nowMs || Date.now(), last = log[log.length - 1], lastMs = new Date(last.date).getTime();
+  if (Math.abs(now - lastMs) > 36 * 3600e3) return { stale: true, date: last.date };
+  const base = log.filter(e => { const t = new Date(e.date).getTime(); return t < lastMs - 12 * 3600e3 && t >= lastMs - 29 * 864e5; });
+  const metrics = {};
+  RECOVERY_METRICS.forEach(m => {
+    const v = _recNum(last[m.key]); if (v == null) return;
+    const bv = base.map(e => _recNum(e[m.key])).filter(x => x != null);
+    const mean = bv.length >= 5 ? bv.reduce((a, b) => a + b, 0) / bv.length : null;
+    metrics[m.key] = { v, mean, n: bv.length };
+  });
+  return { date: last.date, metrics };
+}
+// → { mul, lines[], illness } — how today's wearable readings shade the capacity the next-set coach starts from.
+// Correlated signals (HRV, resting HR and a vendor readiness all see the same bad night) don't stack: the worst
+// counts in full, the rest at half; the total is capped at 7%. A good day earns at most +1%, never on top of a flag.
+function recoveryNextSetAdjust(rt) {
+  if (!rt || rt.stale) return null;
+  const M = rt.metrics, pens = [], bon = [], lines = [], pc = x => (x * 100).toFixed(1) + '%';
+  let illness = false;
+  const pen = (p, txt) => { if (p > 0.0015) { pens.push(p); lines.push(`${txt} — −${pc(p)}`); } };
+  const g = k => M[k];
+  if (g('hrv') && g('hrv').mean) { const d = (g('hrv').mean - g('hrv').v) / g('hrv').mean;
+    if (d > 0.08) pen(Math.min(0.03, (d - 0.08) * 0.25), `〰️ HRV ${g('hrv').v} vs your ${Math.round(g('hrv').mean)} (−${Math.round(d * 100)}%)`);
+    else if (d < -0.08) { bon.push(0.005); lines.push(`〰️ HRV ${g('hrv').v}, above your ${Math.round(g('hrv').mean)} — +0.5%`); } }
+  if (g('restingHr') && g('restingHr').mean) { const o = g('restingHr').v - g('restingHr').mean;
+    if (o > 3) pen(Math.min(0.03, 0.004 + (o - 3) * 0.004), `❤️ Resting HR ${g('restingHr').v}, ${Math.round(o)} over your ${Math.round(g('restingHr').mean)}`); }
+  if (g('sleepScore')) { const s = g('sleepScore');
+    if (s.mean && s.mean - s.v > 8) pen(Math.min(0.025, 0.003 + (s.mean - s.v - 8) * 0.0012), `😴 Sleep score ${s.v} vs your ${Math.round(s.mean)}`);
+    else if (!s.mean && s.v < 50) pen(0.015, `😴 Sleep score ${s.v}`); }
+  if (g('sleepMin') && g('sleepMin').v < 360) pen(Math.min(0.03, (360 - g('sleepMin').v) / 60 * 0.012), `🛏 ${fmtRecVal(RECOVERY_METRICS[3], g('sleepMin').v)} asleep (under 6 h)`);
+  if (g('readiness')) { const v = g('readiness').v;
+    if (v < 34) pen(0.03, `🧭 Readiness ${v} — in the red`); else if (v < 50) pen(0.012, `🧭 Readiness ${v} — low`);
+    else if (v >= 67) { bon.push(0.005); lines.push(`🧭 Readiness ${v} — green, +0.5%`); } }
+  if (g('bodyBattery')) { const v = g('bodyBattery').v; if (v < 25) pen(0.02, `🔋 Body Battery ${v}`); else if (v < 40) pen(0.01, `🔋 Body Battery ${v}`); }
+  if (g('stress') && g('stress').mean && g('stress').v > g('stress').mean + 15) pen(0.008, `🧠 Stress ${g('stress').v} vs your ${Math.round(g('stress').mean)}`);
+  if (g('strain')) { const s = g('strain');
+    if ((s.mean && s.v > s.mean * 1.5) || (!s.mean && s.v >= 18)) pen(0.012, `🔥 Strain ${s.v} yesterday${s.mean ? ` vs your ${Math.round(s.mean)}` : ''}`); }
+  if (g('respiration') && g('respiration').mean && g('respiration').v - g('respiration').mean >= 1) { illness = true; pen(0.03, `🫁 Respiration ${g('respiration').v}, up ${(g('respiration').v - g('respiration').mean).toFixed(1)} on your normal`); }
+  if (g('skinTempDev') && g('skinTempDev').v >= 0.5) { illness = true; pen(0.03, `🌡 Skin temp ${fmtRecVal(RECOVERY_METRICS[10], g('skinTempDev').v)} on your baseline`); }
+  if (g('spo2') && g('spo2').v < 93) { illness = true; pen(0.015, `🩸 SpO₂ ${g('spo2').v}%`); }
+  pens.sort((a, b) => b - a);
+  let p = pens.length ? Math.min(0.07, pens[0] + 0.5 * pens.slice(1).reduce((a, b) => a + b, 0)) : 0;
+  const bonus = (!pens.length || pens[0] < 0.005) && !illness ? Math.min(0.01, bon.reduce((a, b) => a + b, 0)) : 0;
+  if (illness) lines.push('🤒 Signs you may be coming down with something — an easy day is the smart call');
+  if (pens.length > 1) lines.push(`🩺 Overlapping signals counted once in full, the rest at half: −${pc(p)} in all`);
+  return { mul: (1 - p) * (1 + bonus), lines, illness, p, bonus };
+}
+// feat 543 — the next-set factors you can switch off (default: everything on). Capacity itself always counts.
+const NS_FACTORS = [['trend', '📈 Trend & layoff'], ['bio', '🩺 Sleep & recovery'], ['fatigue', '🔋 Per-set fatigue'],
+  ['today', "💪 Today's sets"], ['rest', '⏱ Rest'], ['hr', '💓 Live HR'], ['recovery', '🩹 Muscle recovery & readiness'],
+  ['deload', '🌙 Deload'], ['plan', '📋 Plan'], ['records', '🏅 Record bonus']];
+function nsOn(k) { const f = (state.workoutControls || {}).nsFactors; return !(f && f[k] === false); }
+function nsToggleFactor(k) {
+  state.workoutControls = state.workoutControls || {};
+  const f = state.workoutControls.nsFactors = { ...(state.workoutControls.nsFactors || {}) };
+  if (f[k] === false) delete f[k]; else f[k] = false;
+  saveState();
+}
+function nsFactorChipsHtml() {
+  return `<div class="ns-factors">${NS_FACTORS.map(([k, l]) => `<button type="button" class="drawer-pill ${nsOn(k) ? 'active' : ''}" data-ns-factor="${k}" aria-pressed="${nsOn(k)}">${l}</button>`).join('')}</div>`;
+}
+// feat 543 — the trend card: each metric with data in the last 30 days, a sparkline, and today vs your baseline
+function recoveryTrendsHtml() {
+  const log = recoveryLogSorted(), cut = Date.now() - 30 * 864e5, recent = log.filter(e => new Date(e.date).getTime() >= cut);
+  const rt = recoveryToday();
+  const rows = RECOVERY_METRICS.map(m => {
+    const pts = recent.map(e => _recNum(e[m.key])).filter(v => v != null);
+    if (pts.length < 3) return '';
+    const lo = Math.min(...pts), hi = Math.max(...pts), W = 90, H = 22, n = pts.length;
+    const poly = pts.map((v, i) => `${(i * (W - 4) / (n - 1) + 2).toFixed(1)},${(H - 3 - (hi === lo ? 0.5 : (v - lo) / (hi - lo)) * (H - 6)).toFixed(1)}`).join(' ');
+    const t = rt && !rt.stale && rt.metrics[m.key];
+    let delta = '', cls = '';
+    if (t && t.mean != null) {
+      const d = t.v - t.mean, rel = Math.abs(d) / (Math.abs(t.mean) || 1);
+      if (rel >= 0.03 || Math.abs(d) >= 0.3 && m.key === 'skinTempDev') {
+        cls = m.better === 0 ? '' : (d > 0) === (m.better > 0) ? 'good' : 'bad';
+        delta = `${d > 0 ? '▲' : '▼'} vs ${fmtRecVal(m, ['respiration', 'skinTempDev', 'spo2'].includes(m.key) ? Math.round(t.mean * 10) / 10 : Math.round(t.mean))}`;
+      } else delta = 'at your normal';
+    }
+    const last = pts[n - 1];
+    return `<div class="rcv-trend" title="${escapeAttr(m.label + ' — ' + m.src)}"><span class="rcv-t-lbl">${m.icon} ${escapeHtml(m.label)}</span>
+      <svg class="rcv-spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><polyline points="${poly}"/></svg>
+      <span class="rcv-t-val"><b>${escapeHtml(fmtRecVal(m, last))}</b>${delta ? ` <span class="rcv-t-d ${cls}">${escapeHtml(delta)}</span>` : ''}</span></div>`;
+  }).join('');
+  return rows ? `<div class="rcv-trends">${rows}</div>` : '';
+}
 // feat 339 — a day's recovery pieces as small labelled bits (sleep / body battery / HRV / resting HR / stress).
 function recoveryBits(r) {
   if (!r) return [];
@@ -28158,6 +28300,9 @@ function recoveryBits(r) {
   if (r.hrv != null) bits.push('〰️ HRV ' + r.hrv);
   if (r.restingHr != null) bits.push('❤️ ' + r.restingHr);
   if (r.stress != null) bits.push('🧠 ' + r.stress);
+  RECOVERY_METRICS.forEach(m => { if (['sleepScore', 'bodyBattery', 'hrv', 'restingHr', 'stress'].includes(m.key) || r[m.key] == null) return;
+    if (m.key === 'sleepMin' && r.sleepNote) return;                          // the note already says 7h12m
+    bits.push(m.icon + ' ' + (m.key === 'sleepMin' ? '' : m.label + ' ') + fmtRecVal(m, r[m.key])); }); // feat 543
   return bits;
 }
 // feat 339 — the standalone "Sleep & Recovery" card on the Body page: the most recent daily log from Garmin.
@@ -28169,8 +28314,8 @@ function renderRecoveryLog() {
     return `<div class="rcv-row"><span class="rcv-date">${fmtDate(r.date)}</span><span class="rcv-vals">${bits.length ? bits.map(escapeHtml).join(' · ') : '–'}</span></div>`;
   }).join('');
   return `<div class="card rcv-card"><div class="card-title" style="margin-bottom:4px;">😴 Sleep &amp; Recovery</div>
-    <div class="rcv-sub">Daily sleep &amp; recovery from Garmin — how recovered you are, independent of whether you trained that day.</div>
-    <div class="rcv-list">${rows}</div></div>`;
+    <div class="rcv-sub">Daily sleep &amp; recovery from your wearable (Garmin, Whoop, Oura, Suunto, Polar…) — today against your own last 28 days. It feeds the 🧠 next-set coach.</div>
+    ${(() => { const tr = recoveryTrendsHtml(); return tr ? tr + `<details class="rcv-details"><summary>Daily log</summary><div class="rcv-list">${rows}</div></details>` : `<div class="rcv-list">${rows}</div>`; })()}</div>`;
 }
 function parseBiometrics(text) {
   text = String(text || '').trim(); if (!text) return null;
@@ -28187,7 +28332,7 @@ function parseBiometrics(text) {
     const recMap = {};
     const upRec = (date, fields) => { const k = recoveryDayKey(date); if (!k) return; const cur = recMap[k] || { date: recoveryAnchorIso(date) }; for (const f in fields) { if (fields[f] != null && fields[f] !== '') cur[f] = fields[f]; } recMap[k] = cur; };
     sleep.forEach(s => upRec(s.date, { sleepScore: s.score, sleepNote: s.note }));
-    ((!Array.isArray(data) && (data.recovery || data.recoveries)) || []).forEach(r => { if (r && r.date) upRec(r.date, { sleepScore: _recInt(r.sleepScore != null ? r.sleepScore : r.score), sleepNote: r.sleepNote || r.note || '', bodyBattery: _recInt(r.bodyBattery), hrv: _recInt(r.hrv), restingHr: _recInt(r.restingHr), stress: _recInt(r.stress) }); });
+    ((!Array.isArray(data) && (data.recovery || data.recoveries)) || []).forEach(r => { if (r && r.date) upRec(r.date, normRecoveryFields(r)); }); // feat 543 — any vendor's field names
     recovery = Object.keys(recMap).map(k => recMap[k]);
   } else {
     // Tolerant CSV (Garmin weight export): detect columns by header keyword.
@@ -30491,15 +30636,22 @@ function nextSetCoach(varUuid, subUuid) {
     if (!sess[0].rpe) base *= 1.025;
     why.push(`🏋️ Capacity ≈ ${Math.round(base)}${U} e1RM from your last ${Math.min(5, sess.length)} session${sess.length === 1 ? '' : 's'}${sess[0].rpe ? ' (RPE-adjusted)' : ', assuming ~1 rep was left in them'}`);
     const s3 = sess.slice(0, 3);
-    if (s3.length === 3 && s3[0].e > s3[1].e && s3[1].e > s3[2].e) {
+    if (nsOn('trend') && s3.length === 3 && s3[0].e > s3[1].e && s3[1].e > s3[2].e) {
       const g = Math.min(0.03, (s3[0].e - s3[2].e) / 2 / s3[2].e) / 2; base *= 1 + g;
       why.push(`📈 Up three sessions running — +${pct(g)} for the trend`);
     }
     const gap = sess[0].age;
-    if (gap > 14) { const cut = Math.min(0.08, (gap - 14) * 0.003); base *= 1 - cut; why.push(`🗓 ${Math.round(gap)} days since you last did it — −${pct(cut)} for the layoff`); }
+    if (nsOn('trend') && gap > 14) { const cut = Math.min(0.08, (gap - 14) * 0.003); base *= 1 - cut; why.push(`🗓 ${Math.round(gap)} days since you last did it — −${pct(cut)} for the layoff`); }
     const es = sess.slice(0, 5).map(x => x.e), mean = es.reduce((a, b) => a + b, 0) / es.length;
     const cv = Math.sqrt(es.reduce((a, b) => a + (b - mean) * (b - mean), 0) / es.length) / mean;
     sigma = 1.1 + 1.4 / Math.sqrt(sess.length) + Math.min(1.5, cv * 12) + (gap > 21 ? 0.6 : 0);
+  }
+
+  // feat 543 — today's wearable readings shade the capacity you walked in with; today's sets (below) then
+  // overrule it as evidence builds, so a bad-HRV morning that lifts fine stops costing you
+  if (base && nsOn('bio')) {
+    const bio = recoveryNextSetAdjust(recoveryToday(nowMs));
+    if (bio && (bio.p || bio.bonus)) { base *= bio.mul; why.push(...bio.lines); if (bio.illness) sigma += 0.4; }
   }
 
   // 2 + 3. fatigue learned from history, then today's evidence
@@ -30510,9 +30662,9 @@ function nextSetCoach(varUuid, subUuid) {
     const hard = x.e >= est * 0.75;
     if (hard) { nHard++; todayBest = Math.max(todayBest, x.e / (1 - F)); }
     x.h = _nsHardness(x.s, x.e, est) * (hard ? 1 : 0.25);
-    F += D.drop * x.h;
+    F += (nsOn('fatigue') ? D.drop : 0) * x.h;
   });
-  if (nHard && base) {
+  if (nHard && base && nsOn('today')) {
     const k = Math.min(0.75, 0.3 + 0.15 * nHard), before = est;
     est = (1 - k) * est + k * todayBest;
     const d = est / before - 1;
@@ -30528,7 +30680,7 @@ function nextSetCoach(varUuid, subUuid) {
   // 4. rest — collected into restMul (not applied yet) so the card can also preview the ask at full rest
   const last = done[done.length - 1];
   let restMul = 1, restLeft = 0;
-  if (last && setDoneMs(last.s) != null) {
+  if (nsOn('rest') && last && setDoneMs(last.s) != null) {
     const restSec = (nowMs - setDoneMs(last.s)) / 1000, rec = recommendRest(varUuid, subUuid, session, pending);
     if (rec) {
       const recov = 1 - Math.exp(-restSec / (rec.targetSec / 1.6)), pen = 0.06 * Math.min(1.2, last.h) * Math.max(0, 1 - recov / 0.8);
@@ -30540,7 +30692,7 @@ function nextSetCoach(varUuid, subUuid) {
 
   // 5. heart rate
   let hrWait = false;
-  if (typeof _hrConnected !== 'undefined' && _hrConnected && _hrLastBpm > 0 && session && Array.isArray(session.hrSamples) && session.hrSamples.length) {
+  if (nsOn('hr') && typeof _hrConnected !== 'undefined' && _hrConnected && _hrLastBpm > 0 && session && Array.isArray(session.hrSamples) && session.hrSamples.length) {
     const t0 = new Date(session.date).getTime(), S = session.hrSamples;
     const at = ms => { let b = null; for (const p of S) if (Math.abs(p[0] - ms) <= 15000 && (!b || Math.abs(p[0] - ms) < Math.abs(b[0] - ms))) b = p; return b ? b[1] : null; };
     const starts = [];
@@ -30557,18 +30709,18 @@ function nextSetCoach(varUuid, subUuid) {
   }
 
   // 6. recovery / readiness / deload
-  if (!done.length) {
+  if (!done.length && nsOn('recovery')) {
     const rh = exerciseRecoveryHint(varUuid);
     if (rh) { const pen = Math.max(0, 0.85 - rh.readiness) * 0.12; avail *= 1 - pen; why.push(`🩹 ${rh.label} ${rh.pct}% recovered from an earlier session — −${pct(pen)}`); }
     const tr = _nsReadiness();
     if (tr && tr.score < 45) { avail *= 0.98; why.push(`🧭 Readiness ${tr.score}/100 — −2%`); }
   }
-  const meso = mesoCurrentWeek(), deload = !!(meso && meso.phase === 'Deload');
+  const meso = nsOn('deload') ? mesoCurrentWeek() : null, deload = !!(meso && meso.phase === 'Deload');
   if (deload) { avail *= 0.9; why.push('🌙 Deload week — 10% lighter, 2 more reps in reserve'); }
   const availRested = avail; avail *= restMul;
 
   // 7. the ask
-  const plan = getActivePlan(), si = plan ? planStepForVar(session, plan, varUuid) : -1, step = si >= 0 ? plan.steps[si] : null;
+  const plan = nsOn('plan') ? getActivePlan() : null, si = plan ? planStepForVar(session, plan, varUuid) : -1, step = si >= 0 ? plan.steps[si] : null;
   let lo, hi, src;
   if (step && NS_RANGES[step.load]) { [lo, hi] = NS_RANGES[step.load]; src = step.load + ' plan step'; }
   else {
@@ -30629,7 +30781,7 @@ function nextSetCoach(varUuid, subUuid) {
       const steps = lastW ? Math.abs(w - lastW) / progLoadStep(varUuid, Math.min(w, lastW)) : 0;
       const score = -0.5 * Math.abs(pm - r - rir) - 2.5 * Math.max(0, 0.7 - odds) - (below ? 0.35 * below - 0.2 : inRange ? 0 : 1)
         - (below ? 0 : 0.15 * Math.abs(r - mid) / Math.max(1, hi - lo)) - steps * (last ? 0.25 : 0.1)
-        + (beats.length ? 0.1 : 0) + 0.02 * e / av;
+        + (beats.length && nsOn('records') ? 0.1 : 0) + 0.02 * e / av;
       if (!best || score > best.score) best = { w, r, pm, odds, score, beats };
     };
     cand.forEach(w => { if (w > 0) tryW(w, !pickedW); });   // a weight you picked is never capped to the window
@@ -30638,6 +30790,8 @@ function nextSetCoach(varUuid, subUuid) {
   const best = choose(avail); if (!best) return null;
   const restedPick = restMul < 0.997 ? choose(availRested) : null;
   if (hrWait) why.push('⏳ Give it 30-60 s more and this ask gets easier');
+  const off = NS_FACTORS.filter(([k]) => !nsOn(k)).map(([, l]) => l);
+  if (off.length) why.push('⚙ Switched off: ' + off.join(' · '));
   return { w: best.w, r: best.r, odds: Math.round(best.odds * 100), rir: Math.max(0, Math.round((best.pm - best.r) * 2) / 2),
     lo, hi, beats: best.beats, why, avail: Math.round(avail), sigma: Math.round(sigma * 10) / 10, learnedDrop: D.learned ? D.drop : null,
     picked: !!pickedW, rirTarget: rir,
@@ -30656,7 +30810,8 @@ function nextSetInnerHtml() {
     <button type="button" class="ns-why-btn" data-ns-why aria-expanded="${_nsOpen}">${_nsOpen ? 'why ▴' : 'why ▾'}</button></div>
     ${R ? `<div class="ns-rest">⏱ At full rest${R.inSec > 0 ? ` (in ${formatDuration(R.inSec)})` : R.hr ? ' (once your HR settles)' : ''}: <b>${F(R.w, R.r)}</b> · ${R.odds}%${restSame ? ' — same ask, better odds' : ''}</div>` : ''}
     ${c.beats.length ? `<div class="ns-beats">🏅 Would beat your ${escapeHtml(c.beats.join(' and '))}</div>` : ''}
-    ${_nsOpen ? `<ul class="ns-why">${c.why.map(x => `<li>${escapeHtml(x)}</li>`).join('')}<li>🚀 Feeling good? ${F(c.stretch.w, c.stretch.r)} is ${c.stretch.odds}%</li></ul>` : ''}`;
+    ${_nsOpen ? `<ul class="ns-why">${c.why.map(x => `<li>${escapeHtml(x)}</li>`).join('')}<li>🚀 Feeling good? ${F(c.stretch.w, c.stretch.r)} is ${c.stretch.odds}%</li></ul>
+      <div class="ns-f-head">Factors — tap to switch one off</div>${nsFactorChipsHtml()}` : ''}`;
 }
 function nextSetCardHtml() {
   if (modalState.isEditing || !pending.varUuid || pending.cardio) return '';
@@ -31589,6 +31744,7 @@ function bindSetsForm() {
   document.getElementById('trk-nextset')?.addEventListener('click', e => { // feat 538
     const u = e.target.closest('[data-ns-use]'); if (u) { prefillTargetWeight(parseFloat(u.dataset.nsUse)); return; }
     if (e.target.closest('[data-ns-why]')) { _nsOpen = !_nsOpen; e.currentTarget.innerHTML = nextSetInnerHtml(); }
+    const f = e.target.closest('[data-ns-factor]'); if (f) { nsToggleFactor(f.dataset.nsFactor); e.currentTarget.innerHTML = nextSetInnerHtml(); } // feat 543
   });
   document.getElementById('trk-targets-toggle')?.addEventListener('click', () => { // feat 478
     _tgtCollapsed = !_tgtCollapsed; _tgtPinned = true; renderModal();
@@ -32371,7 +32527,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 456 · 2026-11-04 19:11';
+const APP_BUILD = 'build 457 · 2026-11-05 07:31';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
