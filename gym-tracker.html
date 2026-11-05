@@ -1587,7 +1587,14 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .pud-tgl { flex: 1; display: flex; align-items: center; gap: 7px; padding: 9px 11px; border: 1px solid var(--border2); border-radius: 9px; background: var(--bg3); font-size: 12.5px; font-weight: 600; color: var(--text2); cursor: pointer; }
   .pud-tgl input { accent-color: var(--accent); width: 16px; height: 16px; }
   .pud-tgl:has(input:checked) { border-color: var(--accent); color: var(--text); background: var(--accent-bg); }
-  .pud-seg { display: flex; gap: 6px; margin-bottom: 16px; }
+  .pud-seg { display: flex; gap: 4px; margin-bottom: 10px; }
+  .pud-seg button .pud-eta { font-size: 9.5px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text3); }
+  .pud-by { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; }
+  .pud-by-lbl { font-size: 11px; font-weight: 700; color: var(--text2); margin-right: 2px; }
+  .pud-by input[type=time] { padding: 4px 6px; font: inherit; font-size: 12px; border-radius: 7px; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); }
+  .pud-pick { font-size: 12.5px; color: var(--text); margin-bottom: 4px; min-height: 18px; }
+  .pud-pick.over { color: var(--warn); }
+  .pud-pace { font-size: 10.5px; color: var(--text3); margin-bottom: 14px; }
   .pud-seg button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 9px 4px; border: 1px solid var(--border2); border-radius: 9px; background: var(--bg3); color: var(--text2); font-family: inherit; cursor: pointer; }
   .pud-seg button b { font-size: 15px; }
   .pud-seg button span { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
@@ -19795,6 +19802,30 @@ function renderPlanDetailPage(main) {
   main.innerHTML = `<div class="card"><div class="card-title">No plan to show</div><div style="color:var(--text3);font-size:13px;line-height:1.5;">Start a workout and pick a plan (Train › Execute › Workout, then “Use a plan”) — the live plan guide appears here, and the workout tab keeps a compact summary strip.</div></div>`;
 }
 function closePlansOverlay() { _plansExecId = null; _plansExecSessionDate = null; _plansRevView = false; if (currentPage === 'plan-creator' || currentPage === 'plan-detail') navBack(); } // feat 184 — overlay retired; Back leaves the page
+/* feat 546 — how long a plan will take YOU. Minutes per set comes from your own finished workouts (median of
+   duration ÷ sets over the last 15 with 6+ sets — it already includes rest, setup and walking between
+   stations); until there are 3 of them it falls back to 2.5 min a set plus a minute per exercise change.
+   Volume scaling applies to the main steps; the warm-up / cool-down bookends are added on top unscaled,
+   exactly as getActivePlan runs them. */
+function planPace() {
+  const per = (state.sessions || []).filter(s => s.endedAt).slice().sort((a, b) => new Date(b.date) - new Date(a.date)).map(s => {
+    const sets = (s.exercises || []).reduce((n, e) => n + ((e.sets && e.sets.length) || 0), 0), min = (new Date(s.endedAt) - new Date(s.date)) / 60000;
+    return sets >= 6 && min >= 10 && min <= 240 ? min / sets : null; }).filter(x => x != null).slice(0, 15).sort((a, b) => a - b);
+  if (per.length < 3) return { perSet: 2.5, perStep: 1, personal: false, n: per.length };
+  const m = per.length >> 1;
+  return { perSet: per.length % 2 ? per[m] : (per[m - 1] + per[m]) / 2, perStep: 0, personal: true, n: per.length };
+}
+function planEtaMinutes(plan, scale, bookends, pace) {
+  pace = pace || planPace();
+  let p = _scalePlan(plan, scale);
+  if (bookends && (bookends.warmup || bookends.cooldown)) p = _withBookends(p, bookends);
+  return Math.round(planTotalSets(p) * pace.perSet + (p.steps || []).length * pace.perStep);
+}
+// the biggest volume that still finishes by `targetMin` from now (the smallest one, flagged, if none fit)
+function planScaleForTime(plan, scales, targetMin, bookends, pace) {
+  const fits = scales.filter(v => planEtaMinutes(plan, v, bookends, pace) <= targetMin);
+  return fits.length ? { scale: Math.max(...fits), fits: true } : { scale: Math.min(...scales), fits: false };
+}
 // feat 398 — a confirmation sheet shown when you tap "Use": pick warm-up / cool-down and the volume (½ / normal / 2×).
 // Resolves to { warmup, cooldown, scale } or null if cancelled.
 function planUseDialog(plan) {
@@ -19802,7 +19833,8 @@ function planUseDialog(plan) {
   return new Promise(resolve => {
     const back = document.createElement('div'); back.className = 'choice-backdrop';
     const sheet = document.createElement('div'); sheet.className = 'choice-sheet';
-    const scales = [[0.5, '½×', '50%'], [0.75, '¾×', '75%'], [1, '1×', '100%'], [1.25, '1¼×', '125%'], [1.75, '1¾×', '175%'], [2, '2×', '200%']]; // feat 426 — quarter steps added
+    const scales = [[0.5, '½×', '50%'], [0.75, '¾×', '75%'], [1, '1×', '100%'], [1.25, '1¼×', '125%'], [1.5, '1½×', '150%'], [1.75, '1¾×', '175%'], [2, '2×', '200%']]; // feat 426 — quarter steps · feat 546 — 1½× was missing
+    const pace = planPace(), clock = m => new Date(Date.now() + m * 60000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     sheet.innerHTML = `<div class="choice-title">Start “${escapeHtml(plan.name)}”</div>
       <div class="choice-msg">Add a warm-up / cool-down and choose the volume for this session.</div>
       <div class="pud-tgls">
@@ -19810,17 +19842,51 @@ function planUseDialog(plan) {
         <label class="pud-tgl"><input type="checkbox" id="pud-cooldown" ${def.cooldown ? 'checked' : ''}> <span>🧊 Cool-down</span></label>
       </div>
       <div class="pud-seg" id="pud-scale" role="group" aria-label="Volume">
-        ${scales.map(([v, big, lbl]) => `<button type="button" class="${v === 1 ? 'active' : ''}" data-scale="${v}"><b>${big}</b><span>${lbl}</span></button>`).join('')}
+        ${scales.map(([v, big, lbl]) => `<button type="button" class="${v === 1 ? 'active' : ''}" data-scale="${v}"><b>${big}</b><span>${lbl}</span><span class="pud-eta" data-eta="${v}"></span></button>`).join('')}
       </div>
+      <div class="pud-by">
+        <span class="pud-by-lbl">⏱ Finish by</span>
+        ${[30, 45, 60, 75, 90].map(m => `<button type="button" class="drawer-pill" data-pud-min="${m}">${m} min</button>`).join('')}
+        <input type="time" id="pud-by-time" aria-label="Finish by (clock time)">
+      </div>
+      <div class="pud-pick" id="pud-pick"></div>
+      <div class="pud-pace">${pace.personal ? `Timed at your pace: ${pace.perSet.toFixed(1)} min a set (from your last ${pace.n} workouts)` : 'Timed at 2.5 min a set until you have 3 timed workouts of your own'}</div>
       <div class="choice-actions"><button class="choice-btn primary" data-pud="ok">Start workout</button><button class="choice-btn" data-pud="cancel">Cancel</button></div>`;
-    let scale = 1, done = false;
+    let scale = 1, done = false, target = null;
     const finish = (val) => { if (done) return; done = true; back.classList.remove('open'); setTimeout(() => back.remove(), 200); resolve(val); };
+    const bookends = () => ({ warmup: sheet.querySelector('#pud-warmup').checked, cooldown: sheet.querySelector('#pud-cooldown').checked });
+    const setScale = v => { scale = v; sheet.querySelectorAll('#pud-scale button').forEach(x => x.classList.toggle('active', parseFloat(x.dataset.scale) === v)); };
+    // feat 546 — every volume shows how long it takes you and when you'd finish; a "finish by" picks the volume
+    const refresh = () => {
+      const be = bookends();
+      scales.forEach(([v]) => { const m = planEtaMinutes(plan, v, be, pace), el = sheet.querySelector(`[data-eta="${v}"]`); if (el) el.textContent = '~' + m + 'm'; });
+      const pick = sheet.querySelector('#pud-pick');
+      if (target == null) { const m = planEtaMinutes(plan, scale, be, pace); pick.innerHTML = `~${m} min · done about <b>${clock(m)}</b>`; return; }
+      const r = planScaleForTime(plan, scales.map(x => x[0]), target, be, pace); setScale(r.scale);
+      const m = planEtaMinutes(plan, r.scale, be, pace);
+      pick.innerHTML = r.fits ? `🎯 <b>${r.scale}×</b> fits — ~${m} min, done about <b>${clock(m)}</b> (${target - m} min spare)`
+        : `⚠️ Even ½× takes ~${m} min (done ${clock(m)}) — ${m - target} min over. Drop the warm-up / cool-down or pick another plan.`;
+      pick.classList.toggle('over', !r.fits);
+    };
     sheet.querySelectorAll('#pud-scale button').forEach(b => b.addEventListener('click', () => {
-      scale = parseFloat(b.dataset.scale);
-      sheet.querySelectorAll('#pud-scale button').forEach(x => x.classList.toggle('active', x === b));
+      target = null; sheet.querySelectorAll('[data-pud-min]').forEach(x => x.classList.remove('active')); sheet.querySelector('#pud-by-time').value = '';
+      setScale(parseFloat(b.dataset.scale)); refresh();
     }));
+    sheet.querySelectorAll('[data-pud-min]').forEach(b => b.addEventListener('click', () => {
+      target = +b.dataset.pudMin; sheet.querySelector('#pud-by-time').value = '';
+      sheet.querySelectorAll('[data-pud-min]').forEach(x => x.classList.toggle('active', x === b)); refresh();
+    }));
+    sheet.querySelector('#pud-by-time').addEventListener('change', e => {
+      const [h, mi] = String(e.target.value).split(':').map(Number); if (!isFinite(h)) { target = null; refresh(); return; }
+      const t = new Date(); t.setHours(h, mi || 0, 0, 0); if (t.getTime() < Date.now()) t.setDate(t.getDate() + 1);   // a time already past = tomorrow
+      target = Math.round((t - Date.now()) / 60000);
+      sheet.querySelectorAll('[data-pud-min]').forEach(x => x.classList.remove('active')); refresh();
+    });
+    ['#pud-warmup', '#pud-cooldown'].forEach(id => sheet.querySelector(id).addEventListener('change', refresh));
+    refresh();
     sheet.querySelector('[data-pud="ok"]').addEventListener('click', () => finish({
       warmup: sheet.querySelector('#pud-warmup').checked, cooldown: sheet.querySelector('#pud-cooldown').checked, scale,
+      etaMin: planEtaMinutes(plan, scale, bookends(), pace), // feat 546
     }));
     sheet.querySelector('[data-pud="cancel"]').addEventListener('click', () => finish(null));
     back.appendChild(sheet);
@@ -32787,7 +32853,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 458 · 2026-11-05 11:53';
+const APP_BUILD = 'build 459 · 2026-11-05 12:15';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

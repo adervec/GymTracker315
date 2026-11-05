@@ -2665,6 +2665,15 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Use-plan sheet: 1½×, timed at your pace, finish-by picks the volume (feat 546):** 1½× joins the volume
+  list (it was ½ ¾ 1 1¼ 1¾ 2). Each volume button shows its duration from `planEtaMinutes`: sets after
+  scaling (bookends added unscaled, as `getActivePlan` runs them) × `planPace()`, which is your median minutes
+  per set over your last 15 finished workouts with 6+ sets. That figure already includes rest and moving
+  between stations; until there are 3 such workouts it uses 2.5 min a set plus 1 min per exercise. A "⏱ Finish
+  by" row (30-90 min chips, or a clock time; a time already past means tomorrow) runs `planScaleForTime`, the
+  biggest volume whose ETA fits, and says "1.5× fits — ~48 min, done about 7:42 (2 min spare)", or how far
+  over even ½× runs. Tapping a volume clears the target; toggling warm-up / cool-down re-times everything.
+  `test/planeta.spec.mjs`.
 - **Summaries at three resolutions + the agent's write-up of each (feat 545):** Reflect › Summary gains a
   Week / Month / Quarter switch. A week keeps its feat-284 card; a month or quarter (`periodRange`: the last
   complete calendar month / quarter, keyed `2026-10` / `2026-Q3`) gets `periodCardHtml`. That card shows, from

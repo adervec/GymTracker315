@@ -156,7 +156,7 @@ test('feat 426 — quarter-step volume scales (¾× / 1¼× / 1¾×) in the dial
     return { buttons: await buttons, x075: await open(0.75), x125: await open(1.25), x175: await open(1.75),
       scale175: getActiveSession().planScale };
   });
-  expect(r.buttons).toEqual([0.5, 0.75, 1, 1.25, 1.75, 2]);
+  expect(r.buttons).toEqual([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]); // feat 546 — 1½× added
   expect(r.x075).toEqual([3, 2]);   // round(4×.75)=3, round(3×.75)=2
   expect(r.x125).toEqual([5, 4]);   // round(5)=5, round(3.75)=4
   expect(r.x175).toEqual([7, 5]);   // round(7)=7, round(5.25)=5
