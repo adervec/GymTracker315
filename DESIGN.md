@@ -2665,6 +2665,24 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The holds pass (feat 548):** two halves. (1) `exMode` under-detected holds. It only knew hang / hold / plank /
+  L-sit / wall sit / isometric, so 46 exercises that are held logged reps. Those were the whole `static-stretch`
+  family, most of `iso-poses` (Boat, Chair, Tree, Horse Stance, Standing Post), V-Sit, the plate pinch, the
+  sleeper / TRX / ball stretches, the Olympic wall squats and the wrestler's bridge. The two held-pose
+  families now time everything, and the title test adds stretch / pose / V-sit / splits. Flows done for reps
+  stay reps: Cat-Cow, Thread the Needle, World's Greatest Stretch, the pilates Single-Leg Stretch. An L-Sit
+  Pull-Up, which the old rule called a hold, is reps again. (2) `HOLD_ROWS`, 39 holds that were missing
+  outright (slots 0x3B9-0x3DF, next free 0x3E0):
+  - planks: RKC, high, long-lever, weighted, star side, short-lever Copenhagen;
+  - dead bug and bird dog holds;
+  - calisthenics: straddle L-sit, frog stand, tripod headstand, chest-to-wall handstand, tucked hollow;
+  - hangs: active, one-arm and towel hangs, the 90° chin-up hold;
+  - upper-body isometrics: push-up bottom and bottom-of-dip holds, lateral raise, prone Y, shrug top;
+  - lower-body isometrics: Spanish squat, single-leg wall sit, goblet squat, sissy squat, hip-thrust top,
+    single-leg bridge, single-leg calf raise, long-lever bridge;
+  - yoga and splits: Warrior I / III, Half Moon, Camel, Bow, Garland, pancake, front and middle splits.
+
+  Timed exercises: 94 → 179. `test/holdspass.spec.mjs`.
 - **The S-rank set on the next-set card (feat 547):** under the ask, "S set: 95kg × 11 · 50%" is the cheapest set
   that would make the exercise an S. That is a new e1RM best above every previous session's top set, the same
   rule `scoreExerciseVsPrior` grades by. For each candidate weight (your used weights, or the one you typed)
