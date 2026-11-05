@@ -2665,6 +2665,33 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Summaries at three resolutions + the agent's write-up of each (feat 545):** Reflect › Summary gains a
+  Week / Month / Quarter switch. A week keeps its feat-284 card; a month or quarter (`periodRange`: the last
+  complete calendar month / quarter, keyed `2026-10` / `2026-Q3`) gets `periodCardHtml`. That card shows, from
+  `periodAgg`, sessions / sets / volume and the change in sessions, the average session grade, the biggest
+  e1RM gain and drop, the most-trained body part, cardio, and the average weight vs the period before with
+  body fat and weigh-in count. An eighth cowork channel, `summary-review` (after `workout-review`, told to run
+  last of all), asks for up to 3 weeks, 2 months and 1 quarter that have no write-up or whose sessions /
+  weigh-ins changed since (`periodHash`). Each comes as a `periodDigest` with the same aggregates, lifts vs
+  the previous period, body averages vs the previous period (a week also vs four weeks back) and the goal
+  weight, recovery averages, and for a week its grade breakdown, bullets and workouts with their review
+  titles. A month or quarter also lists the weeks inside it, plus, for a quarter, the month write-up titles.
+  The instructions scale the scope with the resolution (week ≈ execution, month ≈ the trend across its weeks,
+  quarter ≈ the block: recomposition, plateaus, goal progress) and the length (200-400 / 300-500 / 400-700
+  words). `coworkImportSummaryReview` stores them in `state.periodReviews["week:… | month:… | quarter:…"]`,
+  merged per key across devices, and each card shows its "🤖 Coach's week / month / quarter" collapsible,
+  marked "changed since" when the period's data moves. `test/summaryreview.spec.mjs`.
+- **Workout review in the Log (feat 544):** a seventh cowork channel, `workout-review`, declared LAST in
+  `COWORK_CHANNELS` so a hub walking the manifest (and the app's own inbox poll) handles it after Garmin,
+  Strava and log-review, and its INSTRUCTIONS.md says to wait for those. `reviewContext` sends up to 5
+  finished workouts from the last 14 days that have no review, or whose sets changed since one
+  (`sessionSetsHash`). Each comes as a `reviewSessionDigest` built with the app's own numbers: grade / points,
+  plan completion, duration, split, gym, HR, sleep and that day's recovery, the user's notes, and per exercise
+  every set, its grade and verdict, and last time's top set. A compact list of the last 12 workouts gives the
+  trend. The agent replies with a 150-300 word `note` plus 0-4 highlights / concerns / next-time items per
+  workout. `coworkImportReview` stores it as `session.coworkReview` (clipped, touched so it syncs) and
+  `sessionReviewHtml` shows it in the Log as a collapsible "🤖 Workout review" under the card, escaped
+  throughout, marked "edited since" once the sets change. `test/coworkreview.spec.mjs`.
 - **Wearable recovery metrics + switchable next-set factors (feat 543):** `RECOVERY_METRICS` is the one table
   for HRV, resting HR, sleep score, sleep minutes, readiness (Garmin Training Readiness / Whoop Recovery / Oura
   Readiness / Suunto Resources), Body Battery, stress, strain (Whoop / Garmin load / TSS), respiration, SpO₂,

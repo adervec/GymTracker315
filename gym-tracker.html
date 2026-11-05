@@ -3226,6 +3226,14 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .wgt-k-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text2); }
 .wgt-k-line { width: 14px; height: 2px; background: var(--accent); margin-left: 8px; }
 .wgt-list { margin: 6px 0 0; padding-left: 18px; font-size: 11.5px; color: var(--text2); display: flex; flex-direction: column; gap: 3px; }
+/* feat 544 — the cowork workout review in the Log */
+.cw-review { margin-top: 8px; border: 1px solid var(--border2); border-radius: 8px; padding: 6px 10px; background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.cw-review summary { font-size: 12px; font-weight: 700; color: var(--accent); cursor: pointer; }
+.cw-review.wk { margin-top: 10px; }
+.sum-res { display: flex; gap: 4px; margin: 6px 0 8px; }
+.cwr-text { font-size: 12.5px; line-height: 1.55; color: var(--text); white-space: pre-line; margin: 8px 0 4px; }
+.cwr-list { margin: 4px 0; padding-left: 2px; list-style: none; font-size: 12px; line-height: 1.5; color: var(--text2); }
+.cwr-meta, .cwr-stale { font-size: 10.5px; color: var(--text3); font-weight: 400; }
 /* feat 543 — wearable trends + next-set factor switches */
 .rcv-trends { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 10px; }
 .rcv-trend { display: grid; grid-template-columns: minmax(96px, 1fr) 90px minmax(0, 1.3fr); align-items: center; gap: 8px; font-size: 12px; }
@@ -7405,7 +7413,7 @@ const DEVICE_LOCAL_KEYS = new Set(['theme','sound','metronome','annunciation','t
 // User-data collections merged per-record below (so the coarse savedAt race can't block them).
 const SYNC_COLLECTION_KEYS = new Set(['plans','bodyComp','stravaActivities','customVariations','gyms','seededPlanIds',
   'exerciseMedia','exerciseSetup','cardioGoals','favoritePlans','favoriteVars','hiddenVars','hiddenMovements',
-  'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod','logReview']); // feat 513 — logReview syncs per entry
+  'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod','logReview','periodReviews']); // feat 513 — logReview syncs per entry · feat 545 periodReviews per period
 // Beyond DEVICE_LOCAL_KEYS, these top-level slices are connection/identity that must never be pushed to the cloud.
 const NEVER_SYNC_EXTRA = ['cloudSync','coworkLocal','deviceId','lastSettingAnchor','aiApi','backupLocal']; // feat 459 — the Anthropic key stays on the device that entered it; feat 465 — "when did I last export" is per-device
 // The object actually written to the cloud file: everything EXCEPT device-local + connection/identity state.
@@ -7496,7 +7504,7 @@ function applyImport(data, mode) {
   state.analysisRequests = mergeKeyedArray(state.analysisRequests, data.analysisRequests, r => r && r.id, (inc, cur) => ((inc && inc.updatedAt) || '') >= ((cur && cur.updatedAt) || ''));
   if ('seededPlanIds' in data) state.seededPlanIds = mergeIdSet(state.seededPlanIds, data.seededPlanIds);
   ['exerciseMedia','exerciseSetup','cardioGoals','favoritePlans','favoriteVars','hiddenVars','hiddenMovements',
-   'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod','logReview'].forEach(k => { if (k in data) state[k] = mergeMap(state[k], data[k]); });
+   'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod','logReview','periodReviews'].forEach(k => { if (k in data) state[k] = mergeMap(state[k], data[k]); });
   applyKeyedTombstones(state, 'plans', 'deletedPlans', data, p => p && p.id, planEditTs);
   applyKeyedTombstones(state, 'bodyComp', 'deletedBody', data, bodyDayKey, b => (b && b.updatedAt) || '');
   state.archetypeHistory = mergeKeyedArray(state.archetypeHistory, data.archetypeHistory, h => h && h.at, () => true) // feat 338 — union by timestamp
@@ -7646,6 +7654,8 @@ const COWORK_CHANNELS = [
   { key: 'analysis', dir: 'analysis',              replyKind: 'analysis-output', request: ['context.json'] },
   { key: 'logreview', dir: 'log-review',           replyKind: 'log-review-output', request: ['context.json'] }, // feat 513
   { key: 'gyms',     dir: 'gym-directory',         replyKind: 'gym-directory-output', request: ['context.json'] }, // feat 539
+  { key: 'review',   dir: 'workout-review',        replyKind: 'workout-review-output', request: ['context.json'] }, // feat 544 — LAST: it reads what the others synced
+  { key: 'summaries', dir: 'summary-review',       replyKind: 'summary-review-output', request: ['context.json'] }, // feat 545 — after the workout reviews it can cite
 ];
 const COWORK_DIRS = COWORK_CHANNELS.map(c => c.dir);
 const coworkChannelByDir = (dir) => COWORK_CHANNELS.find(c => c.dir === dir) || null;
@@ -7920,6 +7930,7 @@ function normalizeState() {
   if (!Array.isArray(state.gymMemberships)) state.gymMemberships = []; // feat 539
   if (!Array.isArray(state.analysisRequests)) state.analysisRequests = []; // feat 450 — cowork analysis-request queue
   if (!state.logReview || typeof state.logReview !== 'object' || Array.isArray(state.logReview)) state.logReview = {}; // feat 513
+  if (!state.periodReviews || typeof state.periodReviews !== 'object' || Array.isArray(state.periodReviews)) state.periodReviews = {}; // feat 545
   if (!state.hiddenVars || typeof state.hiddenVars !== 'object') state.hiddenVars = {};
   if (!state.hiddenMovements || typeof state.hiddenMovements !== 'object') state.hiddenMovements = {};
   if (state.glossaryHighlight === undefined) state.glossaryHighlight = true;
@@ -9248,6 +9259,8 @@ function buildChannelContext(channel) {
     return { requests, diagnostics: safe(() => diagnosticsTrail(), null) }; // feat 514 — evidence for questions about the app itself
   }
   if (channel === 'gyms') return gymDirectoryContext(); // feat 539
+  if (channel === 'review') return reviewContext(); // feat 544
+  if (channel === 'summaries') return summaryReviewContext(); // feat 545
   if (channel === 'logreview') {
     // feat 513 — the sets the app flagged as possible typos, each with that lift's recent history so the agent can
     // tell a slipped decimal from a genuine PR by context rather than by the number alone
@@ -9282,6 +9295,10 @@ function buildInstructionsMd(channel) {
 `## kind: \`garmin-output\`\nFill in biometrics, sleep + daily recovery from Garmin. Payload (matches the app's importer):\n\n\`\`\`json\n{ "bodyComp": [ { "date": "YYYY-MM-DD", "weightKg": 81.2, "bodyFatPct": 18.4, "muscleMassKg": 34.1, "bodyWaterPct": 55.1 } ],\n  "sleep": [ { "date": "YYYY-MM-DD", "score": 78, "note": "7h12m" } ],\n  "recovery": [ { "date": "YYYY-MM-DD", "sleepScore": 78, "sleepNote": "7h12m", "bodyBattery": 72, "hrv": 64, "restingHr": 52, "stress": 28 } ] }\n\`\`\`\n\n- \`context.json\` lists recent bodyComp dates, the session dates still lacking sleep, and \`lastRecoveryDate\` — backfill \`recovery\` for EVERY day since then (rest days too), not just workout days.\n- Body composition is merged by calendar day; \`sleep\` is matched to the workout that day; \`recovery\` is kept as a standalone daily log (sleep + body battery / HRV / resting HR / stress).\n- **Every recovery field (any wearable, not only Garmin)** — fill what the source has, omit the rest: ${RECOVERY_METRICS.map(m => '\`' + m.key + '\` (' + m.src + ')').join('; ')}. Also accepted: \`source\` (e.g. "whoop") and vendor names such as ${RECOVERY_METRICS.filter(m => m.aliases.length).map(m => '\`' + m.aliases[0] + '\`').join(', ')}.\n- Date each night by the morning you woke up; strain/load by the day it was accrued. These feed the next-set coach against the user's own 28-day baseline, so consistent units matter more than completeness.\n`;
   if (channel === 'strava') return head +
 `## kind: \`strava-output\`\nProvide Strava activities so the app can link them to workouts and insert orphan cardio. Payload:\n\n\`\`\`json\n{ "activities": [ { "id": "123", "name": "Evening Run", "sport_type": "Run", "start_date": "ISO", "elapsed_time": 2400, "distance": 6000, "average_heartrate": 150, "calories": 480 } ] }\n\`\`\`\n\n- The app time-matches each activity to a workout (±${(typeof STRAVA_MATCH_WINDOW_MIN !== 'undefined' ? STRAVA_MATCH_WINDOW_MIN : 120)} min) and backfills HR/calories/duration; **the logged sets/reps stay the master data**.\n- Activities with no matching workout (e.g. outdoor runs) are inserted into History as cardio.\n- \`context.json\` has the current activities + reconciliation buckets (linked / proposed / gymOnly / stravaOnly).\n`;
+  if (channel === 'summaries') return head + // feat 545
+`## kind: \`summary-review-output\`\n**Do this channel last of all** — after every other channel's reply (including \`workout-review\`) has been written and imported, so each period is judged on synced recovery, HR, corrected sets and the per-workout reviews.\n\n\`context.json\` → \`due\` holds complete periods at three resolutions: \`week\` (Mon–Sun), \`month\` and \`quarter\`. For each, write a coach's read of **both training and body composition** — ${Object.keys(PERIOD_KINDS).map(k => k + ' about ' + PERIOD_KINDS[k].words + ' words').join(', ')}:\n- training: what the sessions added up to (sessions, sets, volume, \`avgGrade\`; for a week its \`gradeParts\`, \`highlights\` / \`lowlights\`), the lifts that moved (\`lifts[].best\` vs \`previous\`), the balance of \`setsByBodyPart\`, cardio;\n- body: the period's averages (weight, body fat, muscle mass, waist, \`firstWeightKg\` → \`lastWeightKg\`) vs \`previousPeriod\` (a week also has \`fourWeeksBack\`) and vs \`goalWeightKg\` — say plainly when there are too few weigh-ins to read a trend;\n- how they fit: strength up while weight drops (a good cut), weight up without strength (eating past the goal), recovery averages explaining a flat stretch;\n- **zoom out with the resolution:** a week is about execution; a month about the trend across its \`weeks\`; a quarter about the block as a whole — recomposition, plateaus, consistency, goal progress — using its \`weeks\` and the month write-up titles in \`months\`;\n- the focus for the next period: two or three concrete things.\n\nUse only numbers in \`context.json\` or \`../app-export.json\` — never invent one. Plain text, short paragraphs (newlines are kept), no markdown headings. Payload:\n\n\`\`\`json\n{ "summaries": [ { "period": "week | month | quarter", "key": "<due[].key, verbatim>", "title": "≤ 8 words", "note": "the write-up", "training": ["…"], "body": ["…"], "focus": ["…"] } ] }\n\`\`\`\n\n- \`training\` / \`body\` / \`focus\`: 0-4 short items each. A period whose sessions or weigh-ins change after its write-up comes back in \`due\`. With nothing due, reply \`{ "summaries": [] }\`.\n`;
+  if (channel === 'review') return head + // feat 544
+`## kind: \`workout-review-output\`\n**Do this channel LAST in the sweep** — after the Garmin, Strava and log-review replies have been written and imported — so the review sees the freshly synced recovery, heart rate and corrected sets. If they are still pending, re-read \`../app-export.json\` once they land.\n\nFor every workout in \`context.json\` → \`due\`, write one review in **moderate detail (about 150-300 words)**:\n- how it went overall: grade, plan completion, duration — and against the trend in \`recent\`;\n- the exercises that matter: progress or regression vs \`lastTime\`, rep drop-off across sets, supersets;\n- why: connect it to \`recovery\` / \`sleep\` (HRV, resting HR, readiness…), heart rate, rest, notes and injuries, and the gap since the last similar session;\n- next time: concrete loads, reps or tweaks.\n\nUse only numbers present in \`context.json\` or \`../app-export.json\` — never invent one. Plain text, short paragraphs (newlines are kept), no markdown headings. Payload:\n\n\`\`\`json\n{ "reviews": [ { "id": "<due[].id, verbatim>", "title": "≤ 8 words", "note": "the review", "highlights": ["…"], "concerns": ["…"], "nextTime": ["…"] } ] }\n\`\`\`\n\n- \`highlights\` / \`concerns\` / \`nextTime\`: 0-4 short items each. A workout edited after its review comes back in \`due\`; review it again. With nothing due, reply \`{ "reviews": [] }\`.\n`;
   if (channel === 'gyms') return head + // feat 539
 `## kind: \`gym-directory-output\`\nList the locations of every gym chain in \`context.json\` → \`memberships\`, looked up on **Google Maps** (Places search, or the Maps website). Payload:\n\n\`\`\`json\n{ "gyms": [ { "chain": "GoodLife Fitness", "name": "GoodLife Fitness Barrie Bayfield", "address": "320 Bayfield St, Barrie, ON", "lat": 44.4089, "lng": -79.6870, "placeId": "ChIJ…", "mapsUrl": "https://www.google.com/maps/place/?q=place_id:ChIJ…" } ] }\n\`\`\`\n\n- \`chain\` must be the membership's chain name as written in \`context.json\`; gyms of any other chain are ignored.\n- \`scope: "all"\` = every location of that chain in the country of \`home\`; \`scope: "near"\` = only those within \`radiusKm\` of \`home\`.\n- \`lat\`/\`lng\` are required (decimal degrees). Include \`placeId\` whenever Maps gives one: it is how a re-run updates a club instead of duplicating it.\n- \`knownGyms\` is what the app already has — still return those clubs (they are matched and updated), just don't invent new ones.\n- Skip clubs Maps marks permanently closed. With no memberships, reply \`{ "gyms": [] }\`.\n`;
   if (channel === 'logreview') return head +
@@ -9920,12 +9937,244 @@ function coworkImportAnalysis(payload) {
   return { handled: true, kind: 'analysis', answered };
 }
 // Route a parsed envelope to its importer. pod-output is handled once Phase 4 defines coworkImportPlanOfDay.
+/* ============================================================
+   feat 544 — WORKOUT REVIEW (cowork channel `workout-review`). After the hub has synced everything else this
+   sweep (Garmin recovery, Strava HR/calories, log fixes), the agent writes a moderate-detail analysis of each
+   recent finished workout: what went well, what didn't and why (sleep, rest, HR, plan), and what to do next
+   time. It lands on the session as `coworkReview` (synced with the session) and shows in the Log under that
+   workout. A workout is asked about again only if its sets change after it was reviewed (`setsHash`).
+   ============================================================ */
+const REVIEW_DAYS = 14, REVIEW_MAX = 5;
+function sessionSetsHash(s) {
+  return coworkHashText(JSON.stringify((s.exercises || []).map(e => [e.varUuid, e.subUuid || null, (e.sets || []).map(x => [x.w, x.r, x.rpe || null]), e.cardio ? 1 : 0])));
+}
+function reviewDue(s) {
+  if (!s || !s.endedAt || !(s.exercises || []).some(e => (e.sets && e.sets.length) || e.cardio)) return false;
+  if (Date.now() - new Date(s.date).getTime() > REVIEW_DAYS * 864e5) return false;
+  return !s.coworkReview || s.coworkReview.setsHash !== sessionSetsHash(s);
+}
+// one finished workout, summarised with the app's own numbers so the agent analyses rather than recomputes
+function reviewSessionDigest(s) {
+  const safe = (fn, fb) => { try { return fn(); } catch (_) { return fb; } };
+  const score = safe(() => computeWorkoutScore(s), null), sd = new Date(s.date).getTime();
+  const ptsByKey = {}; ((score && score.breakdown) || []).forEach(b => { ptsByKey[b.varUuid + '|' + (b.subUuid || '')] = b; });
+  const exercises = (s.exercises || []).map(ex => {
+    if (ex.cardio) return { name: displayName(ex.varUuid, ex.subUuid), cardio: safe(() => cardioSummary(ex.cardio), '') };
+    const sets = (ex.sets || []).map(x => x.w + '×' + x.r + (x.rpe ? ' @' + x.rpe : ''));
+    const prior = safe(() => getHistoryByKey(ex.varUuid, ex.subUuid).filter(h => new Date(h.date).getTime() < sd), []);
+    const b = ptsByKey[ex.varUuid + '|' + (ex.subUuid || '')];
+    return { name: displayName(ex.varUuid, ex.subUuid), sets, grade: b ? gradeFor(b.points) : null, verdict: b ? b.label : null,
+      lastTime: prior[0] && prior[0].topSet ? prior[0].topSet.w + '×' + prior[0].topSet.r + ' on ' + String(prior[0].date).slice(0, 10) : null,
+      superset: ex.supersetId || null };
+  });
+  const rec = safe(() => (state.recoveryLog || []).find(r => recoveryDayKey(r.date) === new Date(s.date).toDateString()), null);
+  const plan = s.planId ? safe(() => getPlan(s.planId), null) : null;
+  return {
+    id: sessionKey(s), date: s.date, endedAt: s.endedAt,
+    minutes: s.endedAt ? Math.round((new Date(s.endedAt) - sd) / 60000) : null,
+    grade: score ? score.grade : null, points: score ? score.points : null,
+    plan: plan ? { name: plan.name, summary: (s.planExec && s.planExec.summary) || null } : null,
+    split: safe(() => sessionSplitLabel(s), null), gym: (s.notes && s.notes.location) || null,
+    hr: s.hr || null, sleep: s.sleep || null, recovery: rec ? normRecoveryFields(rec) : null,
+    notes: s.notes ? { supplements: s.notes.supps || '', injuries: s.notes.injuries || '', general: s.notes.general || '' } : null,
+    exercises,
+  };
+}
+function reviewContext() {
+  const ended = (state.sessions || []).filter(s => s.endedAt).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const due = ended.filter(reviewDue).slice(0, REVIEW_MAX);
+  return {
+    unit: state.unit, due: due.map(reviewSessionDigest),
+    // the three weeks around them, compact, so each note can speak to the trend and not just the day
+    recent: ended.slice(0, 12).map(s => { const g = (() => { try { return computeWorkoutScore(s); } catch (_) { return null; } })();
+      return { id: sessionKey(s), date: String(s.date).slice(0, 10), grade: g ? g.grade : null, split: sessionSplitLabel(s), sets: (s.exercises || []).reduce((n, e) => n + ((e.sets || []).length), 0) }; }),
+  };
+}
+function coworkImportReview(payload) {
+  const list = payload && Array.isArray(payload.reviews) ? payload.reviews : null;
+  if (!list) return { handled: false, reason: 'no reviews array' };
+  const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const items = a => (Array.isArray(a) ? a : []).slice(0, 6).map(x => clip(x, 240)).filter(Boolean);
+  let n = 0;
+  list.forEach(r => {
+    const s = r && (state.sessions || []).find(x => sessionKey(x) === r.id);
+    const text = clip(r && r.note, 4000).trim();
+    if (!s || !text) return;
+    s.coworkReview = { title: clip(r.title, 120), text, highlights: items(r.highlights), concerns: items(r.concerns), nextTime: items(r.nextTime),
+      at: new Date().toISOString(), setsHash: sessionSetsHash(s) };
+    touchSession(s); n++;
+  });
+  if (n) saveState();
+  return { handled: true, reviews: n };
+}
+function sessionReviewHtml(s) {
+  const r = s && s.coworkReview; if (!r || !r.text) return '';
+  const stale = r.setsHash && r.setsHash !== sessionSetsHash(s);
+  const list = (arr, cls, ico) => arr && arr.length ? `<ul class="cwr-list ${cls}">${arr.map(x => `<li>${ico} ${escapeHtml(x)}</li>`).join('')}</ul>` : '';
+  return `<details class="cw-review"><summary>🤖 Workout review${r.title ? ' — ' + escapeHtml(r.title) : ''}${stale ? ' <span class="cwr-stale">· edited since</span>' : ''}</summary>
+    <div class="cwr-text">${escapeHtml(r.text)}</div>
+    ${list(r.highlights, 'good', '✅')}${list(r.concerns, 'warn', '⚠️')}${list(r.nextTime, 'next', '➡️')}
+    <div class="cwr-meta">From the cowork agent · ${escapeHtml(fmtAgo(r.at))}</div></details>`;
+}
+/* ============================================================
+   feat 545 — PERIOD SUMMARIES at three resolutions (week · month · quarter) and the cowork agent's write-up
+   of each (channel `summary-review`), covering BOTH training and body composition. A week keeps the feat-284
+   card; a month or quarter gets its own app-computed card (`periodAgg`) — sessions, sets, volume, average
+   grade, the lifts that moved, sets by body part, cardio, body-comp averages — and the agent's read of it:
+   what the training added up to, what the body did, how the two fit, and the focus for the next period.
+   Write-ups live in `state.periodReviews["week:2026-10-26" | "month:2026-10" | "quarter:2026-Q3"]` (synced per
+   key), shown on Reflect › Summary, and are asked for again only if that period's data changes (`hash`).
+   ============================================================ */
+const PERIOD_KINDS = {
+  week:    { label: 'Week',    back: 6, cap: 3, words: '200-400' },
+  month:   { label: 'Month',   back: 3, cap: 2, words: '300-500' },
+  quarter: { label: 'Quarter', back: 2, cap: 1, words: '400-700' },
+};
+function weekKeyOf(startMs) { const d = new Date(startMs); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+// the complete period `off` back (off = 1 → the last finished one): { start, end, key, label }
+function periodRange(kind, off) {
+  const md = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (kind === 'week') { const r = _weekRangeMs(off); return { ...r, key: weekKeyOf(r.start), label: 'Week of ' + md(new Date(r.start)) + ' – ' + md(new Date(r.end - 864e5)) }; }
+  const now = new Date(), span = kind === 'month' ? 1 : 3, m0 = kind === 'month' ? now.getMonth() : Math.floor(now.getMonth() / 3) * 3;
+  const a = new Date(now.getFullYear(), m0 - off * span, 1), b = new Date(a.getFullYear(), a.getMonth() + span, 1);
+  const y = a.getFullYear(), q = Math.floor(a.getMonth() / 3) + 1;
+  return { start: a.getTime(), end: b.getTime(),
+    key: kind === 'month' ? y + '-' + String(a.getMonth() + 1).padStart(2, '0') : y + '-Q' + q,
+    label: kind === 'month' ? a.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : `Q${q} ${y} · ${md(a)} – ${md(new Date(b - 864e5))}` };
+}
+function _periodSessions(start, end) { return (state.sessions || []).filter(s => { const t = new Date(s.date).getTime(); return t >= start && t < end && _weekHasActivity(s); }); }
+function _weekBody(start, end) { return (state.bodyComp || []).filter(b => { const t = new Date(b.date).getTime(); return t >= start && t < end; }).sort((a, b) => String(a.date).localeCompare(String(b.date))); }
+function _wkAvg(arr, k) { const v = arr.map(x => parseFloat(x[k])).filter(x => isFinite(x)); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10 : null; }
+// everything that happened in [start, end), with the app's own numbers
+function periodAgg(start, end) {
+  const ss = _periodSessions(start, end), lifts = {}, bp = {}, pts = [];
+  let sets = 0, volume = 0, cardioN = 0, cardioMin = 0;
+  ss.forEach(s => {
+    const g = (() => { try { return sessionGrade(s); } catch (_) { return null; } })(); if (g && typeof g.points === 'number') pts.push(g.points);
+    (s.exercises || []).forEach(ex => {
+      if (ex.cardio) { cardioN++; cardioMin += +ex.cardio.elapsedMin || 0; return; }
+      const info = VAR_INDEX.get(ex.varUuid), b = info ? info.bp : 'other', name = displayName(ex.varUuid, ex.subUuid);
+      (ex.sets || []).forEach(st => { sets++; volume += (parseFloat(st.w) || 0) * (parseFloat(st.r) || 0); bp[b] = (bp[b] || 0) + 1;
+        const e = estimated1RMSet(st); if (e > 0 && (!lifts[name] || e > lifts[name])) lifts[name] = Math.round(e); });
+    });
+  });
+  const body = _weekBody(start, end), rec = (state.recoveryLog || []).filter(r => { const t = new Date(r.date).getTime(); return t >= start && t < end; }).map(normRecoveryFields);
+  const avgPts = pts.length ? Math.round(pts.reduce((a, b) => a + b, 0) / pts.length) : null;
+  return { sessions: ss.length, sets, volume: Math.round(volume), avgPoints: avgPts, avgGrade: avgPts != null ? gradeFor(avgPts) : null, lifts, setsByBodyPart: bp,
+    cardio: { sessions: cardioN, minutes: Math.round(cardioMin) },
+    body: body.length ? { weighIns: body.length, weightKg: _wkAvg(body, 'weightKg'), bodyFatPct: _wkAvg(body, 'bodyFatPct'), muscleMassKg: _wkAvg(body, 'muscleMassKg'),
+      waistCm: _wkAvg(body, 'waistCm'), firstWeightKg: body[0].weightKg, lastWeightKg: body[body.length - 1].weightKg } : null,
+    recovery: rec.length ? Object.fromEntries(RECOVERY_METRICS.map(m => [m.key, _wkAvg(rec, m.key)]).filter(([, v]) => v != null)) : null, _ss: ss, _body: body };
+}
+function periodHash(kind, off) {
+  const r = periodRange(kind, off), a = periodAgg(r.start, r.end);
+  return coworkHashText(JSON.stringify([kind, r.key, a._ss.map(s => [sessionKey(s), sessionSetsHash(s)]), a._body.map(b => [b.date, b.weightKg, b.bodyFatPct, b.muscleMassKg, b.waistCm])]));
+}
+function periodDigest(kind, off) {
+  const r = periodRange(kind, off), p = periodRange(kind, off + 1), cur = periodAgg(r.start, r.end), prev = periodAgg(p.start, p.end);
+  const lifts = {}; Object.keys(cur.lifts).forEach(k => { lifts[k] = { best: cur.lifts[k], previous: prev.lifts[k] || null }; });
+  const strip = a => { const { _ss, _body, lifts: _l, ...rest } = a; return rest; };
+  const d = { period: kind, key: r.key, label: r.label, from: weekKeyOf(r.start), to: weekKeyOf(r.end - 864e5), unit: state.unit, bodyUnit: state.bodyCompUnit || 'kg',
+    ...strip(cur), lifts, previousPeriod: { label: p.label, ...strip(prev) }, goalWeightKg: (state.profile && state.profile.goalWeightKg) || null };
+  if (kind === 'week') {
+    const W = weekSummary(off);
+    Object.assign(d, { grade: W.grade || null, gradePoints: W.gradePoints || null, gradeParts: W.gradeParts || null, highlights: W.highlights, lowlights: W.lowlights,
+      fourWeeksBack: (() => { const f = periodRange('week', off + 4), a = periodAgg(f.start, f.end); return a.body; })(),
+      workouts: cur._ss.map(s => ({ id: sessionKey(s), date: String(s.date).slice(0, 10), split: sessionSplitLabel(s), review: s.coworkReview ? s.coworkReview.title || null : null })) });
+  } else {
+    // the weeks inside it, so a month / quarter can speak to its shape, and the write-ups already written for them
+    const weeks = [];
+    for (let o = 1; o <= 60; o++) { const w = periodRange('week', o); if (w.end <= r.start) break; if (w.start >= r.start && w.start < r.end) {
+      const W = weekSummary(o); weeks.push({ week: w.key, sessions: W.sessions, sets: W.sets, grade: W.grade || null, review: ((state.periodReviews || {})['week:' + w.key] || {}).title || null }); } }
+    d.weeks = weeks.reverse();
+    if (kind === 'quarter') d.months = [0, 1, 2].map(i => { const a = new Date(r.start); const m = new Date(a.getFullYear(), a.getMonth() + i, 1); return ((state.periodReviews || {})['month:' + m.getFullYear() + '-' + String(m.getMonth() + 1).padStart(2, '0')] || {}).title || null; });
+  }
+  return d;
+}
+function periodReviewDue(kind, off) {
+  const r = periodRange(kind, off), a = periodAgg(r.start, r.end);
+  if (!a.sessions && !a._body.length) return false;            // nothing happened: nothing to write
+  const rv = (state.periodReviews || {})[kind + ':' + r.key];
+  return !rv || rv.hash !== periodHash(kind, off);
+}
+function summaryReviewContext() {
+  const due = [];
+  Object.keys(PERIOD_KINDS).forEach(kind => { const K = PERIOD_KINDS[kind]; let n = 0;
+    for (let off = 1; off <= K.back && n < K.cap; off++) if (periodReviewDue(kind, off)) { due.push(periodDigest(kind, off)); n++; } });
+  return { due };
+}
+function coworkImportSummaryReview(payload) {
+  const list = payload && Array.isArray(payload.summaries) ? payload.summaries : null;
+  if (!list) return { handled: false, reason: 'no summaries array' };
+  const clip = (v, n) => String(v == null ? '' : v).slice(0, n), items = a => (Array.isArray(a) ? a : []).slice(0, 6).map(x => clip(x, 240)).filter(Boolean);
+  const store = state.periodReviews || (state.periodReviews = {});
+  let n = 0;
+  list.forEach(w => {
+    const kind = w && w.period; if (!PERIOD_KINDS[kind]) return;
+    let off = 0; for (let o = 1; o <= 60; o++) if (periodRange(kind, o).key === w.key) { off = o; break; }
+    const text = clip(w.note, 7000).trim();
+    if (!off || !text) return;                 // only a complete past period, and only with something to say
+    store[kind + ':' + w.key] = { title: clip(w.title, 120), text, training: items(w.training), body: items(w.body), focus: items(w.focus),
+      at: new Date().toISOString(), hash: periodHash(kind, off) };
+    n++;
+  });
+  if (n) saveState();
+  return { handled: true, summaries: n };
+}
+function periodReviewHtml(kind, off) {
+  const r = periodRange(kind, off), rv = (state.periodReviews || {})[kind + ':' + r.key]; if (!rv || !rv.text) return '';
+  const stale = rv.hash && rv.hash !== periodHash(kind, off);
+  const list = (arr, ico) => arr && arr.length ? `<ul class="cwr-list">${arr.map(x => `<li>${ico} ${escapeHtml(x)}</li>`).join('')}</ul>` : '';
+  return `<details class="cw-review wk"><summary>🤖 Coach's ${PERIOD_KINDS[kind].label.toLowerCase()}${rv.title ? ' — ' + escapeHtml(rv.title) : ''}${stale ? ' <span class="cwr-stale">· changed since</span>' : ''}</summary>
+    <div class="cwr-text">${escapeHtml(rv.text)}</div>
+    ${list(rv.training, '🏋️')}${list(rv.body, '⚖️')}${list(rv.focus, '🎯')}
+    <div class="cwr-meta">From the cowork agent · ${escapeHtml(fmtAgo(rv.at))}</div></details>`;
+}
+// a month / quarter card: the app's own read, then the agent's write-up
+function periodCardHtml(kind, off) {
+  const r = periodRange(kind, off), p = periodRange(kind, off + 1), a = periodAgg(r.start, r.end), b = periodAgg(p.start, p.end), U = state.unit || 'kg';
+  const lines = [];
+  if (!a.sessions) lines.push('<li class="sm-lo">😴 No training logged</li>');
+  else {
+    lines.push(`<li class="sm-hi">💪 ${a.sessions} session${a.sessions === 1 ? '' : 's'} · ${a.sets} sets · ${a.volume.toLocaleString()} ${U}</li>`);
+    if (b.sessions) { const d = a.sessions - b.sessions; if (d) lines.push(`<li class="${d > 0 ? 'sm-hi' : 'sm-lo'}">${d > 0 ? '🔥' : '🛌'} ${Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} session${Math.abs(d) === 1 ? '' : 's'} than ${escapeHtml(p.label.split(' · ')[0])}</li>`); }
+    if (a.avgGrade) lines.push(`<li class="sm-hi">⭐ Average session grade ${a.avgGrade} (${a.avgPoints}/100)</li>`);
+    const gains = Object.keys(a.lifts).filter(k => b.lifts[k]).map(k => [k, a.lifts[k] - b.lifts[k]]).sort((x, y) => y[1] - x[1]);
+    if (gains.length && gains[0][1] > 0) lines.push(`<li class="sm-hi">🏆 Biggest gain: ${escapeHtml(gains[0][0])} +${gains[0][1]} ${U} e1RM</li>`);
+    const drop = gains.length ? gains[gains.length - 1] : null;
+    if (drop && drop[1] < 0) lines.push(`<li class="sm-lo">📉 ${escapeHtml(drop[0])} ${drop[1]} ${U} e1RM</li>`);
+    const top = Object.entries(a.setsByBodyPart).sort((x, y) => y[1] - x[1])[0];
+    if (top) lines.push(`<li class="sm-hi">🎯 Most work: ${escapeHtml(BP_LABELS[top[0]] || top[0])} (${top[1]} sets)</li>`);
+    if (a.cardio.sessions) lines.push(`<li class="sm-hi">🏃 ${a.cardio.sessions} cardio · ${a.cardio.minutes} min</li>`);
+  }
+  if (a.body && a.body.weightKg != null) {
+    const d = b.body && b.body.weightKg != null ? Math.round((a.body.weightKg - b.body.weightKg) * 10) / 10 : null;
+    lines.push(`<li class="sm-hi">⚖️ Weight ${bodyDispW(a.body.weightKg)} ${state.bodyCompUnit || 'kg'} avg${d != null ? ` (${d > 0 ? '+' : ''}${bodyDispW(d)} vs before)` : ''}${a.body.bodyFatPct != null ? ' · ' + a.body.bodyFatPct + '% fat' : ''} · ${a.body.weighIns} weigh-in${a.body.weighIns === 1 ? '' : 's'}</li>`);
+  }
+  return `<div class="card summary-week${a.sessions ? '' : ' rest'}">
+    <div class="summary-week-head"><span class="summary-week-when">${escapeHtml(r.label)}</span>${a.avgGrade ? `<span class="summary-grade" style="color:${_gradeHue(a.avgGrade)};border-color:${_gradeHue(a.avgGrade)}">${a.avgGrade}</span>` : ''}</div>
+    <ul class="summary-list">${lines.join('')}</ul>${periodReviewHtml(kind, off)}</div>`;
+}
+let _sumRes = 'week';
+function summaryResToggleHtml() {
+  return `<div class="sum-res" role="tablist">${Object.keys(PERIOD_KINDS).map(k => `<button type="button" class="drawer-pill ${_sumRes === k ? 'active' : ''}" role="tab" aria-selected="${_sumRes === k}" data-sum-res="${k}">${PERIOD_KINDS[k].label}</button>`).join('')}</div>`;
+}
+// complete months / quarters inside the training (or weigh-in) history, most recent first
+function summaryPeriods(kind, max) {
+  const t = [...(state.sessions || []).filter(_weekHasActivity).map(s => new Date(s.date).getTime()), ...(state.bodyComp || []).map(b => new Date(b.date).getTime())];
+  if (!t.length) return [];
+  const earliest = Math.min(...t), out = [];
+  for (let off = 1; off <= 40 && out.length < max; off++) { const r = periodRange(kind, off); if (r.end <= earliest) break; out.push(off); }
+  return out;
+}
 function coworkApplyImport(kind, payload) {
   if (kind === 'garmin-output') return coworkImportGarmin(payload);
   if (kind === 'strava-output') return coworkImportStrava(payload);
   if (kind === 'analysis-output') return coworkImportAnalysis(payload);
   if (kind === 'log-review-output') return coworkImportLogReview(payload); // feat 513
   if (kind === 'gym-directory-output') return coworkImportGymDirectory(payload); // feat 539
+  if (kind === 'workout-review-output') return coworkImportReview(payload); // feat 544
+  if (kind === 'summary-review-output') return coworkImportSummaryReview(payload); // feat 545
   if (kind === 'pod-output') return (typeof coworkImportPlanOfDay === 'function') ? coworkImportPlanOfDay(payload) : { handled: false, reason: 'pod import not available yet' };
   return { handled: false, reason: 'unknown kind ' + kind };
 }
@@ -15024,12 +15273,20 @@ function summaryWeeks(maxWeeks) {
 // feat 284 — the Summary page (Reflect › Summary): one compact card per complete week.
 function renderSummaryPage(main) {
   if (!main) return;
+  const bindRes = () => main.querySelectorAll('[data-sum-res]').forEach(b => b.addEventListener('click', () => { _sumRes = b.dataset.sumRes; renderSummaryPage(main); })); // feat 545
+  if (_sumRes !== 'week') { // feat 545 — month / quarter resolution
+    const K = PERIOD_KINDS[_sumRes], offs = summaryPeriods(_sumRes, _sumRes === 'month' ? 12 : 8);
+    main.innerHTML = `<div class="card"><div class="card-title">📋 ${K.label}ly Summary</div>${summaryResToggleHtml()}
+      <div class="summary-intro">Each <b>complete</b> ${K.label.toLowerCase()} — training and body composition, with the change from the ${K.label.toLowerCase()} before. The current one is still in progress.</div></div>`
+      + (offs.length ? offs.map(o => periodCardHtml(_sumRes, o)).join('') : `<div class="card"><div class="summary-empty">No complete ${K.label.toLowerCase()}s yet.</div></div>`);
+    bindRes(); return;
+  }
   const weeks = summaryWeeks(12);
-  const intro = `<div class="card"><div class="card-title">📋 Weekly Summary</div>
+  const intro = `<div class="card"><div class="card-title">📋 Weekly Summary</div>${summaryResToggleHtml()}
     <div class="summary-intro">The highlights and lowlights of each <b>complete</b> calendar week (Mon–Sun). This week is still in progress, so it isn't summarised yet — open the Log, History or Trends pages for the full detail.</div></div>`;
   if (!weeks.length) {
     main.innerHTML = intro + `<div class="card"><div class="summary-empty">No complete training weeks yet — log a few sessions and check back next week.</div></div>`;
-    return;
+    bindRes(); return;
   }
   const card = w => {
     const hi = w.highlights.map(h => `<li class="sm-hi">${escapeHtml(h)}</li>`).join('');
@@ -15044,10 +15301,12 @@ function renderSummaryPage(main) {
       <div class="summary-week-head"><span class="summary-week-when">Week of ${escapeHtml(w.label)}</span>${w.grade ? `<span class="summary-grade" data-grade-toggle role="button" tabindex="0" style="color:${_gradeHue(w.grade)};border-color:${_gradeHue(w.grade)}" title="Tap for the grade weighting & rationale · ${escapeHtml(w.grade)} ${w.gradePoints}/100">${escapeHtml(w.grade)}</span>` : ''}<span class="summary-week-meta">${w.empty ? 'rest week' : `${w.sessions} session${w.sessions === 1 ? '' : 's'} · ${w.sets} sets`}</span></div>
       ${detail}
       <ul class="summary-list">${hi}${lo}</ul>
+      ${periodReviewHtml('week', w.weekOffset)}
     </div>`;
   };
   main.innerHTML = intro + weeks.map(card).join('')
     + (weeks.length >= 12 ? `<div class="card"><div class="summary-empty">Showing the last 12 weeks · older detail lives on the History &amp; Trends pages.</div></div>` : '');
+  bindRes(); // feat 545
   // feat 313 — tap a grade badge to reveal/hide its breakdown
   main.querySelectorAll('.summary-grade[data-grade-toggle]').forEach(b => {
     const toggle = () => { const d = b.closest('.summary-week').querySelector('.summary-grade-detail'); if (d) { d.hidden = !d.hidden; b.classList.toggle('open', !d.hidden); } };
@@ -22238,6 +22497,7 @@ function renderSession(session, isToday, idx) {
     ${exHtml || '<div style="color:#666;font-size:12px;">No exercises yet</div>'}
     ${renderHrChart(session)}
     ${renderWorkoutStats(session)}
+    ${sessionReviewHtml(session)}
   </div>`;
 }
 
@@ -32527,7 +32787,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 457 · 2026-11-05 07:31';
+const APP_BUILD = 'build 458 · 2026-11-05 11:53';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
