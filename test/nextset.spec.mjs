@@ -147,3 +147,29 @@ test('feat 540 — the card shows the full-rest preview line while resting', asy
   });
   expect(r).toMatch(/At full rest \(in \d/);
 });
+
+test('feat 547 — the S-rank set: the cheapest new e1RM best, only while realistic and not yet earned', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const thr = Math.max(...getHistoryByKey(_v, null).map(h => h.topSet.oneRM));
+    const fresh = nextSetCoach(_v, null).sRank;
+    _done(100, 7, 30);
+    const early = nextSetCoach(_v, null).sRank;
+    pending.sets.push({ w: 97.5, r: '', wTs: new Date().toISOString() });       // a weight you typed
+    const picked = nextSetCoach(_v, null).sRank;
+    pending.sets = []; _done(100, 9, 300);                                        // already beat it today
+    const earned = nextSetCoach(_v, null).sRank;
+    openLogModal(); modalState.showPicker = false; modalState.isEditing = false;
+    pending.sets = []; renderModal();
+    const line = document.querySelector('#trk-nextset .ns-srank');
+    return { thr, fresh, beats: fresh && estimated1RM(fresh.w, fresh.r) > thr, oneLess: fresh && estimated1RM(fresh.w, fresh.r - 1) > thr, early, picked, earned,
+      line: line ? line.textContent : null };
+  });
+  expect(r.fresh).not.toBeNull();
+  expect(r.beats).toBe(true);
+  expect(r.oneLess).toBe(false);                     // the cheapest rep count at that weight
+  expect(r.fresh.odds).toBeGreaterThanOrEqual(20);
+  expect(r.early.restedOdds).toBeGreaterThan(r.early.odds);
+  expect(r.picked.w).toBe(97.5);
+  expect(r.earned).toBeNull();
+  expect(r.line).toMatch(/S set: .* · \d+%/);
+});

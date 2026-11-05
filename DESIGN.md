@@ -2665,6 +2665,13 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The S-rank set on the next-set card (feat 547):** under the ask, "S set: 95kg × 11 · 50%" is the cheapest set
+  that would make the exercise an S. That is a new e1RM best above every previous session's top set, the same
+  rule `scoreExerciseVsPrior` grades by. For each candidate weight (your used weights, or the one you typed)
+  it takes the fewest reps that clear the record, and picks the weight with the best odds (fewer reps on a
+  tie). It shows only while realistic, ≥ 20% now or at full rest (shown as "(52% at full rest)" when resting
+  would help), and never once today already holds an S. It is hidden when the main ask already is that set.
+  "Go for it" prefills its weight.
 - **Use-plan sheet: 1½×, timed at your pace, finish-by picks the volume (feat 546):** 1½× joins the volume
   list (it was ½ ¾ 1 1¼ 1¾ 2). Each volume button shows its duration from `planEtaMinutes`: sets after
   scaling (bookends added unscaled, as `getActivePlan` runs them) × `planPace()`, which is your median minutes
