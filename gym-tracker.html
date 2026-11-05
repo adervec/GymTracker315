@@ -3210,6 +3210,22 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .step-var-item { font-size: 12.5px; color: var(--text2); padding: 6px 4px; border-bottom: 1px solid var(--border); }
 .step-var-item:last-child { border-bottom: none; }
 /* feat 420 — reference-set target buttons + the best-e1RM baseline card */
+/* feat 542 — live grade + the end-of-workout grade trend */
+.live-grade { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 8px 0 0; font-size: 12px; color: var(--text2); }
+.lg-next { margin-left: auto; font-size: 11px; color: var(--text3); }
+.wgt { margin: 0 0 12px; }
+.wgt-head { font-size: 9.5px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--text3); margin-bottom: 4px; }
+.wgt-svg { width: 100%; height: auto; display: block; }
+.wgt-grid { stroke: var(--border2); stroke-width: 1; stroke-dasharray: 2 3; }
+.wgt-tick { font-size: 9px; fill: var(--text3); }
+.wgt-run { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.wgt-dot { fill: var(--text2); stroke: var(--bg2); stroke-width: 2; }
+.wgt-dot.g-S { fill: #ffd24a; } .wgt-dot.g-A { fill: var(--good); } .wgt-dot.g-B { fill: var(--accent); }
+.wgt-end { font-size: 11px; font-weight: 800; fill: var(--accent); }
+.wgt-key { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--text3); margin-top: 2px; }
+.wgt-k-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text2); }
+.wgt-k-line { width: 14px; height: 2px; background: var(--accent); margin-left: 8px; }
+.wgt-list { margin: 6px 0 0; padding-left: 18px; font-size: 11.5px; color: var(--text2); display: flex; flex-direction: column; gap: 3px; }
 /* feat 538 — the next-set coach card */
 .ns-card { margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent-bg); }
 .ns-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
@@ -12735,6 +12751,16 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect !== false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="on">On</button>
         <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect === false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="off">Off</button>
       </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div>
+        <div class="drawer-setting-label">💓 Make me pair HR</div>
+        <div class="drawer-setting-sub">At workout start, if the monitor isn't connected: open the pairing chooser, or leave a tap-to-pair prompt — and ask again 90 s in</div>
+      </div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${(state.workoutControls||{}).hrForcePair === true ? 'active' : ''}" data-wc="hrForcePair" data-wc-val="on">On</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).hrForcePair !== true ? 'active' : ''}" data-wc="hrForcePair" data-wc-val="off">Off</button>
+      </div>
     </div>${state.hrDevice ? `<div class="drawer-setting-row"><div><div class="drawer-setting-label">Paired monitor</div><div class="drawer-setting-sub">Last connected: <b>${escapeHtml(state.hrDevice.name || 'HR monitor')}</b> — connect from the workout dashboard.</div></div></div>` : ''}` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">💓 Heart-rate monitor</div><div class="drawer-setting-sub">This browser doesn't support Web Bluetooth, so an HR strap can't be connected here.</div></div></div>`}
 
     <div class="drawer-section-title" data-sec-id="analytics">📊 Analytics</div>
@@ -15415,6 +15441,7 @@ function choiceDialog(opts) {
     sheet.className = 'choice-sheet';
     sheet.innerHTML = `<div class="choice-title">${escapeHtml(opts.title || '')}</div>` +
       (opts.message ? `<div class="choice-msg">${escapeHtml(opts.message)}</div>` : '') +
+      (opts.html || '') + // feat 542 — trusted, app-built markup only (never user text)
       `<div class="choice-actions"></div>`;
     const actions = sheet.querySelector('.choice-actions');
     let done = false;
@@ -21262,6 +21289,23 @@ function startWorkout() {
   // feat 371 — always record where the workout started (and reconcile to the nearest gym if one is within 2 km)
   captureWorkoutStartLocation(session);
   refreshWakeLock(); // feat 160 — keep the screen awake so cues keep firing
+  hrForcePairOnStart(); // feat 541
+}
+/* feat 541 — "make me pair HR" (workoutControls.hrForcePair, default off). The silent reconnect above can't
+   help when the strap isn't broadcasting yet or the browser has forgotten it, and the Bluetooth chooser needs
+   a user gesture. So: no remembered monitor → open the chooser right now, inside the Start tap's activation;
+   otherwise give the reconnect 4 s, then leave a tap-to-pair toast (the tap IS the gesture), and nag once
+   more 90 s in if it is still not connected. */
+const HR_PAIR_NAG_MS = [4000, 90000];
+function hrForcePairOnStart() {
+  const wc = state.workoutControls || {};
+  if (!wc.hrForcePair || !hrSupported() || _hrConnected) return;
+  if (wc.hrAutoConnect === false && state.hrDevice) hrTryReconnect().catch(() => {});
+  const ask = again => { if (_hrConnected || !getActiveSession()) return;
+    toast(again ? '💓 Still no heart-rate monitor — tap to pair' : '💓 Heart-rate monitor not connected — tap to pair', 12000, () => hrConnect()); };
+  if (!state.hrDevice && navigator.userActivation && navigator.userActivation.isActive) hrConnect();
+  else setTimeout(() => ask(false), HR_PAIR_NAG_MS[0]);
+  setTimeout(() => ask(true), HR_PAIR_NAG_MS[1]);
 }
 
 // feat 160 — Screen Wake Lock during an active workout. A web app CANNOT play audio or fire haptics while
@@ -21651,6 +21695,7 @@ function finalizeEndWorkout(active, skipConfirm) {
   choiceDialog({
     title: 'End workout',
     message: msg,
+    html: workoutGradeTrendSvg(active, score), // feat 542
     choices: [
       { label: '🏁 End workout', value: 'end', style: 'primary' },
       { label: '📝 Add notes, then end', value: 'notes' },
@@ -21662,6 +21707,84 @@ function finalizeEndWorkout(active, skipConfirm) {
   });
 }
 
+// One exercise's points from its top-set e1RM vs the previous session's (and the all-time best).
+// feat 542 — split out of computeWorkoutScore so the live per-exercise grade can never disagree with it.
+// `ladder` = the e1RM each better tier needs (strictly above for a PR), for the "next grade" hint.
+function scoreExerciseVsPrior(topOneRM, prior) {
+  if (!prior.length) return { points: 60, label: 'baseline', pct: null, ladder: [] };
+  const prevTop = prior[0].topSet.oneRM;
+  const allTimeBest = prior.reduce((m, h) => Math.max(m, h.topSet.oneRM), 0);
+  const pct = ((topOneRM - prevTop) / prevTop) * 100;
+  const isPR = topOneRM > allTimeBest;
+  let points, label;
+  if (isPR && topOneRM > prevTop) { points = 100; label = 'PR'; }
+  else if (pct >= 2.5)            { points = 90;  label = 'strong progress'; }
+  else if (pct >= 0.5)            { points = 75;  label = 'mild progress'; }
+  else if (pct >= -0.5)           { points = 60;  label = 'matched'; }
+  else if (pct >= -5)             { points = 40;  label = 'mild down'; }
+  else                            { points = 20;  label = 'down'; }
+  const ladder = [[40, prevTop * 0.95], [60, prevTop * 0.995], [75, prevTop * 1.005], [90, prevTop * 1.025],
+    [100, Math.max(allTimeBest, prevTop) + 0.01]];
+  return { points, label, pct: Math.round(pct * 10) / 10, ladder };
+}
+// feat 542 — the LIVE grade of the exercise on screen: its sets so far today (saved + typed), scored exactly
+// like the end-of-workout grade, plus the cheapest next tier at the weight you are on.
+function exerciseLiveGrade(varUuid, subUuid) {
+  if (!varUuid || isCardioVar(varUuid)) return null;
+  const session = getActiveSession();
+  let top = 0, lastW = 0;
+  sessionSetsForExercise(session, pending, varUuid, subUuid).forEach(st => {
+    const w = parseFloat(st.w), r = parseFloat(st.r);
+    if (w > 0 && r > 0) { top = Math.max(top, estimated1RM(w, r)); lastW = w; }
+  });
+  if (!top) return null;
+  const sd = session ? new Date(session.date).getTime() : Date.now();
+  const sc = scoreExerciseVsPrior(top, getHistoryByKey(varUuid, subUuid).filter(h => new Date(h.date).getTime() < sd));
+  let next = null;
+  const rung = sc.ladder.find(([pts]) => pts > sc.points);
+  if (rung && lastW > 0) {
+    let r = Math.max(1, Math.ceil(30 * (rung[1] / lastW - 1)));
+    while (r <= 30 && estimated1RM(lastW, r) < rung[1]) r++;
+    if (r <= 30) next = { grade: gradeFor(rung[0]), w: lastW, r };
+  }
+  return { points: sc.points, grade: gradeFor(sc.points), label: sc.label, pct: sc.pct, next };
+}
+function liveGradeInnerHtml() {
+  const g = pending.varUuid && !pending.cardio && !modalState.isEditing ? exerciseLiveGrade(pending.varUuid, pending.subUuid) : null;
+  if (!g) return '';
+  return `<span class="session-grade g-${g.grade}" title="This exercise so far: ${g.points}/100">${g.grade}</span>
+    <span class="lg-lbl">This exercise: <b>${escapeHtml(g.label)}</b>${g.pct != null ? ` (${g.pct > 0 ? '+' : ''}${g.pct}% vs last time)` : ''}</span>
+    ${g.next ? `<span class="lg-next">${g.next.grade} at <b>${escapeHtml(fmtSetFor(pending.varUuid, g.next.w, g.next.r))}</b></span>` : ''}`;
+}
+function refreshLiveGrade() {
+  const el = document.getElementById('trk-live-grade'); if (!el) return;
+  const h = liveGradeInnerHtml(); if (el.innerHTML !== h) el.innerHTML = h;
+  el.style.display = h ? '' : 'none';
+}
+// feat 542 — the end-of-workout sheet's chart: each exercise's grade in the order you did them, and the
+// running workout grade (the cumulative mean the final grade is). Grade bands as gridlines, labelled.
+function workoutGradeTrendSvg(session, score) {
+  const b = (score && score.breakdown) || [];
+  if (b.length < 2) return '';
+  const W = 300, H = 176, L = 24, R = 12, T = 12, B = 22, n = b.length;
+  const x = i => L + (n === 1 ? 0 : i * (W - L - R) / (n - 1)), y = v => T + (1 - (v - 10) / 95) * (H - T - B);
+  let run = 0;
+  const pts = b.map((e, i) => { run += e.points; return { i, p: e.points, m: run / (i + 1), name: displayName(e.varUuid, e.subUuid), label: e.label }; });
+  // each grade's threshold as a gridline; the letter sits just above its line (D has no threshold — it is the floor)
+  const bands = [[90, 'S'], [80, 'A'], [70, 'B'], [60, 'C']].map(([v, g]) =>
+    `<line class="wgt-grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="wgt-tick" x="${L - 5}" y="${y(v) - 1}" text-anchor="end">${g}</text>`).join('')
+    + `<text class="wgt-tick" x="${L - 5}" y="${y(35)}" text-anchor="end">D</text>`;
+  const line = pts.map(q => `${x(q.i).toFixed(1)},${y(q.m).toFixed(1)}`).join(' ');
+  const dots = pts.map(q => `<circle class="wgt-dot g-${gradeFor(q.p)}" cx="${x(q.i).toFixed(1)}" cy="${y(q.p).toFixed(1)}" r="4.5"><title>${escapeHtml(q.name)} — ${gradeFor(q.p)} (${escapeHtml(q.label)}) · running ${gradeFor(Math.round(q.m))}</title></circle>`).join('');
+  const xs = pts.map(q => `<text class="wgt-tick" x="${x(q.i).toFixed(1)}" y="${H - 7}" text-anchor="middle">${q.i + 1}</text>`).join('');
+  const last = pts[n - 1];
+  return `<div class="wgt"><div class="wgt-head">Grades through the workout</div>
+    <svg viewBox="0 0 ${W} ${H}" class="wgt-svg" role="img" aria-label="Exercise grades in order; the running workout grade ends at ${score.grade}">${bands}
+      <polyline class="wgt-run" points="${line}"/>${dots}${xs}
+      <text class="wgt-end" x="${(x(n - 1) - 6).toFixed(1)}" y="${(y(last.m) - 8).toFixed(1)}" text-anchor="end">${score.grade}</text></svg>
+    <div class="wgt-key"><span class="wgt-k-dot"></span> each exercise, in order <span class="wgt-k-line"></span> running workout grade</div>
+    <ol class="wgt-list">${pts.map(q => `<li><span class="session-grade g-${gradeFor(q.p)}">${gradeFor(q.p)}</span> ${escapeHtml(q.name)}</li>`).join('')}</ol></div>`;
+}
 // Compute a workout score (0-100) based on progressive overload progress.
 // Each exercise scores points based on top-set 1RM vs the previous session's top set.
 // Returns { points, grade, breakdown } or null if no comparable data.
@@ -21689,24 +21812,7 @@ function computeWorkoutScore(session) {
     const prior = history.filter(h => new Date(h.date).getTime() < sessionDate);
 
     // Each exercise contributes equally (weight = 1)
-    let exPoints;
-    let exLabel;
-    if (prior.length === 0) {
-      // Baseline — neutral score
-      exPoints = 60;
-      exLabel = 'baseline';
-    } else {
-      const prevTop = prior[0].topSet.oneRM;
-      const allTimeBest = prior.reduce((m, h) => Math.max(m, h.topSet.oneRM), 0);
-      const pct = ((topOneRM - prevTop) / prevTop) * 100;
-      const isPR = topOneRM > allTimeBest;
-      if (isPR && topOneRM > prevTop) { exPoints = 100; exLabel = 'PR'; }
-      else if (pct >= 2.5)            { exPoints = 90;  exLabel = 'strong progress'; }
-      else if (pct >= 0.5)            { exPoints = 75;  exLabel = 'mild progress'; }
-      else if (pct >= -0.5)           { exPoints = 60;  exLabel = 'matched'; }
-      else if (pct >= -5)             { exPoints = 40;  exLabel = 'mild down'; }
-      else                            { exPoints = 20;  exLabel = 'down'; }
-    }
+    const { points: exPoints, label: exLabel } = scoreExerciseVsPrior(topOneRM, prior); // feat 542 — shared with the live grade
     totalPoints += exPoints;
     totalWeight += 1;
     breakdown.push({ varUuid: ex.varUuid, subUuid: ex.subUuid, points: exPoints, label: exLabel });
@@ -30059,6 +30165,7 @@ function renderSetsForm() {
       </button>
       <div class="suggestion-text">${suggestion.text}</div>
     </div>`; })() : ''}
+    ${(() => { const h = liveGradeInnerHtml(); return `<div class="live-grade" id="trk-live-grade"${h ? '' : ' style="display:none"'}>${h}</div>`; })()}
     ${nextSetCardHtml()}
     ${(() => { // feat 420 — reference-set buttons; feat 478 — targets + All-weights are ONE collapsible section
       if (!pending.varUuid || pending.cardio) return '';
@@ -30353,6 +30460,11 @@ function nsLearnedDrop(hist, varUuid) {
   const info = VAR_INDEX.get(varUuid), compound = isBarbellVar(varUuid) || !!(info && info.family.sub === 'compound');
   return { drop: compound ? 0.035 : 0.025, learned: 0 };
 }
+function _nsOptBp(o) { // feat 542 — the body part a plan-step option trains
+  if (o && o.type === 'variation') { const i = VAR_INDEX.get(o.uuid); return i ? i.bp : null; }
+  if (o && o.type === 'movement') { const f = FAMILIES.find(x => x.id === resolveFamilyId(o.familyId)); return f ? getBP(f) : null; }
+  return null;
+}
 let _nsReady = { at: 0, v: null };   // trainingReadiness scans every lift for plateaus — once a minute is plenty
 function _nsReadiness() { if (Date.now() - _nsReady.at > 60000) _nsReady = { at: Date.now(), v: trainingReadiness() }; return _nsReady.v; }
 function nextSetCoach(varUuid, subUuid) {
@@ -30468,6 +30580,18 @@ function nextSetCoach(varUuid, subUuid) {
   let rir = setNo === 1 ? 1.5 : 1;
   if (planned && setNo >= planned) rir = 0.5;
   if (deload) rir += 2;
+  // feat 542 — what is LEFT in the plan: sets still to come on this step, and later steps that hit the same body
+  // part, each bank a little reserve; a long list of exercises still to go banks a touch.
+  if (step) {
+    const after = planned ? Math.max(0, planned - setNo) : 0, bp = (VAR_INDEX.get(varUuid) || {}).bp, notes = [];
+    let extra = 0;
+    if (after >= 2) { extra += Math.min(0.75, 0.25 * (after - 1)); notes.push(`${after} more sets of this after`); }
+    const later = plan.steps.filter((st, i) => i !== si && !st.bookend && !stepStatus(session, st, plan).done && !stepIsSkipped(session, st));
+    const same = bp ? later.filter(st => (st.options || []).some(o => _nsOptBp(o) === bp)) : [];
+    if (same.length) { extra += 0.5; notes.push(`then ${stepLabelShort(same[0])}${same.length > 1 ? ' +' + (same.length - 1) + ' more' : ''} for ${BP_LABELS[bp] || bp}`); }
+    else if (later.length >= 4) { extra += 0.25; notes.push(`${later.length} more exercises to go`); }
+    if (extra) { rir += extra; why.push(`📋 ${notes.join(', ')} — +${extra} in reserve`); }
+  }
   why.push(`🎯 ${lo}-${hi} reps (${src}) · set ${setNo}${planned ? ' of ' + planned : ''} → aim to leave ~${rir} in reserve`);
 
   const cap = exMaxW(varUuid), lastW = last ? last.w : (sess[0] ? sess[0].w : null), mid = (lo + hi) / 2;
@@ -30516,7 +30640,7 @@ function nextSetCoach(varUuid, subUuid) {
   if (hrWait) why.push('⏳ Give it 30-60 s more and this ask gets easier');
   return { w: best.w, r: best.r, odds: Math.round(best.odds * 100), rir: Math.max(0, Math.round((best.pm - best.r) * 2) / 2),
     lo, hi, beats: best.beats, why, avail: Math.round(avail), sigma: Math.round(sigma * 10) / 10, learnedDrop: D.learned ? D.drop : null,
-    picked: !!pickedW,
+    picked: !!pickedW, rirTarget: rir,
     rested: restedPick ? { w: restedPick.w, r: restedPick.r, odds: Math.round(restedPick.odds * 100), inSec: Math.round(restLeft), hr: hrWait } : null,
     stretch: { w: best.w, r: best.r + 1, odds: Math.round(oddsAt(best.pm, best.r + 1) * 100) } };
 }
@@ -30555,6 +30679,7 @@ function targetsResetForSheet() { _tgtCollapsed = false; _tgtPinned = false; }
 // feat 482 — a completed set turns its target tile green NOW, not on the next full render. DOM-only:
 // retint the .hit classes and the hits/total counter from the tiles' own data-w/data-r.
 function refreshTargetHits() {
+  try { refreshLiveGrade(); refreshNextSet(true); } catch (_) {} // feat 542 — a finished set moves the grade and the next ask
   const el = document.getElementById('trk-targets');
   if (!el || !pending.varUuid) return;
   let hits = 0, total = 0, moved = false;
@@ -32246,7 +32371,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 455 · 2026-11-04 18:12';
+const APP_BUILD = 'build 456 · 2026-11-04 19:11';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

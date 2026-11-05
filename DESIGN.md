@@ -2665,6 +2665,24 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Live exercise grade, plan-aware next set, grade trend at the end (feat 542):** the per-exercise scoring
+  inside `computeWorkoutScore` moved to `scoreExerciseVsPrior` so the live grade can never disagree with the
+  final one. `exerciseLiveGrade` scores the exercise on screen from its sets so far (saved + typed) and names
+  the cheapest next tier at the weight you are on ("B at 100×9"); the chip sits above the next-set card and
+  repaints with every finished set (`refreshTargetHits` → `refreshLiveGrade` + the next-set card). The next-set
+  coach now reads what is left in the active plan: sets still to come on this step bank 0.25 RIR each past
+  the first (max 0.75), a later undone step training the same body part banks 0.5, or a long tail of 4+
+  exercises banks 0.25 — each with a "📋" reason line. The End-workout sheet (`choiceDialog` gained a
+  trusted `html` slot) charts each exercise's grade in the order done, plus the running workout grade line
+  ending at the final letter, grade thresholds as labelled gridlines, and a numbered list naming each point.
+  `test/livegrade.spec.mjs`.
+- **Make me pair HR (feat 541):** a Workout-controls switch beside "Auto-connect HR on start"
+  (`workoutControls.hrForcePair`, default off). The silent reconnect can't help when the strap isn't
+  broadcasting yet or the browser has forgotten it, and the Bluetooth chooser needs a user gesture. So at
+  `startWorkout`: with no remembered monitor the chooser opens immediately, inside the Start tap's activation;
+  otherwise the reconnect gets 4 s, then a 12 s "tap to pair" toast (the tap is the gesture); and if the
+  workout is still unpaired 90 s in, it asks once more. Nothing fires once connected or after the workout
+  ends. `test/hrforcepair.spec.mjs` (Playwright's clock).
 - **Next-set coach: your weights, your pick, full-rest preview (feat 540):** candidates are now only the
   weights you have actually used on that exercise (history + today), never a computed 92.5 your gym may not
   have. A weight already typed into the set you are about to do (weight in, reps empty) is THE weight: the
