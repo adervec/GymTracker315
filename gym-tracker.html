@@ -3251,6 +3251,10 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .rcv-details summary { font-size: 11px; color: var(--text3); cursor: pointer; margin-bottom: 4px; }
 .ns-f-head { font-size: 9.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text3); margin: 8px 0 4px; }
 .ns-factors { display: flex; flex-wrap: wrap; gap: 4px; }
+/* feat 550 — the custom-sound clip editor */
+.clip-wave { width: 100%; height: 90px; display: block; border-radius: 8px; background: var(--bg3); margin: 4px 0 10px; }
+.clip-ctl { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); margin-bottom: 8px; }
+.clip-ctl input { flex: 1; } .clip-ctl b { min-width: 38px; text-align: right; color: var(--text); }
 /* feat 538 — the next-set coach card */
 .ns-card { margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent-bg); }
 .ns-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
@@ -13348,6 +13352,7 @@ function renderSettingsDrawer() {
         <button class="drawer-pill ${!(state.workoutControls||{}).setQualityTone ? 'active' : ''}" data-sqtone="off">Off</button>
       </div>
     </div>
+    ${customSoundsHtml()}
 
     <div class="drawer-section-title">Live Dashboard</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Show or hide each element of the current-workout dashboard.</div>
@@ -14089,6 +14094,7 @@ function renderSettingsDrawer() {
     state.cowork.schedules[sel.dataset.coworkSched] = sel.value; saveState(); renderSettingsDrawer();
   }));
   body.querySelectorAll('[data-ns-factor]').forEach(b => b.addEventListener('click', () => { nsToggleFactor(b.dataset.nsFactor); renderSettingsDrawer(); })); // feat 543
+  bindCustomSounds(body, renderSettingsDrawer); // feat 550
   body.querySelectorAll('[data-cowork-chan]').forEach(b => b.addEventListener('click', () => { // feat 459
     const k = b.dataset.coworkChan;
     state.cowork.channels[k] = !coworkChannelOn(k); saveState(); renderSettingsDrawer();
@@ -22085,6 +22091,7 @@ function finalizeEndWorkout(active, skipConfirm) {
     logInfo('Workout ended', (score ? score.grade + ' ' + score.points : '') + ' · ' + stats.totalSets + ' sets');
     // feat 528 — the end toast doubles as a one-tap recap: tap it to share (or copy) the workout as text
     toast((score ? `🏁 Workout ended · ${score.grade}` : '🏁 Workout ended') + ' — tap to share recap', 8000, () => shareWorkoutRecap(active));
+    playCustomClip('finish'); // feat 550 — your workout-ended clip, if you set one
     // feat 338 — historize any archetype shift this workout produced, and celebrate it in a popup
     try { const shift = recordArchetypeShift(); if (shift) showArchetypeShiftDialog(shift); } catch (_) {}
   };
@@ -31846,9 +31853,10 @@ function commitSetField(i, f, val) {
     s.ts = rFilled ? new Date().toISOString() : undefined;          // reps entered → set done
     if (s.ts && holdCueActive()) cancelHoldCue();                   // feat 291 — the hold finished → stop counting
     if (s.ts && !wasDone && parseFloat(s.r) > 0 && typeof annunceSetEnd === 'function') annunceSetEnd(); // feat 207
-    if (s.ts && !wasDone && parseFloat(s.r) > 0 && !modalState.isEditing && setQualityToneEnabled()) { // feat 435 — quality melody on the same rising edge
-      const sc = getOverloadScore(pending.varUuid, pending.subUuid, { w: s.w, r: s.r }, new Date().toISOString());
-      playSetQualityTone(sc ? sc.level : 'baseline');
+    if (s.ts && !wasDone && parseFloat(s.r) > 0 && !modalState.isEditing && (setQualityToneEnabled() || hasCustomClip('pr') || hasCustomClip('progress'))) { // feat 435 — quality melody on the same rising edge
+      const sc = getOverloadScore(pending.varUuid, pending.subUuid, { w: s.w, r: s.r }, new Date().toISOString()), lvl = sc ? sc.level : 'baseline';
+      // feat 550 — a custom PR / progress clip wins, and plays even with the melody off
+      if (!playCustomClip(lvl === 'pr' ? 'pr' : lvl === 'progress' ? 'progress' : null) && setQualityToneEnabled()) playSetQualityTone(lvl);
     }
   }
   savePending();
@@ -32924,7 +32932,8 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('focus', () => { try { if (typeof hrTryReconnect === 'function' && !_hrConnected && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {} });
 try { refreshWakeLock(); } catch (_) {}
-try { if (typeof hrTryReconnect === 'function' && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {} // feat 159 — re-attach on boot/reopen
+try { if (typeof hrTryReconnect === 'function' && state.hrDevice) hrTryReconnect().catch(() => {}); } catch (_) {}
+try { if (typeof indexedDB !== 'undefined') setTimeout(soundClipsWarm, 0); } catch (_) {} // feat 550 — decode the custom sound clips once (after the script, past the clip lets' TDZ) // feat 159 — re-attach on boot/reopen
 // feat 57 — tap outside the numpad to dismiss it
 document.getElementById('trk-numpad-backdrop')?.addEventListener('click', closeNumpad);
 document.addEventListener('keydown', e => {
@@ -32979,7 +32988,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 462 · 2026-11-05 19:57';
+const APP_BUILD = 'build 463 · 2026-11-05 20:21';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -33515,6 +33524,137 @@ function playSetQualityTone(level) {
       o.start(t); o.stop(t + 0.18);
     });
   } catch (e) {}
+}
+/* ============================================================
+   feat 550 — CUSTOM SOUND CLIPS. Upload any audio file, clip up to 5 s of it, and it replaces a key sound:
+   the PR set (mainly), a progress set, rest-over and workout-ended. The clip is rendered once to a small mono
+   22.05 kHz WAV (peak-normalised, with a short fade-out) and kept in IndexedDB on THIS device.
+   ponytail: device-local, not synced — audio would bloat every cloud sync; re-upload on a second device.
+   A custom PR clip plays on a PR even with the beep melody (feat 435) off: uploading one says you want it.
+   ============================================================ */
+const CLIP_MAX_SEC = 5, CLIP_RATE = 22050;
+const CLIP_SLOTS = [
+  { id: 'pr',       label: '🏆 PR set',        hint: 'a set that beats your record' },
+  { id: 'progress', label: '📈 Progress set',  hint: 'a set better than last time' },
+  { id: 'restEnd',  label: '⏱ Rest over',      hint: 'the end-of-rest cue' },
+  { id: 'finish',   label: '🏁 Workout ended', hint: 'when you end a workout' },
+];
+let _clipDb = null, _clipBufs = {}, _clipMeta = {};
+function _clipStore(mode) {
+  return (_clipDb || (_clipDb = new Promise((res, rej) => { const r = indexedDB.open('gymtracker-sounds', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('clips'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); })))
+    .then(db => db.transaction('clips', mode).objectStore('clips'));
+}
+const _idbReq = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+function _clipCtx() { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; return (_restAudioCtx = _restAudioCtx || new AC()); }
+// decode every saved clip once (the context may still be suspended — decoding works regardless)
+async function soundClipsWarm() {
+  try {
+    const st = await _clipStore('readonly'), keys = await _idbReq(st.getAllKeys()), ctx = _clipCtx(); if (!ctx) return;
+    for (const k of keys) {
+      const rec = await _idbReq((await _clipStore('readonly')).get(k)); if (!rec || !rec.blob) continue;
+      _clipMeta[k] = { sec: rec.sec, name: rec.name, at: rec.at };
+      _clipBufs[k] = await ctx.decodeAudioData(await rec.blob.arrayBuffer());
+    }
+  } catch (_) {}
+}
+function hasCustomClip(slot) { return !!(slot && _clipBufs[slot]); }
+// play a slot's clip if there is one; true when it played (so the caller skips the built-in sound)
+function playCustomClip(slot) {
+  try {
+    const buf = slot && _clipBufs[slot]; if (!buf) return false;
+    if (!sndAudioOn() || !headphoneGatePasses()) return true;          // muted: the clip still "owns" the moment
+    const ctx = _clipCtx(); if (!ctx) return false;
+    if (ctx.state === 'suspended') ctx.resume();
+    const src = ctx.createBufferSource(), g = ctx.createGain();
+    src.buffer = buf; g.gain.value = Math.max(0.01, Math.min(1, 0.9 * sndVol() * duckedVol()));
+    src.connect(g); g.connect(ctx.destination); src.start();
+    return true;
+  } catch (_) { return false; }
+}
+// the clip itself: [startSec, startSec + lenSec) of `buf`, mixed to mono at 22.05 kHz, peak-normalised to 0.9,
+// with a 120 ms fade-out — rendered through an OfflineAudioContext so the resample is a proper one
+async function renderClip(buf, startSec, lenSec) {
+  const len = Math.max(0.1, Math.min(CLIP_MAX_SEC, lenSec, buf.duration - startSec));
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const off = new OAC(1, Math.ceil(len * CLIP_RATE), CLIP_RATE), src = off.createBufferSource();
+  src.buffer = buf; src.connect(off.destination); src.start(0, Math.max(0, startSec), len);
+  const out = (await off.startRendering()).getChannelData(0);
+  let peak = 0; for (let i = 0; i < out.length; i++) peak = Math.max(peak, Math.abs(out[i]));
+  const gain = peak > 0 ? 0.9 / peak : 1, fade = Math.min(out.length, Math.round(0.12 * CLIP_RATE));
+  for (let i = 0; i < out.length; i++) out[i] *= gain * (i >= out.length - fade ? (out.length - i) / fade : 1);
+  return { samples: out, sec: Math.round(len * 10) / 10 };
+}
+function encodeWav16(samples, rate) {
+  const n = samples.length, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), w = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 0x7fff, true);
+  return new Blob([b], { type: 'audio/wav' });
+}
+async function saveCustomClip(slot, buf, startSec, lenSec, name) {
+  const { samples, sec } = await renderClip(buf, startSec, lenSec), blob = encodeWav16(samples, CLIP_RATE);
+  await _idbReq((await _clipStore('readwrite')).put({ blob, sec, name: String(name || '').slice(0, 80), at: new Date().toISOString() }, slot));
+  const ctx = _clipCtx(); _clipBufs[slot] = await ctx.decodeAudioData(await blob.arrayBuffer());
+  _clipMeta[slot] = { sec, name, at: new Date().toISOString() };
+  return { sec, bytes: blob.size };
+}
+async function removeCustomClip(slot) {
+  try { await _idbReq((await _clipStore('readwrite')).delete(slot)); } catch (_) {}
+  delete _clipBufs[slot]; delete _clipMeta[slot];
+}
+function customSoundsHtml() {
+  return `<div class="drawer-setting-row" style="flex-wrap:wrap;"><div><div class="drawer-setting-label">🔊 Custom sounds</div>
+    <div class="drawer-setting-sub">Upload any audio and clip up to ${CLIP_MAX_SEC} s of it. Saved on this device only.</div></div></div>
+    ${CLIP_SLOTS.map(s => { const m = _clipMeta[s.id], on = hasCustomClip(s.id);
+      return `<div class="cv-row csnd-row"><div style="min-width:0;flex:1;"><div style="font-size:13px;color:var(--text);">${s.label}</div>
+        <div style="font-size:10.5px;color:var(--text3);">${on ? `Custom · ${m.sec}s${m.name ? ' · ' + escapeHtml(m.name) : ''}` : 'Built-in · ' + s.hint}</div></div>
+        ${on ? `<button class="drawer-btn" data-csnd-play="${s.id}">▶</button><button class="drawer-btn danger" data-csnd-del="${s.id}">✕</button>` : ''}
+        <button class="drawer-btn" data-csnd-up="${s.id}">${on ? 'Replace' : 'Upload'}</button></div>`; }).join('')}`;
+}
+// the clip editor: waveform, start + length sliders (length capped at 5 s), preview, fade-out, save
+function openClipEditor(slot, file, onDone) {
+  const ctx = _clipCtx(); if (!ctx) { toast('Audio is not supported in this browser'); return; }
+  if (file.size > 30 * 1024 * 1024) { toast('That file is over 30 MB — trim it first'); return; }
+  file.arrayBuffer().then(ab => ctx.decodeAudioData(ab)).then(buf => {
+    const S = CLIP_SLOTS.find(x => x.id === slot), dur = buf.duration;
+    const back = document.createElement('div'); back.className = 'choice-backdrop';
+    const sheet = document.createElement('div'); sheet.className = 'choice-sheet';
+    sheet.innerHTML = `<div class="choice-title">${S.label} — clip ${escapeHtml(file.name)}</div>
+      <div class="choice-msg">${dur.toFixed(1)} s long · pick up to ${CLIP_MAX_SEC} s of it.</div>
+      <canvas class="clip-wave" width="600" height="90"></canvas>
+      <label class="clip-ctl">Start <input type="range" id="clip-start" min="0" max="${Math.max(0, dur - 0.1).toFixed(2)}" step="0.05" value="0"> <b id="clip-start-v">0.0s</b></label>
+      <label class="clip-ctl">Length <input type="range" id="clip-len" min="0.2" max="${Math.min(CLIP_MAX_SEC, dur).toFixed(2)}" step="0.05" value="${Math.min(CLIP_MAX_SEC, dur).toFixed(2)}"> <b id="clip-len-v"></b></label>
+      <div class="choice-actions"><button class="choice-btn" data-clip="play">▶ Preview</button><button class="choice-btn primary" data-clip="save">Save</button><button class="choice-btn" data-clip="cancel">Cancel</button></div>`;
+    back.appendChild(sheet); document.body.appendChild(back); requestAnimationFrame(() => back.classList.add('open'));
+    const cv = sheet.querySelector('.clip-wave'), g2 = cv.getContext('2d'), ch = buf.getChannelData(0), W = cv.width, H = cv.height;
+    const css = k => getComputedStyle(document.documentElement).getPropertyValue(k).trim() || '#888';
+    let src = null;
+    const sel = () => { const s0 = +sheet.querySelector('#clip-start').value, l = Math.min(+sheet.querySelector('#clip-len').value, dur - s0); return [s0, Math.max(0.1, l)]; };
+    const draw = () => { const [s0, l] = sel(); g2.clearRect(0, 0, W, H);
+      g2.fillStyle = css('--accent-bg'); g2.fillRect(s0 / dur * W, 0, l / dur * W, H);
+      g2.fillStyle = css('--text3'); const step = Math.max(1, Math.floor(ch.length / W));
+      for (let x = 0; x < W; x++) { let m = 0; for (let i = x * step; i < (x + 1) * step && i < ch.length; i += 8) m = Math.max(m, Math.abs(ch[i])); const h = Math.max(1, m * (H - 6)); g2.fillRect(x, (H - h) / 2, 1, h); }
+      sheet.querySelector('#clip-start-v').textContent = s0.toFixed(1) + 's'; sheet.querySelector('#clip-len-v').textContent = l.toFixed(1) + 's'; };
+    const stop = () => { try { src && src.stop(); } catch (_) {} src = null; };
+    const close = () => { stop(); back.classList.remove('open'); setTimeout(() => back.remove(), 200); };
+    sheet.querySelectorAll('input[type=range]').forEach(i => i.addEventListener('input', draw)); draw();
+    sheet.querySelector('[data-clip="play"]').addEventListener('click', () => { stop(); const [s0, l] = sel(); if (ctx.state === 'suspended') ctx.resume();
+      src = ctx.createBufferSource(); src.buffer = buf; const g = ctx.createGain(); g.gain.value = 0.9 * sndVol(); src.connect(g); g.connect(ctx.destination); src.start(0, s0, l); });
+    sheet.querySelector('[data-clip="cancel"]').addEventListener('click', close);
+    sheet.querySelector('[data-clip="save"]').addEventListener('click', async () => { const [s0, l] = sel();
+      try { const r = await saveCustomClip(slot, buf, s0, l, file.name); toast(`${S.label}: custom ${r.sec}s clip saved`); playCustomClip(slot); } catch (e) { toast('Could not save that clip'); }
+      close(); if (onDone) onDone(); });
+  }).catch(() => toast('Could not read that audio file'));
+}
+function bindCustomSounds(body, refresh) {
+  body.querySelectorAll('[data-csnd-up]').forEach(b => b.addEventListener('click', () => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'audio/*';
+    inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; if (f) openClipEditor(b.dataset.csndUp, f, refresh); });
+    inp.click();
+  }));
+  body.querySelectorAll('[data-csnd-play]').forEach(b => b.addEventListener('click', () => playCustomClip(b.dataset.csndPlay)));
+  body.querySelectorAll('[data-csnd-del]').forEach(b => b.addEventListener('click', async () => { await removeCustomClip(b.dataset.csndDel); refresh(); }));
 }
 // feat 92 — UI tap feedback: a crisp, soft click + short haptic on every interactive control.
 function uiClickSound() {
@@ -34316,7 +34456,7 @@ function restCueFire(kind, sec, dir) { // kind: 'tick' | 'interval' | 'end' | 'o
   // ponytail: with voice on the beeps talk over the words — keep only the end triad, as a landmark.
   if (c.audio && (!c.voice || kind === 'end')) {
     const f = c.freq || 784;
-    if (kind === 'end') { restBeep(f * 1.5, 0.2); setTimeout(() => restBeep(f * 1.5, 0.2), 170); setTimeout(() => restBeep(f * 1.5, 0.26), 340); }
+    if (kind === 'end') { if (!playCustomClip('restEnd')) { restBeep(f * 1.5, 0.2); setTimeout(() => restBeep(f * 1.5, 0.2), 170); setTimeout(() => restBeep(f * 1.5, 0.26), 340); } } // feat 550 — or your clip, never both
     else if (kind === 'tick') restBeep(f, 0.07);
     else if (kind === 'over') { restBeep(f * 0.6, 0.16); setTimeout(() => restBeep(f * 0.6, 0.16), 220); }
     else if (kind === 'slow') { restBeep(f * 0.75, 0.14); setTimeout(() => restBeep(f * 0.75, 0.14), 200); }

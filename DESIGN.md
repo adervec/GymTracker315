@@ -2665,6 +2665,19 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Custom sound clips (feat 550):** Settings › Metronome & Cues › 🔊 Custom sounds lets you replace four key
+  sounds: PR set, progress set, rest over, workout ended. Upload any audio file (≤ 30 MB); `openClipEditor`
+  decodes it and draws the waveform, with start and length sliders (length capped at 5 s) and a preview. Save
+  runs `renderClip`, an OfflineAudioContext render to mono 22.05 kHz, peak-normalised to 0.9 with a 120 ms
+  fade-out, then `encodeWav16` (≤ 220 KB) into IndexedDB `gymtracker-sounds`. It is device-local on purpose:
+  audio would bloat every cloud sync. Clips are decoded once at boot (`soundClipsWarm`, deferred past the
+  clip lets' TDZ) and `playCustomClip` honours mute, the headphone gate, volume and speech ducking. Hooks:
+  - a PR or progress set plays its clip in place of the feat-435 melody, and plays it even with the melody
+    off (uploading one says you want it);
+  - rest-over plays its clip instead of the end triad (never both);
+  - workout end plays its clip after the recap toast.
+
+  `test/customsounds.spec.mjs`.
 - **Coach's choice on a plan step (feat 549):** when the picker is filtered to a plan step with 2+ visible options,
   `coachChoiceForStep` leads the list with "🧠 Coach's choice" and the reasons behind it. It reuses the touch,
   trend, vulnerable-record and last-variation maps the picker already built, and scores each option:
