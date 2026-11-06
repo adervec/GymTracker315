@@ -14,7 +14,8 @@ test.beforeEach(async ({ page }) => {
     const at = (d, h = 0) => new Date(Date.now() - d * 864e5 + h * 3600e3).toISOString();
     const mk = (id, d, sets, ended = true) => ({ id, date: at(d), ...(ended ? { endedAt: at(d, 1) } : {}), exercises: [{ varUuid: v, subUuid: null, sets: sets.map(([w, r]) => ({ w, r })) }] });
     state.sessions = [mk('s30', 30, [[95, 8]]), mk('s6', 6, [[100, 8], [100, 7]]), mk('s2', 2, [[100, 9], [100, 8]]), mk('live', 0, [[100, 5]], false)];
-    state.recoveryLog = [{ date: new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10) + 'T12:00:00.000Z', hrv: 58, sleepScore: 74 }];
+    const d2 = new Date(state.sessions.find(s => s.id === 's2').date), ymd = d2.getFullYear() + '-' + String(d2.getMonth() + 1).padStart(2, '0') + '-' + String(d2.getDate()).padStart(2, '0');
+    state.recoveryLog = [{ date: ymd + 'T12:00:00.000Z', hrv: 58, sleepScore: 74 }];   // the workout's LOCAL day (a UTC slice drifts a day late in the evening)
   });
 });
 

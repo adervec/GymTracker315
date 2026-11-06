@@ -29827,6 +29827,49 @@ function modeBadgeHtml(uuid) {
   const b = MODE_BADGES[exMode(uuid).mode];
   return b ? `<span class="mode-badge" title="${escapeAttr(b[1])}">${b[0]}</span>` : '';
 }
+/* feat 549 — COACH'S CHOICE for a plan step: of the exercises the step allows (and the picker is showing), the one
+   the coach would put you on today, with why. Scored in one pass from maps the picker already built:
+     • familiarity — training days on it in the last 90 (up to +1): you can load it with confidence;
+     • momentum — e1RM trend up +0.6 / down −0.4, and a record within reach (🎯) +0.5;
+     • a plateau on it −0.9 — that is the moment to rotate to a sibling, not to repeat;
+     • continuity — the variation you did this movement with last time +0.3 (progressive overload needs
+       repeats), unless it plateaued;
+     • the step's load — heavy steps favour barbell / machine / smith (stable to load heavy) +0.3; light steps
+       favour dumbbells / cables / bands (easy to tweak) +0.3;
+     • never done −0.5 (an unknown load is a guess), a favourite +0.25.
+   Only offered with 2+ real options. ponytail: hand-weighted, not learned — tune the weights against picks. */
+const COACH_PICK_HEAVY = /barbell|smith|machine|hack|leg press|trap bar|safety bar|belt squat|lever/i, COACH_PICK_LIGHT = /dumbbell|db|cable|band|kettlebell|kb|bodyweight|trx/i;
+function coachChoiceForStep(results, maps) {
+  if (modalState.planStepFilter == null) return null;
+  const plan = getActivePlan(), step = plan && plan.steps[modalState.planStepFilter]; if (!step) return null;
+  const cand = [];
+  results.forEach(r => { r.variations.forEach(v => v.uuid && cand.push({ v, fam: r.family }));
+    (r.secondaryVars || []).forEach(sv => { const i = VAR_INDEX.get(sv.v.uuid); if (i) cand.push({ v: sv.v, fam: i.family }); }); });
+  const seen = new Set(), list = cand.filter(c => !seen.has(c.v.uuid) && seen.add(c.v.uuid));
+  if (list.length < 2) return null;
+  const cut90 = Date.now() - 90 * 864e5, load = step.load || 'moderate';
+  let best = null;
+  list.forEach(c => {
+    const u = c.v.uuid, why = [], t = maps.touch.get(u), lv = maps.lastVar.get(c.fam.id);
+    let sc = 0;
+    const days = t ? [...t.days].filter(d => new Date(d).getTime() >= cut90).length : 0;
+    if (!t) { sc -= 0.5; } else { sc += Math.min(1, days / 6); if (days >= 3) why.push(`you know it (${days} sessions lately)`); }
+    const tr = e1rmTrend(maps.trend.get(u));
+    if (tr && tr.dir === 'up') { sc += 0.6; why.push(`trending up ${tr.pct > 0 ? '+' + tr.pct + '%' : ''}`.trim()); }
+    else if (tr && tr.dir === 'down') sc -= 0.4;
+    if (maps.vul.has(u)) { sc += 0.5; why.push('a record is within reach 🎯'); }
+    const pl = t ? detectPlateauVar(u) : null;                // any attachment — the variation as a whole
+    if (pl) sc -= 0.9;
+    else if (lv && lv.last === u) { sc += 0.3; why.push('what you did last time — keep progressing it'); }
+    if (lv && lv.last && lv.last !== u && detectPlateauVar(lv.last)) { sc += 0.3; why.push('a fresh angle while your last variation is stalled'); }
+    const name = (c.v.title + ' ' + (c.fam.title || ''));
+    if (load === 'heavy' && COACH_PICK_HEAVY.test(name)) { sc += 0.3; why.push('stable to load heavy'); }
+    if (load === 'light' && COACH_PICK_LIGHT.test(name)) { sc += 0.3; why.push('easy to tune for a light step'); }
+    if (isFavVar(u)) { sc += 0.25; why.push('a favourite'); }
+    if (!best || sc > best.score) best = { v: c.v, fam: c.fam, score: sc, why };
+  });
+  return best;
+}
 // feat 68 — results are a separate fragment so typing re-renders only the list, leaving the search
 // input and its ✕ button untouched (fixes the jiggly/inconsistent clear button + focus juggling).
 function renderPickerResults() {
@@ -29867,12 +29910,16 @@ function renderPickerResults() {
     cand.sort((a, b) => b.n - a.n || b.last - a.last);
     if (cand.length) usual = `<div class="picker-family-group picker-usual"><div class="picker-family-header">⭐ Your usual</div>${cand.slice(0, 6).map(c => varRow(c.v, c.fam, ' usual', `<div class="picker-var-secfrom">${escapeHtml(c.fam.title)} · ${c.n} days lately</div>`)).join('')}</div>`;
   }
+  // feat 549 — on a plan step, the coach's pick leads the list
+  const cc = stepSet ? coachChoiceForStep(results, { touch, trend, vul, lastVar }) : null;
+  const coach = cc ? `<div class="picker-family-group picker-usual picker-coach"><div class="picker-family-header">🧠 Coach's choice</div>${varRow(cc.v, cc.fam, ' usual coach',
+    `<div class="picker-var-secfrom">${escapeHtml(cc.fam.title)}${cc.why.length ? ' · ' + escapeHtml(cc.why.slice(0, 3).join(' · ')) : ''}</div>`)}</div>` : '';
   const dym = !results.length && modalState.pickerSearch.trim() ? pickerDidYouMean(modalState.pickerSearch.trim()) : null;
   return `<div style="font-size:10.5px;color:#666;margin:4px 0 6px 2px;">${countLabel}</div>
     <div class="picker-results">
       ${results.length === 0
         ? `<div class="picker-empty">No exercises match${dym ? `<br><button type="button" class="pf-chip picker-dym" data-dym="${escapeAttr(dym)}">Did you mean “${escapeHtml(dym)}”?</button>` : ''}</div>`
-        : usual + results.map(r => `
+        : coach + usual + results.map(r => `
           <div class="picker-family-group">
             <div class="picker-family-header">${escapeHtml(r.family.title)}</div>
             ${r.variations.map(v => varRow(v, r.family)).join('')}
@@ -32932,7 +32979,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 461 · 2026-11-05 18:38';
+const APP_BUILD = 'build 462 · 2026-11-05 19:57';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

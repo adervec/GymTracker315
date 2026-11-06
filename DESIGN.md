@@ -2665,6 +2665,19 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Coach's choice on a plan step (feat 549):** when the picker is filtered to a plan step with 2+ visible options,
+  `coachChoiceForStep` leads the list with "🧠 Coach's choice" and the reasons behind it. It reuses the touch,
+  trend, vulnerable-record and last-variation maps the picker already built, and scores each option:
+  - familiarity, up to +1 for 6 training days in the last 90; never trained −0.5;
+  - e1RM trend up +0.6 / down −0.4; a record within reach +0.5;
+  - a plateau on it −0.9 (`detectPlateauVar`, any attachment);
+  - continuity: last time's variation for the movement +0.3, unless it stalled, in which case a sibling gets
+    +0.3 as "a fresh angle";
+  - the step's load: heavy favours barbell / machine / smith, light favours dumbbell / cable / band, +0.3;
+  - a favourite +0.25.
+
+  The row is styled like Your usual (`.usual`), so 🎲 never draws it. Hand-weighted, a ponytail note says so.
+  `test/coachchoice.spec.mjs`.
 - **The holds pass (feat 548):** two halves. (1) `exMode` under-detected holds. It only knew hang / hold / plank /
   L-sit / wall sit / isometric, so 46 exercises that are held logged reps. Those were the whole `static-stretch`
   family, most of `iso-poses` (Boat, Chair, Tree, Horse Stance, Standing Post), V-Sit, the plate pinch, the
