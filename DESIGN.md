@@ -2665,6 +2665,34 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **One tap ends a workout (feat 552):** "I have to hit End Workout twice." Two causes, both in the shared
+  press handler `attachTrackerPress`, so every press-and-hold control benefits:
+  - It cancelled on `pointerleave`, the first pixel a drifting finger crossed the edge. And on a phone the
+    browser could claim a slightly-moving touch as a scroll and fire `pointercancel`. The press now takes
+    pointer capture, "slid off" means 24 px past the edge (tracked on `pointermove`), and the workout control
+    buttons carry `touch-action: none` (`.wc-btn[data-lp-able]`).
+  - The once-a-minute Log re-render could rebuild the page under a finger mid-press, orphaning the button
+    before `pointerup`. It now skips while `.lp-holding` is on screen.
+
+  `test/endtap.spec.mjs`.
+- **Estimated calories from heart rate (feat 551):** calories only ever arrived typed in or from Strava; the per-
+  second HR samples recorded during every workout went into avg / max alone. `estimateSessionCalories` applies
+  Keytel et al. (2005): heart rate, weight (nearest weigh-in), age and sex, with a sex-neutral average for
+  "other" and an assumed age 35 that it reports. It switches to the VO₂max form when the wearable log has a
+  VO₂max within 120 days. The samples are integrated minute by minute (gaps over 2 min not bridged); without
+  samples, average HR × duration is the fallback. Keytel overstates easy heart rates, so under 90 bpm the
+  rate tapers linearly to light standing (1.3 MET) at your resting HR (the wearable's 30-day median, else
+  60). Nothing is counted below that floor. "Active" = total − Mifflin-St Jeor BMR.
+  - `hrFinalize` stores it as `hr.calories` + `caloriesEst` + `kcalActive` unless a real figure is there.
+  - `linkStrava` replaces an estimate with Strava's measured calories.
+  - The HR bar shows a live "🔥 N kcal".
+  - The workout line shows "≈N cal [est.]", recomputed on display so the calibration applies to past
+    workouts too; older sessions with HR but no figure get one.
+  - HR formulas run high for lifting (the pressor response raises HR more than oxygen use), so Settings ›
+    Workout controls has a 70-110% calibration (`workoutControls.kcalScale`, default 100%) to match a device
+    you trust.
+
+  `test/hrcalories.spec.mjs`.
 - **Custom sound clips (feat 550):** Settings › Metronome & Cues › 🔊 Custom sounds lets you replace four key
   sounds: PR set, progress set, rest over, workout ended. Upload any audio file (≤ 30 MB); `openClipEditor`
   decodes it and draws the waveform, with start and length sliders (length capped at 5 s) and a preview. Save

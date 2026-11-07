@@ -1025,6 +1025,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .reflect-pill { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 999px; background: var(--bg3, #1a1a1a); border: 1px solid var(--border2, #333); color: var(--text2); cursor: pointer; font-family: inherit; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
   .reflect-pill.active { background: var(--accent, #b48aff); border-color: var(--accent, #b48aff); color: #0a0a0a; }
   /* feat 370 — self-contained gym map (OpenStreetMap raster tiles, no library) */
+  .wc-btn[data-lp-able] { touch-action: none; } /* feat 552 — End Workout & co: a drifting tap stays a tap, never a scroll */
   .gym-map { position: relative; width: 100%; height: 300px; border-radius: 10px; overflow: hidden; background: #a7d3e8; border: 1px solid var(--border2); touch-action: none; user-select: none; margin: 4px 0 12px; }
   .gmap-tiles, .gmap-markers { position: absolute; inset: 0; }
   .gmap-tiles img { position: absolute; width: 256px; height: 256px; pointer-events: none; }
@@ -3255,6 +3256,9 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .clip-wave { width: 100%; height: 90px; display: block; border-radius: 8px; background: var(--bg3); margin: 4px 0 10px; }
 .clip-ctl { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); margin-bottom: 8px; }
 .clip-ctl input { flex: 1; } .clip-ctl b { min-width: 38px; text-align: right; color: var(--text); }
+/* feat 551 — estimated calories */
+.kcal-est { font-size: 9px; font-weight: 700; margin-left: 3px; padding: 0 4px; border-radius: 6px; background: var(--bg4); color: var(--text3); vertical-align: 1px; }
+.hr-bar-kcal { font-size: 12px; font-weight: 700; color: var(--warn); margin-left: 6px; }
 /* feat 538 — the next-set coach card */
 .ns-card { margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent-bg); }
 .ns-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
@@ -8353,12 +8357,14 @@ function trackerPressCfg() {
 function attachTrackerPress(btn, onShort, onLong, label) {
   if (!btn) return () => {};
   if (onLong) _lpTagHoldable(btn); // feat 203 — only a real long action makes it shimmer-worthy
-  let timer = null, raf = null, start = 0, longFired = false;
+  let timer = null, raf = null, start = 0, longFired = false, inside = true;
   const clear = () => { clearTimeout(timer); cancelAnimationFrame(raf); _lpTeachOff(); btn.classList.remove('lp-holding', 'lp-armed'); btn.style.removeProperty('--lp'); btn.removeAttribute('data-lp-label'); };
   const begin = (e) => {
     if (e && e.preventDefault) e.preventDefault();
+    // feat 552 — keep the pointer even if the finger drifts off the edge (a tap was being lost to a few pixels)
+    try { if (e && e.pointerId != null) btn.setPointerCapture(e.pointerId); } catch (_) {}
     const cfg = trackerPressCfg();
-    start = Date.now(); longFired = false;
+    start = Date.now(); longFired = false; inside = true;
     if (onLong) _lpTeachOn(); // feat 203
     // Always show a progress fill while a non-instant press charges: toward shortMs first (the
     // accidental-tap guard "arming"), then toward longMs (the long-press shortcut). An instant tap
@@ -8382,12 +8388,21 @@ function attachTrackerPress(btn, onShort, onLong, label) {
   };
   const release = () => {
     if (longFired) { clear(); return; }                 // long-press already fired
-    const held = Date.now() - start; clear();
-    if (held >= trackerPressCfg().shortMs && onShort) onShort(); // a deliberate tap
+    const held = Date.now() - start; clear(); start = 0;   // no press in flight: later hover moves are ignored
+    if (inside && held >= trackerPressCfg().shortMs && onShort) onShort(); // a deliberate tap
+  };
+  // feat 552 — sliding off still cancels, but "off" means 24 px past the edge, not the first pixel over it: on a phone
+  // a tap drifts, and the old pointerleave-cancels rule silently ate it (you had to hit End Workout twice)
+  const move = (e) => {
+    if (!start || longFired) return;
+    const r = btn.getBoundingClientRect(), pad = 24;
+    const was = inside;
+    inside = e.clientX >= r.left - pad && e.clientX <= r.right + pad && e.clientY >= r.top - pad && e.clientY <= r.bottom + pad;
+    if (was && !inside) clear();                        // visibly cancel the charge, too
   };
   btn.addEventListener('pointerdown', begin);
   btn.addEventListener('pointerup', release);
-  btn.addEventListener('pointerleave', clear);          // sliding off cancels — no action
+  btn.addEventListener('pointermove', move);
   btn.addEventListener('pointercancel', clear);
   return clear;
 }
@@ -13070,6 +13085,13 @@ function renderSettingsDrawer() {
     </div>` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">🎙 Hold timer: spoken stop word</div><div class="drawer-setting-sub">This device doesn't support speech recognition, so the stop word isn't available here.</div></div></div>`}
     <div class="drawer-setting-row" style="flex-wrap:wrap;">
       <div>
+        <div class="drawer-setting-label">🔥 Calorie estimate</div>
+        <div class="drawer-setting-sub">Workouts with heart rate get an estimated burn (Keytel formula, from your weight, age and sex; VO₂max when your wearable has it). Heart-rate formulas run high for lifting — scale it to match a device you trust.${(() => { const P = calorieProfile(); return P ? '' : ' <b>Add a weight on the Body page to enable it.</b>'; })()}</div>
+      </div>
+      <div class="drawer-pill-group">${KCAL_SCALES.map(v => `<button class="drawer-pill ${calorieScale() === v ? 'active' : ''}" data-kcal-scale="${v}">${Math.round(v * 100)}%</button>`).join('')}</div>
+    </div>
+    <div class="drawer-setting-row" style="flex-wrap:wrap;">
+      <div>
         <div class="drawer-setting-label">🧠 Next-set factors</div>
         <div class="drawer-setting-sub">What the next-set coach may use. All on by default — switch one off and it is ignored (the "why" list says so).</div>
       </div>
@@ -14095,6 +14117,7 @@ function renderSettingsDrawer() {
   }));
   body.querySelectorAll('[data-ns-factor]').forEach(b => b.addEventListener('click', () => { nsToggleFactor(b.dataset.nsFactor); renderSettingsDrawer(); })); // feat 543
   bindCustomSounds(body, renderSettingsDrawer); // feat 550
+  body.querySelectorAll('[data-kcal-scale]').forEach(b => b.addEventListener('click', () => { state.workoutControls = state.workoutControls || {}; state.workoutControls.kcalScale = +b.dataset.kcalScale; saveState(); renderSettingsDrawer(); })); // feat 551
   body.querySelectorAll('[data-cowork-chan]').forEach(b => b.addEventListener('click', () => { // feat 459
     const k = b.dataset.coworkChan;
     state.cowork.channels[k] = !coworkChannelOn(k); saveState(); renderSettingsDrawer();
@@ -22654,7 +22677,12 @@ function renderWorkoutStats(session) {
   }
   const sleepStr = session.sleep ? ` · 😴 ${escapeHtml(session.sleep)}` : '';
   if (hr && (hr.avg != null || hr.max != null || hr.calories != null)) {
-    const parts = [hr.avg!=null?`Avg ${hr.avg}`:'', hr.max!=null?`Max ${hr.max}`:'', hr.calories!=null?`${hr.calories} cal`:''].filter(Boolean).join(' · ');
+    // feat 551 — a measured figure (logged / Strava) as is; an estimate is recomputed so a calibration change applies,
+    // and an older session with HR but no figure gets one
+    const est = (hr.calories == null || hr.caloriesEst) ? estimateSessionCalories(session) : null;
+    const calTxt = est ? `≈${est.kcal} cal<span class="kcal-est" title="Estimated from your heart rate (Keytel)${est.vo2 ? ' with your VO₂max' : ''} · ${est.active} active${est.scale !== 1 ? ' · scaled ' + Math.round(est.scale * 100) + '%' : ''} — HR formulas run high for lifting">est.</span>`
+      : hr.calories != null ? `${hr.calories} cal` : '';
+    const parts = [hr.avg!=null?`Avg ${hr.avg}`:'', hr.max!=null?`Max ${hr.max}`:'', calTxt].filter(Boolean).join(' · ');
     return `<div class="hr-line" data-hr-edit="${session.date}">❤️ ${parts}${sleepStr} <span class="hr-edit-link">edit</span></div>`;
   }
   if (session.sleep) {
@@ -28885,6 +28913,7 @@ function linkStrava(sessionDate, activityId, enrich) {
   touchSession(s); // feat 95
   if (enrich !== false) {
     if (!s.hr && (a.avgHr != null || a.calories != null)) s.hr = { avg: a.avgHr, max: a.maxHr, calories: a.calories };
+    else if (s.hr && s.hr.caloriesEst && a.calories != null) { s.hr = { ...s.hr, calories: a.calories }; delete s.hr.caloriesEst; delete s.hr.kcalActive; } // feat 551 — measured beats estimated
     if (!s.endedAt && a.elapsedSec) { const end = new Date(new Date(s.date).getTime() + a.elapsedSec * 1000); if (end < new Date()) { s.endedAt = end.toISOString(); s.endReason = s.endReason || 'strava'; } }
   }
   saveState();
@@ -32988,7 +33017,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 463 · 2026-11-05 20:21';
+const APP_BUILD = 'build 464 · 2026-11-06 21:10';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -34026,6 +34055,7 @@ function hrOnSample(bpm) {
     }
   }
   const el = document.getElementById('hr-live-bpm'); if (el) el.textContent = bpm;
+  if (_hrSampleN % 10 === 0) { const k = document.getElementById('hr-live-kcal'); if (k) k.textContent = liveKcalText(); } // feat 551
   if (typeof refreshTopbarLive === 'function') refreshTopbarLive(); // feat 244
 }
 async function hrConnectDevice(dev) {
@@ -34083,11 +34113,77 @@ function hrDisconnect() {
   _hrConnected = false;
   if (typeof render === 'function') render();
 }
+/* ============================================================
+   feat 551 — CALORIES FROM HEART RATE. Keytel et al. (2005, J Sports Sci) predicts energy expenditure from heart
+   rate, weight, age and sex; when your wearable reports a VO₂max the more accurate fitness-adjusted form is used.
+   The per-second HR samples are integrated minute by minute (gaps over 2 min are not bridged), and no minute is
+   counted below light standing (1.3 MET); under 90 bpm it tapers to that floor at your resting HR (the equation
+   overstates easy heart rates). Without samples,
+   a session's average HR × its duration is the fallback. "Active" = total − resting (Mifflin-St Jeor BMR), the
+   figure Garmin / Apple call active calories. A logged or Strava calorie figure always wins over the estimate.
+   ponytail: HR formulas are built on steady aerobic work and run HIGH for lifting (the pressor response lifts HR
+   more than oxygen use) — it is labelled an estimate; calibrate against a chest-strap device if it matters.
+   ============================================================ */
+const KCAL_SCALES = [0.7, 0.8, 0.9, 1, 1.1];
+function calorieScale() { const v = +((state.workoutControls || {}).kcalScale); return KCAL_SCALES.includes(v) ? v : 1; }
+function calorieProfile(atMs) {
+  const bc = (state.bodyComp || []).filter(b => b.weightKg > 0).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const near = bc.find(b => new Date(b.date).getTime() <= (atMs || Date.now())) || bc[bc.length - 1];
+  if (!near) return null;                                         // no weight → no honest estimate
+  const pr = state.profile || {}, assumed = [];
+  let age = pr.dob ? ageFromDob(pr.dob) : null; if (age == null) { age = 35; assumed.push('age 35'); }
+  const sex = pr.gender === 'male' ? 'm' : pr.gender === 'female' ? 'f' : 'x';
+  if (sex === 'x') assumed.push('sex-neutral formula');
+  const vo = (state.recoveryLog || []).filter(r => r.vo2max > 0 && Math.abs((atMs || Date.now()) - new Date(r.date).getTime()) < 120 * 864e5)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  const rhrs = (state.recoveryLog || []).filter(r => r.restingHr > 30 && Math.abs((atMs || Date.now()) - new Date(r.date).getTime()) < 30 * 864e5).map(r => +r.restingHr).sort((a, b) => a - b);
+  const restHr = rhrs.length ? rhrs[rhrs.length >> 1] : 60;
+  return { wkg: near.weightKg, age, sex, vo2: vo ? +vo.vo2max : null, heightCm: pr.heightCm > 0 ? +pr.heightCm : null, restHr, assumed };
+}
+// Keytel is built on exercise heart rates and overstates the easy ones, so under 90 bpm it tapers linearly from its
+// 90-bpm value down to light standing (1.3 MET) at your resting HR — the minutes between sets stop counting as work
+function kcalPerMinAtHr(hr, P) {
+  const floor = P.wkg * 1.3 / 60;
+  if (hr < 90) { const lo = Math.min(P.restHr || 60, 89); if (hr <= lo) return floor; const top = _keytelKcalMin(90, P); return floor + (top - floor) * (hr - lo) / (90 - lo); }
+  return _keytelKcalMin(hr, P);
+}
+function _keytelKcalMin(hr, P) {
+  const k = x => P.vo2
+    ? (x === 'm' ? -95.7735 + 0.634 * hr + 0.404 * P.vo2 + 0.394 * P.wkg + 0.271 * P.age : -59.3954 + 0.45 * hr + 0.380 * P.vo2 + 0.103 * P.wkg + 0.274 * P.age)
+    : (x === 'm' ? -55.0969 + 0.6309 * hr + 0.1988 * P.wkg + 0.2017 * P.age : -20.4022 + 0.4472 * hr - 0.1263 * P.wkg + 0.074 * P.age);
+  const kj = P.sex === 'x' ? (k('m') + k('f')) / 2 : k(P.sex);   // kJ / min
+  return Math.max(P.wkg * 1.3 / 60, kj / 4.184);                 // never under light standing
+}
+function bmrKcalPerMin(P) {
+  const h = P.heightCm || (P.sex === 'f' ? 162 : 175);
+  return (10 * P.wkg + 6.25 * h - 5 * P.age + (P.sex === 'm' ? 5 : P.sex === 'f' ? -161 : -78)) / 1440;
+}
+function estimateSessionCalories(session) {
+  if (!session) return null;
+  const P = calorieProfile(new Date(session.date).getTime()); if (!P) return null;
+  const S = (Array.isArray(session.hrSamples) ? session.hrSamples : []).filter(x => Array.isArray(x) && x[1] > 30 && x[1] < 230);
+  let kcal = 0, mins = 0, method;
+  if (S.length >= 10) {
+    for (let i = 1; i < S.length; i++) { const dt = (S[i][0] - S[i - 1][0]) / 60000; if (!(dt > 0) || dt > 2) continue;
+      kcal += kcalPerMinAtHr((S[i][1] + S[i - 1][1]) / 2, P) * dt; mins += dt; }
+    method = 'hr-samples';
+  } else if (session.hr && session.hr.avg > 0 && session.endedAt) {
+    mins = Math.min(300, (new Date(session.endedAt) - new Date(session.date)) / 60000); kcal = kcalPerMinAtHr(session.hr.avg, P) * mins; method = 'hr-average';
+  } else return null;
+  if (mins < 1) return null;
+  const scale = calorieScale(); kcal *= scale;   // your calibration against a device you trust
+  return { kcal: Math.round(kcal), active: Math.round(Math.max(0, kcal - bmrKcalPerMin(P) * mins)), minutes: Math.round(mins), method, vo2: !!P.vo2, assumed: P.assumed, scale };
+}
 // Roll the recorded samples into the session's avg/max HR on workout end.
+function liveKcalText() { const s = getActiveSession(), e = s && !s.endedAt ? estimateSessionCalories(s) : null; return e ? '🔥 ' + e.kcal + ' kcal' : ''; }
 function hrFinalize(session) {
   if (!session || !Array.isArray(session.hrSamples) || !session.hrSamples.length) return;
   const bpms = session.hrSamples.map(s => s[1]);
   session.hr = { ...(session.hr || {}), avg: Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length), max: Math.max.apply(null, bpms) };
+  if (session.hr.calories == null || session.hr.caloriesEst) { // feat 551 — estimate unless a real figure is already there
+    const e = estimateSessionCalories(session);
+    if (e) session.hr = { ...session.hr, calories: e.kcal, kcalActive: e.active, caloriesEst: e.method };
+  }
 }
 // Connect/live bar on the Log tab during a workout.
 function renderHrBar() {
@@ -34096,6 +34192,7 @@ function renderHrBar() {
   if (_hrConnected) {
     return `<div class="hr-bar on">
       <span class="hr-bar-icon">💓</span><span class="hr-bar-bpm" id="hr-live-bpm">${_hrLastBpm != null ? _hrLastBpm : '–'}</span><span class="hr-bar-unit">bpm</span>
+      <span class="hr-bar-kcal" id="hr-live-kcal" title="Estimated from your heart rate so far this workout">${liveKcalText()}</span>
       <span class="hr-bar-dev">${escapeHtml(dev ? dev.name : 'monitor')}</span>
       <button class="hr-bar-btn" id="hr-disconnect-btn">Disconnect</button>
     </div>`;
@@ -34622,6 +34719,7 @@ function ensureRestTick() {
 
 // Tick the elapsed-time stat every minute when on the Log tab and modal is closed
 setInterval(() => {
+  if (document.querySelector('.lp-holding')) return; // feat 552 — a press is in progress: re-rendering would orphan its button
   if (currentTab === 'log' && !modalState.open) {
     // Only re-render if we have an active today session
     const hasToday = state.sessions.some(s => new Date(s.date).toDateString() === new Date().toDateString());
