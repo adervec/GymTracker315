@@ -2665,6 +2665,15 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The ghost click that ate End Workout (feat 553):** feat 552 fixed drifting taps, but "I have to hit End Workout
+  twice" persisted. The real culprit: `attachTrackerPress` acts on pointerup and End Workout opens its confirm sheet
+  right then. The phone delivers the same tap's synthesized click a beat later, and `.choice-backdrop` turns
+  interactive (`.open`) on the next frame, so it is a race. When the sheet was ready first, the click hit the
+  backdrop and dismissed the sheet unseen. On a phone the End button sits outside the centred sheet; on desktop it
+  sits under it, which is why it never showed there. One shared guard fixes every sheet: a MutationObserver stamps
+  each `.choice-backdrop` as it is added, and a capture-phase listener swallows a trusted click inside one younger
+  than 400 ms. Scripted clicks pass untouched. `test/ghostclick.spec.mjs` replays the late click and fails on the
+  phone layout without the guard.
 - **One tap ends a workout (feat 552):** "I have to hit End Workout twice." Two causes, both in the shared
   press handler `attachTrackerPress`, so every press-and-hold control benefits:
   - It cancelled on `pointerleave`, the first pixel a drifting finger crossed the edge. And on a phone the

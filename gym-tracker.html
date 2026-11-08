@@ -15832,6 +15832,23 @@ function choiceDialog(opts) {
     requestAnimationFrame(() => back.classList.add('open'));
   });
 }
+/* feat 553 — the GHOST-CLICK guard. A press control (attachTrackerPress — End Workout, ✕ Clear…) acts on pointerup and
+   often opens a sheet right then; the phone then delivers the SAME tap's synthesized click a beat later. If the sheet
+   has turned interactive by then (`.open` lands on the next frame — a race), that click hits the backdrop or whatever
+   button sits under the finger and dismisses the sheet before you ever see it: "I have to hit End Workout twice".
+   Every sheet is stamped as it is added, and a REAL (isTrusted) click inside one younger than 400 ms is swallowed.
+   Scripted clicks are never touched, and no human taps a button that has existed for under half a second. */
+const GHOST_CLICK_MS = 400;
+if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.body) {
+  new MutationObserver(muts => muts.forEach(m => m.addedNodes.forEach(n => {
+    if (n.nodeType === 1 && n.classList && n.classList.contains('choice-backdrop')) n.dataset.openedAt = String(Date.now());
+  }))).observe(document.body, { childList: true });
+  document.addEventListener('click', e => {
+    if (!e.isTrusted) return;
+    const back = e.target && e.target.closest && e.target.closest('.choice-backdrop');
+    if (back && back.dataset.openedAt && Date.now() - +back.dataset.openedAt < GHOST_CLICK_MS) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+}
 // feat 86 — themed replacements for native confirm()/prompt(), built on the choiceDialog sheet.
 function confirmDialog(message, opts) {
   opts = opts || {};
@@ -33017,7 +33034,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 464 · 2026-11-06 21:10';
+const APP_BUILD = 'build 465 · 2026-11-08 17:03';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
