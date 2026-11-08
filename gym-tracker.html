@@ -5577,6 +5577,29 @@ const HOLD_ROWS = [
 compactRowsToVars(HOLD_ROWS.map(r => r.slice(1)), 0x3B9)                        // rows lead with their family id
   .forEach((v, i) => EXTRA_VARIATIONS.push({ movementId: HOLD_ROWS[i][0], ...v })); // slots 0x3B9-0x3DF — next free: 0x3E0
 
+/* feat 554 — the user's gym and feed. The Freemotion ROW station (GoodLife #126) lists five movements on its placard;
+   the catalogue had only the standing two-handle version. And a dedicated seated LOW-ROW machine (cable fed from a
+   bottom pulley), which the generic Seated Cable Row did not describe. Plus four lifts from reels: the kettlebell
+   swing → lunge high pull, the half-kneeling "check your blind spot" thoracic rotation, the Spartan uppercut, and the
+   partner-held floor back extension. */
+const PASS5_ROWS = [
+  // --- the Freemotion Row station: seated arms on independent swivel cables ---
+  ['row','freemotion-seated-row','Freemotion Seated Row','Seated Dual-Cable Row','Seated at the Freemotion Row, a handle in each hand on its own swivel cable — the classic seated row with free arm paths.','Sit tall, chest to the pad or upright|Feet braced on the platform|A handle in each hand, arms long','Pull both handles to the lower ribs, elbows close|Squeeze the shoulder blades together|Return to a full stretch under control','Leaning back to move the stack|Shrugging|Cutting the stretch short','Strength:4 × 6-8;Hypertrophy:3-4 × 10-12','The independent cables let each arm find its own path — the weaker side cannot hide.'],
+  ['row','freemotion-alt-row-rotation','Freemotion Alternating Row with Rotation','Seated Rotational Row','Seated, row one arm at a time and let the torso turn toward the pulling side — the lats and the obliques together.','Sit tall at the Freemotion Row|A handle in each hand, arms long','Row one handle while rotating the chest toward it|Return under control as the other arm rows and rotates|Keep the hips square to the seat','Twisting from the low back instead of the mid-back|Yanking|Hips sliding on the seat','Hypertrophy:3 × 8-12 per side','The rotation is the point — turn through the rib cage, not the lumbar spine.'],
+  ['row','freemotion-1arm-seated-row','Freemotion 1-Arm Seated Row','Single-Arm Cable Row','Seated, one handle, one arm — a strict unilateral row with the other hand on the seat or thigh.','Sit tall|One handle, arm long, the other hand braced','Row the handle to the lower ribs|Keep the shoulders square|Return to a full stretch','Rotating to cheat the weight|Shrugging|Short range','Hypertrophy:3 × 10-12 per arm','Square shoulders make it a lat row; let them turn and it becomes the rotation variant.'],
+  ['row','freemotion-1arm-lunge-row-rotation','Freemotion 1-Arm Lunge Row with Rotation','Split-Stance Rotational Row','Standing in a lunge stance facing the Freemotion Row, row one handle while rotating through the torso — opposite leg forward.','Lunge stance, the leg opposite the working arm forward|One handle, arm long, torso turned toward it','Row and rotate away from the machine together|Drive through the front foot|Return under control','Lunging too shallow to be stable|Twisting from the low back|Losing the knee position','Hypertrophy:3 × 8-12 per side;Power:4 × 5-6 fast per side','A total-body pull — legs, lats and obliques in one rep, like the start of a throw.'],
+  ['row','freemotion-standing-alt-row-rotation','Freemotion Standing Alternating Row with Rotation','Standing Rotational Row','Standing facing the Freemotion Row, alternate rows with each arm, rotating the torso toward each pull.','Athletic stance, soft knees|A handle in each hand, arms long','Row one arm while rotating toward it|Return as the other arm rows and rotates|Keep a steady rhythm','Hips swinging with the shoulders|Leaning back|Rushing the return','Hypertrophy:3 × 10-12 per side;Conditioning:3 × 30-45s','Standing makes the hips and core resist the pull on every rep.'],
+  // --- the dedicated low-row machine: its own stack, seat and foot plate, the cable fed from a bottom pulley ---
+  ['row','seated-low-row-machine','Seated Low Row (Machine)','Selectorized Low Row','A seated row machine with its own weight stack, the cable running out of a pulley near the floor — so the pull comes from below and slightly in front.','Set the seat so the handle lines up with the lower ribs at full reach|Feet braced on the plate, knees soft|Handle attached (V-grip, wide bar or rope), chest tall','Pull the handle to the lower ribs, elbows sweeping back|Squeeze the shoulder blades together|Let the stack pull you to a full stretch, then repeat','Leaning back to move the stack|Rounding at the stretch|Shrugging at the finish','Strength:4 × 6-8;Hypertrophy:3-4 × 10-12','The low pulley line biases the lats; a wide bar with flared elbows shifts it to the upper back.'],
+  // --- from reels ---
+  ['kettlebell-specific','kb-swing-lunge-high-pull','Swing to Lunge High Pull','KB Swing + Reverse Lunge + High Pull','A kettlebell swing that flows into a reverse lunge and finishes with a high pull — hips, legs, shoulders and anti-rotation in one complex.','One kettlebell held with one or two hands|Feet hip-width','Swing the bell between the legs and up|Step back into a reverse lunge as it comes down|Drive up and high-pull the bell to the chest, elbow high|Reset and repeat, alternating legs','Squatting the swing|Knee crashing in the lunge|Pulling the high pull with the low back','Conditioning:3-4 × 6-8 per side','Keep the bell close on the high pull; the lunge trains the hips to resist the bell’s rotation.'],
+  ['mobility-warmup','half-kneeling-wall-tspine-rotation','Half-Kneeling Wall T-Spine Rotation','"Check Your Blind Spot" Rotation','Half-kneeling beside a wall, hands behind the head, rotate the upper back open — the drill for turning to look over your shoulder without tweaking the neck or low back.','Half-kneel side-on to a wall, the inside knee down|Hands behind the head, elbows wide','Rotate the chest open toward the wall|Lead with the elbow and the eyes|Return slowly; repeat, then switch sides','Rotating from the low back|Neck cranking ahead of the ribs|Hips turning with the shoulders','Mobility:2 × 8-10 per side','The down knee locks the hips, so all the turn has to come from the thoracic spine.'],
+  ['kettlebell-specific','spartan-uppercut','Spartan Uppercut','Rotational KB Uppercut','From a low hinge on one side, drive the kettlebell (or dumbbell) up and across in an uppercut arc to the opposite shoulder — explosive rotational power.','Kettlebell in one hand outside the knee|Athletic stance, hips back','Drive through the legs and pivot the back foot|Punch the bell up and across in an uppercut arc|Lower back to the start under control','Arm-only lifting|Rounded back in the hinge|Over-rotating past control','Power:4 × 5-8 per side','Power comes from the hips and the foot pivot — the arm just steers the bell.'],
+  ['back-extension','partner-floor-back-extension','Partner-Anchored Floor Back Extension','Prone Back Raise, Legs Held','Face down on the floor with a partner holding the legs or hips, arms reaching overhead, raise the chest as high as you control — the back extension without a bench.','Lie face down, arms overhead in a Y|Partner kneels and holds the hips or ankles','Brace and lift the chest and arms off the floor|Squeeze the glutes and the whole back|Lower slowly','Craning the neck up|Bouncing off the floor|Partner holding too loosely','Hypertrophy:3 × 10-15;Endurance:3 × 20','Arms overhead lengthens the lever; hands by the hips make it easier.'],
+];
+compactRowsToVars(PASS5_ROWS.map(r => r.slice(1)), 0x3E0)
+  .forEach((v, i) => EXTRA_VARIATIONS.push({ movementId: PASS5_ROWS[i][0], ...v })); // slots 0x3E0-0x3E9 — next free: 0x3EA
+
 /* ---- feat 448 — the Swiss ball, its own family ----
    The catalogue had two Swiss-ball entries (`swiss-ball-curl` in Leg Curl, `stir-the-pot` in Core
    Anti-Movement) and no home for the rest. The ball trains by SUBTRACTION — it removes the floor's
@@ -29492,7 +29515,7 @@ const EX_ALIASES = [
   [/hanging leg raise/, 'hlr'], [/push.?up/, 'press up pressup'], [/chin.?up/, 'chinup'],
   [/t.bar row/, 'tbar row'], [/seal row|chest.supported row/, 'seal row chest supported row'],
   [/kettlebell swing/, 'kb swing'], [/clean and jerk/, 'c&j cj'], [/ez.?bar/, 'ez bar curl bar'],
-  [/frankenstein/, 'zombie'], [/stiff.leg/, 'sldl'], [/hip thrust/, 'glute bridge hip thruster'],
+  [/frankenstein/, 'zombie'], [/t-spine rotation|thoracic rotation/, 'blind spot'], [/spartan uppercut/, 'kettlebell uppercut rotational'], // feat 554 [/stiff.leg/, 'sldl'], [/hip thrust/, 'glute bridge hip thruster'],
   [/sissy/, 'sissy squat'], [/goblet/, 'goblet'], [/zercher/, 'zercher'],
 ];
 let _pickHay = new Map();
@@ -30182,6 +30205,9 @@ const VAR_EQUIP_OVERRIDES = {
   'single-arm-overhead-tri': 'dumbbell', 'batwing-row': 'dumbbell', 'kroc-row': 'dumbbell',
   'side-lying-er': 'dumbbell', 'preacher-rear-delt': 'dumbbell', 'suitcase-deadlift': 'dumbbell',
   'snatch-grip-shrug': 'barbell',
+  'freemotion-seated-row': 'pin', 'freemotion-alt-row-rotation': 'pin', 'freemotion-1arm-seated-row': 'pin', // feat 554
+  'freemotion-1arm-lunge-row-rotation': 'pin', 'freemotion-standing-alt-row-rotation': 'pin', 'seated-low-row-machine': 'pin',
+  'kb-swing-lunge-high-pull': 'kettlebell', 'spartan-uppercut': 'kettlebell', 'half-kneeling-wall-tspine-rotation': null, 'partner-floor-back-extension': null,
   'spell-caster': 'dumbbell', 'conans-wheel': null, 'power-stairs': null, 'car-deadlift': null, 'keg-load': null, 'sandbag-load': null, // feat 525
   'w-raise': 'dumbbell', 'trap-3-raise': 'dumbbell', 'shotgun-row': 'pin', 'incline-skull-crusher': 'barbell', // feat 524
   'ring-fly': null, // feat 523 — gymnastic rings: bodyweight, no loading tool
@@ -33034,7 +33060,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 465 · 2026-11-08 17:03';
+const APP_BUILD = 'build 466 · 2026-11-08 17:41';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

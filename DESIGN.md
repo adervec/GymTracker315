@@ -2665,6 +2665,17 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Your gym and feed (feat 554):** `PASS5_ROWS`, 10 movements (slots 0x3E0-0x3E9, next free 0x3EA):
+  - **Freemotion Row station (GoodLife #126):** its placard's five movements. Seated Row, Alternating Row with
+    Rotation, 1-Arm Seated Row, 1-Arm Lunge Row with Rotation and Standing Alternating Row with Rotation join the
+    standing two-handle row the catalogue already had.
+  - **Seated Low Row (Machine):** the selectorized low-row machine with its cable fed from a bottom pulley, which
+    the generic Seated Cable Row did not describe.
+  - **From reels:** the kettlebell Swing to Lunge High Pull, the Half-Kneeling Wall T-Spine Rotation (alias "blind
+    spot"), the Spartan Uppercut, and the Partner-Anchored Floor Back Extension.
+
+  The machines load by pin and the kettlebell lifts by kettlebell (`VAR_EQUIP_OVERRIDES`).
+  `test/gymfeed.spec.mjs`.
 - **The ghost click that ate End Workout (feat 553):** feat 552 fixed drifting taps, but "I have to hit End Workout
   twice" persisted. The real culprit: `attachTrackerPress` acts on pointerup and End Workout opens its confirm sheet
   right then. The phone delivers the same tap's synthesized click a beat later, and `.choice-backdrop` turns
