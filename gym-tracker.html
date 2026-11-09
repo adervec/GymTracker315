@@ -881,12 +881,19 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
      touch phones/tablets never get it. A phone-first PWA sprawls edge-to-edge on a monitor with oversized
      touch targets, so on desktop we center the core surfaces in a readable column, cap + center the numpad
      bottom-sheet, and trim the chunkiest controls a notch for a mouse. Mobile is untouched. Tune to taste. */
-  body.desktop { --desktop-w: 900px; }
+  /* feat 555 — 900px read as a phone column on a big monitor. The column now grows with the window (88vw) up to
+     1280px: roomier on a laptop or 1440p screen, never sprawling across an ultrawide. The Reference panel, the
+     + Log Set bar and the toast used to span the full window; they now share the same column. */
+  body.desktop { --desktop-w: clamp(900px, 88vw, 1280px); }
   body.desktop #panel-tracker > header,
   body.desktop #trk-main,
+  body.desktop #panel-reference > header,
+  body.desktop #panel-reference > main,
+  body.desktop #panel-reference > .reflect-pills,
   body.desktop #trk-modal .modal-header,
   body.desktop #trk-modal .modal-body,
   body.desktop #trk-modal .modal-footer { max-width: var(--desktop-w, 900px); margin-left: auto; margin-right: auto; }
+  body.desktop .fab, body.desktop .toast { left: 50%; right: auto; width: min(var(--desktop-w, 900px), calc(100vw - 28px)); margin-left: calc(min(var(--desktop-w, 900px), calc(100vw - 28px)) / -2); }
   body.desktop .numpad-sheet { left: 50%; right: auto; width: min(460px, 96vw); transform: translateX(-50%) translateY(115%); }
   body.desktop .numpad-sheet.open { transform: translateX(-50%) translateY(0); }
   body.desktop .np-key { font-size: 17px; padding: 10px 0; }
@@ -33060,7 +33067,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 466 · 2026-11-08 17:41';
+const APP_BUILD = 'build 467 · 2026-11-08 20:58';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

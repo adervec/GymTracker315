@@ -2665,6 +2665,12 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Wider desktop column (feat 555):** the feat-452 `--desktop-w` changed from a fixed 900px to
+  `clamp(900px, 88vw, 1280px)`, because 900px read as a phone column on a big monitor. The column now grows with
+  the window but stops at 1280 on an ultrawide. The Reference panel (header, main, pills), the `.fab` + Log Set
+  bar and the `.toast` used to span the full window; they now sit in the same centred column. The fab and toast
+  are centred with a negative `margin-left` rather than a transform, because the toast animates `transform`.
+  Known gap, not new: the Reference sub-tab pills sit under the sticky Reference header at every width.
 - **Your gym and feed (feat 554):** `PASS5_ROWS`, 10 movements (slots 0x3E0-0x3E9, next free 0x3EA):
   - **Freemotion Row station (GoodLife #126):** its placard's five movements. Seated Row, Alternating Row with
     Rotation, 1-Arm Seated Row, 1-Arm Lunge Row with Rotation and Standing Alternating Row with Rotation join the
