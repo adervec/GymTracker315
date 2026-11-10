@@ -16,6 +16,9 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'on-first-retry',
+    // One time zone everywhere, so a fixture's "same day" means the same thing on a laptop and on CI.
+    // Code that must hold across midnight or time zones pins the clock in its own spec (midnight.spec.mjs).
+    timezoneId: 'UTC',
   },
   // GymTracker315 is built for Android Chrome, so we test both a desktop Chromium
   // viewport and an emulated Pixel (mobile UA, touch, small viewport) — the boot

@@ -10687,7 +10687,7 @@ function validateImportedPlan(raw) {
 }
 function coworkImportPlanOfDay(payload) {
   if (!payload || !Array.isArray(payload.plans)) return { handled: false, reason: 'no plans' };
-  const date = (payload.date && /^\d{4}-\d{2}-\d{2}$/.test(payload.date)) ? payload.date : new Date().toISOString().slice(0, 10);
+  const date = (payload.date && /^\d{4}-\d{2}-\d{2}$/.test(payload.date)) ? payload.date : _localYmd(new Date());
   if (!Array.isArray(state.plans)) state.plans = [];
   state.plans = state.plans.filter(p => !(p.source === 'daily' && p.dailyDate === date)); // replace same-date dailies
   let added = 0, rejected = 0;
@@ -10700,7 +10700,7 @@ function coworkImportPlanOfDay(payload) {
     state.plans.push(v.plan); added++;
   });
   const keepDays = (state.cowork && state.cowork.podKeepDays) || 7; // prune stale dailies
-  const cutoff = new Date(Date.now() - keepDays * 86400000).toISOString().slice(0, 10);
+  const cutoff = _localYmd(Date.now() - keepDays * 86400000);
   state.plans = state.plans.filter(p => !(p.source === 'daily' && p.dailyDate && p.dailyDate < cutoff));
   if (added) { saveState(); if (typeof render === 'function') render(); }
   return { handled: true, kind: 'pod', added, rejected, date };
@@ -19199,7 +19199,7 @@ function mesoWeekPlan(length) {
 function mesoCfg() { return state.meso || (state.meso = { enabled: false, length: 4, start: null }); }
 function mesoStartMonday() {
   const m = mesoCfg();
-  if (m.start) { const d = new Date(m.start); if (!isNaN(d.getTime())) { d.setHours(0, 0, 0, 0); return d; } }
+  if (m.start) { const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(m.start) ? m.start + 'T00:00:00' : m.start); if (!isNaN(d.getTime())) { d.setHours(0, 0, 0, 0); return d; } } // a bare date is LOCAL midnight
   return _weekMonday(0);
 }
 // The current week of the cycle (1-based), repeating after the deload — or null when periodization is off.
@@ -19210,7 +19210,7 @@ function mesoCurrentWeek() {
   const idx = ((weeks % len) + len) % len;                       // 0..len-1, repeating across blocks
   return { ...mesoWeekPlan(len)[idx], length: len, index: idx };
 }
-function mesoRestart() { mesoCfg().start = _weekMonday(0).toISOString().slice(0, 10); saveState(); }
+function mesoRestart() { mesoCfg().start = _localYmd(_weekMonday(0)); saveState(); }
 /* ============================================================
    feat 233 — AUTO-PROGRESSION. Connect the periodization plan to your real logged numbers: from the most
    recent top set of a lift, suggest the next target via double progression (climb a rep range, then add the
@@ -19467,7 +19467,11 @@ function getProgram() { return state.program || null; }
 // 9-day split repeats every 9 days regardless of weekday. programMode() discriminates; everything downstream
 // resolves a date → planId through scheduledPlanIdForDate so both modes share one code path.
 function programMode(p) { p = p || getProgram(); return (p && p.mode === 'rotation') ? 'rotation' : 'week'; }
-function _isoToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString().slice(0, 10); }
+/* House standard: a calendar day is the LOCAL day. toISOString() is UTC, so slicing it for "today"
+   flips the day at 21:00 in UTC-3 (and turns a local midnight into yesterday east of UTC). Every
+   'YYYY-MM-DD' this app stores or compares comes from _localYmd, and is read back as local midnight. */
+function _localYmd(d) { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }
+function _isoToday() { return _localYmd(new Date()); }
 // Whole days from an ISO date (anchored at local midnight) to a Date — robust to DST via rounding.
 function _daysFromIso(iso, dateObj) {
   const a = new Date(iso + 'T00:00:00'); const b = new Date(dateObj); b.setHours(0, 0, 0, 0);
@@ -19594,7 +19598,7 @@ function programCycleDays() {
       else if (+date === +today) status = 'today';
       else status = 'upcoming';
     }
-    rows.push({ idx: k, day: k + 1, date: date.toISOString().slice(0, 10), planId, plan: planId ? getPlan(planId) : null, status, isToday: k === todayIdx });
+    rows.push({ idx: k, day: k + 1, date: _localYmd(date), planId, plan: planId ? getPlan(planId) : null, status, isToday: k === todayIdx });
   }
   return { todayIdx, rows };
 }
@@ -19634,7 +19638,7 @@ function programWeekAdherence(weeksBack) {
     else if (date < today) status = 'missed';
     else if (+date === +today) status = 'today';
     else status = 'upcoming';
-    days.push({ dow: date.getDay(), date: date.toISOString().slice(0, 10), planId, status });
+    days.push({ dow: date.getDay(), date: _localYmd(date), planId, status });
   }
   const done = days.filter(d => d.status === 'done' || d.status === 'off-plan').length;
   const missed = days.filter(d => d.status === 'missed').length;
@@ -19889,7 +19893,7 @@ function renderSplitPlannerPage(main) {
   main.querySelectorAll('[data-pg-follow]').forEach(b => b.addEventListener('click', () => { const p = getProgram(); if (!p) return; p.follow = b.dataset.pgFollow === '1'; saveState(); renderSplitPlannerPage(main); })); // feat 530
   main.querySelectorAll('[data-pg-dow]').forEach(b => b.addEventListener('click', () => { cycleProgramDay(+b.dataset.pgDow); renderSplitPlannerPage(main); }));
   main.querySelectorAll('[data-pg-rot]').forEach(b => b.addEventListener('click', () => { cycleProgramRotDay(+b.dataset.pgRot); renderSplitPlannerPage(main); })); // feat 282 — rotation-day reassign
-  main.querySelector('#ms-toggle')?.addEventListener('click', () => { const m = mesoCfg(); m.enabled = !m.enabled; if (m.enabled && !m.start) m.start = _weekMonday(0).toISOString().slice(0, 10); saveState(); renderSplitPlannerPage(main); }); // feat 232
+  main.querySelector('#ms-toggle')?.addEventListener('click', () => { const m = mesoCfg(); m.enabled = !m.enabled; if (m.enabled && !m.start) m.start = _localYmd(_weekMonday(0)); saveState(); renderSplitPlannerPage(main); }); // feat 232
   main.querySelectorAll('[data-ms-len]').forEach(b => b.addEventListener('click', () => { mesoCfg().length = +b.dataset.msLen; saveState(); renderSplitPlannerPage(main); }));
   main.querySelector('#ms-restart')?.addEventListener('click', () => { mesoRestart(); renderSplitPlannerPage(main); });
   main.querySelectorAll('[data-plan-use]').forEach(b => b.addEventListener('click', () => planUseForWorkout(b.dataset.planUse)));
@@ -21715,11 +21719,23 @@ function formatSinceGap(ms) {
 }
 
 // Returns the today session if one exists and isn't explicitly ended
+/* The live workout: the newest un-ended session that started today OR has been active recently.
+   "Started today" alone was the midnight bug: a workout begun at 23:30 stopped being active at 00:00,
+   which silently stopped the heartbeat, the auto-end check, the live timers and the wake-lock — and
+   failed the timer specs whenever CI ran between 00:00 and ~02:30 UTC. Recent activity keeps it alive
+   across midnight; the inactivity auto-end still ends it in the normal way.
+   ponytail: 12 h is a generous cap so a forgotten, never-ended session from days ago cannot resurface. */
+const ACTIVE_SESSION_GRACE_MS = 12 * 3600e3;
 function getActiveSession() {
-  const todayStr = new Date().toDateString();
-  return state.sessions.find(s =>
-    new Date(s.date).toDateString() === todayStr && !s.endedAt
-  ) || null;
+  const todayStr = new Date().toDateString(), now = Date.now();
+  for (let i = state.sessions.length - 1; i >= 0; i--) {
+    const s = state.sessions[i];
+    if (!s || s.endedAt) continue;
+    if (new Date(s.date).toDateString() === todayStr) return s;
+    let last; try { last = lastSetTs(s); } catch (_) { last = new Date(s.date).getTime(); } // a legacy session may lack exercises[]
+    if (now - last < ACTIVE_SESSION_GRACE_MS) return s;
+  }
+  return null;
 }
 
 // Returns true if a session should auto-end based on inactivity
@@ -28657,7 +28673,7 @@ function backupNudge() {
 function _dataTsStamp() { const n = new Date(), p = x => String(x).padStart(2, '0'); return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}_${p(n.getHours())}${p(n.getMinutes())}${p(n.getSeconds())}`; }
 function _csvQ(v) { if (v === null || v === undefined) return ''; const s = String(v).replace(/"/g, '""'); return /[",\n\r]/.test(s) ? `"${s}"` : s; }
 function csvBlob(rows) { return new Blob([rows.map(r => r.map(_csvQ).join(',')).join('\r\n') + '\r\n'], { type: 'text/csv' }); }
-function _dDay(iso) { try { return new Date(iso).toISOString().slice(0, 10); } catch (_) { return ''; } }
+function _dDay(iso) { try { const d = new Date(iso); return isNaN(d) ? '' : _localYmd(d); } catch (_) { return ''; } }
 function _dTime(iso) { try { return new Date(iso).toTimeString().slice(0, 5); } catch (_) { return ''; } }
 function _setsIn(arr) { return arr.reduce((n, s) => n + (s.exercises || []).reduce((c, e) => c + (e.sets || []).length, 0), 0); }
 // settings = SETTINGS_KEYS minus the slices that have their own category, plus a fresh savedAt so a merge-import adopts them
@@ -29201,7 +29217,7 @@ function renderBody(main) {
       <div style="display:flex;gap:8px;margin-bottom:10px;">
         <div style="flex:1;">
           <label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;display:block;margin-bottom:3px;">${t('body.date')}</label>
-          <input type="date" id="bc-date" value="${e ? e.date.slice(0,10) : new Date().toISOString().slice(0,10)}"
+          <input type="date" id="bc-date" value="${e ? e.date.slice(0,10) : _localYmd(new Date())}"
             style="width:100%;padding:8px;font-size:14px;border-radius:7px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
         </div>
       </div>
@@ -33807,7 +33823,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 469 · 2026-11-10 07:30';
+const APP_BUILD = 'build 470 · 2026-11-10 09:32';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

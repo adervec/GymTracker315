@@ -1,9 +1,12 @@
 name: Deploy (GitHub Pages)
 
 on:
-  # Every push to main publishes. `node test/check.mjs` runs first and fails the job before anything
-  # reaches Pages, so a broken push is not a broken site. workflow_dispatch stays for re-runs.
-  push:
+  # House standard: nothing reaches the live site unless the checks passed. A push to main runs CI
+  # (the full Playwright suite); this publishes only when that run succeeded, from the commit it
+  # tested. workflow_dispatch stays for manual re-runs.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -18,9 +21,12 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
