@@ -2665,6 +2665,21 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Erase everything, and no third-party fonts in the guides (feat 558):** two of the house standards.
+  - **Erase:** Settings → Data → Danger Zone → "Erase all GymTracker data on this device" now removes ALL of
+    the app's storage (`eraseAllAppData`): the six localStorage keys in `GT_LOCAL_KEYS` and the two IndexedDB
+    databases in `GT_DATABASES` (auto-save folder handles, custom sound clips), then reloads onto a fresh
+    install. It used to clear only `state.sessions`, and its `saveState()` then pushed the emptied log to
+    Drive. Every app shares the adervec.github.io origin, so it never calls `localStorage.clear()`; shared keys
+    (`maker-font`, `portal-*`) stay. `_gtErasing` makes `saveState` / `savePending` / `persistLog` stand down
+    so nothing writes the old state back or pushes it to the cloud before the reload. It always confirms
+    (the hold gesture opens the same dialog), and the dialog says the Drive copy and exported files are not
+    touched. The app-shell cache stays, so the app still opens offline. **A new storage key or database must
+    be added to `GT_LOCAL_KEYS` / `GT_DATABASES`.**
+  - **Guides:** `Guides/bouldering-guide.html` loaded Fraunces, Instrument Sans and JetBrains Mono from Google
+    Fonts. It now loads the self-hosted copies at adervec.github.io/fonts/; Instrument Sans is not hosted
+    there, so its body text uses Inter Tight. The other two guides already used no web fonts.
+  - The build line was already visible at the foot of Settings (`.about-build`). `test/erasedata.spec.mjs`.
 - **House font standard (feat 557):** Atkinson Hyperlegible is the default text font and Settings → Font offers
   the four shared choices (Atkinson / System / Serif / Monospace). The shared module (`CoworkSyncHub/font.js`,
   published at adervec.github.io/font.js) is INLINED in `<head>` instead of loaded by `<script src>`, because the
