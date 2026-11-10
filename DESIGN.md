@@ -2665,6 +2665,22 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The whole shared font.js, embedded (feat 560):** feat 557 inlined only the font part of
+  adervec.github.io/font.js, so GymTracker missed the rest of what that one shared script carries. Now
+  `tools/embed-fontjs.mjs` inlines the whole file, verbatim, between the `FONTJS` markers in `<head>`, as
+  `<script data-house="font.js">`. `deploy.yml` runs it before publishing, so the live app always carries the
+  current shared copy, and the result is committed so tests and file:// use run what ships. If the fetch fails
+  at deploy time the committed copy is kept. The tool refuses a font.js without the `appFontBase` hook or with
+  a closing script tag in it (either would break inlining). Before the block, `window.appFontBase = 'fonts/'`
+  (the app ships its own woff2 files) and `window.appUpdateNotice = false`, because the app already shows its
+  own "Update ready — tap to reload" toast (feat 465).
+  - **What it brings:** the About panel (version, licence, where data lives, storage, source, what's new, Copy
+    and Download diagnostics), the "Allow pinch-zoom" option (off by default), the build stamp, the crash notice
+    (Reload / Details / Copy diagnostics; the app's own handlers still log), the offline pill, the what's-new
+    card after an update (from `whatsnew.json`), reduced motion and the focus ring.
+  - **Settings → Font** is now the shared `<app-font-picker>`, styled by `.house-font-picker`, which brings the
+    zoom option, the build stamp and the About panel.
+  - `test/housejs.spec.mjs`; `fontstd.spec` now drives the shared picker.
 - **Default theme follows the device; what's new (feat 559):** two house standards.
   - **Theme:** `state.theme` defaults to `null` (follow the device). `effectiveTheme()` returns the saved
     theme when `themeIsChosen()`, otherwise light or dark from `prefers-color-scheme`, and a `matchMedia`

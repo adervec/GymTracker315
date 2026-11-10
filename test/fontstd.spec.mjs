@@ -12,7 +12,7 @@ test('feat 557 — Atkinson is the default, the Settings picker changes it, and 
   expect(await page.evaluate(() => document.fonts.load('16px "Atkinson Hyperlegible"').then(f => f.length))).toBeGreaterThan(0); // the file really loads from ./fonts/
 
   await page.evaluate(() => openSettingsDrawer());
-  const sel = page.locator('#drawer-font-select');
+  const sel = page.locator('app-font-picker select');
   await expect(sel.locator('option')).toHaveCount(4);
   await sel.selectOption('serif');
   expect(await bodyFont(page)).toMatch(/^Georgia/);
