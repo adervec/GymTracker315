@@ -10,6 +10,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>GymTracker315</title>
+<meta name="app-whatsnew" content="whatsnew.json">
 <!-- feat 93 — PWA / installability (icons + manifest are deploy artifacts; absent in standalone-file use) -->
 <meta name="description" content="GymTracker315 — log lifts and cardio, follow adaptive plans, picker-driven equipment setup, and built-in coaching guides. Offline-first.">
 <meta name="theme-color" content="#0a0a0a">
@@ -7559,7 +7560,7 @@ const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','maxWeight
    never adopted on merge and are stripped from the pushed payload; only small user-data scalars use coarse LWW. */
 
 // Device-specific — never crosses devices (theming, audio, paired hardware, folder locations, per-screen UI).
-const DEVICE_LOCAL_KEYS = new Set(['theme','sound','metronome','annunciation','ttsTips','ttsVoice','coachPersona',
+const DEVICE_LOCAL_KEYS = new Set(['theme','themeChosen','sound','metronome','annunciation','ttsTips','ttsVoice','coachPersona',
   'coachVoices','coachAuto','reflectPills','audioHeadphonesOnly','restCues','uiFeedback','trackerPress',
   'autoSave','autoLoad','bioAutoLoad','stravaAutoLoad','aiExport','cowork','hrDevice','activeGymId',
   'dashboard','workoutControls','settingsCollapse','refView','glossaryAsPage','glossaryHighlight','spUI','holdCue',
@@ -7688,7 +7689,7 @@ let state = {
   maxWeightLb: 1500, // configurable weight limit; weights above this shown in red
   maxWeightHard: false, // feat 364 — false = soft (warn, save anyway); true = hard (block over-limit saves)
   alwaysConfirm: true, // show confirmation popup before saving sets
-  theme: 'dark', // 'dark' | 'light' | 'midnight' | 'forest' | 'ember'
+  theme: null, // feat 559 — null = follow the device; set (with themeChosen) when the reader picks one
   autoSave: {
     enabled: false,
     mode: 'file',       // 'file' | 'folder'
@@ -8273,7 +8274,7 @@ function loadState() {
     if (raw) pending = { ...pending, ...JSON.parse(raw) };
   } catch(e) {}
   normalizeState();
-  applyTheme(state.theme || 'dark');
+  applyTheme(effectiveTheme());
 }
 function saveState() {
   if (_gtErasing) return; // feat 558 — an erase is in flight: never write the old state back (or push it to the cloud)
@@ -8287,7 +8288,7 @@ function savePending() {
   try { localStorage.setItem(PENDING_KEY, JSON.stringify(pending)); } catch(e) {}
 }
 /* feat 558 — ERASE EVERYTHING. Every app on adervec.github.io shares one origin, so this removes only what
-   GymTracker itself stores — never localStorage.clear(). Shared keys (maker-font, portal-*) belong to the site
+   GymTracker itself stores — never a blanket wipe of the whole origin's storage. Shared keys (maker-font, portal-*) belong to the site
    and stay. Nothing is pushed to Google Drive: writers stand down (_gtErasing) before anything is removed, the
    Drive copy is left exactly as it was, and the page reloads onto a fresh install. The app-shell cache is not
    data and stays, so the app still opens offline afterwards. */
@@ -9033,7 +9034,7 @@ async function autoLoadApply(fileHandle, mergeMode) {
   const data = JSON.parse(text);
   if (!data.sessions || !Array.isArray(data.sessions)) throw new Error('No sessions array');
   applyImport(data, mergeMode);
-  if (mergeMode === 'overwrite') applyTheme(state.theme || 'dark');
+  if (mergeMode === 'overwrite') applyTheme(effectiveTheme());
   // Don't call saveState() here — avoid triggering an auto-save loop
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
   return data.sessions.length;
@@ -12044,6 +12045,14 @@ function themeLabel(id) { return THEME_LABELS[id] || id; }
 // Flat list of all valid themes (used for validation)
 const THEMES = THEME_CATEGORIES.flatMap(c => c.ids.map(id => ({ id, label: themeLabel(id), dot: themeDot(id), cat: c.label })));
 
+/* feat 559 — house standard: the DEFAULT theme follows the device. Until the reader picks a theme, light mode
+   starts on the light theme and dark mode on dark, and it follows the device if that changes. A saved choice
+   always wins. Older saves stored 'dark' whether or not anyone chose it, so a bare 'dark' without the
+   themeChosen flag counts as "not chosen"; any other stored theme was clearly picked. */
+function themeIsChosen() { return !!state.theme && (!!state.themeChosen || state.theme !== 'dark'); }
+function deviceTheme() { try { return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch (_) { return 'dark'; } }
+function effectiveTheme() { return themeIsChosen() ? state.theme : deviceTheme(); }
+try { matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (!themeIsChosen()) applyTheme(effectiveTheme()); }); } catch (_) {}
 function applyTheme(id) {
   const root = document.documentElement;
   THEME_VARS.forEach(v => root.style.removeProperty('--' + v)); // clear prior custom theme
@@ -12703,12 +12712,14 @@ function renderSettingsDrawer() {
   const dataSize = new Blob([JSON.stringify(state)]).size;
 
   body.innerHTML = `
-    <div class="drawer-section-title" data-hint="${escapeAttr(themeLabel(state.theme || 'dark'))}">Theme</div>
+    <div class="drawer-section-title" data-hint="${escapeAttr(themeIsChosen() ? themeLabel(state.theme) : 'Match device')}">Theme</div>
+    <div class="theme-grid"><div class="theme-swatch ${themeIsChosen() ? '' : 'active'}" data-theme-id="__device" title="Light or dark, following this device's setting">
+      <div class="theme-dot" style="background:linear-gradient(90deg,#f4f4f6 50%,#161616 50%);"></div><div class="theme-label">Match device</div></div></div>
     ${THEME_CATEGORIES.map(cat => `
       <div class="theme-cat-label">${cat.label}</div>
       <div class="theme-grid">
         ${cat.ids.map(id => `
-          <div class="theme-swatch ${state.theme === id || (!state.theme && id === 'dark') ? 'active' : ''}" data-theme-id="${id}">
+          <div class="theme-swatch ${themeIsChosen() && state.theme === id ? 'active' : ''}" data-theme-id="${id}">
             <div class="theme-dot" style="background:${themeDot(id)};"></div>
             <div class="theme-label">${themeLabel(id)}</div>
           </div>
@@ -13924,8 +13935,9 @@ function renderSettingsDrawer() {
   body.querySelectorAll('.theme-swatch').forEach(sw => {
     sw.addEventListener('click', () => {
       const t = sw.dataset.themeId;
-      state.theme = t;
-      applyTheme(t);
+      if (t === '__device') { state.theme = null; state.themeChosen = false; } // feat 559 — back to following the device
+      else { state.theme = t; state.themeChosen = true; }
+      applyTheme(effectiveTheme());
       saveState();
       renderSettingsDrawer(); // re-render to update active state
     });
@@ -29050,7 +29062,7 @@ function showImportDialog(data) {
       ctx.warn(missingVarWarning(data.sessions, data.plans, 'import'));
       applyImport(data, mode);
       saveState();
-      if (mode === 'overwrite') applyTheme(state.theme || 'dark');
+      if (mode === 'overwrite') applyTheme(effectiveTheme());
       render();
       dialog.remove();
       const verb = mode === 'merge' ? 'Merged' : 'Imported';
@@ -33846,7 +33858,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 474 · 2026-11-10 13:43';
+const APP_BUILD = 'build 475 · 2026-11-10 14:24';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

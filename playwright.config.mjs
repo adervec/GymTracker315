@@ -19,6 +19,9 @@ export default defineConfig({
     // One time zone everywhere, so a fixture's "same day" means the same thing on a laptop and on CI.
     // Code that must hold across midnight or time zones pins the clock in its own spec (midnight.spec.mjs).
     timezoneId: 'UTC',
+    // The app's default theme follows the device (feat 559); the suite was written against the dark default.
+    // A spec that needs light mode emulates it (test/whatsnewtheme.spec.mjs).
+    colorScheme: 'dark',
   },
   // GymTracker315 is built for Android Chrome, so we test both a desktop Chromium
   // viewport and an emulated Pixel (mobile UA, touch, small viewport) — the boot

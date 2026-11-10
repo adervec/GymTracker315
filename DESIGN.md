@@ -2665,6 +2665,20 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Default theme follows the device; what's new (feat 559):** two house standards.
+  - **Theme:** `state.theme` defaults to `null` (follow the device). `effectiveTheme()` returns the saved
+    theme when `themeIsChosen()`, otherwise light or dark from `prefers-color-scheme`, and a `matchMedia`
+    listener follows the device while nothing is chosen. Tapping a swatch sets `themeChosen: true`; the new
+    **Match device** swatch clears both. Older saves stored `'dark'` whether or not anyone chose it, so a
+    bare `'dark'` without `themeChosen` counts as not chosen; any other stored theme was clearly picked.
+    `themeChosen` is device-local like `theme`. `playwright.config` pins `colorScheme: 'dark'` because the
+    suite was written against the dark default.
+  - **What's new:** `whatsnew.json` (newest first, written for the lifter, seeded with the last week) is
+    declared by `<meta name="app-whatsnew">` and copied to the site by `deploy.yml`. font.js reads it and
+    shows the card after an update, so the card itself appears once the full font.js is embedded (item
+    pending: font.js cannot yet run inlined). Add user-visible changes to `whatsnew.json`.
+  - The data check matched the words "localStorage.clear()" in the feat-558 comment; reworded.
+  - `test/whatsnewtheme.spec.mjs`.
 - **Erase everything, and no third-party fonts in the guides (feat 558):** two of the house standards.
   - **Erase:** Settings → Data → Danger Zone → "Erase all GymTracker data on this device" now removes ALL of
     the app's storage (`eraseAllAppData`): the six localStorage keys in `GT_LOCAL_KEYS` and the two IndexedDB
