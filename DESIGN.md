@@ -2665,6 +2665,16 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **House font standard (feat 557):** Atkinson Hyperlegible is the default text font and Settings → Font offers
+  the four shared choices (Atkinson / System / Serif / Monospace). The shared module (`CoworkSyncHub/font.js`,
+  published at adervec.github.io/font.js) is INLINED in `<head>` instead of loaded by `<script src>`, because the
+  app is one offline-capable file and `check.mjs` forbids external scripts. The contract is unchanged:
+  `--app-font` on `<html>`, `window.appFont {options, get, set}`, the `app-font-change` event, and the choice in
+  localStorage key `maker-font`, which every app on the adervec.github.io origin shares. The six woff2 files
+  live in `fonts/` (OFL licence beside them), `deploy.yml` copies them to the site, and the service worker
+  precaches the two regular-weight Latin files so the default works offline. `html body` carries
+  `font-family: var(--app-font, <old stack>)`; headings, monospace readouts and inputs are untouched. The copy
+  is by hand: if `font.js` gains a choice, mirror it. `test/fontstd.spec.mjs`.
 - **Motion figures rebuilt (feat 556):** three separate faults, fixed together.
   - **Legibility:** the figure was stroked in `--border2` with no fill and no CSS at all. `.motion-stage` now
     gives it a bright outline, a solid body (so the torso hides the far limbs), an accent-coloured load

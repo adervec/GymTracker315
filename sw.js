@@ -3,7 +3,8 @@
    signals the browser that a new version is available (which bumps the cache + purges the old). */
 const BUILD = '__BUILD__';
 const CACHE = 'gt-cache-' + BUILD;
-const SHELL = ['./', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-512-maskable.png', './apple-touch-icon.png'];
+const SHELL = ['./', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-512-maskable.png', './apple-touch-icon.png',
+  './fonts/atkinson-hyperlegible-latin-400-normal.woff2', './fonts/atkinson-hyperlegible-latin-700-normal.woff2']; // feat 557 — the default font works offline
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
