@@ -299,10 +299,10 @@ test('feat 416 — bodyweight movements the solver family-fallback mislabels are
     };
   });
   expect(r.skater).toEqual({ motion: 'squat', equip: 'none', opts: null });
-  expect(r.stepUp).toEqual({ motion: 'lunge', equip: 'none', opts: null });
+  expect(r.stepUp).toEqual({ motion: 'step-up', equip: 'none', opts: null });                       // feat 556 — its own template now
   expect(r.jumpLunge).toEqual({ motion: 'lunge', equip: 'none', opts: null });
-  expect(r.bearCrawl).toEqual({ motion: 'plank', equip: 'none', opts: null });
-  expect(r.hyperSitup).toEqual({ motion: 'crunch', equip: 'none', opts: null });
+  expect(r.bearCrawl).toEqual({ motion: 'quadruped', equip: 'none', opts: null });                // feat 556 — a bear crawl is on all fours
+  expect(r.hyperSitup).toEqual({ motion: 'situp', equip: 'none', opts: { ghd: 1 } });             // feat 556
   expect(r.hyperSissy).toEqual({ motion: 'squat', equip: 'none', opts: { anchor: 1 } });
 });
 

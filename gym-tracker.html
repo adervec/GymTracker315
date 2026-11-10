@@ -3197,6 +3197,16 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .motion-view.active { border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .motion-stage { display: flex; justify-content: center; }
 .motion-stage svg { width: 100%; max-width: 210px; height: auto; display: block; }
+/* feat 556 — a readable figure: solid body (so the torso hides the far limbs), bright outline, accent-coloured load */
+.motion-stage svg { stroke-width: 1.5; stroke-linejoin: round; }
+.motion-stage .fig-torso, .motion-stage .fig-arm, .motion-stage .fig-leg, .motion-stage .fig-head, .motion-stage .fig-neck, .motion-stage .fig-shoe { stroke: var(--text2); }
+.motion-stage .fig-torso[fill="none"], .motion-stage .fig-arm[fill="none"], .motion-stage .fig-leg[fill="none"], .motion-stage .fig-head[fill="none"], .motion-stage .fig-neck[fill="none"] { fill: var(--bg3); }
+.motion-stage .fig-shoe { fill: var(--text3); }
+.motion-stage .fig-cap, .motion-stage .fig-eye, .motion-stage .fig-nose, .motion-stage .fig-mouth { stroke: var(--text); }
+.motion-stage .fig-prop, .motion-stage .fig-plate, .motion-stage .fig-bar, .motion-stage .fig-db, .motion-stage .fig-kb, .motion-stage .fig-band, .motion-stage .fig-cable, .motion-stage .fig-tool { stroke: var(--accent); }
+.motion-stage .fig-prop, .motion-stage .fig-plate, .motion-stage .fig-db, .motion-stage .fig-kb { fill: color-mix(in srgb, var(--accent) 22%, transparent); }
+.motion-stage .fig-equip, .motion-stage .fig-bench, .motion-stage .fig-pad, .motion-stage .fig-stack, .motion-stage .fig-tower, .motion-stage .fig-wall, .motion-stage .fig-arm-lever { stroke: var(--text3); }
+.motion-stage .fig-floor { stroke: var(--border2); }
 /* feat 417 — exercise-sheet tips carousel (Tips · Motion · Trends · History) */
 /* feat 470 — seven tabs on one phone row: icons only, and the selected tab alone spells its name. */
 .excar-tabs { display: flex; gap: 4px; flex-wrap: nowrap; align-items: center; padding: 7px 10px; cursor: pointer; user-select: none; -webkit-user-select: none; }
@@ -25427,7 +25437,8 @@ const MOTIONS = {
       if (view === 'side') {
         // feat 475 — o.wall: a wall sit is the BOTTOM position held against a wall, not a moving squat.
         const wall = o && o.wall, uEff = wall ? 0.92 : u;
-        const hip = [56 - 8 * uEff, 88 + 20 * uEff], shC = wall ? [64, 58] : [52 - 11 * uEff, 34 + 24 * uEff];
+        // feat 556 — hips back, chest forward; a wall sit keeps the trunk vertical against the wall behind it
+        const hip = [56 - 12 * uEff, 88 + 20 * uEff], shC = wall ? [hip[0], hip[1] - 50] : [55 + 9 * uEff, 36 + 26 * uEff];
         const an = [60, 144], kn = figIk(hip, an, 28, 28, -1);
         const leg = (off, dim) => ({ hip: [hip[0] + off, hip[1]], kn: [kn[0] + off, kn[1]], an: [an[0] + off, an[1]], foot: [an[0] + 9 + off, 144], dim });
         // feat 475 — o.rack: where the load sits. 'front' = front rack on the delts (elbows high),
@@ -25437,14 +25448,14 @@ const MOTIONS = {
           : rack === 'zercher' ? [shC[0] + 10, shC[1] + 15]
           : rack === 'overhead' ? [shC[0] + 3, shC[1] - 26]
           : equip === 'barbell' || equip === 'machine' ? [shC[0] + 7, shC[1] + 2] : [shC[0] + 11, shC[1] + 14];
-        const J = { head: [shC[0] - 1, shC[1] - 17], face: 'right', shC, hipC: hip,
+        const J = { head: [shC[0] + 1 + (wall ? 0 : 4 * uEff), shC[1] - 17], face: 'right', shC, hipC: hip,
           arms: [{ sh: shC, el: rack === 'overhead' ? _figLerp(shC, grip, 0.5) : figIk(shC, grip, rack === 'overhead' ? 15 : 12, rack === 'overhead' ? 15 : 12, 1), wr: grip }],
           legs: [leg(3, true), leg(0, false)] };
         const load = rack ? [_EQC(grip, rack === 'overhead' ? 7 : 8, 'fig-plate'), _EQC(grip, 2, 'fig-bar')]
           : equip === 'barbell' ? [_EQC([shC[0] - 2, shC[1] - 3], 9, 'fig-plate'), _EQC([shC[0] - 2, shC[1] - 3], 2, 'fig-bar')]
           : equip === 'machine' ? [_EQL([shC[0] - 2, 4], [shC[0] - 2, shC[1] - 3], 1.2, 'fig-tower'), _EQC([shC[0] - 2, shC[1] - 3], 2.4, 'fig-bar')]
           : _figSideLoad(grip, equip === 'none' ? 'none' : equip);
-        if (wall) floor.push(_EQL([shC[0] + 10, 20], [shC[0] + 10, 144], 2, 'fig-wall')); // the wall the back presses into
+        if (wall) floor.push(_EQL([shC[0] - 9, 20], [shC[0] - 9, 144], 2, 'fig-wall')); // the wall the back presses into
         return { J, behind: floor, front: load, o: { depth: 0.72 } };
       }
       const cx = 55, shY = 34 + 22 * u, hipY = 92 + 16 * u, stance = (o && o.grip) || 1; // feat 415 — sumo/wide vs narrow stance
@@ -25460,15 +25471,16 @@ const MOTIONS = {
     box: { side: [120, 150] },
     act: { torso: 0.9, torsoZone: 0.65, thigh: 0.8 },
     build(view, u, equip, p, o) {
-      const hip = [64 - 4 * u, 92 - 6 * (1 - u)], th = 1.47 - 1.02 * u;
-      const shC = [hip[0] - 48 * Math.cos(th), hip[1] - 48 * Math.sin(th)];
+      // feat 556 — the hips travel BACK and the chest comes FORWARD over the toes (it leaned the other way)
+      const hip = [56 - 18 * u, 90 + 8 * u], th = 1.5 - 1.0 * u;
+      const shC = [hip[0] + 46 * Math.cos(th), hip[1] - 46 * Math.sin(th)];
       const an = [62, 144], kn = figIk(hip, an, 27, 27, -1);
       // feat 473 — o.swing (KB swings): the arms are a free pendulum — horizontal in front at the top of
       // the float, hanging under the shoulders through the hinge — instead of gripping a bar down the legs.
       const ph = -0.06 + 1.68 * u;
       const wr = (o && o.swing) ? [shC[0] + 33 * Math.cos(ph), shC[1] + 33 * Math.sin(ph)]
-        : [shC[0] + 6, Math.min(shC[1] + 33, 131)];
-      const J = { head: [shC[0] + 4, shC[1] - 17], face: 'right', shC, hipC: hip,
+        : [shC[0] - 2 - 6 * u, Math.min(shC[1] + 34, 131)];
+      const J = { head: [shC[0] + 3 + 9 * u, shC[1] - 16 + 5 * u], face: 'right', shC, hipC: hip,
         arms: [{ sh: shC, el: _figLerp(shC, wr, 0.5), wr }],
         legs: [{ hip: [hip[0] + 3, hip[1]], kn: [kn[0] + 3, kn[1]], an: [an[0] + 3, an[1]], foot: [an[0] + 12, 144], dim: true },
                { hip, kn, an, foot: [an[0] + 9, 144] }] };
@@ -25496,12 +25508,12 @@ const MOTIONS = {
                        _EQL([32, 104], [32, 144], 1.4), _EQL([92, 70], [92, 144], 1.4), _EQL([12, 144], [116, 144], 1, 'fig-floor')];
         return { J, behind: bench, front: _figSideLoad(wr, equip), o: { depth: 0.72 } };
       }
-      const hip = [70, 92], shC = [50, 56];
-      const an = [66, 144], kn = figIk(hip, an, 27, 27, -1);
-      const wr = [48 + 7 * u, 98 - 22 * u];
-      const J = { head: [shC[0] - 3, shC[1] - 17], face: 'right', shC, hipC: hip,
-        arms: [{ sh: [shC[0] + 3, shC[1]], el: figIk([shC[0] + 3, shC[1]], [wr[0] + 3, wr[1]], 17, 17, -1), wr: [wr[0] + 3, wr[1]], dim: true },
-               { sh: shC, el: figIk(shC, wr, 17, 17, -1), wr }],
+      const hip = [42, 98], shC = [76, 68]; // feat 556 — bent over the bar, not away from it
+      const an = [62, 144], kn = figIk(hip, an, 27, 27, -1);
+      const wr = [74 - 6 * u, 102 - 22 * u];
+      const J = { head: [shC[0] + 13, shC[1] - 9], face: 'right', shC, hipC: hip,
+        arms: [{ sh: [shC[0] + 3, shC[1]], el: figIk([shC[0] + 3, shC[1]], [wr[0] + 3, wr[1]], 17, 17, 1), wr: [wr[0] + 3, wr[1]], dim: true },
+               { sh: shC, el: figIk(shC, wr, 17, 17, 1), wr }],
         legs: [{ hip: [hip[0] + 3, hip[1]], kn: [kn[0] + 3, kn[1]], an: [an[0] + 3, an[1]], foot: [an[0] + 12, 144], dim: true }, { hip, kn, an, foot: [an[0] + 9, 144] }] };
       const load = equip === 'barbell' ? [_EQC(wr, 8, 'fig-plate'), _EQC(wr, 2, 'fig-bar')] : _figSideLoad(wr, equip);
       return { J, behind: [_EQL([14, 144], [110, 144], 1, 'fig-floor')], front: load, o: { depth: 0.72 } };
@@ -25577,10 +25589,10 @@ const MOTIONS = {
     box: { side: [120, 150] },
     act: { upArm: 0.9, torso: 0.3, torsoZone: 0.3 },
     build(view, u, equip, p) {
-      const hip = [70, 92], shC = [50, 58], ph = 0.15 + 1.5 * u;
-      const an = [66, 144], kn = figIk(hip, an, 27, 27, -1);
-      const wr = [shC[0] + 24 * Math.sin(0.35 - 0.2 * u) - 20 * u, shC[1] + 24 * Math.cos(ph)];
-      const J = { head: [shC[0] - 3, shC[1] - 17], face: 'right', shC, hipC: hip,
+      const hip = [42, 98], shC = [76, 68], ph = 0.15 + 1.5 * u; // feat 556 — bent forward
+      const an = [62, 144], kn = figIk(hip, an, 27, 27, -1);
+      const wr = [shC[0] + 2 - 12 * u, shC[1] + 26 * Math.cos(ph)];
+      const J = { head: [shC[0] + 13, shC[1] - 9], face: 'right', shC, hipC: hip,
         arms: [{ sh: shC, el: _figLerp(shC, wr, 0.5), wr }],
         legs: [{ hip: [hip[0] + 3, hip[1]], kn: [kn[0] + 3, kn[1]], an: [an[0] + 3, an[1]], foot: [an[0] + 12, 144], dim: true }, { hip, kn, an, foot: [an[0] + 9, 144] }] };
       return { J, behind: [_EQL([14, 144], [110, 144], 1, 'fig-floor')], front: _figSideLoad(wr, equip === 'barbell' ? 'dumbbell' : equip), o: { depth: 0.72 } };
@@ -25873,7 +25885,7 @@ const MOTIONS = {
       const th = -0.62 + 0.85 * u;
       const shC = [hipC[0] - 40 * Math.cos(th), hipC[1] + 40 * Math.sin(th)];
       const wr = [shC[0] + 4, shC[1] + 14];
-      const J = { head: [shC[0] - 3, shC[1] - 17], face: 'right', shC, hipC,
+      const J = { head: [shC[0] - 13, shC[1] - 6 - 8 * u], face: 'left', shC, hipC,
         arms: [{ sh: shC, el: _figLerp(shC, wr, 0.5), wr }],
         legs: [{ hip: hipC, kn: [86, 88], an: [98, 106], foot: [104, 112], dim: true }, { hip: [hipC[0] - 2, hipC[1]], kn: [84, 90], an: [96, 108], foot: [102, 114] }] };
       const pad = [_EQ('M 50 78 L 78 78 L 74 92 L 54 92 Z'), _EQL([64, 92], [64, 124]), _EQC([100, 110], 3.4, 'fig-pad'), _EQL([12, 124], [118, 124], 1, 'fig-floor')];
@@ -25937,9 +25949,9 @@ const MOTIONS = {
     act: { thigh: 0.8, shin: 0.6 },
     build(view, u, equip, p) {
       const air = Math.max(0, u - 0.55) * 18, crouch = Math.max(0, 0.55 - u) * 24;
-      const hipC = [56, 88 + crouch - air], shC = [52 - crouch * 0.3, 36 + crouch * 1.1 - air];
+      const hipC = [56 - crouch * 0.5, 88 + crouch - air], shC = [54 + crouch * 0.55, 36 + crouch * 1.25 - air]; // feat 556 — crouch folds forward
       const an = [58, 140 - air], kn = figIk(hipC, an, 27, 27, -1);
-      const wr = [shC[0] + 10 - crouch * 0.2, 60 + crouch - air - 30 * Math.max(0, u - 0.55) * 2];
+      const wr = [shC[0] + 8 - crouch * 1.3, 62 + crouch * 1.2 - air - 30 * Math.max(0, u - 0.55) * 2];
       const J = { head: [shC[0] - 1, shC[1] - 18], face: 'right', shC, hipC,
         arms: [{ sh: shC, el: figIk(shC, wr, 15, 15, 1), wr }],
         legs: [{ hip: [hipC[0] + 3, hipC[1]], kn: [kn[0] + 3, kn[1]], an: [an[0] + 3, an[1]], foot: [an[0] + 12, an[1] + 4], dim: true }, { hip: hipC, kn, an, foot: [an[0] + 9, an[1] + 4] }] };
@@ -25974,11 +25986,11 @@ const MOTIONS = {
     act: { thigh: 0.8, torso: 0.7, torsoZone: 0.6, upArm: 0.5 },
     build(view, u, equip, p) {
       const pull = Math.min(1, u * 2), lock = Math.max(0, u * 2 - 1);
-      const th = 0.45 + 1.02 * pull, hip = [62 - 4 * pull, 96 - 10 * pull + 4 * lock];
-      const shC = [hip[0] - 44 * Math.cos(th), hip[1] - 44 * Math.sin(th)];
-      const an = [60, 144], kn = figIk(hip, an, 27, 27, -1);
-      const wr = lock ? [shC[0] + 4, shC[1] - 26 * lock + (1 - lock) * 20] : [shC[0] + 6, Math.min(shC[1] + 33, 132 - 40 * pull)];
-      const J = { head: [shC[0] + 3, shC[1] - 17], face: 'right', shC, hipC: hip,
+      const th = 0.5 + 1.0 * pull, hip = [40 + 15 * pull, 98 - 10 * pull + 4 * lock]; // feat 556 — chest over the bar off the floor
+      const shC = [hip[0] + 44 * Math.cos(th), hip[1] - 44 * Math.sin(th)];
+      const an = [62, 144], kn = figIk(hip, an, 27, 27, -1);
+      const wr = lock ? [shC[0] + 4, shC[1] - 26 * lock + (1 - lock) * 20] : [shC[0] - 8 * (1 - pull) + 5 * pull, Math.min(shC[1] + 33, 132 - 40 * pull)];
+      const J = { head: [shC[0] + 3 + 9 * (1 - pull), shC[1] - 17 + 5 * (1 - pull)], face: 'right', shC, hipC: hip,
         arms: [{ sh: shC, el: lock ? figIk(shC, wr, 16, 16, 1) : _figLerp(shC, wr, 0.5), wr }],
         legs: [{ hip: [hip[0] + 3, hip[1]], kn: [kn[0] + 3, kn[1]], an: [an[0] + 3, an[1]], foot: [an[0] + 12, 144], dim: true }, { hip, kn, an, foot: [an[0] + 9, 144] }] };
       return { J, behind: [_EQL([14, 144], [108, 144], 1, 'fig-floor')], front: equip === 'none' ? [] : _figSideLoad(wr, equip === 'barbell' ? 'barbell' : equip), o: { depth: 0.72 } };
@@ -26382,6 +26394,333 @@ const MOTIONS = {
     },
   },
 };
+/* <feat556-lib> */
+/* ============================================================
+   feat 556 — MOTION LAB chunk 5: KEYFRAME POSES + ~50 new templates.
+   The older templates are hand-written geometry, one function per movement, which is why 324 variations
+   still shared the two placeholders (`mobility`, `generic`). Here a movement is DATA: two or three key
+   poses (hip position, torso lean, hand and foot targets) that _kfJ turns into joints with the same 2-bone
+   IK, and _kfAt blends across the rep — so a three-phase lift (thruster, burpee, stone load) is just a
+   third key. Side views face RIGHT (+x); lying figures put the head on the left, as the older ones do.
+   ============================================================ */
+function _kfMix(a, b, t) {
+  if (typeof a === 'number' && typeof b === 'number') return a + (b - a) * t;
+  if (Array.isArray(a) && Array.isArray(b)) return a.map((x, i) => _kfMix(x, b[i], t));
+  return t < 0.5 ? a : b;
+}
+function _kfAt(keys, u) {
+  if (keys.length < 2) return keys[0];
+  const n = keys.length - 1, x = Math.max(0, Math.min(1, u)) * n, i = Math.min(n - 1, Math.floor(x)), t = x - i, A = keys[i], B = keys[i + 1], o = {};
+  Object.keys(A).forEach(k => { o[k] = (k in B) ? _kfMix(A[k], B[k], t) : A[k]; });
+  return o;
+}
+// Pose spec → joints. hip [x,y]; lean = torso angle in degrees from vertical, + toward +x (0 upright,
+// 90 lying head-right, -90 lying head-left, 180 inverted); neck = extra head tilt; h / hr = near hand
+// (absolute / relative to the shoulder), h2 / hr2 the far hand; f / fr = near ankle (absolute / relative
+// to the hip), f2 / fr2 the far one; eb / kb = which way the elbow / knee pops; sa = straight arms.
+function _kfJ(s) {
+  const d = Math.PI / 180, tl = s.tl || 46, a = (s.lean || 0) * d, hip = s.hip;
+  const shC = [hip[0] + tl * Math.sin(a), hip[1] - tl * Math.cos(a)];
+  const na = a + (s.neck || 0) * d, head = [shC[0] + 16 * Math.sin(na), shC[1] - 16 * Math.cos(na)];
+  const rel = (o, r) => [o[0] + r[0], o[1] + r[1]];
+  const h = s.hr ? rel(shC, s.hr) : s.h, h2 = s.hr2 ? rel(shC, s.hr2) : (s.h2 || [h[0] + 3, h[1]]);
+  const f = s.fr ? rel(hip, s.fr) : s.f, f2 = s.fr2 ? rel(hip, s.fr2) : (s.f2 || [f[0] + 3, f[1]]);
+  const eb = s.eb == null ? 1 : s.eb, kb = s.kb == null ? -1 : s.kb, toe = s.toe || [9, 0];
+  const arm = (hd, off, dim, e) => { const sh = [shC[0] + off, shC[1] + (off ? 1 : 0)]; return { sh, el: s.sa ? _figLerp(sh, hd, 0.5) : figIk(sh, hd, 17, 17, e), wr: hd, dim }; };
+  const leg = (ft, off, dim, k, t) => { const hp = [hip[0] + off, hip[1]]; return { hip: hp, kn: figIk(hp, ft, 27, 27, k), an: ft, foot: [ft[0] + t[0], ft[1] + t[1]], dim }; };
+  return { head, face: s.face || 'right', shC, hipC: hip,
+    arms: [arm(h2, 3, true, s.eb2 == null ? eb : s.eb2), arm(h, 0, false, eb)],
+    legs: [leg(f2, 3, true, s.kb2 == null ? kb : s.kb2, s.toe2 || toe), leg(f, 0, false, kb, toe)] };
+}
+const _FL = (y, x0, x1) => _EQL([x0, y], [x1, y], 1, 'fig-floor');
+const _RECT = (x0, y0, x1, y1, cls) => _EQ(`M ${x0} ${y0} L ${x1} ${y0} L ${x1} ${y1} L ${x0} ${y1} Z`, 1.2, cls || 'fig-bench');
+// The load in the near hand: a barbell shows its plate edge-on, everything else its own silhouette.
+function _kfLoad(J, equip, r) {
+  const wr = J.arms[1].wr;
+  if (equip === 'none') return [];
+  if (equip === 'barbell') return [_EQC(wr, r || 9, 'fig-plate'), _EQC(wr, 2, 'fig-bar')];
+  return _figSideLoad(wr, equip);
+}
+// A side-view keyframe motion. fn(u, equip, o) → { keys, behind?, front?, u? } (behind/front may be functions of J).
+function _kfMotion(label, box, act, fn) {
+  return { label, views: ['side'], viewLabel: { side: 'Side' }, box: { side: box }, act,
+    build(view, u, equip, p, o) {
+      o = o || {};
+      const r = fn(u, equip, o), J = _kfJ(_kfAt(r.keys, r.u == null ? u : r.u));
+      const pick = x => (typeof x === 'function' ? x(J) : x) || [];
+      return { J, behind: pick(r.behind), front: pick(r.front), o: { depth: 0.72 } };
+    } };
+}
+// Front view: shoulders at shY, hips at hipY, each shifted sideways by sx / hx; hands and feet are targets.
+function _kfFront(s) {
+  const cx = 55, sx = s.sx || 0, hx = s.hx || 0, shY = s.shY == null ? 36 : s.shY, hipY = s.hipY == null ? 92 : s.hipY;
+  return { head: [cx + sx * 1.25, shY - 18], face: 'front', shC: [cx + sx, shY], hipC: [cx + hx, hipY],
+    arms: [-1, 1].map((sg, i) => { const sh = [cx + sx + 12 * sg, shY + 2]; return { sh, el: figIk(sh, s.hands[i], 16, 16, -sg), wr: s.hands[i] }; }),
+    legs: [-1, 1].map((sg, i) => { const hp = [cx + hx + 6 * sg, hipY + 4], an = s.feet[i]; return { hip: hp, kn: figIk(hp, an, 24.6, 24.6, -sg), an, foot: [an[0] + 4 * sg, an[1] + 4] }; }) };
+}
+function _kfFrontMotion(label, act, fn) {
+  return { label, views: ['front'], viewLabel: { front: 'Front' }, box: { front: [110, 150] }, act,
+    build(view, u, equip, p, o) { const r = fn(u, equip, o || {}); return { J: _kfFront(r.pose), behind: r.behind || [_FL(148, 12, 98)], front: r.front || [] }; } };
+}
+const _kfStand = { hip: [56, 91], lean: 0, hr: [3, 33], f: [56, 144] };
+Object.assign(MOTIONS, {
+  // ---- trunk ----
+  situp: _kfMotion('Sit-Up', [190, 120], { torso: 1, torsoZone: 0.55 }, (u, equip, o) => {
+    if (o.ghd) return { // GHD / roman chair: hips on the pad, legs anchored straight, trunk drops BELOW horizontal
+      keys: [{ hip: [96, 62], lean: -116, hr: [12, 2], f: [150, 64], face: 'up', toe: [3, -8] }, { hip: [96, 62], lean: -8, hr: [10, 14], f: [150, 64], face: 'right', toe: [3, -8] }],
+      behind: [_RECT(82, 68, 110, 75, 'fig-pad'), _EQL([96, 75], [96, 110]), _EQC([152, 56], 3.4, 'fig-pad'), _EQL([152, 60], [140, 110]), _FL(110, 20, 176)], front: J => _kfLoad(J, equip, 7) };
+    return { keys: [{ hip: [104, 100], lean: -88, hr: [14, -7], f: [146, 106], face: 'up', toe: [7, -3] }, { hip: [104, 100], lean: -14, hr: [10, 12], f: [146, 106], face: 'right', toe: [7, -3] }],
+      behind: [_FL(108, 20, 176)].concat(o.anchor ? [_EQC([150, 100], 3, 'fig-pad')] : []), front: J => _kfLoad(J, equip, 7) };
+  }),
+  lsit: _kfMotion('L-Sit', [130, 140], { torso: 1, torsoZone: 0.7, thigh: 0.4, upArm: 0.4 }, (u, equip, o) => {
+    if (o.boat) return { keys: [{ hip: [58, 116], lean: -30, hr: [30, 18], fr: [46, -18], toe: [3, -8] }, { hip: [58, 116], lean: -34, hr: [30, 14], fr: [42, -32], toe: [3, -8] }], behind: [_FL(124, 14, 120)] };
+    const base = { hip: [52, 112], lean: 2, h: [58, 97], sa: 1, toe: [3, -8] };
+    const A = o.tuck ? { fr: [30, 16] } : { fr: [50, 9] }, B = o.tuck ? { fr: [27, 5], kb: -1 } : o.v ? { fr: [38, -38], lean: -12 } : { fr: [52, -3] };
+    return { keys: [{ ...base, ...A }, { ...base, ...B }],
+      behind: [_EQL([46, 99], [72, 99], 2.2, 'fig-bar'), _EQL([50, 99], [50, 134]), _EQL([68, 99], [68, 134]), _FL(134, 14, 120)] };
+  }),
+  'kneel-crunch': _kfMotion('Cable Crunch', [130, 150], { torso: 1, torsoZone: 0.6 }, (u, equip, o) => {
+    const st = o.stand, f = st ? [56, 144] : [22, 140];
+    return { keys: [{ hip: st ? [54, 91] : [50, 104], lean: 6, hr: [7, -10], f, toe: st ? [9, 0] : [-7, 3] }, { hip: st ? [50, 93] : [46, 108], lean: st ? 52 : 74, hr: [9, -6], f, toe: st ? [9, 0] : [-7, 3] }],
+      behind: equip === 'cable' || equip === 'machine' ? [_EQL([110, 4], [110, 144], 2, 'fig-tower'), _EQC([104, 12], 3), _FL(144, 10, 118)] : [_FL(144, 10, 118)],
+      front: J => equip === 'none' ? [] : [_EQL(J.arms[1].wr, equip === 'band' ? [104, 8] : [104, 12], 1, equip === 'band' ? 'fig-band' : 'fig-cable')] };
+  }),
+  rollout: _kfMotion('Rollout', [190, 120], { torso: 1, torsoZone: 0.6, upArm: 0.4 }, (u, equip, o) => ({
+    keys: [{ hip: [64, 78], lean: 42, h: [100, 104], f: [30, 106], toe: [-7, 2] }, { hip: [80, 90], lean: 84, h: [160, 104], f: [32, 106], toe: [-7, 2], sa: 1 }],
+    behind: [_FL(110, 14, 180)], front: J => o.ball ? [_EQC([J.arms[1].wr[0] - 6, 98], 12, 'fig-prop')] : [_EQC([J.arms[1].wr[0], 105], 5, 'fig-prop')] })),
+  'side-plank': _kfMotion('Side Plank', [190, 120], { torso: 1, torsoZone: 0.6 }, (u, equip, o) => {
+    const top = o.star ? [150, 66] : o.cope ? [156, 92] : [158, 104], low = o.cope ? [150, 106] : [156, 106];
+    return { keys: [{ hip: [104, 96], lean: -66, h: [76, 106], h2: [60, 44], f: low, f2: top, face: 'front', toe: [6, -2] }, { hip: [104, 86], lean: -72, h: [76, 106], h2: [56, 36], f: low, f2: top, face: 'front', toe: [6, -2] }],
+      behind: [_FL(110, 14, 180)].concat(o.cope ? [_RECT(138, 94, 176, 99), _EQL([144, 99], [144, 110]), _EQL([170, 99], [170, 110])] : []) };
+  }),
+  'mountain-climber': _kfMotion('Mountain Climber', [190, 120], { torso: 0.8, torsoZone: 0.6, thigh: 0.6 }, (u, equip, o) => {
+    const back = [36, 104], fwd = [104, 100], base = { hip: [86, 84], lean: 80, h: [132, 108], sa: 1, toe: [-3, 6] };
+    if (o.row || o.tap) return { keys: [{ ...base, sa: 0, f: back, f2: [40, 104] }, { ...base, sa: 0, h: o.tap ? [122, 80] : [120, 84], h2: [135, 108], f: back, f2: [40, 104] }],
+      behind: [_FL(110, 14, 180)], front: J => o.row ? _kfLoad(J, equip === 'barbell' ? 'dumbbell' : equip) : [] };
+    return { keys: o.tuck ? [{ ...base, f: back, f2: [39, 104] }, { ...base, hip: [86, 80], f: fwd, f2: [107, 100] }] : [{ ...base, f: back, f2: fwd }, { ...base, f: fwd, f2: back }], behind: [_FL(110, 14, 180)] };
+  }),
+  quadruped: _kfMotion('Quadruped', [190, 120], { torso: 0.7, torsoZone: 0.6 }, (u, equip, o) => {
+    const A = { hip: [70, 72], lean: 88, h: [116, 104], h2: [119, 104], f: [34, 104], f2: [37, 104], toe: [-7, 2], neck: 0 };
+    const B = o.dog ? { ...A, h: [150, 64], f2: [14, 76] } : o.kick ? { ...A, f: [22, 70] } : o.child ? { ...A, hip: [50, 84], lean: 84, h: [112, 104], h2: [115, 104] }
+      : o.rot ? { ...A, h: [110, 36] } : { ...A, hip: [70, 70], lean: 86, neck: -28 };
+    return { keys: [A, B], behind: [_FL(110, 14, 180)] };
+  }),
+  'dead-bug': _kfMotion('Dead Bug', [190, 120], { torso: 1, torsoZone: 0.6 }, (u, equip) => ({
+    keys: [{ hip: [100, 100], lean: -90, face: 'up', hr: [2, -33], hr2: [5, -33], fr: [27, -27], fr2: [30, -27], toe: [3, -8] }, { hip: [100, 100], lean: -90, face: 'up', hr: [-33, -5], hr2: [5, -33], fr: [27, -27], fr2: [53, -7], toe: [3, -8] }],
+    behind: [_FL(108, 14, 180)], front: J => _kfLoad(J, equip === 'barbell' ? 'dumbbell' : equip) })),
+  'prone-ext': _kfMotion('Prone Extension', [190, 120], { torso: 0.9, torsoZone: 0.7 }, (u, equip, o) => o.superman
+    ? { keys: [{ hip: [104, 102], lean: -89, face: 'left', hr: [-33, 3], f: [158, 104], toe: [7, 1], sa: 1 }, { hip: [104, 102], lean: -74, face: 'left', hr: [-33, -6], f: [156, 88], toe: [7, -1], sa: 1 }], behind: [_FL(110, 14, 180)] }
+    : { keys: [{ hip: [104, 102], lean: -88, face: 'left', h: [64, 106], f: [158, 104], toe: [7, 1] }, { hip: [104, 102], lean: -58, face: 'left', h: [64, 106], f: [158, 104], toe: [7, 1], neck: 20 }], behind: [_FL(110, 14, 180)] }),
+  bridge: _kfMotion('Glute Bridge', [190, 120], { torso: 0.8, torsoZone: 0.9, thigh: 0.6 }, (u, equip, o) => {
+    const ball = o.ball, f = ball ? [150, 84] : [134, 106], base = { face: 'up', h: [92, 105], f, toe: ball ? [4, -8] : [9, 0], tl: 47 };
+    const far = o.single ? { f2: [152, 62] } : {};
+    const keys = o.curl ? [{ ...base, hip: [104, 82], lean: -113, f: [158, ball ? 84 : 106] }, { ...base, hip: [100, 78], lean: -118, f: [128, ball ? 84 : 106] }]
+      : [{ ...base, ...far, hip: [104, 100], lean: -90 }, { ...base, ...far, hip: [101, 78], lean: -118 }];
+    return { keys, behind: [_FL(110, 14, 180)].concat(ball ? [_EQC([keys[0].f[0] + 2 - (o.curl ? 30 * u : 0), 97], 12, 'fig-prop')] : []),
+      front: J => equip === 'none' || equip === 'machine' ? [] : equip === 'band' ? [_EQL([J.legs[1].kn[0] - 3, J.legs[1].kn[1]], [J.legs[1].kn[0] + 5, J.legs[1].kn[1]], 2.4, 'fig-band')]
+        : equip === 'barbell' ? [_EQC([J.hipC[0] + 2, J.hipC[1] - 9], 9, 'fig-plate'), _EQC([J.hipC[0] + 2, J.hipC[1] - 9], 2, 'fig-bar')] : _figSideLoad([J.hipC[0] + 2, J.hipC[1] - 10], equip) };
+  }),
+  'side-lying': _kfMotion('Side-Lying', [190, 120], { thigh: 0.8 }, (u, equip, o) => {
+    const base = { hip: [110, 98], lean: -90, face: 'front', hr2: [-18, 4], f2: o.clam ? [140, 106] : [164, 102], toe: [7, -2] };
+    const keys = o.arm ? [{ ...base, hr: [20, 8], f: [164, 98] }, { ...base, hr: [18, -24], f: [164, 98] }]
+      : o.clam ? [{ ...base, hr: [26, 4], f: [140, 102], kb: -1 }, { ...base, hr: [26, 4], f: [138, 92], kb: -1 }]
+      : [{ ...base, hr: [26, 4], f: [164, 98] }, { ...base, hr: [26, 4], f: [154, 66] }];
+    return { keys, behind: [_FL(108, 14, 180)], front: J => o.arm ? _kfLoad(J, equip === 'barbell' ? 'dumbbell' : equip) : equip === 'band' ? [_EQL(J.legs[0].kn, J.legs[1].kn, 2, 'fig-band')] : [] };
+  }),
+  'seated-row': _kfMotion('Seated Row', [150, 150], { torso: 0.9, torsoZone: 0.45, upArm: 0.75 }, (u, equip, o) => {
+    const low = o.low, pul = low ? [116, 124] : [118, 84];
+    return { keys: [{ hip: [46, 106], lean: 10, h: [84, 80], f: [92, 116], toe: [3, -9] }, { hip: [46, 106], lean: -6, h: [57, 85], f: [92, 116], toe: [3, -9] }],
+      behind: [_RECT(32, 113, 60, 118), _EQL([38, 118], [38, 144]), _EQL([56, 118], [56, 144]), _EQL([98, 104], [98, 128], 2), _FL(144, 10, 142)]
+        .concat(equip === 'band' ? [] : [_RECT(124, 40, 138, 144, 'fig-stack'), _EQL([126, 70], [136, 70], 1, 'fig-stack'), _EQL([126, 100], [136, 100], 1, 'fig-stack'), _EQC(pul, 3)]),
+      front: J => [_EQL(J.arms[1].wr, equip === 'band' ? [96, 112] : pul, 1, equip === 'band' ? 'fig-band' : 'fig-cable'), _EQC(J.arms[1].wr, 2, 'fig-bar')] };
+  }),
+  // ---- arms and shoulders ----
+  skull: _kfMotion('Lying Triceps Extension', [190, 120], { upArm: 1, foreArm: 0.3 }, (u, equip) => ({
+    keys: [{ hip: [112, 82], lean: -90, face: 'up', hr: [1, -33], f: [150, 108] }, { hip: [112, 82], lean: -90, face: 'up', hr: [-15, -15], f: [150, 108] }],
+    behind: [_RECT(52, 88, 128, 93), _EQL([62, 93], [62, 110]), _EQL([118, 93], [118, 110]), _FL(110, 10, 180)].concat(equip === 'cable' ? [_EQL([10, 60], [10, 110], 2, 'fig-tower'), _EQC([14, 102], 3)] : []),
+    front: J => equip === 'cable' ? [_EQL(J.arms[1].wr, [14, 102], 1, 'fig-cable'), _EQC(J.arms[1].wr, 2, 'fig-bar')] : _kfLoad(J, equip, 7) })),
+  'overhead-ext': _kfMotion('Overhead Triceps Extension', [120, 150], { upArm: 1, foreArm: 0.3 }, (u, equip) => ({
+    keys: [{ ..._kfStand, hr: [2, -33] }, { ..._kfStand, hr: [-13, -11] }],
+    behind: [_FL(144, 14, 106)].concat(equip === 'cable' ? [_EQL([14, 20], [14, 144], 2, 'fig-tower'), _EQC([18, 134], 3)] : []),
+    front: J => equip === 'cable' ? [_EQL(J.arms[1].wr, [18, 134], 1, 'fig-cable'), _EQC(J.arms[1].wr, 2, 'fig-bar')] : equip === 'band' ? [_EQL(J.arms[1].wr, [50, 144], 1.2, 'fig-band')] : _kfLoad(J, equip === 'barbell' ? 'dumbbell' : equip) })),
+  kickback: _kfMotion('Triceps Kickback', [120, 150], { upArm: 1 }, (u, equip) => ({
+    keys: [{ hip: [42, 98], lean: 62, hr: [-13, 25], f: [62, 144] }, { hip: [42, 98], lean: 62, hr: [-31, 13], f: [62, 144] }],
+    behind: [_FL(144, 14, 112)].concat(equip === 'cable' ? [_EQL([114, 60], [114, 144], 2, 'fig-tower'), _EQC([110, 134], 3)] : []),
+    front: J => equip === 'cable' ? [_EQL(J.arms[1].wr, [110, 134], 1, 'fig-cable')] : _kfLoad(J, equip === 'barbell' ? 'dumbbell' : equip) })),
+  'chest-press': _kfMotion('Standing Press', [120, 150], { torso: 0.9, torsoZone: 0.26, upArm: 0.7 }, (u, equip, o) => ({
+    keys: [{ ..._kfStand, hr: [8, 7], f: [60, 144], f2: [46, 144] }, { ..._kfStand, hr: [33, 2], f: [60, 144], f2: [46, 144] }],
+    behind: [_FL(144, 14, 106)].concat(equip === 'cable' || equip === 'band' ? [_EQL([10, 20], [10, 144], 2, 'fig-tower'), _EQC([14, 50], 3)] : []),
+    front: J => equip === 'cable' || equip === 'band' ? [_EQL(J.arms[1].wr, [14, 50], 1, equip === 'band' ? 'fig-band' : 'fig-cable'), _EQC(J.arms[1].wr, 2, 'fig-bar')]
+      : equip === 'none' ? [] : [_EQC([J.arms[1].wr[0] + 4, J.arms[1].wr[1]], o.ball ? 7 : 5, 'fig-db')] })),
+  'face-pull': _kfMotion('Face Pull', [120, 150], { torso: 0.7, torsoZone: 0.2, upArm: 0.8 }, (u, equip) => ({
+    keys: [{ ..._kfStand, lean: -3, hr: [33, -7], eb: -1 }, { ..._kfStand, lean: -6, hr: [7, -11], eb: -1 }],
+    behind: [_FL(144, 14, 112), _EQL([114, 10], [114, 144], 2, 'fig-tower'), _EQC([110, 30], 3)],
+    front: J => [_EQL(J.arms[1].wr, [110, 30], 1, equip === 'band' ? 'fig-band' : 'fig-cable'), _EQC(J.arms[1].wr, 2, 'fig-bar')] })),
+  'pull-apart': _kfFrontMotion('Pull-Apart', { torso: 0.7, torsoZone: 0.2, upArm: 0.7 }, (u, equip) => {
+    const hands = [[55 - 6 - 28 * u, 50 - 3 * u], [55 + 6 + 28 * u, 50 - 3 * u]];
+    return { pose: { hands, feet: [[47, 144], [63, 144]] }, front: equip === 'none' ? [] : [_EQL(hands[0], hands[1], 1.6, 'fig-band')] };
+  }),
+  wrist: _kfMotion('Wrist Curl', [120, 150], { foreArm: 1 }, (u, equip) => ({
+    keys: [{ hip: [44, 110], lean: 22, h: [84, 113], f: [74, 144] }, { hip: [44, 110], lean: 22, h: [85, 104], f: [74, 144] }],
+    behind: [_RECT(30, 118, 58, 123), _EQL([34, 123], [34, 144]), _EQL([54, 123], [54, 144]), _FL(144, 14, 106)], front: J => _kfLoad(J, equip, 6) })),
+  'wrist-roller': _kfMotion('Wrist Roller', [120, 150], { foreArm: 1, upArm: 0.3 }, (u, equip, o) => ({
+    keys: [{ ..._kfStand, hr: o.low ? [17, 20] : [33, 1] }, { ..._kfStand, hr: o.low ? [17, 18] : [33, -1] }], behind: [_FL(144, 14, 106)],
+    front: J => { const w = J.arms[1].wr, y = w[1] + 46 - 32 * u; return [_EQC(w, 2.6, 'fig-bar'), _EQL(w, [w[0], y], 1, 'fig-cable'), _EQC([w[0], y + 6], 6, 'fig-prop')]; } })),
+  grip: _kfMotion('Grip', [120, 150], { foreArm: 1 }, (u, equip, o) => o.bucket
+    ? { keys: [{ hip: [44, 110], lean: 30, h: [84, 116], f: [20, 140], toe: [-7, 3] }, { hip: [44, 110], lean: 34, h: [86, 126], f: [20, 140], toe: [-7, 3] }], behind: [_RECT(70, 112, 102, 144, 'fig-pad'), _FL(144, 10, 112)] }
+    : { keys: [{ ..._kfStand, hr: [17, 14] }, { ..._kfStand, hr: [17, 12] }], behind: [_FL(144, 14, 106)],
+        front: J => { const w = J.arms[1].wr, g = 5 - 3 * u; return [_EQL([w[0] + 1, w[1] - g], [w[0] + 9, w[1] - g - 3], 1.6, 'fig-tool'), _EQL([w[0] + 1, w[1] + g], [w[0] + 9, w[1] + g + 3], 1.6, 'fig-tool')]; } }),
+  neck: _kfMotion('Neck', [120, 150], {}, (u, equip, o) => ({
+    keys: [{ ..._kfStand, hr: [2, 30], neck: o.ext ? 4 : o.lat ? -18 : -4 }, { ..._kfStand, hr: [2, 30], neck: o.jaw ? 2 : o.ext ? -32 : o.lat ? 22 : 36 }], behind: [_FL(144, 14, 106)],
+    front: J => o.load ? [_EQL([J.head[0] + 6, J.head[1] + 2], [J.head[0] + 12, J.head[1] + 24], 1, 'fig-cable'), _EQC([J.head[0] + 12, J.head[1] + 29], 5, 'fig-prop')] : [] })),
+  // ---- legs ----
+  'lateral-lunge': _kfFrontMotion('Lateral Lunge', { thigh: 1, shin: 0.3 }, (u, equip, o) => {
+    if (o.walk) { const w = 10 + 9 * u, feet = [[55 - w, 144], [55 + w, 144]];
+      return { pose: { hipY: 100, shY: 46, hands: [[43, 78], [67, 78]], feet }, front: equip === 'band' ? [_EQL([feet[0][0], 118], [feet[1][0], 118], 2, 'fig-band')] : [] }; }
+    const hx = 17 * u, hipY = 92 + 17 * u, air = o.jump ? 10 * Math.sin(Math.PI * u) : 0;
+    const hands = [[55 + hx - 5, hipY - 36], [55 + hx + 5, hipY - 36]];
+    return { pose: { hx, sx: hx + 2 * u, hipY, shY: hipY - 56 + 3 * u, hands, feet: [[32, 144 - (o.jump ? 14 * u : 0) - air * 0], [79, 144]] },
+      front: equip === 'none' ? [] : [_EQC([55 + hx, hipY - 34], 5, 'fig-db')] };
+  }),
+  'step-up': _kfMotion('Step-Up', [130, 150], { thigh: 1, shin: 0.4 }, (u, equip, o) => ({
+    keys: [{ hip: [58, 94], lean: 14, hr: [3, 32], f: [80, 118], f2: [50, 144] }, { hip: [78, 65], lean: 3, hr: [3, 33], f: [80, 118], f2: [72, 112], kb2: -1 }],
+    u: 1 - u, behind: [_RECT(68, 118, 116, 144), _FL(144, 10, 122)].concat(o.stairs ? [_RECT(92, 92, 116, 118)] : []), front: J => _kfLoad(J, equip === 'barbell' ? 'dumbbell' : equip) })),
+  'leg-swing': _kfMotion('Leg Swing', [120, 150], { thigh: 0.9 }, (u, equip, o) => {
+    const A = o.fwd ? [56, 144] : o.back || o.curl ? [57, 144] : [30, 132], B = o.fwd ? [86, 118] : o.curl ? [40, 114] : o.back ? [26, 126] : [86, 122];
+    const anchor = o.fwd ? [8, 140] : [110, 140];
+    return { keys: [{ ..._kfStand, hr: [4, 26], f: A, f2: [59, 144] }, { ..._kfStand, lean: o.back ? 10 : 0, hr: [4, 26], f: B, f2: [59, 144] }], behind: [_FL(144, 6, 114)],
+      front: J => equip === 'cable' || equip === 'band' ? [_EQL(J.legs[1].an, anchor, 1, equip === 'band' ? 'fig-band' : 'fig-cable')] : equip === 'machine' ? [_EQC([J.legs[1].an[0] - 4, J.legs[1].an[1] - 3], 3.4, 'fig-pad')] : [] };
+  }),
+  balance: _kfMotion('Balance', [130, 150], { thigh: 0.6, torso: 0.4, torsoZone: 0.6 }, (u, equip, o) => {
+    const keys = o.w3 ? [{ hip: [58, 91], lean: 6, hr: [3, 33], f: [50, 140], f2: [62, 144] }, { hip: [56, 92], lean: 82, hr: [2, 33], f: [6, 96], f2: [62, 144], sa: 1 }]
+      : [{ ..._kfStand, lean: -1, hr: [6, 20], f: o.rooster ? [70, 104] : [66, 114], f2: [58, 144] }, { ..._kfStand, lean: 2, hr: [6, 18], f: o.rooster ? [72, 100] : [66, 112], f2: [58, 144] }];
+    return { keys, behind: [_FL(144, 6, 124)].concat(o.bosu ? [_EQ('M 40 144 Q 60 126 80 144', 1.4, 'fig-pad')] : []), front: J => o.w3 ? _kfLoad(J, equip, 8) : [] };
+  }),
+  // ---- whole body ----
+  thruster: _kfMotion('Thruster', [120, 150], { thigh: 1, upArm: 0.8, torso: 0.4, torsoZone: 0.5 }, (u, equip, o) => ({
+    keys: [{ hip: [56, 90], lean: 0, hr: [3, -33], f: [60, 144] }, { hip: [56, 90], lean: 2, hr: [9, 3], f: [60, 144] }, { hip: [43, 112], lean: 24, hr: [9, 3], f: [60, 144] }],
+    behind: [_FL(144, 14, 106)].concat(o.wall ? [_EQL([104, 6], [104, 144], 2, 'fig-wall')] : []),
+    front: J => equip === 'none' ? [] : equip === 'barbell' ? _kfLoad(J, equip) : o.ball ? [_EQC([J.arms[1].wr[0] + 4, J.arms[1].wr[1] - 5], 7, 'fig-db')] : _kfLoad(J, equip) })),
+  slam: _kfMotion('Slam', [130, 150], { torso: 0.9, torsoZone: 0.55, upArm: 0.7 }, (u, equip, o) => ({
+    keys: [{ hip: [54, 90], lean: -7, hr: [-1, -33], f: [58, 144] }, { hip: [52, 94], lean: 22, hr: [24, 6], f: [58, 144] }, { hip: [44, 104], lean: 52, hr: [14, 30], f: [58, 144] }],
+    behind: [_FL(144, 10, 124)].concat(o.hammer ? [_EQC([104, 132], 12, 'fig-pad'), _EQC([104, 132], 5, 'fig-pad')] : []),
+    front: J => { const a = J.arms[1], w = a.wr, dx = w[0] - a.el[0], dy = w[1] - a.el[1], L = Math.hypot(dx, dy) || 1;
+      if (o.hammer) { const tip = [w[0] + dx / L * 26, w[1] + dy / L * 26]; return [_EQL(w, tip, 1.6, 'fig-tool'), _EQC(tip, 4, 'fig-prop')]; }
+      return equip === 'none' ? [] : [_EQC([w[0] + dx / L * 6, w[1] + dy / L * 6], 7, 'fig-db')]; } })),
+  throw: _kfMotion('Throw', [120, 150], { torso: 0.8, torsoZone: 0.6, thigh: 0.6 }, (u, equip, o) => ({
+    keys: [{ hip: [44, 104], lean: 52, hr: [5, 31], f: [60, 144] }, o.back ? { hip: [56, 90], lean: -12, hr: [-8, -32], f: [60, 144] } : { hip: [56, 90], lean: 3, hr: [24, -23], f: [60, 144] }],
+    u: 1 - u, behind: [_FL(144, 14, 106)], front: J => equip === 'none' ? [] : [_EQC([J.arms[1].wr[0] + 3, J.arms[1].wr[1] - 3], 7, 'fig-db')] })),
+  burpee: _kfMotion('Burpee', [190, 150], { torso: 0.7, torsoZone: 0.4, thigh: 0.8, upArm: 0.6 }, (u, equip, o) => ({
+    keys: [{ hip: [60, 86], lean: 0, h: [64, 8], f: [60, 140], toe: [9, 2] }, { hip: [52, 116], lean: 56, h: [98, 142], f: [62, 144], toe: [9, 0] }, { hip: [86, 116], lean: 82, h: [132, 142], f: [36, 138], toe: [-3, 6] }],
+    behind: [_FL(144, 10, 180)], front: J => o.load ? _kfLoad(J, equip === 'barbell' ? 'dumbbell' : equip) : [] })),
+  'jumping-jack': _kfFrontMotion('Jumping Jack', { thigh: 0.6, shin: 0.6, upArm: 0.5 }, u => {
+    const th = 0.28 + 2.6 * u, w = 8 + 17 * u, air = 5 * Math.sin(Math.PI * u);
+    return { pose: { shY: 36 - air, hipY: 92 - air, hands: [-1, 1].map(sg => [55 + sg * (12 + 31 * Math.sin(th)), 38 - air + 31 * Math.cos(th)]), feet: [[55 - w, 144 - air], [55 + w, 144 - air]] } };
+  }),
+  sled: _kfMotion('Sled', [170, 150], { thigh: 1, shin: 0.6, torso: 0.4, torsoZone: 0.6 }, (u, equip, o) => o.pull
+    ? { keys: [{ hip: [66, 98], lean: -20, h: [96, 80], f: [56, 144], f2: [82, 142] }, { hip: [62, 98], lean: -26, h: [84, 84], f: [80, 142], f2: [52, 144] }],
+        behind: [_FL(144, 10, 164), _RECT(122, 134, 158, 144, 'fig-pad'), _EQC([140, 126], 8, 'fig-prop')], front: J => [_EQL(J.arms[1].wr, [124, 132], 1, 'fig-cable')] }
+    : { keys: [{ hip: [58, 100], lean: 56, h: [118, 82], f: [30, 142], f2: [72, 144] }, { hip: [60, 100], lean: 56, h: [120, 82], f: [72, 144], f2: [30, 142] }],
+        behind: [_FL(144, 10, 164), _RECT(112, 134, 156, 144, 'fig-pad'), _EQL([120, 134], [120, 70], 2, 'fig-bar'), _EQC([140, 124], 9, 'fig-prop')] }),
+  load: _kfMotion('Ground to Shoulder', [130, 150], { thigh: 0.8, torso: 0.9, torsoZone: 0.65, upArm: 0.5 }, (u, equip, o) => ({
+    keys: [{ hip: [56, 90], lean: -8, hr: o.shoulder ? [0, -8] : [14, 4], f: [60, 144] }, { hip: [44, 110], lean: 22, hr: [18, 28], f: [60, 144] }, { hip: [40, 106], lean: 66, hr: [-10, 30], f: [60, 144] }],
+    behind: [_FL(144, 10, 124)].concat(o.over ? [_EQL([98, 62], [98, 144], 1.4), _EQL([92, 62], [112, 62], 2.4, 'fig-bar')] : []),
+    front: J => [_EQC([J.arms[1].wr[0] + 5, J.arms[1].wr[1] + 2], 11, 'fig-prop')] })),
+  'tire-flip': _kfMotion('Tire Flip', [170, 150], { thigh: 0.9, torso: 0.8, torsoZone: 0.6, upArm: 0.5 }, (u, equip) => {
+    const t = 1 - u, th = (6 + 66 * t) * Math.PI / 180, pv = [146, 144], hand = [pv[0] - 62 * Math.cos(th), pv[1] - 62 * Math.sin(th) - 6];
+    const c = (dx, dy) => [pv[0] - dx * Math.cos(th) + dy * Math.sin(th), pv[1] - dx * Math.sin(th) - dy * Math.cos(th)], q = [c(0, 0), c(64, 0), c(64, 16), c(0, 16)];
+    return { keys: [{ hip: [44 + 22 * t, 112 - 22 * t], lean: 50 - 22 * t, h: hand, f: [54 + 14 * t, 144] }], behind: [_FL(144, 10, 164)],
+      front: [_EQ('M ' + q.map(z => _figN(z[0]) + ' ' + _figN(z[1])).join(' L ') + ' Z', 1.6, 'fig-pad')] };
+  }),
+  // ---- gymnastics ----
+  handstand: _kfMotion('Handstand', [120, 160], { upArm: 0.9, torso: 0.5, torsoZone: 0.2 }, (u, equip, o) => ({
+    keys: [{ hip: [58, 72], lean: 180, h: [57, 152], h2: [63, 152], fr: [0, -54], toe: [3, -7], sa: o.press ? 0 : 1 }, { hip: [58, o.press ? 88 : 72], lean: o.press ? 180 : 177, h: [57, o.walk ? 146 : 152], h2: [63, 152], fr: [o.press ? 0 : 2, -54], toe: [3, -7], sa: o.press ? 0 : 1 }],
+    behind: [_FL(154, 14, 106)].concat(o.wall ? [_EQL([70, 6], [70, 154], 2, 'fig-wall')] : []) })),
+  lever: _kfMotion('Lever', [190, 160], { torso: 1, torsoZone: 0.5, upArm: 0.7 }, (u, equip, o) => {
+    const legs = o.tuck ? { fr: [20, -16], kb: -1 } : { fr: [54, 0] }, B = { hip: [116, 52], lean: -90, face: o.back ? 'down' : 'up', h: [70, 14], sa: 1, toe: [8, -3], ...legs };
+    const A = o.raise ? { hip: [70, 100], lean: 0, face: 'right', h: [70, 14], sa: 1, toe: [8, -3], fr: [2, 53], kb: legs.kb } : { ...B, hip: [116, 56], lean: -86 };
+    return { keys: [A, B], behind: [_EQL([40, 14], [100, 14], 2.4, 'fig-bar'), _EQL([44, 14], [44, 2]), _EQL([96, 14], [96, 2])] };
+  }),
+  planche: _kfMotion('Planche', [190, 120], { upArm: 1, torso: 0.7, torsoZone: 0.3 }, (u, equip, o) => {
+    const base = { face: 'left', h: [76, 106], sa: 1, toe: [7, 1] };
+    const keys = o.lean ? [{ ...base, hip: [116, 88], lean: -84, f: [168, 104] }, { ...base, hip: [112, 88], lean: -80, f: [168, 104], h: [82, 106] }]
+      : o.tuck ? [{ ...base, hip: [108, 76], lean: -86, fr: [8, 24], kb: 1 }, { ...base, hip: [108, 72], lean: -90, fr: [8, 22], kb: 1 }]
+      : [{ ...base, hip: [112, 76], lean: -90, fr: [54, 2] }, { ...base, hip: [112, 72], lean: -92, fr: [54, 0] }];
+    return { keys, behind: [_FL(110, 14, 180)] };
+  }),
+  // ---- mobility ----
+  'down-dog': _kfMotion('Pike', [190, 130], { upArm: 0.6, torso: 0.5, torsoZone: 0.3 }, (u, equip, o) => {
+    const dog = { hip: [100, 72], lean: -129, face: 'left', h: [38, 122], f: [125, 120], toe: [8, 2], sa: 1 };
+    const keys = o.press ? [{ ...dog, sa: 0 }, { ...dog, sa: 0, hip: [96, 80], lean: -136 }]
+      : o.pike ? [{ hip: [110, 98], lean: -98, face: 'left', h: [40, 122], f: [162, 118], toe: [8, 2], sa: 1 }, dog] : [{ ...dog, hip: [100, 75], lean: -127 }, dog];
+    return { keys, behind: [_FL(124, 14, 180)] };
+  }),
+  'lunge-stretch': _kfMotion('Lunge Stretch', [150, 150], { thigh: 0.5 }, (u, equip, o) => {
+    const base = { lean: 3, f: [102, 144], f2: o.couch ? [34, 98] : [16, 140], toe2: o.couch ? [-2, -8] : [-7, 3], kb2: -1 };
+    const hands = o.reach ? { hr: [4, -33], hr2: [7, -33] } : o.twist ? { hr: [-6, -32], hr2: [22, 30] } : { hr: [5, 30] };
+    return { keys: [{ ...base, ...hands, hip: [62, 110] }, { ...base, ...hands, hip: [70, 116], lean: o.twist ? 16 : 0 }],
+      behind: [_FL(144, 8, 142)].concat(o.couch ? [_EQL([28, 30], [28, 144], 2, 'fig-wall')] : []), front: J => equip === 'band' ? [_EQL(J.hipC, [8, 122], 1.6, 'fig-band')] : [] };
+  }),
+  'floor-stretch': _kfMotion('Seated Stretch', [150, 120], {}, (u, equip, o) => {
+    const f = o.butterfly ? [86, 104] : [114, 104];
+    return { keys: [{ hip: [58, 102], lean: 8, h: [88, 84], f, toe: [2, -9] }, { hip: [58, 102], lean: o.butterfly ? 34 : 56, h: o.butterfly ? [88, 98] : [116, 96], f, toe: [2, -9] }], behind: [_FL(110, 10, 142)] };
+  }),
+  smash: _kfMotion('Roll / Smash', [190, 120], {}, (u, equip, o) => {
+    const s = 12 * u - 6, at = o.at || 'back', tool = equip === 'barbell' ? 'fig-bar' : 'fig-pad', r = equip === 'barbell' ? 4 : o.ball ? 4.5 : 8;
+    if (at === 'quad') return { keys: [{ hip: [104 + s, 90], lean: -80, face: 'left', h: [52 + s, 106], f: [158 + s, 98], toe: [7, 1] }], behind: [_FL(110, 14, 180), _EQC([124, 110 - r - 1], r, tool)] };
+    if (at === 'calf' || at === 'glute') return { keys: [{ hip: [70 + s, at === 'glute' ? 92 : 98], lean: -14, h: [50 + s, 106], f: [126 + s, at === 'glute' ? 104 : 92], toe: [2, -9] }],
+      behind: [_FL(110, 14, 180), _EQC([at === 'glute' ? 72 : 116, 110 - r - 1], r, tool)] };
+    return { keys: [{ hip: [112 + s, 94], lean: -78, face: 'up', hr: [-9, -7], f: [152, 106] }], behind: [_FL(110, 14, 180), _EQC([80, 110 - r - 1], r, tool)] };
+  }),
+  rest: _kfMotion('Rest / Breathing', [190, 120], {}, (u, equip, o) => o.sit
+    ? { keys: [{ hip: [92, 98], lean: 1, hr: [15, 30], f: [108, 104], f2: [100, 106] }, { hip: [92, 97], lean: -3, hr: [15, 28], f: [108, 104], f2: [100, 106] }], behind: [_FL(110, 40, 150)] }
+    : { keys: [{ hip: [104, 100], lean: -90, face: 'up', hr: [26, -8], f: [158, 103], toe: [3, -8] }, { hip: [104, 100], lean: -90, face: 'up', hr: [26, -12], f: [158, 103], toe: [3, -8] }], behind: [_FL(108, 14, 180)] }),
+  // ---- conditioning ----
+  'battle-rope': _kfMotion('Battle Ropes', [160, 150], { upArm: 0.9, torso: 0.4, torsoZone: 0.5, thigh: 0.4 }, u => ({
+    keys: [{ hip: [48, 102], lean: 18, h: [82, 82], h2: [84, 102], f: [56, 144] }, { hip: [48, 102], lean: 18, h: [82, 102], h2: [84, 82], f: [56, 144] }], behind: [_FL(144, 10, 154)],
+    front: J => J.arms.map((a, i) => { const w = a.wr, ph = (i ? u : 1 - u) * Math.PI * 2; let d = `M ${_figN(w[0])} ${_figN(w[1])}`;
+      for (let k = 1; k <= 12; k++) { const t = k / 12; d += ` L ${_figN(w[0] + (150 - w[0]) * t)} ${_figN(w[1] + (140 - w[1]) * t + 7 * (1 - t) * Math.sin(t * 9 - ph))}`; }
+      return { ..._EQ(d, 1.6, 'fig-band'), dim: !!a.dim }; }) })),
+  'ski-erg': _kfMotion('Ski Erg', [130, 160], { torso: 0.9, torsoZone: 0.5, upArm: 0.7 }, (u, equip, o) => ({
+    keys: [{ hip: [52, 100], lean: 4, h: [72, 38], f: [54, 154] }, o.strict ? { hip: [52, 100], lean: 8, h: [62, 98], f: [54, 154], sa: 1 } : { hip: [44, 108], lean: 40, h: [58, 114], f: [54, 154] }],
+    behind: [_FL(154, 10, 122), _EQL([104, 8], [104, 154], 2, 'fig-tower'), _EQC([96, 14], 3)], front: J => [_EQL(J.arms[1].wr, [96, 14], 1, 'fig-cable'), _EQC(J.arms[1].wr, 2, 'fig-bar')] })),
+  climb: _kfMotion('Climb', [120, 160], { upArm: 0.9, torso: 0.7, torsoZone: 0.45, thigh: 0.5 }, (u, equip, o) => ({
+    keys: [{ hip: [54, 96], lean: 6, h: [78, 30], h2: [76, 58], f: [72, 120], f2: [68, 146], toe: [6, 0] }, { hip: [54, 92], lean: 6, h: [76, 58], h2: [78, 30], f: [68, 146], f2: [72, 120], toe: [6, 0] }],
+    behind: o.rope ? [_EQL([78, 2], [78, 158], 2.4, 'fig-band')] : o.ladder ? [_EQL([82, 2], [82, 158], 2, 'fig-tower')].concat([20, 48, 76, 104, 132].map(y => _EQL([74, y], [90, y], 1.6))) : [_EQL([84, 2], [84, 158], 2, 'fig-wall')] })),
+  swim: _kfMotion('Swim', [190, 100], { upArm: 0.8, torso: 0.6, torsoZone: 0.4, thigh: 0.4 }, u => ({
+    keys: [{ hip: [110, 52], lean: -92, face: 'left', h: [26, 50], h2: [98, 68], f: [164, 48], f2: [164, 58], toe: [8, 1], sa: 1 }, { hip: [110, 52], lean: -92, face: 'left', h: [98, 68], h2: [26, 50], f: [164, 58], f2: [164, 48], toe: [8, 1], sa: 1 }],
+    behind: [_EQ('M 6 44 Q 30 40 54 44 T 102 44 T 150 44 T 186 44', 1, 'fig-floor')] })),
+  paddle: _kfMotion('Paddle', [140, 150], { torso: 0.8, torsoZone: 0.5, upArm: 0.7 }, (u, equip, o) => {
+    const blade = J => { const a = J.arms[1].wr, b = J.arms[0].wr, dx = a[0] - b[0], dy = a[1] - b[1]; return [_EQL([a[0] + dx * 1.1, a[1] + dy * 1.1], [b[0] - dx * 1.1, b[1] - dy * 1.1], 1.8, 'fig-tool')]; };
+    return o.stand
+      ? { keys: [{ hip: [58, 82], lean: 8, h: [84, 76], h2: [72, 40], f: [58, 134] }, { hip: [58, 84], lean: 18, h: [62, 96], h2: [70, 52], f: [58, 134] }], behind: [_EQ('M 16 136 L 112 136 Q 122 136 126 132', 2, 'fig-pad'), _EQL([4, 140], [136, 140], 1, 'fig-floor')], front: blade }
+      : { keys: [{ hip: [58, 112], lean: -4, h: [84, 86], h2: [64, 64], f: [102, 116], toe: [2, -8] }, { hip: [58, 112], lean: -2, h: [66, 64], h2: [86, 88], f: [102, 116], toe: [2, -8] }], behind: [_EQ('M 16 116 Q 70 140 128 116', 1.6, 'fig-pad'), _EQL([4, 128], [136, 128], 1, 'fig-floor')], front: blade };
+  }),
+  boxing: _kfMotion('Boxing', [140, 150], { upArm: 0.8, torso: 0.4, torsoZone: 0.4 }, (u, equip, o) => ({
+    keys: [{ hip: [52, 92], lean: 6, h: [90, 52], h2: [66, 50], f: [68, 144], f2: [36, 144] }, { hip: [54, 92], lean: 9, h: [68, 50], h2: [94, 54], f: o.kick ? [100, 96] : [68, 144], f2: [36, 144] }],
+    behind: [_FL(144, 10, 134)].concat(o.bag ? [_EQL([112, 2], [112, 30], 1, 'fig-cable'), _EQ(figCapsulePath([112, 38], [112, 104], 18), 1.4, 'fig-pad')] : o.speed ? [_EQL([82, 4], [112, 4], 2), _EQC([98, 22], 9, 'fig-pad')] : []),
+    front: J => J.arms.map(a => ({ ..._EQC(a.wr, 3.6, 'fig-prop'), dim: !!a.dim })) })),
+  mace: { label: 'Mace / Club', views: ['front'], viewLabel: { front: 'Front' }, box: { front: [110, 150] }, act: { upArm: 0.8, torso: 0.6, torsoZone: 0.4, foreArm: 0.6 },
+    build(view, u, equip, p, o) {
+      o = o || {};
+      const cx = 55, len = o.club ? 28 : 46;
+      let hand, dir, behind = false;
+      if (o.mode === 'pendulum') { const sw = (u - 0.5) * 1.7; hand = [cx + 9 * Math.sin(sw), 84]; dir = [Math.sin(sw), Math.cos(sw)]; }
+      else { const a = (o.mode === 'cast' ? Math.PI : 2 * Math.PI) * u; hand = [cx + 12 * Math.sin(a), 46 - 9 * (1 - Math.cos(a))]; dir = [Math.sin(a), -Math.cos(a)]; behind = Math.cos(a) < 0; }
+      const hands = o.uni ? [[cx - 16, 92], hand] : [hand, [hand[0] + 2, hand[1] + 3]];
+      const tip = [hand[0] + dir[0] * len, hand[1] + dir[1] * len];
+      const tool = [{ ..._EQL(hand, tip, 1.8, 'fig-tool'), dim: behind }, { ..._EQC(tip, o.club ? 3 : 4.5, 'fig-prop'), dim: behind }];
+      return { J: _kfFront({ sx: 3 * dir[0], hands, feet: [[45, 144], [65, 144]] }), behind: [_FL(148, 12, 98)].concat(behind ? tool : []), front: behind ? [] : tool };
+    } },
+  'side-bend': _kfFrontMotion('Side Bend', { torso: 1, torsoZone: 0.6 }, (u, equip, o) => {
+    const wm = o.windmill, sx = (wm ? 24 : 15) * u, shY = 36 + (wm ? 20 : 5) * u;
+    const low = [55 + sx + 14, Math.min(140, 86 + (wm ? 52 : 22) * u)], up = wm ? [55 + sx - 13, shY - 30] : [55 + sx - 16, 84 - 12 * u];
+    const at = wm ? up : low;
+    return { pose: { sx, shY, hands: [up, low], feet: [[44, 144], [66, 144]] },
+      front: equip === 'none' ? [] : equip === 'cable' || equip === 'band' ? [_EQL(up, [4, 146], 1, 'fig-cable')] : equip === 'kettlebell' ? [_EQC([at[0], at[1] + (wm ? -5 : 5)], 4.5, 'fig-kb')] : [_EQC(at, 5, 'fig-db')] };
+  }),
+});
+/* </feat556-lib> */
 // Per-variation overrides (the feat-408 dev set keeps its bespoke assignments).
 const MOTION_VARS = {
   'road-cycling': ['bike', 'machine'], 'mountain-biking': ['bike', 'machine'], // feat 524
@@ -26418,13 +26757,12 @@ const MOTION_VARS = {
   'sumo-squat-narrow': ['squat', 'dumbbell', { grip: 1.3 }], // feat 415 — a squat (wide stance), not a leg-extension machine
   // feat 415 — push-up variations cross-listed in other families animate as push-ups, not their host family's motion
   'push-up': ['push-up', 'none'], 'deficit-push-up': ['push-up', 'none', { deficit: 1 }],
-  'pike-push-up': ['push-up', 'none'], 'close-grip-push-up': ['push-up', 'none'], 'diamond-push-up': ['push-up', 'none'],
+  'close-grip-push-up': ['push-up', 'none'], 'diamond-push-up': ['push-up', 'none'],
   'trx-push-up': ['push-up', 'none'], 'push-up-plus': ['push-up', 'none'], 'clap-push-up': ['push-up', 'none'],
   'med-ball-pushup': ['push-up', 'none'], 'bench-decline-pushup': ['push-up', 'none'],
   // feat 416 — bodyweight movements the solver's family fallback mislabels as loaded
-  'sprinter-squat': ['squat', 'none'], 'step-up': ['lunge', 'none'], 'jump-lunge': ['lunge', 'none'],
-  'bear-crawl-shoulder-tap': ['plank', 'none'],
-  'hyperext-decline-situp': ['crunch', 'none'], 'hyperext-sissy-squat': ['squat', 'none', { anchor: 1 }],
+  'sprinter-squat': ['squat', 'none'], 'jump-lunge': ['lunge', 'none'],
+  'hyperext-sissy-squat': ['squat', 'none', { anchor: 1 }],
   // feat 474 — the LF torso-rotation station: the rotation PATTERN (not a crunch), seated as the machine is
   'lifefitness-torso-rotation': ['rotation', 'machine', { plane: 'mid', seat: 1 }],
 };
@@ -26594,6 +26932,351 @@ const MOTION_PATTERN_WORDS = [
   [/\bwalk\b/i, 'carry', {}],
   [/\bhold\b/i, 'carry', { tempo: 'hold' }],
 ];
+/* <feat556-route> */
+/* feat 556 — MOTION_ROUTE: the explicit per-variation assignment. id -> [template, opts?, equipment?].
+   Title keywords and family defaults guessed wrong for roughly a third of the catalogue (a Seated Cable Row
+   drawn standing, a Roman Chair Sit-Up drawn as a plank), so every variation whose guess was wrong is pinned
+   here by id. Generated by an authoring script, reviewed against rendered contact sheets, then frozen: nothing
+   in this table is inferred at run time. A NEW variation still falls back to the guessers below, and
+   test/motionroute.spec.mjs fails if the placeholder templates start filling up again. */
+const MOTION_ROUTE = {
+  'glute-hyper': ['back-ext', {}, 'none'], 'reverse-hyper': ['back-ext', {}, 'none'], 'roman-back-ext-bw': ['back-ext'],
+  'roman-glute-focus': ['back-ext'], 'roman-good-morning': ['back-ext', {}, 'none'], 'roman-horizontal-back-ext': ['back-ext'],
+  'roman-single-leg-back-ext': ['back-ext'], 'roman-twisting-back-ext': ['back-ext'], 'roman-weighted-back-ext': ['back-ext'],
+  'sb-back-extension': ['back-ext'], 'balance-board-hold': ['balance', { bosu: 1 }, 'none'], 'bosu-single-leg-hold': ['balance', { bosu: 1 }, 'none'],
+  'half-moon-pose': ['balance', { w3: 1 }], 'hip-airplane': ['balance', { w3: 1 }], 'mace-balance': ['balance', {}, 'none'],
+  'sb-seated-single-leg': ['balance', {}, 'none'], 'sb-standing-balance': ['balance', {}, 'none'], 'single-leg-rdl': ['balance', { w3: 1 }],
+  'taichi-golden-rooster': ['balance', { rooster: 1 }, 'none'], 'tree-pose': ['balance', {}, 'none'], 'trx-single-leg-deadlift': ['balance', { w3: 1 }],
+  'warrior-3-hold': ['balance', { w3: 1 }], 'battle-ropes': ['battle-rope', {}, 'none'], 'band-bench-press': ['bench-press'],
+  'dead-bench': ['bench-press'], 'pin-press': ['bench-press'], 'reverse-band-bench': ['bench-press'], 'sb-db-chest-press': ['bench-press'],
+  'sb-incline-press': ['bench-press'], 'sbag-floor-press': ['bench-press', { floor: 1 }], 'shoulder-saver': ['bench-press', {}, 'barbell'],
+  'swiss-bar-press': ['bench-press', {}, 'barbell'], 'yb-chest-press': ['bench-press'], 'bfr-arm-training': ['biceps-curl', {}, 'dumbbell'],
+  'expander-curl': ['biceps-curl', {}, 'band'], 'ez-curl-cable-bar': ['biceps-curl', {}, 'cable'], 'kb-bottoms-up-curl': ['biceps-curl'],
+  'kb-curl': ['biceps-curl'], 'leg-curl-glute-bridge': ['biceps-curl'], 'pronation-supination-handle': ['biceps-curl', {}, 'cable'],
+  'sb-seated-biceps-curl': ['biceps-curl'], 'trx-biceps-curl': ['biceps-curl'], 'waiter-curl': ['biceps-curl', {}, 'dumbbell'],
+  'echo-bike': ['bike', {}, 'machine'], 'boxing-combo-drills': ['boxing', {}, 'none'], 'boxing-double-end': ['boxing', { speed: 1 }, 'none'],
+  'boxing-heavy-bag': ['boxing', { bag: 1 }, 'none'], 'boxing-kick-rounds': ['boxing', { kick: 1, bag: 1 }, 'none'],
+  'boxing-pad-work': ['boxing', { bag: 1 }, 'none'], 'boxing-shadow': ['boxing', {}, 'none'], 'boxing-speed-bag': ['boxing', { speed: 1 }, 'none'],
+  'boxing-weighted-shadow': ['boxing', {}, 'none'], 'back-bridge-hold': ['bridge'], 'ball-squeeze': ['bridge', {}, 'none'],
+  'band-glute-bridge': ['bridge'], 'banded-glute-bridge': ['bridge'], 'bridge-hold': ['bridge'], 'bw-glute-bridge': ['bridge'],
+  'feet-elevated-glute-bridge': ['bridge'], 'frog-pump': ['bridge'], 'glute-march': ['bridge'], 'long-lever-bridge-hold': ['bridge'],
+  'plate-glute-bridge': ['bridge'], 'sb-bridge': ['bridge', { ball: 1 }], 'sb-bridge-hold': ['bridge', { ball: 1 }],
+  'sb-curl-to-bridge': ['bridge', { curl: 1 }, 'none'], 'sb-hip-extension': ['bridge', { ball: 1 }], 'sb-marching-bridge': ['bridge', { ball: 1 }],
+  'sb-pelvic-tilt': ['bridge', { ball: 1 }], 'sb-reverse-bridge': ['bridge', { ball: 1 }], 'sb-single-leg-bridge': ['bridge', { ball: 1, single: 1 }],
+  'sb-single-leg-curl': ['bridge', { curl: 1, ball: 1 }, 'none'], 'single-leg-bridge-hold': ['bridge', { single: 1 }],
+  'slider-hamstring-curl': ['bridge', { curl: 1 }, 'none'], 'sliding-leg-curl': ['bridge', { curl: 1 }, 'none'],
+  'swiss-ball-curl': ['bridge', { curl: 1, ball: 1 }, 'none'], 'trx-hamstring-curl': ['bridge', { curl: 1 }, 'none'], 'trx-hip-press': ['bridge'],
+  'trx-single-leg-hip-press': ['bridge', { single: 1 }], 'wrestler-bridge': ['bridge'], 'bar-facing-burpee': ['burpee'], 'burpee': ['burpee'],
+  'burpee-box-jump-over': ['burpee'], 'devil-press': ['burpee', { load: 1 }], 'hyrox-burpee-broad': ['burpee'], 'kb-man-maker': ['burpee', { load: 1 }],
+  'plate-burpee-overhead': ['burpee', { load: 1 }], 'sbag-burpee': ['burpee'], 'sit-outs': ['burpee'], 'squat-thrust': ['burpee'],
+  'trx-burpee': ['burpee'], 'yb-burpee': ['burpee', { load: 1 }], 'sb-seated-heel-raise': ['calf-raise'],
+  'tibialis-raise-wall': ['calf-raise', { act: { shin: 1 } }, 'none'], 'conans-wheel': ['carry', { rack: 'zercher' }, 'barbell'],
+  'farmers-carry': ['carry'], 'hyrox-farmers-carry': ['carry'], 'kb-bear-hug-carry': ['carry'], 'kb-bottoms-up-carry': ['carry'],
+  'kb-bottoms-up-hold': ['carry', { rack: 'front' }], 'kb-cross-carry': ['carry'], 'kb-goblet-carry': ['carry'],
+  'kb-rack-walk': ['carry', { rack: 'front' }], 'pinch-block-hold': ['carry', { tempo: 'hold' }, 'kettlebell'],
+  'plate-pinch': ['carry', { tempo: 'hold' }], 'rucking': ['carry', {}, 'none'], 'suitcase-carry': ['carry'],
+  'suitcase-iso-hold': ['carry', { tempo: 'hold' }, 'kettlebell'], 'cable-alt-chest-press': ['chest-press'], 'cable-chest-press': ['chest-press'],
+  'cable-decline-press': ['chest-press'], 'cable-incline-press': ['chest-press'], 'cable-seated-chest-press': ['chest-press'],
+  'expander-back-press': ['chest-press', {}, 'none'], 'landmine-linear-jammer': ['chest-press'], 'med-ball-chest-pass': ['chest-press', { ball: 1 }],
+  'med-ball-supine-chest-throw': ['chest-press', { ball: 1 }], 'plate-press': ['chest-press'], 'power-twister-behind-back': ['chest-press', {}, 'none'],
+  'power-twister-behind-neck': ['chest-press', {}, 'none'], 'power-twister-bend': ['chest-press', {}, 'none'],
+  'power-twister-iso-hold': ['chest-press', {}, 'none'], 'power-twister-overhead-bend': ['chest-press', {}, 'none'],
+  'power-twister-reverse-bend': ['chest-press', {}, 'none'], 'power-twister-single-arm': ['chest-press', {}, 'none'],
+  'power-twister-wrist-bend': ['chest-press', {}, 'none'], 'seated-cable-chest-press-1arm': ['chest-press'], 'serratus-punch': ['chest-press'],
+  'svend-press': ['chest-press'], 'taichi-brush-knee': ['chest-press', {}, 'none'], 'taichi-standing-post': ['chest-press', { tempo: 'hold' }, 'none'],
+  'yb-punch-press': ['chest-press'], 'yb-rotational-punch': ['chest-press'], 'zhan-zhuang': ['chest-press', { tempo: 'hold' }, 'none'],
+  'bouldering-indoor': ['climb', {}, 'none'], 'bouldering-outdoor': ['climb', {}, 'none'], 'cable-rope-climb': ['climb', { rope: 1 }, 'none'],
+  'climbing-toprope': ['climb', { rope: 1 }, 'none'], 'jacobs-ladder': ['climb', { ladder: 1 }, 'none'],
+  'legless-rope-climb': ['climb', { rope: 1 }, 'none'], 'rope-climb': ['climb', { rope: 1 }, 'none'], 'versaclimber': ['climb', {}, 'none'],
+  'mcgill-curl-up': ['crunch', {}, 'none'], 'trx-oblique-crunch': ['crunch'], 'dead-bug': ['dead-bug'], 'dead-bug-corrective': ['dead-bug'],
+  'dead-bug-hold': ['dead-bug'], 'lying-figure-4': ['dead-bug', {}, 'none'], 'pilates-criss-cross': ['dead-bug', {}, 'none'],
+  'pilates-single-leg-stretch': ['dead-bug', {}, 'none'], 'plate-dead-bug': ['dead-bug'], 'sb-dead-bug': ['dead-bug'],
+  'parallette-support-hold': ['dips'], 'downward-dog': ['down-dog', {}, 'none'], 'hindu-push-up': ['down-dog', { press: 1 }, 'none'],
+  'inchworm': ['down-dog', { pike: 1 }, 'none'], 'inchworm-flow': ['down-dog', { pike: 1 }, 'none'],
+  'pike-feet-elevated': ['down-dog', { press: 1 }, 'none'], 'pike-push-up': ['down-dog', { press: 1 }, 'none'],
+  'pike-push-up-v': ['down-dog', { press: 1 }, 'none'], 'puppy-pose': ['down-dog', {}, 'none'], 'sb-pike': ['down-dog', { pike: 1 }, 'none'],
+  'sb-single-leg-pike': ['down-dog', { pike: 1 }, 'none'], 'sb-tuck-to-pike': ['down-dog', { pike: 1 }, 'none'],
+  'sb-walkout': ['down-dog', { pike: 1 }, 'none'], 'sb-walkout-push-up': ['down-dog', { pike: 1 }, 'none'],
+  'slider-pike': ['down-dog', { pike: 1 }, 'none'], 'sun-salutation': ['down-dog', { pike: 1 }, 'none'], 'trx-pike': ['down-dog', { pike: 1 }, 'none'],
+  'yb-pike-push-up': ['down-dog', { press: 1 }, 'none'], 'band-face-pull': ['face-pull'], 'face-pull': ['face-pull'], 'face-pull-1arm': ['face-pull'],
+  'low-cable-face-pull': ['face-pull'], 'trx-face-pull': ['face-pull'], '90-90-stretch': ['floor-stretch', { butterfly: 1 }, 'none'],
+  'butterfly-stretch': ['floor-stretch', { butterfly: 1 }, 'none'], 'frog-stretch': ['floor-stretch', { butterfly: 1 }, 'none'],
+  'middle-splits': ['floor-stretch', { butterfly: 1 }, 'none'], 'ms-banded-classic-pc': ['floor-stretch'], 'ms-posterior-chain-floss': ['floor-stretch'],
+  'pancake-stretch': ['floor-stretch'], 'pilates-saw': ['floor-stretch'], 'sb-hamstring-stretch': ['floor-stretch'],
+  'seated-forward-fold': ['floor-stretch'], 'stretching-strap': ['floor-stretch', {}, 'none'], 'trx-hamstring-stretch': ['floor-stretch'],
+  'sb-db-fly': ['fly'], 'trx-chest-fly': ['fly'], 'yb-chest-fly': ['fly'], 'mace-front-lever-raise': ['front-raise', {}, 'dumbbell'],
+  'kb-armbar': ['getup'], 'kb-bent-arm-bar': ['getup'], 'kb-turkish-stand': ['getup'], 'claw-gripper-hold': ['grip', {}, 'none'],
+  'claw-gripper-press': ['grip', {}, 'none'], 'claw-gripper-single': ['grip', {}, 'none'], 'finger-extension-band': ['grip', {}, 'none'],
+  'finger-trainer-press': ['grip', {}, 'none'], 'grip-ring-squeeze': ['grip', {}, 'none'], 'gripper-crush': ['grip', {}, 'none'],
+  'hook-free-top-set': ['grip', {}, 'none'], 'jaw-exerciser-reps': ['grip', {}, 'none'], 'rice-bucket': ['grip', { bucket: 1 }, 'none'],
+  'rice-circuit': ['grip', { bucket: 1 }, 'none'], 'rice-dig': ['grip', { bucket: 1 }, 'none'], 'rice-finger-spread': ['grip', { bucket: 1 }, 'none'],
+  'rice-grab-crush': ['grip', { bucket: 1 }, 'none'], 'rice-twist': ['grip', { bucket: 1 }, 'none'],
+  'chest-to-wall-handstand': ['handstand', { wall: 1 }, 'none'], 'freestanding-handstand-hold': ['handstand', {}, 'none'],
+  'handstand-push-up': ['handstand', { press: 1, wall: 1 }, 'none'], 'handstand-shoulder-taps': ['handstand', { walk: 1 }, 'none'],
+  'handstand-walk': ['handstand', { walk: 1 }, 'none'], 'tripod-headstand': ['handstand', {}, 'none'],
+  'wall-handstand-hold': ['handstand', { wall: 1 }, 'none'], 'wall-walk': ['handstand', { wall: 1 }, 'none'], 'axle-deadlift': ['hinge', {}, 'barbell'],
+  'band-pull-through': ['hinge'], 'cable-pull-through': ['hinge'], 'car-deadlift': ['hinge', {}, 'barbell'], 'elephant-walk': ['hinge'],
+  'hamstring-stretch': ['hinge'], 'jefferson-curl': ['hinge'], 'kb-around-back-pass': ['hinge', { swing: 1 }], 'kb-clean-flip': ['hinge', { swing: 1 }],
+  'kb-figure-8': ['hinge', { swing: 1 }], 'kb-figure-8-hold': ['hinge', { swing: 1 }], 'kb-hand-to-hand-clean': ['hinge', { swing: 1 }],
+  'kb-juggle-flip': ['hinge', { swing: 1 }], 'kb-juggling-flow': ['hinge', { swing: 1 }], 'kb-pirate-ships': ['hinge', { swing: 1 }],
+  'kneeling-jefferson-curl': ['hinge'], 'landmine-deadlift': ['hinge'], 'landmine-rdl': ['hinge'],
+  'suitcase-deadlift': ['hinge', { uni: 1 }, 'dumbbell'], 'trap-bar-everything': ['hinge'], 'trx-hip-hinge': ['hinge'],
+  'banded-hip-thrust': ['hip-thrust'], 'frog-hip-thrust': ['hip-thrust', {}, 'none'], 'roman-hip-thrust': ['hip-thrust', {}, 'none'],
+  'single-leg-hip-bridge-bench': ['hip-thrust', {}, 'none'], 'boxing-jump-rope': ['jump', {}, 'none'], 'double-under': ['jump', {}, 'none'],
+  'jump-rope': ['jump', {}, 'none'], 'jumping-jacks': ['jumping-jack', {}, 'none'], 'star-jump': ['jumping-jack', {}, 'none'],
+  'cable-tricep-kickback': ['kickback'], 'tricep-kickback': ['kickback'], 'band-kneeling-crunch': ['kneel-crunch'], 'cable-crunch': ['kneel-crunch'],
+  'kneeling-cable-crunch-v': ['kneel-crunch'], 'pulldown-kneeling-crunch': ['kneel-crunch'], 'standing-cable-crunch': ['kneel-crunch', { stand: 1 }],
+  'expander-overhead-pulldown': ['lat-pulldown', {}, 'band'], 'lat-bar': ['lat-pulldown'], 'mag-grip': ['lat-pulldown'],
+  'banded-monster-walk': ['lateral-lunge', { walk: 1 }], 'banded-walk-lateral': ['lateral-lunge', { walk: 1 }],
+  'carioca': ['lateral-lunge', { walk: 1 }], 'club-cossack': ['lateral-lunge'], 'cossack-flow': ['lateral-lunge'], 'cossack-squat': ['lateral-lunge'],
+  'curtsy-lunge': ['lateral-lunge'], 'downhill-skiing': ['lateral-lunge', { jump: 1 }, 'none'],
+  'jr-side-to-side': ['lateral-lunge', { jump: 1 }, 'none'], 'kb-lateral-hop': ['lateral-lunge', { jump: 1 }, 'none'],
+  'lateral-box-jump': ['lateral-lunge', { jump: 1 }, 'none'], 'lateral-hurdle-hops': ['lateral-lunge', { jump: 1 }, 'none'],
+  'lateral-lunge': ['lateral-lunge'], 'mace-cossack-squat': ['lateral-lunge'], 'mace-lateral-lunge': ['lateral-lunge'],
+  'monster-walk': ['lateral-lunge', { walk: 1 }], 'plate-cossack-squat': ['lateral-lunge'],
+  'single-leg-lateral-hop': ['lateral-lunge', { jump: 1 }, 'none'], 'skater-jump': ['lateral-lunge', { jump: 1 }, 'none'],
+  'skating': ['lateral-lunge', { jump: 1 }, 'none'], 'slider-lateral-lunge': ['lateral-lunge'], 'sprinter-squat': ['lateral-lunge', { jump: 1 }, 'none'],
+  'stair-side': ['lateral-lunge', { walk: 1 }], 'trx-side-lunge': ['lateral-lunge'], 'mace-side-lever-raise': ['lateral-raise', {}, 'dumbbell'],
+  'sb-seated-lateral-raise': ['lateral-raise'], 'tibialis-leg-extension': ['leg-extension', {}, 'machine'],
+  'captains-chair-knee-raise': ['leg-raise', { hang: 1, knee: 1 }, 'none'], 'hanging-windshield-wiper': ['leg-raise', { hang: 1 }, 'none'],
+  'hollow-rock': ['leg-raise', {}, 'none'], 'lying-windshield-wiper': ['leg-raise', {}, 'none'], 'reverse-crunch': ['leg-raise', {}, 'none'],
+  'roman-leg-raise': ['leg-raise', { hang: 1, knee: 1 }, 'none'], 'sb-ball-pass': ['leg-raise', { fold: 1 }, 'none'],
+  'sb-leg-raise': ['leg-raise', {}, 'none'], 'sb-reverse-crunch': ['leg-raise', {}, 'none'], 'sb-windshield-wiper': ['leg-raise', {}, 'none'],
+  'trx-reverse-crunch': ['leg-raise', {}, 'none'], 'ankle-strap-cable': ['leg-swing', { back: 1 }], 'band-standing-kickback': ['leg-swing', { back: 1 }],
+  'banded-terminal-knee-extension': ['leg-swing', { curl: 1 }, 'band'], 'cable-adduction': ['leg-swing', { back: 1 }],
+  'cable-hip-flexion': ['leg-swing', { fwd: 1 }], 'cable-kickback': ['leg-swing', { back: 1 }], 'frankenstein-walks': ['leg-swing', {}, 'none'],
+  'leg-swings': ['leg-swing', {}, 'none'], 'standing-hip-abduction': ['leg-swing', { back: 1 }],
+  'standing-leg-curl': ['leg-swing', { curl: 1 }, 'machine'], 'back-lever-hold': ['lever', { back: 1 }, 'none'],
+  'front-lever-hold': ['lever', {}, 'none'], 'front-lever-raise': ['lever', { raise: 1 }, 'none'], 'human-flag-hold': ['lever', {}, 'none'],
+  'ice-cream-maker': ['lever', { raise: 1 }, 'none'], 'skin-the-cat': ['lever', { raise: 1 }, 'none'],
+  'tuck-front-lever-hold': ['lever', { tuck: 1 }, 'none'], 'tuck-front-lever-row': ['lever', { tuck: 1 }, 'none'],
+  'atlas-stone-load': ['load', {}, 'none'], 'keg-load': ['load', {}, 'none'], 'sandbag-load': ['load', {}, 'none'],
+  'sandbag-over-bar': ['load', { over: 1 }, 'none'], 'sandbag-shoulder': ['load', { shoulder: 1 }, 'none'],
+  'sbag-emom-shoulder': ['load', { shoulder: 1 }, 'none'], 'sbag-lap': ['load', {}, 'none'], 'sbag-lap-and-shoulder': ['load', { shoulder: 1 }, 'none'],
+  'sbag-shoulder': ['load', { shoulder: 1 }, 'none'], 'boat-pose-hold': ['lsit', { boat: 1 }], 'l-sit': ['lsit'], 'pike-compression-lift': ['lsit'],
+  'pilates-hundred': ['lsit', { boat: 1 }], 'pilates-teaser': ['lsit', { boat: 1 }], 'roman-chair-l-sit': ['lsit'], 'roman-l-sit-hold': ['lsit'],
+  'seated-leg-tuck': ['lsit', { tuck: 1 }], 'straddle-l-sit': ['lsit'], 'tuck-l-sit': ['lsit', { tuck: 1 }], 'v-sit-gymnastics': ['lsit', { v: 1 }],
+  'hyrox-sandbag-lunge': ['lunge', {}, 'dumbbell'], 'kb-overhead-lunge': ['lunge'], 'plate-overhead-lunge': ['lunge', {}, 'dumbbell'],
+  'sb-lunge-foot-on-ball': ['lunge'], 'sb-split-squat': ['lunge'], 'slider-reverse-lunge': ['lunge'], 'trx-balance-lunge': ['lunge'],
+  'trx-crossing-balance-lunge': ['lunge'], 'trx-front-lunge': ['lunge'], 'trx-split-squat': ['lunge'], 'trx-step-back-lunge': ['lunge'],
+  'warrior-1-hold': ['lunge', { tempo: 'hold' }, 'none'], 'warrior-2-hold': ['lunge', { tempo: 'hold' }, 'none'],
+  'camel-pose': ['lunge-stretch', { reach: 1 }, 'none'], 'couch-stretch': ['lunge-stretch', { couch: 1 }, 'none'], 'front-splits': ['lunge-stretch'],
+  'half-kneeling-wall-tspine-rotation': ['lunge-stretch', { twist: 1 }, 'none'], 'kneeling-quad-stretch': ['lunge-stretch'],
+  'lizard-pose': ['lunge-stretch', { twist: 1 }, 'none'], 'ms-banded-heel-cord-anterior': ['lunge-stretch', {}, 'band'],
+  'ms-banded-heel-cord-posterior': ['lunge-stretch', {}, 'band'], 'ms-banded-hip-extension': ['lunge-stretch'],
+  'ms-banded-super-frog': ['lunge-stretch', {}, 'band'], 'ms-classic-calf-mob': ['lunge-stretch', {}, 'none'],
+  'ms-couch-mobilization': ['lunge-stretch', { couch: 1 }, 'none'], 'ms-cueing-ir-distraction': ['lunge-stretch', {}, 'band'],
+  'ms-executive-hip': ['lunge-stretch', {}, 'none'], 'ms-executive-hip-workaround': ['lunge-stretch', {}, 'none'],
+  'ms-flexion-gapping-knee': ['lunge-stretch', {}, 'none'], 'ms-forefoot-mobilization': ['lunge-stretch', {}, 'none'],
+  'ms-gentle-hip-distraction': ['lunge-stretch', {}, 'none'], 'ms-global-ir': ['lunge-stretch', {}, 'none'],
+  'ms-global-plantar-flexion': ['lunge-stretch', {}, 'none'], 'ms-hip-capsule-ir': ['lunge-stretch', {}, 'none'],
+  'ms-hip-capsule-mob': ['lunge-stretch', {}, 'none'], 'ms-hip-er-flexion': ['lunge-stretch', {}, 'none'],
+  'ms-ir-workaround': ['lunge-stretch', {}, 'none'], 'ms-lateral-hip-opener': ['lunge-stretch', {}, 'none'], 'ms-reverse-ballerina': ['lunge-stretch'],
+  'ms-single-leg-flexion-er': ['lunge-stretch', {}, 'none'], 'ms-super-couch': ['lunge-stretch', { couch: 1 }, 'none'],
+  'ms-super-frog': ['lunge-stretch', {}, 'none'], 'ms-super-plates': ['lunge-stretch', {}, 'none'],
+  'ms-terminal-knee-extension': ['lunge-stretch', {}, 'none'], 'ms-tke-voodoo': ['lunge-stretch', {}, 'none'],
+  'ms-trailing-leg-extension': ['lunge-stretch'], 'ms-voodoo-ankle': ['lunge-stretch', {}, 'none'], 'ms-voodoo-calf': ['lunge-stretch', {}, 'none'],
+  'ms-voodoo-groin-hamstring': ['lunge-stretch', {}, 'none'], 'ms-voodoo-knee': ['lunge-stretch', {}, 'none'], 'pigeon-pose': ['lunge-stretch'],
+  'sb-hip-flexor-stretch': ['lunge-stretch'], 'spiderman-lunge': ['lunge-stretch', { twist: 1 }, 'none'], 'trx-hip-flexor-stretch': ['lunge-stretch'],
+  'walking-lunges-warm': ['lunge-stretch'], 'world-greatest-stretch': ['lunge-stretch', { twist: 1 }, 'none'],
+  'bulgarian-bag-spin': ['mace', { club: 1 }, 'dumbbell'], 'club-back-pendulum': ['mace', { club: 1, mode: 'pendulum' }, 'dumbbell'],
+  'club-booster': ['mace', { club: 1 }, 'dumbbell'], 'club-bull-rush': ['mace', { club: 1 }, 'dumbbell'],
+  'club-double-arm-cast': ['mace', { club: 1, mode: 'cast' }, 'dumbbell'], 'club-front-pendulum': ['mace', { club: 1, mode: 'pendulum' }, 'dumbbell'],
+  'club-gama-cast': ['mace', { club: 1, mode: 'cast' }, 'dumbbell'], 'club-head-cast': ['mace', { club: 1, mode: 'cast' }, 'dumbbell'],
+  'club-inside-cast': ['mace', { club: 1, mode: 'cast' }, 'dumbbell'], 'club-inside-mill': ['mace', { club: 1 }, 'dumbbell'],
+  'club-inside-pendulum': ['mace', { club: 1, mode: 'pendulum' }, 'dumbbell'], 'club-mill-flow': ['mace', { club: 1 }, 'dumbbell'],
+  'club-order': ['mace', { club: 1, mode: 'cast' }, 'dumbbell'], 'club-order-shield': ['mace', { club: 1, mode: 'cast' }, 'dumbbell'],
+  'club-outside-cast': ['mace', { club: 1, mode: 'cast' }, 'dumbbell'], 'club-outside-mill': ['mace', { club: 1 }, 'dumbbell'],
+  'club-outside-pendulum': ['mace', { club: 1, mode: 'pendulum' }, 'dumbbell'], 'club-rockit': ['mace', { club: 1 }, 'dumbbell'],
+  'club-shield-cast': ['mace', { club: 1, mode: 'cast' }, 'dumbbell'], 'club-side-flag': ['mace', {}, 'dumbbell'],
+  'club-single-arm-cast': ['mace', { club: 1, mode: 'cast', uni: 1 }, 'dumbbell'], 'club-swipe': ['mace', { club: 1 }, 'dumbbell'],
+  'club-swipe-complex': ['mace', { club: 1 }, 'dumbbell'], 'club-two-hands-anyhow': ['mace', {}, 'dumbbell'],
+  'double-clubbell-mill': ['mace', { club: 1 }, 'dumbbell'], 'indian-club-circle': ['mace', { club: 1 }, 'dumbbell'],
+  'mace-10-2': ['mace', {}, 'dumbbell'], 'mace-360-coiled': ['mace', {}, 'dumbbell'], 'mace-360-detailed': ['mace', {}, 'dumbbell'],
+  'mace-360-single': ['mace', { uni: 1 }, 'dumbbell'], 'mace-bull-skull': ['mace', { mode: 'cast' }, 'dumbbell'], 'mace-flow': ['mace', {}, 'dumbbell'],
+  'mace-front-pendulum': ['mace', { mode: 'pendulum' }, 'dumbbell'], 'mace-hand-switch': ['mace', {}, 'dumbbell'],
+  'mace-insides-outsides': ['mace', {}, 'dumbbell'], 'mace-kneeling-360': ['mace', {}, 'dumbbell'],
+  'mace-shoulder-cast': ['mace', { mode: 'cast' }, 'dumbbell'], 'mace-side-pendulum': ['mace', { mode: 'pendulum' }, 'dumbbell'],
+  'macebell-tomahawk': ['mace', {}, 'dumbbell'], 'mugdar-jori': ['mace', { club: 1 }, 'dumbbell'], 'persian-meel': ['mace', { club: 1 }, 'dumbbell'],
+  'steel-mace-360': ['mace', {}, 'dumbbell'], 'zurkhaneh-sang': ['mace', { club: 1, mode: 'cast' }, 'dumbbell'],
+  'seated-band-abduction': ['machine-abduction', { dir: 1 }, 'band'], 'ms-banded-bully': ['mobility', {}, 'none'],
+  'ms-banded-elbow-distraction': ['mobility', {}, 'none'], 'ms-banded-elbow-extension': ['mobility', {}, 'none'],
+  'ms-banded-lateral-opener': ['mobility', {}, 'none'], 'ms-banded-overhead-distraction': ['mobility', {}, 'none'],
+  'ms-banded-wrist': ['mobility', {}, 'none'], 'trx-lat-stretch': ['mobility', {}, 'none'], 'trx-pec-stretch': ['mobility', {}, 'none'],
+  'trx-shoulder-opener': ['mobility', {}, 'none'], 'trx-thoracic-rotation': ['mobility', {}, 'none'], 'wall-slide': ['mobility', {}, 'none'],
+  'kb-plank-drag': ['mountain-climber', { row: 1 }], 'kb-renegade-row': ['mountain-climber', { row: 1 }],
+  'mace-renegade-row': ['mountain-climber', { row: 1 }], 'mountain-climbers': ['mountain-climber', {}, 'none'],
+  'plank-shoulder-taps': ['mountain-climber', { tap: 1 }, 'none'], 'sb-knee-tuck': ['mountain-climber', { tuck: 1 }, 'none'],
+  'sb-mountain-climber': ['mountain-climber', {}, 'none'], 'sb-plank-roll-in': ['mountain-climber', { tuck: 1 }, 'none'],
+  'slider-knee-tuck': ['mountain-climber', { tuck: 1 }, 'none'], 'slider-mountain-climber': ['mountain-climber', {}, 'none'],
+  'trx-hamstring-runner': ['mountain-climber', {}, 'none'], 'trx-knee-tuck': ['mountain-climber', { tuck: 1 }, 'none'],
+  'trx-mountain-climber': ['mountain-climber', {}, 'none'], 'yb-mountain-climber': ['mountain-climber', {}, 'none'],
+  'yb-plank-drag': ['mountain-climber', { row: 1 }], 'yb-push-up-row': ['mountain-climber', { row: 1 }], 'chin-tucks': ['neck', {}, 'none'],
+  'iron-neck-band': ['neck', {}, 'none'], 'jaw-iso-clench': ['neck', { jaw: 1 }, 'none'], 'jaw-mastic-hold': ['neck', { jaw: 1 }, 'none'],
+  'neck-ext-weighted': ['neck', { ext: 1, load: 1 }, 'none'], 'neck-extension-bw': ['neck', { ext: 1 }, 'none'],
+  'neck-flex-weighted': ['neck', { load: 1 }, 'none'], 'neck-flexion-bw': ['neck', {}, 'none'], 'neck-harness': ['neck', { load: 1 }, 'none'],
+  'neck-harness-ext': ['neck', { ext: 1, load: 1 }, 'none'], 'neck-iso-hold': ['neck', {}, 'none'], 'neck-lateral': ['neck', { lat: 1 }, 'none'],
+  'neck-lateral-raise': ['neck', { lat: 1 }, 'none'], 'neck-plate': ['neck', { load: 1 }, 'none'], 'neck-stretch': ['neck', {}, 'none'],
+  'glute-ham-raise': ['nordic', {}, 'none'], 'axle-clean-press': ['oly', {}, 'barbell'], 'hang-clean': ['oly', {}, 'barbell'],
+  'hang-power-snatch': ['oly', {}, 'barbell'], 'hang-squat-clean': ['oly', {}, 'barbell'], 'kb-armor-building': ['oly'], 'kb-biathlon': ['oly'],
+  'kb-bottoms-up-clean': ['oly'], 'kb-clean-and-press-complex': ['oly'], 'kb-clean-detailed': ['oly'], 'kb-clean-press-ladder': ['oly'],
+  'kb-dead-clean': ['oly'], 'kb-dead-snatch': ['oly'], 'kb-double-clean': ['oly'], 'kb-double-jerk': ['oly'], 'kb-double-snatch': ['oly'],
+  'kb-half-snatch': ['oly'], 'kb-hang-clean': ['oly'], 'kb-hang-snatch': ['oly', {}, 'kettlebell'], 'kb-jerk': ['oly'], 'kb-long-cycle': ['oly'],
+  'kb-push-press': ['oly'], 'kb-snatch-detailed': ['oly'], 'landmine-clean': ['oly'], 'mace-push-press': ['oly'], 'sbag-complex': ['oly'],
+  'sbag-ground-to-overhead': ['oly'], 'sbag-push-press': ['oly'], 'yb-grip-change-complex': ['oly'], 'yb-push-press': ['oly'],
+  'band-oh-tricep-ext': ['overhead-ext'], 'db-overhead-ext': ['overhead-ext'], 'mace-triceps-extension': ['overhead-ext'],
+  'overhead-rope-ext': ['overhead-ext'], 'plate-overhead-ext': ['overhead-ext'], 'sb-seated-triceps-ext': ['overhead-ext'],
+  'single-arm-overhead-tri': ['overhead-ext'], 'trx-triceps-extension': ['overhead-ext'], 'yb-triceps-extension': ['overhead-ext'],
+  'kayaking': ['paddle', {}, 'none'], 'stand-up-paddle': ['paddle', { stand: 1 }, 'none'], 'crow-pose-hold': ['planche', { tuck: 1 }, 'none'],
+  'elbow-lever-hold': ['planche', {}, 'none'], 'frog-stand': ['planche', { tuck: 1 }, 'none'], 'planche-lean-hold': ['planche', { lean: 1 }, 'none'],
+  'straddle-planche-hold': ['planche', {}, 'none'], 'tuck-planche-hold': ['planche', { tuck: 1 }, 'none'], 'sb-plank-feet': ['plank'],
+  'sb-plank-forearms': ['plank'], 'trx-body-saw': ['plank'], 'trx-plank': ['plank'], 'arch-hold': ['prone-ext', { superman: 1 }, 'none'],
+  'arch-rock': ['prone-ext', { superman: 1 }, 'none'], 'bow-pose': ['prone-ext', { superman: 1 }, 'none'], 'cobra-stretch': ['prone-ext', {}, 'none'],
+  'locust-hold': ['prone-ext', { superman: 1 }, 'none'], 'pilates-swan': ['prone-ext', {}, 'none'],
+  'prone-y-hold': ['prone-ext', { superman: 1 }, 'none'], 'reverse-snow-angel': ['prone-ext', { superman: 1 }, 'none'],
+  'roman-superman': ['prone-ext', { superman: 1 }, 'none'], 'sb-prone-cobra': ['prone-ext', {}, 'none'],
+  'sb-prone-ytw': ['prone-ext', { superman: 1 }, 'none'], 'sb-superman': ['prone-ext', { superman: 1 }, 'none'],
+  'superman': ['prone-ext', { superman: 1 }, 'none'], 'band-pull-apart': ['pull-apart', {}, 'band'],
+  'banded-pull-apart-cuff': ['pull-apart', {}, 'band'], 'expander-archer-pull': ['pull-apart', {}, 'band'],
+  'expander-front-pull': ['pull-apart', {}, 'band'], 'banded-pull-up': ['pull-up'], 'clapping-pull-up': ['pull-up'], 'explosive-pull-up': ['pull-up'],
+  'fat-grip-work': ['pull-up', {}, 'none'], 'kipping-pull-up': ['pull-up'], 'muscle-up': ['pull-up', {}, 'none'],
+  'scap-pull-up': ['pull-up', {}, 'none'], 'towel-hang': ['pull-up'], 'mace-pullover': ['pullover'], 'sb-pullover': ['pullover'],
+  'yb-pullover': ['pullover'], 'bosu-push-up': ['push-up'], 'incline-plyo-push-up': ['push-up'], 'kb-plyo-push-up': ['push-up'],
+  'kb-push-up': ['push-up'], 'perfect-pushup-close': ['push-up', {}, 'none'], 'perfect-pushup-deep': ['push-up', {}, 'none'],
+  'perfect-pushup-rotating': ['push-up', {}, 'none'], 'perfect-pushup-wide': ['push-up', {}, 'none'], 'plate-push-up-hop': ['push-up'],
+  'sb-atomic-push-up': ['push-up'], 'sb-push-up-feet': ['push-up'], 'sb-push-up-hands': ['push-up'], 'sb-wall-push-up': ['push-up'],
+  'scapular-push-up': ['push-up'], 'slider-chest-fly': ['push-up', {}, 'none'], 'systema-breathing-pushup': ['push-up', {}, 'none'],
+  'trx-atomic-push-up': ['push-up'], 'trx-chest-press': ['push-up', { tilt: 18 }, 'none'], 'trx-clock-press': ['push-up', { tilt: 18 }, 'none'],
+  'trx-press-rotation': ['push-up', { tilt: 18 }, 'none'], 'trx-single-arm-chest-press': ['push-up', { tilt: 18 }, 'none'],
+  'bear-crawl': ['quadruped', {}, 'none'], 'bear-crawl-shoulder-tap': ['quadruped', {}, 'none'], 'bear-plank-hold': ['quadruped', {}, 'none'],
+  'bird-dog': ['quadruped', { dog: 1 }, 'none'], 'bird-dog-hold': ['quadruped', { dog: 1 }, 'none'], 'cat-cow': ['quadruped', {}, 'none'],
+  'child-pose': ['quadruped', { child: 1 }, 'none'], 'crab-walk': ['quadruped', {}, 'none'], 'donkey-kick': ['quadruped', { kick: 1 }, 'none'],
+  'fire-hydrant': ['quadruped', { kick: 1 }, 'none'], 'lateral-crawl': ['quadruped', {}, 'none'], 'mcgill-big-3': ['quadruped', { dog: 1 }, 'none'],
+  'sb-bird-dog': ['quadruped', { dog: 1 }, 'none'], 'sb-childs-pose': ['quadruped', { child: 1 }, 'none'],
+  'sb-quadruped-hold': ['quadruped', {}, 'none'], 'slider-bear-crawl': ['quadruped', {}, 'none'], 'thread-needle': ['quadruped', { rot: 1 }, 'none'],
+  'tspine-rotation': ['quadruped', { rot: 1 }, 'none'], 'preacher-rear-delt': ['rear-delt', {}, 'dumbbell'], 'trx-i-fly': ['rear-delt'],
+  'trx-reverse-fly': ['rear-delt'], 'trx-t-fly': ['rear-delt'], 'trx-w-fly': ['rear-delt'], 'trx-y-fly': ['rear-delt'], 'yb-reverse-fly': ['rear-delt'],
+  '478-breathing': ['rest', { sit: 1 }, 'none'], 'belly-breathing': ['rest', {}, 'none'], 'box-breathing': ['rest', { sit: 1 }, 'none'],
+  'cold-exposure': ['rest', { sit: 1 }, 'none'], 'hydration': ['rest', { sit: 1 }, 'none'], 'nap-protocol': ['rest', {}, 'none'],
+  'pelvic-floor-hold': ['rest', {}, 'none'], 'physio-sigh': ['rest', { sit: 1 }, 'none'], 'protein-target': ['rest', { sit: 1 }, 'none'],
+  'sauna': ['rest', { sit: 1 }, 'none'], 'sb-kneeling-balance': ['rest', { sit: 1 }, 'none'], 'sb-seated-balance': ['rest', { sit: 1 }, 'none'],
+  'sb-seated-bounce': ['rest', { sit: 1 }, 'none'], 'sb-seated-march': ['rest', { sit: 1 }, 'none'],
+  'sb-tall-kneeling-balance': ['rest', { sit: 1 }, 'none'], 'sleep-protocol': ['rest', {}, 'none'], 'stomach-vacuum-hold': ['rest', { sit: 1 }, 'none'],
+  'systema-slow-rolling': ['rest', {}, 'none'], 'roman-reverse-hyper': ['reverse-hyper'], 'sb-reverse-hyper': ['reverse-hyper'],
+  'ab-rollout-crunch': ['rollout', {}, 'none'], 'ab-wheel': ['rollout', {}, 'none'], 'ab-wheel-band': ['rollout', {}, 'none'],
+  'ab-wheel-eccentric': ['rollout', {}, 'none'], 'ab-wheel-hold': ['rollout', {}, 'none'], 'ab-wheel-incline': ['rollout', {}, 'none'],
+  'ab-wheel-oblique': ['rollout', {}, 'none'], 'ab-wheel-single-arm': ['rollout', {}, 'none'], 'ab-wheel-standing': ['rollout', {}, 'none'],
+  'ab-wheel-wall': ['rollout', {}, 'none'], 'sb-rollout': ['rollout', { ball: 1 }, 'none'], 'sb-standing-rollout': ['rollout', { ball: 1 }, 'none'],
+  'stir-the-pot': ['rollout', { ball: 1 }, 'none'], 'trx-fallout': ['rollout', {}, 'none'], 'club-grave-digger': ['rotation', { plane: 'diag' }],
+  'landmine-rotation': ['rotation', { plane: 'diag' }, 'barbell'], 'mace-grave-digger': ['rotation', { plane: 'diag' }],
+  'mace-rainbow': ['rotation', { plane: 'diag' }], 'mace-shovels': ['rotation', { plane: 'diag' }], 'mace-uppercut': ['rotation', { plane: 'up' }],
+  'med-ball-lateral-toss': ['rotation', { plane: 'diag' }], 'med-ball-rotational-throw': ['rotation', { plane: 'diag' }],
+  'medicine-ball-rotational-throw': ['rotation', { plane: 'diag' }], 'ms-classic-spinal-twist': ['rotation', { seatFloor: 1 }, 'none'],
+  'sbag-rotational-toss': ['rotation', { plane: 'diag' }], 'spartan-uppercut': ['rotation', { plane: 'up' }],
+  'spell-caster': ['rotation', { plane: 'mid' }, 'dumbbell'], 'landmine-archer-row': ['row'], 'landmine-row': ['row'], 'meadows-row': ['row'],
+  'hyrox-row': ['row-erg', {}, 'machine'], 'a-skip': ['run', {}, 'none'], 'active-recovery': ['run', {}, 'none'], 'bfr-walking': ['run', {}, 'none'],
+  'bounds': ['run', {}, 'none'], 'butt-kicks': ['run', {}, 'none'], 'high-knees': ['run', {}, 'none'], 'nasal-breathing-cardio': ['run', {}, 'none'],
+  'reverse-treadmill': ['run', {}, 'none'], 'systema-breath-hold': ['run', {}, 'none'], 'trx-sprinter-start': ['run', {}, 'none'],
+  'band-row': ['seated-row'], 'd-handle': ['seated-row', {}, 'cable'], 'freemotion-1arm-seated-row': ['seated-row'],
+  'freemotion-alt-row-rotation': ['seated-row'], 'freemotion-seated-row': ['seated-row'], 'lf-dual-pulley-row': ['seated-row'],
+  'lf-dual-pulley-row-1arm': ['seated-row'], 'rotating-handle': ['seated-row', {}, 'cable'], 'seated-cable-row': ['seated-row'],
+  'seated-low-row-machine': ['seated-row', { low: 1 }, 'cable'], 'spider-handle': ['seated-row', {}, 'cable'],
+  'stirrup-attachment': ['seated-row', {}, 'cable'], 'v-bar': ['seated-row', {}, 'cable'], 'cuban-press-band': ['shrug', { upright: 1 }],
+  'cuban-press-cable': ['shrug', { upright: 1 }], 'cuban-press-db': ['shrug', { upright: 1 }], 'cuban-press-ez': ['shrug', { upright: 1 }],
+  'cuban-press-half-kneeling': ['shrug', { upright: 1 }], 'cuban-press-single-arm': ['shrug', { upright: 1 }],
+  'cuban-rotation-db': ['shrug', { upright: 1 }], 'kb-gorilla-high-pull': ['shrug', { upright: 1 }], 'kb-high-pull': ['shrug', { upright: 1 }],
+  'mace-high-pull': ['shrug', { upright: 1 }], 'sumo-deadlift-high-pull': ['shrug', { upright: 1 }], 'yb-high-pull': ['shrug', { upright: 1 }],
+  'kb-low-windmill': ['side-bend', { windmill: 1 }], 'kb-windmill': ['side-bend', { windmill: 1 }], 'kb-windmill-v': ['side-bend', { windmill: 1 }],
+  'landmine-windmill': ['side-bend', { windmill: 1 }], 'mace-side-bend': ['side-bend'], 'mace-windmill': ['side-bend', { windmill: 1 }],
+  'ms-lateral-side-opener': ['side-bend'], 'plate-side-bend': ['side-bend'], 'plate-windmill': ['side-bend', { windmill: 1 }],
+  'power-twister-side-bend': ['side-bend'], 'roman-oblique-side-bend': ['side-bend'], 'sb-lateral-stretch': ['side-bend'], 'side-bend': ['side-bend'],
+  'standing-side-bend': ['side-bend'], 'yb-snatch-windmill': ['side-bend', { windmill: 1 }], 'yb-windmill': ['side-bend', { windmill: 1 }],
+  'banded-clamshell': ['side-lying', { clam: 1 }], 'banded-clamshell-correct': ['side-lying', { clam: 1 }],
+  'glute-med-side-leg-raise': ['side-lying', {}, 'none'], 'ms-reverse-sleeper': ['side-lying', { arm: 1 }],
+  'side-lying-adduction': ['side-lying', {}, 'none'], 'side-lying-er': ['side-lying', { arm: 1 }],
+  'side-lying-rear-delt-fly': ['side-lying', { arm: 1 }], 'sleeper-stretch': ['side-lying', { arm: 1 }],
+  'copenhagen-adduction': ['side-plank', { cope: 1 }, 'none'], 'copenhagen-plank': ['side-plank', { cope: 1 }, 'none'],
+  'pilates-side-plank-hold': ['side-plank', {}, 'none'], 'sb-side-plank': ['side-plank', {}, 'none'],
+  'short-lever-copenhagen': ['side-plank', { cope: 1 }, 'none'], 'side-plank': ['side-plank', {}, 'none'],
+  'side-plank-hip-dip': ['side-plank', {}, 'none'], 'side-plank-reach': ['side-plank', {}, 'none'],
+  'star-side-plank': ['side-plank', { star: 1 }, 'none'], 'trx-hip-drop': ['side-plank', {}, 'none'], 'trx-side-plank': ['side-plank', {}, 'none'],
+  'decline-sit-up': ['situp'], 'ghd-sit-up': ['situp', { ghd: 1 }], 'hyperext-decline-situp': ['situp', { ghd: 1 }], 'janda-sit-up': ['situp'],
+  'med-ball-toss-sit-up': ['situp'], 'pilates-roll-up': ['situp', {}, 'none'], 'pilates-rollup': ['situp', {}, 'none'], 'plate-sit-up': ['situp'],
+  'roman-decline-sit-up': ['situp', { ghd: 1 }], 'roman-sit-up': ['situp', { ghd: 1 }], 'roman-weighted-sit-up': ['situp', { ghd: 1 }],
+  'sb-situp': ['situp'], 'yb-sit-up': ['situp'], 'yb-situp-press': ['situp'], 'cross-country-skiing': ['ski-erg', {}, 'none'],
+  'hyrox-ski-erg': ['ski-erg', {}, 'none'], 'ski-erg': ['ski-erg', {}, 'none'], 'skierg-machine': ['ski-erg', {}, 'none'],
+  'straight-arm-pulldown': ['ski-erg', { strict: 1 }, 'cable'], 'straight-arm-pulldown-1arm': ['ski-erg', { strict: 1 }, 'cable'],
+  'db-skull-crusher-1arm': ['skull'], 'incline-skull-crusher': ['skull'], 'jm-press': ['skull'], 'lying-cable-tri-extension': ['skull'],
+  'mace-skull-crusher': ['skull'], 'plate-skullcrusher': ['skull'], 'preacher-skullcrusher': ['skull'], 'rolling-db-extension': ['skull'],
+  'skull-crusher': ['skull'], 'tate-press': ['skull'], 'mace-tire-strike': ['slam', { hammer: 1 }, 'none'], 'med-ball-slam': ['slam', {}, 'dumbbell'],
+  'med-ball-soccer-throw': ['slam', {}, 'dumbbell'], 'medicine-ball-slam': ['slam', {}, 'dumbbell'],
+  'sledgehammer-swings': ['slam', { hammer: 1 }, 'none'], 'arm-over-arm-sled-pull': ['sled', { pull: 1 }, 'none'],
+  'backwards-sled-drag': ['sled', { pull: 1 }, 'none'], 'hyrox-sled-pull': ['sled', { pull: 1 }, 'none'], 'hyrox-sled-push': ['sled', {}, 'none'],
+  'plate-sled-push': ['sled', {}, 'none'], 'sbag-bear-crawl-drag': ['sled', { pull: 1 }, 'none'], 'sbag-drag': ['sled', { pull: 1 }, 'none'],
+  'sled-drag': ['sled', { pull: 1 }, 'none'], 'sled-push': ['sled', {}, 'none'], 'foam-calves': ['smash', { at: 'calf' }],
+  'foam-glutes': ['smash', { at: 'glute', ball: 1 }], 'foam-it-band': ['smash', { at: 'quad' }], 'foam-quads': ['smash', { at: 'quad' }],
+  'foam-upper-back': ['smash', { at: 'back' }], 'lacrosse-pec': ['smash', { at: 'quad', ball: 1 }], 'massage-gun': ['smash', { at: 'back' }],
+  'ms-adductor-barbell-smash': ['smash', { at: 'quad' }], 'ms-adductor-smash': ['smash', { at: 'quad' }],
+  'ms-anterior-compartment-smash': ['smash', { at: 'quad' }], 'ms-ball-whack': ['smash', { at: 'calf', ball: 1 }],
+  'ms-barbell-calf-smash': ['smash', { at: 'calf' }], 'ms-barbell-quad-smash': ['smash', { at: 'quad' }],
+  'ms-barbell-shoulder-smash': ['smash', { at: 'quad' }], 'ms-bone-saw-calf': ['smash', { at: 'calf' }], 'ms-calf-smash': ['smash', { at: 'calf' }],
+  'ms-executive-shin-floss': ['smash', { at: 'calf' }], 'ms-forearm-double-ball': ['smash', { at: 'back', ball: 1 }],
+  'ms-forefoot-strumming': ['smash', { at: 'calf' }], 'ms-gap-and-smash': ['smash', { at: 'back' }], 'ms-global-gut-smash': ['smash', { at: 'quad' }],
+  'ms-glute-smash': ['smash', { at: 'glute' }], 'ms-high-glute-smash': ['smash', { at: 'glute' }], 'ms-jilly-gut-smash': ['smash', { at: 'quad' }],
+  'ms-lateral-anterior-shin': ['smash', { at: 'quad' }], 'ms-low-back-double': ['smash', { at: 'back', ball: 1 }],
+  'ms-low-back-single': ['smash', { at: 'back', ball: 1 }], 'ms-medial-shin-floss': ['smash', { at: 'calf' }],
+  'ms-monkey-bar-death': ['smash', { at: 'calf' }], 'ms-oblique-side-smash': ['smash', { at: 'quad' }],
+  'ms-overhead-tissue-smash': ['smash', { at: 'back' }], 'ms-plantar-smash': ['smash', { at: 'calf' }],
+  'ms-posterior-chain-smash': ['smash', { at: 'calf' }], 'ms-psoas-smash': ['smash', { at: 'quad' }], 'ms-quad-smash': ['smash', { at: 'quad' }],
+  'ms-roller-calf-smash': ['smash', { at: 'calf' }], 'ms-shin-double-ball': ['smash', { at: 'calf', ball: 1 }],
+  'ms-shoulder-rotator-smash': ['smash', { at: 'quad' }], 'ms-side-hip-smashing': ['smash', { at: 'quad' }],
+  'ms-superfriend-calf-smash': ['smash', { at: 'calf' }], 'ms-superfriend-quad-smash': ['smash', { at: 'quad' }],
+  'ms-suprapatella-smash': ['smash', { at: 'quad' }], 'ms-targeted-gut-smash': ['smash', { at: 'quad' }], 'ms-triceps-smash': ['smash', { at: 'back' }],
+  'ms-tspine-ball-extension': ['smash', { at: 'back', ball: 1 }], 'ms-tspine-barbell': ['smash', { at: 'back' }],
+  'ms-tspine-double-ball': ['smash', { at: 'back', ball: 1 }], 'ms-tspine-extension': ['smash', { at: 'back' }],
+  'ms-tspine-internal-rotation': ['smash', { at: 'back' }], 'ms-tspine-keg-anchor': ['smash', { at: 'back' }, 'none'],
+  'ms-tspine-keg-global': ['smash', { at: 'back' }, 'none'], 'ms-tspine-overhead-bias': ['smash', { at: 'back' }],
+  'ms-tspine-plate-smash': ['smash', { at: 'back' }], 'ms-tspine-side-roll': ['smash', { at: 'back' }],
+  'ms-tspine-side-to-side': ['smash', { at: 'back' }], 'ms-weighted-calf-smash': ['smash', { at: 'calf' }],
+  'peanut-ball': ['smash', { at: 'back', ball: 1 }], 'sb-chest-opener': ['smash', { at: 'back', ball: 0 }, 'none'],
+  'sb-spinal-decompression': ['smash', { at: 'back', ball: 0 }, 'none'], 'sb-thoracic-extension': ['smash', { at: 'back', ball: 0 }, 'none'],
+  'thoracic-extension-roller': ['smash', { at: 'back' }], 'yoga-wheel': ['smash', { at: 'back' }], 'anderson-squat': ['squat'],
+  'bosu-squat': ['squat', {}, 'none'], 'chair-pose': ['squat'], 'cyclist-squat': ['squat', {}, 'none'], 'duck-walk': ['squat', {}, 'none'],
+  'frankenstein-squat': ['squat', { rack: 'front' }, 'barbell'], 'garland-pose': ['squat', { tempo: 'hold' }, 'none'], 'goddess-hold': ['squat'],
+  'horse-stance': ['squat'], 'jerk-dip-squat': ['squat', {}, 'barbell'], 'kb-bottoms-up-goblet-squat': ['squat'],
+  'kb-deck-squat': ['squat', { rack: 'front' }], 'kb-goblet-squat-v': ['squat'], 'kb-prying-goblet': ['squat'],
+  'landmine-bear-hug-squat': ['squat', { rack: 'front' }, 'barbell'], 'landmine-squat': ['squat'], 'ms-banded-hip-single-leg-squat': ['squat'],
+  'sb-held-squat': ['squat'], 'sb-overhead-squat': ['squat'], 'sb-standing-squeeze': ['squat', { tempo: 'hold' }, 'none'],
+  'spanish-squat': ['squat', {}, 'none'], 'spanish-squat-hold': ['squat', { wall: 1, tempo: 'hold' }, 'none'],
+  'systema-breathing-squat': ['squat', {}, 'none'], 'taichi-horse-stance': ['squat', { tempo: 'hold' }, 'none'], 'trx-deep-squat': ['squat'],
+  'trx-jump-squat': ['squat'], 'trx-single-leg-squat': ['squat'], 'trx-squat': ['squat'], 'trx-sumo-squat': ['squat'], 'box-step-overs': ['step-up'],
+  'crossover-step-up': ['step-up'], 'lateral-step-down': ['step-up'], 'lateral-step-up': ['step-up'], 'patrick-step': ['step-up'],
+  'plate-step-up': ['step-up'], 'poliquin-step-up': ['step-up'], 'power-stairs': ['step-up', { stairs: 1 }],
+  'stair-kickback': ['step-up', { stairs: 1 }], 'stair-skip-step': ['step-up', { stairs: 1 }], 'stair-steady': ['step-up', { stairs: 1 }],
+  'stairmaster-extended': ['step-up', { stairs: 1 }], 'step-up': ['step-up', {}, 'none'], 'open-water-swim': ['swim', {}, 'none'],
+  'pool-swim': ['swim', {}, 'none'], 'swim-intervals': ['swim', {}, 'none'], 'kb-swing-toss': ['throw', {}, 'dumbbell'],
+  'med-ball-overhead-back-toss': ['throw', { back: 1 }, 'dumbbell'], 'med-ball-overhead-forward-throw': ['throw', {}, 'dumbbell'],
+  'med-ball-scoop-toss': ['throw', {}, 'dumbbell'], 'sbag-over-bar-throw': ['throw', {}, 'dumbbell'],
+  'sbag-over-shoulder-toss': ['throw', { back: 1 }, 'dumbbell'], 'barbell-cluster': ['thruster'],
+  'hyrox-wall-ball': ['thruster', { ball: 1, wall: 1 }, 'dumbbell'], 'kb-double-clean-squat-press': ['thruster'], 'landmine-thruster': ['thruster'],
+  'mace-squat-press': ['thruster'], 'plate-thruster': ['thruster'], 'thruster': ['thruster'],
+  'wall-ball-shot': ['thruster', { ball: 1, wall: 1 }, 'dumbbell'], 'wallball': ['thruster', { ball: 1, wall: 1 }, 'dumbbell'],
+  'yb-clean-squat-press': ['thruster'], 'yb-squat-punch': ['thruster'], 'ybell-press': ['thruster', {}, 'dumbbell'],
+  'tire-flip': ['tire-flip', {}, 'none'], 'pulldown-tricep-pushdown': ['triceps-ext', {}, 'cable'],
+  'straight-bar-attachment': ['triceps-ext', {}, 'cable'], 'circus-db-press': ['vertical-press', {}, 'dumbbell'], 'kb-bent-press': ['vertical-press'],
+  'kb-bottoms-up-press': ['vertical-press'], 'kb-double-press': ['vertical-press'], 'kb-press': ['vertical-press'],
+  'kb-seated-trident': ['vertical-press', { seat: 1 }], 'kb-see-saw-press': ['vertical-press'], 'kb-tall-kneeling-press': ['vertical-press'],
+  'log-press': ['vertical-press', {}, 'barbell'], 'sb-seated-shoulder-press': ['vertical-press'], 'barbell-wrist-curl': ['wrist'],
+  'behind-back-wrist-curl': ['wrist'], 'db-pronation-supination': ['wrist'], 'finger-curls': ['wrist'], 'plate-lever-deviation': ['wrist'],
+  'radial-deviation': ['wrist'], 'reverse-wrist-curl': ['wrist'], 'ulnar-deviation': ['wrist'], 'wrist-curl-extensor': ['wrist'],
+  'wrist-curl-flexor': ['wrist'], 'wr-arms-extended': ['wrist-roller'], 'wr-band-resisted': ['wrist-roller'], 'wr-barbell-mounted': ['wrist-roller'],
+  'wr-cable': ['wrist-roller'], 'wr-eccentric-unroll': ['wrist-roller'], 'wr-elbows-bent': ['wrist-roller', { low: 1 }], 'wr-fat-grip': ['wrist-roller'],
+  'wr-forward-roll': ['wrist-roller'], 'wr-iso-hold': ['wrist-roller'], 'wr-ladder': ['wrist-roller'], 'wr-one-arm': ['wrist-roller'],
+  'wr-overhead': ['wrist-roller'], 'wr-preacher-supported': ['wrist-roller', { low: 1 }], 'wr-rack-supported': ['wrist-roller', { low: 1 }],
+  'wr-reverse-roll': ['wrist-roller'], 'wr-seated-thighs': ['wrist-roller', { low: 1 }], 'wr-two-way': ['wrist-roller'],
+  'wr-underhand-roll': ['wrist-roller'], 'wrist-roller': ['wrist-roller'],
+};
+/* </feat556-route> */
 let _motionByUuid = null;
 function motionForVariation(uuid) {
   if (!uuid) return null;
@@ -26606,9 +27289,11 @@ function motionForVariation(uuid) {
         const mods = _motionMods(v.title), nz = o => (o && Object.keys(o).length) ? o : null; // feat 415
         const mv = MOTION_VARS[v.id];
         if (mv) { _motionByUuid[v.uuid] = { motion: mv[0], equip: mv[1], opts: nz({ ...mods, ...(mv[2] || {}) }) }; return; }
-        const tt = MOTION_TITLE_TEMPLATE.find(t => t[0].test(v.title)); // feat 474 — a different movement, not a different flavour
+        const rt = MOTION_ROUTE[v.id]; // feat 556 — the pinned assignment wins over every guesser
+        const tt = rt ? [null, rt[0], rt[1]] : MOTION_TITLE_TEMPLATE.find(t => t[0].test(v.title)); // feat 474 — a different movement, not a different flavour
         if (tt) {
-          let tEquip = _motionEquip(v.title, (fam && fam[1]) || 'dumbbell');
+          let tEquip = (rt && rt[2]) || _motionEquip(v.title, (fam && fam[1]) || 'dumbbell');
+          if (rt && rt[2]) { _motionByUuid[v.uuid] = { motion: tt[1], equip: tEquip, opts: nz({ ...mods, ...(tt[2] || {}) }) }; return; }
           // feat 475 — the same feat-416 bodyweight designation the family path applies: a wall sit routed
           // by title must not inherit its family's barbell
           try {
@@ -26664,7 +27349,7 @@ function motionForVariation(uuid) {
    opts added alongside: support (preacher pad, biceps-curl) and swing (hip-hinge ballistic, hinge).
    ============================================================ */
 // Templates whose SIDE view is a standing figure on a floor — the only ones a seat/kneel fold applies to.
-const MOTION_STANDING = new Set(['biceps-curl', 'vertical-press', 'front-raise', 'triceps-ext', 'shrug', 'generic', 'carry', 'calf-raise']);
+const MOTION_STANDING = new Set(['biceps-curl', 'vertical-press', 'front-raise', 'triceps-ext', 'shrug', 'generic', 'carry', 'calf-raise', 'overhead-ext', 'chest-press', 'face-pull', 'neck', 'wrist-roller']);
 function _mlabGround(J) { let g = 0; (J.legs || []).forEach(l => { if (l.an) g = Math.max(g, l.an[1]); if (l.foot) g = Math.max(g, l.foot[1]); }); return g || 144; }
 function _mlabShiftUpper(J, dy) {
   const S = pt => pt && [pt[0], pt[1] + dy];
@@ -33067,7 +33752,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 467 · 2026-11-08 20:58';
+const APP_BUILD = 'build 468 · 2026-11-10 07:01';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

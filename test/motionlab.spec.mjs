@@ -279,7 +279,7 @@ test('feat 476 — chunk 4: the pattern-word router rescues the generic families
   expect(r.sbagSquat).toBe('squat');
   expect(r.sbagRack, 'front-rack is a POSITION both squat and carry understand').toBe('front');
   expect(r.zerchSquat).toBe('zercher');
-  expect(r.mace360, 'an ambiguous flow keeps generic rather than guessing wrong').toBe('generic');
+  expect(r.mace360, 'feat 556 — the mace 360 has its own template; it no longer falls to generic').toBe('mace');
   expect(r.sbagRowEquip).toBeTruthy();
   expect(r.generic / r.total, 'most of the specialty families now animate their real movement').toBeLessThan(0.5);
 });
@@ -312,7 +312,7 @@ test('feat 476 — prone rows are supported; bench angle reaches fly, push-up an
   expect(r.seal).toBe(1);
   expect(r.proneTorsoStill, 'a supported chest CANNOT move — that is the exercise').toBeLessThan(0.5);
   expect(r.proneArmsWork, 'only the arms row').toBeGreaterThan(15);
-  expect(r.poseDiffers, 'and it is a different scene from the free bent-over row').toBeGreaterThan(10);
+  expect(r.poseDiffers, 'and it is a different scene from the free bent-over row').toBeGreaterThan(4); // feat 556 — the free row now bends FORWARD too, so the shoulders sit closer
   expect(r.proneBench, 'and the pad it lies on is drawn').toBe(true);
   expect(r.inclinePU, 'incline push-up: hands raised').toBeLessThan(r.flatPU);
   expect(r.declinePU, 'decline push-up: hands stay down, feet go up').toBe(r.flatPU);
