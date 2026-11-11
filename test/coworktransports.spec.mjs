@@ -118,12 +118,18 @@ test('feat 459 — a direct API answer lands through the SAME importer as a fold
       return { ok: true, json: async () => ({ model: 'claude-sonnet-5', usage: { input_tokens: 1200, output_tokens: 300 },
         content: [{ type: 'text', text: '```json\n{"answers":[{"id":"q1","answer":"Yes — up 7.5kg over 30 days."}]}\n```' }] }) };
     };
+    // feat 561 — review first is ON by default: the answer waits, and lands when applied, through the same gate as a folder reply
+    state.coworkReview = {}; state.coworkLocal.reviewQueue = [];
     const ok = await coworkAnalysisViaApi(false);
+    const heldStatus = state.analysisRequests[0].status, waiting = coworkReviewQueue().length;
+    coworkReviewApply(coworkReviewQueue()[0].id);
     const req = state.analysisRequests[0];
     const run = coworkLastRun('api');
-    return { ok, req, run, call: calls[0], usage: aiApiCfg().lastUsage };
+    return { ok, req, run, call: calls[0], usage: aiApiCfg().lastUsage, heldStatus, waiting };
   });
   expect(r.ok).toBe(true);
+  expect(r.heldStatus, 'review first: nothing changes until it is applied').toBe('pending');
+  expect(r.waiting).toBe(1);
   expect(r.req.status, 'the request is answered exactly as a folder reply would answer it').toBe('answered');
   expect(r.req.answer).toContain('7.5kg');
   expect(r.req.answeredAt).toBeTruthy();

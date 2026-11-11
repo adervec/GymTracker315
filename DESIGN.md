@@ -2665,6 +2665,31 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **Cowork: review before applying (feat 561):** house standard 3. A cowork reply used to change the log the
+  moment it was polled; now every channel has a **Review first** switch, ON by default.
+  - **Settings:** `state.coworkReview` is `{channelKey: bool}` (absent = on), in `SETTINGS_KEYS` and not
+    device-local, so it syncs. The review queue (`coworkLocal.reviewQueue`, capped at 20) and the undo records
+    (`coworkLocal.undo`, capped at 12) are device-local, because replies arrive on the sync machine and are
+    reviewed there.
+  - **One gate:** `coworkReceive(channel, kind, payload, meta)` is called by the folder poller and the direct-API
+    transport. With review off, it imports as before and keeps an undo record. With review on, the reply waits.
+  - **Preview:** a reply is not described by eight bespoke differs. Its own importer is DRY-RUN on the live state
+    (`_coworkDryRun` stops `saveState` / `savePending` / `persistLog` writing), `coworkDiffRows` diffs the result
+    against a snapshot, and the state is put back. Rows are per item: sessions by `sessionKey`, other arrays by
+    id / uuid / key / date, objects per key, anything else as one value. The labels say what changes ("Update
+    workout Sat, Nov 1 · avg HR 135 · linked to Strava"); for text channels the detail is the text it would
+    store, picked as the longest new prose string.
+  - **Apply selected:** runs the real importer, diffs again, and REVERTS every row that is unticked or was not
+    on the reviewed list. An importer that adds an item mints a fresh id each run, so a row also carries a slot
+    (its position among rows of the same part and kind of change) to match on. Reverting an added session, plan
+    or body entry writes its tombstone, so the next sync cannot bring it back. **Discard** removes the reply.
+    **Undo** (Settings, last 5) reverses an applied or direct import; the run history records applied, discarded
+    and undone.
+  - **Panel:** `coworkPanelData` sets `review` on a channel with a waiting reply, which the shared `cowork.js`
+    panel shows as REVIEW.
+  - `test/coworkgate.spec.mjs` covers all 8 channels with review on (held, shown, applied, undone) and off
+    (direct). Also: partial apply, discard, the synced setting, the Settings UI and the panel state.
+    `coworktransports.spec` now applies the API answer through review.
 - **The whole shared font.js, embedded (feat 560):** feat 557 inlined only the font part of
   adervec.github.io/font.js, so GymTracker missed the rest of what that one shared script carries. Now
   `tools/embed-fontjs.mjs` inlines the whole file, verbatim, between the `FONTJS` markers in `<head>`, as

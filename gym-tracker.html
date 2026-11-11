@@ -1420,6 +1420,11 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .cowork-chan { font-size: 10.5px; font-weight: 700; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--border2); background: var(--bg4); color: var(--text3); cursor: pointer; font-family: inherit; }
   .cowork-chan.on { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
   .cowork-chan[disabled] { opacity: 0.5; cursor: default; }
+  /* feat 561 — cowork review list */
+  .cowork-review-item { border: 1px solid var(--accent-border); border-radius: 10px; padding: 8px 10px; margin: 6px 0; background: var(--bg3); }
+  .cowork-review-head { font-size: 11.5px; color: var(--text2); margin-bottom: 4px; }
+  .cowork-review-row { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; padding: 4px 0; border-top: 1px solid var(--border); }
+  .cowork-review-detail { display: block; color: var(--text3); font-size: 11px; white-space: pre-wrap; max-height: 7.5em; overflow: auto; }
   .cowork-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
   .cowork-cal-dow { font-size: 8.5px; font-weight: 800; color: var(--text3); text-align: center; }
   .cowork-cal-day { font-size: 9px; text-align: center; padding: 3px 0; border-radius: 4px; color: var(--text3); background: var(--bg4); font-variant-numeric: tabular-nums; }
@@ -7988,7 +7993,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 // Keys that are considered "settings" (everything except sessions).
 // On merge imports, these are preserved from local state.
 // On overwrite imports, these are replaced with the file's values.
-const SETTINGS_KEYS = ['unit','tipsExpanded','tipsMode','maxWeightLb','maxWeightHard','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
+const SETTINGS_KEYS = ['coworkReview','unit','tipsExpanded','tipsMode','maxWeightLb','maxWeightHard','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','gymMemberships','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
@@ -8580,6 +8585,7 @@ function normalizeState() {
   }
   // feat 459 — per-channel enable: which task folders get written and polled at all (all on by default).
   if (!state.cowork.channels || typeof state.cowork.channels !== 'object') state.cowork.channels = {};
+  if (!state.coworkReview || typeof state.coworkReview !== 'object') state.coworkReview = {}; // feat 561 — absent key = review ON
   COWORK_CHANNELS.forEach(c => { if (typeof state.cowork.channels[c.key] !== 'boolean') state.cowork.channels[c.key] = true; });
   const _cm = state.cowork.machine;
   state.cowork.machine = (_cm && typeof _cm === 'object' && typeof _cm.deviceId === 'string' && _cm.deviceId)
@@ -8721,14 +8727,14 @@ function loadState() {
   applyTheme(effectiveTheme());
 }
 function saveState() {
-  if (_gtErasing) return; // feat 558 — an erase is in flight: never write the old state back (or push it to the cloud)
+  if (_gtErasing || _coworkDryRun) return; // feat 558 — an erase is in flight: never write the old state back (or push it to the cloud); feat 561 — nor a review preview
   state.savedAt = new Date().toISOString(); // feat 95 — coarse settings last-write-wins on sync
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
   autoSaveTrigger();
   cloudPushTrigger(); // feat 124 — debounced cloud push when a provider is connected
 }
 function savePending() {
-  if (_gtErasing) return; // feat 558
+  if (_gtErasing || _coworkDryRun) return; // feat 558; feat 561 — a review preview writes nothing
   try { localStorage.setItem(PENDING_KEY, JSON.stringify(pending)); } catch(e) {}
 }
 /* feat 558 — ERASE EVERYTHING. Every app on adervec.github.io shares one origin, so this removes only what
@@ -8789,7 +8795,7 @@ function loadLog() {
   try { const raw = localStorage.getItem(LOG_KEY); if (raw) _eventLog = JSON.parse(raw) || []; } catch(e) { _eventLog = []; }
 }
 function persistLog() {
-  if (_gtErasing) return; // feat 558
+  if (_gtErasing || _coworkDryRun) return; // feat 558; feat 561 — a review preview writes nothing
   try { localStorage.setItem(LOG_KEY, JSON.stringify(_eventLog.slice(-LOG_MAX))); } catch(e) {}
 }
 // level: 'info' | 'warn' | 'error'
@@ -10452,7 +10458,9 @@ function coworkPanelData() {
     app: 'gymtracker', folder: (lastPush && lastPush.target) || 'AI export folder',
     channels: coworkActiveChannels().map(c => {
       const rep = Math.max(0, ...Object.values(led[c.dir] || {}).map(e => ts(e && e.at)));
-      return { channel: c.dir, request_mtime: req, reply_mtime: rep, pending: !!req && rep < req, answered: !!req && rep >= req };
+      const waiting = coworkReviewQueue().filter(x => x.channel === c.key);
+      return { channel: c.dir, request_mtime: req, reply_mtime: rep, pending: !!req && rep < req && !waiting.length, answered: !!req && rep >= req && !waiting.length,
+        review: waiting.length ? { count: waiting.length, rows: waiting.reduce((n, x) => n + x.rows.length, 0) } : null }; // feat 561 — cowork.stateOf → REVIEW
     }),
     actions: [{ id: 'push', label: 'Send requests', primary: true }, { id: 'poll', label: 'Check for replies' }],
     channelActions: [],
@@ -10812,6 +10820,213 @@ function coworkApplyImport(kind, payload) {
   if (kind === 'pod-output') return (typeof coworkImportPlanOfDay === 'function') ? coworkImportPlanOfDay(payload) : { handled: false, reason: 'pod import not available yet' };
   return { handled: false, reason: 'unknown kind ' + kind };
 }
+/* ============================================================
+   feat 561 — REVIEW BEFORE APPLYING (house standard 3, CoworkSyncHub/HOUSE-STANDARDS.md). A cowork reply used
+   to change the log the moment it was polled. Now every channel has a "review first" switch, ON by default and
+   synced (`state.coworkReview`, absent = on): a reply waits in a review list that shows exactly what it would
+   change, and you tick what to keep. Switch it off for a channel and that channel imports directly, as before.
+
+   How the preview stays honest for EVERY channel without eight bespoke differs: the channel's own importer is
+   DRY-RUN on the live state (writers stand down via _coworkDryRun), the result is diffed against a snapshot,
+   and the state is put back. The rows are those diffs — sessions or sets added or altered for Garmin/Strava,
+   the text an analysis / log-review / summary reply would store. Applying runs the real importer, diffs again,
+   REVERTS any row you left unticked, and keeps the reverse of what it kept as an undo in the cowork history.
+   The review queue is device-local: replies arrive on the sync machine, so that is where they are reviewed.
+   ============================================================ */
+var _coworkDryRun = false;
+const COWORK_REVIEW_CAP = 20, COWORK_UNDO_CAP = 12;
+// Friendly names for the parts of the log a reply can touch (anything unlisted shows its key).
+const COWORK_ROW_LABEL = { sessions: 'Workout', bodyComp: 'Body measurement', bioSleep: 'Sleep', recovery: 'Recovery day',
+  stravaActivities: 'Strava activity', analysisRequests: 'Analysis answer', logReview: 'Log-review note', gymDirectory: 'Gym',
+  gyms: 'Gym', gymMemberships: 'Gym membership', workoutReviews: 'Workout note', periodReviews: 'Summary', planOfDay: 'Plan of the day', podPlans: 'Plan of the day' };
+function coworkReviewOn(key) { return ((state.coworkReview) || {})[key] !== false; }
+function coworkReviewQueue() { if (!state.coworkLocal) state.coworkLocal = {}; if (!Array.isArray(state.coworkLocal.reviewQueue)) state.coworkLocal.reviewQueue = []; return state.coworkLocal.reviewQueue; }
+function coworkUndoList() { if (!state.coworkLocal) state.coworkLocal = {}; if (!Array.isArray(state.coworkLocal.undo)) state.coworkLocal.undo = []; return state.coworkLocal.undo; }
+// Identity of an item inside a top-level array, or null when the array has no usable identity.
+function _crItemKey(top, x) {
+  if (!x || typeof x !== 'object') return null;
+  if (top === 'sessions') return sessionKey(x);
+  const k = x.id != null ? x.id : x.uuid != null ? x.uuid : x.key != null ? x.key : x.date != null ? x.date + '|' + (x.type || x.metric || '') : null;
+  return k == null ? null : String(k);
+}
+function _crArrayMap(top, arr) {
+  const m = new Map();
+  for (const x of arr) { const k = _crItemKey(top, x); if (k == null || m.has(k)) return null; m.set(k, x); }
+  return m;
+}
+// The text a change stores: the longest string in `after` that `before` did not already hold, preferring prose
+// (a string with spaces) over ids and links. For text channels that is the note or answer itself.
+function _crStrings(v, out) { if (typeof v === 'string') out.push(v); else if (v && typeof v === 'object') Object.values(v).forEach(x => _crStrings(x, out)); return out; }
+function _crText(after, before) {
+  const had = new Set(_crStrings(before, [])), fresh = _crStrings(after, []).filter(x => !had.has(x));
+  const prose = fresh.filter(x => /\s/.test(x.trim()) && !/^https?:/.test(x));
+  return (prose.length ? prose : fresh).reduce((a, b) => (b.length > a.length ? b : a), '');
+}
+const _crName = x => (x && typeof x === 'object' && (x.name || x.title || x.q || x.chain)) || '';
+function _crDescribe(top, key, after, before) {
+  const lab = COWORK_ROW_LABEL[top] || top;
+  if (top === 'sessions' && after) {
+    const sets = (after.exercises || []).reduce((n, e) => n + ((e.sets || []).length), 0);
+    const was = before ? (before.exercises || []).reduce((n, e) => n + ((e.sets || []).length), 0) : null;
+    const when = after.date ? new Date(after.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : key;
+    const hr = after.hr && after.hr.avg, extra = [hr && ('avg HR ' + hr), after.calories && (after.calories + ' kcal'), after.stravaId && !(before && before.stravaId) && 'linked to Strava', after.sleep && !(before && before.sleep) && ('sleep ' + after.sleep)].filter(Boolean).join(' · ');
+    const note = _crText(after.coworkReview || {}, (before && before.coworkReview) || {});
+    return { label: (before ? 'Update workout ' : 'Add workout ') + when, detail: (note ? note.slice(0, 600) + ' — ' : '') + (was != null && was !== sets ? was + ' → ' : '') + sets + ' set' + (sets === 1 ? '' : 's') + (extra ? ' · ' + extra : '') };
+  }
+  const text = _crText(after, before), nm = _crName(after) || _crName(before);
+  const day = after && typeof after === 'object' && after.date ? String(after.date).slice(0, 10) : '';
+  return { label: (before ? 'Update ' : 'Add ') + lab.toLowerCase() + (nm ? ' · ' + String(nm).slice(0, 60) : day ? ' · ' + day : ''), detail: text ? text.slice(0, 600) : '' };
+}
+// before / after are plain JSON copies of state. Each row carries what it takes to revert it.
+function coworkDiffRows(before, after) {
+  const rows = [];
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  keys.forEach(top => {
+    if (top === 'coworkLocal' || top === 'savedAt') return;
+    const a = before[top], b = after[top];
+    if (JSON.stringify(a) === JSON.stringify(b)) return;
+    if (Array.isArray(a || []) && Array.isArray(b)) {
+      const ma = _crArrayMap(top, a || []), mb = _crArrayMap(top, b);
+      if (ma && mb) {
+        mb.forEach((x, k) => { const old = ma.get(k); if (!old || JSON.stringify(old) !== JSON.stringify(x)) rows.push({ id: top + '|' + k, top, key: k, op: old ? 'change' : 'add', old: old || null, ..._crDescribe(top, k, x, old) }); });
+        ma.forEach((x, k) => { if (!mb.has(k)) rows.push({ id: top + '|' + k, top, key: k, op: 'remove', old: x, label: 'Remove ' + (COWORK_ROW_LABEL[top] || top).toLowerCase() + (_crName(x) ? ' · ' + _crName(x) : ''), detail: _crText(x, null).slice(0, 200) }); });
+        return;
+      }
+    } else if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) {
+      Object.keys({ ...a, ...b }).forEach(k => {
+        if (JSON.stringify(a[k]) === JSON.stringify(b[k])) return;
+        rows.push({ id: top + '|' + k, top, key: k, op: k in a ? (k in b ? 'change' : 'remove') : 'add', old: k in a ? a[k] : null, sub: 1, ..._crDescribe(top, k, b[k], a[k]) });
+      });
+      return;
+    }
+    rows.push({ id: top, top, key: null, op: 'value', old: a === undefined ? null : a, ..._crDescribe(top, null, b, a) });
+  });
+  const n = {};
+  rows.forEach(r => { const g = r.top + '|' + r.op; n[g] = (n[g] || 0) + 1; r.slot = g + '|' + n[g]; });
+  return rows;
+}
+// Put one row back the way it was (used for unticked rows and for undo).
+function coworkRevertRow(r) {
+  if (r.op === 'value') { state[r.top] = r.old == null ? r.old : JSON.parse(JSON.stringify(r.old)); return; }
+  if (r.sub) { const o = state[r.top] || (state[r.top] = {}); if (r.op === 'add') delete o[r.key]; else o[r.key] = JSON.parse(JSON.stringify(r.old)); return; }
+  const arr = Array.isArray(state[r.top]) ? state[r.top] : (state[r.top] = []);
+  const i = arr.findIndex(x => _crItemKey(r.top, x) === r.key);
+  if (r.op === 'add') {
+    if (i >= 0) {
+      const gone = arr.splice(i, 1)[0];
+      // a removal must win over the other devices' copies, or the next sync brings it straight back
+      if (r.top === 'sessions' && typeof tombstoneSession === 'function') tombstoneSession(gone);
+      if (r.top === 'plans' && typeof tombstonePlan === 'function') tombstonePlan(gone && gone.id);
+      if (r.top === 'bodyComp' && typeof tombstoneBody === 'function') tombstoneBody(bodyDayKey(gone));
+    }
+  } else if (i >= 0) arr[i] = JSON.parse(JSON.stringify(r.old)); else arr.push(JSON.parse(JSON.stringify(r.old)));
+}
+// Run the channel's importer for real or as a dry run; returns { result, rows }.
+function _coworkRunImport(kind, payload, dry) {
+  const snap = JSON.parse(JSON.stringify(state)), logLen = _eventLog.length;
+  if (dry) _coworkDryRun = true;
+  _coworkImporting = true;
+  let result;
+  try { result = coworkApplyImport(kind, JSON.parse(JSON.stringify(payload || {}))); } catch (e) { result = { handled: false, error: e && e.message }; }
+  finally { _coworkImporting = false; }
+  let rows = [];
+  try { rows = coworkDiffRows(snap, JSON.parse(JSON.stringify(state))); } catch (_) {}
+  if (dry) {
+    Object.keys(state).forEach(k => { if (!(k in snap)) delete state[k]; });
+    Object.keys(snap).forEach(k => { if (k !== 'coworkLocal') state[k] = snap[k]; });
+    _eventLog.length = Math.min(_eventLog.length, logLen);
+    _coworkDryRun = false;
+  }
+  return { result, rows };
+}
+// The one gate every transport goes through (folder poll and direct API).
+function coworkReceive(channelKey, kind, payload, meta) {
+  meta = meta || {};
+  if (!coworkReviewOn(channelKey)) {
+    const { result, rows } = _coworkRunImport(kind, payload, false);
+    const undoId = rows.length ? coworkKeepUndo(channelKey, kind, rows, 'imported directly (review off)') : null;
+    return { ...(result || {}), undoId };
+  }
+  const { result, rows } = _coworkRunImport(kind, payload, true);
+  if (!(result && result.handled)) return { ...(result || {}), queued: false };
+  if (!rows.length) return { ...result, queued: false, nothingToChange: true };
+  const q = coworkReviewQueue();
+  q.push({ id: 'rv-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), channel: channelKey, kind, payload,
+    at: new Date().toISOString(), fileName: meta.fileName || '', stale: !!meta.stale, via: meta.via || 'folder',
+    rows: rows.map(r => ({ id: r.id, slot: r.slot, label: r.label, detail: r.detail, op: r.op })) });
+  if (q.length > COWORK_REVIEW_CAP) q.splice(0, q.length - COWORK_REVIEW_CAP);
+  return { ...result, handled: true, queued: true, rows: rows.length };
+}
+function coworkKeepUndo(channelKey, kind, rows, how) {
+  const u = coworkUndoList(), id = 'un-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  u.push({ id, at: new Date().toISOString(), channel: channelKey, kind, how, rows: rows.map(r => ({ id: r.id, top: r.top, key: r.key, op: r.op, sub: r.sub, old: r.old, label: r.label })) });
+  if (u.length > COWORK_UNDO_CAP) u.splice(0, u.length - COWORK_UNDO_CAP);
+  return id;
+}
+// Apply a waiting reply: only the ticked rows (all rows when `keep` is omitted).
+function coworkReviewApply(itemId, keep) {
+  const q = coworkReviewQueue(), i = q.findIndex(x => x.id === itemId); if (i < 0) return null;
+  const it = q[i], want = keep ? new Set(keep) : new Set(it.rows.map(r => r.id));
+  const wantSlots = new Set(it.rows.filter(r => want.has(r.id)).map(r => r.slot)), shownIds = new Set(it.rows.map(r => r.id));
+  const { result, rows } = _coworkRunImport(it.kind, it.payload, false);
+  const kept = [], dropped = [];
+  // match by id; a freshly minted id (never shown) matches by its slot instead
+  rows.forEach(r => ((want.has(r.id) || (!shownIds.has(r.id) && wantSlots.has(r.slot))) ? kept : dropped).push(r));
+  dropped.forEach(coworkRevertRow);   // unticked, or a change that was not on the list you reviewed
+  q.splice(i, 1);
+  const c = coworkChannelByKey(it.channel), undoId = kept.length ? coworkKeepUndo(it.channel, it.kind, kept, 'applied after review') : null;
+  coworkRecordRun({ kind: 'check', channel: c ? c.dir : it.channel, ok: !!(result && result.handled), note: 'applied after review · ' + kept.length + ' of ' + rows.length + ' change' + (rows.length === 1 ? '' : 's') + (undoId ? ' [undo:' + undoId + ']' : '') });
+  saveState(); if (typeof render === 'function') render();
+  return { kept: kept.length, dropped: dropped.length, undoId };
+}
+function coworkReviewDiscard(itemId) {
+  const q = coworkReviewQueue(), i = q.findIndex(x => x.id === itemId); if (i < 0) return false;
+  const it = q.splice(i, 1)[0], c = coworkChannelByKey(it.channel);
+  coworkRecordRun({ kind: 'check', channel: c ? c.dir : it.channel, ok: true, note: 'discarded after review · ' + it.rows.length + ' change' + (it.rows.length === 1 ? '' : 's') + ' not applied' });
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+  return true;
+}
+function coworkUndo(undoId) {
+  const u = coworkUndoList(), i = u.findIndex(x => x.id === undoId); if (i < 0) return false;
+  const rec = u.splice(i, 1)[0], c = coworkChannelByKey(rec.channel);
+  rec.rows.slice().reverse().forEach(coworkRevertRow);
+  coworkRecordRun({ kind: 'check', channel: c ? c.dir : rec.channel, ok: true, note: 'undone · ' + rec.rows.length + ' change' + (rec.rows.length === 1 ? '' : 's') + ' from ' + new Date(rec.at).toLocaleString() + ' reversed' });
+  saveState(); if (typeof render === 'function') render();
+  return true;
+}
+function renderCoworkReviewBlock(role) {
+  const q = coworkReviewQueue();
+  const toggles = COWORK_CHANNELS.map(c => `<button class="cowork-chan ${coworkReviewOn(c.key) ? 'on' : ''}" data-cowork-review="${c.key}" aria-pressed="${coworkReviewOn(c.key)}" title="${coworkReviewOn(c.key) ? 'Replies wait for you to review them' : 'Replies are applied as soon as they arrive'}">${coworkReviewOn(c.key) ? '👁' : '⚡'} ${escapeHtml(c.dir)}</button>`).join('');
+  const items = q.map(it => {
+    const c = coworkChannelByKey(it.channel);
+    return `<div class="cowork-review-item" data-review-item="${it.id}">
+      <div class="cowork-review-head"><b>${escapeHtml(c ? c.dir : it.channel)}</b> · ${escapeHtml(coworkFmtAgo(it.at))}${it.stale ? ' · answered an older request' : ''}</div>
+      ${it.rows.map(r => `<label class="cowork-review-row"><input type="checkbox" data-review-row="${escapeAttr(r.id)}" checked><span><b>${escapeHtml(r.label)}</b>${r.detail ? `<span class="cowork-review-detail">${escapeHtml(r.detail)}</span>` : ''}</span></label>`).join('')}
+      <div class="drawer-data-row" style="margin-top:6px;"><button class="drawer-btn" data-review-apply="${it.id}" ${role === 'viewer' ? 'disabled' : ''}>Apply selected</button><button class="drawer-btn" data-review-discard="${it.id}">Discard</button></div>
+    </div>`;
+  }).join('');
+  const undo = coworkUndoList().slice().reverse().slice(0, 5).map(u => `<div class="cowork-run ok"><span class="cowork-run-dot">↺</span><span class="cowork-run-txt">${escapeHtml(u.channel)} — ${escapeHtml(u.how)} · ${u.rows.length} change${u.rows.length === 1 ? '' : 's'} · ${escapeHtml(coworkFmtAgo(u.at))}</span><button class="drawer-btn" data-cowork-undo="${u.id}">Undo</button></div>`).join('');
+  return `<div class="cowork-log-title">Review first <span class="cowork-log-sub">👁 = a reply waits for you · ⚡ = applied as it arrives</span></div>
+    <div class="cowork-chans">${toggles}</div>
+    <div class="cowork-log-title">Waiting for review <span class="cowork-log-sub">${q.length ? q.length + ' repl' + (q.length === 1 ? 'y' : 'ies') : 'nothing waiting'}</span></div>
+    ${items || ''}
+    ${undo ? `<div class="cowork-log-title">Undo <span class="cowork-log-sub">the last changes cowork made</span></div><div class="cowork-log">${undo}</div>` : ''}`;
+}
+function bindCoworkReview(body, rerender) {
+  body.querySelectorAll('[data-cowork-review]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.coworkReview; if (!state.coworkReview || typeof state.coworkReview !== 'object') state.coworkReview = {};
+    state.coworkReview[k] = !coworkReviewOn(k); saveState(); rerender();
+  }));
+  body.querySelectorAll('[data-review-apply]').forEach(b => b.addEventListener('click', () => {
+    const box = b.closest('[data-review-item]');
+    const keep = [...box.querySelectorAll('[data-review-row]')].filter(x => x.checked).map(x => x.dataset.reviewRow);
+    const r = coworkReviewApply(b.dataset.reviewApply, keep);
+    if (r) toast('🤝 Applied ' + r.kept + ' change' + (r.kept === 1 ? '' : 's') + (r.dropped ? ' · ' + r.dropped + ' left out' : ''));
+    rerender();
+  }));
+  body.querySelectorAll('[data-review-discard]').forEach(b => b.addEventListener('click', () => { coworkReviewDiscard(b.dataset.reviewDiscard); toast('Reply discarded'); rerender(); }));
+  body.querySelectorAll('[data-cowork-undo]').forEach(b => b.addEventListener('click', () => { if (coworkUndo(b.dataset.coworkUndo)) toast('↺ Undone'); rerender(); }));
+}
 async function _coworkMoveToProcessed(channelDir, inbox, name, text) {
   try { const pf = await channelDir.getDirectoryHandle('processed', { create: true }); const fh = await pf.getFileHandle(name, { create: true }); const w = await fh.createWritable(); await w.write(new Blob([text])); await w.close(); await inbox.removeEntry(name); } catch (_) {}
 }
@@ -10820,7 +11035,7 @@ async function coworkPollAll(interactive) {
   if (_coworkPolling || _coworkImporting) return;
   if (!state.cowork || !state.cowork.enabled || !('showDirectoryPicker' in window)) return;
   _coworkPolling = true;
-  let imported = 0, errors = 0, stale = 0;
+  let imported = 0, errors = 0, stale = 0, queued = 0;
   try {
     const res = await coworkResolveRoot(interactive ? true : false);
     if (!res) { coworkRecordRun({ kind: 'check', ok: false, auto: !interactive, note: 'skipped — no AI export folder chosen' }); return; }
@@ -10853,22 +11068,26 @@ async function coworkPollAll(interactive) {
         // you want) but recorded, so a hub that is always a cycle behind is visible rather than invisible.
         const declared = (state.coworkLocal.declared || {})[c.dir];
         const isStale = !!(env.requestHash && declared && env.requestHash !== declared);
-        _coworkImporting = true;
-        let result; try { result = coworkApplyImport(env.kind, env.payload); } catch (e) { result = { handled: false, error: e && e.message }; }
-        _coworkImporting = false;
-        coworkLedgerAdd(channel, hash, { fileName: f.name, kind: env.kind, result, stale: isStale || undefined });
+        // feat 561 — review first (on by default): the reply waits in the review list instead of applying now
+        const result = coworkReceive(channel, env.kind, env.payload, { fileName: f.name, stale: isStale });
+        coworkLedgerAdd(channel, hash, { fileName: f.name, kind: env.kind, result: { handled: !!(result && result.handled), queued: !!(result && result.queued) }, stale: isStale || undefined });
         coworkRecordRun({ kind: 'check', channel: c.dir, ok: !!(result && result.handled), auto: !interactive,
-          note: (result && result.handled ? 'imported ' + env.kind : 'could not apply ' + env.kind + ((result && result.error) ? ' — ' + result.error : ''))
+          note: (result && result.queued ? 'waiting for review · ' + result.rows + ' change' + (result.rows === 1 ? '' : 's')
+            : result && result.nothingToChange ? 'nothing to change from ' + env.kind
+            : result && result.handled ? 'imported ' + env.kind + (result.undoId ? ' [undo:' + result.undoId + ']' : '')
+            : 'could not apply ' + env.kind + ((result && result.error) ? ' — ' + result.error : ''))
             + (isStale ? ' (answered a superseded request)' : '') });
         await _coworkMoveToProcessed(channelDir, inbox, f.name, text);
         if (isStale) stale++;
-        if (result && result.handled) imported++;
+        if (result && result.queued) queued++;
+        else if (result && result.handled && !result.nothingToChange) imported++;
       }
     }
     state.coworkLocal.lastPollAt = new Date().toISOString();
     try { await coworkWriteBrief(res.root, false); } catch (_) {} // feat 511 — keep the morning brief current (skipped when unchanged)
     if (imported > 0) { saveState(); if (typeof render === 'function') render(); toast('🤝 Cowork imported ' + imported + ' file' + (imported === 1 ? '' : 's') + (stale ? ' (' + stale + ' answered an older request)' : '')); }
     else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {} } // persist the ledger/lastPollAt without a cloud push
+    if (queued > 0) toast('👁 ' + queued + ' cowork repl' + (queued === 1 ? 'y is' : 'ies are') + ' waiting for review — Settings › Cowork', 6000);
     if (errors > 0 && interactive) toast('⚠ Cowork agent reported ' + errors + ' failure' + (errors === 1 ? '' : 's') + ' — see Settings › Cowork');
   } catch (e) { coworkRecordRun({ kind: 'check', ok: false, auto: !interactive, note: 'poll failed: ' + ((e && e.message) || e) }); logWarn('Cowork poll failed', e && e.message); }
   finally { _coworkPolling = false; }
@@ -11030,12 +11249,12 @@ async function coworkAnalysisViaApi(auto) {
       + JSON.stringify(ctx.requests) + '\n\nTRAINING DATA (last 30 days):\n' + JSON.stringify(slim);
     const reply = await askClaudeDirect([{ role: 'user', content }], { system, maxTokens: 4096 });
     const out = parseAiJsonReply(reply);
-    _coworkImporting = true;
-    let res; try { res = coworkImportAnalysis(out); } finally { _coworkImporting = false; }
+    const res = coworkReceive('analysis', 'analysis-output', out, { via: 'api' }); // feat 561 — the same review gate as the folder
     const n = (res && res.answered) || 0;
-    if (n) { saveState(); if (typeof render === 'function') render(); }
+    if (n && !res.queued) { saveState(); if (typeof render === 'function') render(); }
+    else if (res && res.queued) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {} }
     const u = aiApiCfg().lastUsage || {};
-    return record(n > 0, (n ? 'answered ' + n + ' request' + (n === 1 ? '' : 's') : 'no answers matched an open request')
+    return record(n > 0, (n ? (res.queued ? 'answered ' + n + ' request' + (n === 1 ? '' : 's') + ' — waiting for review' : 'answered ' + n + ' request' + (n === 1 ? '' : 's')) : 'no answers matched an open request')
       + ' · ' + (u.inTok || 0) + ' in / ' + (u.outTok || 0) + ' out tokens');
   } catch (e) { return record(false, 'API call failed: ' + ((e && e.message) || e)); }
 }
@@ -11217,6 +11436,7 @@ function renderCoworkStatusBlock() {
     <input type="text" class="cowork-api-key" id="cowork-dir-label" placeholder="e.g. D:\\Sync\\Claude\\GymTracker" value="${escapeAttr((state.coworkLocal && state.coworkLocal.dirLabel) || '')}" autocomplete="off" spellcheck="false">
     <div class="cowork-log-title">Channels <span class="cowork-log-sub">tap to switch a task folder off</span></div>
     <div class="cowork-chans">${chanRows}</div>
+    ${renderCoworkReviewBlock(role)}
     <div class="cowork-log-title">This month <span class="cowork-log-sub">runs per day · red = a failure</span></div>
     ${calHtml}
     <div class="cowork-log-title">Recent hub activity <span class="cowork-log-sub">this device</span></div>
@@ -14690,6 +14910,7 @@ function renderSettingsDrawer() {
   body.querySelectorAll('[data-ns-factor]').forEach(b => b.addEventListener('click', () => { nsToggleFactor(b.dataset.nsFactor); renderSettingsDrawer(); })); // feat 543
   bindCustomSounds(body, renderSettingsDrawer); // feat 550
   body.querySelectorAll('[data-kcal-scale]').forEach(b => b.addEventListener('click', () => { state.workoutControls = state.workoutControls || {}; state.workoutControls.kcalScale = +b.dataset.kcalScale; saveState(); renderSettingsDrawer(); })); // feat 551
+  bindCoworkReview(body, renderSettingsDrawer); // feat 561
   body.querySelectorAll('[data-cowork-chan]').forEach(b => b.addEventListener('click', () => { // feat 459
     const k = b.dataset.coworkChan;
     state.cowork.channels[k] = !coworkChannelOn(k); saveState(); renderSettingsDrawer();
@@ -34300,7 +34521,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 476 · 2026-11-10 14:54';
+const APP_BUILD = 'build 477 · 2026-11-10 22:05';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
