@@ -2366,6 +2366,8 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .position-wrap.open .position-toggle .pos-chev { transform: rotate(90deg); }
   .position-table { display: none; margin-top: 6px; background: #141018; border-radius: 6px; padding: 6px 8px; border: 1px solid #2a1f3a; }
   .position-wrap.open .position-table { display: block; }
+  .pos-pattern-note { font-size: 10.5px; color: #8a7fa0; margin-bottom: 4px; }
+  .pos-speak { display: block; margin: 2px 0 6px; padding: 5px 10px; border-radius: 8px; border: 1px solid #2a1f3a; background: #1c1526; color: #d8a0ff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; } /* feat 562 */
   .position-row { display: grid; grid-template-columns: 80px 1fr; gap: 8px; padding: 4px 2px; border-bottom: 1px solid #20182a; font-size: 12px; }
   .position-row:last-child { border-bottom: none; }
   .position-row .pos-label { color: #a090b8; text-transform: uppercase; letter-spacing: 0.4px; font-size: 9.5px; font-weight: 700; align-self: center; }
@@ -32018,7 +32020,7 @@ function renderSetsForm() {
       if (refEx) {
         // feat 334 — the collapsed "📐 Body Position & Setup" table from the full reference, near the top of the
         // full tip (a 'trk-pos-' uid keeps it distinct from the Reference page's own copy if both are in the DOM).
-        const posHtml = renderPosition('trk-pos-' + (v.uuid || v.id), getPosition((refEx.variations || []).find(rv => rv.id === v.id) || v, refEx.id));
+        const posHtml = renderPosition('trk-pos-' + (v.uuid || v.id), positionForVar(v.uuid), v.uuid); // feat 562 — with its read-aloud button; pattern setup when no table
         if (posHtml) fullBlocks += posHtml;
         // General movement tips (setup, movement, mistakes)
         if (refEx.general) {
@@ -32099,7 +32101,8 @@ function renderSetsForm() {
     const briefSlide = (() => { // feat 418 — the 🎧 coach brief as READABLE text (the button still plays it)
       const built = (typeof variationPodcast === 'function') ? variationPodcast(pending.varUuid) : null;
       if (!built || !built.segs.length) return '<div class="excar-empty">No brief available for this movement.</div>';
-      return `<button class="tips-ref-link" id="trk-brief-play" type="button">🎧 Play this brief aloud →</button>` +
+      const setupBtn = (typeof positionPodcast === 'function' && positionPodcast(pending.varUuid)) ? `<button class="tips-ref-link" id="trk-setup-play" type="button">📐 Read the setup aloud →</button>` : ''; // feat 562
+      return `<button class="tips-ref-link" id="trk-brief-play" type="button">🎧 Play this brief aloud →</button>` + setupBtn +
         built.segs.map(s => `<div class="tip-block"><div class="tip-block-label">${escapeHtml(s.label)}</div><div class="tip-block-text">${escapeHtml(s.text)}</div></div>`).join('');
     })();
     const SLIDES = { tips: `<button class="tips-ref-link" id="trk-tips-ref-btn" type="button">📚 Open full reference entry →</button>${tipBlocks}`,
@@ -33744,6 +33747,7 @@ function bindSetsForm() {
   });
   document.getElementById('trk-trend-peek')?.addEventListener('click', () => openTrendsFor(pending.varUuid, pending.subUuid)); // feat 270 — peek → full trends (now the carousel's Trends slide)
   document.getElementById('trk-brief-play')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 418 — the Brief slide's play link
+  document.getElementById('trk-setup-play')?.addEventListener('click', () => startPositionPodcast(pending.varUuid)); // feat 562 — the setup, read aloud
   // feat 417 — the tips-area carousel: Tips · Motion · Trends · History. Selection sticks across the
   // sheet's per-set re-renders via modalState.exCarousel.
   document.querySelectorAll('#trk-tips-section .excar-tab').forEach(b => b.addEventListener('click', (e) => {
@@ -34521,7 +34525,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 477 · 2026-11-10 22:05';
+const APP_BUILD = 'build 478 · 2026-11-13 08:59';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -42345,6 +42349,97 @@ const positionDefaults = {
   }
 };
 
+/* feat 562 — SETUP BY MOVEMENT PATTERN. positionDefaults covers 28 families; the other ~1,300 variations had no
+   Body Position table at all. Every variation is pinned to a motion template (feat 556 MOTION_ROUTE), and the
+   template IS the body position (a hinge is a hinge whether it's a barbell, a kettlebell or a sandbag), so a
+   setup per pattern is the right generic fallback. Order of precedence is unchanged: a variation's own table,
+   then its family's, then this. Templates with no meaningful setup (stretches, rolling, rest, cardio) are absent. */
+const positionByPattern = {
+  hinge: { body: { feet: 'Hip-width, weight mid-foot to heels', knees: 'Soft, slight bend — they barely move', hips: 'Push BACK to hinge, then drive forward to stand', core: 'Braced hard before the hinge', back: 'Neutral spine, no rounding', shoulders: 'Pulled down, lats tight', head: 'Neutral, eyes a few feet ahead', elbows: 'Straight — arms are hooks', wrists: 'Neutral', grip: 'Firm, load close to the legs', breath: 'Breathe in and brace at the top, exhale as you stand' } },
+  squat: { body: { feet: 'Shoulder-width, toes out slightly', knees: 'Track over the toes, push them out', hips: 'Sit back and down between the heels', core: 'Braced 360° before you descend', back: 'Neutral, chest up', shoulders: 'Tight, upper back engaged', head: 'Neutral, eyes forward', elbows: 'Under the load', wrists: 'Stacked, neutral', grip: 'Firm on the load', breath: 'Breathe in at the top, hold down, exhale up' } },
+  lunge: { body: { feet: 'Split stance, hip-width tracks — not a tightrope', knees: 'Front knee over the mid-foot, back knee toward the floor', hips: 'Square to the front, drop straight down', core: 'Braced, ribs down', back: 'Tall, slight forward lean is fine', shoulders: 'Down and back', head: 'Neutral, eyes ahead', elbows: 'Arms long at the sides', wrists: 'Neutral', grip: 'Load hanging at the sides or racked', breath: 'Breathe in down, exhale as you drive up' } },
+  'step-up': { body: { feet: 'Whole working foot on the box', knees: 'Working knee tracks over the toes', hips: 'Drive up through the front heel, not off the back foot', core: 'Braced', back: 'Tall, slight forward lean', shoulders: 'Down', head: 'Neutral', elbows: 'Arms at the sides', wrists: 'Neutral', grip: 'Load at the sides', breath: 'Exhale as you step up' } },
+  'lateral-lunge': { body: { feet: 'Wide, toes forward or slightly out', knees: 'Working knee over the toes, other leg straight', hips: 'Sit back into the working hip', core: 'Braced', back: 'Neutral, chest up', shoulders: 'Down', head: 'Neutral', elbows: 'Arms forward for balance or holding the load', wrists: 'Neutral', grip: 'Load at the chest', breath: 'Breathe in down, exhale to push back' } },
+  row: { body: { feet: 'Hip-width, planted', knees: 'Soft bend', hips: 'Hinged forward, torso fixed', core: 'Braced — the torso does not move', back: 'Neutral, flat', shoulders: 'Start down, then squeeze the blades together', head: 'Neutral, eyes down', elbows: 'Drive back toward the hips', wrists: 'Neutral', grip: 'Full grip, thumbs around', breath: 'Exhale as you pull' } },
+  'seated-row': { body: { feet: 'Braced on the platform, knees soft', knees: 'Slightly bent', hips: 'Seated tall, no rocking', core: 'Braced', back: 'Upright and neutral', shoulders: 'Down, squeeze the blades at the finish', head: 'Neutral', elbows: 'Close to the body, drive back', wrists: 'Neutral', grip: 'Handle or bar, full grip', breath: 'Exhale as you pull' }, equipment: { seat: 'So the handle lines up with the lower ribs', cable: 'Low pulley' } },
+  'lat-pulldown': { body: { feet: 'Flat on the floor', knees: 'Locked under the pad', hips: 'Seated, slight lean back', core: 'Braced', back: 'Slight arch, chest up', shoulders: 'Pull them down first, then pull', head: 'Neutral', elbows: 'Down and slightly back', wrists: 'Neutral', grip: 'Per attachment', breath: 'Exhale on the pull' } },
+  'pull-up': { body: { feet: 'Together, hanging', knees: 'Straight or crossed', hips: 'Slight tuck, no swinging', core: 'Braced', back: 'Chest up toward the bar', shoulders: 'Pack them down before you pull', head: 'Neutral, chin over the bar at the top', elbows: 'Drive down to the ribs', wrists: 'Neutral', grip: 'Full grip, slightly wider than shoulders', breath: 'Exhale as you pull up' } },
+  'vertical-press': { body: { feet: 'Hip-width, planted', knees: 'Locked, but not hyper-extended', hips: 'Glutes squeezed', core: 'Braced hard, ribs down', back: 'Neutral, no leaning back', shoulders: 'Press up and in, shrug at the top', head: 'Back out of the bar path, then through', elbows: 'Under the wrists', wrists: 'Stacked over the elbows', grip: 'Just outside the shoulders', breath: 'Breathe in at the bottom, exhale through the press' } },
+  'bench-press': { body: { feet: 'Flat and planted', knees: 'Bent, driving into the floor', hips: 'Glutes on the bench', core: 'Braced', back: 'Upper-back arch, blades pinned', shoulders: 'Down and back', head: 'On the bench', elbows: 'About 45° from the body', wrists: 'Stacked over the elbows', grip: 'Slightly wider than shoulders, thumbs around', breath: 'Breathe in at the top, hold down, exhale up' } },
+  'chest-press': { body: { feet: 'Staggered stance', knees: 'Soft', hips: 'Square', core: 'Braced — resist being pulled back', back: 'Neutral, slight forward lean', shoulders: 'Down and back', head: 'Neutral', elbows: 'About 45° from the body', wrists: 'Neutral, behind the handles', grip: 'Firm on the handles', breath: 'Exhale as you press' } },
+  'push-up': { body: { feet: 'Together or hip-width, on the toes', knees: 'Straight', hips: 'In line — no sag, no pike', core: 'Braced like a plank', back: 'Flat from head to heels', shoulders: 'Over the hands, blades moving freely', head: 'Neutral, eyes just ahead of the hands', elbows: 'About 45° from the body', wrists: 'Under the shoulders', grip: 'Hands flat, fingers spread', breath: 'Breathe in down, exhale up' } },
+  dips: { body: { feet: 'Together, hanging or crossed', knees: 'Bent or straight', hips: 'Under the shoulders', core: 'Braced', back: 'Slight forward lean for chest, upright for triceps', shoulders: 'Down, not shrugged', head: 'Neutral', elbows: 'Back, not flared', wrists: 'Stacked over the bars', grip: 'Full grip on the bars', breath: 'Breathe in down, exhale up' } },
+  carry: { body: { feet: 'Short, quick steps, heel to toe', knees: 'Soft', hips: 'Level — do not lean away from the load', core: 'Braced hard the whole walk', back: 'Tall, neutral', shoulders: 'Down and back, not shrugged', head: 'Neutral, eyes ahead', elbows: 'Straight (hanging) or tucked (racked)', wrists: 'Neutral', grip: 'Crush the handles', breath: 'Short breaths behind a brace' } },
+  plank: { body: { feet: 'Hip-width, on the toes', knees: 'Straight', hips: 'Level with the shoulders', core: 'Braced hard, ribs down', back: 'Flat from head to heels', shoulders: 'Over the elbows or hands', head: 'Neutral', elbows: 'Under the shoulders', wrists: 'Neutral', grip: 'Fists or flat hands', breath: 'Slow breaths without losing the brace' } },
+  'side-plank': { body: { feet: 'Stacked or staggered', knees: 'Straight', hips: 'Lifted in line with the shoulders', core: 'Braced, obliques working', back: 'Straight line from head to feet', shoulders: 'Bottom shoulder over the elbow', head: 'Neutral', elbows: 'Under the shoulder', wrists: 'Neutral', grip: 'Top hand on the hip or reaching up', breath: 'Slow breaths' } },
+  crunch: { body: { feet: 'Flat on the floor', knees: 'Bent', hips: 'Stay on the floor', core: 'Curl the ribs toward the pelvis', back: 'Low back stays down', shoulders: 'Lift the shoulder blades only', head: 'Neutral, chin off the chest', elbows: 'Wide, hands light', wrists: 'Relaxed', grip: 'Hands at the temples or across the chest', breath: 'Exhale as you curl up' } },
+  situp: { body: { feet: 'Flat or anchored', knees: 'Bent', hips: 'Stay grounded or on the pad', core: 'Curl up one vertebra at a time', back: 'Round up, roll down slowly', shoulders: 'Relaxed', head: 'Neutral', elbows: 'Wide or arms reaching forward', wrists: 'Relaxed', grip: 'Load at the chest if weighted', breath: 'Exhale on the way up' } },
+  'leg-raise': { body: { feet: 'Together', knees: 'Straight or tucked', hips: 'Tilt the pelvis up at the top', core: 'Braced, low back down (lying) or no swing (hanging)', back: 'Flat on the floor or long', shoulders: 'Down, packed', head: 'Neutral', elbows: 'Straight', wrists: 'Neutral', grip: 'Firm on the bar or hands by the hips', breath: 'Exhale as the legs rise' } },
+  lsit: { body: { feet: 'Together, toes pointed', knees: 'Straight', hips: 'Legs at hip height or higher', core: 'Braced hard', back: 'Tall', shoulders: 'Pushed down away from the ears', head: 'Neutral', elbows: 'Locked', wrists: 'Stacked under the shoulders', grip: 'Firm on the bars or floor', breath: 'Short steady breaths' } },
+  rotation: { body: { feet: 'Shoulder-width, planted', knees: 'Soft', hips: 'Square, or pivot the back foot for power', core: 'Braced — rotate through the mid-back', back: 'Neutral, no low-back twist', shoulders: 'Rotate with the ribs', head: 'Follows the hands', elbows: 'Long, nearly straight', wrists: 'Neutral', grip: 'Both hands on the handle or load', breath: 'Exhale through the turn' } },
+  'side-bend': { body: { feet: 'Hip-width', knees: 'Soft', hips: 'Square, do not shift', core: 'Obliques do the work', back: 'Bend straight sideways, no twist', shoulders: 'Stacked', head: 'Neutral', elbows: 'Long', wrists: 'Neutral', grip: 'Load in one hand', breath: 'Exhale as you come up' } },
+  'biceps-curl': { body: { feet: 'Hip-width', knees: 'Soft', hips: 'Still — no swing', core: 'Braced', back: 'Tall', shoulders: 'Down and back', head: 'Neutral', elbows: 'Pinned at the sides', wrists: 'Straight, not curled', grip: 'Full grip', breath: 'Exhale as you curl' } },
+  'triceps-ext': { body: { feet: 'Hip-width, staggered for cables', knees: 'Soft', hips: 'Slight forward lean', core: 'Braced', back: 'Neutral', shoulders: 'Down', head: 'Neutral', elbows: 'Pinned — only the forearms move', wrists: 'Neutral', grip: 'Firm on the handle', breath: 'Exhale as you extend' } },
+  'overhead-ext': { body: { feet: 'Hip-width or seated', knees: 'Soft', hips: 'Glutes squeezed', core: 'Braced, ribs down', back: 'No arching', shoulders: 'Up, arms by the ears', head: 'Neutral', elbows: 'Pointing up, close together', wrists: 'Neutral', grip: 'Both hands on the load', breath: 'Exhale as you extend' } },
+  skull: { body: { feet: 'Flat on the floor', knees: 'Bent', hips: 'On the bench', core: 'Braced', back: 'Flat on the bench', shoulders: 'Down', head: 'On the bench', elbows: 'Point up, stay still', wrists: 'Neutral', grip: 'Close, thumbs around', breath: 'Exhale as you extend' } },
+  kickback: { body: { feet: 'Staggered or hip-width', knees: 'Soft', hips: 'Hinged forward', core: 'Braced', back: 'Flat', shoulders: 'Down', head: 'Neutral', elbows: 'Pinned high by the ribs', wrists: 'Neutral', grip: 'Firm', breath: 'Exhale as you extend' } },
+  'lateral-raise': { body: { feet: 'Hip-width', knees: 'Soft', hips: 'Slight forward lean', core: 'Braced — no swing', back: 'Neutral', shoulders: 'Down, not shrugged', head: 'Neutral', elbows: 'Slightly bent, lead with them', wrists: 'Neutral, no higher than the elbows', grip: 'Light', breath: 'Exhale as you raise' } },
+  'front-raise': { body: { feet: 'Hip-width', knees: 'Soft', hips: 'Still', core: 'Braced', back: 'Tall, no leaning back', shoulders: 'Down', head: 'Neutral', elbows: 'Slight bend', wrists: 'Neutral', grip: 'Light', breath: 'Exhale as you raise' } },
+  'rear-delt': { body: { feet: 'Hip-width', knees: 'Soft', hips: 'Hinged forward', core: 'Braced', back: 'Flat', shoulders: 'Down — do not pinch the blades', head: 'Neutral, eyes down', elbows: 'Slightly bent, wide', wrists: 'Neutral', grip: 'Light', breath: 'Exhale as you raise' } },
+  fly: { body: { feet: 'Flat on the floor or staggered', knees: 'Bent or soft', hips: 'Stable', core: 'Braced', back: 'Slight arch, blades pinned', shoulders: 'Down and back', head: 'Neutral', elbows: 'Soft bend, fixed', wrists: 'Neutral', grip: 'Light', breath: 'Breathe in as the arms open, exhale to close' } },
+  'face-pull': { body: { feet: 'Hip-width, or staggered', knees: 'Soft', hips: 'Square', core: 'Braced', back: 'Tall', shoulders: 'Down, then rotate back', head: 'Neutral', elbows: 'High, level with the shoulders', wrists: 'Neutral', grip: 'Thumbs back on the rope', breath: 'Exhale as you pull' } },
+  'pull-apart': { body: { feet: 'Hip-width', knees: 'Soft', hips: 'Still', core: 'Braced', back: 'Tall', shoulders: 'Down, squeeze the blades', head: 'Neutral', elbows: 'Long, nearly straight', wrists: 'Neutral', grip: 'Band at shoulder width', breath: 'Exhale as you pull apart' } },
+  shrug: { body: { feet: 'Hip-width', knees: 'Soft', hips: 'Still', core: 'Braced', back: 'Tall', shoulders: 'Straight up and down, no rolling', head: 'Neutral', elbows: 'Straight', wrists: 'Neutral', grip: 'Firm', breath: 'Exhale as you shrug' } },
+  'calf-raise': { body: { feet: 'Balls of the feet on the edge', knees: 'Straight (standing) or bent (seated)', hips: 'Still', core: 'Braced', back: 'Tall', shoulders: 'Down', head: 'Neutral', elbows: 'Holding a support', wrists: 'Neutral', grip: 'Light hold for balance', breath: 'Exhale as you rise' } },
+  'hip-thrust': { body: { feet: 'Flat, shins vertical at the top', knees: 'Bent about 90° at the top', hips: 'Drive up to a straight line, squeeze', core: 'Ribs down, chin tucked', back: 'Upper back on the bench, no low-back arch', shoulders: 'Relaxed on the bench', head: 'Eyes forward, chin tucked', elbows: 'Holding the load', wrists: 'Neutral', grip: 'Hands on the bar or bench', breath: 'Exhale as you thrust' } },
+  bridge: { body: { feet: 'Flat, hip-width, close to the hips', knees: 'Bent', hips: 'Drive up, squeeze the glutes', core: 'Ribs down', back: 'Shoulders down, no low-back arch', shoulders: 'On the floor', head: 'On the floor', elbows: 'Arms long by the sides', wrists: 'Relaxed', grip: 'Palms down', breath: 'Exhale as you lift' } },
+  'back-ext': { body: { feet: 'Locked under the pads', knees: 'Straight', hips: 'Pad just below the hip crease', core: 'Braced', back: 'Neutral — do not over-arch at the top', shoulders: 'Down', head: 'Neutral', elbows: 'Arms crossed or behind the head', wrists: 'Neutral', grip: 'Load at the chest if used', breath: 'Exhale as you rise' } },
+  oly: { body: { feet: 'Hip-width to pull, shoulder-width to catch', knees: 'Bent, shins near the bar', hips: 'Above the knees at the start', core: 'Braced hard', back: 'Neutral and tight', shoulders: 'Over the bar', head: 'Neutral, eyes forward', elbows: 'Long until the hips extend, then high and fast', wrists: 'Hook grip, then rack', grip: 'Hook grip, just outside the legs', breath: 'Breathe and brace before each rep' } },
+  thruster: { body: { feet: 'Shoulder-width, toes out slightly', knees: 'Out over the toes', hips: 'Sit down, then drive up hard', core: 'Braced', back: 'Chest up', shoulders: 'Load racked, then pressed overhead', head: 'Neutral, through at the top', elbows: 'High in the rack', wrists: 'Stacked at lockout', grip: 'Just outside the shoulders', breath: 'Breathe in at the top, exhale as you drive up' } },
+  jump: { body: { feet: 'Hip-width', knees: 'Bend to load, land soft', hips: 'Hinge back to load', core: 'Braced', back: 'Neutral', shoulders: 'Arms swing for power', head: 'Eyes ahead', elbows: 'Drive the arms up', wrists: 'Relaxed', grip: '—', breath: 'Exhale as you jump' } },
+  burpee: { body: { feet: 'Hip-width', knees: 'Bend to drop, drive to jump', hips: 'Level in the plank', core: 'Braced through the plank', back: 'Flat in the plank', shoulders: 'Over the hands', head: 'Neutral', elbows: 'Straight in the plank', wrists: 'Under the shoulders', grip: 'Hands flat', breath: 'Breathe out on the jump' } },
+  'mountain-climber': { body: { feet: 'On the toes', knees: 'Drive toward the chest', hips: 'Level, no bouncing', core: 'Braced', back: 'Flat', shoulders: 'Over the hands', head: 'Neutral', elbows: 'Straight', wrists: 'Under the shoulders', grip: 'Hands flat', breath: 'Steady rhythm' } },
+  quadruped: { body: { feet: 'Hip-width, toes tucked', knees: 'Under the hips', hips: 'Level', core: 'Braced, ribs down', back: 'Flat as a table', shoulders: 'Over the hands', head: 'Neutral, eyes down', elbows: 'Straight', wrists: 'Under the shoulders', grip: 'Hands flat', breath: 'Slow breaths' } },
+  'dead-bug': { body: { feet: 'Knees over hips, shins level', knees: 'Bent 90°', hips: 'Grounded', core: 'Low back pressed to the floor', back: 'Flat on the floor', shoulders: 'On the floor', head: 'On the floor', elbows: 'Arms straight up', wrists: 'Over the shoulders', grip: '—', breath: 'Exhale as the limbs extend' } },
+  'prone-ext': { body: { feet: 'Together, toes pointed', knees: 'Straight', hips: 'Pressed into the floor', core: 'Glutes and back working', back: 'Lift from the upper back', shoulders: 'Down, away from the ears', head: 'Neutral, eyes down', elbows: 'Arms long', wrists: 'Neutral', grip: '—', breath: 'Exhale as you lift' } },
+  rollout: { body: { feet: 'Knees or toes down', knees: 'On a pad', hips: 'Follow the shoulders — no sagging', core: 'Braced, ribs down hard', back: 'Flat', shoulders: 'Over the wheel to start', head: 'Neutral', elbows: 'Straight', wrists: 'Neutral', grip: 'Firm on the handles', breath: 'Breathe in out, exhale back' } },
+  getup: { body: { feet: 'Same-side foot planted', knees: 'Bent on the load side', hips: 'Bridge up high to sweep the leg', core: 'Braced', back: 'Neutral', shoulders: 'Loaded arm packed, vertical', head: 'Eyes on the load', elbows: 'Loaded arm locked', wrists: 'Straight, stacked', grip: 'Firm, knuckles to the ceiling', breath: 'Breathe at each position' } },
+  wrist: { body: { feet: 'Flat, seated', knees: 'Bent', hips: 'Seated', core: 'Relaxed', back: 'Slight forward lean', shoulders: 'Relaxed', head: 'Neutral', elbows: 'Forearms on the thighs or bench', wrists: 'Only the wrists move', grip: 'Light, let it roll to the fingers', breath: 'Steady' } },
+  'wrist-roller': { body: { feet: 'Hip-width', knees: 'Soft', hips: 'Still', core: 'Braced', back: 'Tall', shoulders: 'Down', head: 'Neutral', elbows: 'Straight out in front or tucked', wrists: 'Roll one hand at a time', grip: 'Overhand on the roller', breath: 'Steady' } },
+  'leg-swing': { body: { feet: 'Standing on one leg', knees: 'Standing knee soft', hips: 'Square', core: 'Braced', back: 'Tall', shoulders: 'Down', head: 'Neutral', elbows: '—', wrists: '—', grip: 'One hand on a support', breath: 'Steady' } },
+  balance: { body: { feet: 'One foot, toes spread', knees: 'Standing knee soft', hips: 'Level', core: 'Braced', back: 'Tall or long', shoulders: 'Down', head: 'Eyes on a fixed point', elbows: 'Arms out for balance', wrists: 'Relaxed', grip: '—', breath: 'Slow breaths' } },
+  'kneel-crunch': { body: { feet: 'Tucked behind', knees: 'Kneeling', hips: 'Stay high and still', core: 'Curl the ribs to the pelvis', back: 'Round down', shoulders: 'Fixed', head: 'Neutral, follows the trunk', elbows: 'By the head', wrists: 'Neutral', grip: 'Rope by the ears', breath: 'Exhale as you crunch' } },
+  slam: { body: { feet: 'Shoulder-width', knees: 'Bend as you slam', hips: 'Hinge at the bottom', core: 'Braced hard', back: 'Neutral', shoulders: 'Reach high, then drive down', head: 'Eyes follow the ball', elbows: 'Straight overhead', wrists: 'Neutral', grip: 'Both hands on the ball', breath: 'Exhale hard as you slam' } },
+  sled: { body: { feet: 'Drive through the balls of the feet', knees: 'Bent, powerful steps', hips: 'Low', core: 'Braced', back: 'Neutral, forward lean', shoulders: 'Behind the handles', head: 'Neutral', elbows: 'Bent or locked on the handles', wrists: 'Neutral', grip: 'Firm on the handles or rope', breath: 'Steady' } },
+  mace: { body: { feet: 'Shoulder-width', knees: 'Soft', hips: 'Square', core: 'Braced against the swing', back: 'Tall', shoulders: 'Packed', head: 'Neutral', elbows: 'Close to the head as it passes', wrists: 'Neutral', grip: 'Stacked hands on the handle', breath: 'Exhale on the drive' } },
+  boxing: { body: { feet: 'Staggered, lead foot forward', knees: 'Soft', hips: 'Rotate into each punch', core: 'Braced', back: 'Tall', shoulders: 'Relaxed, chin tucked behind them', head: 'Chin down, eyes up', elbows: 'Tucked in guard', wrists: 'Straight on impact', grip: 'Loose fist, tight on impact', breath: 'Exhale with each punch' } },
+  'leg-press': { body: { feet: 'Hip-width, middle of the plate', knees: 'Track over the toes', hips: 'Stay on the seat', core: 'Braced', back: 'Flat on the pad', shoulders: 'Into the pad', head: 'On the pad', elbows: 'Holding the handles', wrists: 'Neutral', grip: 'Light on the handles', breath: 'Breathe in down, exhale up' } },
+  'machine-press': { body: { feet: 'Flat on the floor', knees: 'Bent', hips: 'On the seat', core: 'Braced', back: 'Against the pad', shoulders: 'Down and back', head: 'On the pad', elbows: 'About 45° from the body', wrists: 'Stacked', grip: 'Full grip', breath: 'Exhale as you press' }, equipment: { seat: 'Handles at chest height' } },
+  'machine-row': { body: { feet: 'Braced on the platform', knees: 'Bent', hips: 'Seated', core: 'Braced', back: 'Chest on the pad', shoulders: 'Down, squeeze the blades', head: 'Neutral', elbows: 'Drive back', wrists: 'Neutral', grip: 'Full grip', breath: 'Exhale as you pull' }, equipment: { seat: 'Handles at mid-chest', pad: 'Chest against it' } },
+  'machine-curl': { body: { feet: 'Flat', knees: 'Bent', hips: 'Seated', core: 'Braced', back: 'Tall', shoulders: 'Down', head: 'Neutral', elbows: 'Lined up with the pivot', wrists: 'Straight', grip: 'Full grip', breath: 'Exhale as you curl' }, equipment: { seat: 'Elbows on the pad, aligned with the pivot' } },
+  pullover: { body: { feet: 'Flat on the floor', knees: 'Bent', hips: 'Low, or on the bench', core: 'Braced, ribs down', back: 'Upper back across the bench', shoulders: 'Open, let the arms travel back', head: 'Supported', elbows: 'Soft bend, fixed', wrists: 'Neutral', grip: 'Both hands around the handle', breath: 'Breathe in as the arms go back, exhale to pull over' } },
+  'pec-deck': { body: { feet: 'Flat on the floor', knees: 'Bent', hips: 'Seated', core: 'Braced', back: 'Against the pad', shoulders: 'Down and back', head: 'On the pad', elbows: 'Soft bend, at chest height', wrists: 'Neutral', grip: 'Light on the handles', breath: 'Exhale as you squeeze' }, equipment: { seat: 'Handles at chest height' } },
+  'inverted-row': { body: { feet: 'Heels down, toes up', knees: 'Straight (harder) or bent (easier)', hips: 'In line — no sag', core: 'Braced like a plank', back: 'Flat', shoulders: 'Squeeze the blades at the top', head: 'Neutral', elbows: 'Drive back to the ribs', wrists: 'Neutral', grip: 'Just wider than shoulders', breath: 'Exhale as you pull' } },
+  nordic: { body: { feet: 'Ankles locked under a pad or partner', knees: 'On a pad', hips: 'Locked straight — fall as one plank', core: 'Braced', back: 'Straight from knees to head', shoulders: 'Down', head: 'Neutral', elbows: 'Hands ready to catch', wrists: 'Ready to catch', breath: 'Breathe out slowly on the way down' } },
+  load: { body: { feet: 'Wide, the load between the feet', knees: 'Bent, wrap around the load', hips: 'Low to lift, drive forward to load', core: 'Braced hard', back: 'Rounded over the load is normal — keep it braced', shoulders: 'Over the load', head: 'Neutral', elbows: 'Wrapped under the load', wrists: 'Neutral', grip: 'Hug it tight', breath: 'Breathe and brace before each lift' } },
+  handstand: { body: { feet: 'Together, toes pointed', knees: 'Straight', hips: 'Stacked over the shoulders', core: 'Braced hard, ribs in', back: 'Straight, no banana', shoulders: 'Pushed tall, by the ears', head: 'Neutral, eyes between the hands', elbows: 'Locked', wrists: 'Warm, fingers spread', grip: 'Fingers grip the floor to balance', breath: 'Short steady breaths' } },
+  throw: { body: { feet: 'Shoulder-width', knees: 'Bend to load', hips: 'Hinge, then explode up', core: 'Braced', back: 'Neutral', shoulders: 'Drive the ball up and away', head: 'Eyes follow the ball', elbows: 'Long', wrists: 'Release late', grip: 'Both hands under the ball', breath: 'Exhale on the throw' } },
+  'row-erg': { body: { feet: 'Strapped across the ball of the foot', knees: 'Bend at the catch, straight at the finish', hips: 'Drive with the legs first', core: 'Braced', back: 'Lean back slightly at the finish', shoulders: 'Relaxed, not shrugged', head: 'Neutral', elbows: 'Pull to the lower ribs', wrists: 'Flat', grip: 'Light, fingers hooked', breath: 'Exhale on the drive' }, equipment: { stack: 'Damper 3 to 5' } },
+  bike: { body: { feet: 'Ball of the foot on the pedal', knees: 'Slight bend at the bottom of the stroke', hips: 'Level on the saddle', core: 'Braced', back: 'Neutral, hinged forward', shoulders: 'Relaxed', head: 'Neutral', elbows: 'Soft', wrists: 'Neutral', grip: 'Light on the bars', breath: 'Steady' }, equipment: { seat: 'Hip height standing beside the bike' } },
+};
+// Pattern setup for one variation, adjusted for the seated / kneeling / one-arm versions the title declares.
+function positionFromPattern(varUuid) {
+  const mv = (varUuid && typeof motionForVariation === 'function') ? motionForVariation(varUuid) : null;
+  const base = mv && positionByPattern[mv.motion];
+  if (!base) return null;
+  const body = { ...base.body }, o = mv.opts || {};
+  if (o.seat) { body.feet = 'Flat on the floor, seated'; body.knees = 'Bent about 90°'; body.hips = 'Seated tall'; }
+  if (o.kneel === 'half') { body.feet = 'Front foot flat, back knee down'; body.knees = 'Both at about 90°'; body.hips = 'Square, glute of the down leg squeezed'; }
+  else if (o.kneel) { body.feet = 'Tucked behind'; body.knees = 'Kneeling on a pad'; body.hips = 'Stacked over the knees'; }
+  if (o.uni) body.grip = 'One hand; brace with the other';
+  Object.keys(body).forEach(k => { if (body[k] === '—') delete body[k]; });
+  return { body, equipment: base.equipment ? { ...base.equipment } : {}, fromPattern: true };
+}
 function getPosition(variation, parentId) {
   if (variation.position) {
     // Merge with defaults if available
@@ -42357,10 +42452,10 @@ function getPosition(variation, parentId) {
     }
     return variation.position;
   }
-  return positionDefaults[parentId] || null;
+  return positionDefaults[parentId] || positionFromPattern(variation && variation.uuid) || null; // feat 562 — the movement pattern's setup
 }
 
-function renderPosition(uid, position) {
+function renderPosition(uid, position, varUuid) {
   if (!position) return '';
   const bodyRows = [];
   const equipRows = [];
@@ -42380,6 +42475,8 @@ function renderPosition(uid, position) {
   return `<div class="position-wrap" data-pid="${uid}">
     <div class="position-toggle" onclick="togglePos('${uid}')"><span>📐 Body Position & Setup</span><span class="pos-chev">▶</span></div>
     <div class="position-table">
+      ${position.fromPattern ? `<div class="pos-pattern-note">General setup for this movement pattern</div>` : ''}
+      ${varUuid ? `<button type="button" class="pos-speak" data-pos-speak="${escapeAttr(varUuid)}" onclick="event.stopPropagation();startPositionPodcast(this.dataset.posSpeak)">🎧 Read the setup aloud</button>` : ''}
       ${bodyRows.length ? `<div class="position-section-title">Body</div>${bodyRows.join('')}` : ''}
       ${equipRows.length ? `<div class="position-section-title">Equipment</div>${equipRows.join('')}` : ''}
     </div>
@@ -42605,7 +42702,7 @@ function renderRef() {
                         ${liveSubOptions(sub.options).map((o, i) => `<option value="${o.value}" data-uuid="${o.uuid || ''}">${o.label}${o.note ? ' — ' + o.note : ''}</option>`).join('')}
                       </select>
                     </div>` : ''}
-                    ${renderPosition(ex.id + '-' + v.id, getPosition(v, ex.id))}
+                    ${renderPosition(ex.id + '-' + v.id, getPosition(v, ex.id), v.uuid)}
                     ${v.setup ? `<div class="var-section"><div class="var-section-title">Setup</div><div class="var-section-content"><ul>${v.setup.map(s => `<li>${s}</li>`).join('')}</ul></div></div>` : ''}
                     ${v.movement ? `<div class="var-section"><div class="var-section-title">Movement</div><div class="var-section-content"><ul>${v.movement.map(s => `<li>${s}</li>`).join('')}</ul></div></div>` : ''}
                     ${v.mistakes ? `<div class="var-section"><div class="var-section-title warn">Mistakes</div><div class="var-section-content"><ul>${v.mistakes.map(s => `<li>${s}</li>`).join('')}</ul></div></div>` : ''}
@@ -43495,6 +43592,48 @@ function variationPodcast(varUuid) {
   if (flav.out) why += flav.out;
   if (why.trim()) segs.push({ kind: 'entry', label: 'Why it works', text: why.replace(/\s+/g, ' ').trim() });
   return { persona, title, segs };
+}
+/* feat 562 — the standardized SETUP read aloud: the reference's Body Position table (feet, knees, hips, core,
+   back, shoulders, head, elbows, wrists, grip, breathing, then the equipment settings), in the same order the
+   table shows it — ground up, the order you actually set up in — through the same player and coach voice as
+   the brief, so pause / skip / stop work the same. One segment per body part, so ⏭ steps part by part. */
+function positionForVar(varUuid) {
+  const info = VAR_INDEX.get(varUuid); if (!info) return null;
+  const refEx = (typeof exercises !== 'undefined' ? exercises : []).find(e => e.id === info.family.id);
+  if (!refEx) return positionFromPattern(varUuid);
+  const rv = (refEx.variations || []).find(x => x.uuid === varUuid || x.id === info.variation.id) || info.variation;
+  return getPosition({ ...rv, uuid: varUuid }, refEx.id);
+}
+// Abbreviations a voice would spell out, and the table's "/" shorthand for alternatives.
+function _posSpeech(s) {
+  const t = String(s || '').replace(/\bBW\b/g, 'bodyweight').replace(/\bDBs?\b/g, 'dumbbell').replace(/\bBB\b/g, 'barbell').replace(/\bKBs?\b/g, 'kettlebell')
+    .replace(/\s*\/\s*/g, ' or ').replace(/\b([A-Z]{4,})\b/g, w => w.toLowerCase());
+  return (typeof _speechClean === 'function' ? _speechClean(t) : t).replace(/,\s*([.!?])/g, '$1').replace(/,\s*$/, '');
+}
+function positionPodcast(varUuid) {
+  const pos = positionForVar(varUuid), info = VAR_INDEX.get(varUuid);
+  if (!pos || !info) return null;
+  const skip = v => !v || /^(per variation|n\/a|—|-)$/i.test(String(v).trim());
+  const body = Object.entries(pos.body || {}).filter(([, v]) => !skip(v));
+  const equip = Object.entries(pos.equipment || {}).filter(([, v]) => !skip(v));
+  if (!body.length && !equip.length) return null;
+  const title = info.variation.title || info.family.title;
+  const persona = (typeof variationCoachPersona === 'function') ? variationCoachPersona(varUuid) : 'gruff';
+  const segs = [{ kind: 'entry', label: 'Setup', text: _posSpeech('Setting up for ' + title + '. From the ground up.') }];
+  body.forEach(([k, v]) => { const lab = bodyLabels[k] || (k.charAt(0).toUpperCase() + k.slice(1)); const val = String(v).trim(); segs.push({ kind: 'entry', label: lab, text: _posSpeech(lab.replace('/', ' and ') + '. ' + val.charAt(0).toUpperCase() + val.slice(1) + '.') }); });
+  if (equip.length) segs.push({ kind: 'entry', label: 'Equipment', text: _posSpeech('The equipment. ' + equip.map(([k, v]) => (equipLabels[k] || k) + ': ' + v).join('. ') + '.') });
+  return { persona, title, segs };
+}
+function startPositionPodcast(varUuid) {
+  if (!_podSupported()) { toast('Speech is not available in this browser'); return; }
+  if (typeof sndAudioOn === 'function' && !sndAudioOn()) { toast('🔇 Unmute audio to listen'); return; }
+  const built = positionPodcast(varUuid);
+  if (!built) { toast('No setup guide for that movement yet'); return; }
+  if (_glossPod) _podStop();
+  // kind 'variation': an exercise read-out, so it never moves the study podcast's resume point
+  _glossPod = { segs: built.segs, idx: 0, gen: 0, paused: false, order: 'logical', kind: 'variation', persona: built.persona, title: 'Setup — ' + built.title };
+  _podStartResumeHack();
+  _podPlay(0);
 }
 // Start the brief through the shared player (with the movement's coach). Stops any pod already running first.
 function startVariationPodcast(varUuid) {

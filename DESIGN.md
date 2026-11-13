@@ -2665,6 +2665,24 @@ They share variation **UUIDs**.
   primary rows and the cross-linked (secondary) rows, stacks with every other pill and the plan-step filter, and
   🎲 random pick honours it for free since it reads the rendered list. Like its siblings it lives in
   `modalState` only — it persists across picker opens but not reloads. `test/pickerrecent.spec.mjs`.
+- **The setup, read aloud (feat 562):** the reference's 📐 Body Position & Setup table (feet, knees, hips, core,
+  back, shoulders, head/neck, elbows, wrists, grip, breathing, then the equipment settings) can be played like the
+  brief. `positionPodcast(uuid)` builds one segment per body part, in the table's ground-up order, and
+  `startPositionPodcast` plays it through the shared pod player (`_glossPod`, `kind: 'variation'`), so it uses the
+  movement's coach voice, ⏭ steps part by part, and it never moves the study podcast's resume point. `_posSpeech`
+  speaks the table's shorthand (BW / DB / KB, "/" as "or", ALL-CAPS emphasis, then `_speechClean` for ~ ° &).
+  - **Where:** "📐 Read the setup aloud" in the log sheet's 🎧 Brief tab, beside "Play this brief aloud", and a
+    "🎧 Read the setup aloud" button inside every Body Position table (log sheet Full tab and Reference).
+    `renderPosition` takes the variation uuid as a third argument for it.
+  - **Coverage:** `positionDefaults` covered 28 families, about a third of the catalogue. `positionByPattern`
+    adds a setup per motion template (hinge, squat, row, press, carry, plank, curl, Olympic lift and about 55
+    more), and `getPosition` falls back to it through `positionFromPattern(uuid)`, which reads the feat-556
+    `motionForVariation` route. That route also gives the seated, kneeling, half-kneeling and one-arm
+    adjustments. A variation's own table still wins, then its family's. A pattern table is labelled "General
+    setup for this movement pattern". About 85% of variations now have one; stretches, rolling, rest and most
+    cardio have none (`smash`, `lunge-stretch`, `mobility`, `run`, `rest` have no entry on purpose).
+  - `test/setupaloud.spec.mjs`; it stubs speech with `Object.defineProperty`, because `window.speechSynthesis`
+    is a read-only getter.
 - **Cowork: review before applying (feat 561):** house standard 3. A cowork reply used to change the log the
   moment it was polled; now every channel has a **Review first** switch, ON by default.
   - **Settings:** `state.coworkReview` is `{channelKey: bool}` (absent = on), in `SETTINGS_KEYS` and not
