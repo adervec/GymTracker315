@@ -169,3 +169,30 @@ test('feat 429 — the all-weights popup carries the 🛠 entry point', async ({
   expect(r.hasFix).toBe(true);
   expect(r.opened).toBe(true);
 });
+
+test('feat 564 — squash (prefilled with the max) and retype a weight, across all time, through the sheet', async ({ page }) => {
+  const { target } = await seed(page);
+  const r = await page.evaluate(async (target) => {
+    state.exerciseMaxW = {}; setExMaxW(target, 95);
+    pending.varUuid = target; pending.subUuid = null; pending.sets = [{ w: '', r: '' }];
+    openLogModal(); modalState.showPicker = false; renderModal();
+    const run = async (fill, op) => {
+      showFixWeightsPopup();
+      const sheet = [...document.querySelectorAll('.choice-backdrop')].pop();
+      const pre = sheet.querySelector('#fixw-squash').value;
+      fill(sheet);
+      sheet.querySelector(`[data-fixw-op="${op}"]`).click();
+      await new Promise(r => setTimeout(r, 50));
+      [...document.querySelectorAll('.choice-backdrop')].pop().querySelector('.choice-btn.danger').click();
+      await new Promise(r => setTimeout(r, 300));
+      return pre;
+    };
+    const pre = await run(() => {}, 'squash');                       // the default: the 95 max
+    const afterSquash = state.sessions.map(s => s.exercises[0].sets.map(x => x.w));
+    await run(sh => { sh.querySelector('#fixw-from').value = 90; sh.querySelector('#fixw-to').value = 92.5; }, 'retype');
+    return { pre, afterSquash, afterRetype: state.sessions.map(s => s.exercises[0].sets.map(x => x.w)) };
+  }, target);
+  expect(r.pre).toBe('95');
+  expect(r.afterSquash).toEqual([[95], [90, 95, ''], [50]]);   // the 40-day-old set too; other variation untouched
+  expect(r.afterRetype).toEqual([[95], [92.5, 95, ''], [50]]);
+});

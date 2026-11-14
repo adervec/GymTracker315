@@ -3868,6 +3868,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .wt-table th.on { color: var(--accent); }
 .wt-table td { padding: 6px 5px; text-align: right; border-top: 1px solid var(--border2); white-space: nowrap; }
 .wt-table td.wt-w { font-weight: 800; color: var(--accent); }
+.wt-table tr.wt-proj td { font-style: italic; opacity: .6; } /* feat 565 — projected, never logged */
+.wt-proj-toggle { margin: 0 0 6px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border2); background: transparent; color: var(--text2); font: inherit; font-size: 11px; cursor: pointer; }
 .wt-table tbody tr { cursor: pointer; }
 .wt-table tbody tr:active { background: var(--bg3); }
 .wt-table .wt-date { display: block; font-size: 9px; color: var(--text3); font-weight: 400; }
@@ -15611,11 +15613,12 @@ function getNeighborBaselines(varUuid, subUuid, currentWeightNum) {
       const lw = lighterWeights[lighterWeights.length - 1];
       lighter = weightMap.get(lw);
     }
-    // Closest heavier: smallest weight strictly greater than currentWeightNum
-    const heavierWeights = allWeights.filter(w => w > currentWeightNum);
-    if (heavierWeights.length > 0) {
-      const hw = heavierWeights[0];
-      heavier = weightMap.get(hw);
+    // feat 563 — heavier: the MOST IMPRESSIVE set above this weight, not just the nearest one (11 @ 205 beats
+    // 10 @ 200 when trying 195). Ranked by e1RM; a tie goes to the closer weight.
+    for (const w of allWeights) {
+      if (w <= currentWeightNum) continue;
+      const c = weightMap.get(w), sc = d => d.w * (1 + d.r / 30);
+      if (!heavier || sc(c) > sc(heavier)) heavier = c;
     }
   } else {
     // No valid weight entered yet — show lightest and heaviest as general reference
@@ -32444,6 +32447,27 @@ function exWeightRows(varUuid, subUuid) {
   });
   return { rows, cap, allBest };
 }
+/* feat 565 — the weights never logged, filled in. With 4+ logged weights that all sit on one obvious step (every gap
+   a multiple of the smallest one), each missing rung, and the rungs on up to the ⚖️ max, gets a PROJECTED row: the
+   reps the projection e1RM (R.cap) predicts there, and its PR odds. Funky stacks show no clear step, so no rows,
+   and the table can hide them per exercise anyway. ponytail: at most 40 rows; skips the fill if more are missing. */
+function exWeightGaps(R, varUuid) {
+  const ws = R.rows.map(r => r.w).sort((a, b) => a - b);
+  if (ws.length < 4) return [];
+  const step = Math.min(...ws.slice(1).map((w, i) => w - ws[i]));
+  const onStep = d => Math.abs(d / step - Math.round(d / step)) < 1e-6;
+  if (!(step > 0) || !ws.every(w => onStep(w - ws[0]))) return [];
+  const top = Math.max(ws[ws.length - 1], exMaxW(varUuid) || 0), have = new Set(ws.map(w => Math.round(w / step)));
+  const out = [];
+  for (let k = Math.round(ws[0] / step); k * step <= top + 1e-9; k++) {
+    if (have.has(k)) continue;
+    if (out.length >= 40) return [];
+    const w = Math.round(k * step * 100) / 100, r = Math.max(1, Math.round(30 * (R.cap / w - 1)));
+    const odds = need => Math.round(100 / (1 + Math.exp(-((30 * (R.cap / w - 1)) - need) / 1.5)));
+    out.push({ w, proj: true, best: { e: estimated1RM(w, r), r, date: null }, last: null, d90: null, pw: odds(1), pv: odds(e1NeedAt(w, R.allBest)) });
+  }
+  return out;
+}
 /* feat 477 — the target row learns what THIS session has already done.
    • exPrTargets: the two picks the row was missing — the weight most vulnerable to a weight PR (highest
      `pw`, i.e. one more rep than its own record is most reachable), and the weight × reps most likely to
@@ -32894,7 +32918,7 @@ let _wtSort = { col: 'w', dir: -1 };
 function _wtSortVal(row, col) {
   return col === 'w' ? row.w
     : col === 'best' ? row.best.e
-    : col === 'last' ? new Date(row.last.date).getTime()
+    : col === 'last' ? (row.last ? new Date(row.last.date).getTime() : -1)
     : col === 'd90' ? (row.d90 ? row.d90.e : -1)
     : col === 'obj' ? (row.obj ? row.obj.tier : -1) // feat 440
     : col === 'pw' ? row.pw : row.pv;
@@ -33029,17 +33053,20 @@ function showWeightTablePopup() {
   R.rows.forEach(r => { r.obj = objectiveSetTier(pending.varUuid, { w: r.w, r: r.best.r }); }); // feat 440 — 🌍 read at each weight's best reps
   _wtSort = { col: 'w', dir: -1 };
   const fd = (d) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: '2-digit' });
-  const cell = (x) => x ? `${Math.round(x.e)}<span class="wt-reps">×${x.r}</span><span class="wt-date">${fd(x.date)}</span>` : '—'; // feat 440 — reps of the set behind each e1RM
+  const cell = (x) => x ? `${x.date ? '' : '~'}${Math.round(x.e)}<span class="wt-reps">×${x.r}</span><span class="wt-date">${x.date ? fd(x.date) : 'projected'}</span>` : '—'; // feat 440 — reps of the set behind each e1RM
   const hasObj = R.rows.some(r => r.obj); // biometrics present → show the 🌍 column
   const COLS = [['w', 'Weight'], ['best', 'Best e1RM'], ['last', 'Last'], ['d90', '90d best'], ...(hasObj ? [['obj', '🌍']] : []), ['pw', 'PR wt'], ['pv', 'PR all']];
   const close = () => { back.classList.remove('open'); setTimeout(() => back.remove(), 200); };
   const back = document.createElement('div'); back.className = 'choice-backdrop';
   const head = () => COLS.map(([k, l]) => `<th data-wt-col="${k}" class="${_wtSort.col === k ? 'on' : ''}">${l}${_wtSort.col === k ? (_wtSort.dir < 0 ? ' ▾' : ' ▴') : ''}</th>`).join('');
-  const tbody = () => R.rows.slice().sort((a, b) => (_wtSortVal(a, _wtSort.col) - _wtSortVal(b, _wtSort.col)) * _wtSort.dir)
-    .map(r => `<tr data-wt-w="${r.w}"><td class="wt-w">${r.w}</td><td>${cell(r.best)}</td><td>${cell(r.last)}</td><td>${cell(r.d90)}</td>${hasObj ? `<td>${r.obj ? `<span class="wt-obj obj-${r.obj.key}">${r.obj.label}</span>` : '—'}</td>` : ''}<td class="wt-idx" style="${_wtPctColor(r.pw)}">${r.pw}%</td><td class="wt-idx" style="${_wtPctColor(r.pv)}">${r.pv}%</td></tr>`).join('');
+  const gaps = exWeightGaps(R, pending.varUuid); // feat 565 — projected rows for the weights in between
+  const hideProj = () => !!(state.wtHideProj && state.wtHideProj[pending.varUuid]);
+  const projBtn = () => gaps.length ? `<button type="button" class="wt-proj-toggle" data-wt-proj>${hideProj() ? `Show ${gaps.length} projected weight${gaps.length === 1 ? '' : 's'}` : 'Hide projected weights'}</button>` : '';
+  const tbody = () => (hideProj() ? R.rows : R.rows.concat(gaps)).slice().sort((a, b) => (_wtSortVal(a, _wtSort.col) - _wtSortVal(b, _wtSort.col)) * _wtSort.dir)
+    .map(r => `<tr data-wt-w="${r.w}"${r.proj ? ' class="wt-proj"' : ''}><td class="wt-w">${r.w}</td><td>${cell(r.best)}</td><td>${cell(r.last)}</td><td>${cell(r.d90)}</td>${hasObj ? `<td>${r.obj ? `<span class="wt-obj obj-${r.obj.key}">${r.obj.label}</span>` : '—'}</td>` : ''}<td class="wt-idx" style="${_wtPctColor(r.pw)}">${r.pw}%</td><td class="wt-idx" style="${_wtPctColor(r.pv)}">${r.pv}%</td></tr>`).join('');
   back.innerHTML = `<div class="choice-sheet wt-sheet"><div class="choice-title">All weights — tap one to load it</div>
     <div class="wt-view-toggle" role="tablist"><button type="button" role="tab" data-wt-view="table">Table</button><button type="button" role="tab" data-wt-view="chart">Chart</button></div>
-    <div class="wt-table-wrap"><table class="wt-table"><thead><tr>${head()}</tr></thead><tbody>${tbody()}</tbody></table></div>
+    <div class="wt-table-wrap"><div class="wt-proj-bar">${projBtn()}</div><table class="wt-table"><thead><tr>${head()}</tr></thead><tbody>${tbody()}</tbody></table></div>
     <div class="wt-chart-wrap" hidden></div>
     <div class="choice-actions"><button class="choice-btn" type="button" data-wt-fix>🛠 Fix weights</button><button class="choice-btn" type="button">Close</button></div></div>`;
   // feat 515 — Table | Chart. The chart is drawn when first shown (it needs the sheet's real width).
@@ -33059,6 +33086,11 @@ function showWeightTablePopup() {
     const vb = e.target.closest('[data-wt-view]');
     if (vb) { setView(vb.dataset.wtView); return; }
     if (e.target.closest('.wt-chart-wrap')) return; // the chart's own layer handles its taps
+    if (e.target.closest('[data-wt-proj]')) { // feat 565 — per exercise, kept (some stacks are not even steps)
+      state.wtHideProj = state.wtHideProj || {};
+      if (hideProj()) delete state.wtHideProj[pending.varUuid]; else state.wtHideProj[pending.varUuid] = true;
+      saveState(); back.querySelector('.wt-proj-bar').innerHTML = projBtn(); back.querySelector('tbody').innerHTML = tbody(); return;
+    }
     const th = e.target.closest('[data-wt-col]');
     if (th) { const c = th.dataset.wtCol; _wtSort = { col: c, dir: _wtSort.col === c ? -_wtSort.dir : -1 }; back.querySelector('thead tr').innerHTML = head(); back.querySelector('tbody').innerHTML = tbody(); return; }
     const tr = e.target.closest('[data-wt-w]');
@@ -33122,6 +33154,21 @@ function capViolationFix(varUuid, mode, apply) {
   if (apply && nSess) saveState();
   return { sets: nSets, sessions: nSess };
 }
+/* feat 564 — set every logged weight that matches pred(w) to `to`, across ALL of this variation's history:
+   squash (w > X → X) and retype (w == 296 → 295). apply=false only counts. Re-stamps updatedAt for sync. */
+function setVariationWeightsWhere(varUuid, pred, to, apply) {
+  let nSets = 0, nSess = 0;
+  (state.sessions || []).forEach(s => {
+    let touched = false;
+    (s.exercises || []).forEach(ex => {
+      if (ex.varUuid !== varUuid || ex.cardio) return;
+      (ex.sets || []).forEach(set => { const w = parseFloat(set.w); if (isNaN(w) || !pred(w)) return; if (apply) set.w = to; nSets++; touched = true; });
+    });
+    if (touched) { nSess++; if (apply) s.updatedAt = new Date().toISOString(); }
+  });
+  if (apply && nSess) saveState();
+  return { sets: nSets, sessions: nSess };
+}
 function showFixWeightsPopup() {
   if (roBlocked('fix logged weights')) return;
   if (!pending.varUuid) return;
@@ -33151,6 +33198,8 @@ function showFixWeightsPopup() {
     </div>
     <div class="choice-msg" id="fixw-preview"></div>
     ${capHtml}
+    <div class="choice-msg" style="margin-top:8px;"><b>⤵ Squash</b>: every set over <input type="number" step="any" id="fixw-squash" aria-label="Squash to weight" value="${cap || ''}" placeholder="${state.unit}" style="width:70px"> ${state.unit} becomes that weight. <button class="choice-btn" type="button" data-fixw-op="squash">Squash</button></div>
+    <div class="choice-msg"><b>✏️ Retype</b>: every set at <input type="number" step="any" id="fixw-from" aria-label="Weight to change" style="width:60px"> becomes <input type="number" step="any" id="fixw-to" aria-label="New weight" style="width:60px"> ${state.unit}. <button class="choice-btn" type="button" data-fixw-op="retype">Change</button></div>
     <div class="choice-actions"><button class="choice-btn primary" data-fixw="apply">Apply</button><button class="choice-btn" data-fixw="cancel">Cancel</button></div></div>`;
   const sinceMs = () => sinceDays ? Date.now() - sinceDays * 86400000 : 0;
   const preview = () => {
@@ -33172,6 +33221,22 @@ function showFixWeightsPopup() {
         if (!ok) return;
         const r = rescaleVariationWeights(pending.varUuid, factor, since, true);
         toast(`✅ ${r.sets} set weight${r.sets === 1 ? '' : 's'} ×${factor}`);
+        close(); renderModal();
+      });
+      return;
+    }
+    const op = e.target.closest('[data-fixw-op]'); // feat 564 — squash / retype, all time
+    if (op) {
+      const num = id => parseFloat(back.querySelector(id).value);
+      let pred, to, what;
+      if (op.dataset.fixwOp === 'squash') { to = num('#fixw-squash'); if (isNaN(to)) { toast('Enter the weight to squash to'); return; } pred = w => w > to; what = `over ${to}${state.unit} down to ${to}${state.unit}`; }
+      else { const from = num('#fixw-from'); to = num('#fixw-to'); if (isNaN(from) || isNaN(to) || from === to) { toast('Enter two different weights'); return; } pred = w => Math.abs(w - from) < 1e-9; what = `at ${from}${state.unit} to ${to}${state.unit}`; }
+      const p = setVariationWeightsWhere(pending.varUuid, pred, to, false);
+      if (!p.sets) { toast('No logged sets match'); return; }
+      confirmDialog(`Change ${p.sets} set${p.sets === 1 ? '' : 's'} in ${p.sessions} session${p.sessions === 1 ? '' : 's'} ${what}? This rewrites history.`, { danger: true, okLabel: 'Change' }).then(ok => {
+        if (!ok) return;
+        const r = setVariationWeightsWhere(pending.varUuid, pred, to, true);
+        toast(`✅ ${r.sets} set${r.sets === 1 ? '' : 's'} changed`);
         close(); renderModal();
       });
       return;
@@ -34525,7 +34590,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 478 · 2026-11-13 08:59';
+const APP_BUILD = 'build 479 · 2026-11-14 12:11';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

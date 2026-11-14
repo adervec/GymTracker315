@@ -105,3 +105,19 @@ test('feat 515 — fewer than two weights says so instead of drawing a single do
   const txt = await page.evaluate(() => document.querySelector('.wt-chart-wrap').textContent);
   expect(txt).toMatch(/at least two different weights/);
 });
+
+test('feat 565 — missing weights on an obvious step get projected rows, up to the max, and can be hidden', async ({ page }) => {
+  await page.evaluate(() => { let v; for (const [u, i] of VAR_INDEX) if (i.variation.id === 'bb-flat-bench') v = u; state.exerciseMaxW = { [v]: 225 }; state.wtHideProj = {}; });
+  await open(page, 'table', [[200, 8, 40], [205, 6, 30], [215, 4, 20], [195, 9, 10]]);
+  const rows = () => page.evaluate(() => [...document.querySelectorAll('.choice-backdrop .wt-table tbody tr')].map(t => (t.classList.contains('wt-proj') ? 'p' : '') + t.dataset.wtW));
+  expect((await rows()).sort()).toEqual(['195', '200', '205', '215', 'p210', 'p220', 'p225'].sort());
+  const cell = await page.evaluate(() => document.querySelector('.wt-table tr.wt-proj[data-wt-w="210"] td:nth-child(2)').textContent);
+  expect(cell).toMatch(/^~\d+×\d+projected$/);
+  await page.locator('[data-wt-proj]').click();
+  expect((await rows()).filter(r => r.startsWith('p'))).toEqual([]);
+  expect(await page.evaluate(() => Object.values(state.wtHideProj))).toEqual([true]);   // remembered for this exercise
+  // an uneven "funky stack" has no obvious step: no projected rows at all
+  await page.evaluate(() => { document.querySelectorAll('.choice-backdrop').forEach(b => b.remove()); state.wtHideProj = {}; });
+  await open(page, 'table', [[200, 8, 40], [207, 6, 30], [215, 4, 20], [222, 3, 10]]);
+  expect((await rows()).filter(r => r.startsWith('p'))).toEqual([]);
+});

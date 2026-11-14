@@ -5347,3 +5347,17 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
 > HR auto‑reconnect call in the INIT block ran *above* the `let _hrConnected` declaration, so it threw a
 > temporal‑dead‑zone rejection on every load and **auto‑reconnect never actually ran**. Fixed by deferring the call
 > one tick (`setTimeout(hrTryReconnect, 0)`) so it fires after the script finishes initializing.
+- **The heavier card shows the most impressive heavier set (feat 563):** `getNeighborBaselines` picks, among
+  weights above the one typed, the best-at-weight set with the highest e1RM (`w·(1+r/30)`), with ties going to the
+  closer weight. Trying 195 with 10 @ 200 and 11 @ 205 logged shows 11 @ 205. ▼ Lighter is still the nearest weight.
+- **Squash and retype in Fix weights (feat 564):** `setVariationWeightsWhere(uuid, pred, to, apply)` sets every
+  logged weight matching `pred` to `to`, across all of the variation's history, and re-stamps `updatedAt` so sync
+  carries the change. The 🛠 Fix weights sheet has two uses for it: **⤵ Squash** (every set over X becomes X, with
+  X prefilled from the exercise's ⚖️ max when one is set) and **✏️ Retype** (every set at A becomes B, e.g.
+  296 → 295). Both preview the count and ask for confirmation.
+- **Projected rows for the missing weights (feat 565):** `exWeightGaps(R, uuid)` runs when 4 or more weights are
+  logged and every one sits on a clear step (each gap is a multiple of the smallest). It then adds a projected row
+  for each missing rung, and for the rungs above up to the ⚖️ max. The row shows the reps the projection e1RM
+  (`R.cap`) predicts there (`~e1RM×reps`, dated "projected") and its PR odds, in italic and dimmed. It adds at most
+  40 rows. "Hide projected weights" is kept per exercise in `state.wtHideProj`, since some stacks don't go up in
+  even steps.

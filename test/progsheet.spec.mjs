@@ -200,3 +200,17 @@ test('the e1RM card still shows when the entered weight already has a baseline (
   expect(r.e1).toBe(true);
   expect(r.lighter).toBe(false);                 // baseline exists at 100 → neighbors stay hidden, e1RM stays
 });
+
+test('feat 563 — the heavier card shows the most impressive heavier set, not just the nearest weight', async ({ page }) => {
+  await openWith(page, [{ daysAgo: 2, sets: [[200, 10]] }, { daysAgo: 9, sets: [[205, 11]] }, { daysAgo: 16, sets: [[190, 8]] }]);
+  const r = await page.evaluate(() => {
+    pending.sets = [{ w: 195, r: '' }]; savePending();
+    renderNeighborHints();
+    const h = document.querySelector('#trk-neighbor-hints .neighbor-hint.heavier');
+    return { w: h.querySelector('.neighbor-hint-weight').textContent.trim(), reps: h.querySelector('.neighbor-hint-reps').textContent.trim(),
+      lighter: document.querySelector('#trk-neighbor-hints .neighbor-hint.lighter .neighbor-hint-weight').textContent.trim() };
+  });
+  expect(r.w).toMatch(/^205/);          // 11 @ 205, not 10 @ 200
+  expect(r.reps).toMatch(/11 reps/);
+  expect(r.lighter).toMatch(/^190/);    // lighter is unchanged: the nearest one
+});
