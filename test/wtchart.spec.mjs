@@ -113,7 +113,7 @@ test('feat 565 — missing weights on an obvious step get projected rows, up to 
   expect((await rows()).sort()).toEqual(['195', '200', '205', '215', 'p210', 'p220', 'p225'].sort());
   const cell = await page.evaluate(() => document.querySelector('.wt-table tr.wt-proj[data-wt-w="210"] td:nth-child(2)').textContent);
   expect(cell).toMatch(/^~\d+×\d+projected$/);
-  await page.locator('[data-wt-proj]').click();
+  await page.evaluate(() => document.querySelector('.choice-backdrop [data-wt-proj]').click()); // the sheet slides up on a phone: a geometric tap can land on the backdrop mid-animation
   expect((await rows()).filter(r => r.startsWith('p'))).toEqual([]);
   expect(await page.evaluate(() => Object.values(state.wtHideProj))).toEqual([true]);   // remembered for this exercise
   // an uneven "funky stack" has no obvious step: no projected rows at all

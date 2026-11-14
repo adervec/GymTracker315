@@ -5361,3 +5361,24 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   (`R.cap`) predicts there (`~e1RM×reps`, dated "projected") and its PR odds, in italic and dimmed. It adds at most
   40 rows. "Hide projected weights" is kept per exercise in `state.wtHideProj`, since some stacks don't go up in
   even steps.
+- **Sleep analysis (feat 566):** this gives the wearable log from the Garmin cowork channel the analysis a sleep app
+  would. `normRecoveryFields` now also keeps `SLEEP_DETAIL`: stage minutes (deep / REM / light / awake), naps, sleep
+  need (any `…Sec` alias is converted), and `bedtime` / `wakeTime` as the local wall clock "HH:MM"
+  (`_sleepClock` accepts "23:40", "11:40 PM" or a local ISO time).
+  - **`sleepAnalysis()`** covers the last 30 nights, each dated by its wake-up morning:
+    - 7- and 30-night averages, and sleep debt over 7 days against your need (the median `sleepNeedMin`, otherwise 8 h);
+    - bed and wake spread (measured from noon, so the average works across midnight);
+    - weekend "social jet lag" (the shift in sleep midpoint);
+    - the stage mix;
+    - nights after training against nights after rest days (score, duration, HRV);
+    - late workouts (ending after 20:00);
+    - workout grades after short nights against full ones.
+  - **Findings:** each needs enough nights on both sides, or it says nothing. `sleepFindings` turns them into
+    plain sentences, worst first.
+  - **The card** (inside 😴 Sleep & Recovery) shows tiles, a 30-night stacked stage chart with a dashed line at
+    your need (each bar's `<title>` is its readout), the findings, and the newest agent review.
+  - **Cowork:** the Garmin context sends `sleepAnalysis` and `lastSleepReview`. The instructions ask for the stage
+    and clock fields, plus an optional weekly `sleepReview` (`{ date, title, summary, patterns[], suggestions[] }`).
+    The agent must use the app's own numbers, not recompute them, and send anything that looks medical to a doctor.
+    `coworkImportGarmin` validates and clips the review into `state.sleepReviews[date]`, which syncs per entry
+    (`SYNC_COLLECTION_KEYS`) and shows in review as "Sleep review".

@@ -26,7 +26,7 @@ test('feat 560 — Settings carries the shared picker: font, pinch-zoom (off), b
   await page.waitForFunction(() => window.appFont && typeof openSettingsDrawer === 'function');
   await page.evaluate(() => openSettingsDrawer());
   const pick = page.locator('app-font-picker');
-  await expect(pick.locator('select option')).toHaveCount(4);
+  await expect(pick.locator('select:has(option[value=serif]) option')).toHaveCount(4);
   const zoom = pick.locator('input[type=checkbox]').first();
   await expect(zoom).not.toBeChecked();
   expect(await page.evaluate(() => document.querySelector('meta[name=viewport]').content)).toMatch(/user-scalable=no/);
