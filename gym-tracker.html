@@ -1060,21 +1060,23 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
       .then(function (r) { return r.json(); })
       .then(function (j) { return (j.files || []).map(function (f) { return f.name; }).filter(function (n) { return n.indexOf(prefix) === 0; }); });
   }
-  function driveWrite(name, text) {
+  // body: text, or a Blob for a binary file; mime defaults to JSON
+  function driveWrite(name, body, mime) {
+    mime = mime || 'application/json';
     return gFind(name).then(function (id) {
-      if (id) return gApi('upload/drive/v3/files/' + id + '?uploadType=media', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: text });
+      if (id) return gApi('upload/drive/v3/files/' + id + '?uploadType=media', { method: 'PATCH', headers: { 'Content-Type': mime }, body: body });
       var b = 'b' + randomId().replace(/-/g, '');
-      var body = '--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ name: name, parents: ['appDataFolder'] }) +
-        '\r\n--' + b + '\r\nContent-Type: application/json\r\n\r\n' + text + '\r\n--' + b + '--';
-      return gApi('upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + b }, body: body });
+      var multi = new Blob(['--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ name: name, parents: ['appDataFolder'] }) +
+        '\r\n--' + b + '\r\nContent-Type: ' + mime + '\r\n\r\n', body, '\r\n--' + b + '--']);
+      return gApi('upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + b }, body: multi });
     }).then(function () {});
   }
 
   // ---- Cold backup (hub roadmap chunk 2a) ------------------------------------------------------------
   // Every app shares the origin, so one page can read all of their settings and databases into one
   // file the reader keeps wherever they like. This half only READS: nothing here writes app data.
-  // TODO(chunk 2b): restore. One app at a time, a fresh backup first, tested by restoring into a clean
-  // browser and comparing every record; open problem: Drive sync pulling over, or pushing, restored data.
+  // Restore (chunk 2b) lives on the hub's Backup page (backup.html): it reads a file as a stream, takes a
+  // safety copy of what it is about to replace, and rebuilds values with dec() below.
   // Memory: records are read a batch at a time and handed to the browser as Blob pieces (which it may
   // keep on disk), so the page never holds a whole database, let alone the whole backup.
   // ponytail: one record is still held whole (a single 500 MB recording would hurt); binary is base64.
@@ -1115,6 +1117,29 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
       keys.forEach(function (k, i) { o[k] = vals[i]; });
       return '$t' in o ? { $t: 'obj', v: o } : o;
     });
+  }
+  // the reverse of enc, for restore: a value read from a backup file becomes what it was.
+  // Throws on a value that cannot be rebuilt (a folder handle, a crypto key), so the caller can skip it.
+  var VIEWS = /^(Int8|Uint8|Uint8Clamped|Int16|Uint16|Int32|Uint32|Float32|Float64|BigInt64|BigUint64)Array$|^DataView$/;
+  function unb64(s) { var b = atob(s || ''), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+  function dec(v) {
+    if (v === null || typeof v !== 'object') return v;
+    if (Array.isArray(v)) return v.map(dec);
+    var o = {};
+    if (typeof v.$t !== 'string') { Object.keys(v).forEach(function (k) { o[k] = dec(v[k]); }); return o; }
+    switch (v.$t) {
+      case 'undef': return undefined;
+      case 'bigint': return BigInt(v.v);
+      case 'num': return Number(v.v);
+      case 'date': return new Date(v.v == null ? NaN : v.v);
+      case 'blob': return v.name != null ? new File([unb64(v.b64)], v.name, { type: v.type || '', lastModified: v.lastModified }) : new Blob([unb64(v.b64)], { type: v.type || '' });
+      case 'buf': return unb64(v.b64).buffer;
+      case 'view': if (!VIEWS.test(v.ctor)) throw new Error('Unknown binary kind'); return new window[v.ctor](unb64(v.b64).buffer);
+      case 'map': return new Map(dec(v.v));
+      case 'set': return new Set(dec(v.v));
+      case 'obj': Object.keys(v.v || {}).forEach(function (k) { o[k] = dec(v.v[k]); }); return o;
+      default: throw new Error('This value cannot be rebuilt: ' + (v.is || v.$t));
+    }
   }
   function idbReq(r) { return new Promise(function (res, rej) { r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); }; }); }
   // -> the open database, or null if it is not there (it is never created, and never blocks an app's upgrade)
@@ -1247,7 +1272,7 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
     themes: themes, baseThemes: BASE_THEMES, addThemes: addThemes, theme: themeChoice, themeNow: themeNow, setTheme: setTheme,
     google: { token: googleToken, signedIn: googleSignedIn, signOut: googleSignOut, read: driveRead, write: driveWrite, list: driveList },
     logSession: logSession,
-    backup: { list: backupList, peek: backupPeek, build: backupBuild, download: backupDownload },
+    backup: { list: backupList, peek: backupPeek, build: backupBuild, download: backupDownload, open: idbOpen, decode: dec },
     diagnostics: diagnostics, copyDiagnostics: copyDiagnostics, storageInfo: storageInfo, systemTheme: systemTheme,
     whatsNew: whatsNew, checkWhatsNew: checkWhatsNew, setWhatsNewSilenced: setWhatsNewSilenced,
     getAccount: getAccount, setAccount: setAccount,
@@ -12912,7 +12937,7 @@ function t(key, params) { return (window.appFont && appFont.t) ? appFont.t(key, 
 t.n = function (one, other, n, params) { return (window.appFont && appFont.t && appFont.t.n) ? appFont.t.n(one, other, n, params) : (n === 1 ? one : other).replace('{n}', n); };
 function currentLang() { return (window.appFont && appFont.lang) ? appFont.lang() : 'en'; }
 // a translated language loads its dictionary after the first paint: redraw once it is in
-document.addEventListener('app-language-ready', function (e) { if (e.detail && e.detail !== 'en' && typeof render === 'function') { try { render(); } catch (_) {} } });
+document.addEventListener('app-language-ready', function (e) { if (!e.detail || e.detail === 'en') return; try { if (typeof render === 'function') render(); const dr = document.getElementById('settings-drawer'); if (dr && dr.classList.contains('open') && typeof renderSettingsDrawer === 'function') renderSettingsDrawer(); } catch (_) {} });
 
 const BUILTIN_THEMES = ['dark','light','midnight','forest','ember'];
 const THEME_VARS = ['bg','bg2','bg3','bg4','border','border2','text','text2','text3','accent','accent2',
@@ -13697,9 +13722,9 @@ function renderSettingsDrawer() {
   const dataSize = new Blob([JSON.stringify(state)]).size;
 
   body.innerHTML = `
-    <div class="drawer-section-title" data-hint="${escapeAttr(themeIsChosen() ? themeLabel(state.theme) : 'Match device')}">Theme</div>
-    <div class="theme-grid"><div class="theme-swatch ${themeIsChosen() ? '' : 'active'}" data-theme-id="__device" title="Light or dark, following this device's setting">
-      <div class="theme-dot" style="background:linear-gradient(90deg,#f4f4f6 50%,#161616 50%);"></div><div class="theme-label">Match device</div></div></div>
+    <div class="drawer-section-title" data-hint="${escapeAttr(themeIsChosen() ? themeLabel(state.theme) : 'Match device')}" data-sec-id="theme">${t('Theme')}</div>
+    <div class="theme-grid"><div class="theme-swatch ${themeIsChosen() ? '' : 'active'}" data-theme-id="__device" title="${escapeAttr(t('Light or dark, following this device\'s setting'))}">
+      <div class="theme-dot" style="background:linear-gradient(90deg,#f4f4f6 50%,#161616 50%);"></div><div class="theme-label">${t('Match device')}</div></div></div>
     ${THEME_CATEGORIES.map(cat => `
       <div class="theme-cat-label">${cat.label}</div>
       <div class="theme-grid">
@@ -13713,13 +13738,13 @@ function renderSettingsDrawer() {
     `).join('')}
 
 
-    <div class="drawer-section-title" data-sec-id="font">Font</div>
+    <div class="drawer-section-title" data-sec-id="font">${t('Font')}</div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-sub" style="margin-top:0;max-width:200px;">Text font for this and the other apps on this site</div>
+      <div class="drawer-setting-sub" style="margin-top:0;max-width:200px;">${t('Text font for this and the other apps on this site')}</div>
       <app-font-picker class="house-font-picker"></app-font-picker>
     </div>
 
-    <div class="drawer-section-title">Profile</div>
+    <div class="drawer-section-title" data-sec-id="profile">${t('Profile')}</div>
     <div class="drawer-setting-row">
       <div class="drawer-setting-label">Name${profileNameLocked() ? ' 🔒' : ''}</div>
       <input type="text" id="prof-name" value="${escapeAttr(effectiveProfileName())}" placeholder="optional" ${profileNameLocked() ? 'disabled title="Locked to your synced cloud account — disconnect cloud sync to edit"' : ''}
@@ -13727,29 +13752,29 @@ function renderSettingsDrawer() {
     </div>
     ${profileNameLocked() ? `<div style="font-size:11px;color:var(--text3);margin:-4px 0 10px;">🔒 Locked to your synced cloud account (${escapeHtml(cloudAccountName())}). Disconnect cloud sync in <b>Data</b> to edit it.</div>` : ''}
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Date of birth</div>
+      <div class="drawer-setting-label">${t('Date of birth')}</div>
       <input type="date" id="prof-dob" value="${state.profile.dob||''}"
         style="padding:6px 8px;font-size:13px;border-radius:6px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Height</div>
+      <div class="drawer-setting-label">${t('Height')}</div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <input type="number" id="prof-height" value="${state.profile.heightCm||''}" min="80" max="260" placeholder="cm"
+        <input type="number" id="prof-height" value="${state.profile.heightCm||''}" min="80" max="260" placeholder="${escapeAttr(t('cm'))}"
           style="width:70px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
-        <span style="font-size:12px;color:var(--text3);">cm</span>
+        <span style="font-size:12px;color:var(--text3);">${t('cm')}</span>
       </div>
     </div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Gender</div>
+      <div class="drawer-setting-label">${t('Gender')}</div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.profile.gender==='male'?'active':''}" data-pref-gender="male">M</button>
-        <button class="drawer-pill ${state.profile.gender==='female'?'active':''}" data-pref-gender="female">F</button>
-        <button class="drawer-pill ${state.profile.gender==='other'?'active':''}" data-pref-gender="other">Other</button>
+        <button class="drawer-pill ${state.profile.gender==='male'?'active':''}" data-pref-gender="male">${t('M')}</button>
+        <button class="drawer-pill ${state.profile.gender==='female'?'active':''}" data-pref-gender="female">${t('F')}</button>
+        <button class="drawer-pill ${state.profile.gender==='other'?'active':''}" data-pref-gender="other">${t('Other')}</button>
       </div>
     </div>
     ${state.profile.dob ? `<div style="font-size:11px;color:var(--text3);margin:-4px 0 10px;">Age ${ageFromDob(state.profile.dob)} · used in body-comp & relative-strength calcs</div>` : ''}
 
-    <div class="drawer-section-title" data-sec-id="branding">Branding</div>
+    <div class="drawer-section-title" data-sec-id="branding">${t('Branding')}</div>
     <div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">Top branding &amp; identity</div>
@@ -13758,58 +13783,58 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row" style="flex-direction:column;align-items:stretch;gap:8px;">
       <div>
-        <div class="drawer-setting-label">Brand emoji</div>
-        <div class="drawer-setting-sub">The little lifter beside the wordmark — make it yours. (The “315” digits quietly sparkle once you’ve put 315 lb on the bar in bench · deadlift · squat.)</div>
+        <div class="drawer-setting-label">${t('Brand emoji')}</div>
+        <div class="drawer-setting-sub">${t('The little lifter beside the wordmark — make it yours. (The “315” digits quietly sparkle once you’ve put 315 lb on the bar in bench · deadlift · squat.)')}</div>
       </div>
       <div class="brand-emoji-pick">
         ${['🏋️','💪','🦍','🐉','🔥','⚡','🏆','🦾','🧗','🤼','🥇','🤘'].map(e => `<button type="button" class="brand-emoji ${brandMark() === e ? 'active' : ''}" data-brand-emoji="${escapeAttr(e)}">${e}</button>`).join('')}
       </div>
-      <input type="text" id="brand-emoji-custom" class="brand-emoji-input" maxlength="8" placeholder="…or paste any emoji" value="${escapeAttr(brandMark() === '🏋️' ? '' : brandMark())}">
+      <input type="text" id="brand-emoji-custom" class="brand-emoji-input" maxlength="8" placeholder="${escapeAttr(t('…or paste any emoji'))}" value="${escapeAttr(brandMark() === '🏋️' ? '' : brandMark())}">
     </div>
 
-    <div class="drawer-section-title">Preferences</div>
+    <div class="drawer-section-title" data-sec-id="preferences">${t('Preferences')}</div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Weight unit</div>
+      <div class="drawer-setting-label">${t('Weight unit')}</div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.unit === 'lb' ? 'active' : ''}" data-pref-unit="lb">LB</button>
-        <button class="drawer-pill ${state.unit === 'kg' ? 'active' : ''}" data-pref-unit="kg">KG</button>
+        <button class="drawer-pill ${state.unit === 'lb' ? 'active' : ''}" data-pref-unit="lb">${t('LB')}</button>
+        <button class="drawer-pill ${state.unit === 'kg' ? 'active' : ''}" data-pref-unit="kg">${t('KG')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Read-only mode</div>
+        <div class="drawer-setting-label">${t('Read-only mode')}</div>
         <div class="drawer-setting-sub">View everything; block logging, edits, deletes &amp; imports</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.readonly === true ? 'active' : ''}" data-pref-readonly="on">On</button>
-        <button class="drawer-pill ${state.readonly !== true ? 'active' : ''}" data-pref-readonly="off">Off</button>
+        <button class="drawer-pill ${state.readonly === true ? 'active' : ''}" data-pref-readonly="on">${t('On')}</button>
+        <button class="drawer-pill ${state.readonly !== true ? 'active' : ''}" data-pref-readonly="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Section quick-nav pills</div>
-        <div class="drawer-setting-sub">Show a pill bar to hop between sibling pages in a section — Reflect, Prepare, Study and Settings.</div>
+        <div class="drawer-setting-label">${t('Section quick-nav pills')}</div>
+        <div class="drawer-setting-sub">${t('Show a pill bar to hop between sibling pages in a section — Reflect, Prepare, Study and Settings.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${reflectPillsEnabled() ? 'active' : ''}" data-pref-reflectpills="on">On</button>
-        <button class="drawer-pill ${!reflectPillsEnabled() ? 'active' : ''}" data-pref-reflectpills="off">Off</button>
+        <button class="drawer-pill ${reflectPillsEnabled() ? 'active' : ''}" data-pref-reflectpills="on">${t('On')}</button>
+        <button class="drawer-pill ${!reflectPillsEnabled() ? 'active' : ''}" data-pref-reflectpills="off">${t('Off')}</button>
       </div>
     </div>
-    <div class="drawer-section-title">🗣 Coach voice</div>
+    <div class="drawer-section-title" data-sec-id="coach-voice">${t('🗣 Coach voice')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">Everything the spoken coach says — its personality &amp; voice, the set-start / set-end annunciations, tip narration, the timed-hold "ready · set · go" count, and audio ducking.</div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Speak a tip on select</div>
-        <div class="drawer-setting-sub">Read a random cue/tip aloud when you pick an exercise (text-to-speech)</div>
+        <div class="drawer-setting-label">${t('Speak a tip on select')}</div>
+        <div class="drawer-setting-sub">${t('Read a random cue/tip aloud when you pick an exercise (text-to-speech)')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.ttsTips !== false ? 'active' : ''}" data-pref-tts="on">On</button>
-        <button class="drawer-pill ${state.ttsTips === false ? 'active' : ''}" data-pref-tts="off">Off</button>
+        <button class="drawer-pill ${state.ttsTips !== false ? 'active' : ''}" data-pref-tts="on">${t('On')}</button>
+        <button class="drawer-pill ${state.ttsTips === false ? 'active' : ''}" data-pref-tts="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row" style="flex-direction:column;align-items:stretch;gap:8px;">
       <div>
-        <div class="drawer-setting-label">🏋️ Coach personality</div>
+        <div class="drawer-setting-label">${t('🏋️ Coach personality')}</div>
         <div class="drawer-setting-sub">Who's in your ear — a voice profile (pitch &amp; pace) plus the wording of every spoken cue. Tap one to switch and hear it.</div>
       </div>
       <div class="coach-persona-pick">
@@ -13817,7 +13842,7 @@ function renderSettingsDrawer() {
       </div>
       ${(() => { // feat 297 — per-coach TTS voice picker for the ACTIVE persona
         const ap = activeCoachPersona();
-        if (ap.sys) return `<div class="coach-voice-row"><span class="coach-voice-lbl">🔈 ${ap.emoji} ${escapeHtml(ap.name)}</span><span class="drawer-setting-sub" style="margin:0;">uses your device’s default voice</span></div>`;
+        if (ap.sys) return `<div class="coach-voice-row"><span class="coach-voice-lbl">🔈 ${ap.emoji} ${escapeHtml(ap.name)}</span><span class="drawer-setting-sub" style="margin:0;">${t('uses your device’s default voice')}</span></div>`;
         let voices = []; try { voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (_) {}
         voices = voices.slice().sort((a, b) => (/^en/i.test(b.lang) ? 1 : 0) - (/^en/i.test(a.lang) ? 1 : 0) || (a.name || '').localeCompare(b.name || ''));
         const cur = coachVoiceChoice(ap.id);
@@ -13835,114 +13860,114 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🎲 Auto-pick coach per workout</div>
-        <div class="drawer-setting-sub">Override the persona above at each workout start. <b>Vibe</b> matches the coach to the session (HIIT→Hype, mobility→Zen, heavy→Drill Sergeant, hypertrophy→Analyst…); <b>Random</b> re-rolls a coach every workout.</div>
+        <div class="drawer-setting-label">${t('🎲 Auto-pick coach per workout')}</div>
+        <div class="drawer-setting-sub">${t('Override the persona above at each workout start. <b>Vibe</b> matches the coach to the session (HIIT→Hype, mobility→Zen, heavy→Drill Sergeant, hypertrophy→Analyst…); <b>Random</b> re-rolls a coach every workout.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${coachAutoMode() === 'off' ? 'active' : ''}" data-coachauto="off">Off</button>
-        <button class="drawer-pill ${coachAutoMode() === 'vibe' ? 'active' : ''}" data-coachauto="vibe">Vibe</button>
-        <button class="drawer-pill ${coachAutoMode() === 'random' ? 'active' : ''}" data-coachauto="random">Random</button>
+        <button class="drawer-pill ${coachAutoMode() === 'off' ? 'active' : ''}" data-coachauto="off">${t('Off')}</button>
+        <button class="drawer-pill ${coachAutoMode() === 'vibe' ? 'active' : ''}" data-coachauto="vibe">${t('Vibe')}</button>
+        <button class="drawer-pill ${coachAutoMode() === 'random' ? 'active' : ''}" data-coachauto="random">${t('Random')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🗣 Annunciate set start</div>
-        <div class="drawer-setting-sub">Speak the position when a set starts (weight entered) — "First set of 4", "Set 2 of 4", "Last set", plan-aware</div>
+        <div class="drawer-setting-label">${t('🗣 Annunciate set start')}</div>
+        <div class="drawer-setting-sub">${t('Speak the position when a set starts (weight entered) — "First set of 4", "Set 2 of 4", "Last set", plan-aware')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${annunciationCfg().start ? 'active' : ''}" data-pref-ann="start-on">On</button>
-        <button class="drawer-pill ${!annunciationCfg().start ? 'active' : ''}" data-pref-ann="start-off">Off</button>
+        <button class="drawer-pill ${annunciationCfg().start ? 'active' : ''}" data-pref-ann="start-on">${t('On')}</button>
+        <button class="drawer-pill ${!annunciationCfg().start ? 'active' : ''}" data-pref-ann="start-off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🗣 Annunciate set end</div>
-        <div class="drawer-setting-sub">Speak progress when a set completes — one down, x of y down, half done, one more then the next step, all done (plan-aware)</div>
+        <div class="drawer-setting-label">${t('🗣 Annunciate set end')}</div>
+        <div class="drawer-setting-sub">${t('Speak progress when a set completes — one down, x of y down, half done, one more then the next step, all done (plan-aware)')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${annunciationCfg().end ? 'active' : ''}" data-pref-ann="end-on">On</button>
-        <button class="drawer-pill ${!annunciationCfg().end ? 'active' : ''}" data-pref-ann="end-off">Off</button>
+        <button class="drawer-pill ${annunciationCfg().end ? 'active' : ''}" data-pref-ann="end-on">${t('On')}</button>
+        <button class="drawer-pill ${!annunciationCfg().end ? 'active' : ''}" data-pref-ann="end-off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">↳ Start cue limit</div>
-        <div class="drawer-setting-sub">Speak only for the first / last X sets (0 = every set)</div>
+        <div class="drawer-setting-label">${t('↳ Start cue limit')}</div>
+        <div class="drawer-setting-sub">${t('Speak only for the first / last X sets (0 = every set)')}</div>
       </div>
       <input type="number" id="ann-start-limit" value="${annunciationCfg().startLimit || 0}" min="0" max="10" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">↳ End cue limit</div>
-        <div class="drawer-setting-sub">Speak only for the first / last X sets (0 = every set)</div>
+        <div class="drawer-setting-label">${t('↳ End cue limit')}</div>
+        <div class="drawer-setting-sub">${t('Speak only for the first / last X sets (0 = every set)')}</div>
       </div>
       <input type="number" id="ann-end-limit" value="${annunciationCfg().endLimit || 0}" min="0" max="10" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">↳ Duck audio while speaking</div>
-        <div class="drawer-setting-sub">Lower the app sounds to 30% while a cue speaks. Phone music: Android usually ducks for speech on its own; iOS 17+ is asked via the audio session (a web app cannot force other apps)</div>
+        <div class="drawer-setting-label">${t('↳ Duck audio while speaking')}</div>
+        <div class="drawer-setting-sub">${t('Lower the app sounds to 30% while a cue speaks. Phone music: Android usually ducks for speech on its own; iOS 17+ is asked via the audio session (a web app cannot force other apps)')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${annunciationCfg().duck ? 'active' : ''}" data-pref-ann="duck-on">On</button>
-        <button class="drawer-pill ${!annunciationCfg().duck ? 'active' : ''}" data-pref-ann="duck-off">Off</button>
+        <button class="drawer-pill ${annunciationCfg().duck ? 'active' : ''}" data-pref-ann="duck-on">${t('On')}</button>
+        <button class="drawer-pill ${!annunciationCfg().duck ? 'active' : ''}" data-pref-ann="duck-off">${t('Off')}</button>
       </div>
     </div>
-    <div class="drawer-section-title">More preferences</div>
+    <div class="drawer-section-title" data-sec-id="more-preferences">${t('More preferences')}</div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🎧 Headphone-only audio</div>
+        <div class="drawer-setting-label">${t('🎧 Headphone-only audio')}</div>
         <div class="drawer-setting-sub">Only play sound when it's routed to headphones — never the phone speaker (haptics still work). <b>${headphoneStatus().icon} ${escapeHtml(headphoneStatus().text)}</b>${(audioHeadphonesOnly() && _headphonesConnected == null) ? ` · <a href="#" id="drawer-hp-unlock" style="color:var(--accent);">enable detection</a>` : ''}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${audioHeadphonesOnly() ? 'active' : ''}" data-pref-hp="on">On</button>
-        <button class="drawer-pill ${!audioHeadphonesOnly() ? 'active' : ''}" data-pref-hp="off">Off</button>
+        <button class="drawer-pill ${audioHeadphonesOnly() ? 'active' : ''}" data-pref-hp="on">${t('On')}</button>
+        <button class="drawer-pill ${!audioHeadphonesOnly() ? 'active' : ''}" data-pref-hp="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Save confirmation</div>
-        <div class="drawer-setting-sub">Always confirm before saving sets</div>
+        <div class="drawer-setting-label">${t('Save confirmation')}</div>
+        <div class="drawer-setting-sub">${t('Always confirm before saving sets')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.alwaysConfirm !== false ? 'active' : ''}" data-pref-confirm="on">On</button>
-        <button class="drawer-pill ${state.alwaysConfirm === false ? 'active' : ''}" data-pref-confirm="off">Off</button>
+        <button class="drawer-pill ${state.alwaysConfirm !== false ? 'active' : ''}" data-pref-confirm="on">${t('On')}</button>
+        <button class="drawer-pill ${state.alwaysConfirm === false ? 'active' : ''}" data-pref-confirm="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🔍 Forgiving search</div>
-        <div class="drawer-setting-sub">Search bars forgive punctuation ("pushup" finds Push-Up), plurals ("curls" finds Curl), gym shorthand (db, bb, kb, ohp, rdl…) and a one-letter typo ("dumbell"). Off = exact words only.</div>
+        <div class="drawer-setting-label">${t('🔍 Forgiving search')}</div>
+        <div class="drawer-setting-sub">${t('Search bars forgive punctuation ("pushup" finds Push-Up), plurals ("curls" finds Curl), gym shorthand (db, bb, kb, ohp, rdl…) and a one-letter typo ("dumbell"). Off = exact words only.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.fuzzySearch !== false ? 'active' : ''}" data-pref-fuzzy="on">On</button>
-        <button class="drawer-pill ${state.fuzzySearch === false ? 'active' : ''}" data-pref-fuzzy="off">Off</button>
+        <button class="drawer-pill ${state.fuzzySearch !== false ? 'active' : ''}" data-pref-fuzzy="on">${t('On')}</button>
+        <button class="drawer-pill ${state.fuzzySearch === false ? 'active' : ''}" data-pref-fuzzy="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Hold-to-confirm</div>
+        <div class="drawer-setting-label">${t('Hold-to-confirm')}</div>
         <div class="drawer-setting-sub">Press &amp; hold destructive buttons instead of a yes/no popup</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.longPressConfirm.enabled ? 'active' : ''}" data-pref-lp="on">On</button>
-        <button class="drawer-pill ${!state.longPressConfirm.enabled ? 'active' : ''}" data-pref-lp="off">Off</button>
+        <button class="drawer-pill ${state.longPressConfirm.enabled ? 'active' : ''}" data-pref-lp="on">${t('On')}</button>
+        <button class="drawer-pill ${!state.longPressConfirm.enabled ? 'active' : ''}" data-pref-lp="off">${t('Off')}</button>
       </div>
     </div>
     ${state.longPressConfirm.enabled ? `<div class="drawer-setting-row">
-      <div class="drawer-setting-label">Hold duration</div>
+      <div class="drawer-setting-label">${t('Hold duration')}</div>
       <div style="display:flex;align-items:center;gap:6px;">
         <input type="number" id="lp-ms" value="${(state.longPressConfirm.ms/1000)}" min="0.5" max="10" step="0.5"
           style="width:60px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
-        <span style="font-size:12px;color:var(--text3);">sec</span>
+        <span style="font-size:12px;color:var(--text3);">${t('sec')}</span>
       </div>
     </div>` : ''}
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Tracker button presses</div>
-        <div class="drawer-setting-sub">Short tap vs. press-and-hold on the Tracker tab. Hold triggers a button's long-press shortcut (and hold-to-confirm).</div>
+        <div class="drawer-setting-label">${t('Tracker button presses')}</div>
+        <div class="drawer-setting-sub">${t('Short tap vs. press-and-hold on the Tracker tab. Hold triggers a button\'s long-press shortcut (and hold-to-confirm).')}</div>
       </div>
     </div>
     <div class="drawer-setting-row">
@@ -13950,50 +13975,50 @@ function renderSettingsDrawer() {
       <div style="display:flex;align-items:center;gap:6px;">
         <input type="number" id="tp-short" value="${(state.trackerPress.shortMs / 1000)}" min="0" max="5" step="0.1"
           style="width:60px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
-        <span style="font-size:12px;color:var(--text3);">sec</span>
+        <span style="font-size:12px;color:var(--text3);">${t('sec')}</span>
       </div>
     </div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Long press</div>
+      <div class="drawer-setting-label">${t('Long press')}</div>
       <div style="display:flex;align-items:center;gap:6px;">
         <input type="number" id="tp-long" value="${(state.trackerPress.longMs / 1000)}" min="1" max="10" step="0.5"
           style="width:60px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
-        <span style="font-size:12px;color:var(--text3);">sec</span>
+        <span style="font-size:12px;color:var(--text3);">${t('sec')}</span>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Highlight → glossary</div>
+        <div class="drawer-setting-label">${t('Highlight → glossary')}</div>
         <div class="drawer-setting-sub">Select &amp; hold text 5s to open its glossary entry</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.glossaryHighlight !== false ? 'active' : ''}" data-pref-gloss-hl="on">On</button>
-        <button class="drawer-pill ${state.glossaryHighlight === false ? 'active' : ''}" data-pref-gloss-hl="off">Off</button>
+        <button class="drawer-pill ${state.glossaryHighlight !== false ? 'active' : ''}" data-pref-gloss-hl="on">${t('On')}</button>
+        <button class="drawer-pill ${state.glossaryHighlight === false ? 'active' : ''}" data-pref-gloss-hl="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Tips detail</div>
-        <div class="drawer-setting-sub">Default slide of the exercise-sheet carousel — 💡 concise cues or the 📖 full reference deep-dive</div>
+        <div class="drawer-setting-label">${t('Tips detail')}</div>
+        <div class="drawer-setting-sub">${t('Default slide of the exercise-sheet carousel — 💡 concise cues or the 📖 full reference deep-dive')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.tipsMode||'concise') === 'concise' ? 'active' : ''}" data-pref-tips-mode="concise">Concise</button>
-        <button class="drawer-pill ${state.tipsMode === 'full' ? 'active' : ''}" data-pref-tips-mode="full">Full</button>
+        <button class="drawer-pill ${(state.tipsMode||'concise') === 'concise' ? 'active' : ''}" data-pref-tips-mode="concise">${t('Concise')}</button>
+        <button class="drawer-pill ${state.tipsMode === 'full' ? 'active' : ''}" data-pref-tips-mode="full">${t('Full')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Tips expanded by default</div>
+        <div class="drawer-setting-label">${t('Tips expanded by default')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${!state.tipsExpanded ? 'active' : ''}" data-pref-tips-exp="collapsed">No</button>
-        <button class="drawer-pill ${state.tipsExpanded ? 'active' : ''}" data-pref-tips-exp="expanded">Yes</button>
+        <button class="drawer-pill ${!state.tipsExpanded ? 'active' : ''}" data-pref-tips-exp="collapsed">${t('No')}</button>
+        <button class="drawer-pill ${state.tipsExpanded ? 'active' : ''}" data-pref-tips-exp="expanded">${t('Yes')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Weight limit</div>
-        <div class="drawer-setting-sub">Weights above this shown in red (lb)</div>
+        <div class="drawer-setting-label">${t('Weight limit')}</div>
+        <div class="drawer-setting-sub">${t('Weights above this shown in red (lb)')}</div>
       </div>
       <input type="number" id="drawer-max-weight" value="${state.maxWeightLb || 1500}" min="100" max="10000" step="100"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
@@ -14001,20 +14026,20 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Limit enforcement</div>
-        <div class="drawer-setting-sub">Soft: warn but save anyway · Hard: block over-limit saves</div>
+        <div class="drawer-setting-label">${t('Limit enforcement')}</div>
+        <div class="drawer-setting-sub">${t('Soft: warn but save anyway · Hard: block over-limit saves')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${!state.maxWeightHard ? 'active' : ''}" data-pref-wlimit="soft">Soft</button>
-        <button class="drawer-pill ${state.maxWeightHard ? 'active' : ''}" data-pref-wlimit="hard">Hard</button>
+        <button class="drawer-pill ${!state.maxWeightHard ? 'active' : ''}" data-pref-wlimit="soft">${t('Soft')}</button>
+        <button class="drawer-pill ${state.maxWeightHard ? 'active' : ''}" data-pref-wlimit="hard">${t('Hard')}</button>
       </div>
     </div>
 
-    <div class="drawer-section-title">Workout Session</div>
+    <div class="drawer-section-title" data-sec-id="workout-session">${t('Workout Session')}</div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Auto-end after</div>
-        <div class="drawer-setting-sub">Minutes of inactivity before session auto-ends</div>
+        <div class="drawer-setting-label">${t('Auto-end after')}</div>
+        <div class="drawer-setting-sub">${t('Minutes of inactivity before session auto-ends')}</div>
       </div>
       <input type="number" id="drawer-auto-end" value="${(state.workoutControls||{}).autoEndMinutes || 40}" min="5" max="300" step="5"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
@@ -14022,8 +14047,8 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">📋 Plan step min completion</div>
-        <div class="drawer-setting-sub">Default min % of a step's sets to count it "done" (1% = even 1 set counts). Override per plan / step when building.</div>
+        <div class="drawer-setting-label">${t('📋 Plan step min completion')}</div>
+        <div class="drawer-setting-sub">${t('Default min % of a step\'s sets to count it "done" (1% = even 1 set counts). Override per plan / step when building.')}</div>
       </div>
       <input type="number" id="drawer-plan-minpct" value="${planMinPctDefault()}" min="0" max="100" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
@@ -14031,200 +14056,200 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🤸 Auto warm-up block</div>
-        <div class="drawer-setting-sub">Prepend a light mobility / activation warm-up to a plan when you start it.</div>
+        <div class="drawer-setting-label">${t('🤸 Auto warm-up block')}</div>
+        <div class="drawer-setting-sub">${t('Prepend a light mobility / activation warm-up to a plan when you start it.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.planDefaults||{}).warmup ? 'active' : ''}" data-pref-warmup="on">On</button>
-        <button class="drawer-pill ${!(state.planDefaults||{}).warmup ? 'active' : ''}" data-pref-warmup="off">Off</button>
+        <button class="drawer-pill ${(state.planDefaults||{}).warmup ? 'active' : ''}" data-pref-warmup="on">${t('On')}</button>
+        <button class="drawer-pill ${!(state.planDefaults||{}).warmup ? 'active' : ''}" data-pref-warmup="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🧊 Auto cool-down / finisher block</div>
-        <div class="drawer-setting-sub">Append a core finisher + static-stretch cool-down to a plan when you start it.</div>
+        <div class="drawer-setting-label">${t('🧊 Auto cool-down / finisher block')}</div>
+        <div class="drawer-setting-sub">${t('Append a core finisher + static-stretch cool-down to a plan when you start it.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.planDefaults||{}).cooldown ? 'active' : ''}" data-pref-cooldown="on">On</button>
-        <button class="drawer-pill ${!(state.planDefaults||{}).cooldown ? 'active' : ''}" data-pref-cooldown="off">Off</button>
+        <button class="drawer-pill ${(state.planDefaults||{}).cooldown ? 'active' : ''}" data-pref-cooldown="on">${t('On')}</button>
+        <button class="drawer-pill ${!(state.planDefaults||{}).cooldown ? 'active' : ''}" data-pref-cooldown="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Rest timer</div>
-        <div class="drawer-setting-sub">Live colour-coded rest/set timer + a global bar while training</div>
+        <div class="drawer-setting-label">${t('Rest timer')}</div>
+        <div class="drawer-setting-sub">${t('Live colour-coded rest/set timer + a global bar while training')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).restTimer !== false ? 'active' : ''}" data-wc="restTimer" data-wc-val="on">On</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).restTimer === false ? 'active' : ''}" data-wc="restTimer" data-wc-val="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).restTimer !== false ? 'active' : ''}" data-wc="restTimer" data-wc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).restTimer === false ? 'active' : ''}" data-wc="restTimer" data-wc-val="off">${t('Off')}</button>
       </div>
     </div>
     ${wakeLockSupported() ? `<div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Keep screen awake during workout</div>
-        <div class="drawer-setting-sub">Holds a screen wake-lock while training so the display stays on and metronome / rest cues keep playing. Note: a web app can't play audio or vibrate while the screen is <b>locked</b> or the app is closed — that's an OS limit, so keeping the screen on is the fix.</div>
+        <div class="drawer-setting-label">${t('Keep screen awake during workout')}</div>
+        <div class="drawer-setting-sub">${t('Holds a screen wake-lock while training so the display stays on and metronome / rest cues keep playing. Note: a web app can\'t play audio or vibrate while the screen is <b>locked</b> or the app is closed — that\'s an OS limit, so keeping the screen on is the fix.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).keepAwake !== false ? 'active' : ''}" data-wc="keepAwake" data-wc-val="on">On</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).keepAwake === false ? 'active' : ''}" data-wc="keepAwake" data-wc-val="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).keepAwake !== false ? 'active' : ''}" data-wc="keepAwake" data-wc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).keepAwake === false ? 'active' : ''}" data-wc="keepAwake" data-wc-val="off">${t('Off')}</button>
       </div>
     </div>` : ''}
     <div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">On-screen numpad <span class="setting-rec">★ Recommended</span></div>
-        <div class="drawer-setting-sub"><b>Strongly recommended — keep this on.</b> An in-app keypad for weight/reps that avoids the mobile keyboard reflowing the form, and powers ×10 hold, the calculator, plate setup and the equipment tools. Turning it off falls back to the native keyboard and loses those.</div>
+        <div class="drawer-setting-sub">${t('<b>Strongly recommended — keep this on.</b> An in-app keypad for weight/reps that avoids the mobile keyboard reflowing the form, and powers ×10 hold, the calculator, plate setup and the equipment tools. Turning it off falls back to the native keyboard and loses those.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad !== false ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="on">On ★</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad === false ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad !== false ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="on">${t('On ★')}</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).onScreenNumpad === false ? 'active' : ''}" data-wc="onScreenNumpad" data-wc-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">RPE / RIR per set</div>
-        <div class="drawer-setting-sub">Off by default. <b>RPE</b> (Rate of Perceived Exertion, 6–10) or <b>RIR</b> (Reps In Reserve, 0–5) adds an optional effort field to every set — used for a sharper estimated 1RM and stall detection. Off hides it completely.</div>
+        <div class="drawer-setting-label">${t('RPE / RIR per set')}</div>
+        <div class="drawer-setting-sub">${t('Off by default. <b>RPE</b> (Rate of Perceived Exertion, 6–10) or <b>RIR</b> (Reps In Reserve, 0–5) adds an optional effort field to every set — used for a sharper estimated 1RM and stall detection. Off hides it completely.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${rpeMode() === 'off' ? 'active' : ''}" data-rpemode="off">Off</button>
-        <button class="drawer-pill ${rpeMode() === 'rpe' ? 'active' : ''}" data-rpemode="rpe">RPE</button>
-        <button class="drawer-pill ${rpeMode() === 'rir' ? 'active' : ''}" data-rpemode="rir">RIR</button>
+        <button class="drawer-pill ${rpeMode() === 'off' ? 'active' : ''}" data-rpemode="off">${t('Off')}</button>
+        <button class="drawer-pill ${rpeMode() === 'rpe' ? 'active' : ''}" data-rpemode="rpe">${t('RPE')}</button>
+        <button class="drawer-pill ${rpeMode() === 'rir' ? 'active' : ''}" data-rpemode="rir">${t('RIR')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Newest set first</div>
-        <div class="drawer-setting-sub">Show the set you just logged at the TOP of the current exercise, so a long list never buries it</div>
+        <div class="drawer-setting-label">${t('Newest set first')}</div>
+        <div class="drawer-setting-sub">${t('Show the set you just logged at the TOP of the current exercise, so a long list never buries it')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${newestSetFirst() ? 'active' : ''}" data-wc="newestSetFirst" data-wc-val="on">On</button>
-        <button class="drawer-pill ${!newestSetFirst() ? 'active' : ''}" data-wc="newestSetFirst" data-wc-val="off">Off</button>
+        <button class="drawer-pill ${newestSetFirst() ? 'active' : ''}" data-wc="newestSetFirst" data-wc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${!newestSetFirst() ? 'active' : ''}" data-wc="newestSetFirst" data-wc-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Mix sub-variations in one log</div>
-        <div class="drawer-setting-sub">For exercises with grip/bar/angle options, pick a sub-variation per set; on save they split into separate tracked entries</div>
+        <div class="drawer-setting-label">${t('Mix sub-variations in one log')}</div>
+        <div class="drawer-setting-sub">${t('For exercises with grip/bar/angle options, pick a sub-variation per set; on save they split into separate tracked entries')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).mixSubvariations ? 'active' : ''}" data-wc="mixSubvariations" data-wc-val="on">On</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).mixSubvariations !== true ? 'active' : ''}" data-wc="mixSubvariations" data-wc-val="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).mixSubvariations ? 'active' : ''}" data-wc="mixSubvariations" data-wc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).mixSubvariations !== true ? 'active' : ''}" data-wc="mixSubvariations" data-wc-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Recommended rest</div>
-        <div class="drawer-setting-sub">Show the target rest band (adapts to your history)</div>
+        <div class="drawer-setting-label">${t('Recommended rest')}</div>
+        <div class="drawer-setting-sub">${t('Show the target rest band (adapts to your history)')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).restRecEnabled !== false ? 'active' : ''}" data-wc="restRecEnabled" data-wc-val="on">On</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).restRecEnabled === false ? 'active' : ''}" data-wc="restRecEnabled" data-wc-val="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).restRecEnabled !== false ? 'active' : ''}" data-wc="restRecEnabled" data-wc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).restRecEnabled === false ? 'active' : ''}" data-wc="restRecEnabled" data-wc-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Vibrate cues</div>
-        <div class="drawer-setting-sub">Buzz when you reach / exceed the rest target (mobile)</div>
+        <div class="drawer-setting-label">${t('Vibrate cues')}</div>
+        <div class="drawer-setting-sub">${t('Buzz when you reach / exceed the rest target (mobile)')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).feedbackVibrate !== false ? 'active' : ''}" data-wc="feedbackVibrate" data-wc-val="on">On</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).feedbackVibrate === false ? 'active' : ''}" data-wc="feedbackVibrate" data-wc-val="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).feedbackVibrate !== false ? 'active' : ''}" data-wc="feedbackVibrate" data-wc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).feedbackVibrate === false ? 'active' : ''}" data-wc="feedbackVibrate" data-wc-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Beep cues</div>
-        <div class="drawer-setting-sub">Subtle tone at the rest target (off by default)</div>
+        <div class="drawer-setting-label">${t('Beep cues')}</div>
+        <div class="drawer-setting-sub">${t('Subtle tone at the rest target (off by default)')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).feedbackBeep === true ? 'active' : ''}" data-wc="feedbackBeep" data-wc-val="on">On</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).feedbackBeep !== true ? 'active' : ''}" data-wc="feedbackBeep" data-wc-val="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).feedbackBeep === true ? 'active' : ''}" data-wc="feedbackBeep" data-wc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).feedbackBeep !== true ? 'active' : ''}" data-wc="feedbackBeep" data-wc-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Abandon open set after</div>
-        <div class="drawer-setting-sub">Delete an unfinished set (weight in, no reps) after this long</div>
+        <div class="drawer-setting-label">${t('Abandon open set after')}</div>
+        <div class="drawer-setting-sub">${t('Delete an unfinished set (weight in, no reps) after this long')}</div>
       </div>
       <input type="number" id="drawer-abandon-min" value="${(state.workoutControls||{}).abandonMinutes || 15}" min="1" max="30" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
                background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
 
-    <div class="drawer-section-title" data-sec-id="device">📱 Device</div>
-    <div class="drawer-setting-sub" style="padding:4px 0 2px;">Phone sensors and connected hardware — motion gestures and your heart-rate monitor.</div>
+    <div class="drawer-section-title" data-sec-id="device">${t('📱 Device')}</div>
+    <div class="drawer-setting-sub" style="padding:4px 0 2px;">${t('Phone sensors and connected hardware — motion gestures and your heart-rate monitor.')}</div>
     ${shakeNavSupported() ? `<div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">📳 Shake to open current exercise</div>
-        <div class="drawer-setting-sub">A vigorous shake of the phone jumps straight to the current exercise's log sheet (the one you're logging now, else the picker). On iOS you'll be asked once for motion access — and may need to re-enable after fully reopening the app.</div>
+        <div class="drawer-setting-label">${t('📳 Shake to open current exercise')}</div>
+        <div class="drawer-setting-sub">${t('A vigorous shake of the phone jumps straight to the current exercise\'s log sheet (the one you\'re logging now, else the picker). On iOS you\'ll be asked once for motion access — and may need to re-enable after fully reopening the app.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${shakeNavEnabled() ? 'active' : ''}" data-shakenav="on">On</button>
-        <button class="drawer-pill ${!shakeNavEnabled() ? 'active' : ''}" data-shakenav="off">Off</button>
+        <button class="drawer-pill ${shakeNavEnabled() ? 'active' : ''}" data-shakenav="on">${t('On')}</button>
+        <button class="drawer-pill ${!shakeNavEnabled() ? 'active' : ''}" data-shakenav="off">${t('Off')}</button>
       </div>
-    </div>` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">📳 Shake to open current exercise</div><div class="drawer-setting-sub">This device doesn't report motion, so shake-to-open isn't available here.</div></div></div>`}
+    </div>` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">${t('📳 Shake to open current exercise')}</div><div class="drawer-setting-sub">${t('This device doesn\'t report motion, so shake-to-open isn\'t available here.')}</div></div></div>`}
     ${shakeNavSupported() ? `<div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">📴 Hold timer: stop on pickup</div>
-        <div class="drawer-setting-sub">During a timed hold (plank, dead hang…) the phone lies still — picking it back up stops the count-up and logs the hold. The buffer is subtracted from the reading (grabbing the phone takes a moment: picked up at 31s with a 1s buffer logs 30s). On iOS you'll be asked once for motion access.</div>
-        <div class="drawer-inline-cfg">Buffer <input type="number" class="drawer-mini-input" id="drawer-holdaccel-buf" value="${(state.workoutControls||{}).holdAccelBufferS == null ? 1 : (state.workoutControls||{}).holdAccelBufferS}" min="0" max="10" step="0.5"> s</div>
+        <div class="drawer-setting-label">${t('📴 Hold timer: stop on pickup')}</div>
+        <div class="drawer-setting-sub">${t('During a timed hold (plank, dead hang…) the phone lies still — picking it back up stops the count-up and logs the hold. The buffer is subtracted from the reading (grabbing the phone takes a moment: picked up at 31s with a 1s buffer logs 30s). On iOS you\'ll be asked once for motion access.')}</div>
+        <div class="drawer-inline-cfg">${t('Buffer')} <input type="number" class="drawer-mini-input" id="drawer-holdaccel-buf" value="${(state.workoutControls||{}).holdAccelBufferS == null ? 1 : (state.workoutControls||{}).holdAccelBufferS}" min="0" max="10" step="0.5"> ${t('s')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).holdAccelStop ? 'active' : ''}" data-holdaccel="on">On</button>
-        <button class="drawer-pill ${!(state.workoutControls||{}).holdAccelStop ? 'active' : ''}" data-holdaccel="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).holdAccelStop ? 'active' : ''}" data-holdaccel="on">${t('On')}</button>
+        <button class="drawer-pill ${!(state.workoutControls||{}).holdAccelStop ? 'active' : ''}" data-holdaccel="off">${t('Off')}</button>
       </div>
     </div>` : ''}
     ${speechRecSupported() ? `<div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🎙 Hold timer: spoken stop word</div>
-        <div class="drawer-setting-sub">Saying your stop word out loud stops the hold count-up and logs it — with its own buffer subtracted. Works alone or together with pickup-stop: whichever fires first logs the hold. Use <b>Test</b> to check your word is picked up (and to grant the microphone once).</div>
-        <div class="drawer-inline-cfg">Word <input type="text" class="drawer-mini-input word" id="drawer-holdvoice-word" value="${escapeAttr((state.workoutControls||{}).holdVoiceWord == null ? 'stop' : (state.workoutControls||{}).holdVoiceWord)}" autocomplete="off" autocapitalize="none"> Buffer <input type="number" class="drawer-mini-input" id="drawer-holdvoice-buf" value="${(state.workoutControls||{}).holdVoiceBufferS == null ? 1 : (state.workoutControls||{}).holdVoiceBufferS}" min="0" max="10" step="0.5"> s <button type="button" class="drawer-test-btn" id="drawer-holdvoice-test">🎙 Test</button></div>
+        <div class="drawer-setting-label">${t('🎙 Hold timer: spoken stop word')}</div>
+        <div class="drawer-setting-sub">${t('Saying your stop word out loud stops the hold count-up and logs it — with its own buffer subtracted. Works alone or together with pickup-stop: whichever fires first logs the hold. Use <b>Test</b> to check your word is picked up (and to grant the microphone once).')}</div>
+        <div class="drawer-inline-cfg">${t('Word')} <input type="text" class="drawer-mini-input word" id="drawer-holdvoice-word" value="${escapeAttr((state.workoutControls||{}).holdVoiceWord == null ? 'stop' : (state.workoutControls||{}).holdVoiceWord)}" autocomplete="off" autocapitalize="none"> ${t('Buffer')} <input type="number" class="drawer-mini-input" id="drawer-holdvoice-buf" value="${(state.workoutControls||{}).holdVoiceBufferS == null ? 1 : (state.workoutControls||{}).holdVoiceBufferS}" min="0" max="10" step="0.5"> ${t('s')} <button type="button" class="drawer-test-btn" id="drawer-holdvoice-test">${t('🎙 Test')}</button></div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).holdVoiceStop ? 'active' : ''}" data-holdvoice="on">On</button>
-        <button class="drawer-pill ${!(state.workoutControls||{}).holdVoiceStop ? 'active' : ''}" data-holdvoice="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).holdVoiceStop ? 'active' : ''}" data-holdvoice="on">${t('On')}</button>
+        <button class="drawer-pill ${!(state.workoutControls||{}).holdVoiceStop ? 'active' : ''}" data-holdvoice="off">${t('Off')}</button>
       </div>
-    </div>` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">🎙 Hold timer: spoken stop word</div><div class="drawer-setting-sub">This device doesn't support speech recognition, so the stop word isn't available here.</div></div></div>`}
+    </div>` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">${t('🎙 Hold timer: spoken stop word')}</div><div class="drawer-setting-sub">${t('This device doesn\'t support speech recognition, so the stop word isn\'t available here.')}</div></div></div>`}
     <div class="drawer-setting-row" style="flex-wrap:wrap;">
       <div>
-        <div class="drawer-setting-label">🔥 Calorie estimate</div>
+        <div class="drawer-setting-label">${t('🔥 Calorie estimate')}</div>
         <div class="drawer-setting-sub">Workouts with heart rate get an estimated burn (Keytel formula, from your weight, age and sex; VO₂max when your wearable has it). Heart-rate formulas run high for lifting — scale it to match a device you trust.${(() => { const P = calorieProfile(); return P ? '' : ' <b>Add a weight on the Body page to enable it.</b>'; })()}</div>
       </div>
       <div class="drawer-pill-group">${KCAL_SCALES.map(v => `<button class="drawer-pill ${calorieScale() === v ? 'active' : ''}" data-kcal-scale="${v}">${Math.round(v * 100)}%</button>`).join('')}</div>
     </div>
     <div class="drawer-setting-row" style="flex-wrap:wrap;">
       <div>
-        <div class="drawer-setting-label">🧠 Next-set factors</div>
-        <div class="drawer-setting-sub">What the next-set coach may use. All on by default — switch one off and it is ignored (the "why" list says so).</div>
+        <div class="drawer-setting-label">${t('🧠 Next-set factors')}</div>
+        <div class="drawer-setting-sub">${t('What the next-set coach may use. All on by default — switch one off and it is ignored (the "why" list says so).')}</div>
       </div>
       ${nsFactorChipsHtml()}
     </div>
     ${hrSupported() ? `<div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">💓 Auto-connect HR on start</div>
-        <div class="drawer-setting-sub">When a workout starts, silently reconnect your last heart-rate monitor (no chooser)</div>
+        <div class="drawer-setting-label">${t('💓 Auto-connect HR on start')}</div>
+        <div class="drawer-setting-sub">${t('When a workout starts, silently reconnect your last heart-rate monitor (no chooser)')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect !== false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="on">On</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect === false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect !== false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).hrAutoConnect === false ? 'active' : ''}" data-wc="hrAutoConnect" data-wc-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">💓 Make me pair HR</div>
-        <div class="drawer-setting-sub">At workout start, if the monitor isn't connected: open the pairing chooser, or leave a tap-to-pair prompt — and ask again 90 s in</div>
+        <div class="drawer-setting-label">${t('💓 Make me pair HR')}</div>
+        <div class="drawer-setting-sub">${t('At workout start, if the monitor isn\'t connected: open the pairing chooser, or leave a tap-to-pair prompt — and ask again 90 s in')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).hrForcePair === true ? 'active' : ''}" data-wc="hrForcePair" data-wc-val="on">On</button>
-        <button class="drawer-pill ${(state.workoutControls||{}).hrForcePair !== true ? 'active' : ''}" data-wc="hrForcePair" data-wc-val="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).hrForcePair === true ? 'active' : ''}" data-wc="hrForcePair" data-wc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).hrForcePair !== true ? 'active' : ''}" data-wc="hrForcePair" data-wc-val="off">${t('Off')}</button>
       </div>
-    </div>${state.hrDevice ? `<div class="drawer-setting-row"><div><div class="drawer-setting-label">Paired monitor</div><div class="drawer-setting-sub">Last connected: <b>${escapeHtml(state.hrDevice.name || 'HR monitor')}</b> — connect from the workout dashboard.</div></div></div>` : ''}` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">💓 Heart-rate monitor</div><div class="drawer-setting-sub">This browser doesn't support Web Bluetooth, so an HR strap can't be connected here.</div></div></div>`}
+    </div>${state.hrDevice ? `<div class="drawer-setting-row"><div><div class="drawer-setting-label">${t('Paired monitor')}</div><div class="drawer-setting-sub">Last connected: <b>${escapeHtml(state.hrDevice.name || 'HR monitor')}</b> — connect from the workout dashboard.</div></div></div>` : ''}` : `<div class="drawer-setting-row"><div><div class="drawer-setting-label">${t('💓 Heart-rate monitor')}</div><div class="drawer-setting-sub">${t('This browser doesn\'t support Web Bluetooth, so an HR strap can\'t be connected here.')}</div></div></div>`}
 
-    <div class="drawer-section-title" data-sec-id="analytics">📊 Analytics</div>
-    <div class="drawer-setting-sub" style="padding:4px 0 2px;">When live in-session analytics appear while you train.</div>
+    <div class="drawer-section-title" data-sec-id="analytics">${t('📊 Analytics')}</div>
+    <div class="drawer-setting-sub" style="padding:4px 0 2px;">${t('When live in-session analytics appear while you train.')}</div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Live score after</div>
-        <div class="drawer-setting-sub">Minutes before showing rough live score (chunky)</div>
+        <div class="drawer-setting-label">${t('Live score after')}</div>
+        <div class="drawer-setting-sub">${t('Minutes before showing rough live score (chunky)')}</div>
       </div>
       <input type="number" id="drawer-live-score-after" value="${(state.workoutControls||{}).showLiveScoreAfterMin || 45}" min="10" max="180" step="5"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
@@ -14232,157 +14257,157 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Pace analysis after</div>
-        <div class="drawer-setting-sub">Minutes before pace status pill appears</div>
+        <div class="drawer-setting-label">${t('Pace analysis after')}</div>
+        <div class="drawer-setting-sub">${t('Minutes before pace status pill appears')}</div>
       </div>
       <input type="number" id="drawer-pace-start" value="${(state.workoutControls||{}).paceAnalysisStartMin || 20}" min="5" max="120" step="5"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;
                background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
 
-    <div class="drawer-section-title">Biometrics</div>
+    <div class="drawer-section-title" data-sec-id="biometrics">${t('Biometrics')}</div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Warn on stale bodyweight</div>
-        <div class="drawer-setting-sub">At workout start, warn if your bodyweight is missing or old</div>
+        <div class="drawer-setting-label">${t('Warn on stale bodyweight')}</div>
+        <div class="drawer-setting-sub">${t('At workout start, warn if your bodyweight is missing or old')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.warnStaleBodyweight !== false ? 'active' : ''}" data-pref-bw-warn="on">On</button>
-        <button class="drawer-pill ${state.warnStaleBodyweight === false ? 'active' : ''}" data-pref-bw-warn="off">Off</button>
+        <button class="drawer-pill ${state.warnStaleBodyweight !== false ? 'active' : ''}" data-pref-bw-warn="on">${t('On')}</button>
+        <button class="drawer-pill ${state.warnStaleBodyweight === false ? 'active' : ''}" data-pref-bw-warn="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Warn on other biometrics</div>
+        <div class="drawer-setting-label">${t('Warn on other biometrics')}</div>
         <div class="drawer-setting-sub">Also warn for stale body-fat, muscle, bone &amp; water readings</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.warnOtherBiometrics === true ? 'active' : ''}" data-pref-bio-warn="on">On</button>
-        <button class="drawer-pill ${state.warnOtherBiometrics !== true ? 'active' : ''}" data-pref-bio-warn="off">Off</button>
+        <button class="drawer-pill ${state.warnOtherBiometrics === true ? 'active' : ''}" data-pref-bio-warn="on">${t('On')}</button>
+        <button class="drawer-pill ${state.warnOtherBiometrics !== true ? 'active' : ''}" data-pref-bio-warn="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Stale after</div>
-        <div class="drawer-setting-sub">A reading older than this counts as stale</div>
+        <div class="drawer-setting-label">${t('Stale after')}</div>
+        <div class="drawer-setting-sub">${t('A reading older than this counts as stale')}</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <input type="number" id="drawer-biometric-stale" value="${state.biometricStaleDays || 14}" min="1" max="365" step="1"
           style="width:64px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
-        <span style="font-size:12px;color:var(--text3);">days</span>
+        <span style="font-size:12px;color:var(--text3);">${t('days')}</span>
       </div>
     </div>
 
-    <div class="drawer-section-title">Metronome</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">A customizable audio/haptic beat for pacing reps. Toggle it on the Log tab during a workout (off by default each workout).</div>
+    <div class="drawer-section-title" data-sec-id="metronome">${t('Metronome')}</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">${t('A customizable audio/haptic beat for pacing reps. Toggle it on the Log tab during a workout (off by default each workout).')}</div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Tempo (BPM)</div>
+      <div class="drawer-setting-label">${t('Tempo (BPM)')}</div>
       <input type="number" id="drawer-metro-bpm" value="${metroCfg().bpm}" min="20" max="300" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Audio beep</div>
+      <div class="drawer-setting-label">${t('Audio beep')}</div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${metroCfg().audio !== false ? 'active' : ''}" data-pref-metro="audio-on">On</button>
-        <button class="drawer-pill ${metroCfg().audio === false ? 'active' : ''}" data-pref-metro="audio-off">Off</button>
+        <button class="drawer-pill ${metroCfg().audio !== false ? 'active' : ''}" data-pref-metro="audio-on">${t('On')}</button>
+        <button class="drawer-pill ${metroCfg().audio === false ? 'active' : ''}" data-pref-metro="audio-off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Beep pitch (Hz)</div>
+      <div class="drawer-setting-label">${t('Beep pitch (Hz)')}</div>
       <input type="number" id="drawer-metro-freq" value="${metroCfg().freq}" min="200" max="3000" step="20"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Volume (%)</div>
+      <div class="drawer-setting-label">${t('Volume (%)')}</div>
       <input type="number" id="drawer-metro-vol" value="${Math.round((metroCfg().vol || 0.3) * 100)}" min="1" max="100" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Haptic (vibrate)</div>
+      <div class="drawer-setting-label">${t('Haptic (vibrate)')}</div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${metroCfg().haptic ? 'active' : ''}" data-pref-metro="haptic-on">On</button>
-        <button class="drawer-pill ${!metroCfg().haptic ? 'active' : ''}" data-pref-metro="haptic-off">Off</button>
+        <button class="drawer-pill ${metroCfg().haptic ? 'active' : ''}" data-pref-metro="haptic-on">${t('On')}</button>
+        <button class="drawer-pill ${!metroCfg().haptic ? 'active' : ''}" data-pref-metro="haptic-off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Accent every</div>
-        <div class="drawer-setting-sub">A higher downbeat every N beats (0 = off)</div>
+        <div class="drawer-setting-label">${t('Accent every')}</div>
+        <div class="drawer-setting-sub">${t('A higher downbeat every N beats (0 = off)')}</div>
       </div>
       <input type="number" id="drawer-metro-accent" value="${metroCfg().accentEvery || 0}" min="0" max="16" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Run only during a set</div>
-        <div class="drawer-setting-sub">Stay silent unless a set is in progress (weight entered, reps pending). Off = free-run while toggled on.</div>
+        <div class="drawer-setting-label">${t('Run only during a set')}</div>
+        <div class="drawer-setting-sub">${t('Stay silent unless a set is in progress (weight entered, reps pending). Off = free-run while toggled on.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${metroCfg().setActiveOnly ? 'active' : ''}" data-pref-metro="setactive-on">On</button>
-        <button class="drawer-pill ${!metroCfg().setActiveOnly ? 'active' : ''}" data-pref-metro="setactive-off">Off</button>
+        <button class="drawer-pill ${metroCfg().setActiveOnly ? 'active' : ''}" data-pref-metro="setactive-on">${t('On')}</button>
+        <button class="drawer-pill ${!metroCfg().setActiveOnly ? 'active' : ''}" data-pref-metro="setactive-off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🧘 Mantranome</div>
-        <div class="drawer-setting-sub">Chant the exercise's setup cues on each beat instead of beeping — cycles all cues up to 4 times per set, then reverts to normal ticks</div>
+        <div class="drawer-setting-label">${t('🧘 Mantranome')}</div>
+        <div class="drawer-setting-sub">${t('Chant the exercise\'s setup cues on each beat instead of beeping — cycles all cues up to 4 times per set, then reverts to normal ticks')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${metroCfg().mantra ? 'active' : ''}" data-pref-metro="mantra-on">On</button>
-        <button class="drawer-pill ${!metroCfg().mantra ? 'active' : ''}" data-pref-metro="mantra-off">Off</button>
+        <button class="drawer-pill ${metroCfg().mantra ? 'active' : ''}" data-pref-metro="mantra-on">${t('On')}</button>
+        <button class="drawer-pill ${!metroCfg().mantra ? 'active' : ''}" data-pref-metro="mantra-off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-data-row">
-      <button class="drawer-btn" id="drawer-metro-test">▶ Test beat</button>
+      <button class="drawer-btn" id="drawer-metro-test">${t('▶ Test beat')}</button>
     </div>
-    <div class="drawer-section-title" data-sec-id="coach-hold-cue">⏱ Timed-hold cue</div>
+    <div class="drawer-section-title" data-sec-id="coach-hold-cue">${t('⏱ Timed-hold cue')}</div>
     <div class="drawer-setting-row" style="margin-top:6px;">
       <div>
-        <div class="drawer-setting-label">⏱ Timed-hold count cue</div>
+        <div class="drawer-setting-label">${t('⏱ Timed-hold count cue')}</div>
         <div class="drawer-setting-sub">For holds &amp; hangs: on set start the voice says “Ready… Set… Go”, then counts the seconds aloud (1, 2, 3…). The hold timer starts on <b>“Go”</b>. Overrides the metronome &amp; rest cues while it runs.</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${holdCueCfg().enabled ? 'active' : ''}" data-holdcue="enabled" data-holdcue-val="on">On</button>
-        <button class="drawer-pill ${!holdCueCfg().enabled ? 'active' : ''}" data-holdcue="enabled" data-holdcue-val="off">Off</button>
+        <button class="drawer-pill ${holdCueCfg().enabled ? 'active' : ''}" data-holdcue="enabled" data-holdcue-val="on">${t('On')}</button>
+        <button class="drawer-pill ${!holdCueCfg().enabled ? 'active' : ''}" data-holdcue="enabled" data-holdcue-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Count every (seconds)</div>
-        <div class="drawer-setting-sub">1 = say every second (Go, 1, 2, 3…). Higher = count in steps (e.g. 5 → 5, 10, 15…).</div>
+        <div class="drawer-setting-label">${t('Count every (seconds)')}</div>
+        <div class="drawer-setting-sub">${t('1 = say every second (Go, 1, 2, 3…). Higher = count in steps (e.g. 5 → 5, 10, 15…).')}</div>
       </div>
       <input type="number" id="drawer-holdcue-every" value="${holdCueCfg().every}" min="1" max="60" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
 
-    <div class="drawer-section-title">Rest timer cues</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">A separate audible rest timer, independent of the recommended-rest band's colour zones. Counts up or down during your rest, with interval cues, a final countdown and an end cue. The length <b>adapts per exercise</b> rather than being one number for every lift, and the cues can speak instead of beep.</div>
+    <div class="drawer-section-title" data-sec-id="rest-timer-cues">${t('Rest timer cues')}</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">${t('A separate audible rest timer, independent of the recommended-rest band\'s colour zones. Counts up or down during your rest, with interval cues, a final countdown and an end cue. The length <b>adapts per exercise</b> rather than being one number for every lift, and the cues can speak instead of beep.')}</div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Enable rest cues</div>
+      <div class="drawer-setting-label">${t('Enable rest cues')}</div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${restCueCfg().enabled ? 'active' : ''}" data-rc="enabled" data-rc-val="on">On</button>
-        <button class="drawer-pill ${!restCueCfg().enabled ? 'active' : ''}" data-rc="enabled" data-rc-val="off">Off</button>
+        <button class="drawer-pill ${restCueCfg().enabled ? 'active' : ''}" data-rc="enabled" data-rc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${!restCueCfg().enabled ? 'active' : ''}" data-rc="enabled" data-rc-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Direction</div>
+      <div class="drawer-setting-label">${t('Direction')}</div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${restCueCfg().mode === 'down' ? 'active' : ''}" data-rc="mode" data-rc-val="down">Countdown</button>
-        <button class="drawer-pill ${restCueCfg().mode === 'up' ? 'active' : ''}" data-rc="mode" data-rc-val="up">Count up</button>
+        <button class="drawer-pill ${restCueCfg().mode === 'down' ? 'active' : ''}" data-rc="mode" data-rc-val="down">${t('Countdown')}</button>
+        <button class="drawer-pill ${restCueCfg().mode === 'up' ? 'active' : ''}" data-rc="mode" data-rc-val="up">${t('Count up')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🤖 Auto target</div>
-        <div class="drawer-setting-sub">Take the length from the recommended-rest band for the exercise you just did — minutes after a heavy squat, about a minute after a curl. Off = always the fixed number below. A per-exercise pin (📌 in the log sheet) beats both.</div>
+        <div class="drawer-setting-label">${t('🤖 Auto target')}</div>
+        <div class="drawer-setting-sub">${t('Take the length from the recommended-rest band for the exercise you just did — minutes after a heavy squat, about a minute after a curl. Off = always the fixed number below. A per-exercise pin (📌 in the log sheet) beats both.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${restCueCfg().auto ? 'active' : ''}" data-rc="auto" data-rc-val="on">On</button>
-        <button class="drawer-pill ${!restCueCfg().auto ? 'active' : ''}" data-rc="auto" data-rc-val="off">Off</button>
+        <button class="drawer-pill ${restCueCfg().auto ? 'active' : ''}" data-rc="auto" data-rc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${!restCueCfg().auto ? 'active' : ''}" data-rc="auto" data-rc-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
-      <div><div class="drawer-setting-label">Target (sec)</div><div class="drawer-setting-sub">Countdown length / count-up finish point${restCueCfg().auto ? ' · the fallback while Auto target is on' : ''}</div></div>
+      <div><div class="drawer-setting-label">${t('Target (sec)')}</div><div class="drawer-setting-sub">Countdown length / count-up finish point${restCueCfg().auto ? ' · the fallback while Auto target is on' : ''}</div></div>
       <input type="number" id="drawer-rc-target" value="${restCueCfg().target}" min="5" max="900" step="5"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
@@ -14390,95 +14415,95 @@ function renderSettingsDrawer() {
       ${RC_PRESETS.map(p => `<button class="drawer-pill ${restCueCfg().target === p ? 'active' : ''}" data-rc-preset="${p}">${formatDuration(p)}</button>`).join('')}
     </div>
     <div class="drawer-setting-row">
-      <div><div class="drawer-setting-label">Beep every (sec)</div><div class="drawer-setting-sub">Interval cue · 0 = off</div></div>
+      <div><div class="drawer-setting-label">${t('Beep every (sec)')}</div><div class="drawer-setting-sub">${t('Interval cue · 0 = off')}</div></div>
       <input type="number" id="drawer-rc-interval" value="${restCueCfg().interval}" min="0" max="300" step="5"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
-      <div><div class="drawer-setting-label">Final countdown (sec)</div><div class="drawer-setting-sub">Tick each of the last N sec (countdown only) · 0 = off</div></div>
+      <div><div class="drawer-setting-label">${t('Final countdown (sec)')}</div><div class="drawer-setting-sub">${t('Tick each of the last N sec (countdown only) · 0 = off')}</div></div>
       <input type="number" id="drawer-rc-countdown" value="${restCueCfg().countdown}" min="0" max="10" step="1"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
-      <div><div class="drawer-setting-label">⏰ Overtime nag (sec)</div><div class="drawer-setting-sub">Past the target the timer used to go quiet — this re-cues every N sec so a glance at the phone doesn't quietly become six minutes · 0 = off</div></div>
+      <div><div class="drawer-setting-label">${t('⏰ Overtime nag (sec)')}</div><div class="drawer-setting-sub">${t('Past the target the timer used to go quiet — this re-cues every N sec so a glance at the phone doesn\'t quietly become six minutes · 0 = off')}</div></div>
       <input type="number" id="drawer-rc-overtime" value="${restCueCfg().overtime}" min="0" max="300" step="5"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
-      <div><div class="drawer-setting-label">🐌 Slow-set nag (sec)</div><div class="drawer-setting-sub">A set still running after N seconds gets a nudge, and another every N after — for the set you started and then got distracted mid-way · 0 = off</div></div>
+      <div><div class="drawer-setting-label">${t('🐌 Slow-set nag (sec)')}</div><div class="drawer-setting-sub">${t('A set still running after N seconds gets a nudge, and another every N after — for the set you started and then got distracted mid-way · 0 = off')}</div></div>
       <input type="number" id="drawer-rc-setnag" value="${restCueCfg().setNag}" min="0" max="600" step="5"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">↔ Between exercises</div>
-        <div class="drawer-setting-sub">Rest cues used to stop the moment you picked a different exercise. On = keep cueing the changeover too.</div>
+        <div class="drawer-setting-label">${t('↔ Between exercises')}</div>
+        <div class="drawer-setting-sub">${t('Rest cues used to stop the moment you picked a different exercise. On = keep cueing the changeover too.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${restCueCfg().interEx ? 'active' : ''}" data-rc="interEx" data-rc-val="on">On</button>
-        <button class="drawer-pill ${!restCueCfg().interEx ? 'active' : ''}" data-rc="interEx" data-rc-val="off">Off</button>
+        <button class="drawer-pill ${restCueCfg().interEx ? 'active' : ''}" data-rc="interEx" data-rc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${!restCueCfg().interEx ? 'active' : ''}" data-rc="interEx" data-rc-val="off">${t('Off')}</button>
       </div>
     </div>
     ${restCueCfg().interEx ? `<div class="drawer-setting-row">
-      <div><div class="drawer-setting-label">Changeover target (sec)</div><div class="drawer-setting-sub">0 = use the same target as a normal rest</div></div>
+      <div><div class="drawer-setting-label">${t('Changeover target (sec)')}</div><div class="drawer-setting-sub">${t('0 = use the same target as a normal rest')}</div></div>
       <input type="number" id="drawer-rc-intertarget" value="${restCueCfg().interTarget}" min="0" max="900" step="5"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>` : ''}
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">End cue</div>
+      <div class="drawer-setting-label">${t('End cue')}</div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${restCueCfg().endCue ? 'active' : ''}" data-rc="endCue" data-rc-val="on">On</button>
-        <button class="drawer-pill ${!restCueCfg().endCue ? 'active' : ''}" data-rc="endCue" data-rc-val="off">Off</button>
+        <button class="drawer-pill ${restCueCfg().endCue ? 'active' : ''}" data-rc="endCue" data-rc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${!restCueCfg().endCue ? 'active' : ''}" data-rc="endCue" data-rc-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🗣 Spoken cues</div>
-        <div class="drawer-setting-sub">The coach says the time instead of beeping it — “thirty, twenty-nine” (two seconds, so you hear which way the clock runs), then “3… 2… 1… Go”. The end triad still sounds; the other beeps stand down so they don't talk over the words.</div>
+        <div class="drawer-setting-label">${t('🗣 Spoken cues')}</div>
+        <div class="drawer-setting-sub">${t('The coach says the time instead of beeping it — “thirty, twenty-nine” (two seconds, so you hear which way the clock runs), then “3… 2… 1… Go”. The end triad still sounds; the other beeps stand down so they don\'t talk over the words.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${restCueCfg().voice ? 'active' : ''}" data-rc="voice" data-rc-val="on">On</button>
-        <button class="drawer-pill ${!restCueCfg().voice ? 'active' : ''}" data-rc="voice" data-rc-val="off">Off</button>
-      </div>
-    </div>
-    <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Cue sound</div>
-      <div class="drawer-pill-group">
-        <button class="drawer-pill ${restCueCfg().audio ? 'active' : ''}" data-rc="audio" data-rc-val="on">On</button>
-        <button class="drawer-pill ${!restCueCfg().audio ? 'active' : ''}" data-rc="audio" data-rc-val="off">Off</button>
+        <button class="drawer-pill ${restCueCfg().voice ? 'active' : ''}" data-rc="voice" data-rc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${!restCueCfg().voice ? 'active' : ''}" data-rc="voice" data-rc-val="off">${t('Off')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Cue vibration</div>
+      <div class="drawer-setting-label">${t('Cue sound')}</div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${restCueCfg().haptic ? 'active' : ''}" data-rc="haptic" data-rc-val="on">On</button>
-        <button class="drawer-pill ${!restCueCfg().haptic ? 'active' : ''}" data-rc="haptic" data-rc-val="off">Off</button>
+        <button class="drawer-pill ${restCueCfg().audio ? 'active' : ''}" data-rc="audio" data-rc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${!restCueCfg().audio ? 'active' : ''}" data-rc="audio" data-rc-val="off">${t('Off')}</button>
+      </div>
+    </div>
+    <div class="drawer-setting-row">
+      <div class="drawer-setting-label">${t('Cue vibration')}</div>
+      <div class="drawer-pill-group">
+        <button class="drawer-pill ${restCueCfg().haptic ? 'active' : ''}" data-rc="haptic" data-rc-val="on">${t('On')}</button>
+        <button class="drawer-pill ${!restCueCfg().haptic ? 'active' : ''}" data-rc="haptic" data-rc-val="off">${t('Off')}</button>
       </div>
     </div>
     ${(() => { const L = restCuePinList(); if (!L.length) return '';
       return `<div class="drawer-setting-row" style="display:block;">
-        <div class="drawer-setting-label">📌 Pinned rest targets</div>
-        <div class="drawer-setting-sub">Set from the 📌 button in the log sheet. These beat both Auto and the fixed number.</div>
-        <div style="margin-top:6px;">${L.map(e => `<div class="rc-pin-row"><span>${escapeHtml(e.name)}</span><b>${formatDuration(e.sec)}</b><button class="rc-hud-btn" data-rc-unpin="${escapeAttr(e.key)}" title="Remove this pin">✕</button></div>`).join('')}</div>
+        <div class="drawer-setting-label">${t('📌 Pinned rest targets')}</div>
+        <div class="drawer-setting-sub">${t('Set from the 📌 button in the log sheet. These beat both Auto and the fixed number.')}</div>
+        <div style="margin-top:6px;">${L.map(e => `<div class="rc-pin-row"><span>${escapeHtml(e.name)}</span><b>${formatDuration(e.sec)}</b><button class="rc-hud-btn" data-rc-unpin="${escapeAttr(e.key)}" title="${escapeAttr(t('Remove this pin'))}">✕</button></div>`).join('')}</div>
       </div>`; })()}
     <div class="drawer-data-row">
-      <button class="drawer-btn" id="drawer-rc-test">▶ Test end cue</button>
+      <button class="drawer-btn" id="drawer-rc-test">${t('▶ Test end cue')}</button>
       ${restCuePinList().length ? '<button class="drawer-btn" id="drawer-rc-unpin-all">📌 Clear all pins</button>' : ''}
     </div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">🎼 Set-quality sound</div>
-        <div class="drawer-setting-sub">On completing a set, play a short melody that tracks its quality vs your own history — a rising fanfare for a PR, a neutral note for matching, a falling pair for a down set.</div>
+        <div class="drawer-setting-label">${t('🎼 Set-quality sound')}</div>
+        <div class="drawer-setting-sub">${t('On completing a set, play a short melody that tracks its quality vs your own history — a rising fanfare for a PR, a neutral note for matching, a falling pair for a down set.')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${(state.workoutControls||{}).setQualityTone ? 'active' : ''}" data-sqtone="on">On</button>
-        <button class="drawer-pill ${!(state.workoutControls||{}).setQualityTone ? 'active' : ''}" data-sqtone="off">Off</button>
+        <button class="drawer-pill ${(state.workoutControls||{}).setQualityTone ? 'active' : ''}" data-sqtone="on">${t('On')}</button>
+        <button class="drawer-pill ${!(state.workoutControls||{}).setQualityTone ? 'active' : ''}" data-sqtone="off">${t('Off')}</button>
       </div>
     </div>
     ${customSoundsHtml()}
 
-    <div class="drawer-section-title">Live Dashboard</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Show or hide each element of the current-workout dashboard.</div>
+    <div class="drawer-section-title" data-sec-id="live-dashboard">${t('Live Dashboard')}</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">${t('Show or hide each element of the current-workout dashboard.')}</div>
     ${[
       ['stats','Session stats',"Elapsed · sets · reps · volume"],
       ['timeline','Workout timeline',"Per-set time chart"],
@@ -14493,31 +14518,31 @@ function renderSettingsDrawer() {
           <div class="drawer-setting-sub">${sub}</div>
         </div>
         <div class="drawer-pill-group">
-          <button class="drawer-pill ${state.dashboard[key] !== false ? 'active' : ''}" data-dash="${key}" data-dash-val="on">Show</button>
-          <button class="drawer-pill ${state.dashboard[key] === false ? 'active' : ''}" data-dash="${key}" data-dash-val="off">Hide</button>
+          <button class="drawer-pill ${state.dashboard[key] !== false ? 'active' : ''}" data-dash="${key}" data-dash-val="on">${t('Show')}</button>
+          <button class="drawer-pill ${state.dashboard[key] === false ? 'active' : ''}" data-dash="${key}" data-dash-val="off">${t('Hide')}</button>
         </div>
       </div>`).join('')}
 
-    <div class="drawer-section-title">Categories</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Hide whole training categories — removes them from the picker and their features (e.g. cardio goals).</div>
+    <div class="drawer-section-title" data-sec-id="categories">${t('Categories')}</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">${t('Hide whole training categories — removes them from the picker and their features (e.g. cardio goals).')}</div>
     ${[['cardio','Cardio'],['mobility','Mobility'],['recovery','Recovery']].map(([key,label]) => `
       <div class="drawer-setting-row">
         <div class="drawer-setting-label">${label}</div>
         <div class="drawer-pill-group">
-          <button class="drawer-pill ${!categoryHidden(key) ? 'active' : ''}" data-cat-vis="${key}" data-cat-val="show">Show</button>
-          <button class="drawer-pill ${categoryHidden(key) ? 'active' : ''}" data-cat-vis="${key}" data-cat-val="hide">Hide</button>
+          <button class="drawer-pill ${!categoryHidden(key) ? 'active' : ''}" data-cat-vis="${key}" data-cat-val="show">${t('Show')}</button>
+          <button class="drawer-pill ${categoryHidden(key) ? 'active' : ''}" data-cat-vis="${key}" data-cat-val="hide">${t('Hide')}</button>
         </div>
       </div>`).join('')}
 
-    <div class="drawer-section-title">Reference</div>
+    <div class="drawer-section-title" data-sec-id="reference">${t('Reference')}</div>
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">Glossary view</div>
-        <div class="drawer-setting-sub">Open the 📖 glossary as a full page or a slide-in panel</div>
+        <div class="drawer-setting-label">${t('Glossary view')}</div>
+        <div class="drawer-setting-sub">${t('Open the 📖 glossary as a full page or a slide-in panel')}</div>
       </div>
       <div class="drawer-pill-group">
-        <button class="drawer-pill ${state.glossaryAsPage !== false ? 'active' : ''}" data-pref-gloss-view="page">Page</button>
-        <button class="drawer-pill ${state.glossaryAsPage === false ? 'active' : ''}" data-pref-gloss-view="slide">Slide-in</button>
+        <button class="drawer-pill ${state.glossaryAsPage !== false ? 'active' : ''}" data-pref-gloss-view="page">${t('Page')}</button>
+        <button class="drawer-pill ${state.glossaryAsPage === false ? 'active' : ''}" data-pref-gloss-view="slide">${t('Slide-in')}</button>
       </div>
     </div>
     <div class="drawer-setting-row">
@@ -14525,7 +14550,7 @@ function renderSettingsDrawer() {
         <div class="drawer-setting-label">Hidden movements &amp; variations</div>
         <div class="drawer-setting-sub">${hiddenCount()} hidden — kept out of the tracker picker</div>
       </div>
-      <button class="drawer-btn" id="reset-hidden-btn" ${hiddenCount()===0?'disabled':''}>Reset all</button>
+      <button class="drawer-btn" id="reset-hidden-btn" ${hiddenCount()===0?'disabled':''}>${t('Reset all')}</button>
     </div>
     ${state.customVariations.length ? `
       <div class="drawer-setting-sub" style="margin:10px 0 6px;font-weight:600;">Custom variations (${state.customVariations.length})</div>
@@ -14537,44 +14562,42 @@ function renderSettingsDrawer() {
             <div style="font-size:13px;color:var(--text);">${escapeHtml(cv.title)} <span class="manual-tag">manual</span></div>
             <div style="font-size:10px;color:var(--text3);">${fam?escapeHtml(fam.title):'?'}${locked?' · sets logged — locked':''}</div>
             ${fam ? `<select class="cv-basis" data-cv-basis="${cv.uuid}" style="margin-top:4px;width:100%;padding:4px 6px;font-size:11px;border-radius:5px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);">
-              <option value="">basis for tracking: none</option>
+              <option value="">${t('basis for tracking: none')}</option>
               ${fam.variations.filter(vv=>vv.uuid!==cv.uuid && !vv._custom).map(vv => `<option value="${vv.uuid}" ${cv.basis===vv.uuid?'selected':''}>basis: ${escapeHtml(vv.title)}</option>`).join('')}
             </select>` : ''}
           </div>
-          <button class="drawer-btn danger" data-cv-del="${cv.uuid}" ${locked?'disabled':''} title="${locked?'Remove all logged sets first':'Remove'}">Del</button>
+          <button class="drawer-btn danger" data-cv-del="${cv.uuid}" ${locked?'disabled':''} title="${locked?'Remove all logged sets first':'Remove'}">${t('Del')}</button>
         </div>`;
       }).join('')}
     ` : '<div class="drawer-setting-sub" style="margin-top:6px;">No custom variations yet — add them from the exercise picker (+ Add custom variation).</div>'}
 
-    <div class="drawer-section-title" data-sec-id="data">Data</div>
+    <div class="drawer-section-title" data-sec-id="data">${t('Data')}</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">${sessionCount} sessions · ${setsCount} sets · ${(dataSize/1024).toFixed(1)} KB</div>
     <div class="drawer-data-row">
-      <button class="drawer-btn" id="drawer-export-btn">⬆ Export JSON</button>
-      <button class="drawer-btn" id="drawer-import-btn">⬇ Import JSON</button>
+      <button class="drawer-btn" id="drawer-export-btn">${t('⬆ Export JSON')}</button>
+      <button class="drawer-btn" id="drawer-import-btn">${t('⬇ Import JSON')}</button>
       <input type="file" id="drawer-import-file" accept=".json" style="display:none;">
     </div>
     <div class="drawer-data-row">
-      <button class="drawer-btn" id="drawer-export-workout-btn">📤 Export Workout / Range…</button>
-      <button class="drawer-btn" id="drawer-export-ref-csv-btn">📋 Export Reference CSV</button>
+      <button class="drawer-btn" id="drawer-export-workout-btn">${t('📤 Export Workout / Range…')}</button>
+      <button class="drawer-btn" id="drawer-export-ref-csv-btn">${t('📋 Export Reference CSV')}</button>
     </div>
     ${dataCategoryTableHtml()}
 
-    <div class="drawer-section-title" data-sec-id="info-pack">Info pack export</div>
+    <div class="drawer-section-title" data-sec-id="info-pack">${t('Info pack export')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">
-      A branded, dated, build-stamped document of the app's information sections — pick all or a subset.
-      The HTML file is self-contained; 🖨 prints it (choose "Save as PDF").
-      Disclaimers are always included.
+      ${t('A branded, dated, build-stamped document of the app\'s information sections — pick all or a subset. The HTML file is self-contained; 🖨 prints it (choose "Save as PDF"). Disclaimers are always included.')}
     </div>
     <div id="info-export-picks" style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:9px;">
       ${INFO_EXPORT_SECTIONS.map(s => `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;"><input type="checkbox" data-info-sec="${s.id}" checked style="accent-color:var(--accent);"> ${s.label}</label>`).join('')}
     </div>
     <div class="drawer-data-row">
-      <button class="drawer-btn" id="info-export-html-btn">⬆ Export Info HTML</button>
-      <button class="drawer-btn" id="info-export-print-btn">🖨 Print / PDF</button>
+      <button class="drawer-btn" id="info-export-html-btn">${t('⬆ Export Info HTML')}</button>
+      <button class="drawer-btn" id="info-export-print-btn">${t('🖨 Print / PDF')}</button>
     </div>
-    <div style="font-size:11px;color:var(--text3);margin:10px 0 6px;line-height:1.5;">The complete exercise reference — every movement and variation with cues, setup, mistakes and programming — as one cleanly sectioned HTML document (h1→h4 headings) that reader apps can build a table of contents from.</div>
+    <div style="font-size:11px;color:var(--text3);margin:10px 0 6px;line-height:1.5;">${t('The complete exercise reference — every movement and variation with cues, setup, mistakes and programming — as one cleanly sectioned HTML document (h1→h4 headings) that reader apps can build a table of contents from.')}</div>
     <div class="drawer-data-row">
-      <button class="drawer-btn" id="ref-export-html-btn">📖 Export Reference HTML</button>
+      <button class="drawer-btn" id="ref-export-html-btn">${t('📖 Export Reference HTML')}</button>
     </div>
 
     <div class="drawer-section-title" data-sec-id="activity-log">Activity &amp; Error Log</div>
@@ -14589,16 +14612,16 @@ function renderSettingsDrawer() {
       }).join('') : '<div style="color:var(--text3);">No events logged yet.</div>'}
     </div>
     <div class="drawer-data-row" style="margin-top:8px;">
-      <button class="drawer-btn" id="log-export-btn">⬆ Export Log (.txt)</button>
-      <button class="drawer-btn" id="log-share-btn">📤 Share Log</button>
-      <button class="drawer-btn danger" id="log-clear-btn">🗑 Clear Log</button>
+      <button class="drawer-btn" id="log-export-btn">${t('⬆ Export Log (.txt)')}</button>
+      <button class="drawer-btn" id="log-share-btn">${t('📤 Share Log')}</button>
+      <button class="drawer-btn danger" id="log-clear-btn">${t('🗑 Clear Log')}</button>
     </div>
 
     ${autoSaveSupported() ? `
     ${((state.autoSave&&state.autoSave.enabled)||(state.autoLoad&&state.autoLoad.enabled)) ? `
     <details class="drawer-archived" open style="margin-top:18px;border:1px solid var(--border2);border-radius:8px;padding:8px 11px;background:var(--bg3);">
     <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text2);padding:2px 0;">🗄️ Legacy file auto-save / load <span style="font-weight:400;color:var(--text3);">— archived; use ☁ Cloud Sync instead</span></summary>
-    <div class="drawer-section-title" data-sec-id="auto-save" style="margin-top:10px;">Auto-Save</div>
+    <div class="drawer-section-title" data-sec-id="auto-save" style="margin-top:10px;">${t('Auto-Save')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Writes your data to a file or folder automatically after every save.
       File handles reset on page reload — re-pick after reopening the app.
@@ -14606,7 +14629,7 @@ function renderSettingsDrawer() {
     </div>
     ${(state.autoLoad && state.autoLoad.enabled) ? `
       <div style="font-size:11px;color:var(--text3);padding:8px 10px;background:var(--bg3);border-radius:7px;border:1px solid var(--border2);">
-        Auto-Load is active — disable it first to enable Auto-Save.
+        ${t('Auto-Load is active — disable it first to enable Auto-Save.')}
       </div>
     ` : state.autoSave && state.autoSave.enabled ? `
       <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
@@ -14627,44 +14650,44 @@ function renderSettingsDrawer() {
         <button class="drawer-btn" id="as-repick-btn">
           ${state.autoSave.mode === 'file' ? '📄 Re-pick File' : '📁 Re-pick Folder'}
         </button>
-        <button class="drawer-btn" id="as-save-now-btn">💾 Save Now</button>
-        <button class="drawer-btn danger" id="as-disable-btn">✕ Disable</button>
+        <button class="drawer-btn" id="as-save-now-btn">${t('💾 Save Now')}</button>
+        <button class="drawer-btn danger" id="as-disable-btn">${t('✕ Disable')}</button>
       </div>
     ` : `
       <div class="drawer-data-row" style="flex-wrap:wrap;">
-        <button class="drawer-btn" id="as-pick-file-btn">📄 Pick File</button>
-        <button class="drawer-btn" id="as-pick-folder-btn">📁 Pick Folder</button>
+        <button class="drawer-btn" id="as-pick-file-btn">${t('📄 Pick File')}</button>
+        <button class="drawer-btn" id="as-pick-folder-btn">${t('📁 Pick Folder')}</button>
       </div>
     `}
     ${state.autoSave && state.autoSave.mode === 'folder' && state.autoSave.enabled ? `
       <div style="margin-top:10px;">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Deletion Policy</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">${t('Deletion Policy')}</div>
         <div style="display:flex;flex-direction:column;gap:6px;">
           <label class="as-policy-row ${(state.autoSave.keepPolicy||'count')==='count' ? 'as-policy-active' : ''}" data-policy="count">
             <span class="as-radio">${(state.autoSave.keepPolicy||'count')==='count' ? '◉' : '○'}</span>
-            <span>Keep last</span>
+            <span>${t('Keep last')}</span>
             <input type="number" id="as-keep-count" value="${state.autoSave.keepCount||10}" min="1" max="999"
               style="width:54px;padding:3px 6px;margin:0 4px;border-radius:5px;font-size:12px;text-align:center;font-family:inherit;
                      background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
-            <span>backups</span>
+            <span>${t('backups')}</span>
           </label>
           <label class="as-policy-row ${state.autoSave.keepPolicy==='days' ? 'as-policy-active' : ''}" data-policy="days">
             <span class="as-radio">${state.autoSave.keepPolicy==='days' ? '◉' : '○'}</span>
-            <span>Keep last</span>
+            <span>${t('Keep last')}</span>
             <input type="number" id="as-keep-days" value="${state.autoSave.keepDays||30}" min="1" max="3650"
               style="width:54px;padding:3px 6px;margin:0 4px;border-radius:5px;font-size:12px;text-align:center;font-family:inherit;
                      background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
-            <span>days</span>
+            <span>${t('days')}</span>
           </label>
           <label class="as-policy-row ${state.autoSave.keepPolicy==='all' ? 'as-policy-active' : ''}" data-policy="all">
             <span class="as-radio">${state.autoSave.keepPolicy==='all' ? '◉' : '○'}</span>
-            <span>Keep all backups</span>
+            <span>${t('Keep all backups')}</span>
           </label>
         </div>
       </div>
     ` : ''}
 
-    <div class="drawer-section-title" data-sec-id="auto-load" style="margin-top:18px;">Auto-Load</div>
+    <div class="drawer-section-title" data-sec-id="auto-load" style="margin-top:18px;">${t('Auto-Load')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Reads from a file or the newest .json in a folder on page load.
       For folders, picks the lexicographically newest <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">overload-tracker_*.json</code> file.
@@ -14672,7 +14695,7 @@ function renderSettingsDrawer() {
     </div>
     ${(state.autoSave && state.autoSave.enabled) ? `
       <div style="font-size:11px;color:var(--text3);padding:8px 10px;background:var(--bg3);border-radius:7px;border:1px solid var(--border2);">
-        Auto-Save is active — disable it first to enable Auto-Load.
+        ${t('Auto-Save is active — disable it first to enable Auto-Load.')}
       </div>
     ` : state.autoLoad && state.autoLoad.enabled ? `
       <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
@@ -14688,38 +14711,38 @@ function renderSettingsDrawer() {
         <button class="drawer-btn" id="al-repick-btn">
           ${state.autoLoad.mode === 'file' ? '📄 Re-pick File' : '📁 Re-pick Folder'}
         </button>
-        <button class="drawer-btn" id="al-load-now-btn">⬇ Load Now</button>
-        <button class="drawer-btn danger" id="al-disable-btn">✕ Disable</button>
+        <button class="drawer-btn" id="al-load-now-btn">${t('⬇ Load Now')}</button>
+        <button class="drawer-btn danger" id="al-disable-btn">${t('✕ Disable')}</button>
       </div>
       <div style="margin-top:10px;">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Load Mode</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">${t('Load Mode')}</div>
         <div style="display:flex;flex-direction:column;gap:6px;">
           <label class="as-policy-row ${(state.autoLoad.mergeMode||'merge')==='merge' ? 'as-policy-active' : ''}" data-al-merge="merge">
             <span class="as-radio">${(state.autoLoad.mergeMode||'merge')==='merge' ? '◉' : '○'}</span>
             <div>
-              <div style="font-size:12px;color:var(--text);">Merge</div>
-              <div style="font-size:10px;color:var(--text3);">Adds new sessions; skips existing exercise combos</div>
+              <div style="font-size:12px;color:var(--text);">${t('Merge')}</div>
+              <div style="font-size:10px;color:var(--text3);">${t('Adds new sessions; skips existing exercise combos')}</div>
             </div>
           </label>
           <label class="as-policy-row ${state.autoLoad.mergeMode==='overwrite' ? 'as-policy-active' : ''}" data-al-merge="overwrite">
             <span class="as-radio">${state.autoLoad.mergeMode==='overwrite' ? '◉' : '○'}</span>
             <div>
-              <div style="font-size:12px;color:var(--text);">Overwrite</div>
-              <div style="font-size:10px;color:var(--text3);">Replaces all local data with loaded file</div>
+              <div style="font-size:12px;color:var(--text);">${t('Overwrite')}</div>
+              <div style="font-size:10px;color:var(--text3);">${t('Replaces all local data with loaded file')}</div>
             </div>
           </label>
         </div>
       </div>
     ` : `
       <div class="drawer-data-row" style="flex-wrap:wrap;">
-        <button class="drawer-btn" id="al-pick-file-btn">📄 Pick File</button>
-        <button class="drawer-btn" id="al-pick-folder-btn">📁 Pick Folder</button>
+        <button class="drawer-btn" id="al-pick-file-btn">${t('📄 Pick File')}</button>
+        <button class="drawer-btn" id="al-pick-folder-btn">${t('📁 Pick Folder')}</button>
       </div>
     `}
     </details>
     ` : ''}
 
-    <div class="drawer-section-title" data-sec-id="biometrics-autoload" style="margin-top:18px;">Biometrics Auto-Load (Garmin)</div>
+    <div class="drawer-section-title" data-sec-id="biometrics-autoload" style="margin-top:18px;">${t('Biometrics Auto-Load (Garmin)')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Auto-imports body composition + sleep from a biometrics JSON/CSV (e.g. written by
       <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/garmin-sync.py</code>)
@@ -14738,21 +14761,19 @@ function renderSettingsDrawer() {
       </div>
       <div class="drawer-data-row" style="flex-wrap:wrap;">
         <button class="drawer-btn" id="bio-repick-btn">${state.bioAutoLoad.mode === 'file' ? '📄 Re-pick File' : '📁 Re-pick Folder'}</button>
-        <button class="drawer-btn" id="bio-sync-now-btn">⬇ Sync Now</button>
-        <button class="drawer-btn danger" id="bio-disable-btn">✕ Disable</button>
+        <button class="drawer-btn" id="bio-sync-now-btn">${t('⬇ Sync Now')}</button>
+        <button class="drawer-btn danger" id="bio-disable-btn">${t('✕ Disable')}</button>
       </div>
     ` : `
       <div class="drawer-data-row" style="flex-wrap:wrap;">
-        <button class="drawer-btn" id="bio-pick-folder-btn">📁 Pick Folder</button>
-        <button class="drawer-btn" id="bio-pick-file-btn">📄 Pick File</button>
+        <button class="drawer-btn" id="bio-pick-folder-btn">${t('📁 Pick Folder')}</button>
+        <button class="drawer-btn" id="bio-pick-file-btn">${t('📄 Pick File')}</button>
       </div>
     `}
 
-    <div class="drawer-section-title" data-sec-id="ai-brief" style="margin-top:18px;">AI Brief Export (this device)</div>
+    <div class="drawer-section-title" data-sec-id="ai-brief" style="margin-top:18px;">${t('AI Brief Export (this device)')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
-      Writes the <b>AI-ready training digest</b> (the same content as “Copy for Claude”) to a folder on <b>this device</b> —
-      so a desktop can drop the latest brief into e.g. an AI cowork folder for a morning strength-progress analysis.
-      Fires on <b>workout end</b> and <b>once a day</b>. The folder is remembered across reloads; set it up only on the device(s) you want exporting.
+      ${t('Writes the <b>AI-ready training digest</b> (the same content as “Copy for Claude”) to a folder on <b>this device</b> — so a desktop can drop the latest brief into e.g. an AI cowork folder for a morning strength-progress analysis. Fires on <b>workout end</b> and <b>once a day</b>. The folder is remembered across reloads; set it up only on the device(s) you want exporting.')}
     </div>
     ${state.aiExport && state.aiExport.enabled ? `
       <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
@@ -14760,37 +14781,37 @@ function renderSettingsDrawer() {
         <div style="color:var(--text2);">${escapeHtml(state.aiExport.filename || 'gymtracker-brief.md')} · ${aiExportScopeLabel(state.aiExport.scope)}${state.aiExport.lastWriteAt ? ' · last ' + escapeHtml(cloudShortTime(state.aiExport.lastWriteAt)) : ' · not written yet'}</div>
       </div>
       <div class="drawer-setting-row">
-        <div><div class="drawer-setting-label">After each workout</div><div class="drawer-setting-sub">Write the brief when a workout ends</div></div>
+        <div><div class="drawer-setting-label">${t('After each workout')}</div><div class="drawer-setting-sub">${t('Write the brief when a workout ends')}</div></div>
         <div class="drawer-pill-group">
-          <button class="drawer-pill ${state.aiExport.onWorkoutEnd !== false ? 'active' : ''}" data-ai="onWorkoutEnd" data-ai-val="on">On</button>
-          <button class="drawer-pill ${state.aiExport.onWorkoutEnd === false ? 'active' : ''}" data-ai="onWorkoutEnd" data-ai-val="off">Off</button>
+          <button class="drawer-pill ${state.aiExport.onWorkoutEnd !== false ? 'active' : ''}" data-ai="onWorkoutEnd" data-ai-val="on">${t('On')}</button>
+          <button class="drawer-pill ${state.aiExport.onWorkoutEnd === false ? 'active' : ''}" data-ai="onWorkoutEnd" data-ai-val="off">${t('Off')}</button>
         </div>
       </div>
       <div class="drawer-setting-row">
-        <div><div class="drawer-setting-label">Once a day</div><div class="drawer-setting-sub">Refresh on the first app open each day</div></div>
+        <div><div class="drawer-setting-label">${t('Once a day')}</div><div class="drawer-setting-sub">${t('Refresh on the first app open each day')}</div></div>
         <div class="drawer-pill-group">
-          <button class="drawer-pill ${state.aiExport.daily !== false ? 'active' : ''}" data-ai="daily" data-ai-val="on">On</button>
-          <button class="drawer-pill ${state.aiExport.daily === false ? 'active' : ''}" data-ai="daily" data-ai-val="off">Off</button>
+          <button class="drawer-pill ${state.aiExport.daily !== false ? 'active' : ''}" data-ai="daily" data-ai-val="on">${t('On')}</button>
+          <button class="drawer-pill ${state.aiExport.daily === false ? 'active' : ''}" data-ai="daily" data-ai-val="off">${t('Off')}</button>
         </div>
       </div>
       <div class="drawer-setting-row">
-        <div><div class="drawer-setting-label">Scope</div><div class="drawer-setting-sub">How much history the brief covers</div></div>
+        <div><div class="drawer-setting-label">${t('Scope')}</div><div class="drawer-setting-sub">${t('How much history the brief covers')}</div></div>
         <div class="drawer-pill-group">
           ${[['last30','30 days'],['month','This month'],['all','All time']].map(([v,l]) => `<button class="drawer-pill ${(state.aiExport.scope||'last30')===v?'active':''}" data-aiscope="${v}">${l}</button>`).join('')}
         </div>
       </div>
       <div class="drawer-data-row" style="flex-wrap:wrap;">
-        <button class="drawer-btn" id="ai-write-now-btn">📤 Write now</button>
-        <button class="drawer-btn" id="ai-repick-btn">📁 Change folder</button>
-        <button class="drawer-btn danger" id="ai-disable-btn">✕ Disable</button>
+        <button class="drawer-btn" id="ai-write-now-btn">${t('📤 Write now')}</button>
+        <button class="drawer-btn" id="ai-repick-btn">${t('📁 Change folder')}</button>
+        <button class="drawer-btn danger" id="ai-disable-btn">${t('✕ Disable')}</button>
       </div>
     ` : `
       <div class="drawer-data-row" style="flex-wrap:wrap;">
-        <button class="drawer-btn" id="ai-pick-folder-btn">📁 Pick export folder</button>
+        <button class="drawer-btn" id="ai-pick-folder-btn">${t('📁 Pick export folder')}</button>
       </div>
     `}
 
-    <div class="drawer-section-title" data-sec-id="ai-cowork" style="margin-top:18px;">🤝 AI Cowork</div>
+    <div class="drawer-section-title" data-sec-id="ai-cowork" style="margin-top:18px;">${t('🤝 AI Cowork')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       A two-way bridge for an <b>AI cowork agent</b> (model-agnostic — Claude, GPT, anything that reads/writes a folder):
       the app writes the machine export + task folders (Garmin / Strava / Plan-of-the-Day) and imports the agent's results.
@@ -14798,37 +14819,37 @@ function renderSettingsDrawer() {
     </div>
     ${(state.aiExport && state.aiExport.enabled) ? `
       <div class="drawer-setting-row">
-        <div><div class="drawer-setting-label">Enable the hub</div><div class="drawer-setting-sub">Write the cowork folders into the AI export folder and import agent results.</div></div>
+        <div><div class="drawer-setting-label">${t('Enable the hub')}</div><div class="drawer-setting-sub">${t('Write the cowork folders into the AI export folder and import agent results.')}</div></div>
         <div class="drawer-pill-group">
-          <button class="drawer-pill ${state.cowork.enabled ? 'active' : ''}" data-cowork="on">On</button>
-          <button class="drawer-pill ${!state.cowork.enabled ? 'active' : ''}" data-cowork="off">Off</button>
+          <button class="drawer-pill ${state.cowork.enabled ? 'active' : ''}" data-cowork="on">${t('On')}</button>
+          <button class="drawer-pill ${!state.cowork.enabled ? 'active' : ''}" data-cowork="off">${t('Off')}</button>
         </div>
       </div>
-      ${state.cowork.enabled ? `<div class="drawer-data-row" style="flex-wrap:wrap;"><button class="drawer-btn" id="cowork-write-now">🤝 Write hub now</button><button class="drawer-btn" id="cowork-check-now">↻ Check for replies</button></div>
+      ${state.cowork.enabled ? `<div class="drawer-data-row" style="flex-wrap:wrap;"><button class="drawer-btn" id="cowork-write-now">${t('🤝 Write hub now')}</button><button class="drawer-btn" id="cowork-check-now">${t('↻ Check for replies')}</button></div>
       ${renderCoworkStatusBlock()}
       <div class="drawer-setting-row">
-        <div><div class="drawer-setting-label">Count cardio in recovery</div><div class="drawer-setting-sub">Let recent hard cardio (incl. imported Strava activities) gently lower your Training Readiness. Per-muscle recovery is unaffected.</div></div>
+        <div><div class="drawer-setting-label">${t('Count cardio in recovery')}</div><div class="drawer-setting-sub">${t('Let recent hard cardio (incl. imported Strava activities) gently lower your Training Readiness. Per-muscle recovery is unaffected.')}</div></div>
         <div class="drawer-pill-group">
-          <button class="drawer-pill ${state.cowork.cardioFatigue ? 'active' : ''}" data-cardiofatigue="on">On</button>
-          <button class="drawer-pill ${!state.cowork.cardioFatigue ? 'active' : ''}" data-cardiofatigue="off">Off</button>
+          <button class="drawer-pill ${state.cowork.cardioFatigue ? 'active' : ''}" data-cardiofatigue="on">${t('On')}</button>
+          <button class="drawer-pill ${!state.cowork.cardioFatigue ? 'active' : ''}" data-cardiofatigue="off">${t('Off')}</button>
         </div>
       </div>${renderPodOptionsForm()}` : ''}
     ` : ''}
     ` : `
-    <div class="drawer-section-title" data-sec-id="cowork-autoload-na" style="margin-top:18px;">Auto-Save / Auto-Load</div>
+    <div class="drawer-section-title" data-sec-id="cowork-autoload-na" style="margin-top:18px;">${t('Auto-Save / Auto-Load')}</div>
     <div style="font-size:11px;color:var(--text3);line-height:1.5;">
-      Not available — requires Chrome or Edge on desktop (File System Access API).
+      ${t('Not available — requires Chrome or Edge on desktop (File System Access API).')}
     </div>
     `}
 
-    <div class="drawer-section-title" data-sec-id="strava-reconcile" style="margin-top:18px;">Strava reconciliation</div>
+    <div class="drawer-section-title" data-sec-id="strava-reconcile" style="margin-top:18px;">${t('Strava reconciliation')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Match your logged workouts to Strava strength activities (e.g. auto-synced from your watch). A browser can't reach
       Strava directly, so import a file from <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/strava-sync.py</code>
       or your Strava data export, then reconcile — link, enrich (HR / calories / duration), and copy a description back to Strava.
     </div>
     <div class="drawer-data-row" style="flex-wrap:wrap;">
-      <button class="drawer-btn" id="strava-import-btn">⬇ Import activities (JSON / CSV)</button>
+      <button class="drawer-btn" id="strava-import-btn">${t('⬇ Import activities (JSON / CSV)')}</button>
       <button class="drawer-btn" id="strava-reconcile-btn">🔗 Reconcile${(state.stravaActivities && state.stravaActivities.filter(a => isStrengthType(a.sportType)).length) ? ` (${state.stravaActivities.filter(a => isStrengthType(a.sportType)).length})` : ''}</button>
       <input type="file" id="strava-import-file" accept=".json,.csv,.txt" style="display:none;">
     </div>
@@ -14844,18 +14865,18 @@ function renderSettingsDrawer() {
       </div>
       <div class="drawer-data-row" style="flex-wrap:wrap;">
         <button class="drawer-btn" id="strava-repick-btn">${state.stravaAutoLoad.mode === 'file' ? '📄 Re-pick File' : '📁 Re-pick Folder'}</button>
-        <button class="drawer-btn" id="strava-sync-now-btn">⬇ Sync Now</button>
-        <button class="drawer-btn danger" id="strava-al-disable-btn">✕ Disable auto-load</button>
+        <button class="drawer-btn" id="strava-sync-now-btn">${t('⬇ Sync Now')}</button>
+        <button class="drawer-btn danger" id="strava-al-disable-btn">${t('✕ Disable auto-load')}</button>
       </div>
     ` : `
       <div class="drawer-data-row" style="flex-wrap:wrap;">
-        <button class="drawer-btn" id="strava-al-pick-folder-btn">📁 Auto-load folder</button>
-        <button class="drawer-btn" id="strava-al-pick-file-btn">📄 Auto-load file</button>
+        <button class="drawer-btn" id="strava-al-pick-folder-btn">${t('📁 Auto-load folder')}</button>
+        <button class="drawer-btn" id="strava-al-pick-file-btn">${t('📄 Auto-load file')}</button>
       </div>
     `}
     ` : ''}
 
-    <div class="drawer-section-title" data-sec-id="cloud-sync" style="margin-top:18px;">☁ Cloud Sync</div>
+    <div class="drawer-section-title" data-sec-id="cloud-sync" style="margin-top:18px;">${t('☁ Cloud Sync')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Sync your log across phone &amp; desktop automatically. Every change is <b>merged</b> (last-write-wins per
       session, with delete tracking), so no device clobbers another — and it works on the phone, unlike the
@@ -14863,7 +14884,7 @@ function renderSettingsDrawer() {
     </div>
     ${cloudSyncCardHtml()}
 
-    <div class="drawer-section-title" data-sec-id="exercise-media" style="margin-top:18px;">Exercise media (bulk)</div>
+    <div class="drawer-section-title" data-sec-id="exercise-media" style="margin-top:18px;">${t('Exercise media (bulk)')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Attach reference videos to many exercises at once. The easiest way: <b>📝 Media sheet</b> exports a plain,
       human-readable list with a blank for each exercise — have <b>Claude</b> (chat or cowork) fill in good form clips,
@@ -14872,30 +14893,30 @@ function renderSettingsDrawer() {
       JSON map.) Either way it <b>merges</b> into existing media.
     </div>
     <div class="drawer-data-row" style="flex-wrap:wrap;">
-      <button class="drawer-btn" id="exmedia-sheet-btn">📝 Media sheet (Claude-fillable)</button>
-      <button class="drawer-btn" id="exmedia-paste-btn">📋 Paste sheet to import</button>
+      <button class="drawer-btn" id="exmedia-sheet-btn">${t('📝 Media sheet (Claude-fillable)')}</button>
+      <button class="drawer-btn" id="exmedia-paste-btn">${t('📋 Paste sheet to import')}</button>
     </div>
     <div class="drawer-data-row" style="flex-wrap:wrap;margin-top:6px;">
-      <button class="drawer-btn" id="exmedia-export-btn">⬆ Export exercise list (JSON)</button>
-      <button class="drawer-btn" id="exmedia-import-btn">⬇ Import file (sheet or map)</button>
+      <button class="drawer-btn" id="exmedia-export-btn">${t('⬆ Export exercise list (JSON)')}</button>
+      <button class="drawer-btn" id="exmedia-import-btn">${t('⬇ Import file (sheet or map)')}</button>
       <input type="file" id="exmedia-import-file" accept=".json,.txt,.md" style="display:none;">
     </div>
-    ${isDesktopWizard() ? `<div class="drawer-data-row" style="margin-top:6px;"><button class="drawer-btn" id="open-media-wizard-btn">🖥️ Bulk media wizard…</button></div>
+    ${isDesktopWizard() ? `<div class="drawer-data-row" style="margin-top:6px;"><button class="drawer-btn" id="open-media-wizard-btn">${t('🖥️ Bulk media wizard…')}</button></div>
     <div style="font-size:11px;color:var(--text3);margin-top:4px;">Desktop tool to add, reassign, test &amp; delete reference links across every exercise.</div>` : ''}
 
-    <div class="drawer-section-title" data-sec-id="danger-zone">Danger Zone</div>
+    <div class="drawer-section-title" data-sec-id="danger-zone">${t('Danger Zone')}</div>
     <div class="drawer-data-row" style="margin-top:6px;">
-      <button class="drawer-btn danger" id="drawer-reset-btn">🗑 Erase all GymTracker data on this device</button>
+      <button class="drawer-btn danger" id="drawer-reset-btn">${t('🗑 Erase all GymTracker data on this device')}</button>
     </div>
-    <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5;">Removes workouts, plans, settings, custom sounds and saved folder links from this device. Your Google Drive copy and any exported files are not touched, and other apps on this site keep their data.</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5;">${t('Removes workouts, plans, settings, custom sounds and saved folder links from this device. Your Google Drive copy and any exported files are not touched, and other apps on this site keep their data.')}</div>
 
-    <div class="drawer-section-title">About</div>
+    <div class="drawer-section-title" data-sec-id="about">${t('About')}</div>
     <div style="font-size:12px;color:var(--text2);line-height:1.6;">
-      Beat last session: more reps, more weight, or more sets. e1RM = weight × (1 + reps/30). All data stays in your browser.
+      ${t('Beat last session: more reps, more weight, or more sets. e1RM = weight × (1 + reps/30). All data stays in your browser.')}
     </div>
     <div class="about-ea">
-      <span class="about-ea-tag">⚠️ Early Access</span>
-      <span>Active early-access build — features and data formats may still change. Keep your own backups via Settings → Data → Export JSON.</span>
+      <span class="about-ea-tag">${t('⚠️ Early Access')}</span>
+      <span>${t('Active early-access build — features and data formats may still change. Keep your own backups via Settings → Data → Export JSON.')}</span>
     </div>
     <details style="margin:10px 0;font-size:11.5px;color:var(--text2);line-height:1.55;"><summary style="cursor:pointer;color:var(--text);font-weight:600;padding:4px 0;">⚖️ Disclaimer, trademarks &amp; licence (MIT)</summary><div style="margin-top:4px;">${legalDisclaimerHtml()}</div></details>
     <div class="about-credit">
@@ -35045,7 +35066,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 482 · 2026-11-15 08:39';
+const APP_BUILD = 'build 483 · 2026-11-15 09:34';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

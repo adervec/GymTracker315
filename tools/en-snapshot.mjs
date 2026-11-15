@@ -8,7 +8,8 @@ import { chromium } from '@playwright/test';
 import { writeFileSync, readFileSync } from 'node:fs';
 
 if (process.argv[2] === '--diff') {
-  const a = JSON.parse(readFileSync(process.argv[3], 'utf8')), b = JSON.parse(readFileSync(process.argv[4], 'utf8'));
+  const STAMP = /^(Build [A-Z][a-z]{2} \d|build \d+ ·)/, load = (f) => Object.fromEntries(Object.entries(JSON.parse(readFileSync(f, 'utf8'))).map(([k, l]) => [k, l.filter((x) => !STAMP.test(x))]));
+  const a = load(process.argv[3]), b = load(process.argv[4]);
   let bad = 0;
   for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
     if (JSON.stringify(a[k]) === JSON.stringify(b[k])) continue;

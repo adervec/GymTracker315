@@ -5402,3 +5402,8 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   **English safety:** `tools/en-snapshot.mjs` renders 51 screens in English with seeded data and a pinned clock.
   Each translation step must leave its output identical (`--diff`), apart from changes made on purpose.
   The loop for later steps: wrap one screen's strings, run en-snapshot `--diff`, `i18n.mjs extract / todo`, translate, `merge`, `check`.
+  **Step 2 (feat 569):** Settings. `tools/i18n-wrap.mjs <from> <to>` wraps template-literal text, title, aria-label and
+  placeholder in `t()`, using a small JS scanner so code, strings and regexes are never touched. A sentence with
+  inline markup becomes one phrase with its tags (never split into pieces), and section titles get a fixed
+  `data-sec-id`. Left for a hand edit: text with `&entities;`, links, or `${…}` inside. Translations are done by
+  sub-agents, four languages each, filling `locales/_todo`.
