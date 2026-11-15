@@ -8,6 +8,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- standard 22. connect/img are https: because the reader picks their own sync server and media links. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://adervec.github.io https://accounts.google.com; style-src 'self' 'unsafe-inline' https://adervec.github.io https://accounts.google.com; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*; frame-src https://accounts.google.com https://www.youtube-nocookie.com https://www.tiktok.com https://www.instagram.com; font-src 'self' data: https://adervec.github.io; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>GymTracker315</title>
 <meta name="app-whatsnew" content="whatsnew.json">
@@ -496,6 +498,28 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
           });
         });
         row.append(copy, dl);
+        // Cold backup: everything this browser holds for the apps, as one file (the hub's Backup page does
+        // the same with more choice; this button is the only way in for an iPhone home-screen app).
+        var bk = document.createElement('button');
+        bk.type = 'button'; bk.textContent = tr('Back up my data');
+        bk.addEventListener('click', function () {
+          bk.disabled = true;
+          backupDownload().then(function () { bk.textContent = tr('Back up my data'); }, function () { bk.textContent = tr('Backup failed'); })
+            .then(function () { bk.disabled = false; });
+        });
+        row.appendChild(bk);
+        // Send feedback: a new issue on the app's GitHub page, with the (redacted) diagnostics filled in.
+        // ponytail: needs a GitHub account; add a no-account route (a form) when users ask for one.
+        if (/^https:\/\/github\.com\//.test(sourceUrl())) {
+          var fb = document.createElement('button');
+          fb.type = 'button'; fb.textContent = tr('Send feedback');
+          fb.addEventListener('click', function () {
+            diagnostics().then(function (t) {
+              window.open(sourceUrl().replace(/\/$/, '') + '/issues/new?body=' + encodeURIComponent('What happened, or what would you like?\n\n\n---\n' + t.slice(0, 3000)), '_blank', 'noopener');
+            });
+          });
+          row.appendChild(fb);
+        }
         body.appendChild(row);
         d.append(sum, body);
         this.appendChild(d);
@@ -784,6 +808,19 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
     return lang();
   });
 
+  // ---- Home-screen registry for the portal ----------------------------------------------------------
+  // Browsers never tell one page what else is installed, so each app notes it itself in the shared
+  // same-origin 'portal-installed' map ({ <slug>: time }): when it is installed, and on every launch from
+  // the home screen. Nothing else is recorded; nothing leaves the device. The slug is the first path
+  // segment (adervec.github.io/<slug>/), the same as the portal's.
+  var homeSlug = decodeURIComponent(location.pathname.split('/')[1] || '');
+  function markInstalled() {
+    if (!homeSlug || /\.html?$/.test(homeSlug)) return;
+    try { var reg = JSON.parse(localStorage.getItem('portal-installed') || '{}'); reg[homeSlug] = Date.now(); localStorage.setItem('portal-installed', JSON.stringify(reg)); } catch (e) { /* private mode */ }
+  }
+  if (navigator.standalone || ['standalone', 'minimal-ui', 'fullscreen', 'window-controls-overlay'].some(function (m) { return matchMedia('(display-mode: ' + m + ')').matches; })) markInstalled();
+  window.addEventListener('appinstalled', markInstalled);
+
   // ---- Safety helpers (house standard 22) ------------------------------------------------------------
   // Every app shares the adervec.github.io origin, so one injected script could read every app's data.
   // Text from outside (imports, Drive, cowork replies, the URL, a profile name) never becomes markup.
@@ -827,9 +864,366 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
       .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email]');
   }
 
+  // ---- Session ledger (house standard 25, hub roadmap chunk 4) --------------------------------------
+  // One line per finished session, so the hub can show habits and progress across every app:
+  //   appFont.logSession({ kind: 'lift', minutes: 42, id: workout.id })
+  // kind    what it was: lift cardio ride read chess practice write speak paint cook checkin focus aim
+  //         study compose art listen (the hub maps kinds onto its stats)
+  // minutes how long it took; or amount, a size of your own (1 = about ten minutes of effort)
+  // id      the session's own id, so logging it twice (a re-save, a sync) counts once
+  // at      when it ended (ms), if not now
+  // It is a row [seconds, app, kind, amount, id] in the shared localStorage 'portal-activity' (the last
+  // 2000 per device). Nothing leaves the device unless the reader signs in on the hub, which then keeps
+  // one file per device in their own private Drive folder. Returns true when a row was added.
+  function logSession(s) {
+    s = s || {};
+    var slug = s.app || (/\.html?$/.test(homeSlug) ? '' : homeSlug);
+    if (!slug || typeof s.kind !== 'string' || !s.kind) return false;
+    var amount = isFinite(s.amount) && s.amount > 0 ? +s.amount : Math.max(1, Math.round((+s.minutes || 10) / 10));
+    amount = Math.min(100, Math.round(amount * 10) / 10);
+    var at = isFinite(s.at) && s.at > 0 ? +s.at : Date.now();
+    var id = s.id == null ? '' : String(s.id).slice(0, 80);
+    try {
+      var a = JSON.parse(localStorage.getItem('portal-activity') || '[]');
+      if (!Array.isArray(a)) a = [];
+      if (id && a.some(function (x) { return x && x[1] === slug && x[4] === id; })) return false; // already logged
+      var row = [Math.round(at > 2e10 ? at / 1000 : at), String(slug).slice(0, 80), s.kind.slice(0, 20), amount];
+      if (id) row.push(id);
+      a.push(row);
+      localStorage.setItem('portal-activity', JSON.stringify(a.slice(-2000)));
+      return true;
+    } catch (e) { return false; } // private mode, or storage full: the session itself is the app's to keep
+  }
+
+  // ---- One theme list for every app (house standard 24) ---------------------------------------------
+  // Every app offers exactly these themes, under these names. The choice is kept per app, so one app
+  // can be Ember while another is Paper; "System" (the default) follows the device's light/dark.
+  // font.js sets the chosen palette on <html> as CSS variables, and each app maps them onto its own:
+  //   --t-bg --t-surface --t-surface2 --t-line --t-text --t-dim --t-accent --t-on-accent --t-good --t-warn --t-bad
+  //   --t-scheme (light | dark, for `color-scheme: var(--t-scheme)`), data-house-theme="<id>", data-house-dark="1|0"
+  // To change the list, change it HERE and nowhere else (font-selftest checks every palette's contrast).
+  // i18n-keys: Light | Dark | Midnight | Slate | Ocean | Forest | Ember | Gold | Synthwave | Terminal | Paper | Pastel | Mono | High contrast
+  var T_VARS = ['bg', 'surface', 'surface2', 'line', 'text', 'dim', 'accent', 'on-accent', 'good', 'warn', 'bad'];
+  var themes = [
+    //  id            name             dark  bg     surface surface2 line   text   dim    accent on-acc good   warn   bad
+    ['light',     'Light',         0, 'f7f8fa ffffff eef0f4 d5d9e0 14171f 5b6472 1d4ed8 ffffff 15803d a16207 b91c1c'],
+    ['dark',      'Dark',          1, '121418 1a1d23 23272f 343a45 e8eaee 9aa3b2 7aa2ff 0b1220 4ade80 fbbf24 f87171'],
+    ['midnight',  'Midnight',      1, '0b0d14 12151f 1e2333 2a3042 e6e9f0 8a93a8 8b9dff 0b0d14 4ade80 fbbf24 f87171'],
+    ['slate',     'Slate',         1, '1c2128 242a33 2d343f 3f4856 e6eaf0 9ba6b5 8fb4d9 10151b 6ee7a0 f5c451 f58b8b'],
+    ['ocean',     'Ocean',         1, '071a24 0c2431 12303f 1f4a5e e2f1f7 8fb3c2 38bdf8 04131b 5eead4 fcd34d fca5a5'],
+    ['forest',    'Forest',        1, '0d1610 132018 1a2b20 2c4434 e3efe5 93ad9a 5fd38a 07140c 7ee2a0 e9c46a f28b82'],
+    ['ember',     'Ember',         1, '1a0f0b 24150f 301c14 4a2c1f f6e7dc c09a86 ff7a3d 1a0f0b 86d992 ffc857 ff8a80'],
+    ['gold',      'Gold',          1, '17130a 201a0d 2a2212 4a3c1e f5ecd6 b8a57a e6b422 17130a a3d977 ffb86b ff8a80'],
+    ['synthwave', 'Synthwave',     1, '1b0033 2a0a4a 381466 5a2a8a f6e9ff c9a9ec ff4fd8 1b0033 5eead4 ffd166 ff7a90'],
+    ['terminal',  'Terminal',      1, '030803 061006 0a1d0e 1d3a22 9dffb0 5fa870 39ff6a 030803 39ff6a e6e04a ff6b6b'],
+    ['paper',     'Paper',         0, 'f6f0e2 fffaf0 ede4d0 d6c9ab 2b2418 6b5d45 9a3412 ffffff 3f6212 92400e b91c1c'],
+    ['pastel',    'Pastel',        0, 'f3eef7 ffffff ebe3f2 d9cde6 33293d 6f6180 7c3aed ffffff 166534 8a5206 be123c'],
+    ['mono',      'Mono',          0, 'ffffff ffffff f0f0f0 b5b5b5 111111 555555 111111 ffffff 1a6b2f 7a5200 a11212'],
+    ['contrast',  'High contrast', 1, '000000 000000 1a1a1a ffffff ffffff e0e0e0 ffe600 000000 00ff7f ffe600 ff6b6b'],
+  ].map(function (t) {
+    var c = {};
+    t[3].split(' ').forEach(function (hex, i) { c[T_VARS[i]] = '#' + hex; });
+    return { id: t[0], label: t[1], dark: !!t[2], colors: c };
+  });
+  var themeById = function (id) { return themes.filter(function (t) { return t.id === id; })[0]; };
+  var T_KEY = function () { return 'maker-theme:' + appKey(); };
+  // the reader's choice for THIS app: a theme id, or 'system' when they have not chosen
+  function themeChoice() { var v = store.get(T_KEY()); return v && themeById(v) ? v : 'system'; }
+  // the theme in force now: { id, label, dark, colors } ('system' resolved to light or dark)
+  function themeNow() { var id = themeChoice(); return themeById(id === 'system' ? systemTheme() : id); }
+  function applyTheme() {
+    var t = themeNow(), r = document.documentElement;
+    T_VARS.forEach(function (k) { r.style.setProperty('--t-' + k, t.colors[k]); });
+    r.style.setProperty('--t-scheme', t.dark ? 'dark' : 'light');
+    r.dataset.houseTheme = t.id; r.dataset.houseDark = t.dark ? '1' : '0';
+  }
+  function setTheme(id) {
+    store.set(T_KEY(), themeById(id) ? id : null); // 'system' or anything unknown clears the choice
+    applyTheme();
+    document.dispatchEvent(new CustomEvent('app-theme-change', { detail: themeNow() }));
+  }
+  applyTheme();
+  if (darkQuery && darkQuery.addEventListener) darkQuery.addEventListener('change', function () {
+    if (themeChoice() !== 'system') return; // a saved choice always wins (standard 14)
+    applyTheme();
+    document.dispatchEvent(new CustomEvent('app-theme-change', { detail: themeNow() }));
+  });
+  // <app-theme-picker label="Theme">: a plain labelled <select> in the light DOM, like the font picker
+  if (window.customElements && !customElements.get('app-theme-picker')) {
+    customElements.define('app-theme-picker', class extends HTMLElement {
+      connectedCallback() {
+        if (this.firstChild) return;
+        if (!houseReady && lang() !== 'en') { var me = this; ready.then(function () { if (!me.firstChild) me.connectedCallback(); }); return; }
+        var label = document.createElement('label'), select = document.createElement('select');
+        [{ id: 'system', label: 'System' }].concat(themes).forEach(function (t) {
+          var o = document.createElement('option'); o.value = t.id; o.textContent = tr(t.label); select.appendChild(o);
+        });
+        select.value = themeChoice();
+        select.addEventListener('change', function () { setTheme(select.value); });
+        document.addEventListener('app-theme-change', function () { select.value = themeChoice(); });
+        label.append((this.getAttribute('label') || tr('Theme')) + ' ', select);
+        this.appendChild(label);
+      }
+    });
+  }
+
+  // ---- Google sign-in and the private Drive folder, one copy for everyone (hub roadmap chunk 3) -------
+  // The hub and its Backup and Settings pages use this; apps still carry their own copy and should
+  // move here (see HOUSE-STANDARDS). The access token lives in memory only. What is remembered is the
+  // address of the account last chosen (maker-google-hint), so the next sign-in skips the chooser.
+  // The client id is public (an identifier, not a secret); Google honours it only from registered origins.
+  var G_CLIENT = window.appGoogleClient || '547617739897-br6dj2facmsc34qnkjb5u4dbfhju39pu.apps.googleusercontent.com';
+  var G_SCOPE = 'openid email profile https://www.googleapis.com/auth/drive.appdata';
+  var G_HINT = 'maker-google-hint';
+  var gTok = null, gLoading = null;
+  function gLoad() {
+    return gLoading || (gLoading = new Promise(function (res, rej) {
+      if (window.google && google.accounts && google.accounts.oauth2) return res();
+      var s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.onload = function () { res(); };
+      s.onerror = function () { gLoading = null; rej(new Error('Could not load Google sign-in.')); };
+      document.head.appendChild(s);
+    }));
+  }
+  var googleSignedIn = function () { return !!gTok && gTok.exp > Date.now() + 60000; };
+  // -> a promise of an access token. { silent: true } never shows Google's window to the reader: it
+  // rejects instead (browsers also block it outside a tap, so call it from one when it matters).
+  function googleToken(opts) {
+    if (googleSignedIn()) return Promise.resolve(gTok.value);
+    return gLoad().then(function () {
+      return new Promise(function (res, rej) {
+        google.accounts.oauth2.initTokenClient({
+          client_id: G_CLIENT, scope: G_SCOPE, login_hint: store.get(G_HINT) || undefined,
+          callback: function (r) {
+            if (!r || !r.access_token) return rej(new Error((r && r.error) || 'Sign-in failed.'));
+            gTok = { value: r.access_token, exp: Date.now() + (+r.expires_in || 3600) * 1000 };
+            res(gTok.value);
+          },
+          error_callback: function (e) { rej(new Error((e && (e.message || e.type)) || 'Sign-in was dismissed.')); },
+        }).requestAccessToken({ prompt: opts && opts.silent ? 'none' : '' });
+      });
+    }).then(function (t) {
+      // house standard 1: the picture sits in the top bar while signed in
+      return fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + t } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) { if (j) { setAccount({ name: j.name || j.email || 'Google', picture: j.picture || '', email: j.email || '' }); store.set(G_HINT, j.email || null); } })
+        .catch(function () { /* cosmetic only */ })
+        .then(function () { return t; });
+    });
+  }
+  // forgets the account here; the grant itself stays, since the apps share it
+  function googleSignOut() { gTok = null; store.set(G_HINT, null); setAccount(null); }
+  function gApi(path, init) {
+    return googleToken({ silent: true }).then(function (t) {
+      init = init || {};
+      return fetch('https://www.googleapis.com/' + path, { method: init.method, body: init.body, headers: Object.assign({ Authorization: 'Bearer ' + t }, init.headers) });
+    }).then(function (r) { if (!r.ok) throw new Error('Google Drive answered ' + r.status + '.'); return r; });
+  }
+  function gFind(name) {
+    var q = "name='" + String(name).replace(/['\\]/g, '\\$&') + "' and trashed=false";
+    return gApi('drive/v3/files?spaces=appDataFolder&fields=files(id)&q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); }).then(function (j) { return ((j.files || [])[0] || {}).id || null; });
+  }
+  // one named file in the private folder: -> its text, or null when there is none yet
+  function driveRead(name) {
+    return gFind(name).then(function (id) { return id ? gApi('drive/v3/files/' + id + '?alt=media').then(function (r) { return r.text(); }) : null; });
+  }
+  // the names of the files in the private folder that start with prefix
+  function driveList(prefix) {
+    var q = "name contains '" + String(prefix).replace(/['\\]/g, '\\$&') + "' and trashed=false";
+    return gApi('drive/v3/files?spaces=appDataFolder&pageSize=1000&fields=files(id,name)&q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (j) { return (j.files || []).map(function (f) { return f.name; }).filter(function (n) { return n.indexOf(prefix) === 0; }); });
+  }
+  function driveWrite(name, text) {
+    return gFind(name).then(function (id) {
+      if (id) return gApi('upload/drive/v3/files/' + id + '?uploadType=media', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: text });
+      var b = 'b' + randomId().replace(/-/g, '');
+      var body = '--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ name: name, parents: ['appDataFolder'] }) +
+        '\r\n--' + b + '\r\nContent-Type: application/json\r\n\r\n' + text + '\r\n--' + b + '--';
+      return gApi('upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + b }, body: body });
+    }).then(function () {});
+  }
+
+  // ---- Cold backup (hub roadmap chunk 2a) ------------------------------------------------------------
+  // Every app shares the origin, so one page can read all of their settings and databases into one
+  // file the reader keeps wherever they like. This half only READS: nothing here writes app data.
+  // TODO(chunk 2b): restore. One app at a time, a fresh backup first, tested by restoring into a clean
+  // browser and comparing every record; open problem: Drive sync pulling over, or pushing, restored data.
+  // Memory: records are read a batch at a time and handed to the browser as Blob pieces (which it may
+  // keep on disk), so the page never holds a whole database, let alone the whole backup.
+  // ponytail: one record is still held whole (a single 500 MB recording would hurt); binary is base64.
+  var SECRET_KEY = /token|secret|credential|password/i;
+  var SECRET_VAL = /ya29\.[\w.-]{20,}|eyJ[\w-]{10,}\.[\w-]{10,}\.|"(access|refresh|id)_token"\s*:/;
+  function b64(buf) {
+    var u = new Uint8Array(buf), s = '';
+    for (var i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  // -> a promise of a JSON-safe copy: binary, dates, maps, sets and the like become { $t: … }.
+  // light: binary is described ({ size }) instead of read, for showing a record on screen.
+  function enc(v, light) {
+    var P = function (x) { return Promise.resolve(x); };
+    if (v === undefined) return P({ $t: 'undef' });
+    if (typeof v === 'bigint') return P({ $t: 'bigint', v: String(v) });
+    if (typeof v === 'number' && !isFinite(v)) return P({ $t: 'num', v: String(v) });
+    if (typeof v === 'string') return P(v.length < 5000 && SECRET_VAL.test(v) ? '[token]' : v);
+    if (v === null || typeof v !== 'object') return P(v);
+    if (v instanceof Date) return P({ $t: 'date', v: v.getTime() });
+    if (v instanceof Blob) {
+      var meta = { $t: 'blob', type: v.type, name: v.name, lastModified: v.lastModified };
+      if (light) { meta.size = v.size; return P(meta); }
+      return v.arrayBuffer().then(function (b) { meta.b64 = b64(b); return meta; });
+    }
+    if (v instanceof ArrayBuffer) return P(light ? { $t: 'buf', size: v.byteLength } : { $t: 'buf', b64: b64(v) });
+    if (ArrayBuffer.isView(v)) return P(light ? { $t: 'view', ctor: v.constructor.name, size: v.byteLength }
+      : { $t: 'view', ctor: v.constructor.name, b64: b64(v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength)) });
+    if (v instanceof Map) return enc(Array.from(v), light).then(function (a) { return { $t: 'map', v: a }; });
+    if (v instanceof Set) return enc(Array.from(v), light).then(function (a) { return { $t: 'set', v: a }; });
+    if (Array.isArray(v)) return Promise.all(Array.from(v, function (x) { return enc(x, light); }));
+    var proto = Object.getPrototypeOf(v);
+    // a folder handle, a crypto key…: cannot be written to a file; say what it was
+    if (proto && proto !== Object.prototype) return P({ $t: 'other', is: Object.prototype.toString.call(v).slice(8, -1) });
+    var keys = Object.keys(v);
+    return Promise.all(keys.map(function (k) { return enc(v[k], light); })).then(function (vals) {
+      var o = {};
+      keys.forEach(function (k, i) { o[k] = vals[i]; });
+      return '$t' in o ? { $t: 'obj', v: o } : o;
+    });
+  }
+  function idbReq(r) { return new Promise(function (res, rej) { r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); }; }); }
+  // -> the open database, or null if it is not there (it is never created, and never blocks an app's upgrade)
+  function idbOpen(name) {
+    return new Promise(function (res) {
+      var rq = indexedDB.open(name);
+      rq.onupgradeneeded = function () { rq.transaction.abort(); };
+      rq.onerror = function (ev) { ev.preventDefault(); res(null); };
+      rq.onsuccess = function () { rq.result.onversionchange = function () { rq.result.close(); }; res(rq.result); };
+    });
+  }
+  // the next n records after key `after` (or the first n): -> [keys, values], read in one transaction
+  function idbBatch(db, store, started, after, n) {
+    var st = db.transaction(store, 'readonly').objectStore(store), range = started ? IDBKeyRange.lowerBound(after, true) : null;
+    return Promise.all([idbReq(st.getAllKeys(range, n)), idbReq(st.getAll(range, n))]);
+  }
+  // what is stored, without reading it: { localStorage: [{ name, bytes, secret }], indexedDB: [{ name, version, stores: [{ name, count }] } | { name, error }], note }
+  async function backupList() {
+    var out = { localStorage: [], indexedDB: [] };
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i), v = localStorage.getItem(k);
+        out.localStorage.push({ name: k, bytes: v.length, secret: SECRET_KEY.test(k) || SECRET_VAL.test(v) });
+      }
+    } catch (e) { out.note = 'Settings could not be read: ' + (e.message || e); }
+    if (!window.indexedDB || !indexedDB.databases) { out.note = 'This browser cannot list its databases, so only settings are included.'; return out; }
+    var dbs = await indexedDB.databases();
+    for (var d = 0; d < dbs.length; d++) {
+      var name = dbs[d].name, db = null;
+      if (!name) continue;
+      try {
+        db = await idbOpen(name);
+        if (!db) continue;
+        var names = Array.from(db.objectStoreNames), counts = [];
+        if (names.length) { var tx = db.transaction(names, 'readonly'); counts = await Promise.all(names.map(function (n) { return idbReq(tx.objectStore(n).count()); })); }
+        out.indexedDB.push({ name: name, version: db.version, stores: names.map(function (n, j) { return { name: n, count: counts[j] }; }) });
+      } catch (e) { out.indexedDB.push({ name: name, error: String((e && e.message) || e) }); }
+      if (db) db.close();
+    }
+    return out;
+  }
+  // the first n records of each store, for showing: { store: [[key, value], …] } (binary described, not read)
+  async function backupPeek(name, n) {
+    var db = await idbOpen(name), out = {};
+    if (!db) return out;
+    try {
+      var names = Array.from(db.objectStoreNames);
+      for (var i = 0; i < names.length; i++) {
+        var kv = await idbBatch(db, names[i], false, null, n || 20);
+        out[names[i]] = await enc(kv[0].map(function (k, j) { return [k, kv[1][j]]; }), true);
+      }
+    } finally { db.close(); }
+    return out;
+  }
+  // one database as JSON text in Blob pieces: {"version":n,"stores":{name:{keyPath,autoIncrement,indexes,"rows":[[key,value],…]}}}
+  async function backupDb(db, progress, signal) {
+    var pieces = [], buf = '';
+    var add = function (s) { buf += s; if (buf.length > 4e6) { pieces.push(new Blob([buf])); buf = ''; } };
+    var names = Array.from(db.objectStoreNames);
+    add('{"version":' + db.version + ',"stores":{');
+    for (var i = 0; i < names.length; i++) {
+      var n = names[i], st = db.transaction(n, 'readonly').objectStore(n);
+      var meta = { keyPath: st.keyPath, autoIncrement: st.autoIncrement,
+        indexes: Array.from(st.indexNames).map(function (x) { x = st.index(x); return { name: x.name, keyPath: x.keyPath, unique: x.unique, multiEntry: x.multiEntry }; }) };
+      add((i ? ',' : '') + JSON.stringify(n) + ':' + JSON.stringify(meta).slice(0, -1) + ',"rows":[');
+      var count = 0, last, started = false;
+      for (;;) {
+        var kv = await idbBatch(db, n, started, last, 50);
+        if (!kv[0].length) break;
+        for (var j = 0; j < kv[0].length; j++) add((count++ ? ',' : '') + JSON.stringify(await enc([kv[0][j], kv[1][j]]))); // one at a time: one recording in memory, not fifty
+        last = kv[0][kv[0].length - 1]; started = true;
+        if (signal && signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+        progress(db.name, kv[0].length);
+      }
+      add(']}');
+    }
+    add('}}');
+    pieces.push(new Blob([buf]));
+    return pieces;
+  }
+  // want(kind, name) -> false leaves that key or database out (default: everything).
+  // more(push): optional, appends further top-level JSON members (the hub adds ',"drive":[…]').
+  // progress(name, n): optional, called as each batch of n more records is read.
+  // signal: optional AbortSignal; cancelling rejects with an AbortError and saves nothing.
+  // -> { blob, made, skipped, errors: { database: reason } }
+  // A database that cannot be read is recorded under errors, so a gap is never silent.
+  async function backupBuild(want, more, progress, signal) {
+    want = want || function () { return true; };
+    progress = progress || function () {};
+    var head = { format: 'adervec-backup', schema: 2, made: new Date().toISOString(), origin: location.origin, from: location.pathname, localStorage: {}, skipped: [] };
+    var errors = {}, parts = [], first = true;
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i), v = localStorage.getItem(k);
+        if (!want('localStorage', k)) continue;
+        if (SECRET_KEY.test(k) || SECRET_VAL.test(v)) head.skipped.push(k); else head.localStorage[k] = v; // sign-in tokens stay out
+      }
+    } catch (e) { head.note = 'Settings could not be read: ' + (e.message || e); }
+    var dbs = [];
+    if (window.indexedDB && indexedDB.databases) dbs = await indexedDB.databases();
+    else head.note = 'This browser cannot list its databases, so only settings are included.';
+    parts.push(JSON.stringify(head).slice(0, -1) + ',"indexedDB":{');
+    for (var d = 0; d < dbs.length; d++) {
+      var name = dbs[d].name, db = null, pieces = null;
+      if (!name || !want('indexedDB', name)) continue;
+      try { db = await idbOpen(name); if (db) pieces = await backupDb(db, progress, signal); }
+      catch (e) { if (db) db.close(); if (e && e.name === 'AbortError') throw e; errors[name] = String((e && e.message) || e); db = null; }
+      if (db) db.close();
+      if (pieces) { parts.push((first ? '' : ',') + JSON.stringify(name) + ':'); parts = parts.concat(pieces); first = false; }
+    }
+    parts.push('}');
+    if (more) await more(function (s) { parts.push(s); }, signal);
+    parts.push(',"errors":' + JSON.stringify(errors) + '}');
+    return { blob: new Blob(parts, { type: 'application/json' }), made: head.made, skipped: head.skipped, errors: errors };
+  }
+  function backupDownload(want, more, progress, signal) {
+    return backupBuild(want, more, progress, signal).then(function (r) {
+      var u = URL.createObjectURL(r.blob), x = document.createElement('a');
+      x.href = u; x.download = 'adervec-backup-' + r.made.slice(0, 10) + '.json';
+      document.body.appendChild(x); x.click(); x.remove();
+      setTimeout(function () { URL.revokeObjectURL(u); }, 60000);
+      try { localStorage.setItem('portal-last-backup', String(Date.now())); } catch (e) { /* private mode */ }
+      return r;
+    });
+  }
+
   window.appFont = { options: options, get: get, set: set, buildLabel: buildLabel, updateNotice: updateNotice,
     esc: esc, html: html, safeUrl: safeUrl, parseJSON: parseJSON, randomId: randomId, redact: redact,
     zoomAllowed: zoomAllowed, setZoomAllowed: setZoomAllowed, crashNotice: crashNotice,
+    themes: themes, theme: themeChoice, themeNow: themeNow, setTheme: setTheme,
+    google: { token: googleToken, signedIn: googleSignedIn, signOut: googleSignOut, read: driveRead, write: driveWrite, list: driveList },
+    logSession: logSession,
+    backup: { list: backupList, peek: backupPeek, build: backupBuild, download: backupDownload },
     diagnostics: diagnostics, copyDiagnostics: copyDiagnostics, storageInfo: storageInfo, systemTheme: systemTheme,
     whatsNew: whatsNew, checkWhatsNew: checkWhatsNew, setWhatsNewSilenced: setWhatsNewSilenced,
     getAccount: getAccount, setAccount: setAccount,
@@ -6469,6 +6863,13 @@ const PASS5_ROWS = [
 ];
 compactRowsToVars(PASS5_ROWS.map(r => r.slice(1)), 0x3E0)
   .forEach((v, i) => EXTRA_VARIATIONS.push({ movementId: PASS5_ROWS[i][0], ...v })); // slots 0x3E0-0x3E9 — next free: 0x3EA
+
+/* feat 568 — the MTS line had the Row and High Row but not the Low Row, its third angle. */
+const PASS6_ROWS = [
+  ['row','mts-low-row','MTS Iso-Lateral Low Row','Lower Lats','The selectorized Hammer Strength low row: chest on the pad, handles low and forward, each arm on its own stack, pulled back toward the hips — the low angle of the MTS row trio.','Seat set so the arms reach the handles fully stretched with the chest on the pad|Feet braced, chest tall against the pad|Pin each stack; neutral grip','Drive the elbows back close to the body toward the hips|Squeeze the lats at the finish|Return slowly to a full stretch, shoulders reaching forward','Chest coming off the pad|Shrugging up instead of pulling back|Strong side finishing first|Cutting the stretch short','Strength:4 × 6-8;Hypertrophy:3-4 × 8-12','Pair it with the MTS Row and High Row to hit the lats from three angles; one arm at a time shows a weak side.'],
+];
+compactRowsToVars(PASS6_ROWS.map(r => r.slice(1)), 0x3EA)
+  .forEach((v, i) => EXTRA_VARIATIONS.push({ movementId: PASS6_ROWS[i][0], ...v })); // slot 0x3EA — next free: 0x3EB
 
 /* ---- feat 448 — the Swiss ball, its own family ----
    The catalogue had two Swiss-ball entries (`swiss-ball-curl` in Leg Curl, `stir-the-pot` in Core
@@ -35106,7 +35507,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 480 · 2026-11-14 15:00';
+const APP_BUILD = 'build 481 · 2026-11-14 22:10';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

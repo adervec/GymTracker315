@@ -5382,3 +5382,13 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
     The agent must use the app's own numbers, not recompute them, and send anything that looks medical to a doctor.
     `coworkImportGarmin` validates and clips the review into `state.sleepReviews[date]`, which syncs per entry
     (`SYNC_COLLECTION_KEYS`) and shows in review as "Sleep review".
+- **Content-Security-Policy and data inventory (feat 567, house standards 22 and 23):** a CSP meta tag sits
+  right after the charset. Scripts and styles may come only from 'self', adervec.github.io and Google sign-in, with
+  'unsafe-inline' allowed (the app is one file), and never 'unsafe-eval'. Frames are limited to Google sign-in and
+  the YouTube, TikTok and Instagram embeds. `connect-src` and `img-src` stay open to `https:`, because the reader
+  types in their own sync server and pastes their own image and GIF links; localhost and 127.0.0.1 over http stay
+  allowed for a local sync server. `app-data.json` lists the same keys and databases as `GT_LOCAL_KEYS` and
+  `GT_DATABASES` (keep the two in step), and deploy.yml publishes it next to index.html.
+- **MTS Iso-Lateral Low Row (feat 568):** added as `PASS6_ROWS` (slot 0x3EA) in the Row family, the third MTS row
+  angle next to the Row and High Row. Like those two, its setup type comes from the title rules ("iso-lateral" /
+  "mts"), so it opens the same picker.
