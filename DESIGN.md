@@ -5392,3 +5392,13 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
 - **MTS Iso-Lateral Low Row (feat 568):** added as `PASS6_ROWS` (slot 0x3EA) in the Row family, the third MTS row
   angle next to the Row and High Row. Like those two, its setup type comes from the title rules ("iso-lateral" /
   "mts"), so it opens the same picker.
+- **Languages on the house system (feat 569, standard 20), step 1:** the old keyed i18n (feat 61/222/411: `I18N`,
+  `LANGUAGES`, `setLang`, `data-i18n*`, `state.lang`, the drawer's own language menu) is gone. `t()` now
+  forwards to `appFont.t` (the English is the key), and `t.n()` handles plurals. Static markup uses `data-t` /
+  `data-t-attr`, the language is font.js's shared `maker-lang`, and `app-language-ready` triggers a redraw. The old
+  translations were moved, keyed by their English, into `locales/<lang>.json`. Russian, Japanese and Korean
+  were dropped because they aren't house languages. Dynamic labels (page titles, girths) are listed in
+  `// i18n-keys:` comments.
+  **English safety:** `tools/en-snapshot.mjs` renders 51 screens in English with seeded data and a pinned clock.
+  Each translation step must leave its output identical (`--diff`), apart from changes made on purpose.
+  The loop for later steps: wrap one screen's strings, run en-snapshot `--diff`, `i18n.mjs extract / todo`, translate, `merge`, `check`.
