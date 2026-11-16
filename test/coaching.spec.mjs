@@ -77,13 +77,27 @@ test('new exercises pass the picker visibility gate (recordable)', async ({ page
   const visible = await page.evaluate(() => {
     const check = (id) => {
       const fam = FAMILIES.find(f => f.id === id);
-      return fam.variations.every(v => varVisibleInPicker(fam, v));
+      return fam.variations.every(v => isSuppressedVar(v.uuid) || varVisibleInPicker(fam, v)); // feat 570 — a reconciled duplicate is hidden on purpose
     };
     return { neck: check('neck-training'), jaw: check('jaw-training'), climbing: check('climbing') };
   });
   expect(visible.neck).toBe(true);
   expect(visible.jaw).toBe(true);
   expect(visible.climbing).toBe(true);
+});
+
+test('feat 570 — duplicate neck and hack-squat entries are hidden, and their logged sets still resolve', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const ids = (fid) => FAMILIES.find(f => f.id === fid).variations.filter(v => varVisibleInPicker(FAMILIES.find(f => f.id === fid), v)).map(v => v.id);
+    return { neck: ids('neck-training'), legpress: ids('leg-press'), squat: ids('squat'), wrist: ids('wrist-curl'), oldName: displayName('b2b798fa-a00e-4072-8e56-47909a3c84ab') };
+  });
+  for (const gone of ['neck-plate', 'neck-harness']) expect(r.neck).not.toContain(gone);
+  expect(r.neck).toEqual(expect.arrayContaining(['neck-flex-weighted', 'neck-harness-ext']));
+  expect(r.legpress).not.toContain('hack-squat-machine');
+  expect(r.legpress).toContain('hack-squat');
+  expect(r.squat).not.toContain('box-squat-detailed'); expect(r.squat).toContain('box-squat');
+  expect(r.wrist).not.toContain('barbell-wrist-curl'); expect(r.wrist).toContain('wrist-curl-flexor');
+  expect(r.oldName).toMatch(/Hack Squat Machine/);   // history logged against the hidden copy still reads as before
 });
 
 test('the Advice page renders all discipline cards; only bundled-guide cards show a 📖 chip (feat 189/194)', async ({ page }) => {

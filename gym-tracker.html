@@ -8044,6 +8044,12 @@ const VAR_DUP_RECONCILE = [
   { keep:'6dcaf529-0013-4c69-8577-7252ada115ff', drop:'6d3eae66-c4c1-4b64-85eb-378820871697' }, // Anderson / Pin Squat — a THIRD copy, inside the squat family itself
   { keep:'8e953301-4e8f-4cca-ae07-fe3243fe21b9', drop:'3d5beff7-1c18-44ab-8356-259f42ae833d' }, // Farmer's Walk — Loaded Carries ◀ Strongman ("heavy" is a load, not a movement)
   { keep:'96b4bbd9-54a4-42e4-ae38-9e67bd473430', drop:'2a9ec5f1-f184-45aa-ac43-28f6e5eabf4f' }, // Monster Walk — Resistance Bands; the dropped entry's title conflated it with the Lateral Banded Walk that also exists
+  // feat 570 — the same lift twice inside one family, cluttering the picker:
+  { keep:'5d630c7c-26fd-4cab-a033-3c5c6640956b', drop:'b2b798fa-a00e-4072-8e56-47909a3c84ab' }, // Hack Squat ◀ Hack Squat Machine (the hack squat IS the machine)
+  { keep:'c0ac0002-0002-4002-8002-000000000002', drop:'d58144b3-95cf-4e00-97a8-9679db031716' }, // Weighted Neck Flexion ◀ Plate on Forehead (same lift)
+  { keep:'c0ac0004-0004-4004-8004-000000000004', drop:'3cd94f84-793c-41e8-8f9e-023df5c7489b' }, // Neck Harness Extension ◀ Neck Harness (Loaded) (a harness lift is an extension)
+  { keep:'8e62df0b-3eb3-4cf5-939b-f4cfabfa7357', drop:'59fd8838-2347-4e8b-b80d-b8241de796e7' }, // Box Squat ◀ Box Squat (Westside Style) (the box squat already is the Westside one)
+  { keep:'46a892ff-c420-4835-a6c4-681423c3ecb7', drop:'b1a1035f-035f-435f-835f-aaaaaaaa035f' }, // Wrist Curl (Flexor) ◀ Barbell Wrist Curl
 ];
 // Pure additive cross-listings (no duplicate to suppress): canonical uuid → extra parent family ids.
 const SECONDARY_PARENTS_EXTRA = {
@@ -34937,6 +34943,7 @@ dedupeFamilies(); // feat 166 — reconcile any remaining same-title duplicate m
 reconcileVariationParents(); // feat 167 — cross-list duplicate variations (one primary + secondary parent movements)
 applyExtraVariations();
 applyExtraSecondaryParents(); // feat 301 — additive cross-listings (after extras exist in VAR_INDEX)
+reconcileVariationParents(); // feat 570 — again, now that EXTRA_VARIATIONS exist, so pairs that involve them resolve too (idempotent)
 applyCustomVariations();
 installGlossaryHighlight();
 setTimeout(hrTryReconnect, 0); // feat 72 — auto-reconnect last HR device; deferred so it runs after boot completes (this INIT block is above the `let _hrConnected` declaration, so calling synchronously here hit its temporal-dead-zone and silently rejected — auto-reconnect never actually ran)
@@ -35066,7 +35073,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 483 · 2026-11-15 09:34';
+const APP_BUILD = 'build 484 · 2026-11-15 20:40';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
