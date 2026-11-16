@@ -74,3 +74,17 @@ test('every locale file has every English string, with its placeholders intact',
     }
   }
 });
+
+// A block with its own variable called t would call THAT instead of the translator and throw, in every language
+// including English. tools/i18n-wrap.mjs --check proves no t('…') call sits inside such a block.
+test('no t() call is shadowed by a local variable named t', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const lines = readFileSync('gym-tracker.html', 'utf8').split('\n');
+  const opens = [], closes = [];
+  lines.forEach((l, i) => { if (/^<script>/.test(l)) opens.push(i + 1); else if (/^<\/script>/.test(l)) closes.push(i + 1); });
+  for (const o of opens) {
+    const c = closes.find((x) => x > o); if (!c || c - o < 50) continue;
+    const out = execFileSync('node', ['tools/i18n-wrap.mjs', String(o + 1), String(c - 1), '--check'], { encoding: 'utf8' });
+    expect(out, `script at line ${o}`).toContain('no t() call is shadowed');
+  }
+});

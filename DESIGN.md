@@ -5407,3 +5407,9 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   inline markup becomes one phrase with its tags (never split into pieces), and section titles get a fixed
   `data-sec-id`. Left for a hand edit: text with `&entities;`, links, or `${…}` inside. Translations are done by
   sub-agents, four languages each, filling `locales/_todo`.
+  **Step 3 (feat 569):** the rest of the template text in every script, plus plain `toast('…')` / `confirmDialog('…')`
+  messages and dialog option labels (`i18n-wrap.mjs --calls`). 1,202 phrases × 16 languages.
+  **Shadowing guard:** a block with its own variable named `t` would call that instead of the translator and throw
+  (it happened once, in the Split Planner; the snapshot caught it). The tool now scans braces and parameters, marks
+  every block where `t` is used as a variable, and never wraps inside one. `--check` proves it for existing calls,
+  and `test/i18n.spec.mjs` runs that check on every script. Voice commands stay English (the recognizer is `en-US`).
