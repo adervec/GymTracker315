@@ -20,15 +20,16 @@ const KW = /(?:^|[^\w$.])(return|typeof|case|in|of|new|delete|void|throw|else|do
 function quasis(s, a, b) {
   const out = []; out.pairs = []; out.parens = []; const opens = [], parens = []; let i = a, last = '';            // last: previous significant code char (for regex detection)
   const stack = [];                                  // template nesting: brace depth per open ${
+  const tstack = []; let tid = 0;                    // which template literal a chunk belongs to (third field)
   let depth = 0;
   const regexOK = () => !last || '(,=:[!&|?{};+-*%<>~^'.includes(last) || KW.test(s.slice(Math.max(a, i - 12), i));
   const readTemplate = () => {                       // i is just after a backtick (or a closing } of ${ })
-    let q = i;
+    let q = i; const id = tstack[tstack.length - 1];
     while (i < b) {
       const c = s[i];
       if (c === '\\') { i += 2; continue; }
-      if (c === '`') { out.push([q, i]); i++; last = 'x'; return 'end'; }
-      if (c === '$' && s[i + 1] === '{') { out.push([q, i]); opens.push(i + 1); i += 2; stack.push(depth); depth = 0; last = '{'; return 'expr'; }
+      if (c === '`') { out.push([q, i, id]); tstack.pop(); i++; last = 'x'; return 'end'; }
+      if (c === '$' && s[i + 1] === '{') { out.push([q, i, id]); opens.push(i + 1); i += 2; stack.push(depth); depth = 0; last = '{'; return 'expr'; }
       i++;
     }
     return 'eof';
@@ -38,7 +39,7 @@ function quasis(s, a, b) {
     if (c === '/' && s[i + 1] === '/') { i = s.indexOf('\n', i); if (i < 0) i = b; continue; }
     if (c === '/' && s[i + 1] === '*') { i = s.indexOf('*/', i + 2) + 2; continue; }
     if (c === '"' || c === "'") { const qc = c; i++; while (i < b && s[i] !== qc && s[i] !== '\n') i += s[i] === '\\' ? 2 : 1; i++; last = 'x'; continue; }
-    if (c === '`') { i++; readTemplate(); continue; }
+    if (c === '`') { i++; tstack.push(++tid); readTemplate(); continue; }
     if (c === '/' && regexOK()) {                    // regex literal
       i++; let cls = false;
       while (i < b && s[i] !== '\n') { const d = s[i]; if (d === '\\') { i += 2; continue; } if (d === '[') cls = true; else if (d === ']') cls = false; else if (d === '/' && !cls) break; i++; }
@@ -106,7 +107,82 @@ if (process.argv.includes('--check')) {            // every existing t('…') ca
   for (const m of src.slice(A, B).matchAll(/(?<![\w$.])t\((['"`])/g)) if (shadowed(A + m.index)) { bad++; console.log('shadowed t() at line ' + src.slice(0, A + m.index).split('\n').length); }
   console.log(bad ? bad + ' call(s) sit in a block that uses t as a variable' : '✓ no t() call is shadowed'); process.exit(bad ? 1 : 0);
 }
-const skipped = [], edits = []; let nText = 0, nAttr = 0, nSec = 0, nRich = 0;
+const skipped = [], edits = []; let nText = 0, nAttr = 0, nSec = 0, nRich = 0, nInterp = 0, nNested = 0, nPieces = 0;
+
+// --- placeholders: a readable {name} for each ${expr} moved into a phrase
+function paramNames(exprs) {
+  const used = new Set();
+  return exprs.map((e0, i) => {
+    const e = e0.trim(); let n = null, m;
+    if (/^[A-Za-z_][\w]*$/.test(e)) n = e;
+    else if ((m = e.match(/^(?:[\w$]+\.)+([A-Za-z_]\w*)$/))) n = m[1];
+    else if ((m = e.match(/^[\w$.]+\(\s*(?:[\w$]+\.)*([A-Za-z_]\w*)\s*\)$/))) n = m[1];
+    if (!n || n.length > 18) n = 'p' + (i + 1);
+    while (used.has(n)) n += '_';
+    used.add(n); return n;
+  });
+}
+const SENT = (k) => String.fromCharCode(0xE100 + k), isSent = /[-]/, SENTG = /[-]/g;
+// text with values in it: >Age ${x} · used in body-comp<  ->  ONE phrase, 'Age {x} · used in body-comp', with the
+// expressions passed as params. Works on a whole template literal at a time (its chunks joined by markers).
+if (process.argv.includes('--interp')) {
+  const byTpl = new Map();
+  for (const q of scan) { if (q[2] == null) continue; if (!byTpl.has(q[2])) byTpl.set(q[2], []); byTpl.get(q[2]).push(q); }
+  for (const qs of byTpl.values()) {
+    if (qs.length < 2 || qs[0][0] < A || qs[qs.length - 1][1] > B || qs.length > 5000) continue;
+    qs.sort((x, y) => x[0] - y[0]);
+    let V = ''; const vAt = [];                                 // vAt[k]: where chunk k starts in V
+    qs.forEach((q, k) => { vAt.push(V.length); V += src.slice(q[0], q[1]); if (k < qs.length - 1) V += SENT(k); });
+    if (!/<[a-zA-Z\/]/.test(V)) continue;                       // not markup
+    const exprOf = (k) => src.slice(qs[k][1] + 2, qs[k + 1][0] - 1);
+    const toSrc = (v, end) => {                                 // a V offset back to a source offset
+      for (let k = qs.length - 1; k >= 0; k--) if (v >= vAt[k]) {
+        const len = qs[k][1] - qs[k][0];
+        if (v - vAt[k] <= len) return qs[k][0] + (v - vAt[k]);
+        return end ? qs[k + 1][0] : qs[k][1];                   // on the marker: after the } or before the $
+      }
+      return qs[0][0];
+    };
+    const convert = (vs, raw, isRich) => {
+      const lead = raw.match(/^\s*/)[0], trail = raw.match(/\s*$/)[0], body = raw.slice(lead.length, raw.length - trail.length);
+      const ks = [...body.matchAll(SENTG)].map((m) => m[0].charCodeAt(0) - 0xE100);
+      const exprs = ks.map(exprOf);
+      if (exprs.some((e) => e.includes('`'))) { nNested++; return false; }   // a nested template: its own text is handled first
+      // a value glued to a word ("session{s}", "{label}ly") or carrying its own English ("more" / "fewer") builds
+      // the sentence from pieces: left for a hand rewrite
+      if (/[A-Za-z][-]|[-][A-Za-z]/.test(body) || exprs.some((e) => /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(e))) { nPieces++; return false; }
+      const names = paramNames(exprs); let i = 0;
+      const key = body.replace(SENTG, () => '{' + names[i++] + '}').replace(/\s+/g, ' ');
+      const params = names.map((n, j) => `${n}: (${exprs[j].trim()})`).join(', ');
+      const s0 = toSrc(vs + lead.length, false), s1 = toSrc(vs + lead.length + body.length, true);
+      edits.push([s0, s1, `\${${T}('${esc(key)}', { ${params} })}`]); nInterp++;
+      return true;
+    };
+    const tagBefore = (gtV) => V.slice(V.lastIndexOf('<', gtV), gtV + 1).match(/^<(\/?)([a-zA-Z][\w-]*)[\s\S]*>$/);
+    const richDone = [];
+    if (RICH) for (const m of V.matchAll(/>((?:[^<>]|<\/?(?:b|i|em|strong|code|small|u|kbd|sup|sub|mark)>|<br\s*\/?>)+)<\/(div|p|li|label|summary|td|th|button|span)>/g)) {
+      const inner = m[1];
+      if (!isSent.test(inner)) continue;                        // no values in it: the plain pass does it
+      const words = inner.replace(SENTG, '').replace(/<[^>]*>/g, '');
+      if (!/[A-Za-z]{2}/.test(words) || notWords(words) || /&[#\w]+;|[\\{}$`]/.test(inner.replace(SENTG, ''))) continue;
+      const open = tagBefore(m.index); if (!open || open[1] || open[2].toLowerCase() !== m[2].toLowerCase()) continue;
+      if (convert(m.index + 1, inner, true)) richDone.push([m.index + 1, m.index + 1 + inner.length]);
+    }
+    for (const m of V.matchAll(/>([^<>]*)</g)) {
+      const raw = m[1]; if (!isSent.test(raw)) continue;
+      if (richDone.some(([x, y]) => m.index + 1 >= x && m.index + 1 < y)) continue;
+      const words = raw.replace(SENTG, ' ').trim();
+      if (!/[A-Za-z]{2}/.test(words) || !good(words)) continue;
+      const lastTag = tagBefore(m.index);
+      if (lastTag && !lastTag[1] && /^(style|script|textarea)$/i.test(lastTag[2])) continue;
+      const nextTag = (V.slice(m.index + 1 + raw.length).match(/^<(\/?)([a-zA-Z][\w-]*)/) || []);
+      const INL = /^(b|i|em|strong|code|a|span|small|u|kbd|br|sup|sub|mark)$/i;
+      if ((lastTag && INL.test(lastTag[2])) || (nextTag[2] && INL.test(nextTag[2]))) { skipped.push(words); continue; }
+      convert(m.index + 1, raw, false);
+    }
+  }
+  console.log(`${nInterp} phrase(s) with values in them; left: ${nNested} with a nested template, ${nPieces} built from pieces`);
+}
 for (const [qa, qb] of quasis(src, A, B)) {
   const q = src.slice(qa, qb);
   if (!/<[a-zA-Z\/]/.test(q) && !/^[^<]*>/.test(q)) continue;     // not markup
@@ -159,12 +235,79 @@ for (const [qa, qb] of quasis(src, A, B)) {
     edits.push([s0, s0 + v.length, `\${escapeAttr(${T}('${esc(v)}'))}`]); nAttr++;
   }
 }
-if (process.argv.includes('--list')) { const ln = (o) => { let lo = 0, hi = lineStart.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (lineStart[m] <= o) lo = m; else hi = m - 1; } return lo + 1; }; edits.slice().sort((x, y) => x[0] - y[0]).forEach(([s0, s1, r]) => console.log(ln(s0) + '	' + r.trim().slice(0, 150))); }
 // --- plain-text messages in code: toast('…') / confirmDialog('…') first arguments, and the title / message /
 // button labels inside a dialog call's options. Only whole string literals; anything built with + or ${…}
 // needs a hand rewrite into one phrase with {placeholders}.
-let nCall = 0;
+let nCall = 0, nChain = 0;
+// --- messages built in code: 'Deleted ' + n + ' sets', or `Deleted ${n} sets`  ->  ONE phrase with {n}.
+// Reads one expression from `start` up to a top-level stop character. Only a chain of + is accepted; any other
+// operator at the top level (?: || comparisons…) leaves the message alone.
+function readChain(start, stops) {
+  let i = start, depth = 0; const cuts = [start]; let bad = false;
+  while (i < SB) {
+    const c = src[i];
+    if (c === "'" || c === '"') { i++; while (i < SB && src[i] !== c && src[i] !== '\n') i += src[i] === '\\' ? 2 : 1; i++; continue; }
+    if (c === '`') { const q = scan.find((x) => x[0] === i + 1); if (!q) return null; const last = scan.filter((x) => x[2] === q[2]).sort((x, y) => y[1] - x[1])[0]; i = last[1] + 1; continue; }
+    if ('([{'.includes(c)) { depth++; i++; continue; }
+    if (')]}'.includes(c)) { if (depth === 0) break; depth--; i++; continue; }
+    if (depth === 0) {
+      if (stops.includes(c)) break;
+      if (c === '+' && src[i + 1] !== '+' && src[i - 1] !== '+' && src[i + 1] !== '=') { cuts.push(i); i++; continue; }
+      if ('?:|&<>=*/%!-'.includes(c)) bad = true;
+    }
+    i++;
+  }
+  if (bad) return null;
+  const parts = []; cuts.push(i);
+  for (let k = 0; k < cuts.length - 1; k++) { const a = cuts[k] + (k ? 1 : 0), b = cuts[k + 1]; const tx = src.slice(a, b); const lead = tx.match(/^\s*/)[0].length, tr = tx.match(/\s*$/)[0].length; parts.push([a + lead, b - tr]); }
+  return { end: parts.length ? parts[parts.length - 1][1] : i, parts };
+}
+function chainToCall(start, stops) {
+  const ch = readChain(start, stops); if (!ch || !ch.parts.length) return null;
+  const segs = [];                                               // { lit } | { expr }
+  for (const [a, b] of ch.parts) {
+    const tx = src.slice(a, b); if (!tx) return null;
+    if (/^'(?:[^'\\\n]|\\.)*'$/.test(tx)) segs.push({ lit: tx.slice(1, -1) });
+    else if (/^"(?:[^"\\\n]|\\.)*"$/.test(tx)) segs.push({ lit: tx.slice(1, -1).replace(/\\"/g, '"').replace(/'/g, "\\'") });
+    else if (tx[0] === '`' && tx[tx.length - 1] === '`') {
+      const q0 = scan.find((x) => x[0] === a + 1); if (!q0) return null;
+      const qs = scan.filter((x) => x[2] === q0[2]).sort((x, y) => x[0] - y[0]);
+      if (qs[qs.length - 1][1] !== b - 1) return null;
+      qs.forEach((q, k) => {
+        const raw = src.slice(q[0], q[1]).replace(/\\`/g, '`').replace(/(^|[^\\])'/g, "$1\\'").replace(/(^|[^\\])'/g, "$1\\'").replace(/\r?\n/g, '\\n');
+        if (raw) segs.push({ lit: raw });
+        if (k < qs.length - 1) segs.push({ expr: src.slice(q[1] + 2, qs[k + 1][0] - 1) });
+      });
+    } else segs.push({ expr: tx });
+  }
+  const lits = segs.filter((x) => x.lit != null).map((x) => x.lit).join(' ');
+  if (!/[A-Za-z]{2}/.test(lits) || /[{}]|<[a-zA-Z\/]/.test(lits) || notWords(lits)) return null;       // no words, or markup
+  if (segs[0].expr != null && (segs.length < 2 || segs[1].expr != null)) return null;                    // a + b + '…' may be arithmetic
+  const exprs = segs.filter((x) => x.expr != null).map((x) => x.expr);
+  if (exprs.some((e) => e.includes('`') || /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(e))) return null;   // nested template, or its own English
+  for (let k = 0; k < segs.length - 1; k++) {                    // a value glued to a word builds the phrase from pieces
+    const x = segs[k], y = segs[k + 1];
+    if (x.lit != null && y.expr != null && /[A-Za-z]$/.test(x.lit)) return null;
+    if (x.expr != null && y.lit != null && /^[A-Za-z]/.test(y.lit)) return null;
+    if (x.expr != null && y.expr != null) return null;
+  }
+  const names = paramNames(exprs); let n = 0;
+  const key = segs.map((x) => (x.lit != null ? x.lit : '{' + names[n++] + '}')).join('');
+  const params = exprs.length ? `, { ${names.map((nm, j) => `${nm}: (${exprs[j].trim()})`).join(', ')} }` : '';
+  return { s0: ch.parts[0][0], s1: ch.end, text: `${T}('${key}'${params})`, plain: !exprs.length };
+}
 if (process.argv.includes('--calls')) {
+  const region0 = src.slice(A, B), done = new Set();
+  const push = (r) => { if (!r || done.has(r.s0)) return; done.add(r.s0); edits.push([r.s0, r.s1, r.text]); r.plain ? nCall++ : nChain++; };
+  for (const m of region0.matchAll(/(?<![\w$.])(toast|confirmDialog)\(\s*/g)) push(chainToCall(A + m.index + m[0].length, ','));
+  for (const m of region0.matchAll(/(?<![\w$.])(confirmDialog|choiceDialog|promptDialog)\(/g)) {
+    const open = A + m.index + m[0].length - 1, pr = scan.parens.find(([x]) => x === open); if (!pr) continue;
+    for (const k of src.slice(pr[0], pr[1]).matchAll(/\b(title|message|okLabel|cancelLabel|label|sub|placeholder|hint|detail)\s*:\s*/g)) push(chainToCall(pr[0] + k.index + k[0].length, ','));
+  }
+  for (const m of region0.matchAll(/\.(textContent|innerText)\s*=(?!=)\s*/g)) push(chainToCall(A + m.index + m[0].length, ';,\n'));
+  console.log(`${nCall} plain message(s) and ${nChain} built message(s) in toast / dialog / label code`);
+}
+if (false) {
   const LITS = String.raw`('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")`;
   const region = src.slice(A, B);
   for (const m of region.matchAll(new RegExp(String.raw`(?<![\w$.])(toast|confirmDialog)\(\s*` + LITS + String.raw`(?=\s*[,)])`, 'g'))) {
@@ -183,6 +326,7 @@ if (process.argv.includes('--calls')) {
   }
   console.log(`${nCall} plain message(s) in toast / dialog calls`);
 }
+if (process.argv.includes('--list')) { const ln = (o) => { let lo = 0, hi = lineStart.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (lineStart[m] <= o) lo = m; else hi = m - 1; } return lo + 1; }; edits.slice().sort((x, y) => x[0] - y[0]).forEach(([s0, s1, r]) => console.log(ln(s0) + '	' + r.trim().slice(0, 150))); }
 let nShadow = 0; for (let i = edits.length - 1; i >= 0; i--) if ((/\$\{/.test(edits[i][2]) || edits[i][2].startsWith(T + '(')) && shadowed(edits[i][0])) { edits.splice(i, 1); nShadow++; }
 if (nShadow) console.log(`skipped ${nShadow} edit(s) inside functions that use t as a variable`);
 edits.sort((x, y) => y[0] - x[0] || y[1] - x[1]);

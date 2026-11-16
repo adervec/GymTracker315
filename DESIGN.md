@@ -5413,3 +5413,10 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   (it happened once, in the Split Planner; the snapshot caught it). The tool now scans braces and parameters, marks
   every block where `t` is used as a variable, and never wraps inside one. `--check` proves it for existing calls,
   and `test/i18n.spec.mjs` runs that check on every script. Voice commands stay English (the recognizer is `en-US`).
+  **Step 4 (feat 569):** static page markup (`data-t` / `data-t-attr`, only on elements the app never rewrites:
+  font.js replaces a tagged element's whole content), text with values in it (`--interp`: `>Age ${x} · used<` becomes one
+  phrase `'Age {x} · used'` with params), and messages built in code (`--calls`: a `+` chain or template in
+  `toast(…)`, dialog options, `.textContent =` becomes one phrase). 1,438 phrases × 16 languages. Left in English on
+  purpose, for hand rewrites: phrases glued from pieces (plural suffixes, values carrying their own English),
+  sentences with links, text inside nested templates, and anything inside a block that uses `t` as a variable.
+  Data fields (`plan.title = …`) are never wrapped, so no translated text is stored in state.
