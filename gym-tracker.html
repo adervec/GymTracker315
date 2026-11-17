@@ -10049,7 +10049,7 @@ function renderHelp(targetId) {
 
     <h3>${t('Tips')}</h3>
     <ul>
-      <li>Press <span class="help-kbd">Esc</span> to close modals and overlays.</li>
+      <li>${t('Press <span class="help-kbd">Esc</span> to close modals and overlays.')}</li>
       <li>${t('Switch themes in Settings — many are grouped by mood/category.')}</li>
     </ul>
     <h3>Disclaimer &amp; licence</h3>${legalDisclaimerHtml()}
@@ -11604,7 +11604,7 @@ function periodCardHtml(kind, off) {
   const lines = [];
   if (!a.sessions) lines.push('<li class="sm-lo">😴 No training logged</li>');
   else {
-    lines.push(`<li class="sm-hi">💪 ${a.sessions} session${a.sessions === 1 ? '' : 's'} · ${a.sets} sets · ${a.volume.toLocaleString()} ${U}</li>`);
+    lines.push(`<li class="sm-hi">${t.n('💪 {sessions} session · {sets} sets · {p3} {U}', '💪 {sessions} sessions · {sets} sets · {p3} {U}', (a.sessions), { sessions: (a.sessions), sets: (a.sets), p3: (a.volume.toLocaleString()), U: (U) })}</li>`);
     if (b.sessions) { const d = a.sessions - b.sessions; if (d) lines.push(`<li class="${d > 0 ? 'sm-hi' : 'sm-lo'}">${d > 0 ? '🔥' : '🛌'} ${Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} session${Math.abs(d) === 1 ? '' : 's'} than ${escapeHtml(p.label.split(' · ')[0])}</li>`); }
     if (a.avgGrade) lines.push(`<li class="sm-hi">${t('⭐ Average session grade {avgGrade} ({avgPoints}/100)', { avgGrade: (a.avgGrade), avgPoints: (a.avgPoints) })}</li>`);
     const gains = Object.keys(a.lifts).filter(k => b.lifts[k]).map(k => [k, a.lifts[k] - b.lifts[k]]).sort((x, y) => y[1] - x[1]);
@@ -11831,12 +11831,12 @@ function renderCoworkReviewBlock(role) {
       <div class="drawer-data-row" style="margin-top:6px;"><button class="drawer-btn" data-review-apply="${it.id}" ${role === 'viewer' ? 'disabled' : ''}>${t('Apply selected')}</button><button class="drawer-btn" data-review-discard="${it.id}">${t('Discard')}</button></div>
     </div>`;
   }).join('');
-  const undo = coworkUndoList().slice().reverse().slice(0, 5).map(u => `<div class="cowork-run ok"><span class="cowork-run-dot">↺</span><span class="cowork-run-txt">${escapeHtml(u.channel)} — ${escapeHtml(u.how)} · ${u.rows.length} change${u.rows.length === 1 ? '' : 's'} · ${escapeHtml(coworkFmtAgo(u.at))}</span><button class="drawer-btn" data-cowork-undo="${u.id}">${t('Undo')}</button></div>`).join('');
-  return `<div class="cowork-log-title">Review first <span class="cowork-log-sub">👁 = a reply waits for you · ⚡ = applied as it arrives</span></div>
+  const undo = coworkUndoList().slice().reverse().slice(0, 5).map(u => `<div class="cowork-run ok"><span class="cowork-run-dot">↺</span><span class="cowork-run-txt">${t.n('{channel} — {how} · {length} change · {p4}', '{channel} — {how} · {length} changes · {p4}', (u.rows.length), { channel: (escapeHtml(u.channel)), how: (escapeHtml(u.how)), length: (u.rows.length), p4: (escapeHtml(coworkFmtAgo(u.at))) })}</span><button class="drawer-btn" data-cowork-undo="${u.id}">${t('Undo')}</button></div>`).join('');
+  return `<div class="cowork-log-title">${t('Review first <span class="cowork-log-sub">👁 = a reply waits for you · ⚡ = applied as it arrives</span>')}</div>
     <div class="cowork-chans">${toggles}</div>
     <div class="cowork-log-title">Waiting for review <span class="cowork-log-sub">${q.length ? q.length + ' repl' + (q.length === 1 ? 'y' : 'ies') : 'nothing waiting'}</span></div>
     ${items || ''}
-    ${undo ? `<div class="cowork-log-title">Undo <span class="cowork-log-sub">the last changes cowork made</span></div><div class="cowork-log">${undo}</div>` : ''}`;
+    ${undo ? `<div class="cowork-log-title">${t('Undo <span class="cowork-log-sub">the last changes cowork made</span>')}</div><div class="cowork-log">${undo}</div>` : ''}`;
 }
 function bindCoworkReview(body, rerender) {
   body.querySelectorAll('[data-cowork-review]').forEach(b => b.addEventListener('click', () => {
@@ -12237,12 +12237,12 @@ function renderCoworkStatusBlock() {
   const machineBtn = role === 'machine'
     ? `<button class="drawer-btn" id="cowork-machine-clear">${t('Release this device')}</button>`
     : `<button class="drawer-btn" id="cowork-machine-claim">${role === 'viewer' ? 'Take over as sync machine' : 'Make this the sync machine'}</button>`;
-  const schedRows = COWORK_TASKS.map(t => {
-    const cur = coworkTaskSchedule(t.id), last = (state.coworkLocal.lastRuns || {})[t.id];
+  const schedRows = COWORK_TASKS.map(tv => {
+    const cur = coworkTaskSchedule(tv.id), last = (state.coworkLocal.lastRuns || {})[tv.id];
     const opts = COWORK_SCHEDULES.map(s => `<option value="${s.id}" ${s.id === cur ? 'selected' : ''}>${escapeHtml(s.label)}</option>`).join('');
     return `<div class="cowork-sched-row">
-      <div><div class="drawer-setting-label">${escapeHtml(t.label)}</div><div class="drawer-setting-sub">last run ${escapeHtml(coworkFmtAgo(last, now))}</div></div>
-      <select class="cowork-sched" data-cowork-sched="${t.id}" ${role === 'viewer' ? 'disabled' : ''}>${opts}</select>
+      <div><div class="drawer-setting-label">${escapeHtml(tv.label)}</div><div class="drawer-setting-sub">${t('last run {p1}', { p1: (escapeHtml(coworkFmtAgo(last, now))) })}</div></div>
+      <select class="cowork-sched" data-cowork-sched="${tv.id}" ${role === 'viewer' ? 'disabled' : ''}>${opts}</select>
     </div>`;
   }).join('');
   const chanRows = COWORK_CHANNELS.map(c => `<button class="cowork-chan ${coworkChannelOn(c.key) ? 'on' : ''}" data-cowork-chan="${c.key}" ${role === 'viewer' ? 'disabled' : ''} aria-pressed="${coworkChannelOn(c.key)}">${coworkChannelOn(c.key) ? '✓' : '✕'} ${escapeHtml(c.dir)}</button>`).join('');
@@ -12258,14 +12258,14 @@ function renderCoworkStatusBlock() {
     ${roleLine}
     <div class="drawer-data-row" style="flex-wrap:wrap;margin:8px 0 4px;">${machineBtn}${fails ? `<button class="drawer-btn" id="cowork-log-clear">${t('Clear log ({fails} failed)', { fails: (fails) })}</button>` : ''}</div>
     ${schedRows}
-    <div class="cowork-log-title">Folder <span class="cowork-log-sub">a note to yourself — the browser only reveals the leaf name</span></div>
+    <div class="cowork-log-title">${t('Folder <span class="cowork-log-sub">a note to yourself — the browser only reveals the leaf name</span>')}</div>
     <input type="text" class="cowork-api-key" id="cowork-dir-label" placeholder="e.g. D:\\Sync\\Claude\\GymTracker" value="${escapeAttr((state.coworkLocal && state.coworkLocal.dirLabel) || '')}" autocomplete="off" spellcheck="false">
-    <div class="cowork-log-title">Channels <span class="cowork-log-sub">tap to switch a task folder off</span></div>
+    <div class="cowork-log-title">${t('Channels <span class="cowork-log-sub">tap to switch a task folder off</span>')}</div>
     <div class="cowork-chans">${chanRows}</div>
     ${renderCoworkReviewBlock(role)}
-    <div class="cowork-log-title">This month <span class="cowork-log-sub">runs per day · red = a failure</span></div>
+    <div class="cowork-log-title">${t('This month <span class="cowork-log-sub">runs per day · red = a failure</span>')}</div>
     ${calHtml}
-    <div class="cowork-log-title">Recent hub activity <span class="cowork-log-sub">this device</span></div>
+    <div class="cowork-log-title">${t('Recent hub activity <span class="cowork-log-sub">this device</span>')}</div>
     <div class="cowork-log">${log}</div>
     ${renderAiApiBlock()}
   </div>`;
@@ -12275,7 +12275,7 @@ function renderCoworkStatusBlock() {
 function renderAiApiBlock() {
   const cfg = aiApiCfg(), u = cfg.lastUsage;
   const models = AI_API_MODELS.map(m => `<option value="${m.id}" ${m.id === cfg.model ? 'selected' : ''}>${escapeHtml(m.label)}</option>`).join('');
-  return `<div class="cowork-log-title">Direct API <span class="cowork-log-sub">optional — skips the folder round-trip, spends your own credit</span></div>
+  return `<div class="cowork-log-title">${t('Direct API <span class="cowork-log-sub">optional — skips the folder round-trip, spends your own credit</span>')}</div>
     <div class="cowork-api">
       <input type="password" class="cowork-api-key" id="ai-api-key" placeholder="${escapeAttr(t('sk-ant-… (stays on this device)'))}" value="${escapeAttr(cfg.key || '')}" autocomplete="off" spellcheck="false">
       <select class="cowork-sched" id="ai-api-model">${models}</select>
@@ -12901,7 +12901,7 @@ function cloudSyncCardHtml() {
     ${originOk ? '' : `<div style="font-size:11px;color:var(--warn);margin-top:6px;line-height:1.5;">${t('Built-in OAuth sync is disabled on this origin — only the authorized deployment can use the shared client IDs. The <b>custom endpoint</b> below works anywhere.')}</div>`}
     <div style="margin-top:10px;padding:10px 11px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;">
       <div style="font-size:12px;font-weight:700;color:var(--text);">${t('🔒 Custom endpoint')}</div>
-      <div style="font-size:10.5px;color:var(--text3);margin-top:2px;line-height:1.5;">Your own server — no third-party login, works on <b>any</b> device (incl. Apple). Host the ~30-line worker in <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/sync-worker.js</code> and paste its URL.</div>
+      <div style="font-size:10.5px;color:var(--text3);margin-top:2px;line-height:1.5;">${t('Your own server — no third-party login, works on <b>any</b> device (incl. Apple). Host the ~30-line worker in <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/sync-worker.js</code> and paste its URL.')}</div>
       <input type="url" id="cloud-custom-url" placeholder="https://your-worker.example.com/gymtracker" value="${escapeHtml(custom.url || '')}" style="${inputCss}">
       <input type="password" id="cloud-custom-token" placeholder="${escapeAttr(t('Bearer token (optional)'))}" value="${escapeHtml(custom.token || '')}" autocomplete="off" style="${inputCss}">
       <div class="drawer-data-row" style="margin-top:7px;">
@@ -12917,9 +12917,9 @@ function cloudSyncCardHtml() {
         Register the app's URL (e.g. <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">https://adervec.github.io/GymTracker315/</code>)
         as the redirect URI / JS origin. Per-provider walkthroughs: <b>README → Cloud Sync</b>.
         <ul style="margin:6px 0 0;padding-left:18px;">
-          <li><b>Google Drive</b> — Google Cloud Console → OAuth Web client → <code style="background:var(--bg4);padding:1px 3px;border-radius:3px;">SYNC_CLIENTS.google</code></li>
-          <li><b>Dropbox</b> — dropbox.com/developers → App folder app (PKCE) → <code style="background:var(--bg4);padding:1px 3px;border-radius:3px;">SYNC_CLIENTS.dropbox</code></li>
-          <li><b>OneDrive</b> — Azure portal → App registration (SPA, personal accounts) → <code style="background:var(--bg4);padding:1px 3px;border-radius:3px;">SYNC_CLIENTS.onedrive</code></li>
+          <li>${t('<b>Google Drive</b> — Google Cloud Console → OAuth Web client → <code style="background:var(--bg4);padding:1px 3px;border-radius:3px;">SYNC_CLIENTS.google</code>')}</li>
+          <li>${t('<b>Dropbox</b> — dropbox.com/developers → App folder app (PKCE) → <code style="background:var(--bg4);padding:1px 3px;border-radius:3px;">SYNC_CLIENTS.dropbox</code>')}</li>
+          <li>${t('<b>OneDrive</b> — Azure portal → App registration (SPA, personal accounts) → <code style="background:var(--bg4);padding:1px 3px;border-radius:3px;">SYNC_CLIENTS.onedrive</code>')}</li>
         </ul>
         <div style="margin-top:5px;color:var(--text3);">${t('The <b>custom endpoint</b> needs none of this. iCloud isn\'t supported (needs a paid Apple Developer account).')}</div>
       </div>
@@ -13382,16 +13382,16 @@ function gymUsageHtml(st) {
   const untouched = st.rows.filter(r => !r.visits).map(r => ({ g: r.gym, d: home ? gpsDistanceKm(home.lat, home.lng, r.gym.lat, r.gym.lng) : Infinity }))
     .sort((a, b) => a.d - b.d || a.g.name.localeCompare(b.g.name));
   const shownU = _gymUntouchedAll ? untouched : untouched.slice(0, 8);
-  return `<div class="drawer-section-title" data-sec-id="gym-usage">Gym usage</div>
+  return `<div class="drawer-section-title" data-sec-id="gym-usage">${t('Gym usage')}</div>
     <div class="gu-sel">${[['all', 'All gyms']].concat(used.map(r => [r.gym.id, r.gym.name])).map(([id, l]) =>
       `<button type="button" class="drawer-pill ${_gymHeatSel === id ? 'active' : ''}" data-gu-heat="${escapeAttr(id)}">${escapeHtml(l)}</button>`).join('')}</div>
     ${yearHeatmapHtml(byDay, setsOn)}
     <div class="gu-table">${used.map(r => `<div class="gu-row">
       <span class="gu-name">${escapeHtml(r.gym.name)}</span>
       <span class="gu-bar"><span style="width:${Math.round(r.visits / st.total * 100)}%"></span></span>
-      <span class="gu-n"><b>${r.visits}</b> visit${r.visits === 1 ? '' : 's'} · ${Math.round(r.visits / st.total * 100)}%</span>
-      <span class="gu-when">last ${escapeHtml(fmtAgo(r.last))} · since ${month(r.first)}</span></div>`).join('')}</div>
-    ${st.unplaced ? `<div class="gu-note">${st.unplaced} session${st.unplaced === 1 ? '' : 's'} not placed at any gym (no gym was active and no location matched one).</div>` : ''}
+      <span class="gu-n">${t.n('<b>{visits}</b> visit · {p2}%', '<b>{visits}</b> visits · {p2}%', (r.visits), { visits: (r.visits), p2: (Math.round(r.visits / st.total * 100)) })}</span>
+      <span class="gu-when">${t('last {p1} · since {first}', { p1: (escapeHtml(fmtAgo(r.last))), first: (month(r.first)) })}</span></div>`).join('')}</div>
+    ${st.unplaced ? `<div class="gu-note">${t.n('{unplaced} session not placed at any gym (no gym was active and no location matched one).', '{unplaced} sessions not placed at any gym (no gym was active and no location matched one).', (st.unplaced), { unplaced: (st.unplaced) })}</div>` : ''}
     ${untouched.length ? `<div class="gu-sub">Never trained at · ${untouched.length}${home ? ` · nearest to ${escapeHtml(home.from)} first` : ''}</div>
       <div class="gu-untouched">${shownU.map(u => `<span class="gu-u">${escapeHtml(u.g.name)}${isFinite(u.d) ? ` <i>${u.d < 10 ? u.d.toFixed(1) : Math.round(u.d)} km</i>` : ''}</span>`).join('')}
       ${untouched.length > 8 ? `<button type="button" class="drawer-btn" id="gu-untouched-more">${_gymUntouchedAll ? 'Show fewer' : 'Show all ' + untouched.length}</button>` : ''}</div>` : ''}`;
@@ -13977,7 +13977,7 @@ function renderSettingsDrawer() {
       </div>
     </div>
     <div class="drawer-setting-row">
-      <div class="drawer-setting-label">Short press <span style="color:var(--text3);font-weight:400;">(0 = instant)</span></div>
+      <div class="drawer-setting-label">${t('Short press <span style="color:var(--text3);font-weight:400;">(0 = instant)</span>')}</div>
       <div style="display:flex;align-items:center;gap:6px;">
         <input type="number" id="tp-short" value="${(state.trackerPress.shortMs / 1000)}" min="0" max="5" step="0.1"
           style="width:60px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
@@ -14102,7 +14102,7 @@ function renderSettingsDrawer() {
     </div>` : ''}
     <div class="drawer-setting-row">
       <div>
-        <div class="drawer-setting-label">On-screen numpad <span class="setting-rec">★ Recommended</span></div>
+        <div class="drawer-setting-label">${t('On-screen numpad <span class="setting-rec">★ Recommended</span>')}</div>
         <div class="drawer-setting-sub">${t('<b>Strongly recommended — keep this on.</b> An in-app keypad for weight/reps that avoids the mobile keyboard reflowing the form, and powers ×10 hold, the calculator, plate setup and the equipment tools. Turning it off falls back to the native keyboard and loses those.')}</div>
       </div>
       <div class="drawer-pill-group">
@@ -14565,7 +14565,7 @@ function renderSettingsDrawer() {
         const locked = varHasLoggedSets(cv.uuid);
         return `<div class="cv-row">
           <div style="min-width:0;flex:1;">
-            <div style="font-size:13px;color:var(--text);">${escapeHtml(cv.title)} <span class="manual-tag">manual</span></div>
+            <div style="font-size:13px;color:var(--text);">${t('{title} <span class="manual-tag">manual</span>', { title: (escapeHtml(cv.title)) })}</div>
             <div style="font-size:10px;color:var(--text3);">${fam?escapeHtml(fam.title):'?'}${locked?' · sets logged — locked':''}</div>
             ${fam ? `<select class="cv-basis" data-cv-basis="${cv.uuid}" style="margin-top:4px;width:100%;padding:4px 6px;font-size:11px;border-radius:5px;background:var(--input-bg);border:1px solid var(--border2);color:var(--text2);">
               <option value="">${t('basis for tracking: none')}</option>
@@ -14608,7 +14608,7 @@ function renderSettingsDrawer() {
 
     <div class="drawer-section-title" data-sec-id="activity-log">Activity &amp; Error Log</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">
-      ${_eventLog.length} entr${_eventLog.length===1?'y':'ies'} (last ${LOG_MAX}). Kept separate from your data — never written into the export JSON.
+      ${t.n('{length} entry (last {LOG_MAX}). Kept separate from your data — never written into the export JSON.', '{length} entries (last {LOG_MAX}). Kept separate from your data — never written into the export JSON.', (_eventLog.length), { length: (_eventLog.length), LOG_MAX: (LOG_MAX) })}
     </div>
     <div id="log-viewer" style="max-height:160px;overflow:auto;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:10.5px;line-height:1.55;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--text2);">
       ${_eventLog.length ? _eventLog.slice(-60).reverse().map(e => {
@@ -14626,7 +14626,7 @@ function renderSettingsDrawer() {
     ${autoSaveSupported() ? `
     ${((state.autoSave&&state.autoSave.enabled)||(state.autoLoad&&state.autoLoad.enabled)) ? `
     <details class="drawer-archived" open style="margin-top:18px;border:1px solid var(--border2);border-radius:8px;padding:8px 11px;background:var(--bg3);">
-    <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text2);padding:2px 0;">🗄️ Legacy file auto-save / load <span style="font-weight:400;color:var(--text3);">— archived; use ☁ Cloud Sync instead</span></summary>
+    <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text2);padding:2px 0;">${t('🗄️ Legacy file auto-save / load <span style="font-weight:400;color:var(--text3);">— archived; use ☁ Cloud Sync instead</span>')}</summary>
     <div class="drawer-section-title" data-sec-id="auto-save" style="margin-top:10px;">${t('Auto-Save')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
       Writes your data to a file or folder automatically after every save.
@@ -14850,9 +14850,7 @@ function renderSettingsDrawer() {
 
     <div class="drawer-section-title" data-sec-id="strava-reconcile" style="margin-top:18px;">${t('Strava reconciliation')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
-      Match your logged workouts to Strava strength activities (e.g. auto-synced from your watch). A browser can't reach
-      Strava directly, so import a file from <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/strava-sync.py</code>
-      or your Strava data export, then reconcile — link, enrich (HR / calories / duration), and copy a description back to Strava.
+      ${t('Match your logged workouts to Strava strength activities (e.g. auto-synced from your watch). A browser can\'t reach Strava directly, so import a file from <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">tools/strava-sync.py</code> or your Strava data export, then reconcile — link, enrich (HR / calories / duration), and copy a description back to Strava.')}
     </div>
     <div class="drawer-data-row" style="flex-wrap:wrap;">
       <button class="drawer-btn" id="strava-import-btn">${t('⬇ Import activities (JSON / CSV)')}</button>
@@ -14860,7 +14858,7 @@ function renderSettingsDrawer() {
       <input type="file" id="strava-import-file" accept=".json,.csv,.txt" style="display:none;">
     </div>
     ${autoLoadSupported() ? `
-    <div style="font-size:11px;color:var(--text3);margin:10px 0 8px;line-height:1.5;">Or <b>auto-load</b> on app open + Sync Now from a remembered file/folder (e.g. where <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">strava-sync.py</code> writes). Always merges.</div>
+    <div style="font-size:11px;color:var(--text3);margin:10px 0 8px;line-height:1.5;">${t('Or <b>auto-load</b> on app open + Sync Now from a remembered file/folder (e.g. where <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">strava-sync.py</code> writes). Always merges.')}</div>
     ${state.stravaAutoLoad && state.stravaAutoLoad.enabled ? `
       <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
         <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">
@@ -16279,17 +16277,17 @@ function tiersSlideHtml(varUuid, subUuid) {
   }));
   const mine = best > 0 ? objectiveSetTier(varUuid, { w: best, r: 1 }) : null;
   const perDb = STANDARDS_PER_HAND.has(info.family.id) || F.dbF < 1;
-  const rows = OBJ_TIERS.map((t, i) => {
-    const cls = `tiers-row obj-${t.key}${mine && mine.key === t.key ? ' mine' : ''}`;
-    if (i === 0) return `<tr class="${cls}"><td>${t.label}</td><td colspan="2" class="tiers-below">below Average</td></tr>`;
+  const rows = OBJ_TIERS.map((tv, i) => {
+    const cls = `tiers-row obj-${tv.key}${mine && mine.key === tv.key ? ' mine' : ''}`;
+    if (i === 0) return `<tr class="${cls}"><td>${tv.label}</td><td colspan="2" class="tiers-below">${t('below Average')}</td></tr>`;
     if (i - 1 >= table.length) return '';                 // a capped family has no Inhuman row
     const e1 = table[i - 1] * mult * F.bw;
-    return `<tr class="${cls}"><td>${t.label}</td><td>${snap(e1)}</td><td>${snap(e1 / (1 + 5 / 30))}</td></tr>`;
+    return `<tr class="${cls}"><td>${tv.label}</td><td>${snap(e1)}</td><td>${snap(e1 / (1 + 5 / 30))}</td></tr>`;
   }).join('');
   const capped = table.length < OBJ_TIERS.length - 1;
   const who = [F.bw.toFixed(0) + u, F.gender, F.age != null ? F.age + 'y' : null].filter(Boolean).join(' · ');
   return `<div class="tiers-wrap">
-    <div class="tiers-head">What each tier takes for you <span class="tiers-who">${escapeHtml(who)}</span></div>
+    <div class="tiers-head">${t('What each tier takes for you <span class="tiers-who">{who}</span>', { who: (escapeHtml(who)) })}</div>
     <table class="tiers-tbl"><thead><tr><th>${t('Tier')}</th><th>${t('1 rep')}</th><th>${t('5 reps')}</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="tiers-note">${escapeHtml(u)}${perDb ? ' per dumbbell' : ''}, snapped to the nearest ${step}. The tier is judged on your estimated 1RM, reps capped at 12.</div>
     ${capped ? '<div class="tiers-note">No Inhuman tier here — a machine or cable stack caps it, or the lever makes a maximal rep a cheat rather than a feat.</div>' : ''}
@@ -17321,7 +17319,7 @@ function openMotionCarousel(uuid) {
   const modal = document.getElementById('motion-modal');
   modal.innerHTML = `<div class="media-head">
       <div class="media-title">🏃 ${escapeHtml(info ? info.variation.title : m.label)}</div>
-      <div class="media-count">${m.views.length} view${m.views.length === 1 ? '' : 's'}</div>
+      <div class="media-count">${t.n('{length} view', '{length} views', (m.views.length), { length: (m.views.length) })}</div>
       <button class="media-close" onclick="closeMotionCarousel()" aria-label="${escapeAttr(t('Close'))}">✕</button>
     </div>
     <div class="media-body"><div class="media-track" id="motion-track">${slides}</div>${dots}</div>`;
@@ -17531,9 +17529,9 @@ function importExerciseMediaMap(text) {
 // feat 174 — accept EITHER the machine JSON media map OR the human-readable Claude-fillable sheet,
 // so the same Import button round-trips both. Sniff the first non-space char: { or [ → JSON, else sheet.
 function importMediaData(text) {
-  const t = String(text || '').trim();
-  if (!t) { toast('Nothing to import'); return null; }
-  return (t[0] === '{' || t[0] === '[') ? importExerciseMediaMap(t) : importMediaSheet(t);
+  const tv = String(text || '').trim();
+  if (!tv) { toast(t('Nothing to import')); return null; }
+  return (tv[0] === '{' || tv[0] === '[') ? importExerciseMediaMap(tv) : importMediaSheet(tv);
 }
 function importMediaSheet(text) {
   if (roBlocked('import exercise media')) return null;
@@ -17799,7 +17797,7 @@ function mediaWizardRowHtml(r) {
   }
   const parentBadge = r.parentHasMedia ? `<span class="mw-tag parent" title="The ${escapeAttr(r.parentTitle)} movement has its own demo clip">▸ movement demo ✓</span>` : '';
   return `<div class="mw-row" data-mw-uuid="${escapeAttr(key)}">
-    <div class="mw-row-head"><span class="mw-row-name">${escapeHtml(r.title)} ${parentBadge}</span><span class="mw-row-meta">${escapeHtml(r.fam)} · ${BP_LABELS[r.bp] || r.bp} · ${r.media.length} link${r.media.length === 1 ? '' : 's'}</span></div>
+    <div class="mw-row-head"><span class="mw-row-name">${escapeHtml(r.title)} ${parentBadge}</span><span class="mw-row-meta">${t.n('{fam} · {p2} · {length} link', '{fam} · {p2} · {length} links', (r.media.length), { fam: (escapeHtml(r.fam)), p2: (BP_LABELS[r.bp] || r.bp), length: (r.media.length) })}</span></div>
     ${r.media.length ? `<div class="mw-links">${links}</div>` : ''}
     <div class="mw-add"><input type="text" data-mw-add="${escapeAttr(key)}" placeholder="${escapeAttr(t('Paste a YouTube / Shorts / TikTok / Reel link…'))}"><button data-mw-addbtn="${escapeAttr(key)}">${t('+ Add')}</button></div>
   </div>`;
@@ -20732,24 +20730,24 @@ function renderSplitPlannerPage(main) {
   const themesSorted = T_SORTS[tSort] ? themesShown.slice().sort((a, b) => (ui.themeSortDesc ? -1 : 1) * T_SORTS[tSort](a, b)) : themesShown;
   const tHead = (id, label, cls) => `<button class="sp-c-h ${cls} ${tSort === id ? 'active' : ''}" data-theme-sort="${id}">${label}${tSort === id ? (ui.themeSortDesc ? ' ↓' : ' ↑') : ''}</button>`;
   const themeChips = `<div class="sp-thead-theme">${tHead('name', 'Split', 'sp-c-tname')}${tHead('days', 'Days', 'sp-c-tdays')}${tHead('sessions', 'Sess', 'sp-c-tsess')}<span class="sp-c-chev"></span></div>`
-    + themesSorted.map(t => {
-      const hay = (t.name + ' ' + t.tag + ' ' + t.blurb + ' ' + themeDays(t) + 'day').toLowerCase();
+    + themesSorted.map(tv => {
+      const hay = (tv.name + ' ' + tv.tag + ' ' + tv.blurb + ' ' + themeDays(tv) + 'day').toLowerCase();
       const hidden = _spThemeSearch && !hay.includes(_spThemeSearch.trim().toLowerCase());
-      const open = _spExpandTheme === t.id, active = cfg.theme === t.id;
+      const open = _spExpandTheme === tv.id, active = cfg.theme === tv.id;
       // the row itself still SELECTS in one tap (as before); the chevron is a separate button that reveals
       // the blurb, so "collapsed descriptions" never costs an extra tap to actually pick a split.
       return `<div class="sp-theme sp-theme-row${active ? ' active' : ''}${open ? ' open' : ''}" data-theme-search="${escapeAttr(hay)}"${hidden ? ' style="display:none"' : ''}>
         <div class="sp-theme-line">
-          <button type="button" class="sp-theme-tap" data-sp-theme="${escapeAttr(t.id)}" title="${escapeAttr(t.blurb)}">
-            <span class="sp-c-tname"><span class="sp-theme-emoji">${t.emoji}</span> <span class="sp-theme-name">${escapeHtml(t.name)}</span>${active ? ' <span class="sp-theme-on">✓</span>' : ''}<span class="sp-theme-tag">${escapeHtml(t.tag)}</span></span>
-            <span class="sp-c-tdays">${themeDays(t)}d</span>
-            <span class="sp-c-tsess">${t.slots.length}</span>
+          <button type="button" class="sp-theme-tap" data-sp-theme="${escapeAttr(tv.id)}" title="${escapeAttr(tv.blurb)}">
+            <span class="sp-c-tname"><span class="sp-theme-emoji">${tv.emoji}</span> <span class="sp-theme-name">${escapeHtml(tv.name)}</span>${active ? ' <span class="sp-theme-on">✓</span>' : ''}<span class="sp-theme-tag">${escapeHtml(tv.tag)}</span></span>
+            <span class="sp-c-tdays">${themeDays(tv)}d</span>
+            <span class="sp-c-tsess">${tv.slots.length}</span>
           </button>
-          <button type="button" class="sp-c-chev" data-sp-theme-exp="${escapeAttr(t.id)}" aria-expanded="${open}" aria-label="Show details">${open ? '▾' : '▸'}</button>
+          <button type="button" class="sp-c-chev" data-sp-theme-exp="${escapeAttr(tv.id)}" aria-expanded="${open}" aria-label="${escapeAttr(t('Show details'))}">${open ? '▾' : '▸'}</button>
         </div>
         ${open ? `<div class="sp-theme-detail">
-          <div class="sp-theme-blurb">${escapeHtml(t.blurb)}</div>
-          <div class="sp-theme-seq">${t.slots.map(sl => `<span class="sp-seq-pill">${escapeHtml(sl)}</span>`).join('')}</div>
+          <div class="sp-theme-blurb">${escapeHtml(tv.blurb)}</div>
+          <div class="sp-theme-seq">${tv.slots.map(sl => `<span class="sp-seq-pill">${escapeHtml(sl)}</span>`).join('')}</div>
         </div>` : ''}
       </div>`;
     }).join('');
@@ -20774,12 +20772,12 @@ function renderSplitPlannerPage(main) {
           <button type="button" class="sp-c-chev" data-sp-day="${escapeAttr(row.key)}" aria-expanded="${open}" aria-label="${escapeAttr(t('Show details'))}">${open ? '▾' : '▸'}</button>
         </div>
         ${open ? `<div class="sp-day-detail">${s.plan.desc ? `<div class="sp-day-desc">${escapeHtml(s.plan.desc)}</div>` : ''}
-          <div class="sp-day-sub">${s.plan.steps.length} step${s.plan.steps.length === 1 ? '' : 's'} · ~${planTotalSets(s.plan)} sets · ~${s.est} min · ${escapeHtml(planCategory(s.plan))}</div>
+          <div class="sp-day-sub">${t.n('{length} step · ~{plan} sets · ~{est} min · {p4}', '{length} steps · ~{plan} sets · ~{est} min · {p4}', (s.plan.steps.length), { length: (s.plan.steps.length), plan: (planTotalSets(s.plan)), est: (s.est), p4: (escapeHtml(planCategory(s.plan))) })}</div>
           <div class="sp-day-acts"><button class="drawer-btn" data-plan-view="${escapeAttr(s.plan.id)}" title="${escapeAttr(t('View read-only'))}">${t('👁 View')}</button><button class="drawer-btn" data-plan-edit="${escapeAttr(s.plan.id)}">${t('Edit')}</button></div>
         </div>` : ''}
       </div>`;
     }).join('')
-    + (unfilled.length ? `<div class="sp-unfilled">No plan in your library yet for: <b>${escapeHtml([...new Set(unfilled)].join(', '))}</b> — ${unfilled.length} session${unfilled.length === 1 ? '' : 's'} will be left unscheduled.</div>` : '');
+    + (unfilled.length ? `<div class="sp-unfilled">${t.n('No plan in your library yet for: <b>{p1}</b> — {length} session will be left unscheduled.', 'No plan in your library yet for: <b>{p1}</b> — {length} sessions will be left unscheduled.', (unfilled.length), { p1: (escapeHtml([...new Set(unfilled)].join(', '))), length: (unfilled.length) })}</div>` : '');
   // per-group over/under bars
   const barRows = analysis.rows.map(r => {
     const scale = Math.max(r.mrv * 1.25, r.sets * 1.05, 1);
@@ -21320,7 +21318,7 @@ function renderPlansList(body) {
   const queueHtml = planQueueHtml(); // feat 479
   body.innerHTML = `${queueHtml}${showQuickPick ? quickPickHtml() : ''}<div class="plan-list-intro">${t('Plans are optional suggestions — log anything you like, change or abandon mid-workout. Tap <b>Use</b> to start (or attach to) today\'s workout.')}</div>
     <input type="search" id="plans-search" class="plans-search" placeholder="${escapeAttr(t('🔍 Search plans by name or theme…'))}" value="${escapeAttr(_plansSearch)}" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <div class="plan-chips">${favN ? `<button class="plan-chip fav-chip ${_plansFavOnly?'active':''}" data-plan-fav="1" title="${escapeAttr(t('Show favorites only'))}">★ Favorites <span class="plan-chip-n">${favN}</span></button>` : ''}${qN ? `<button class="plan-chip queue-chip ${_plansQueueOnly?'active':''}" data-plan-queued="1" title="${escapeAttr(t('Show the try-later queue only'))}">⏳ Queued <span class="plan-chip-n">${qN}</span></button>` : ''}${catChip('all','All',plans.filter(p => planCategory(p)!==PLAN_CAT_DAILY).length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
+    <div class="plan-chips">${favN ? `<button class="plan-chip fav-chip ${_plansFavOnly?'active':''}" data-plan-fav="1" title="${escapeAttr(t('Show favorites only'))}">${t('★ Favorites <span class="plan-chip-n">{favN}</span>', { favN: (favN) })}</button>` : ''}${qN ? `<button class="plan-chip queue-chip ${_plansQueueOnly?'active':''}" data-plan-queued="1" title="${escapeAttr(t('Show the try-later queue only'))}">${t('⏳ Queued <span class="plan-chip-n">{qN}</span>', { qN: (qN) })}</button>` : ''}${catChip('all','All',plans.filter(p => planCategory(p)!==PLAN_CAT_DAILY).length)}${present.map(c => catChip(c, c, plans.filter(p => planCategory(p)===c).length)).join('')}</div>
     ${sortChips}
     ${lenSliderHtml}
     ${(_plansCatFilter.size || _plansLenActive() || q || _plansFavOnly || _plansQueueOnly) ? `<div class="plan-filter-note">${t('{length} of {length_} plans', { length: (filtered.length), length_: (plans.length) })}</div>` : ''}
@@ -21446,7 +21444,7 @@ function renderPlanExecutionView(body, plan, session) {
       const spot = (vinfo && typeof needsSpotter === 'function' && needsSpotter(ex.varUuid)) ? ' ' + spotterBadge(vinfo.variation, vinfo.family) : '';
       return `<div class="pexec-used">
         <div class="pexec-used-name">✅ ${escapeHtml(displayName(ex.varUuid, ex.subUuid))}${spot}</div>
-        <div class="pexec-used-sets">${ex.sets.length} set${ex.sets.length === 1 ? '' : 's'} · ${escapeHtml(setsTxt)} ${u}</div>
+        <div class="pexec-used-sets">${t.n('{length} set · {setsTxt} {u}', '{length} sets · {setsTxt} {u}', (ex.sets.length), { length: (ex.sets.length), setsTxt: (escapeHtml(setsTxt)), u: (u) })}</div>
         ${top > 0 ? `<div class="pexec-used-meta">top ${top}${u}${orm ? ` · ~1RM ${Math.round(orm)}${u}` : ''}</div>` : ''}
       </div>`;
     }).join('') : `<div class="pexec-none">${isActive && i === curIdx ? '⏳ logging now…' : (ss.started ? 'logged then cleared' : '— not logged')}</div>`;
@@ -21500,25 +21498,25 @@ function _planExecFinishHtml(detail) {
 }
 // feat 163 — the analytics panel: ETC drift (vs original) + sparkline, time breakdown, actual sequence, off-plan.
 function _planExecStatsHtml(detail, plan) {
-  const t = detail.totals, e = detail.eta;
+  const tv = detail.totals, e = detail.eta;
   const deltaTxt = e.deltaMin === 0 ? 'on estimate' : `${e.deltaMin > 0 ? '+' : ''}${e.deltaMin}m vs est`;
   const spark = (e.series && e.series.length >= 2) ? sparklineSvg(e.series, { w: 132, h: 26 }) : '';
   const seqHtml = detail.seq.length ? detail.seq.map(s => s.off
-    ? `<span class="pexec-seq-chip off" title="Off-plan">${escapeHtml(s.name)}</span>`
+    ? `<span class="pexec-seq-chip off" title="${escapeAttr(t('Off-plan'))}">${escapeHtml(s.name)}</span>`
     : `<span class="pexec-seq-chip">S${s.stepIdx + 1}</span>`).join('<span class="pexec-seq-arr">→</span>') : '<span class="pexec-none">— no exercises logged</span>';
   const off = detail.offPlan;
   return `<div class="pexec-stats">
     <div class="pexec-stat-row pexec-eta">
       <div class="pexec-eta-main"><span class="pexec-stat-lbl">⏳ ${e.finished ? 'Total' : 'ETC'}</span> <b>${e.etcMin}m</b> <span class="pexec-eta-delta ${e.deltaMin > 0 ? 'over' : (e.deltaMin < 0 ? 'under' : '')}">${deltaTxt}</span> <span class="pexec-eta-orig">(est ${e.originalMin}m)</span></div>
-      ${spark ? `<div class="pexec-eta-spark" title="How the projected finish drifted as the workout progressed">${spark}</div>` : ''}
+      ${spark ? `<div class="pexec-eta-spark" title="${escapeAttr(t('How the projected finish drifted as the workout progressed'))}">${spark}</div>` : ''}
     </div>
     <div class="pexec-stat-grid">
-      <div class="pexec-stat"><span class="pexec-stat-lbl">Active</span><b>${_fmtDur(t.activeSec)}</b></div>
-      <div class="pexec-stat"><span class="pexec-stat-lbl">Rest within</span><b>${_fmtDur(t.withinRestSec)}</b></div>
-      <div class="pexec-stat"><span class="pexec-stat-lbl">Rest between</span><b>${_fmtDur(t.betweenRestSec)}</b></div>
-      <div class="pexec-stat"><span class="pexec-stat-lbl">% active (done steps)</span><b>${t.pctActiveCompleted != null ? t.pctActiveCompleted + '%' : '—'}</b></div>
+      <div class="pexec-stat"><span class="pexec-stat-lbl">${t('Active')}</span><b>${_fmtDur(tv.activeSec)}</b></div>
+      <div class="pexec-stat"><span class="pexec-stat-lbl">${t('Rest within')}</span><b>${_fmtDur(tv.withinRestSec)}</b></div>
+      <div class="pexec-stat"><span class="pexec-stat-lbl">${t('Rest between')}</span><b>${_fmtDur(tv.betweenRestSec)}</b></div>
+      <div class="pexec-stat"><span class="pexec-stat-lbl">${t('% active (done steps)')}</span><b>${tv.pctActiveCompleted != null ? tv.pctActiveCompleted + '%' : '—'}</b></div>
     </div>
-    <div class="pexec-seq"><div class="pexec-stat-lbl">Actual sequence</div><div class="pexec-seq-row">${seqHtml}</div></div>
+    <div class="pexec-seq"><div class="pexec-stat-lbl">${t('Actual sequence')}</div><div class="pexec-seq-row">${seqHtml}</div></div>
     ${off.count ? `<div class="pexec-offplan">🔀 <b>Off-plan:</b> ${off.count} exercise${off.count === 1 ? '' : 's'} · ${off.sets} set${off.sets === 1 ? '' : 's'}${off.activeSec ? ` · ${_fmtDur(off.activeSec)} active` : ''} <span class="pexec-offplan-names">${escapeHtml(off.names.slice(0, 4).join(', '))}${off.names.length > 4 ? '…' : ''}</span></div>` : ''}
   </div>`;
 }
@@ -21622,7 +21620,7 @@ function renderPlanHistory(body, plan) {
     return `<div class="plan-rev-row ${isCurrent ? 'current' : ''}">
       <div class="prr-top"><span class="prr-rev">${t('rev {rev}', { rev: (r.rev) })}</span>${isCurrent ? '<span class="prr-cur">current</span>' : ''}<span class="prr-meta">✍ ${escapeHtml(r.author || 'You')} · ${escapeHtml(fmtDate(r.at))}</span></div>
       <div class="prr-note">${escapeHtml(r.note || '')}</div>
-      <div class="prr-sub">${steps} step${steps === 1 ? '' : 's'} · ${sets} sets</div>
+      <div class="prr-sub">${t.n('{steps} step · {sets} sets', '{steps} steps · {sets} sets', (steps), { steps: (steps), sets: (sets) })}</div>
       ${!isCurrent ? `<button class="prb-btn" data-rev-restore="${r.rev}">${t('↩ Restore to draft')}</button>` : ''}
     </div>`;
   };
@@ -22056,7 +22054,7 @@ function yearHeatmapHtml(byDay, setsOn) {
     const lbl = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) + (n ? ` · ${n} sets` : ' · rest');
     cells += `<span class="yh-c yh-${lv}"${n ? ` data-yh-day="${k}" role="button" tabindex="0"` : ''} title="${lbl}" aria-label="${lbl}"></span>`;
   }
-  return `<div class="yh-card"><div class="yh-head">Last 12 months · <b>${days}</b> training day${days === 1 ? '' : 's'}</div>
+  return `<div class="yh-card"><div class="yh-head">${t.n('Last 12 months · <b>{days}</b> training day', 'Last 12 months · <b>{days}</b> training days', (days), { days: (days) })}</div>
     <div class="yh-scroll"><div class="yh-grid">${cells}</div></div>
     <div class="yh-key">Less <span class="yh-c yh-0"></span><span class="yh-c yh-1"></span><span class="yh-c yh-2"></span><span class="yh-c yh-3"></span><span class="yh-c yh-4"></span> More</div></div>`;
 }
@@ -22111,11 +22109,11 @@ function renderTrendPeek(varUuid, subUuid) {
   if (!varUuid) return '';
   const hist = getHistoryByKey(varUuid, subUuid); // recent-first
   if (!hist || hist.length < 2) return '';
-  const t = e1rmTrend(hist.slice().reverse().map(h => Math.round(sessionBestE1RM(h)))); // chronological
-  if (!t) return '';
-  return `<button type="button" class="trend-peek tp-${t.dir}" id="trk-trend-peek" title="Open full trends for this exercise">
-    <span class="tp-spark">${sparklineSvg(t.recent, { w: 116, h: 26 })}</span>
-    <span class="tp-stats"><b class="tp-cur">${t.latest}</b> <span class="tp-unit">${state.unit} e1RM</span> · best ${t.best} · <span class="tp-delta tp-${t.dir}">${t.pct >= 0 ? '+' : ''}${t.pct}%</span></span>
+  const tv = e1rmTrend(hist.slice().reverse().map(h => Math.round(sessionBestE1RM(h)))); // chronological
+  if (!tv) return '';
+  return `<button type="button" class="trend-peek tp-${tv.dir}" id="trk-trend-peek" title="${escapeAttr(t('Open full trends for this exercise'))}">
+    <span class="tp-spark">${sparklineSvg(tv.recent, { w: 116, h: 26 })}</span>
+    <span class="tp-stats"><b class="tp-cur">${tv.latest}</b> <span class="tp-unit">${t('{unit} e1RM', { unit: (state.unit) })}</span> · best ${tv.best} · <span class="tp-delta tp-${tv.dir}">${tv.pct >= 0 ? '+' : ''}${tv.pct}%</span></span>
     <span class="tp-arrow">›</span>
   </button>`;
 }
@@ -22224,7 +22222,7 @@ function workoutReviewSlides() {
       const eg = prog[0];
       const name = (typeof displayName === 'function') ? displayName(eg.varUuid) : '';
       slides.push({ icon: '⬆', label: 'Progress', nav: 'progression',
-        html: `<div class="wo-rev-big">${prog.length}<span> lift${prog.length === 1 ? '' : 's'} ready</span></div><div class="wo-rev-sub">e.g. <b>${escapeHtml(name)}</b> — ${eg.action === 'add-load' ? 'add load' : 'add a rep'}.</div>` });
+        html: `<div class="wo-rev-big">${prog.length}<span> ${t.n('lift ready', 'lifts ready', (prog.length))}</span></div><div class="wo-rev-sub">e.g. <b>${escapeHtml(name)}</b> — ${eg.action === 'add-load' ? 'add load' : 'add a rep'}.</div>` });
     }
   }
   // Last workout
@@ -22240,7 +22238,7 @@ function workoutReviewSlides() {
   // Program streak (feat 282)
   const streak = (typeof programAdherenceStreak === 'function') ? programAdherenceStreak() : 0;
   if (streak > 0) slides.push({ icon: '🔥', label: 'Streak',
-    html: `<div class="wo-rev-big">${streak}<span> day${streak === 1 ? '' : 's'}</span></div><div class="wo-rev-sub">${t('Program-adherence streak — don\'t break the chain.')}</div>` });
+    html: `<div class="wo-rev-big">${streak}<span> ${t.n('day', 'days', (streak))}</span></div><div class="wo-rev-sub">${t('Program-adherence streak — don\'t break the chain.')}</div>` });
   return slides;
 }
 function workoutReviewHtml() {
@@ -22367,7 +22365,7 @@ function renderLog(main) {
         <div class="workout-score-grade">${fs.grade}</div>
         <div class="workout-score-body">
           <div class="workout-score-title">${t('Workout score')}</div>
-          <div class="workout-score-sub">${fs.points}/100 · ${fs.breakdown.length} exercise${fs.breakdown.length===1?'':'s'} scored vs prior sessions</div>
+          <div class="workout-score-sub">${t.n('{points}/100 · {length} exercise scored vs prior sessions', '{points}/100 · {length} exercises scored vs prior sessions', (fs.breakdown.length), { points: (fs.points), length: (fs.breakdown.length) })}</div>
         </div>
       </div>`;
     }
@@ -22382,8 +22380,7 @@ function renderLog(main) {
     }
 
     html += `<div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-      <span>Today's Session</span>
-      ${paceHtml}
+      ${t('<span>Today\'s Session</span> {paceHtml}', { paceHtml: (paceHtml) })}
     </div>`;
     if (state.dashboard.stats !== false) {
       html += `<div class="session-stats">
@@ -22404,7 +22401,7 @@ function renderLog(main) {
           <div class="session-stat-label">${t('Vol {unit}', { unit: (state.unit) })}</div>
         </div>
       </div>`;
-      html += `<div style="font-size:10.5px;color:#666;margin-bottom:8px;">Started ${stats.startTimeDisplay} · ${stats.exerciseCount} exercise${stats.exerciseCount === 1 ? '' : 's'}</div>`;
+      html += `<div style="font-size:10.5px;color:#666;margin-bottom:8px;">${t.n('Started {startTimeDisplay} · {exerciseCount} exercise', 'Started {startTimeDisplay} · {exerciseCount} exercises', (stats.exerciseCount), { startTimeDisplay: (stats.startTimeDisplay), exerciseCount: (stats.exerciseCount) })}</div>`;
       // feat 51 — rest / set-time analytics (live; stitches the in-progress draft). Shown once timing data exists.
       const rstats = computeRestStats(today, pending, true);
       if (rstats.hasTiming) {
@@ -23720,13 +23717,13 @@ function sessionDeltaSummaryHtml(session) {
 function formatRestGap(ms) { const d = Math.round(ms / 86400000); return d >= 2 ? d + ' days' : Math.round(ms / 3600000) + 'h'; }
 // A "rested N days" banner when the gap to the previous logged workout exceeds 48h.
 function sessionGapTagHtml(session) {
-  const t = new Date(session.date).getTime();
+  const tv = new Date(session.date).getTime();
   let prev = null;
-  (state.sessions || []).forEach(s => { if (s === session || !(s.exercises || []).length) return; const st = new Date(s.date).getTime(); if (st < t && (!prev || st > new Date(prev.date).getTime())) prev = s; });
+  (state.sessions || []).forEach(s => { if (s === session || !(s.exercises || []).length) return; const st = new Date(s.date).getTime(); if (st < tv && (!prev || st > new Date(prev.date).getTime())) prev = s; });
   if (!prev) return '';
-  const gap = t - new Date(prev.date).getTime();
+  const gap = tv - new Date(prev.date).getTime();
   if (gap <= 48 * 3600 * 1000) return '';
-  return `<div class="session-gap" title="Time since your previous logged workout">🛌 ${formatRestGap(gap)} since your last workout</div>`;
+  return `<div class="session-gap" title="${escapeAttr(t('Time since your previous logged workout'))}">${t('🛌 {gap} since your last workout', { gap: (formatRestGap(gap)) })}</div>`;
 }
 
 function renderSession(session, isToday, idx) {
@@ -23846,10 +23843,10 @@ function renderWorkoutStats(session) {
     const calTxt = est ? `≈${est.kcal} cal<span class="kcal-est" title="Estimated from your heart rate (Keytel)${est.vo2 ? ' with your VO₂max' : ''} · ${est.active} active${est.scale !== 1 ? ' · scaled ' + Math.round(est.scale * 100) + '%' : ''} — HR formulas run high for lifting">est.</span>`
       : hr.calories != null ? `${hr.calories} cal` : '';
     const parts = [hr.avg!=null?`Avg ${hr.avg}`:'', hr.max!=null?`Max ${hr.max}`:'', calTxt].filter(Boolean).join(' · ');
-    return `<div class="hr-line" data-hr-edit="${session.date}">❤️ ${parts}${sleepStr} <span class="hr-edit-link">edit</span></div>`;
+    return `<div class="hr-line" data-hr-edit="${session.date}">${t('❤️ {parts}{sleepStr} <span class="hr-edit-link">edit</span>', { parts: (parts), sleepStr: (sleepStr) })}</div>`;
   }
   if (session.sleep) {
-    return `<div class="hr-line" data-hr-edit="${session.date}">😴 ${escapeHtml(session.sleep)} <span class="hr-edit-link">edit</span></div>`;
+    return `<div class="hr-line" data-hr-edit="${session.date}">${t('😴 {sleep} <span class="hr-edit-link">edit</span>', { sleep: (escapeHtml(session.sleep)) })}</div>`;
   }
   return `<div class="hr-line add" data-hr-edit="${session.date}">${t('❤️ + Add HR / calories / sleep')}</div>`;
 }
@@ -24086,7 +24083,7 @@ function buildOutlierReviewHtml() {
   }).join('');
   const n = _historyOutliers.length;
   return `<div class="outlier-review">
-    <div class="outlier-head">⚠️ ${n} possible outlier set${n === 1 ? '' : 's'}</div>
+    <div class="outlier-head">${t.n('⚠️ {n} possible outlier set', '⚠️ {n} possible outlier sets', (n), { n: (n) })}</div>
     <div class="outlier-sub">${t('These look like data-entry slips (a mistyped weight or rep count) and can skew your charts and progression. Keep the ones that are real, or delete the typos.')}</div>
     <div class="outlier-list">${rows}</div>
   </div>`;
@@ -24113,7 +24110,7 @@ function fillHistoryList(main) {
           <div class="ex-summary-meta">${t('{family} · {count} sets · last {lastDate}', { family: (escapeHtml(family)), count: (s.count), lastDate: (fmtDate(s.lastDate)) })}</div>
         </div>
         <div class="ex-summary-right">
-          <div class="ex-summary-1rm">${s.best1RM} <span style="font-size:10px;color:#666;">e1RM</span></div>
+          <div class="ex-summary-1rm">${t('{best1RM} <span style="font-size:10px;color:#666;">e1RM</span>', { best1RM: (s.best1RM) })}</div>
           <div class="ex-summary-recent">${s.lastSet.w}×${s.lastSet.r}</div>
         </div>
       </div>`;
@@ -24143,7 +24140,7 @@ function renderHistory(main) {
     const dangerHtml = `<div style="margin-top:24px;padding-top:14px;border-top:1px solid #1f1f1f;">
       <div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;font-weight:600;">${t('Danger Zone')}</div>
       <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.5;">
-        Delete all history (${totalSessions} session${totalSessions === 1 ? '' : 's'} · ${totalSets} sets). You'll be offered a final export first.
+        ${t.n('Delete all history ({totalSessions} session · {totalSets} sets). You\'ll be offered a final export first.', 'Delete all history ({totalSessions} sessions · {totalSets} sets). You\'ll be offered a final export first.', (totalSessions), { totalSessions: (totalSessions), totalSets: (totalSets) })}
       </div>
       <button class="danger full" id="trk-delete-all-history-btn">${t('🗑️ Delete All History…')}</button>
     </div>`;
@@ -24372,7 +24369,7 @@ function renderCardioGoals(weekOffset) {
       ${bar('Distance', cur.distance, g.weeklyDistance, g.distanceUnit)}
       ${bar('Sessions', cur.sessions, g.weeklySessions, '')}`;
   } else {
-    inner = `<div style="font-size:12px;color:var(--text2);">Logged ${cur.minutes} min · ${cur.distance} ${g.distanceUnit} · ${cur.sessions} session${cur.sessions===1?'':'s'} this period. Set weekly goals to track adherence.</div>`;
+    inner = `<div style="font-size:12px;color:var(--text2);">${t.n('Logged {minutes} min · {distance} {distanceUnit} · {sessions} session this period. Set weekly goals to track adherence.', 'Logged {minutes} min · {distance} {distanceUnit} · {sessions} sessions this period. Set weekly goals to track adherence.', (cur.sessions), { minutes: (cur.minutes), distance: (cur.distance), distanceUnit: (g.distanceUnit), sessions: (cur.sessions) })}</div>`;
   }
   return `<div class="cardio-goals-card">
     <div class="cg-head"><span>${t('🏃 Cardio Goals')}</span><button id="cardio-goals-edit" class="vol-weights-btn" style="margin-left:auto;">${cardioGoalsEditOpen?'✓ Done':'⚙ Edit'}</button></div>
@@ -24797,7 +24794,7 @@ function renderReplayPage(main) {
         ${series.length >= 2 ? sparklineSvg(series, { w: 320, h: 30 }) : ''}
         <div class="replay-cursor" style="left:${cursorPct.toFixed(1)}%"></div>
       </div>
-      <div class="replay-stats">${sessions.length} session${sessions.length === 1 ? '' : 's'} · ${weekSets} sets this week</div>
+      <div class="replay-stats">${t.n('{length} session · {weekSets} sets this week', '{length} sessions · {weekSets} sets this week', (sessions.length), { length: (sessions.length), weekSets: (weekSets) })}</div>
       ${anatomyHeatmapSvg(values)}
       <div class="hm-legend"><span>0</span><span class="hm-grad"></span><span>${t('max')}</span><span class="hm-na">${t('▨ not modeled')}</span></div>
     </div>
@@ -24833,7 +24830,7 @@ function renderReadinessCard() {
   if (!tr) return '';
   const f = tr.factors;
   const chips = [`<span class="rdy-chip">${t('🔄 Recovery {recoveryPct}%', { recoveryPct: (f.recoveryPct) })}</span>`];
-  if (f.plateauCount > 0) chips.push(`<span class="rdy-chip rdy-chip-warn">📉 ${f.plateauCount} lift${f.plateauCount === 1 ? '' : 's'} stalled</span>`);
+  if (f.plateauCount > 0) chips.push(`<span class="rdy-chip rdy-chip-warn">${t.n('📉 {plateauCount} lift stalled', '📉 {plateauCount} lifts stalled', (f.plateauCount), { plateauCount: (f.plateauCount) })}</span>`);
   if (f.rpeTrend != null) {
     const t = f.rpeTrend;
     chips.push(`<span class="rdy-chip">💪 Effort ${t > 0.25 ? '↑ rising' : (t < -0.25 ? '↓ easing' : '→ steady')}</span>`);
@@ -24902,7 +24899,7 @@ function renderRecoveryStrip() {
     return `<span class="rstrip-chip rec-${st.key}">${st.emoji} ${escapeHtml(BP_LABELS[r.bp] || r.bp)} ${Math.round(r.readiness * 100)}%</span>`;
   }).join('');
   return `<div class="card rstrip-card" id="rstrip-card" role="button" tabindex="0" title="${escapeAttr(t('Open the full Recovery view'))}">
-    <div class="rstrip-head">🔄 Recovery <span class="rstrip-hint">freshest first ›</span></div>
+    <div class="rstrip-head">${t('🔄 Recovery <span class="rstrip-hint">freshest first ›</span>')}</div>
     <div class="rstrip-row">${chips}</div>
   </div>`;
 }
@@ -24920,21 +24917,21 @@ function renderRecoveryStrip() {
     const st = recoveryStatus(r.readiness);
     return `<span class="rstrip-chip rec-${st.key}">${st.emoji} ${escapeHtml(BP_LABELS[r.bp] || r.bp)} ${Math.round(r.readiness * 100)}%</span>`;
   }).join('');
-  return `<div class="card rstrip-card" id="rstrip-card" role="button" tabindex="0" title="${escapeAttr(t('Open the full Recovery view'))}"><div class="rstrip-head">🔄 Recovery <span class="rstrip-more">›</span></div><div class="rstrip-row">${chips}</div></div>`;
+  return `<div class="card rstrip-card" id="rstrip-card" role="button" tabindex="0" title="${escapeAttr(t('Open the full Recovery view'))}"><div class="rstrip-head">${t('🔄 Recovery <span class="rstrip-more">›</span>')}</div><div class="rstrip-row">${chips}</div></div>`;
 }
 
 function renderVolume(main) {
   const weekDate = new Date(startOfWeek(new Date()) - volWeekOffset * 7 * 86400000);
   let html = `<div class="sub-tabs">
-    <div class="sub-tab ${volWeekOffset === 0 ? 'active' : ''}" data-offset="0">This Week</div>
-    <div class="sub-tab ${volWeekOffset === 1 ? 'active' : ''}" data-offset="1">Last Week</div>
-    <div class="sub-tab ${volWeekOffset >= 2 ? 'active' : ''}" data-offset="2">Older</div>
+    <div class="sub-tab ${volWeekOffset === 0 ? 'active' : ''}" data-offset="0">${t('This Week')}</div>
+    <div class="sub-tab ${volWeekOffset === 1 ? 'active' : ''}" data-offset="1">${t('Last Week')}</div>
+    <div class="sub-tab ${volWeekOffset >= 2 ? 'active' : ''}" data-offset="2">${t('Older')}</div>
   </div>
   <div class="sub-tabs" style="margin-top:6px;">
-    <div class="sub-tab ${volLevel==='split'?'active':''}" data-vollevel="split">Split</div>
-    <div class="sub-tab ${volLevel==='group'?'active':''}" data-vollevel="group">Group</div>
-    <div class="sub-tab ${volLevel==='muscle'?'active':''}" data-vollevel="muscle">Muscle</div>
-    <div class="sub-tab ${volLevel==='head'?'active':''}" data-vollevel="head">Heads</div>
+    <div class="sub-tab ${volLevel==='split'?'active':''}" data-vollevel="split">${t('Split')}</div>
+    <div class="sub-tab ${volLevel==='group'?'active':''}" data-vollevel="group">${t('Group')}</div>
+    <div class="sub-tab ${volLevel==='muscle'?'active':''}" data-vollevel="muscle">${t('Muscle')}</div>
+    <div class="sub-tab ${volLevel==='head'?'active':''}" data-vollevel="head">${t('Heads')}</div>
   </div>`;
   html += renderVolumeHeatmapCard(); // feat 217 — the anatomy heatmap rides above the bars
   html += renderReadinessCard();     // feat 299 — composite training-readiness score (sits above the breakdown)
@@ -24953,9 +24950,9 @@ function renderVolume(main) {
   main.innerHTML = html;
   _bindHeatmapCard(main); // feat 217
   main.querySelector('#rec-info-btn')?.addEventListener('click', () => choiceDialog({ // feat 262
-    title: 'How recovery is estimated',
-    message: 'Each muscle group builds up fatigue from how much volume it absorbed in recent sessions, then recovers as that fatigue decays over a few days (bigger groups take longer). Readiness is that fatigue measured against your own typical session for the group. Logging RPE/RIR makes it sharper. It is a directional guide, not medical advice — always listen to your body.',
-    choices: [{ label: 'Got it', value: true, style: 'primary' }],
+    title: t('How recovery is estimated'),
+    message: t('Each muscle group builds up fatigue from how much volume it absorbed in recent sessions, then recovers as that fatigue decays over a few days (bigger groups take longer). Readiness is that fatigue measured against your own typical session for the group. Logging RPE/RIR makes it sharper. It is a directional guide, not medical advice — always listen to your body.'),
+    choices: [{ label: t('Got it'), value: true, style: 'primary' }],
   }));
   // Cardio goals (feat 7)
   main.querySelector('#cardio-goals-edit')?.addEventListener('click', () => { cardioGoalsEditOpen = !cardioGoalsEditOpen; render(); });
@@ -24969,7 +24966,7 @@ function renderVolume(main) {
   main.querySelectorAll('.sub-tab[data-vollevel]').forEach(t => t.addEventListener('click', () => { volLevel = t.dataset.vollevel; render(); }));
   main.querySelectorAll('.vol-sort-pill').forEach(t => t.addEventListener('click', () => { volSort = t.dataset.sort; render(); }));
   main.querySelector('#vol-weights-toggle')?.addEventListener('click', () => { volWeightsOpen = !volWeightsOpen; render(); });
-  main.querySelector('#vol-weights-revert')?.addEventListener('click', () => { applyMuscleWeightPreset('default'); render(); toast('Reverted to AI defaults'); });
+  main.querySelector('#vol-weights-revert')?.addEventListener('click', () => { applyMuscleWeightPreset('default'); render(); toast(t('Reverted to AI defaults')); });
   main.querySelector('#vol-preset-select')?.addEventListener('change', e => { applyMuscleWeightPreset(e.target.value); render(); });
   main.querySelectorAll('[data-mw-id]').forEach(inp => inp.addEventListener('change', () => {
     const v = parseFloat(inp.value);
@@ -25541,14 +25538,14 @@ function renderSessionTrends() {
   const tile = (val, label) => `<div class="stat-tile"><div class="stat-label">${label}</div><div class="stat-value">${val}</div></div>`;
   const card = (title, sub, chart) => `<div class="trend-card"><div class="trend-card-title">${title}</div><div class="trend-card-sub">${sub}</div>${chart}</div>`;
 
-  let html = `<div style="font-size:11px;color:var(--text3);margin:4px 0 10px;line-height:1.5;">How your sessions look — informational, not progress. Based on ${data.length} workout${data.length===1?'':'s'}.</div>`;
+  let html = `<div style="font-size:11px;color:var(--text3);margin:4px 0 10px;line-height:1.5;">${t.n('How your sessions look — informational, not progress. Based on {length} workout.', 'How your sessions look — informational, not progress. Based on {length} workouts.', (data.length), { length: (data.length) })}</div>`;
   html += `<div class="stats-grid">
     ${tile(avgDur != null ? fmtMin(avgDur) : '—', 'Avg length')}
     ${tile(avgSets, 'Avg sets')}
     ${tile(avgVol >= 1000 ? (avgVol/1000).toFixed(1)+'k' : avgVol, 'Avg vol ' + unit)}
     ${tile('~' + typicalTime, 'Typical start')}
   </div>`;
-  html += `<div style="font-size:11px;color:var(--text3);margin:8px 0 2px;">~${perWk} workouts/week recently · avg ${avgEx} exercise${avgEx===1?'':'s'} / session</div>`;
+  html += `<div style="font-size:11px;color:var(--text3);margin:8px 0 2px;">${t.n('~{perWk} workouts/week recently · avg {avgEx} exercise / session', '~{perWk} workouts/week recently · avg {avgEx} exercises / session', (avgEx), { perWk: (perWk), avgEx: (avgEx) })}</div>`;
 
   html += card('Workout size', `Volume per session · last ${recent.length}`, trendSparkSVG(recent.map(d => d.volume)));
   html += card('Workout length', `Minutes per session · last ${recent.length}`, trendSparkSVG(recent.map(d => d.durMin)));
@@ -25691,7 +25688,7 @@ function renderTrends(main) {
     const excl = state.trendExclude || [], bps = _trendBps();
     if (excl.length) {
       const labels = excl.map(b => bps.get(b) || BP_LABELS[b] || b);
-      html += `<div class="trend-excl-banner">⚠️ Overall trend is <b>excluding ${escapeHtml(labels.join(', '))}</b> — a reminder to restore once recovered. <button class="trend-excl-restore" id="trend-excl-restore">Restore all</button></div>`;
+      html += `<div class="trend-excl-banner">⚠️ Overall trend is <b>excluding ${escapeHtml(labels.join(', '))}</b> — a reminder to restore once recovered. <button class="trend-excl-restore" id="trend-excl-restore">${t('Restore all')}</button></div>`;
     }
     // Show composite chart + summary
     html += `<div class="trend-card${excl.length ? ' trend-excluded' : ''}">
@@ -25702,19 +25699,19 @@ function renderTrends(main) {
         </div>
         ${overallTrend ? `<div style="text-align:right;">
           <div class="trend-card-value ${overallTrend.weeklyPct > 0.3 ? 'up' : overallTrend.weeklyPct < -0.3 ? 'down' : 'flat'}">${overallTrend.weeklyPct >= 0 ? '+' : ''}${overallTrend.weeklyPct.toFixed(1)}%</div>
-          <div class="trend-card-rate">per week</div>
+          <div class="trend-card-rate">${t('per week')}</div>
         </div>` : ''}
       </div>
       ${renderOverallChart(overall)}
     </div>`;
     // feat 165 — toggle which muscle groups count toward the overall trend (tap to exclude/include)
     if (bps.size) {
-      html += `<div class="trend-excl-chips"><span class="trend-excl-lbl">Count muscle groups (tap to exclude an injured one):</span><div class="trend-excl-row">${[...bps.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([b, l]) => `<button class="trend-excl-chip ${excl.includes(b) ? 'off' : ''}" data-trend-excl="${escapeAttr(b)}">${escapeHtml(l)}${excl.includes(b) ? ' ✕' : ''}</button>`).join('')}</div></div>`;
+      html += `<div class="trend-excl-chips"><span class="trend-excl-lbl">${t('Count muscle groups (tap to exclude an injured one):')}</span><div class="trend-excl-row">${[...bps.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([b, l]) => `<button class="trend-excl-chip ${excl.includes(b) ? 'off' : ''}" data-trend-excl="${escapeAttr(b)}">${escapeHtml(l)}${excl.includes(b) ? ' ✕' : ''}</button>`).join('')}</div></div>`;
     }
     if (overallTrend) {
       html += `<div class="suggestion" style="margin-top:6px;">
-        <div class="suggestion-label">How it's computed</div>
-        <div class="suggestion-text">Each exercise's e1RM is normalized to 100 at first session. The chart averages across all exercises week-by-week. <b>Total change: ${(overallTrend.totalPct >= 0 ? '+' : '') + overallTrend.totalPct.toFixed(1)}%</b> over ${overallTrend.totalDays.toFixed(0)} day${overallTrend.totalDays === 1 ? '' : 's'} · linear-fit slope <b>${(overallTrend.weeklyPct >= 0 ? '+' : '') + overallTrend.weeklyPct.toFixed(2)}% / week</b>.</div>
+        <div class="suggestion-label">${t('How it\'s computed')}</div>
+        <div class="suggestion-text">${t.n('Each exercise\'s e1RM is normalized to 100 at first session. The chart averages across all exercises week-by-week. <b>Total change: {p1}%</b> over {p2} day · linear-fit slope <b>{p3}% / week</b>.', 'Each exercise\'s e1RM is normalized to 100 at first session. The chart averages across all exercises week-by-week. <b>Total change: {p1}%</b> over {p2} days · linear-fit slope <b>{p3}% / week</b>.', (overallTrend.totalDays), { p1: ((overallTrend.totalPct >= 0 ? '+' : '') + overallTrend.totalPct.toFixed(1)), p2: (overallTrend.totalDays.toFixed(0)), p3: ((overallTrend.weeklyPct >= 0 ? '+' : '') + overallTrend.weeklyPct.toFixed(2)) })}</div>
       </div>`;
     }
     // Also show top 3 best & worst trending movements as preview
@@ -25722,10 +25719,10 @@ function renderTrends(main) {
     if (movementList.length > 0) {
       const best = movementList.slice().sort((a,b) => (b.trend?.weeklyPct||0) - (a.trend?.weeklyPct||0)).slice(0, 3);
       const worst = movementList.slice().sort((a,b) => (a.trend?.weeklyPct||0) - (b.trend?.weeklyPct||0)).slice(0, 3);
-      html += `<div class="card-title" style="margin-top:18px;">Top progressing</div>`;
+      html += `<div class="card-title" style="margin-top:18px;">${t('Top progressing')}</div>`;
       best.forEach(t => html += renderTrendCard(t));
       if (worst.length > 0 && worst[0].trend?.weeklyPct < -0.3) {
-        html += `<div class="card-title" style="margin-top:18px;">Needs attention</div>`;
+        html += `<div class="card-title" style="margin-top:18px;">${t('Needs attention')}</div>`;
         worst.forEach(t => { if (t.trend?.weeklyPct < -0.3) html += renderTrendCard(t); });
       }
     }
@@ -25734,7 +25731,7 @@ function renderTrends(main) {
       .filter(t => t.series.length >= 2)
       .sort((a, b) => (b.trend?.weeklyPct || 0) - (a.trend?.weeklyPct || 0));
     if (trendList.length === 0) {
-      html += `<div class="trend-empty">Need at least 2 sessions per ${trendView} to compute trends.</div>`;
+      html += `<div class="trend-empty">${t('Need at least 2 sessions per {trendView} to compute trends.', { trendView: (trendView) })}</div>`;
     } else {
       trendList.forEach(t => html += renderTrendCard(t));
     }
@@ -25753,26 +25750,26 @@ function renderTrends(main) {
 }
 
 function renderTrendCard(item) {
-  const t = item.trend;
-  if (!t) return '';
-  const cls = t.weeklyPct > 0.3 ? 'up' : t.weeklyPct < -0.3 ? 'down' : 'flat';
-  const sign = t.weeklyPct >= 0 ? '+' : '';
+  const tv = item.trend;
+  if (!tv) return '';
+  const cls = tv.weeklyPct > 0.3 ? 'up' : tv.weeklyPct < -0.3 ? 'down' : 'flat';
+  const sign = tv.weeklyPct >= 0 ? '+' : '';
   return `<div class="trend-card">
     <div class="trend-card-head">
       <div style="min-width:0;flex:1;">
         <div class="trend-card-title">${escapeHtml(item.label)}</div>
-        <div class="trend-card-sub">${escapeHtml(item.sublabel || '')} · ${t.sessions} sessions</div>
+        <div class="trend-card-sub">${t('{p1} · {sessions} sessions', { p1: (escapeHtml(item.sublabel || '')), sessions: (tv.sessions) })}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;">
-        <div class="trend-card-value ${cls}">${sign}${t.weeklyPct.toFixed(1)}%</div>
-        <div class="trend-card-rate">per week</div>
+        <div class="trend-card-value ${cls}">${sign}${tv.weeklyPct.toFixed(1)}%</div>
+        <div class="trend-card-rate">${t('per week')}</div>
       </div>
     </div>
-    ${renderMiniChart(item.series, t)}
+    ${renderMiniChart(item.series, tv)}
     <div style="display:flex;justify-content:space-between;font-size:10px;color:#666;margin-top:4px;">
-      <span>Start: ${t.start} ${state.unit}</span>
-      <span>Now: ${t.current} ${state.unit}</span>
-      <span>${sign}${t.totalPct.toFixed(1)}% total</span>
+      <span>${t('Start: {start} {unit}', { start: (tv.start), unit: (state.unit) })}</span>
+      <span>${t('Now: {current} {unit}', { current: (tv.current), unit: (state.unit) })}</span>
+      <span>${t('{sign}{p2}% total', { sign: (sign), p2: (tv.totalPct.toFixed(1)) })}</span>
     </div>
   </div>`;
 }
@@ -29999,8 +29996,7 @@ function showImportDialog(data) {
   dialog.innerHTML = `
     <div style="background:var(--bg4);border:1px solid var(--border2);border-radius:10px;padding:14px 14px 10px 14px;margin-bottom:16px;">
       <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;">
-        📥 Import: ${data.sessions.length} session${data.sessions.length !== 1 ? 's' : ''}
-        <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">from file</span>
+        ${t.n('📥 Import: {length} session <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">from file</span>', '📥 Import: {length} sessions <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">from file</span>', (data.sessions.length), { length: (data.sessions.length) })}
       </div>
 
       <div id="import-opt-merge" class="import-option" data-mode="merge">
@@ -30695,7 +30691,7 @@ function sleepReviewHtml() {
   const rv = Object.values(state.sleepReviews || {}).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
   if (!rv) return '';
   const list = (t, a) => a && a.length ? `<div class="cwr-meta">${t}</div><ul class="cwr-list">${a.map(x => `<li>• ${escapeHtml(x)}</li>`).join('')}</ul>` : '';
-  return `<details class="cw-review slp-review" open><summary>🤝 Sleep review · ${escapeHtml(rv.title || rv.date)} <span class="cwr-meta">${escapeHtml(fmtDate(rv.date + 'T00:00:00'))}</span></summary>
+  return `<details class="cw-review slp-review" open><summary>${t('🤝 Sleep review · {p1} <span class="cwr-meta">{p2}</span>', { p1: (escapeHtml(rv.title || rv.date)), p2: (escapeHtml(fmtDate(rv.date + 'T00:00:00'))) })}</summary>
     <div data-clamp><div class="cwr-text">${escapeHtml(rv.summary || '')}</div>${list('Patterns', rv.patterns)}${list('Try', rv.suggestions)}</div></details>`;
 }
 // feat 339 — a day's recovery pieces as small labelled bits (sleep / body battery / HRV / resting HR / stress).
@@ -31302,7 +31298,7 @@ function clearNotes() {
 function renderNotesCard(session) {
   const notes = session.notes || {};
   // feat 259 — the gym/location is its own line, distinct from the subjective Session Notes (supps/injuries/general).
-  const gymLine = notes.location ? `<div class="session-gym-line"><span class="notes-icon">📍</span><span class="notes-row-label">Trained at</span>${escapeHtml(notes.location)}</div>` : '';
+  const gymLine = notes.location ? `<div class="session-gym-line">${t('<span class="notes-icon">📍</span><span class="notes-row-label">Trained at</span>{location}', { location: (escapeHtml(notes.location)) })}</div>` : '';
   const labels = { supps: '💊', injuries: '🩹', general: '📝' };
   const labelNames = { supps: 'Supps', injuries: 'Injuries', general: 'Notes' };
   const order = ['supps', 'injuries', 'general'];
@@ -31678,7 +31674,7 @@ function renderPicker() {
       const ss = stepStatus(sess, st, plan);
       if (ss.done) return '';
       const label = (st.options || []).map(optionLabel).join(' / ') || 'step';
-      return `<button class="picker-step-chip ${modalState.planStepFilter === i ? 'active' : ''}" data-picker-step="${i}">Step ${i + 1}: ${escapeHtml(label)} <span class="psc-sets">${ss.logged}/${st.sets}</span></button>`;
+      return `<button class="picker-step-chip ${modalState.planStepFilter === i ? 'active' : ''}" data-picker-step="${i}">${t('Step {p1}: {label} <span class="psc-sets">{logged}/{sets}</span>', { p1: (i + 1), label: (escapeHtml(label)), logged: (ss.logged), sets: (st.sets) })}</button>`;
     }).filter(Boolean).join('');
     if (chips || modalState.planStepFilter != null) {
       planSteps = `<div class="picker-steps"><span class="picker-steps-label">${t('📋 {name} — pick a step or browse all:', { name: (escapeHtml(plan.name)) })}</span>${chips}${modalState.planStepFilter != null ? `<button class="picker-step-chip clear" data-picker-step="clear">${t('✕ all exercises')}</button>` : ''}</div>`;
@@ -31777,10 +31773,10 @@ function lastDoneBadge(uuid, lv) {
   if (uuid === lv.prev) return `<span class="lastdone-badge prev" title="${escapeAttr(t('The variation you used the time before last'))}">↺ Prev</span>`;
   return '';
 }
-function touchBadgeHtml(t) {
-  if (!t || !t.days || !t.days.size) return `<span class="touch-badge new" title="Never trained — new to you">new</span>`;
-  const n = t.days.size;
-  const since = Math.floor((Date.now() - t.lastMs) / 86400000);
+function touchBadgeHtml(tv) {
+  if (!tv || !tv.days || !tv.days.size) return `<span class="touch-badge new" title="${escapeAttr(t('Never trained — new to you'))}">new</span>`;
+  const n = tv.days.size;
+  const since = Math.floor((Date.now() - tv.lastMs) / 86400000);
   const sinceTxt = since <= 0 ? 'today' : since === 1 ? 'yesterday' : since < 7 ? since + 'd ago' : since < 35 ? Math.round(since / 7) + 'w ago' : since < 365 ? Math.round(since / 30) + 'mo ago' : Math.round(since / 365) + 'y ago';
   const recency = since <= 14 ? 'recent' : since <= 60 ? 'stale' : 'old';
   return `<span class="touch-badge ${recency}" title="Trained on ${n} day${n === 1 ? '' : 's'} · last ${sinceTxt}">${n}×</span>`;
@@ -32323,7 +32319,7 @@ function renderSetupBody(kind, ns) {
     const bd = plateConfig().plates.filter(pl => st.plates[pl]).map(pl => `${st.plates[pl]}×${pl}`).join(' + ') || 'none';
     return `<div class="setup-lbl">${kind === 'landmine' ? 'Plates on the loaded end' : 'Plates loaded'} (tap to add · tap ×N to remove)</div>${_plateGrid(ns, st)}
       ${kind === 'landmine' ? `<div class="setup-row" style="margin-top:8px;"><button class="setup-mode ${st.addBar ? 'on' : ''}" data-${ns}-lmbar="1">${t('{p1}+ bar (~{p2} {u})', { p1: (st.addBar ? '✓ ' : ''), p2: (u === 'kg' ? 10 : 25), u: (u) })}</button></div>` : ''}
-      <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">· ${bd}</span></div>`;
+      <div class="setup-total">${t('Enter <b>{total} {u}</b> <span class="setup-bd">· {bd}</span>', { total: (total), u: (u), bd: (bd) })}</div>`;
   }
   if (kind === 'pin') {
     const ps = pinStableFor();
@@ -32401,7 +32397,7 @@ function bindSetupInline() {
   document.getElementById('trk-setup-toggle')?.addEventListener('click', () => { modalState.setupOpen = !modalState.setupOpen; renderModal(); });
   bindSetup('inl', renderModal);
   document.getElementById('trk-setup-clear')?.addEventListener('click', () => { const k = setupKindFor(pending.varUuid); if (k && modalState.setup) modalState.setup[k] = defaultSetupState(k); renderModal(); });
-  document.getElementById('trk-setup-apply')?.addEventListener('click', () => { const t = setupTotal(setupKindFor(pending.varUuid)); applySetupWeight(t); renderModal(); updateSaveBtn(); toast('Loaded ' + t + ' ' + state.unit); });
+  document.getElementById('trk-setup-apply')?.addEventListener('click', () => { const tv = setupTotal(setupKindFor(pending.varUuid)); applySetupWeight(tv); renderModal(); updateSaveBtn(); toast(t('Loaded {tv} {unit}', { tv: (tv), unit: (state.unit) })); });
 }
 /* OSK version — a chunky "Use {weight}" button at the top of the numpad + an expandable configurator.
    feat 202 — the key passively STRIKES its text when the tool is not in effect: nothing configured yet
@@ -32668,7 +32664,7 @@ function renderSetsForm() {
     // timer. The active set offers "Start hold" instead: it logs weight 0 through the canonical path (wTs, cue).
     const holdTimerHtml = (holdStartMs && holdStartMs > 0) ? holdTimerBtnHtml(i, holdStartMs)
       : (M.mode === 'time' && !modalState.isEditing && !s.ts && (s.w === '' || s.w == null) && i === activeSetIndex(pending.sets))
-        ? `<button type="button" class="hold-start-btn" data-hold-begin="${i}" title="${escapeAttr(t('Start the hold timer — no weight needed'))}">⏱ Start hold <span class="ht-tap">— bodyweight</span></button>`
+        ? `<button type="button" class="hold-start-btn" data-hold-begin="${i}" title="${escapeAttr(t('Start the hold timer — no weight needed'))}">${t('⏱ Start hold <span class="ht-tap">— bodyweight</span>')}</button>`
         : '';
     // feat 457 — each set is one block (row + its hold timer + its sub-variation select) so newest-first can
     // flip the VISUAL order with flex column-reverse without touching DOM order. Every positional lookup in
@@ -32820,7 +32816,7 @@ function renderSetsForm() {
       });
       const R = exWeightRows(pending.varUuid, pending.subUuid); // feat 504 — `prs` is now counted per TILE, above
       const wtBtn = (R.rows.length && !noE1) // feat 517 — its columns are e1RM + Epley odds: meaningless off the barbell model
-        ? `<button type="button" class="wt-open-btn" id="trk-wt-expand" title="Sortable table of every weight logged — records, 90-day bests &amp; PR odds${prs ? ' · ' + prs + ' PR' + (prs === 1 ? '' : 's') + ' this session' : ''}">📊 All weights${prs ? `<span class="wt-pr-badge">🏅 ${prs} PR${prs === 1 ? '' : 's'} today</span>` : ' — records &amp; PR odds'}</button>`
+        ? `<button type="button" class="wt-open-btn" id="trk-wt-expand" title="Sortable table of every weight logged — records, 90-day bests &amp; PR odds${prs ? ' · ' + prs + ' PR' + (prs === 1 ? '' : 's') + ' this session' : ''}">📊 All weights${prs ? `<span class="wt-pr-badge">${t.n('🏅 {prs} PR today', '🏅 {prs} PRs today', (prs), { prs: (prs) })}</span>` : ' — records &amp; PR odds'}</button>`
         : '';
       if (!btns.length && !wtBtn) return '';
       _tgtTotal = btns.length; _tgtHits = hits;   // read by targetsAutoCollapse on the next live update
@@ -32828,8 +32824,8 @@ function renderSetsForm() {
       return `<div class="targets-sec${open ? '' : ' collapsed'}" id="trk-targets">
         <button type="button" class="targets-head" id="trk-targets-toggle" aria-expanded="${open}">
           <span class="targets-title">🎯 Targets</span>
-          ${btns.length ? `<span class="targets-count${hits === btns.length ? ' all' : ''}">${hits}/${btns.length} hit</span>` : ''}
-          ${(prs && (!open || !wtBtn)) ? `<span class="wt-pr-badge">🏅 ${prs} PR${prs === 1 ? '' : 's'}</span>` : ''}
+          ${btns.length ? `<span class="targets-count${hits === btns.length ? ' all' : ''}">${t('{hits}/{length} hit', { hits: (hits), length: (btns.length) })}</span>` : ''}
+          ${(prs && (!open || !wtBtn)) ? `<span class="wt-pr-badge">${t.n('🏅 {prs} PR', '🏅 {prs} PRs', (prs), { prs: (prs) })}</span>` : ''}
           ${''/* only while collapsed — open, the All-weights button below already carries it */}
           <span class="targets-chev">${open ? '▴' : '▾'}</span>
         </button>
@@ -33662,7 +33658,7 @@ function showFixWeightsPopup() {
   const capHtml = (() => {
     if (!cap) return '';
     const p = capViolationFix(pending.varUuid, 'lower', false);
-    return p.sets ? `<div class="choice-msg">⚖️ <b>${p.sets}</b> logged set${p.sets === 1 ? '' : 's'} exceed this exercise's <b>${cap}${state.unit}</b> max.</div>
+    return p.sets ? `<div class="choice-msg">${t.n('⚖️ <b>{sets}</b> logged set exceed this exercise\'s <b>{cap}{unit}</b> max.', '⚖️ <b>{sets}</b> logged sets exceed this exercise\'s <b>{cap}{unit}</b> max.', (p.sets), { sets: (p.sets), cap: (cap), unit: (state.unit) })}</div>
     <div class="choice-actions" style="margin-bottom:4px;">
       <button class="choice-btn" data-fixw-cap="lower">${t('⤵ Lower to {cap}{unit}', { cap: (cap), unit: (state.unit) })}</button>
       <button class="choice-btn danger" data-fixw-cap="remove">${t('🗑 Remove them')}</button>
@@ -33771,7 +33767,7 @@ function renderNeighborHints() {
       e1Card = `<div class="neighbor-hint e1rm">
         <div class="neighbor-hint-dir">${t('⭐ Best e1RM')}</div>
         <div class="neighbor-hint-weight">${Math.round(best.e)}<span style="font-size:10px;font-weight:400;"> ${state.unit}</span></div>
-        <div class="neighbor-hint-reps">≥${needR} rep${needR === 1 ? '' : 's'} @ ${currentW}</div>
+        <div class="neighbor-hint-reps">${t.n('≥{needR} rep @ {currentW}', '≥{needR} reps @ {currentW}', (needR), { needR: (needR), currentW: (currentW) })}</div>
         <div class="neighbor-hint-date">${t('set: {w}×{r}', { w: (best.w), r: (best.r) })}</div>
       </div>`;
     }
@@ -34428,7 +34424,7 @@ function renderCardioForm() {
   return `
     <div class="selected-exercise">
       <div class="selected-ex-label">${modalState.isEditing ? 'Editing' : 'Logging'} cardio</div>
-      <div class="selected-ex-name">${escapeHtml(info.variation.title)}<span class="ex-mode-tag">cardio</span></div>
+      <div class="selected-ex-name">${t('{title}<span class="ex-mode-tag">cardio</span>', { title: (escapeHtml(info.variation.title)) })}</div>
       <div class="selected-ex-family">${escapeHtml(info.family.title)}</div>
       <div class="ex-mode-hint">${t('Cardio is logged as <b>elapsed time</b> + optional metrics. It is kept out of volume, scoring and trends — but stays in your history.')}</div>
       ${!modalState.isEditing ? `<button type="button" class="selected-ex-change" id="trk-change-exercise">${t('🔄 Change exercise')}</button>` : ''}
@@ -35072,7 +35068,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 487 · 2026-11-16 17:44';
+const APP_BUILD = 'build 488 · 2026-11-16 23:02';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -35133,7 +35129,7 @@ async function probeAudioOutput() {
 // Optional, user-initiated: unlock device labels via a one-off mic permission, then re-probe + stop.
 async function unlockHeadphoneDetection() {
   try {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Audio-device access not supported here'); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast(t('Audio-device access not supported here')); return; }
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach(t => t.stop());                       // we only needed the permission, not the mic
     await probeAudioOutput();
@@ -43260,7 +43256,7 @@ function renderRef() {
                       const alts = computeAlternatives(ex.mega, ex.sub, v.uuid);
                       if (!alts.length) return '';
                       return `<div class="alt-wrap">
-                        <div class="alt-toggle" onclick="event.stopPropagation();this.parentElement.classList.toggle('open')">⇄ ${alts.length} alternative${alts.length===1?'':'s'} — same stimulus, swap when crowded</div>
+                        <div class="alt-toggle" onclick="event.stopPropagation();this.parentElement.classList.toggle('open')">${t.n('⇄ {length} alternative — same stimulus, swap when crowded', '⇄ {length} alternatives — same stimulus, swap when crowded', (alts.length), { length: (alts.length) })}</div>
                         <div class="alt-list">${alts.map(a => {
                           const cue = altCue(ex.id, ex.mega, a.fam);
                           return `<div class="alt-item"><b>${escapeHtml(a.v.title)}</b><span style="color:var(--text3);font-size:11px;">${escapeHtml(a.fam.title)}</span><span class="alt-cue ${cue.cls}">${cue.label}</span></div>`;
@@ -44278,7 +44274,7 @@ function renderGlossary() {
     return `<span class="gloss-read-note" title="${how} ${escapeAttr(new Date(r.at).toLocaleString())}">${icon} ${how} ${escapeHtml(fmtDate(r.at))}</span>`;
   };
 
-  body.innerHTML = studyBar + `<div class="gloss-count">${filtered.length} term${filtered.length === 1 ? '' : 's'}</div>` +
+  body.innerHTML = studyBar + `<div class="gloss-count">${t.n('{length} term', '{length} terms', (filtered.length), { length: (filtered.length) })}</div>` +
     letters.map(L => `
       <div class="gloss-letter-header">${L}</div>
       ${groups[L].map(g => `
@@ -44502,7 +44498,7 @@ function anatomyImportMap(text) {
     const clean = terms.filter(t => t && t.term && typeof t.x === 'number' && typeof t.y === 'number')
       .map(t => ({ term: String(t.term), x: Math.max(0, Math.min(1, t.x)), y: Math.max(0, Math.min(1, t.y)),
         w: (typeof t.w === 'number') ? Math.max(0, Math.min(1, t.w)) : undefined, h: (typeof t.h === 'number') ? Math.max(0, Math.min(1, t.h)) : undefined }));
-    if (!clean.length) { toast('No usable label regions in that map'); return; }
+    if (!clean.length) { toast(t('No usable label regions in that map')); return; }
     anatomyCfg().map = clean; saveState(); renderAnatomyChart();
     toast(`Mapped ${clean.length} label${clean.length === 1 ? '' : 's'}`);
   } catch (e) { toast(t('Could not read that map JSON')); }

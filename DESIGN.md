@@ -5420,3 +5420,10 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   purpose, for hand rewrites: phrases glued from pieces (plural suffixes, values carrying their own English),
   sentences with links, text inside nested templates, and anything inside a block that uses `t` as a variable.
   Data fields (`plan.title = …`) are never wrapped, so no translated text is stored in state.
+  **Step 5 (feat 569):** plural endings (`session${n === 1 ? '' : 's'}`) become `t.n('… session', '… sessions', n, …)`,
+  only for the `=== 1` / `!== 1` shapes, which are exactly the English rule of `t.n`. Whole-sentence mode now keeps
+  inline tags with attributes (links, styled spans). `tools/i18n-scope-check.mjs` uses Babel (the copy inside
+  Playwright, nothing installed) to prove every translator call resolves to the global function; the test suite runs
+  it. `tools/i18n-unshadow.mjs` renames a local variable named `t` (declaration and every reference, from Babel's
+  binding), which unblocked the last 49 phrases. The heuristic guard in `i18n-wrap` now marks only declarations
+  and parameters. 1,542 phrases × 16 languages.

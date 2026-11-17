@@ -68,7 +68,7 @@ const RICH = !process.argv.includes('--no-rich');
 // --- shadowing guard: a block with its own variable called t (a toast element, a time, a map parameter) would
 // call THAT instead of the translator and throw. Every use of t that is not a call marks the innermost { } or
 // ${ } around it; nothing inside a marked block is wrapped. Over-cautious on purpose.
-const SHADOW = /(?<![\w$.'"`\-])t(?![\w$'"`(-])(?!\.n)/g;
+const SHADOW = /(?<![\w$.'"`\-])t(?![\w$'"`(-])(?!\.n\b)/g;
 const SA = src.lastIndexOf('<script', A), SB = src.indexOf('</script>', A);         // the whole script around the range
 const scan = quasis(src, src.indexOf('>', SA) + 1, SB);
 const pairs = scan.pairs.slice().sort((x, y) => (x[1] - x[0]) - (y[1] - y[0]));     // smallest first
@@ -81,9 +81,17 @@ function scopeOf(d) {
   const arrowBody = (afterArrow, from) => {                      // afterArrow: index just past =>
     const m = src.slice(afterArrow).match(/^\s*\{/);
     if (m) return braceAt.get(afterArrow + m[0].length - 1) || null;
-    const pp = inner(parens, from);                              // an expression body ends with the call around it
-    if (pp) return pp;
-    const end = src.indexOf(';', afterArrow); return [from, end < 0 ? SB : end];
+    let i = afterArrow, depth = 0;                               // an expression body: up to the first , ; ) ] } at its own level
+    while (i < SB) {
+      const c = src[i];
+      if (c === "'" || c === '"') { i++; while (i < SB && src[i] !== c && src[i] !== '\n') i += src[i] === '\\' ? 2 : 1; i++; continue; }
+      if (c === '`') { const q = scan.find((x) => x[0] === i + 1); if (!q) break; i = scan.filter((x) => x[2] === q[2]).reduce((mx, x) => Math.max(mx, x[1]), 0) + 1; continue; }
+      if ('([{'.includes(c)) depth++;
+      else if (')]}'.includes(c)) { if (depth === 0) break; depth--; }
+      else if (depth === 0 && (c === ',' || c === ';')) break;
+      i++;
+    }
+    return [from, i];
   };
   const bare = src.slice(d).match(/^t\s*=>/);                    // t => …
   if (bare) return arrowBody(d + bare[0].length, d);
@@ -93,21 +101,32 @@ function scopeOf(d) {
     if (after[1]) return arrowBody(pp[1] + 1 + after[0].indexOf('=>') + 2, pp[0]);
     if (after[2] && /(\bfunction\b[^(]*|\bcatch\s*|\bfor\s*(await\s*)?|^\s*(async\s+)?[\w$]+\s*)$/m.test(src.slice(Math.max(SA, pp[0] - 80), pp[0]))) return braceAt.get(pp[1] + after[0].length) || null;
   }
-  let br = inner(pairs, d);
+  // Not a parameter. Only a DECLARATION can hide the translator now; a mere use (t.id, f(t)) binds nothing: it
+  // refers to whatever binding is in scope, and that binding marks its own block.
+  let br = inner(pairs, d), pattern = false;
   // const { t } = …: the braces are a pattern, not a scope; the scope is the block around the declaration
-  while (br && /(const|let|var)\s*$/.test(src.slice(Math.max(SA, br[0] - 12), br[0]))) br = pairs.find(([x, y]) => x < br[0] && br[1] < y) || [SA, SB];
-  if (br) return br;
-  return /\b(const|let|var)\s+([\w$]+\s*=[^;]*,\s*)?$/.test(src.slice(Math.max(SA, d - 200), d)) ? [SA, SB] : null; // top level: only a declaration counts
+  while (br && /\b(const|let|var)\s*$/.test(src.slice(Math.max(SA, br[0] - 12), br[0]))) { pattern = true; br = pairs.find(([x, y]) => x < br[0] && br[1] < y) || [SA, SB]; }
+  const stmt = Math.max(src.lastIndexOf(';', d), src.lastIndexOf('{', d), src.lastIndexOf('}', d), SA);
+  if (!br) return /\b(const|let|var)\s+$/.test(src.slice(Math.max(SA, d - 12), d)) ? [SA, SB] : null;   // top level: only `const t` itself
+  if (!pattern) {                                                // is t in the NAME position of a const / let / var?
+    const m = src.slice(stmt, d).match(/\b(?:const|let|var)\s([^;{}]*)$/); if (!m) return null;
+    const seg = m[1];
+    if (seg.includes('=')) {                                     // let a = f(1), t  — yes;  const x = g(t)  — a use
+      const bal = (seg.match(/[(\[]/g) || []).length === (seg.match(/[)\]]/g) || []).length;
+      if (!bal || !/,\s*$/.test(seg)) return null;
+    }
+  }
+  return br;
 }
-for (const m of src.slice(SA, SB).matchAll(SHADOW)) { const sc = scopeOf(SA + m.index); if (sc) marked.push(sc); }
+for (const m of src.slice(SA, SB).matchAll(SHADOW)) { const sc = scopeOf(SA + m.index); if (sc) marked.push([sc[0], sc[1], SA + m.index]); }
 if (process.argv.includes('--marks')) { const ln = (o) => src.slice(0, o).split('\n').length; marked.filter(([x, y]) => y - x > 20000).forEach(([x, y]) => console.log('big block', ln(x), ln(y))); for (const m of src.slice(SA, SB).matchAll(SHADOW)) { const d = SA + m.index, sc = scopeOf(d); if (sc && sc[1] - sc[0] > 20000) console.log(' token at', ln(d), JSON.stringify(src.slice(d - 40, d + 30))); } }
 const shadowed = (pos) => marked.some(([x, y]) => x < pos && pos < y);
 if (process.argv.includes('--check')) {            // every existing t('…') call must sit outside every marked block
   let bad = 0;
-  for (const m of src.slice(A, B).matchAll(/(?<![\w$.])t\((['"`])/g)) if (shadowed(A + m.index)) { bad++; console.log('shadowed t() at line ' + src.slice(0, A + m.index).split('\n').length); }
+  for (const m of src.slice(A, B).matchAll(/(?<![\w$.])t(?:\.n)?\((['"`])/g)) if (shadowed(A + m.index)) { bad++; const mk = marked.find(([x, y]) => x < A + m.index && A + m.index < y); console.log('shadowed t() at line ' + src.slice(0, A + m.index).split('\n').length + ' by ' + JSON.stringify(src.slice(mk[2] - 30, mk[2] + 20))); }
   console.log(bad ? bad + ' call(s) sit in a block that uses t as a variable' : '✓ no t() call is shadowed'); process.exit(bad ? 1 : 0);
 }
-const skipped = [], edits = []; let nText = 0, nAttr = 0, nSec = 0, nRich = 0, nInterp = 0, nNested = 0, nPieces = 0;
+const skipped = [], edits = []; let nText = 0, nAttr = 0, nSec = 0, nRich = 0, nInterp = 0, nNested = 0, nPieces = 0, nPlural = 0;
 
 // --- placeholders: a readable {name} for each ${expr} moved into a phrase
 function paramNames(exprs) {
@@ -148,6 +167,24 @@ if (process.argv.includes('--interp')) {
       const ks = [...body.matchAll(SENTG)].map((m) => m[0].charCodeAt(0) - 0xE100);
       const exprs = ks.map(exprOf);
       if (exprs.some((e) => e.includes('`'))) { nNested++; return false; }   // a nested template: its own text is handled first
+      // a plural ending — session${n === 1 ? '' : 's'} — becomes a real plural: t.n('… session', '… sessions', n, …).
+      // Only the === 1 / !== 1 shapes: those are exactly the rule t.n applies in English.
+      const PL = /^\(?\s*(.+?)\s*(===?|!==?)\s*1\s*\?\s*'([a-z]{0,4})'\s*:\s*'([a-z]{0,4})'\s*\)?$/;
+      const pl = exprs.map((e) => { const m = e.trim().match(PL); return m && !/['"`?:+]|\s[-*/]\s/.test(m[1]) ? m : null; });   // the count must be a simple value
+      if (pl.some(Boolean)) {
+        const counts = [...new Set(pl.filter(Boolean).map((m) => m[1].trim()))];
+        const rest = exprs.filter((e, k) => !pl[k]);
+        if (counts.length !== 1 || rest.some((e) => /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(e))) { nPieces++; return false; }
+        const names = paramNames(rest);
+        const form = (one) => { let k = 0, r = 0; return body.replace(SENTG, () => { const m = pl[k++]; if (!m) return '{' + names[r++] + '}'; const eq = m[2][0] === '='; return (eq === one) ? m[3] : m[4]; }).replace(/\s+/g, ' '); };
+        const oneS = form(true), otherS = form(false);
+        if (/[A-Za-z]\{|\}[A-Za-z]/.test(otherS) || oneS === otherS) { nPieces++; return false; }   // still glued elsewhere
+        const loose = pl.find(Boolean)[2].length === 2;                    // == / != compare loosely: so does +(x)
+        const params = names.length ? `, { ${names.map((n, j) => `${n}: (${rest[j].trim()})`).join(', ')} }` : '';
+        const s0 = toSrc(vs + lead.length, false), s1 = toSrc(vs + lead.length + body.length, true);
+        edits.push([s0, s1, `\${${T}.n('${esc(oneS)}', '${esc(otherS)}', ${loose ? '+' : ''}(${counts[0]})${params})}`]); nPlural++;
+        return true;
+      }
       // a value glued to a word ("session{s}", "{label}ly") or carrying its own English ("more" / "fewer") builds
       // the sentence from pieces: left for a hand rewrite
       if (/[A-Za-z][-]|[-][A-Za-z]/.test(body) || exprs.some((e) => /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(e))) { nPieces++; return false; }
@@ -160,11 +197,13 @@ if (process.argv.includes('--interp')) {
     };
     const tagBefore = (gtV) => V.slice(V.lastIndexOf('<', gtV), gtV + 1).match(/^<(\/?)([a-zA-Z][\w-]*)[\s\S]*>$/);
     const richDone = [];
-    if (RICH) for (const m of V.matchAll(/>((?:[^<>]|<\/?(?:b|i|em|strong|code|small|u|kbd|sup|sub|mark)>|<br\s*\/?>)+)<\/(div|p|li|label|summary|td|th|button|span)>/g)) {
+    if (RICH) for (const m of V.matchAll(/>((?:[^<>]|<\/?(?:b|i|em|strong|code|small|u|kbd|sup|sub|mark|a|span)(?:\s[^<>]*)?>|<br\s*\/?>)+)<\/(div|p|li|label|summary|td|th|button|span)>/g)) {
       const inner = m[1];
       if (!isSent.test(inner)) continue;                        // no values in it: the plain pass does it
       const words = inner.replace(SENTG, '').replace(/<[^>]*>/g, '');
       if (!/[A-Za-z]{2}/.test(words) || notWords(words) || /&[#\w]+;|[\\{}$`]/.test(inner.replace(SENTG, ''))) continue;
+      // layout markup is not a sentence: a value inside a tag, an empty element, or a pile of tags stays as it is
+      if (/<[^<>]*[-][^<>]*>/.test(inner) || /<(\w+)[^<>]*>\s*<\/\1>/.test(inner) || (inner.match(/</g) || []).length > 6) continue;
       const open = tagBefore(m.index); if (!open || open[1] || open[2].toLowerCase() !== m[2].toLowerCase()) continue;
       if (convert(m.index + 1, inner, true)) richDone.push([m.index + 1, m.index + 1 + inner.length]);
     }
@@ -181,7 +220,7 @@ if (process.argv.includes('--interp')) {
       convert(m.index + 1, raw, false);
     }
   }
-  console.log(`${nInterp} phrase(s) with values in them; left: ${nNested} with a nested template, ${nPieces} built from pieces`);
+  console.log(`${nInterp} phrase(s) with values in them, ${nPlural} plural(s); left: ${nNested} with a nested template, ${nPieces} built from pieces`);
 }
 for (const [qa, qb] of quasis(src, A, B)) {
   const q = src.slice(qa, qb);
@@ -189,9 +228,9 @@ for (const [qa, qb] of quasis(src, A, B)) {
   // a whole sentence with inline markup ("Disconnect in <b>Data</b> to edit it.") becomes ONE phrase, tags
   // and all, so it is translated as a sentence (never by pieces)
   const rich = [];
-  if (RICH) for (const m of q.matchAll(/>((?:[^<>]|<\/?(?:b|i|em|strong|code|small|u|kbd|sup|sub|mark)>|<br\s*\/?>)+)<\/(div|p|li|label|summary|td|th|button|span)>/g)) {
+  if (RICH) for (const m of q.matchAll(/>((?:[^<>]|<\/?(?:b|i|em|strong|code|small|u|kbd|sup|sub|mark|a|span)(?:\s[^<>]*)?>|<br\s*\/?>)+)<\/(div|p|li|label|summary|td|th|button|span)>/g)) {
     const inner = m[1], txt = inner.trim();
-    if (notWords(inner)) continue;
+    if (notWords(inner) || /<(\w+)[^<>]*>\s*<\/\1>/.test(inner) || (inner.match(/</g) || []).length > 6) continue;   // layout, not a sentence
     if (!/<[a-z]/i.test(inner) || !/[A-Za-z]/.test(txt.replace(/<[^>]*>/g, '')) || /&[#\w]+;|[\\{}$`]/.test(inner)) continue;
     const gt = qa + m.index, open = src.slice(src.lastIndexOf('<', gt), gt + 1);
     if (!new RegExp('^<' + m[2] + '\\b', 'i').test(open)) continue; // the text must be the element's whole content
@@ -327,7 +366,8 @@ if (false) {
   console.log(`${nCall} plain message(s) in toast / dialog calls`);
 }
 if (process.argv.includes('--list')) { const ln = (o) => { let lo = 0, hi = lineStart.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (lineStart[m] <= o) lo = m; else hi = m - 1; } return lo + 1; }; edits.slice().sort((x, y) => x[0] - y[0]).forEach(([s0, s1, r]) => console.log(ln(s0) + '	' + r.trim().slice(0, 150))); }
-let nShadow = 0; for (let i = edits.length - 1; i >= 0; i--) if ((/\$\{/.test(edits[i][2]) || edits[i][2].startsWith(T + '(')) && shadowed(edits[i][0])) { edits.splice(i, 1); nShadow++; }
+const shadowLines = []; let nShadow = 0; for (let i = edits.length - 1; i >= 0; i--) if ((/\$\{/.test(edits[i][2]) || edits[i][2].startsWith(T + '(')) && shadowed(edits[i][0])) { shadowLines.push(src.slice(0, edits[i][0]).split('\n').length); edits.splice(i, 1); nShadow++; }
+if (process.argv.includes('--shadow-lines')) console.log('shadowed at lines: ' + [...new Set(shadowLines)].sort((x, y) => x - y).join(' '));
 if (nShadow) console.log(`skipped ${nShadow} edit(s) inside functions that use t as a variable`);
 edits.sort((x, y) => y[0] - x[0] || y[1] - x[1]);
 let out = src; for (const [s0, s1, r] of edits) out = out.slice(0, s0) + r + out.slice(s1);
