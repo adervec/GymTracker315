@@ -5439,3 +5439,6 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   **Known limits:** English is the key, so one English word with two meanings shares one translation ("more" as a
   button label and in "2 more sessions than…"). About 96 composite lines and about 190 short labels beside a value
   are still English; they need their code rewritten by hand, not wrapped.
+  **Step 8 (feat 569):** relative times are plural phrases, one helper per unit (`agoDays`, `agoMin`, `agoHr`, `agoD`,
+  `agoWk`, `agoMo`, `agoYr`), with the number passed as `{count}` so English prints it raw. `fmtDate` now says
+  "1 day ago" (was "1 days ago"), the one deliberate English change of the whole translation work.

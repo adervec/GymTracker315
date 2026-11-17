@@ -9178,13 +9178,13 @@ function coworkCalendarCells(year, month, history) {
 }
 function coworkFmtAgo(iso, now) {
   if (!iso) return 'never';
-  const t = new Date(iso).getTime();
-  if (isNaN(t)) return 'never';
-  const s = Math.max(0, Math.round(((now || Date.now()) - t) / 1000));
-  if (s < 60) return 'just now';
-  const m = Math.round(s / 60); if (m < 60) return m + 'm ago';
-  const hr = Math.round(m / 60); if (hr < 48) return hr + 'h ago';
-  return Math.round(hr / 24) + 'd ago';
+  const ts = new Date(iso).getTime();
+  if (isNaN(ts)) return t('never');
+  const s = Math.max(0, Math.round(((now || Date.now()) - ts) / 1000));
+  if (s < 60) return t('just now');
+  const m = Math.round(s / 60); if (m < 60) return agoMin(m);
+  const hr = Math.round(m / 60); if (hr < 48) return agoHr(hr);
+  return agoD(Math.round(hr / 24));
 }
 /* feat 458 — DESIGNATED SYNC MACHINE. The folder half of the hub is desktop-only, but "desktop" can be more
    than one machine, and two of them polling the same inbox race to consume the same reply. The designation
@@ -12945,6 +12945,15 @@ function currentLang() { return (window.appFont && appFont.lang) ? appFont.lang(
 // Dates and numbers follow the chosen language. English passes undefined, i.e. the device's own format, exactly as
 // before translation existed, so the English app is unchanged.
 function uiLocale() { return (window.appFont && appFont.lang && appFont.locale && appFont.lang() !== 'en') ? appFont.locale() : undefined; }
+// Relative times. One plural phrase per unit, so every language inflects it its own way; the number goes in as
+// {count} (not the built-in {n}), so English prints it raw, exactly as before.
+function agoDays(n) { return t.n('{count} day ago', '{count} days ago', n, { count: n }); }
+function agoMin(n) { return t.n('{count}m ago', '{count}m ago', n, { count: n }); }
+function agoHr(n) { return t.n('{count}h ago', '{count}h ago', n, { count: n }); }
+function agoD(n) { return t.n('{count}d ago', '{count}d ago', n, { count: n }); }
+function agoWk(n) { return t.n('{count}w ago', '{count}w ago', n, { count: n }); }
+function agoMo(n) { return t.n('{count}mo ago', '{count}mo ago', n, { count: n }); }
+function agoYr(n) { return t.n('{count}y ago', '{count}y ago', n, { count: n }); }
 // a translated language loads its dictionary after the first paint: redraw once it is in
 document.addEventListener('app-language-ready', function (e) { if (!e.detail || e.detail === 'en') return; try { if (typeof render === 'function') render(); const dr = document.getElementById('settings-drawer'); if (dr && dr.classList.contains('open') && typeof renderSettingsDrawer === 'function') renderSettingsDrawer(); } catch (_) {} });
 
@@ -15492,7 +15501,7 @@ function fmtDate(d) {
   if (dt.toDateString() === today.toDateString()) return t('Today');
   if (dt.toDateString() === yesterday.toDateString()) return t('Yesterday');
   const diff = Math.floor((today - dt) / (1000*60*60*24));
-  if (diff < 7) return t('{n} days ago', { n: diff });
+  if (diff < 7) return agoDays(diff);
   return dt.toLocaleDateString(uiLocale(), { month:'short', day:'numeric' });
 }
 function fmtTime(d) {
@@ -15993,7 +16002,7 @@ function subTrainedMap(varUuid) {
 }
 function fmtAgo(d) {
   const days = Math.floor((Date.now() - new Date(d).getTime()) / 864e5);
-  return days <= 0 ? t('today') : days === 1 ? t('yesterday') : days < 14 ? t('{n}d ago', { n: days }) : days < 70 ? t('{n}w ago', { n: Math.round(days / 7) }) : t('{n}mo ago', { n: Math.round(days / 30) });
+  return days <= 0 ? t('today') : days === 1 ? t('yesterday') : days < 14 ? agoD(days) : days < 70 ? agoWk(Math.round(days / 7)) : agoMo(Math.round(days / 30));
 }
 function getHistoryByKey(varUuid, subUuid) {
   const key = trackingKey(varUuid, subUuid);
@@ -16861,7 +16870,7 @@ function bodyweightLineHtml() {
   const e = latestBodyCompWith('weightKg');
   if (!e) return `<div class="ex-bw-line stale">${t('⚖️ No bodyweight logged — add it in the Body tab so records count it.')}</div>`;
   const d = Math.floor(daysSinceIso(e.date)), stale = d > biometricStaleDays();
-  const age = d < 1 ? 'today' : d === 1 ? 'yesterday' : d + ' days ago';
+  const age = d < 1 ? t('today') : d === 1 ? t('yesterday') : agoDays(d);
   return `<div class="ex-bw-line${stale ? ' stale' : ''}">${t('⚖️ Bodyweight <b>{weightKg}{bodyCompUnit}</b> · {age}{p4}', { weightKg: (bodyDispW(e.weightKg)), bodyCompUnit: (state.bodyCompUnit), age: (age), p4: (stale ? t(' — ⚠ stale, update it in the Body tab') : '') })}</div>`;
 }
 function getCurrentBodyweightKg() {
@@ -24859,7 +24868,7 @@ function renderRecoveryCard() {
     else readyNames.push(BP_LABELS[bp] || bp);
   });
   recovering.sort((a, b) => a.readiness - b.readiness); // most fatigued first
-  const sinceTxt = ms => { const h = (now - ms) / 3600000; if (h < 1) return 'just now'; if (h < 24) return Math.round(h) + 'h ago'; const d = h / 24; return (d < 1.5 ? '1d' : Math.round(d) + 'd') + ' ago'; };
+  const sinceTxt = ms => { const h = (now - ms) / 3600000; if (h < 1) return t('just now'); if (h < 24) return agoHr(Math.round(h)); const d = h / 24; return agoD(d < 1.5 ? 1 : Math.round(d)); };
   const list = recovering.length ? recovering.map(r => {
     const st = recoveryStatus(r.readiness), pct = Math.round(r.readiness * 100);
     return `<div class="rec-row">
@@ -31774,7 +31783,7 @@ function touchBadgeHtml(tv) {
   if (!tv || !tv.days || !tv.days.size) return `<span class="touch-badge new" title="${escapeAttr(t('Never trained — new to you'))}">new</span>`;
   const n = tv.days.size;
   const since = Math.floor((Date.now() - tv.lastMs) / 86400000);
-  const sinceTxt = since <= 0 ? 'today' : since === 1 ? 'yesterday' : since < 7 ? since + 'd ago' : since < 35 ? Math.round(since / 7) + 'w ago' : since < 365 ? Math.round(since / 30) + 'mo ago' : Math.round(since / 365) + 'y ago';
+  const sinceTxt = since <= 0 ? t('today') : since === 1 ? t('yesterday') : since < 7 ? agoD(since) : since < 35 ? agoWk(Math.round(since / 7)) : since < 365 ? agoMo(Math.round(since / 30)) : agoYr(Math.round(since / 365));
   const recency = since <= 14 ? 'recent' : since <= 60 ? 'stale' : 'old';
   return `<span class="touch-badge ${recency}" title="Trained on ${n} day${n === 1 ? '' : 's'} · last ${sinceTxt}">${n}×</span>`;
 }
@@ -35065,7 +35074,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 490 · 2026-11-17 10:26';
+const APP_BUILD = 'build 491 · 2026-11-17 15:43';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
