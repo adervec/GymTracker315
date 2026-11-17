@@ -5433,3 +5433,9 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   language's locale and returns `undefined` in English (the device's own format, as before). `fmtDate` / `fmtAgo`
   words are translated. The standards check's "5 hard-coded locale" warning is the speech voice (`u.lang = 'en-US'`),
   which is right because spoken cues are English text. 1,637 phrases × 16 languages.
+  **Step 7 (feat 569):** a stat line joined by " · " ("3 exercises · 9 sets · 2 sessions") is converted part by part
+  when it cannot be one phrase; a plural may carry an optional clause; a unit glued to a value ("{x}m", "{w}kg",
+  from a fixed list) is allowed, a word suffix ("{label}ly") is not. 1,655 phrases × 16 languages.
+  **Known limits:** English is the key, so one English word with two meanings shares one translation ("more" as a
+  button label and in "2 more sessions than…"). About 96 composite lines and about 190 short labels beside a value
+  are still English; they need their code rewritten by hand, not wrapped.

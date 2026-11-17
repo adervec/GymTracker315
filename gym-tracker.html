@@ -11605,7 +11605,7 @@ function periodCardHtml(kind, off) {
   if (!a.sessions) lines.push('<li class="sm-lo">😴 No training logged</li>');
   else {
     lines.push(`<li class="sm-hi">${t.n('💪 {sessions} session · {sets} sets · {p3} {U}', '💪 {sessions} sessions · {sets} sets · {p3} {U}', (a.sessions), { sessions: (a.sessions), sets: (a.sets), p3: (a.volume.toLocaleString(uiLocale())), U: (U) })}</li>`);
-    if (b.sessions) { const d = a.sessions - b.sessions; if (d) lines.push(`<li class="${d > 0 ? 'sm-hi' : 'sm-lo'}">${d > 0 ? '🔥' : '🛌'} ${Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} session${Math.abs(d) === 1 ? '' : 's'} than ${escapeHtml(p.label.split(' · ')[0])}</li>`); }
+    if (b.sessions) { const d = a.sessions - b.sessions; if (d) lines.push(`<li class="${d > 0 ? 'sm-hi' : 'sm-lo'}">${t.n('{p1} {d} {p3} session than {p4}', '{p1} {d} {p3} sessions than {p4}', (Math.abs(d)), { p1: (d > 0 ? '🔥' : '🛌'), d: (Math.abs(d)), p3: (d > 0 ? t('more') : t('fewer')), p4: (escapeHtml(p.label.split(' · ')[0])) })}</li>`); }
     if (a.avgGrade) lines.push(`<li class="sm-hi">${t('⭐ Average session grade {avgGrade} ({avgPoints}/100)', { avgGrade: (a.avgGrade), avgPoints: (a.avgPoints) })}</li>`);
     const gains = Object.keys(a.lifts).filter(k => b.lifts[k]).map(k => [k, a.lifts[k] - b.lifts[k]]).sort((x, y) => y[1] - x[1]);
     if (gains.length && gains[0][1] > 0) lines.push(`<li class="sm-hi">${t('🏆 Biggest gain: {p1} +{p2} {U} e1RM', { p1: (escapeHtml(gains[0][0])), p2: (gains[0][1]), U: (U) })}</li>`);
@@ -21200,7 +21200,7 @@ function planQueueHtml() {
     const pl = getPlan(e.id);
     return `<div class="pq-row${i === 0 ? ' next' : ''}">
       <span class="pq-pos">${i === 0 ? '▶' : i + 1}</span>
-      <button type="button" class="pq-name" data-queue-open="${escapeAttr(e.id)}" title="${escapeAttr(t('Open this plan'))}">${escapeHtml(pl.name)}<span class="pq-meta">${estimatePlanMinutes(pl)}m · ${planTotalSets(pl)} sets · ${escapeHtml(planCategory(pl))}</span></button>
+      <button type="button" class="pq-name" data-queue-open="${escapeAttr(e.id)}" title="${escapeAttr(t('Open this plan'))}">${t('{name}<span class="pq-meta">{pl}m · {pl_} sets · {p4}</span>', { name: (escapeHtml(pl.name)), pl: (estimatePlanMinutes(pl)), pl_: (planTotalSets(pl)), p4: (escapeHtml(planCategory(pl))) })}</button>
       <button type="button" class="pq-btn" data-queue-up="${escapeAttr(e.id)}" ${i === 0 ? 'disabled' : ''} aria-label="${escapeAttr(t('Move up'))}">▲</button>
       <button type="button" class="pq-btn" data-queue-down="${escapeAttr(e.id)}" ${i === q.length - 1 ? 'disabled' : ''} aria-label="${escapeAttr(t('Move down'))}">▼</button>
       <button type="button" class="pq-btn pq-use" data-plan-use="${escapeAttr(e.id)}" title="${escapeAttr(t('Use for today\'s workout'))}">${t('Use')}</button>
@@ -21514,7 +21514,7 @@ function _planExecStatsHtml(detail, plan) {
       <div class="pexec-stat"><span class="pexec-stat-lbl">${t('% active (done steps)')}</span><b>${tv.pctActiveCompleted != null ? tv.pctActiveCompleted + '%' : '—'}</b></div>
     </div>
     <div class="pexec-seq"><div class="pexec-stat-lbl">${t('Actual sequence')}</div><div class="pexec-seq-row">${seqHtml}</div></div>
-    ${off.count ? `<div class="pexec-offplan">🔀 <b>Off-plan:</b> ${off.count} exercise${off.count === 1 ? '' : 's'} · ${off.sets} set${off.sets === 1 ? '' : 's'}${off.activeSec ? ` · ${_fmtDur(off.activeSec)} active` : ''} <span class="pexec-offplan-names">${escapeHtml(off.names.slice(0, 4).join(', '))}${off.names.length > 4 ? '…' : ''}</span></div>` : ''}
+    ${off.count ? `<div class="pexec-offplan">${t.n('🔀 <b>Off-plan:</b> {count} exercise', '🔀 <b>Off-plan:</b> {count} exercises', (off.count), { count: (off.count) })} · ${t.n('{sets} set{p2} <span class="pexec-offplan-names">{p3}{p4}</span>', '{sets} sets{p2} <span class="pexec-offplan-names">{p3}{p4}</span>', (off.sets), { sets: (off.sets), p2: (off.activeSec ? t(' · {activeSec} active', { activeSec: (_fmtDur(off.activeSec)) }) : ''), p3: (escapeHtml(off.names.slice(0, 4).join(', '))), p4: (off.names.length > 4 ? '…' : '') })}</div>` : ''}
   </div>`;
 }
 function renderPlanEditor(body, plan) {
@@ -22641,7 +22641,7 @@ function renderWorkoutTimeline(session) {
   return `<div class="timeline-card">
     <div class="timeline-head">
       <div class="timeline-title">${t('Workout Timeline')}</div>
-      <div class="timeline-meta">${setsCount} set${setsCount===1?'':'s'} · ${seenEx.size} exercise${seenEx.size===1?'':'s'}${hasDuration ? ' · bars = set time, gaps = rest' : ''}</div>
+      <div class="timeline-meta">${t.n('{setsCount} set', '{setsCount} sets', (setsCount), { setsCount: (setsCount) })} · ${t.n('{size} exercise{p2}', '{size} exercises{p2}', (seenEx.size), { size: (seenEx.size), p2: (hasDuration ? t(' · bars = set time, gaps = rest') : '') })}</div>
     </div>
     <div class="timeline-svg-wrap">
       <svg class="timeline-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
@@ -24779,7 +24779,7 @@ function renderReplayPage(main) {
   const barMax = Math.max.apply(null, topBars.map(x => x.sets).concat([1]));
   main.innerHTML = `<div id="replay-page">
     <div class="card heatmap-card">
-      <div class="card-title">⏪ Historical replay <span style="font-size:10.5px;color:var(--text3);font-weight:600;">· week of ${weekStart.toLocaleDateString(uiLocale(), { year: 'numeric', month: 'short', day: 'numeric' })}${off === 0 ? ' (now)' : ''}</span></div>
+      <div class="card-title">${t('⏪ Historical replay <span style="font-size:10.5px;color:var(--text3);font-weight:600;">· week of {p1}{p2}</span>', { p1: (weekStart.toLocaleDateString(uiLocale(), { year: 'numeric', month: 'short', day: 'numeric' })), p2: (off === 0 ? t(' (now)') : '') })}</div>
       <div class="hm-controls">
         <button class="hm-lvl" id="replay-oldest" title="${escapeAttr(t('Jump to the oldest week'))}">⏮</button>
         <button class="hm-lvl ${_replayPlaying ? 'active' : ''}" id="replay-play">${_replayPlaying ? '⏸ Pause' : '▶ Play'}</button>
@@ -24980,7 +24980,7 @@ function renderVolumeSplit(weekDate) {
   const vol = getWeeklySplitVolume(volWeekOffset);
   const cap = m => MEGA_LABELS[m] || (m.charAt(0).toUpperCase() + m.slice(1));
   let html = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
-    Sets per split · Week of ${weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})}
+    ${t('Sets per split · Week of {p1}', { p1: (weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})) })}
   </div>`;
   const total = Object.values(vol).reduce((a, b) => a + b, 0);
   if (!total) return html + `<div class="empty"><div class="empty-large">📊</div>${t('No sets logged this week')}</div>`;
@@ -25009,7 +25009,7 @@ function renderVolumeSplit(weekDate) {
 function renderVolumeGroup(weekDate) {
   const vol = getWeeklyVolume(volWeekOffset);
   let html = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
-    Sets per muscle group · Week of ${weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})}
+    ${t('Sets per muscle group · Week of {p1}', { p1: (weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})) })}
   </div>`;
   const hasVolume = Object.values(vol).some(v => v > 0);
   if (!hasVolume) return html + `<div class="empty"><div class="empty-large">📊</div>${t('No sets logged this week')}</div>`;
@@ -25054,7 +25054,7 @@ function renderVolumeMuscle(level, weekDate) {
 
   const totalSets = entries.reduce((s,e) => s+e.sets, 0);
   let html = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 8px;">
-    Fractional sets per ${level==='head'?'muscle head':'muscle'} · Week of ${weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})}
+    ${t('Fractional sets per {p1} · Week of {p2}', { p1: (level==='head' ? t('muscle head') : t('muscle')), p2: (weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})) })}
   </div>
   <div class="vol-sort-row">
     <span class="vol-sort-pill ${volSort==='default'?'active':''}" data-sort="default">${t('Order')}</span>
@@ -25643,7 +25643,7 @@ function renderPlateauCard() {
   if (!stalls.length) return '';
   const rows = stalls.slice(0, 8).map(p => `<div class="plateau-row">
     <div class="plateau-ex">${escapeHtml(displayName(p.varUuid, p.subUuid))}</div>
-    <div class="plateau-detail">~${p.bestE1RM}${state.unit} e1RM · flat ${p.sessions} sess (~${p.spanDays}d)</div>
+    <div class="plateau-detail">${t('~{bestE1RM}{unit} e1RM · flat {sessions} sess (~{spanDays}d)', { bestE1RM: (p.bestE1RM), unit: (state.unit), sessions: (p.sessions), spanDays: (p.spanDays) })}</div>
   </div>`).join('');
   const more = stalls.length > 8 ? `<div class="plateau-more">${t('+{p1} more', { p1: (stalls.length - 8) })}</div>` : '';
   return `<div class="card plateau-card">
@@ -33303,7 +33303,7 @@ function nextSetInnerHtml() {
     <button type="button" class="ns-why-btn" data-ns-why aria-expanded="${_nsOpen}">${_nsOpen ? 'why ▴' : 'why ▾'}</button></div>
     ${R ? `<div class="ns-rest">⏱ At full rest${R.inSec > 0 ? ` (in ${formatDuration(R.inSec)})` : R.hr ? ' (once your HR settles)' : ''}: <b>${F(R.w, R.r)}</b> · ${R.odds}%${restSame ? ' — same ask, better odds' : ''}</div>` : ''}
     ${c.beats.length ? `<div class="ns-beats">${t('🏅 Would beat your {p1}', { p1: (escapeHtml(c.beats.join(' and '))) })}</div>` : ''}
-    ${c.sRank && !(c.sRank.w === c.w && c.sRank.r <= c.r) ? `<div class="ns-srank"><span class="session-grade g-S">S</span> set: <b>${F(c.sRank.w, c.sRank.r)}</b> · ${c.sRank.odds}%${c.sRank.restedOdds != null && c.sRank.restedOdds > c.sRank.odds ? ` (${c.sRank.restedOdds}% at full rest)` : ''}${c.picked ? '' : ` <button type="button" class="ns-use sm" data-ns-use="${c.sRank.w}" title="Put ${c.sRank.w}${state.unit} in the next set">${t('Go for it')}</button>`}</div>` : ''}
+    ${c.sRank && !(c.sRank.w === c.w && c.sRank.r <= c.r) ? `<div class="ns-srank">${t('<span class="session-grade g-S">S</span> set: <b>{p1}</b>', { p1: (F(c.sRank.w, c.sRank.r)) })} · ${c.sRank.odds}%${c.sRank.restedOdds != null && c.sRank.restedOdds > c.sRank.odds ? ` (${c.sRank.restedOdds}% at full rest)` : ''}${c.picked ? '' : ` <button type="button" class="ns-use sm" data-ns-use="${c.sRank.w}" title="Put ${c.sRank.w}${state.unit} in the next set">${t('Go for it')}</button>`}</div>` : ''}
     ${_nsOpen ? `<ul class="ns-why">${c.why.map(x => `<li>${escapeHtml(x)}</li>`).join('')}<li>${t('🚀 Feeling good? {p1} is {odds}%', { p1: (F(c.stretch.w, c.stretch.r)), odds: (c.stretch.odds) })}</li></ul>
       <div class="ns-f-head">${t('Factors — tap to switch one off')}</div>${nsFactorChipsHtml()}` : ''}`;
 }
@@ -35065,7 +35065,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 489 · 2026-11-17 09:48';
+const APP_BUILD = 'build 490 · 2026-11-17 10:26';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

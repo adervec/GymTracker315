@@ -126,7 +126,7 @@ if (process.argv.includes('--check')) {            // every existing t('…') ca
   for (const m of src.slice(A, B).matchAll(/(?<![\w$.])t(?:\.n)?\((['"`])/g)) if (shadowed(A + m.index)) { bad++; const mk = marked.find(([x, y]) => x < A + m.index && A + m.index < y); console.log('shadowed t() at line ' + src.slice(0, A + m.index).split('\n').length + ' by ' + JSON.stringify(src.slice(mk[2] - 30, mk[2] + 20))); }
   console.log(bad ? bad + ' call(s) sit in a block that uses t as a variable' : '✓ no t() call is shadowed'); process.exit(bad ? 1 : 0);
 }
-const skipped = [], edits = []; let nText = 0, nAttr = 0, nSec = 0, nRich = 0, nInterp = 0, nNested = 0, nPieces = 0, nPlural = 0, nClause = 0;
+const skipped = [], edits = []; let nText = 0, nAttr = 0, nSec = 0, nRich = 0, nInterp = 0, nNested = 0, nPieces = 0, nPlural = 0, nClause = 0, nParts = 0;
 
 // --- placeholders: a readable {name} for each ${expr} moved into a phrase
 function paramNames(exprs) {
@@ -141,6 +141,7 @@ function paramNames(exprs) {
     used.add(n); return n;
   });
 }
+const UNIT = /^(?:m|h|d|w|kg|lb|km|mi|cm|x)(?![A-Za-z])/;   // a unit right after a value ("{x}m", "{w}kg") is not a word glued on
 const SENT = (k) => String.fromCharCode(0xE100 + k), isSent = /[-]/, SENTG = /[-]/g;
 // text with values in it: >Age ${x} · used in body-comp<  ->  ONE phrase, 'Age {x} · used in body-comp', with the
 // expressions passed as params. Works on a whole template literal at a time (its chunks joined by markers).
@@ -162,29 +163,11 @@ if (process.argv.includes('--interp')) {
       }
       return qs[0][0];
     };
-    const convert = (vs, raw, isRich) => {
+    const convertSeg = (vs, raw, isRich) => {
       const lead = raw.match(/^\s*/)[0], trail = raw.match(/\s*$/)[0], body = raw.slice(lead.length, raw.length - trail.length);
       const ks = [...body.matchAll(SENTG)].map((m) => m[0].charCodeAt(0) - 0xE100);
       const exprs = ks.map(exprOf);
       if (exprs.some((e) => e.includes('`'))) nNested++;   // a nested template rides along as a value; its own text is wrapped on the next run
-      // a plural ending — session${n === 1 ? '' : 's'} — becomes a real plural: t.n('… session', '… sessions', n, …).
-      // Only the === 1 / !== 1 shapes: those are exactly the rule t.n applies in English.
-      const PL = /^\(?\s*(.+?)\s*(===?|!==?)\s*1\s*\?\s*'([a-z]{0,4})'\s*:\s*'([a-z]{0,4})'\s*\)?$/;
-      const pl = exprs.map((e) => { const m = e.trim().match(PL); return m && !/['"`?:+]|\s[-*/]\s/.test(m[1]) ? m : null; });   // the count must be a simple value
-      if (pl.some(Boolean)) {
-        const counts = [...new Set(pl.filter(Boolean).map((m) => m[1].trim()))];
-        const rest = exprs.filter((e, k) => !pl[k]);
-        if (counts.length !== 1 || rest.some((e) => /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(e))) { nPieces++; if (process.argv.includes('--pieces')) console.log('  pieces: ' + body.replace(SENTG, (c) => '${' + exprOf(c.charCodeAt(0) - 0xE100).trim().slice(0, 60) + '}').replace(/\s+/g, ' ').slice(0, 230)); return false; }
-        const names = paramNames(rest);
-        const form = (one) => { let k = 0, r = 0; return body.replace(SENTG, () => { const m = pl[k++]; if (!m) return '{' + names[r++] + '}'; const eq = m[2][0] === '='; return (eq === one) ? m[3] : m[4]; }).replace(/\s+/g, ' '); };
-        const oneS = form(true), otherS = form(false);
-        if (/[A-Za-z]\{|\}[A-Za-z]/.test(otherS) || oneS === otherS) { nPieces++; if (process.argv.includes('--pieces')) console.log('  pieces: ' + body.replace(SENTG, (c) => '${' + exprOf(c.charCodeAt(0) - 0xE100).trim().slice(0, 60) + '}').replace(/\s+/g, ' ').slice(0, 230)); return false; }   // still glued elsewhere
-        const loose = pl.find(Boolean)[2].length === 2;                    // == / != compare loosely: so does +(x)
-        const params = names.length ? `, { ${names.map((n, j) => `${n}: (${rest[j].trim()})`).join(', ')} }` : '';
-        const s0 = toSrc(vs + lead.length, false), s1 = toSrc(vs + lead.length + body.length, true);
-        edits.push([s0, s1, `\${${T}.n('${esc(oneS)}', '${esc(otherS)}', ${loose ? '+' : ''}(${counts[0]})${params})}`]); nPlural++;
-        return true;
-      }
       // an optional clause — ${done ? ' · done ✓' : ''} — is a phrase of its own: the clause is wrapped inside the
       // value, and the main phrase keeps one placeholder for it. Only a clause that starts with a space or a symbol
       // (never a word glued on), and only a plain string on one side with '' on the other.
@@ -219,11 +202,29 @@ if (process.argv.includes('--interp')) {
       };
       const app = ks.map((K) => clauseOf(K));
       const exprs2 = exprs.map((e, q) => (app[q] ? app[q].text : e));
+      // a plural ending — session${n === 1 ? '' : 's'} — becomes a real plural: t.n('… session', '… sessions', n, …).
+      // Only the === 1 / !== 1 shapes: those are exactly the rule t.n applies in English.
+      const PL = /^\(?\s*(.+?)\s*(===?|!==?)\s*1\s*\?\s*'([a-z]{0,4})'\s*:\s*'([a-z]{0,4})'\s*\)?$/;
+      const pl = exprs.map((e) => { const m = e.trim().match(PL); return m && !/['"`?:+]|\s[-*/]\s/.test(m[1]) ? m : null; });   // the count must be a simple value
+      if (pl.some(Boolean)) {
+        const counts = [...new Set(pl.filter(Boolean).map((m) => m[1].trim()))];
+        const restIdx = exprs.map((e, k) => k).filter((k) => !pl[k]), rest = restIdx.map((k) => exprs2[k]);
+        if (counts.length !== 1 || restIdx.some((k) => !app[k] && /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(exprs[k]))) { nPieces++; if (process.argv.includes('--pieces')) console.log('  pieces: ' + body.replace(SENTG, (c) => '${' + exprOf(c.charCodeAt(0) - 0xE100).trim().slice(0, 60) + '}').replace(/\s+/g, ' ').slice(0, 230)); return false; }
+        const names = paramNames(rest);
+        const form = (one, glue) => { let k = 0, r = 0; return body.replace(SENTG, () => { const q = k++, m = pl[q]; if (!m) { const nm = names[r++]; return glue && app[q] && app[q].loose ? ' ' : '{' + nm + '}'; } const eq = m[2][0] === '='; return (eq === one) ? m[3] : m[4]; }).replace(/\s+/g, ' '); };
+        const oneS = form(true), otherS = form(false);
+        if (/[A-Za-z]\{|\}(?!(?:m|h|d|w|kg|lb|km|mi|cm|x)(?![A-Za-z]))[A-Za-z]/.test(form(false, true)) || oneS === otherS) { nPieces++; if (process.argv.includes('--pieces')) console.log('  pieces: ' + body.replace(SENTG, (c) => '${' + exprOf(c.charCodeAt(0) - 0xE100).trim().slice(0, 60) + '}').replace(/\s+/g, ' ').slice(0, 230)); return false; }   // still glued elsewhere
+        const loose = pl.find(Boolean)[2].length === 2;                    // == / != compare loosely: so does +(x)
+        const params = names.length ? `, { ${names.map((n, j) => `${n}: (${rest[j].trim()})`).join(', ')} }` : '';
+        const s0 = toSrc(vs + lead.length, false), s1 = toSrc(vs + lead.length + body.length, true);
+        edits.push([s0, s1, `\${${T}.n('${esc(oneS)}', '${esc(otherS)}', ${loose ? '+' : ''}(${counts[0]})${params})}`]); nPlural++;
+        return true;
+      }
       // a value glued to a word ("session{s}", "{label}ly") or carrying its own English ("more" / "fewer") builds
       // the sentence from pieces: left for a hand rewrite
       let glued = false, sk = 0;
-      for (const sm of body.matchAll(SENTG)) { const q = sk++; if (app[q] && app[q].loose) continue; if (/[A-Za-z]/.test(body[sm.index - 1] || '') || /[A-Za-z]/.test(body[sm.index + 1] || '')) glued = true; }
-      const shown = (e) => e.replace(/[!=]==?\s*(['"])(?:(?!\1)[^\\]|\\.)*\1/g, ' ').replace(/([\w$\]])\(\s*(['"])(?:(?!\2)[^\\]|\\.)*\2\s*(?=[,)])/g, '$1(').replace(/\[\s*(['"])(?:(?!\1)[^\\]|\\.)*\1\s*\]/g, '[]');
+      for (const sm of body.matchAll(SENTG)) { const q = sk++; if (app[q] && app[q].loose) continue; if (/[A-Za-z]/.test(body[sm.index - 1] || '') || (/^[A-Za-z]/.test(body.slice(sm.index + 1)) && !UNIT.test(body.slice(sm.index + 1)))) glued = true; }
+      const shown = (e) => e.replace(/\b(weekday|month|day|year|hour|minute|second|era|timeZoneName|dateStyle|timeStyle|hourCycle|numeric|style|unit)\s*:\s*(['"])[\w-]*\2/g, ' ').replace(/[!=]==?\s*(['"])(?:(?!\1)[^\\]|\\.)*\1/g, ' ').replace(/([\w$\]])\(\s*(['"])(?:(?!\2)[^\\]|\\.)*\2\s*(?=[,)])/g, '$1(').replace(/\[\s*(['"])(?:(?!\1)[^\\]|\\.)*\1\s*\]/g, '[]');
       if (glued || exprs.some((e, q) => !app[q] && /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(shown(e)))) { nPieces++; if (process.argv.includes('--pieces')) console.log('  pieces: ' + body.replace(SENTG, (c) => '${' + exprOf(c.charCodeAt(0) - 0xE100).trim().slice(0, 60) + '}').replace(/\s+/g, ' ').slice(0, 230)); return false; }
       if (app.some(Boolean)) nClause++;
       const names = paramNames(exprs); let i = 0;
@@ -232,6 +233,30 @@ if (process.argv.includes('--interp')) {
       const s0 = toSrc(vs + lead.length, false), s1 = toSrc(vs + lead.length + body.length, true);
       edits.push([s0, s1, `\${${T}('${esc(key)}', { ${params} })}`]); nInterp++;
       return true;
+    };
+    // A stat line — "3 exercises · 9 sets · 2 sessions" — is a list of independent phrases joined by " · ". When
+    // the line as a whole cannot be one phrase, each part is converted on its own and the separators stay put.
+    const convert = (vs, raw, isRich) => {
+      if (convertSeg(vs, raw, isRich)) return true;
+      const cuts = []; let inTag = false;
+      for (let q = 0; q < raw.length - 2; q++) { const c = raw[q]; if (c === '<') inTag = true; else if (c === '>') inTag = false; else if (!inTag && raw.startsWith(' · ', q)) { cuts.push(q); q += 2; } }
+      if (!cuts.length) return false;
+      const mark = edits.length, counts = [nInterp, nPlural, nClause, nNested];
+      let from = 0, okAny = false; const bounds = [...cuts.map((c) => [c, c + 3]), [raw.length, raw.length]];
+      for (const [c0, c1] of bounds) {
+        const seg = raw.slice(from, c0);
+        const words = seg.replace(SENTG, ' ').replace(/<[^>]*>/g, ' ');
+        const balanced = (seg.match(/<[a-zA-Z]/g) || []).length === (seg.match(/<\//g) || []).length + (seg.match(/<br\b/gi) || []).length;
+        if (/[A-Za-z]{2}/.test(words)) {
+          const plain = !isSent.test(seg);
+          const done = balanced && (plain ? (good(seg.trim()) && !/</.test(seg) && (edits.push([toSrc(vs + from + seg.match(/^\s*/)[0].length, false), toSrc(vs + from + seg.length - seg.match(/\s*$/)[0].length, true), `\${${T}('${esc(seg.trim().replace(/\s+/g, ' '))}')}`]), true)) : convertSeg(vs + from, seg, isRich));
+          if (!done) { edits.length = mark; [nInterp, nPlural, nClause, nNested] = counts; return false; }
+          okAny = true;
+        }
+        from = c1;
+      }
+      if (okAny) nParts++;
+      return okAny;
     };
     const tagBefore = (gtV) => V.slice(V.lastIndexOf('<', gtV), gtV + 1).match(/^<(\/?)([a-zA-Z][\w-]*)[\s\S]*>$/);
     const richDone = [];
@@ -258,7 +283,7 @@ if (process.argv.includes('--interp')) {
       convert(m.index + 1, raw, false);
     }
   }
-  console.log(`${nInterp} phrase(s) with values in them, ${nPlural} plural(s), ${nClause} with an optional clause; ${nNested} carry a nested template; left: ${nPieces} built from pieces`);
+  console.log(`${nInterp} phrase(s) with values in them, ${nPlural} plural(s), ${nClause} with an optional clause, ${nParts} stat line(s) by parts; ${nNested} carry a nested template; left: ${nPieces} built from pieces`);
 }
 for (const [qa, qb] of quasis(src, A, B)) {
   const q = src.slice(qa, qb);
