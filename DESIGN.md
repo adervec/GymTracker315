@@ -5427,3 +5427,9 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   it. `tools/i18n-unshadow.mjs` renames a local variable named `t` (declaration and every reference, from Babel's
   binding), which unblocked the last 49 phrases. The heuristic guard in `i18n-wrap` now marks only declarations
   and parameters. 1,542 phrases × 16 languages.
+  **Step 6 (feat 569):** optional clauses (`${done ? ' · done ✓' : ''}`) and word choices (`cond ? 'projected' : 'so far'`)
+  become phrases of their own, wrapped inside the value, with the main phrase keeping one placeholder. A nested
+  template rides along as a value. Dates and numbers: `uiLocale()` gives every `toLocale…String` the chosen
+  language's locale and returns `undefined` in English (the device's own format, as before). `fmtDate` / `fmtAgo`
+  words are translated. The standards check's "5 hard-coded locale" warning is the speech voice (`u.lang = 'en-US'`),
+  which is right because spoken cues are English text. 1,637 phrases × 16 languages.

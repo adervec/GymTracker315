@@ -11184,7 +11184,7 @@ function saveAnalysisRequest(text, id) {
   saveState();
 }
 function deleteAnalysisRequest(id) { state.analysisRequests = _analysisReqs().filter(r => r.id !== id); saveState(); }
-function _analysisWhen(d) { try { return new Date(d).toLocaleDateString(); } catch (_) { return ''; } }
+function _analysisWhen(d) { try { return new Date(d).toLocaleDateString(uiLocale()); } catch (_) { return ''; } }
 function renderAnalysisCard(r) {
   const answered = r.status === 'answered' && r.answer;
   return `<div class="card">
@@ -11217,7 +11217,7 @@ function renderAnalysisPage(main) {
   </div>`;
   main.innerHTML = `
     <div class="card">
-      <div style="font-size:13px;color:var(--text2);line-height:1.55;">Queue up questions about your training. On the next <b>AI cowork</b> sweep each one is answered from your logged data and the answer appears here.${deskCowork ? '' : ' <span style="color:var(--text3);">Set up the Cowork hub under <b>Settings › Cowork &amp; Sync</b> (desktop Chrome/Edge) to get answers — you can still queue requests from any device.</span>'}</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.55;">${t('Queue up questions about your training. On the next <b>AI cowork</b> sweep each one is answered from your logged data and the answer appears here.{p1}', { p1: (deskCowork ? '' : t(' <span style="color:var(--text3);">Set up the Cowork hub under <b>Settings › Cowork &amp; Sync</b> (desktop Chrome/Edge) to get answers — you can still queue requests from any device.</span>')) })}</div>
     </div>
     ${editing === '' ? composer('', null) : `<button class="drawer-btn" id="ar-new" style="margin-bottom:10px;">${t('➕ New analysis request')}</button>`}
     ${deskCowork ? `<div id="ar-cowork"><div style="display:flex;gap:8px;margin-bottom:10px;"><button class="drawer-btn" id="ar-push" style="flex:1;">${t('⤴ Push to cowork hub')}</button><button class="drawer-btn" id="ar-poll">${t('↻ Check for answers')}</button></div></div>` : ''}
@@ -11501,14 +11501,14 @@ const PERIOD_KINDS = {
 function weekKeyOf(startMs) { const d = new Date(startMs); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 // the complete period `off` back (off = 1 → the last finished one): { start, end, key, label }
 function periodRange(kind, off) {
-  const md = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const md = d => d.toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric' });
   if (kind === 'week') { const r = _weekRangeMs(off); return { ...r, key: weekKeyOf(r.start), label: 'Week of ' + md(new Date(r.start)) + ' – ' + md(new Date(r.end - 864e5)) }; }
   const now = new Date(), span = kind === 'month' ? 1 : 3, m0 = kind === 'month' ? now.getMonth() : Math.floor(now.getMonth() / 3) * 3;
   const a = new Date(now.getFullYear(), m0 - off * span, 1), b = new Date(a.getFullYear(), a.getMonth() + span, 1);
   const y = a.getFullYear(), q = Math.floor(a.getMonth() / 3) + 1;
   return { start: a.getTime(), end: b.getTime(),
     key: kind === 'month' ? y + '-' + String(a.getMonth() + 1).padStart(2, '0') : y + '-Q' + q,
-    label: kind === 'month' ? a.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : `Q${q} ${y} · ${md(a)} – ${md(new Date(b - 864e5))}` };
+    label: kind === 'month' ? a.toLocaleDateString(uiLocale(), { month: 'long', year: 'numeric' }) : `Q${q} ${y} · ${md(a)} – ${md(new Date(b - 864e5))}` };
 }
 function _periodSessions(start, end) { return (state.sessions || []).filter(s => { const t = new Date(s.date).getTime(); return t >= start && t < end && _weekHasActivity(s); }); }
 function _weekBody(start, end) { return (state.bodyComp || []).filter(b => { const t = new Date(b.date).getTime(); return t >= start && t < end; }).sort((a, b) => String(a.date).localeCompare(String(b.date))); }
@@ -11604,7 +11604,7 @@ function periodCardHtml(kind, off) {
   const lines = [];
   if (!a.sessions) lines.push('<li class="sm-lo">😴 No training logged</li>');
   else {
-    lines.push(`<li class="sm-hi">${t.n('💪 {sessions} session · {sets} sets · {p3} {U}', '💪 {sessions} sessions · {sets} sets · {p3} {U}', (a.sessions), { sessions: (a.sessions), sets: (a.sets), p3: (a.volume.toLocaleString()), U: (U) })}</li>`);
+    lines.push(`<li class="sm-hi">${t.n('💪 {sessions} session · {sets} sets · {p3} {U}', '💪 {sessions} sessions · {sets} sets · {p3} {U}', (a.sessions), { sessions: (a.sessions), sets: (a.sets), p3: (a.volume.toLocaleString(uiLocale())), U: (U) })}</li>`);
     if (b.sessions) { const d = a.sessions - b.sessions; if (d) lines.push(`<li class="${d > 0 ? 'sm-hi' : 'sm-lo'}">${d > 0 ? '🔥' : '🛌'} ${Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} session${Math.abs(d) === 1 ? '' : 's'} than ${escapeHtml(p.label.split(' · ')[0])}</li>`); }
     if (a.avgGrade) lines.push(`<li class="sm-hi">${t('⭐ Average session grade {avgGrade} ({avgPoints}/100)', { avgGrade: (a.avgGrade), avgPoints: (a.avgPoints) })}</li>`);
     const gains = Object.keys(a.lifts).filter(k => b.lifts[k]).map(k => [k, a.lifts[k] - b.lifts[k]]).sort((x, y) => y[1] - x[1]);
@@ -11694,7 +11694,7 @@ function _crDescribe(top, key, after, before) {
   if (top === 'sessions' && after) {
     const sets = (after.exercises || []).reduce((n, e) => n + ((e.sets || []).length), 0);
     const was = before ? (before.exercises || []).reduce((n, e) => n + ((e.sets || []).length), 0) : null;
-    const when = after.date ? new Date(after.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : key;
+    const when = after.date ? new Date(after.date).toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric' }) : key;
     const hr = after.hr && after.hr.avg, extra = [hr && ('avg HR ' + hr), after.calories && (after.calories + ' kcal'), after.stravaId && !(before && before.stravaId) && 'linked to Strava', after.sleep && !(before && before.sleep) && ('sleep ' + after.sleep)].filter(Boolean).join(' · ');
     const note = _crText(after.coworkReview || {}, (before && before.coworkReview) || {});
     return { label: (before ? 'Update workout ' : 'Add workout ') + when, detail: (note ? note.slice(0, 600) + ' — ' : '') + (was != null && was !== sets ? was + ' → ' : '') + sets + ' set' + (sets === 1 ? '' : 's') + (extra ? ' · ' + extra : '') };
@@ -11816,7 +11816,7 @@ function coworkUndo(undoId) {
   const u = coworkUndoList(), i = u.findIndex(x => x.id === undoId); if (i < 0) return false;
   const rec = u.splice(i, 1)[0], c = coworkChannelByKey(rec.channel);
   rec.rows.slice().reverse().forEach(coworkRevertRow);
-  coworkRecordRun({ kind: 'check', channel: c ? c.dir : rec.channel, ok: true, note: 'undone · ' + rec.rows.length + ' change' + (rec.rows.length === 1 ? '' : 's') + ' from ' + new Date(rec.at).toLocaleString() + ' reversed' });
+  coworkRecordRun({ kind: 'check', channel: c ? c.dir : rec.channel, ok: true, note: 'undone · ' + rec.rows.length + ' change' + (rec.rows.length === 1 ? '' : 's') + ' from ' + new Date(rec.at).toLocaleString(uiLocale()) + ' reversed' });
   saveState(); if (typeof render === 'function') render();
   return true;
 }
@@ -12223,7 +12223,7 @@ function coworkImportPlanOfDay(payload) {
 // this just persists + pushes options.json to the cowork folder.
 function coworkWritePodOptions() { saveState(); try { renderSettingsDrawer(); } catch (_) {} if (state.cowork && state.cowork.enabled) coworkExportNow(true).catch(() => {}); toast(t('🗓️ Plan-of-Day options saved')); }
 // feat 322 — short readable day for a Plan-of-the-Day badge (YYYY-MM-DD → "Sun Jun 22").
-function coworkFmtDay(ymd) { try { const d = /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? new Date(ymd + 'T12:00:00') : new Date(ymd); return isNaN(d.getTime()) ? String(ymd) : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); } catch (_) { return String(ymd); } }
+function coworkFmtDay(ymd) { try { const d = /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? new Date(ymd + 'T12:00:00') : new Date(ymd); return isNaN(d.getTime()) ? String(ymd) : d.toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric' }); } catch (_) { return String(ymd); } }
 /* feat 458 — the hub's status panel: which machine owns the folder, each task's cadence and last run, and
    the recent run log. Before this the only feedback was a toast at the moment of a manual write — a hub that
    had silently stopped (forgotten permission, agent erroring nightly) looked exactly like a quiet one. */
@@ -12294,7 +12294,7 @@ function renderPodOptionsForm() {
     <div class="drawer-setting-label" style="margin-top:8px;">${t('🗓️ Plan of the Day options')}</div>
     <div class="drawer-setting-sub">${t('Shapes the daily plans the cowork agent writes (saved to options.json).')}</div>
     ${(() => { const am = o.availableMinutes || { min: 30, max: 60 }; return `<div class="pod-field" style="flex-direction:column;align-items:stretch;gap:2px;">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;"><span>${t('Available time')}</span><b id="pod-time-val" style="color:var(--accent);">${am.min}–${am.max} min</b></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">${t('<span>{p1}</span><b id="pod-time-val" style="color:var(--accent);">{min}–{max} min</b>', { p1: (t('Available time')), min: (am.min), max: (am.max) })}</div>
       <div class="len-slider" id="pod-time-slider">
         <div class="len-track"></div><div class="len-track-fill" id="pod-time-fill"></div>
         <input type="range" id="pod-min" min="20" max="180" step="5" value="${am.min}" aria-label="${escapeAttr(t('Minimum available time'))}">
@@ -12454,7 +12454,7 @@ let _cloudGoogleFileId = null;       // cached Drive fileId (also stashed in Ind
 const _cloudScriptPromises = {};     // src -> load promise (dedupe dynamic SDK loads)
 
 // ---- small helpers ----
-function cloudShortTime(iso) { try { return new Date(iso || Date.now()).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; } }
+function cloudShortTime(iso) { try { return new Date(iso || Date.now()).toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; } }
 function cloudStatus(msg) { try { autoSaveSetStatus(msg); } catch (_) {} }
 function cloudPersist() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {} } // write WITHOUT re-triggering a push
 function cloudProviderActive() { const cs = state.cloudSync; return cs && cs.provider ? (CLOUD_PROVIDERS[cs.provider] || null) : null; }
@@ -12942,6 +12942,9 @@ function cloudSyncCardHtml() {
 function t(key, params) { return (window.appFont && appFont.t) ? appFont.t(key, params) : String(key); }
 t.n = function (one, other, n, params) { return (window.appFont && appFont.t && appFont.t.n) ? appFont.t.n(one, other, n, params) : (n === 1 ? one : other).replace('{n}', n); };
 function currentLang() { return (window.appFont && appFont.lang) ? appFont.lang() : 'en'; }
+// Dates and numbers follow the chosen language. English passes undefined, i.e. the device's own format, exactly as
+// before translation existed, so the English app is unchanged.
+function uiLocale() { return (window.appFont && appFont.lang && appFont.locale && appFont.lang() !== 'en') ? appFont.locale() : undefined; }
 // a translated language loads its dictionary after the first paint: redraw once it is in
 document.addEventListener('app-language-ready', function (e) { if (!e.detail || e.detail === 'en') return; try { if (typeof render === 'function') render(); const dr = document.getElementById('settings-drawer'); if (dr && dr.classList.contains('open') && typeof renderSettingsDrawer === 'function') renderSettingsDrawer(); } catch (_) {} });
 
@@ -13377,7 +13380,7 @@ function gymUsageHtml(st) {
   const byDay = {};
   used.forEach(r => { if (_gymHeatSel === 'all' || r.gym.id === _gymHeatSel) for (const k in r.byDay) (byDay[k] = byDay[k] || []).push(...r.byDay[k]); });
   const setsOn = list => list.reduce((n, s) => n + (s.exercises || []).reduce((a, e) => a + ((e.sets && e.sets.length) || (e.cardio ? 1 : 0)), 0), 0);
-  const month = t => new Date(t).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  const month = t => new Date(t).toLocaleDateString(uiLocale(), { month: 'short', year: 'numeric' });
   const home = gymHome(st);
   const untouched = st.rows.filter(r => !r.visits).map(r => ({ g: r.gym, d: home ? gpsDistanceKm(home.lat, home.lng, r.gym.lat, r.gym.lng) : Infinity }))
     .sort((a, b) => a.d - b.d || a.g.name.localeCompare(b.g.name));
@@ -13392,7 +13395,7 @@ function gymUsageHtml(st) {
       <span class="gu-n">${t.n('<b>{visits}</b> visit · {p2}%', '<b>{visits}</b> visits · {p2}%', (r.visits), { visits: (r.visits), p2: (Math.round(r.visits / st.total * 100)) })}</span>
       <span class="gu-when">${t('last {p1} · since {first}', { p1: (escapeHtml(fmtAgo(r.last))), first: (month(r.first)) })}</span></div>`).join('')}</div>
     ${st.unplaced ? `<div class="gu-note">${t.n('{unplaced} session not placed at any gym (no gym was active and no location matched one).', '{unplaced} sessions not placed at any gym (no gym was active and no location matched one).', (st.unplaced), { unplaced: (st.unplaced) })}</div>` : ''}
-    ${untouched.length ? `<div class="gu-sub">Never trained at · ${untouched.length}${home ? ` · nearest to ${escapeHtml(home.from)} first` : ''}</div>
+    ${untouched.length ? `<div class="gu-sub">${t('Never trained at · {length}{p2}', { length: (untouched.length), p2: (home ? t(' · nearest to {from} first', { from: (escapeHtml(home.from)) }) : '') })}</div>
       <div class="gu-untouched">${shownU.map(u => `<span class="gu-u">${escapeHtml(u.g.name)}${isFinite(u.d) ? ` <i>${u.d < 10 ? u.d.toFixed(1) : Math.round(u.d)} km</i>` : ''}</span>`).join('')}
       ${untouched.length > 8 ? `<button type="button" class="drawer-btn" id="gu-untouched-more">${_gymUntouchedAll ? 'Show fewer' : 'Show all ' + untouched.length}</button>` : ''}</div>` : ''}`;
 }
@@ -13925,7 +13928,7 @@ function renderSettingsDrawer() {
     <div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">${t('🎧 Headphone-only audio')}</div>
-        <div class="drawer-setting-sub">Only play sound when it's routed to headphones — never the phone speaker (haptics still work). <b>${headphoneStatus().icon} ${escapeHtml(headphoneStatus().text)}</b>${(audioHeadphonesOnly() && _headphonesConnected == null) ? ` · <a href="#" id="drawer-hp-unlock" style="color:var(--accent);">enable detection</a>` : ''}</div>
+        <div class="drawer-setting-sub">${t('Only play sound when it\'s routed to headphones — never the phone speaker (haptics still work). <b>{p1} {p2}</b>{p3}', { p1: (headphoneStatus().icon), p2: (escapeHtml(headphoneStatus().text)), p3: ((audioHeadphonesOnly() && _headphonesConnected == null) ? t(' · <a href="#" id="drawer-hp-unlock" style="color:var(--accent);">enable detection</a>') : '') })}</div>
       </div>
       <div class="drawer-pill-group">
         <button class="drawer-pill ${audioHeadphonesOnly() ? 'active' : ''}" data-pref-hp="on">${t('On')}</button>
@@ -14413,7 +14416,7 @@ function renderSettingsDrawer() {
       </div>
     </div>
     <div class="drawer-setting-row">
-      <div><div class="drawer-setting-label">${t('Target (sec)')}</div><div class="drawer-setting-sub">Countdown length / count-up finish point${restCueCfg().auto ? ' · the fallback while Auto target is on' : ''}</div></div>
+      <div><div class="drawer-setting-label">${t('Target (sec)')}</div><div class="drawer-setting-sub">${t('Countdown length / count-up finish point{p1}', { p1: (restCueCfg().auto ? t(' · the fallback while Auto target is on') : '') })}</div></div>
       <input type="number" id="drawer-rc-target" value="${restCueCfg().target}" min="5" max="900" step="5"
         style="width:72px;padding:6px 8px;font-size:13px;border-radius:6px;text-align:center;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
     </div>
@@ -14613,7 +14616,7 @@ function renderSettingsDrawer() {
     <div id="log-viewer" style="max-height:160px;overflow:auto;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:10.5px;line-height:1.55;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--text2);">
       ${_eventLog.length ? _eventLog.slice(-60).reverse().map(e => {
         const c = e.level==='error'?'var(--danger)':e.level==='warn'?'var(--warn)':'var(--text3)';
-        const t = new Date(e.ts).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        const t = new Date(e.ts).toLocaleTimeString(uiLocale(),{hour:'2-digit',minute:'2-digit',second:'2-digit'});
         return `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span style="color:var(--text3);">${t}</span> <span style="color:${c};font-weight:600;">${e.level}</span> ${escapeHtml(e.msg)}${e.detail?` · ${escapeHtml(e.detail)}`:''}</div>`;
       }).join('') : '<div style="color:var(--text3);">No events logged yet.</div>'}
     </div>
@@ -14629,9 +14632,7 @@ function renderSettingsDrawer() {
     <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text2);padding:2px 0;">${t('🗄️ Legacy file auto-save / load <span style="font-weight:400;color:var(--text3);">— archived; use ☁ Cloud Sync instead</span>')}</summary>
     <div class="drawer-section-title" data-sec-id="auto-save" style="margin-top:10px;">${t('Auto-Save')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
-      Writes your data to a file or folder automatically after every save.
-      File handles reset on page reload — re-pick after reopening the app.
-      ${state.autoLoad && state.autoLoad.enabled ? '<span style="color:var(--warn);">Disabled while Auto-Load is active.</span>' : ''}
+      ${t('Writes your data to a file or folder automatically after every save. File handles reset on page reload — re-pick after reopening the app. {p1}', { p1: (state.autoLoad && state.autoLoad.enabled ? t('<span style="color:var(--warn);">Disabled while Auto-Load is active.</span>') : '') })}
     </div>
     ${(state.autoLoad && state.autoLoad.enabled) ? `
       <div style="font-size:11px;color:var(--text3);padding:8px 10px;background:var(--bg3);border-radius:7px;border:1px solid var(--border2);">
@@ -14695,9 +14696,7 @@ function renderSettingsDrawer() {
 
     <div class="drawer-section-title" data-sec-id="auto-load" style="margin-top:18px;">${t('Auto-Load')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
-      Reads from a file or the newest .json in a folder on page load.
-      For folders, picks the lexicographically newest <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">overload-tracker_*.json</code> file.
-      ${state.autoSave && state.autoSave.enabled ? '<span style="color:var(--warn);">Disabled while Auto-Save is active.</span>' : ''}
+      ${t('Reads from a file or the newest .json in a folder on page load. For folders, picks the lexicographically newest <code style="background:var(--bg4);padding:1px 4px;border-radius:3px;">overload-tracker_*.json</code> file. {p1}', { p1: (state.autoSave && state.autoSave.enabled ? t('<span style="color:var(--warn);">Disabled while Auto-Save is active.</span>') : '') })}
     </div>
     ${(state.autoSave && state.autoSave.enabled) ? `
       <div style="font-size:11px;color:var(--text3);padding:8px 10px;background:var(--bg3);border-radius:7px;border:1px solid var(--border2);">
@@ -14783,7 +14782,7 @@ function renderSettingsDrawer() {
     </div>
     ${state.aiExport && state.aiExport.enabled ? `
       <div style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;">
-        <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">📤 Exporting to a folder${_aiExportDirHandle ? '' : ' <span style="color:var(--warn);font-size:10px;">(tap Write now to allow access)</span>'}</div>
+        <div style="color:var(--accent);font-weight:700;margin-bottom:3px;">${t('📤 Exporting to a folder{p1}', { p1: (_aiExportDirHandle ? '' : t(' <span style="color:var(--warn);font-size:10px;">(tap Write now to allow access)</span>')) })}</div>
         <div style="color:var(--text2);">${escapeHtml(state.aiExport.filename || 'gymtracker-brief.md')} · ${aiExportScopeLabel(state.aiExport.scope)}${state.aiExport.lastWriteAt ? ' · last ' + escapeHtml(cloudShortTime(state.aiExport.lastWriteAt)) : ' · not written yet'}</div>
       </div>
       <div class="drawer-setting-row">
@@ -14819,9 +14818,7 @@ function renderSettingsDrawer() {
 
     <div class="drawer-section-title" data-sec-id="ai-cowork" style="margin-top:18px;">${t('🤝 AI Cowork')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
-      A two-way bridge for an <b>AI cowork agent</b> (model-agnostic — Claude, GPT, anything that reads/writes a folder):
-      the app writes the machine export + task folders (Garmin / Strava / Plan-of-the-Day) and imports the agent's results.
-      Built on the <b>AI Brief Export</b> folder above${(state.aiExport && state.aiExport.enabled) ? '' : ' — set that up first to enable the hub'}.
+      ${t('A two-way bridge for an <b>AI cowork agent</b> (model-agnostic — Claude, GPT, anything that reads/writes a folder): the app writes the machine export + task folders (Garmin / Strava / Plan-of-the-Day) and imports the agent\'s results. Built on the <b>AI Brief Export</b> folder above{p1}.', { p1: ((state.aiExport && state.aiExport.enabled) ? '' : t(' — set that up first to enable the hub')) })}
     </div>
     ${(state.aiExport && state.aiExport.enabled) ? `
       <div class="drawer-setting-row">
@@ -15492,14 +15489,14 @@ function fmtDate(d) {
   const dt = new Date(d);
   const today = new Date();
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-  if (dt.toDateString() === today.toDateString()) return 'Today';
-  if (dt.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  if (dt.toDateString() === today.toDateString()) return t('Today');
+  if (dt.toDateString() === yesterday.toDateString()) return t('Yesterday');
   const diff = Math.floor((today - dt) / (1000*60*60*24));
-  if (diff < 7) return diff + ' days ago';
-  return dt.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  if (diff < 7) return t('{n} days ago', { n: diff });
+  return dt.toLocaleDateString(uiLocale(), { month:'short', day:'numeric' });
 }
 function fmtTime(d) {
-  return new Date(d).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  return new Date(d).toLocaleTimeString(uiLocale(), { hour:'numeric', minute:'2-digit' });
 }
 function startOfWeek(d) {
   const dt = new Date(d);
@@ -15638,7 +15635,7 @@ ul{margin:0.15em 0 0.6em;padding-left:1.3em;}
 .meta{color:#666;font-size:0.85em;}
 </style></head><body>
 <h1>${t('Exercise Reference')}</h1>
-<p class="meta">GymTracker315 · ${esc(typeof APP_BUILD !== 'undefined' ? APP_BUILD : '')} · exported ${esc(new Date().toLocaleDateString())} · ${nFam} movements, ${nVar} variations</p>
+<p class="meta">${t('GymTracker315 · {p1} · exported {p2} · {nFam} movements, {nVar} variations', { p1: (esc(typeof APP_BUILD !== 'undefined' ? APP_BUILD : '')), p2: (esc(new Date().toLocaleDateString(uiLocale()))), nFam: (nFam), nVar: (nVar) })}</p>
 ${body}
 </body></html>`;
 }
@@ -15730,21 +15727,21 @@ function _infoBriefsHtml() {
 // The assembled document body (shared by the file export and the print path).
 function buildInfoExportBody(ids) {
   const want = (id) => !ids || !ids.length || ids.includes(id);
-  let when = ''; try { when = new Date().toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (_) { when = new Date().toISOString(); }
-  const savedAt = state.savedAt ? new Date(state.savedAt).toLocaleString() : null;
+  let when = ''; try { when = new Date().toLocaleString(uiLocale(), { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (_) { when = new Date().toISOString(); }
+  const savedAt = state.savedAt ? new Date(state.savedAt).toLocaleString(uiLocale()) : null;
   const parts = [];
   parts.push(`<header class="ip-head">
     <div class="ip-brand">🏋️ Gym<b>Tracker</b><sup>315</sup></div>
-    <div class="ip-meta">Information pack · generated ${escapeHtml(when)} · ${escapeHtml(APP_BUILD)}${savedAt ? ` · data last saved ${escapeHtml(savedAt)}` : ''}</div>
+    <div class="ip-meta">${t('Information pack · generated {when} · {APP_BUILD}{p3}', { when: (escapeHtml(when)), APP_BUILD: (escapeHtml(APP_BUILD)), p3: (savedAt ? t(' · data last saved {savedAt}', { savedAt: (escapeHtml(savedAt)) }) : '') })}</div>
   </header>`);
   const SEC = {
     help: () => `<section><h2>${t('❓ Help')}</h2>${_infoHelpHtml()}</section>`,
     about: () => `<section><h2>${t('ℹ️ About')}</h2>${_infoAboutHtml()}</section>`,
-    quickref: () => `<section><h2>📋 Quick reference <span class="muted">${t('({length} movements, as of {when})', { length: (exercises.length), when: (escapeHtml(when)) })}</span></h2>${_infoQuickRefHtml()}</section>`,
-    reference: () => `<section><h2>📚 Full exercise reference <span class="muted">${t('({length} movements, as of {when})', { length: (exercises.length), when: (escapeHtml(when)) })}</span></h2>${_infoReferenceHtml()}</section>`,
+    quickref: () => `<section><h2>${t('📋 Quick reference <span class="muted">{p1}</span>', { p1: (t('({length} movements, as of {when})', { length: (exercises.length), when: (escapeHtml(when)) })) })}</h2>${_infoQuickRefHtml()}</section>`,
+    reference: () => `<section><h2>${t('📚 Full exercise reference <span class="muted">{p1}</span>', { p1: (t('({length} movements, as of {when})', { length: (exercises.length), when: (escapeHtml(when)) })) })}</h2>${_infoReferenceHtml()}</section>`,
     briefs: () => `<section><h2>${t('🎧 Coach brief transcripts')}</h2>${_infoBriefsHtml()}</section>`,
     coaching: () => `<section><h2>${t('🧭 Coaching guides')}</h2>${_infoCoachingHtml()}</section>`,
-    glossary: () => `<section><h2>📖 Glossary <span class="muted">${t('({length} terms)', { length: (glossary.length) })}</span></h2>${_infoGlossaryHtml()}</section>`,
+    glossary: () => `<section><h2>${t('📖 Glossary <span class="muted">{p1}</span>', { p1: (t('({length} terms)', { length: (glossary.length) })) })}</h2>${_infoGlossaryHtml()}</section>`,
   };
   INFO_EXPORT_SECTIONS.forEach(s => { if (want(s.id) && SEC[s.id]) parts.push(SEC[s.id]()); });
   // fully disclaimed — ALWAYS, regardless of the selection
@@ -15996,7 +15993,7 @@ function subTrainedMap(varUuid) {
 }
 function fmtAgo(d) {
   const days = Math.floor((Date.now() - new Date(d).getTime()) / 864e5);
-  return days <= 0 ? 'today' : days === 1 ? 'yesterday' : days < 14 ? days + 'd ago' : days < 70 ? Math.round(days / 7) + 'w ago' : Math.round(days / 30) + 'mo ago';
+  return days <= 0 ? t('today') : days === 1 ? t('yesterday') : days < 14 ? t('{n}d ago', { n: days }) : days < 70 ? t('{n}w ago', { n: Math.round(days / 7) }) : t('{n}mo ago', { n: Math.round(days / 30) });
 }
 function getHistoryByKey(varUuid, subUuid) {
   const key = trackingKey(varUuid, subUuid);
@@ -16263,7 +16260,7 @@ function tiersSlideHtml(varUuid, subUuid) {
   const table = (info && exMode(varUuid).mode === 'standard') ? STRENGTH_STANDARDS[info.family.id] : null;
   if (!table) return '<div class="excar-empty">No population strength standard for this movement, so it has no tiers. They exist for the main compounds and accessories with comparable data.</div>';
   const F = objectiveTierFactors(varUuid, info);
-  if (!F) return `<div class="excar-empty">Add your ${(state.profile && state.profile.gender) ? 'bodyweight' : 'gender'} in Profile to see what each tier means in ${escapeHtml(state.unit)} for you.</div>`;
+  if (!F) return `<div class="excar-empty">${t('Add your {p1} in Profile to see what each tier means in {unit} for you.', { p1: ((state.profile && state.profile.gender) ? t('bodyweight') : t('gender')), unit: (escapeHtml(state.unit)) })}</div>`;
   const u = state.unit, step = u === 'lb' ? 5 : 2.5;
   const snap = x => Math.round(x / step) * step;
   const mult = F.genderF * F.ageF * F.dbF * F.uniF;
@@ -16289,7 +16286,7 @@ function tiersSlideHtml(varUuid, subUuid) {
   return `<div class="tiers-wrap">
     <div class="tiers-head">${t('What each tier takes for you <span class="tiers-who">{who}</span>', { who: (escapeHtml(who)) })}</div>
     <table class="tiers-tbl"><thead><tr><th>${t('Tier')}</th><th>${t('1 rep')}</th><th>${t('5 reps')}</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="tiers-note">${escapeHtml(u)}${perDb ? ' per dumbbell' : ''}, snapped to the nearest ${step}. The tier is judged on your estimated 1RM, reps capped at 12.</div>
+    <div class="tiers-note">${t('{u}{p2}, snapped to the nearest {step}. The tier is judged on your estimated 1RM, reps capped at 12.', { u: (escapeHtml(u)), p2: (perDb ? t(' per dumbbell') : ''), step: (step) })}</div>
     ${capped ? '<div class="tiers-note">No Inhuman tier here — a machine or cable stack caps it, or the lever makes a maximal rep a cheat rather than a feat.</div>' : ''}
     <div class="tiers-you">${mine ? `Your best: ≈${snap(best)}${escapeHtml(u)} e1RM → <b>${mine.label}</b>` : 'Log a set to see where you sit.'}</div>
   </div>`;
@@ -16423,9 +16420,9 @@ function weekSummary(weekOffset) {
   const prev = _weekSessions(weekOffset + 1);
   const agg = _weekStrengthAgg(sessions), pAgg = _weekStrengthAgg(prev);
   const unit = state.unit || 'kg';
-  const fmt = n => n.toLocaleString();
+  const fmt = n => n.toLocaleString(uiLocale());
   const dRange = (() => { const a = new Date(start), b = new Date(end - 86400000);
-    const md = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const md = d => d.toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric' });
     return md(a) + ' – ' + md(b); })();
   const highlights = [], lowlights = [];
   if (sessions.length === 0) {
@@ -16713,7 +16710,7 @@ function renderArchetypesGuide(main) {
   let mineId = null;
   try { const ff = fitnessFocus(112); if (ff && ff.ready) mineId = fitnessArchetype(ff.pct).primary.id; } catch (_) {}
   const head = `<div class="card"><div class="card-title">${t('🧬 Fitness Archetypes')}</div>
-    <div class="summary-intro">Every archetype is a <b>combination of focus areas</b>. Here's the mix of the six dimensions (${FITNESS_DIMS.map(d => d.emoji).join(' ')}) that embodies each one — your archetype on the <b>Fitness Focus</b> page is whichever your training most resembles.${mineId ? '' : ' Log a bit more and your match shows up here too.'}</div></div>`;
+    <div class="summary-intro">${t('Every archetype is a <b>combination of focus areas</b>. Here\'s the mix of the six dimensions ({p1}) that embodies each one — your archetype on the <b>Fitness Focus</b> page is whichever your training most resembles.{p2}', { p1: (FITNESS_DIMS.map(d => d.emoji).join(' ')), p2: (mineId ? '' : t(' Log a bit more and your match shows up here too.')) })}</div></div>`;
   const cards = ARCHETYPES.map(a => {
     const mix = archetypeFocusMix(a);
     const bars = mix.pairs.slice().sort((x, y) => y.v - x.v).map(p => {
@@ -16865,7 +16862,7 @@ function bodyweightLineHtml() {
   if (!e) return `<div class="ex-bw-line stale">${t('⚖️ No bodyweight logged — add it in the Body tab so records count it.')}</div>`;
   const d = Math.floor(daysSinceIso(e.date)), stale = d > biometricStaleDays();
   const age = d < 1 ? 'today' : d === 1 ? 'yesterday' : d + ' days ago';
-  return `<div class="ex-bw-line${stale ? ' stale' : ''}">⚖️ Bodyweight <b>${bodyDispW(e.weightKg)}${state.bodyCompUnit}</b> · ${age}${stale ? ' — ⚠ stale, update it in the Body tab' : ''}</div>`;
+  return `<div class="ex-bw-line${stale ? ' stale' : ''}">${t('⚖️ Bodyweight <b>{weightKg}{bodyCompUnit}</b> · {age}{p4}', { weightKg: (bodyDispW(e.weightKg)), bodyCompUnit: (state.bodyCompUnit), age: (age), p4: (stale ? t(' — ⚠ stale, update it in the Body tab') : '') })}</div>`;
 }
 function getCurrentBodyweightKg() {
   const s = sortedBodyComp();
@@ -17777,7 +17774,7 @@ function mediaWizardRowHtml(r) {
       <span class="mw-link-url" title="${escapeAttr(m.watchUrl || m.url)}">${escapeHtml(m.watchUrl || m.url)}</span>
       ${cr ? `<span class="mw-link-creator" title="Creator: ${escapeAttr(cr)}">${escapeHtml(cr)}</span>` : '<span class="mw-link-creator untag">untagged</span>'}
       <span class="mw-badge ${mediaPlayable(m) ? 'ok' : 'no'}">${m.embedUrl ? 'embeddable' : isImageMedia(m) ? (m.platform === 'gif' ? 'gif' : 'image') : 'link-only'}</span>
-      ${wAt ? `<span class="mw-link-watched" title="Last watched ${escapeAttr(new Date(wAt).toLocaleString())}">👁 ${escapeHtml(fmtDate(wAt))}</span>` : '<span class="mw-link-watched none">never watched</span>'}
+      ${wAt ? `<span class="mw-link-watched" title="Last watched ${escapeAttr(new Date(wAt).toLocaleString(uiLocale()))}">👁 ${escapeHtml(fmtDate(wAt))}</span>` : '<span class="mw-link-watched none">never watched</span>'}
       ${mediaPlayable(m) ? `<button class="mw-prev-btn ${isPrev ? 'on' : ''}" data-mw-preview="${escapeAttr(key)}" data-mw-pidx="${i}">${isPrev ? '▼ hide' : '▶ preview'}</button>` : ''}
       <button data-mw-open="${escapeAttr(m.watchUrl || m.url)}">${t('↗ open')}</button>
       <button data-mw-reassign="${escapeAttr(key)}" data-mw-idx="${i}">${t('→ move')}</button>
@@ -18309,7 +18306,7 @@ function renderConstellationPage(main) {
   const equips = [...equipSet].sort((a, b) => { const ia = EQ_ORDER.indexOf(a), ib = EQ_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b); });
   const equipPills = [['all', 'All']].concat(equips.map(e => [e, _constEquipLabel(e)])).map(([v, l]) => pill(_constEquip === v, `data-cst-equip="${escapeAttr(v)}"`, escapeHtml(l))).join('');
   const clearPill = anyFilter ? `<button class="cst-pill cst-clear" data-cst-clear="1">${t('✕ Clear filters')}</button>` : '';
-  const matchLine = anyFilter ? `<div class="cst-match">${matchCount} of ${nodes.length} match${matchCount === 0 ? ' — nothing fits these filters' : ''}</div>` : '';
+  const matchLine = anyFilter ? `<div class="cst-match">${t('{matchCount} of {length} match{p3}', { matchCount: (matchCount), length: (nodes.length), p3: (matchCount === 0 ? t(' — nothing fits these filters') : '') })}</div>` : '';
   main.innerHTML = `<div class="card cst-card">
     <div class="cst-head"><div class="card-title" style="margin:0;">${t('✨ Constellation')}</div><div class="cst-sub">Every movement as a star — fundamentals at the core, the obscure &amp; advanced spiralling out. Brightness = your prowess (<b>${trainedCount}</b>/${nodes.length} lit). Tap a star for details.</div></div>
     <input id="cst-search" class="cst-search" type="search" placeholder="${escapeAttr(t('🔍 Search movements…'))}" value="${escapeAttr(_constSearch)}" autocomplete="off">
@@ -18466,7 +18463,7 @@ function renderEquipmentPage(main) {
     </div>
     <div class="card">
       <div class="card-title">${t('Per-gym equipment stables')}</div>
-      <div style="font-size:12.5px;color:var(--text2);line-height:1.6;">Each gym stocks its own bar / dumbbell / kettlebell sizes and pin increment, which feed the loaders above. ${gym ? `Active gym: <b>${escapeHtml(gym.name)}</b>.` : 'No active gym is selected yet.'} Manage stables under <b>Gyms</b>.</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.6;">${t('Each gym stocks its own bar / dumbbell / kettlebell sizes and pin increment, which feed the loaders above. {p1} Manage stables under <b>Gyms</b>.', { p1: (gym ? t('Active gym: <b>{name}</b>.', { name: (escapeHtml(gym.name)) }) : t('No active gym is selected yet.')) })}</div>
       <button class="drawer-btn" id="equip-open-gyms" style="margin-top:10px;">${t('📍 Manage gym equipment')}</button>
     </div>`;
   main.querySelector('#equip-open-exercise')?.addEventListener('click', () => { if (typeof openLogModal === 'function') openLogModal(); });
@@ -18721,7 +18718,7 @@ function exportCurrentViewPdf() {
   let pr = document.getElementById('print-root');
   if (!pr) { pr = document.createElement('div'); pr.id = 'print-root'; document.body.appendChild(pr); }
   const { title, sub } = currentViewLabel();
-  let when = ''; try { when = new Date().toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (_) {}
+  let when = ''; try { when = new Date().toLocaleString(uiLocale(), { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (_) {}
   pr.innerHTML = `<div class="print-head">
       <div class="print-title">${brandLogoHtml(true)}</div>
       <div class="print-sub" style="margin-top:5px;font-weight:700;color:var(--text);font-size:13px;">${escapeHtml(title)}</div>
@@ -20358,9 +20355,9 @@ function renderProgressionPage(main) {
   main.innerHTML = `
     <div class="card">
       <div class="card-title">${t('🚀 Progression')}</div>
-      <div class="sp-intro">Your next-session targets, built from your most recent top set via double progression — climb the rep range, then add the smallest sensible load and reset.${meso ? ` Adjusted for your <b>${escapeHtml(meso.phase)}</b> week.` : ''} Suggestions only — nothing is written to your sets.</div>
+      <div class="sp-intro">${t('Your next-session targets, built from your most recent top set via double progression — climb the rep range, then add the smallest sensible load and reset.{p1} Suggestions only — nothing is written to your sets.', { p1: (meso ? t(' Adjusted for your <b>{phase}</b> week.', { phase: (escapeHtml(meso.phase)) }) : '') })}</div>
       ${list.length ? `<div class="pr-list">${rows}</div>` : `<div class="empty"><div class="empty-large">🚀</div>${t('Log a few weighted sets and your next-load suggestions will appear here.')}</div>`}
-      ${list.length ? `<div class="sp-legend">Weights in ${escapeHtml(unit)}. ⬆ add load (hit the top of the range) · ➕ add a rep · ⬇ deload week.${meso ? '' : ' Turn on Periodization in the Split Planner to factor in deload weeks.'}</div>` : ''}
+      ${list.length ? `<div class="sp-legend">${t('Weights in {unit}. ⬆ add load (hit the top of the range) · ➕ add a rep · ⬇ deload week.{p2}', { unit: (escapeHtml(unit)), p2: (meso ? '' : t(' Turn on Periodization in the Split Planner to factor in deload weeks.')) })}</div>` : ''}
     </div>`;
 }
 // Slot templates by sessions/week — the classic, balanced layouts.
@@ -20831,10 +20828,10 @@ function renderSplitPlannerPage(main) {
       ${adhLine}
       <div class="sp-chips pg-follow">${[[false, '📅 By the calendar'], [true, '✅ By what I did']].map(([v, l]) => `<button class="sp-chip ${follow === v ? 'active' : ''}" data-pg-follow="${v ? 1 : 0}" title="${v ? 'Next session = the one after the last you finished; a missed day shifts the cycle' : 'Each day has its fixed session'}">${l}</button>`).join('')}</div>
       ${todayEntry
-        ? `<div class="pg-today"><div><div class="pg-today-lbl">Today · ${todayLbl}${todayDone ? ' · done ✓' : ''}</div><div class="pg-today-name">${escapeHtml(todayEntry.plan.name)}</div></div>${todayDone ? '' : `<button class="sp-use" data-plan-use="${escapeAttr(todayEntry.planId)}">${t('▶ Start')}</button>`}</div>`
+        ? `<div class="pg-today"><div><div class="pg-today-lbl">${t('Today · {todayLbl}{p2}', { todayLbl: (todayLbl), p2: (todayDone ? t(' · done ✓') : '') })}</div><div class="pg-today-name">${escapeHtml(todayEntry.plan.name)}</div></div>${todayDone ? '' : `<button class="sp-use" data-plan-use="${escapeAttr(todayEntry.planId)}">${t('▶ Start')}</button>`}</div>`
         : `<div class="pg-today rest"><div class="pg-today-name">${t('Rest day — nothing scheduled today.')}</div></div>`}
       <div class="pg-week">${agendaRows}</div>
-      <div class="sp-legend">${progIsRot ? `A rotating ${prog.splitLen}-day split — repeats from Day 1 regardless of weekday. ` : ''}✓ done · ✗ missed · today highlighted. Tap any day to reassign it (cycles through your split's sessions and rest).</div>
+      <div class="sp-legend">${t('{p1}✓ done · ✗ missed · today highlighted. Tap any day to reassign it (cycles through your split\'s sessions and rest).', { p1: (progIsRot ? `A rotating ${prog.splitLen}-day split — repeats from Day 1 regardless of weekday. ` : '') })}</div>
       </div>
     </div>` : '';
   // feat 232 — periodization card: enable a mesocycle, see the week ramp, restart the block.
@@ -20854,7 +20851,7 @@ function renderSplitPlannerPage(main) {
     </div>`;
   main.innerHTML = `
     <div class="card sp-sec ${isColl('inputs') ? 'collapsed' : ''}">
-      <div class="card-title sp-sec-head" data-sp-coll="inputs">${chev('inputs')} 🗓️ Split Planner</div>
+      <div class="card-title sp-sec-head" data-sp-coll="inputs">${t('{p1} 🗓️ Split Planner', { p1: (chev('inputs')) })}</div>
       <div class="sp-sec-body">
       <div class="sp-intro">${t('Tell us what you\'ve got — we\'ll recommend a split and show how well it covers each muscle group against its weekly volume target (MEV–MRV). It\'s a planning aid, not a rule.')}</div>
       <div class="sp-input"><div class="sp-input-lbl">${t('Training sessions')}</div><div class="sp-chips">${sessChips}</div></div>
@@ -20865,7 +20862,7 @@ function renderSplitPlannerPage(main) {
       </div>
     </div>
     <div class="card sp-sec ${isColl('themes') ? 'collapsed' : ''}">
-      <div class="card-title sp-sec-head" data-sp-coll="themes">${chev('themes')} ✨ Themed splits <span class="sp-sec-count">${themesShown.length}${tf !== 'all' ? ` of ${THEMED_SPLITS.length}` : ''}</span></div>
+      <div class="card-title sp-sec-head" data-sp-coll="themes">${t('{p1} ✨ Themed splits <span class="sp-sec-count">{length}{p3}</span>', { p1: (chev('themes')), length: (themesShown.length), p3: (tf !== 'all' ? t(' of {length}', { length: (THEMED_SPLITS.length) }) : '') })}</div>
       <div class="sp-sec-body">
       <div class="sp-intro">Curated splits that group complementary plans into a coherent rotation — pick a vibe to shape the recommendation below (tap again to clear). ${theme ? `<b>${escapeHtml(theme.name)}</b> — ${escapeHtml(theme.blurb)}` : 'The recommender fills each day from your own plan library.'}</div>
       <div class="sp-theme-tools">
@@ -20886,7 +20883,7 @@ function renderSplitPlannerPage(main) {
       <div class="sp-sec-body">
       <div class="sp-balance">Balance <span class="sp-bal-score sp-${balClass}">${analysis.balance}%</span>${analysis.under ? ` · <span class="sp-under">${t('{under} under', { under: (analysis.under) })}</span>` : ''}${analysis.over ? ` · <span class="sp-over">${t('{over} over', { over: (analysis.over) })}</span>` : ''}${!analysis.under && !analysis.over ? ' · well balanced 💪' : ''}</div>
       <div class="sp-grps">${barRows}</div>
-      <div class="sp-legend">Bar = your weekly sets · green band = the productive MEV–MRV window · marker colour = status.${meso ? ` Volumes shown for <b>${meso.phase}</b> week (${Math.round(meso.vol * 100)}% of base).` : ''}</div>
+      <div class="sp-legend">${t('Bar = your weekly sets · green band = the productive MEV–MRV window · marker colour = status.{p1}', { p1: (meso ? t(' Volumes shown for <b>{phase}</b> week ({p2}% of base).', { phase: (meso.phase), p2: (Math.round(meso.vol * 100)) }) : '') })}</div>
       </div>
     </div>`;
   main.querySelectorAll('[data-sp-sessions]').forEach(b => b.addEventListener('click', () => { cfg.sessions = +b.dataset.spSessions; cfg.theme = null; if (cfg.days < cfg.sessions) cfg.days = cfg.sessions; saveState(); renderSplitPlannerPage(main); })); // feat 255 — a manual session count clears the themed slot sequence
@@ -21071,7 +21068,7 @@ function planUseDialog(plan) {
     const back = document.createElement('div'); back.className = 'choice-backdrop';
     const sheet = document.createElement('div'); sheet.className = 'choice-sheet';
     const scales = [[0.5, '½×', '50%'], [0.75, '¾×', '75%'], [1, '1×', '100%'], [1.25, '1¼×', '125%'], [1.5, '1½×', '150%'], [1.75, '1¾×', '175%'], [2, '2×', '200%']]; // feat 426 — quarter steps · feat 546 — 1½× was missing
-    const pace = planPace(), clock = m => new Date(Date.now() + m * 60000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const pace = planPace(), clock = m => new Date(Date.now() + m * 60000).toLocaleTimeString(uiLocale(), { hour: 'numeric', minute: '2-digit' });
     sheet.innerHTML = `<div class="choice-title">${t('Start “{name}”', { name: (escapeHtml(plan.name)) })}</div>
       <div class="choice-msg">${t('Add a warm-up / cool-down and choose the volume for this session.')}</div>
       <div class="pud-tgls">
@@ -21445,7 +21442,7 @@ function renderPlanExecutionView(body, plan, session) {
       return `<div class="pexec-used">
         <div class="pexec-used-name">✅ ${escapeHtml(displayName(ex.varUuid, ex.subUuid))}${spot}</div>
         <div class="pexec-used-sets">${t.n('{length} set · {setsTxt} {u}', '{length} sets · {setsTxt} {u}', (ex.sets.length), { length: (ex.sets.length), setsTxt: (escapeHtml(setsTxt)), u: (u) })}</div>
-        ${top > 0 ? `<div class="pexec-used-meta">top ${top}${u}${orm ? ` · ~1RM ${Math.round(orm)}${u}` : ''}</div>` : ''}
+        ${top > 0 ? `<div class="pexec-used-meta">${t('top {top}{u}{p3}', { top: (top), u: (u), p3: (orm ? ` · ~1RM ${Math.round(orm)}${u}` : '') })}</div>` : ''}
       </div>`;
     }).join('') : `<div class="pexec-none">${isActive && i === curIdx ? '⏳ logging now…' : (ss.started ? 'logged then cleared' : '— not logged')}</div>`;
     const planned = (st.options || []).map(optionLabel).join(' / ') || '(no exercises)';
@@ -21492,7 +21489,7 @@ function _planExecFinishHtml(detail) {
   const { incomplete, skipped } = planIncompleteSkipped(detail);
   if (!incomplete.length && !skipped.length) return `<div class="pexec-finish all-done">${t('✓ Every step completed')}</div>`;
   return `<div class="pexec-finish">
-    ${incomplete.length ? `<div class="pexec-fin-row incomplete">⚠ <b>${incomplete.length} incomplete</b> — ${escapeHtml(incomplete.map(s => `${s.label} (${s.logged}/${s.req})`).join(' · '))}</div>` : ''}
+    ${incomplete.length ? `<div class="pexec-fin-row incomplete">${t('⚠ <b>{length} incomplete</b> — {p2}', { length: (incomplete.length), p2: (escapeHtml(incomplete.map(s => `${s.label} (${s.logged}/${s.req})`).join(' · '))) })}</div>` : ''}
     ${skipped.length ? `<div class="pexec-fin-row skipped">${t('⏭ <b>{length} skipped</b> — {p2}', { length: (skipped.length), p2: (escapeHtml(skipped.map(s => s.label).join(' · '))) })}</div>` : ''}
   </div>`;
 }
@@ -21626,7 +21623,7 @@ function renderPlanHistory(body, plan) {
   };
   body.innerHTML = `<button class="drawer-btn" id="plan-hist-back">${t('← Back to editor')}</button>
     <div class="plan-hist-head">${t('🕘 Revision history · <b>{name}</b>', { name: (escapeHtml(plan.name)) })}</div>
-    <div class="plan-hist-note">Each <b>Commit</b> snapshots the plan as a numbered revision. A workout records the revision it ran, and is only ever compared to other runs of that <b>same</b> revision.${dirty ? ' <b class="prb-dirty">You have uncommitted draft changes.</b>' : ''}</div>
+    <div class="plan-hist-note">${t('Each <b>Commit</b> snapshots the plan as a numbered revision. A workout records the revision it ran, and is only ever compared to other runs of that <b>same</b> revision.{p1}', { p1: (dirty ? t(' <b class="prb-dirty">You have uncommitted draft changes.</b>') : '') })}</div>
     <div class="plan-hist-list">${revs.map(rowHtml).join('')}</div>`;
   body.querySelector('#plan-hist-back')?.addEventListener('click', () => { _plansRevView = false; renderPlansOverlay(); });
   body.querySelectorAll('[data-rev-restore]').forEach(b => b.addEventListener('click', () => {
@@ -21772,11 +21769,11 @@ function renderPlanGuide(session) {
     compareHtml = `<div class="plan-compare">${parts.join(' · ')}</div>`;
   }
   const headEta = eta.remainingMin > 0
-    ? `ETC ~${eta.remainingMin} min · ETA ${eta.etaTime.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}`
+    ? `ETC ~${eta.remainingMin} min · ETA ${eta.etaTime.toLocaleTimeString(uiLocale(),{hour:'numeric',minute:'2-digit'})}`
     : 'plan complete 🎉';
   // feat 144 — steps "done" = min-% satisfied; show "(N full)" when fewer were taken all the way to target.
   const fullHint = (sum.stepsFull < sum.stepsDone) ? ` <span class="plan-progress-full">${t('({stepsFull} full)', { stepsFull: (sum.stepsFull) })}</span>` : '';
-  const progLine = `<div class="plan-progress-line plan-progress-open" id="plan-progress-open" role="button" tabindex="0" title="${escapeAttr(t('Open the full plan'))}"><b>${sum.setsDone}/${sum.setsTarget}</b> sets · ${stepsFracHtml(sum.stepsDone, sum.stepsTotal)}${fullHint}${sum.effortApplicable ? ` · 💪 ${sum.effortHits}/${sum.effortApplicable} effort` : ''}<span class="plan-progress-chev">›</span></div>`;
+  const progLine = `<div class="plan-progress-line plan-progress-open" id="plan-progress-open" role="button" tabindex="0" title="${escapeAttr(t('Open the full plan'))}">${t('<b>{setsDone}/{setsTarget}</b> sets · {p3}{fullHint}{p5}<span class="plan-progress-chev">›</span>', { setsDone: (sum.setsDone), setsTarget: (sum.setsTarget), p3: (stepsFracHtml(sum.stepsDone, sum.stepsTotal)), fullHint: (fullHint), p5: (sum.effortApplicable ? t(' · 💪 {effortHits}/{effortApplicable} effort', { effortHits: (sum.effortHits), effortApplicable: (sum.effortApplicable) }) : '') })}</div>`;
   // feat 127 — collapsible: tap the header to fold the plan card down to just its name + progress line.
   const collapsed = !!(state.dashboard && state.dashboard.planCollapsed);
   return `<div class="plan-card${sum.complete ? ' complete' : ''}${collapsed ? ' collapsed' : ''}">
@@ -21960,7 +21957,7 @@ function renderLogPlans(main) {
     </div>
     ${filterName ? `<div class="pl-filter">Showing runs of <b>${escapeHtml(filterName)}</b> <button class="plan-clear-filters" id="pl-clear">${t('Show all')}</button></div>` : ''}
     ${sorted.length ? `<div class="pl-sum">${totalRuns} run${totalRuns === 1 ? '' : 's'}${byDate ? '' : ` · ${sorted.length} plan${sorted.length === 1 ? '' : 's'}`}</div>${head}<div class="pl-rows">${body}</div>`
-      : `<div class="card"><div class="card-title">${t('No plan runs yet')}</div><div style="color:#888;font-size:13px;">Attach a plan with <b>Use</b> on the Plans page and it will show up here. ${_planLogUnplanned ? '' : 'Or turn on <b>＋ Unplanned</b> to include workouts with no plan.'}</div></div>`}`;
+      : `<div class="card"><div class="card-title">${t('No plan runs yet')}</div><div style="color:#888;font-size:13px;">${t('Attach a plan with <b>Use</b> on the Plans page and it will show up here. {p1}', { p1: (_planLogUnplanned ? '' : t('Or turn on <b>＋ Unplanned</b> to include workouts with no plan.')) })}</div></div>`}`;
   _bindLogViewToggle(main);
   main.querySelectorAll('[data-planlog-mode]').forEach(b => b.addEventListener('click', () => {
     if (_planLogMode === b.dataset.planlogMode) return;
@@ -21987,7 +21984,7 @@ function renderLogCalendar(main) {
   const first = new Date(cur.y, cur.m, 1);
   const startDow = first.getDay();                          // 0 = Sunday
   const daysInMonth = new Date(cur.y, cur.m + 1, 0).getDate();
-  const monthLabel = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const monthLabel = first.toLocaleDateString(uiLocale(), { month: 'long', year: 'numeric' });
   const todayKey = _dayKey(now);
   const setsOn = (sess) => sess.reduce((c, s) => c + (s.exercises || []).reduce((n, e) => n + (e.sets || []).length, 0), 0);
   const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -22051,7 +22048,7 @@ function yearHeatmapHtml(byDay, setsOn) {
     const k = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(), n = byDay[k] ? setsOn(byDay[k]) : 0;
     if (n) days++;
     const lv = !n ? 0 : n < 10 ? 1 : n < 20 ? 2 : n < 30 ? 3 : 4;
-    const lbl = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) + (n ? ` · ${n} sets` : ' · rest');
+    const lbl = d.toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric', year: 'numeric' }) + (n ? ` · ${n} sets` : ' · rest');
     cells += `<span class="yh-c yh-${lv}"${n ? ` data-yh-day="${k}" role="button" tabindex="0"` : ''} title="${lbl}" aria-label="${lbl}"></span>`;
   }
   return `<div class="yh-card"><div class="yh-head">${t.n('Last 12 months · <b>{days}</b> training day', 'Last 12 months · <b>{days}</b> training days', (days), { days: (days) })}</div>
@@ -22124,9 +22121,9 @@ function exHistoryPreviewHtml(varUuid, subUuid) {
   if (!hist.length) return '<div class="excar-empty">No sessions logged yet for this exercise.</div>';
   const unit = state.unit || 'lb';
   return hist.map(h => {
-    const lbl = new Date(h.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const lbl = new Date(h.date).toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric' });
     const sets = (h.sets || []).map(s => `${s.w}×${s.r}`).join(' · ');
-    return `<div class="excar-hist-row"><span class="excar-hist-date">${lbl}</span><span class="excar-hist-sets">${escapeHtml(sets)}</span><span class="excar-hist-vol">${(h.volume || 0).toLocaleString()} ${unit}</span></div>`;
+    return `<div class="excar-hist-row"><span class="excar-hist-date">${lbl}</span><span class="excar-hist-sets">${escapeHtml(sets)}</span><span class="excar-hist-vol">${(h.volume || 0).toLocaleString(uiLocale())} ${unit}</span></div>`;
   }).join('');
 }
 // feat 246 — interactive plan-guide bindings (steps · pick · skip · opts · footer), shared by the workout
@@ -22233,7 +22230,7 @@ function workoutReviewSlides() {
     const grade = sc && typeof gradeFor === 'function' ? gradeFor(sc.points) : null;
     const bits = [grade && `grade ${grade}`, st && `${st.totalSets} set${st.totalSets === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
     slides.push({ icon: '📅', label: 'Last', nav: 'log',
-      html: `<div class="wo-rev-sub">Last workout <b>${escapeHtml(fmtDate(lastEnded.date))}</b>${bits ? `<br>${bits}` : ''}</div>` });
+      html: `<div class="wo-rev-sub">${t('Last workout <b>{p1}</b>{p2}', { p1: (escapeHtml(fmtDate(lastEnded.date))), p2: (bits ? `<br>${bits}` : '') })}</div>` });
   }
   // Program streak (feat 282)
   const streak = (typeof programAdherenceStreak === 'function') ? programAdherenceStreak() : 0;
@@ -22307,7 +22304,7 @@ function renderLog(main) {
 
     // Ended banner — show if the today session has been ended
     if (today.endedAt) {
-      const endTime = new Date(today.endedAt).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+      const endTime = new Date(today.endedAt).toLocaleTimeString(uiLocale(), { hour:'numeric', minute:'2-digit' });
       const reason = today.endReason === 'auto-inactivity' ? 'auto · inactive' : 'manually ended';
       html += `<div class="ended-banner">
         <span>${t('Workout ended at {endTime}', { endTime: (endTime) })}</span>
@@ -22616,8 +22613,8 @@ function renderWorkoutTimeline(session) {
 
   // Time axis: show start, midpoint, end times
   const axisY = padT + innerH + 2;
-  const startLabel = new Date(tMin).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
-  const endLabel = new Date(tMax).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  const startLabel = new Date(tMin).toLocaleTimeString(uiLocale(), { hour:'numeric', minute:'2-digit' });
+  const endLabel = new Date(tMax).toLocaleTimeString(uiLocale(), { hour:'numeric', minute:'2-digit' });
   const totalMin = Math.round((tMax - tMin) / 60000);
   const durationLabel = totalMin >= 60 ? `${Math.floor(totalMin/60)}h ${totalMin%60}m` : `${totalMin}m`;
   marks += `<line class="timeline-axis" x1="${padL}" y1="${lineY2}" x2="${W - padR}" y2="${lineY2}"/>`;
@@ -22702,7 +22699,7 @@ function computeSessionStats(session) {
   const totalReps = session.exercises.reduce((s, ex) => s + ex.sets.reduce((r, set) => r + (set.r || 0), 0), 0);
   const totalVolume = session.exercises.reduce((s, ex) => s + exerciseVolume(ex), 0);
   return {
-    startTimeDisplay: start.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }),
+    startTimeDisplay: start.toLocaleTimeString(uiLocale(), { hour:'numeric', minute:'2-digit' }),
     elapsedDisplay,
     elapsedMin,
     totalSets,
@@ -23662,7 +23659,7 @@ function cardioSummary(c) {
   if (c.distance) parts.push(c.distance + ' ' + (c.distanceUnit || 'km'));
   if (c.calories) parts.push(c.calories + ' cal');
   if (c.power) parts.push(c.power + ' W');
-  if (c.steps) parts.push(Number(c.steps).toLocaleString() + ' steps');
+  if (c.steps) parts.push(Number(c.steps).toLocaleString(uiLocale()) + ' steps');
   if (c.effort) parts.push('effort ' + c.effort + '/5');
   return parts.join(' · ');
 }
@@ -23792,7 +23789,7 @@ function renderSession(session, isToday, idx) {
         <div class="set-pills">${setPills}</div>
       </div>
       ${ssBtn}
-      <div class="session-ex-vol" style="white-space:nowrap;"><b>${vol.toLocaleString()}</b> ${state.unit}</div>
+      <div class="session-ex-vol" style="white-space:nowrap;"><b>${vol.toLocaleString(uiLocale())}</b> ${state.unit}</div>
     </div>`;
   }).join('');
   return `<div class="session-item${idx % 2 ? ' alt' : ''}">
@@ -24468,7 +24465,7 @@ function renderRuckPage(main) {
   const bwKg = (typeof getCurrentBodyweightKg === 'function' && getCurrentBodyweightKg()) || 0;
   const u = state.unit === 'kg' ? 'kg' : 'lb';
   const showW = kg => (u === 'kg' ? kg : kgToLb(kg));
-  const n1 = v => (Math.round(v * 10) / 10).toLocaleString();
+  const n1 = v => (Math.round(v * 10) / 10).toLocaleString(uiLocale());
   const pace = p => p == null ? '—' : (Math.floor(p) + ':' + String(Math.round((p % 1) * 60)).padStart(2, '0'));
   const wk4 = ruckTotals(list, 28), wk4prev = (() => {
     const cut = Date.now() - 28 * 86400000, cut2 = Date.now() - 56 * 86400000;
@@ -24497,7 +24494,7 @@ function renderRuckPage(main) {
     return _ruckSortDesc ? -d : d;
   });
   const rows = sorted.map(e => `<div class="ruck-row">
-      <span class="ruck-c-date">${new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+      <span class="ruck-c-date">${new Date(e.date).toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric' })}</span>
       <span class="ruck-c-load">${n1(showW(e.loadKg))}<em>${u}</em></span>
       <span>${e.distanceKm ? n1(e.distanceKm) + ' km' : '—'}</span>
       <span>${pace(e.paceMinPerKm)}</span>
@@ -24517,7 +24514,7 @@ function renderRuckPage(main) {
       <div class="ruck-next-h">Next step${step.variable ? ' — ' + step.variable : ''}</div>
       <div class="ruck-next-t">${escapeHtml(step.text)}</div>
       ${step.warn ? `<div class="ruck-warn">⚠ ${escapeHtml(step.warn)}</div>` : ''}
-      <div class="ruck-next-s">One variable at a time, about 10% at a time.${bwKg > 0 ? ' Load ceiling ' + n1(showW(bwKg * RUCK_BW_CAP)) + ' ' + u + ' (a third of bodyweight).' : ''}</div>
+      <div class="ruck-next-s">${t('One variable at a time, about 10% at a time.{p1}', { p1: (bwKg > 0 ? t(' Load ceiling {p1} {u} (a third of bodyweight).', { p1: (n1(showW(bwKg * RUCK_BW_CAP))), u: (u) }) : '') })}</div>
     </div>
     <div class="ruck-thead">${head}</div>
     <div class="ruck-rows">${rows}</div>
@@ -24709,7 +24706,7 @@ function renderLiveHeatmapCard() {
   const total = Math.round(Object.values(acc).reduce((a, b) => a + b, 0) * 10) / 10;
   const values = heatValuesFromAcc(acc, _liveHeatLevel);
   return `<div class="card heatmap-card" id="live-heatmap">
-    <div class="card-title">🔥 Session heatmap <span style="font-size:10px;color:var(--text3);font-weight:600;">· ${mode === 'projected' ? 'projected' : 'so far'} ${total} sets</span></div>
+    <div class="card-title">${t('🔥 Session heatmap <span style="font-size:10px;color:var(--text3);font-weight:600;">· {p1} {total} sets</span>', { p1: (mode === 'projected' ? t('projected') : t('so far')), total: (total) })}</div>
     <div class="hm-controls">
       <button class="hm-lvl ${mode === 'sofar' ? 'active' : ''}" data-lhm-mode="sofar">${t('Hit so far')}</button>
       <button class="hm-lvl ${mode === 'projected' ? 'active' : ''}" data-lhm-mode="projected" ${plan ? '' : 'disabled title="Attach a plan to project the finished workout"'}>${t('When plan done')}</button>
@@ -24782,7 +24779,7 @@ function renderReplayPage(main) {
   const barMax = Math.max.apply(null, topBars.map(x => x.sets).concat([1]));
   main.innerHTML = `<div id="replay-page">
     <div class="card heatmap-card">
-      <div class="card-title">⏪ Historical replay <span style="font-size:10.5px;color:var(--text3);font-weight:600;">· week of ${weekStart.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}${off === 0 ? ' (now)' : ''}</span></div>
+      <div class="card-title">⏪ Historical replay <span style="font-size:10.5px;color:var(--text3);font-weight:600;">· week of ${weekStart.toLocaleDateString(uiLocale(), { year: 'numeric', month: 'short', day: 'numeric' })}${off === 0 ? ' (now)' : ''}</span></div>
       <div class="hm-controls">
         <button class="hm-lvl" id="replay-oldest" title="${escapeAttr(t('Jump to the oldest week'))}">⏮</button>
         <button class="hm-lvl ${_replayPlaying ? 'active' : ''}" id="replay-play">${_replayPlaying ? '⏸ Pause' : '▶ Play'}</button>
@@ -24807,7 +24804,7 @@ function renderReplayPage(main) {
       ${sessions.length ? sessions.map(s => {
         const sets = (s.exercises || []).reduce((m, e) => m + (e.sets || []).length, 0);
         const grade = s.finalScore && s.finalScore.grade ? ` · ${escapeHtml(s.finalScore.grade)}` : '';
-        return `<div class="replay-sess"><span>${new Date(s.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span><span>${(s.exercises || []).length} exercises · ${sets} sets${grade}</span></div>`;
+        return `<div class="replay-sess"><span>${new Date(s.date).toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric' })}</span><span>${(s.exercises || []).length} exercises · ${sets} sets${grade}</span></div>`;
       }).join('') : '<div style="font-size:12px;color:var(--text3);">A rest week.</div>'}
     </div>
   </div>`;
@@ -24983,7 +24980,7 @@ function renderVolumeSplit(weekDate) {
   const vol = getWeeklySplitVolume(volWeekOffset);
   const cap = m => MEGA_LABELS[m] || (m.charAt(0).toUpperCase() + m.slice(1));
   let html = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
-    Sets per split · Week of ${weekDate.toLocaleDateString(undefined, {month:'short',day:'numeric'})}
+    Sets per split · Week of ${weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})}
   </div>`;
   const total = Object.values(vol).reduce((a, b) => a + b, 0);
   if (!total) return html + `<div class="empty"><div class="empty-large">📊</div>${t('No sets logged this week')}</div>`;
@@ -25012,7 +25009,7 @@ function renderVolumeSplit(weekDate) {
 function renderVolumeGroup(weekDate) {
   const vol = getWeeklyVolume(volWeekOffset);
   let html = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
-    Sets per muscle group · Week of ${weekDate.toLocaleDateString(undefined, {month:'short',day:'numeric'})}
+    Sets per muscle group · Week of ${weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})}
   </div>`;
   const hasVolume = Object.values(vol).some(v => v > 0);
   if (!hasVolume) return html + `<div class="empty"><div class="empty-large">📊</div>${t('No sets logged this week')}</div>`;
@@ -25057,7 +25054,7 @@ function renderVolumeMuscle(level, weekDate) {
 
   const totalSets = entries.reduce((s,e) => s+e.sets, 0);
   let html = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 8px;">
-    Fractional sets per ${level==='head'?'muscle head':'muscle'} · Week of ${weekDate.toLocaleDateString(undefined, {month:'short',day:'numeric'})}
+    Fractional sets per ${level==='head'?'muscle head':'muscle'} · Week of ${weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})}
   </div>
   <div class="vol-sort-row">
     <span class="vol-sort-pill ${volSort==='default'?'active':''}" data-sort="default">${t('Order')}</span>
@@ -25444,8 +25441,8 @@ function renderOverallChart(progress) {
             <text class="y-label" x="${padL-4}" y="${(y+3).toFixed(1)}" text-anchor="end">${v}</text>`;
   }).join('');
   // X-axis labels: first and last
-  const firstDate = new Date(data[0].date).toLocaleDateString(undefined, { month:'short', day:'numeric' });
-  const lastDate = new Date(data[data.length-1].date).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  const firstDate = new Date(data[0].date).toLocaleDateString(uiLocale(), { month:'short', day:'numeric' });
+  const lastDate = new Date(data[data.length-1].date).toLocaleDateString(uiLocale(), { month:'short', day:'numeric' });
   const trend = computeTrend(data.map(d => ({ date: d.date, oneRM: d.val })));
   let lineClass = 'flat';
   if (trend && trend.weeklySlope > 0.3) lineClass = 'up';
@@ -25694,7 +25691,7 @@ function renderTrends(main) {
     html += `<div class="trend-card${excl.length ? ' trend-excluded' : ''}">
       <div class="trend-card-head">
         <div>
-          <div class="trend-card-title">Overall Progress Index${excl.length ? ` <span class="trend-excl-tag">filtered</span>` : ''}</div>
+          <div class="trend-card-title">${t('Overall Progress Index{p1}', { p1: (excl.length ? t(' <span class="trend-excl-tag">filtered</span>') : '') })}</div>
           <div class="trend-card-sub">${overall ? `${overall.exerciseCount} exercises · normalized to 100 at start` : 'Insufficient data'}</div>
         </div>
         ${overallTrend ? `<div style="text-align:right;">
@@ -25807,14 +25804,14 @@ function selectSessionsForExport(opts) {
 function exportScopeLabel(opts, sessions) {
   if (opts.preset === 'session') {
     const s = sessions[0];
-    return s ? new Date(s.date).toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' }) : 'Workout';
+    return s ? new Date(s.date).toLocaleDateString(uiLocale(), { weekday:'short', month:'short', day:'numeric', year:'numeric' }) : 'Workout';
   }
   if (opts.preset === 'week')   return 'This week';
   if (opts.preset === 'month')  return 'This month';
   if (opts.preset === 'last30') return 'Last 30 days';
   if (opts.preset === 'all')    return 'All time';
   if (opts.preset === 'custom') {
-    const fmt = s => new Date(s + 'T00:00:00').toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+    const fmt = s => new Date(s + 'T00:00:00').toLocaleDateString(uiLocale(), { month:'short', day:'numeric', year:'numeric' });
     if (opts.from && opts.to) return `${fmt(opts.from)} – ${fmt(opts.to)}`;
     if (opts.from) return `Since ${fmt(opts.from)}`;
     if (opts.to)   return `Up to ${fmt(opts.to)}`;
@@ -25842,7 +25839,7 @@ function summarizeSession(session) {
   const stats = computeSessionStats(session);
   const score = sessionScore(session);
   const start = new Date(session.date);
-  const dateAbs = start.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+  const dateAbs = start.toLocaleDateString(uiLocale(), { weekday:'short', month:'short', day:'numeric', year:'numeric' });
   const startT = fmtTime(session.date);
   const timeRange = session.endedAt ? `${startT}–${fmtTime(session.endedAt)}` : `${startT} · in progress`;
   const hr = (session.hr && (session.hr.avg != null || session.hr.max != null || session.hr.calories != null)) ? session.hr : null;
@@ -25857,7 +25854,7 @@ function summarizeSession(session) {
 // Build plain, Strava-description-friendly text for one session or a range.
 function buildWorkoutText(sessions, opts) {
   const unit = state.unit;
-  const nf = n => Number(n).toLocaleString();
+  const nf = n => Number(n).toLocaleString(uiLocale());
   const blockFor = sm => {
     const lines = [];
     lines.push(`${sm.dateAbs} · ${sm.timeRange}`);
@@ -25994,7 +25991,7 @@ function renderWorkoutCard(sessions, opts) {
     const summaries = sessions.map(summarizeSession);
     const isRange = summaries.length > 1;
     const unit = state.unit;
-    const nf = n => Number(n).toLocaleString();
+    const nf = n => Number(n).toLocaleString(uiLocale());
     const volDisp = v => v >= 1000 ? (v/1000).toFixed(1) + 'k' : String(v);
 
     // ---- Header title/subtitle + 2×3 stat grid ----
@@ -26019,7 +26016,7 @@ function renderWorkoutCard(sessions, opts) {
       const scored  = summaries.map(x => x.score).filter(Boolean);
       const avgPts  = scored.length ? Math.round(scored.reduce((s,x) => s + x.points, 0) / scored.length) : null;
       const durDisp = totMin >= 60 ? `${Math.floor(totMin/60)}h ${totMin%60}m` : `${totMin}m`;
-      const fmtShort = d => new Date(d).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+      const fmtShort = d => new Date(d).toLocaleDateString(uiLocale(), { month:'short', day:'numeric' });
       title = exportScopeLabel(opts, sessions);
       subtitle = `${fmtShort(sessions[sessions.length-1].date)} – ${fmtShort(sessions[0].date)} · ${summaries.length} workouts`;
       cells = [
@@ -28660,7 +28657,7 @@ function buildWorkoutTimelapse(session, opts) {
     });
   });
   const totalSets = evs.length;
-  const dateLabel = new Date(session.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const dateLabel = new Date(session.date).toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric' });
   const base = { width: 480, height: 300, speed: SPEED, totalSets, synthetic: false, sampledNote: null, dateLabel,
     durationLabel: stats.elapsedDisplay, exerciseCount: stats.exerciseCount, totalVolume: stats.totalVolume,
     unit, plan: sessionPlanLabel(session), scoreGrade: score ? score.grade : null, scorePoints: score ? score.points : null,
@@ -28752,7 +28749,7 @@ function buildWorkoutTimelapse(session, opts) {
     const c = continuousAt(tMs);
     if (c.timeline) p.timeline = c.timeline;
     if (c.hr) p.hr = c.hr;
-    return { kind: 'composite', delayCs, setNo: e.setNo, totalSets, progress: Math.max(0, Math.min(1, tMs / spanMs)), elapsedLabel: fmtClock(tMs), clockLabel: new Date(t0 + tMs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }), cumVolume: e.cumVol, unit, speed: SPEED, tMs, panels: p };
+    return { kind: 'composite', delayCs, setNo: e.setNo, totalSets, progress: Math.max(0, Math.min(1, tMs / spanMs)), elapsedLabel: fmtClock(tMs), clockLabel: new Date(t0 + tMs).toLocaleTimeString(uiLocale(), { hour: 'numeric', minute: '2-digit' }), cumVolume: e.cumVol, unit, speed: SPEED, tMs, panels: p };
   };
 
   // ---- composite frames: a keyframe at each set + interpolated tweens so the clock/timeline/HR sweep SMOOTHLY.
@@ -28781,7 +28778,7 @@ function buildWorkoutTimelapse(session, opts) {
   });
 
   const frames = [];
-  frames.push({ kind: 'title', delayCs: TITLE_CS, dateLabel, startClock: new Date(t0).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }), exerciseCount: base.exerciseCount, totalSets,
+  frames.push({ kind: 'title', delayCs: TITLE_CS, dateLabel, startClock: new Date(t0).toLocaleTimeString(uiLocale(), { hour: 'numeric', minute: '2-digit' }), exerciseCount: base.exerciseCount, totalSets,
     totalVolume: base.totalVolume, unit, durationLabel: base.durationLabel, speed: SPEED, synthetic: base.synthetic,
     sampledNote: base.sampledNote, plan: base.plan, panelNames: panels.map(c => TITLES[c]), photoCount: photos.length });
   comp.forEach(f => frames.push(f));
@@ -28939,7 +28936,7 @@ function drawTimelapseFrame(ctx, C, fr, W, H, photos, style) {
     T(style.headline || 'WORKOUT TIMELAPSE', W / 2, H / 2 + 6, 27, 800, C.text, 'center', W - 32); // feat 358 — custom headline
     const sub = fr.exerciseCount + ' exercise' + (fr.exerciseCount === 1 ? '' : 's') + ' · ' + fr.totalSets + ' set' + (fr.totalSets === 1 ? '' : 's') + ' · ' + fr.durationLabel;
     T(sub, W / 2, H / 2 + 34, 14, 600, C.text, 'center', W - 32);
-    T(Number(fr.totalVolume).toLocaleString() + ' ' + fr.unit + (fr.photoCount ? ' · ' + fr.photoCount + ' photo' + (fr.photoCount === 1 ? '' : 's') : ''), W / 2, H / 2 + 56, 12, 600, C.text3, 'center', W - 32);
+    T(Number(fr.totalVolume).toLocaleString(uiLocale()) + ' ' + fr.unit + (fr.photoCount ? ' · ' + fr.photoCount + ' photo' + (fr.photoCount === 1 ? '' : 's') : ''), W / 2, H / 2 + 56, 12, 600, C.text3, 'center', W - 32);
     if (fr.panelNames && fr.panelNames.length) T(fr.panelNames.join(' · '), W / 2, H / 2 + 76, 11, 700, C.accent2, 'center', W - 32);
     const notes = []; if (fr.synthetic) notes.push('approx. timing'); if (fr.sampledNote) notes.push(fr.sampledNote);
     if (notes.length) T(notes.join(' · '), W / 2, H - 28, 10.5, 600, C.text3, 'center', W - 32);
@@ -30134,7 +30131,7 @@ function bodyGoalLine(series) {
     const n = recent.length, mx = recent.reduce((a, p) => a + p.t, 0) / n, my = recent.reduce((a, p) => a + p.val, 0) / n;
     const sxx = recent.reduce((a, p) => a + (p.t - mx) ** 2, 0), slope = sxx ? recent.reduce((a, p) => a + (p.t - mx) * (p.val - my), 0) / sxx * 86400000 : 0;
     const days = slope ? left / slope : -1;
-    eta = (days > 0 && days < 730) ? ` · at this pace ~${new Date(Date.now() + days * 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : ' · not trending toward it';
+    eta = (days > 0 && days < 730) ? ` · at this pace ~${new Date(Date.now() + days * 86400000).toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric', year: 'numeric' })}` : ' · not trending toward it';
   }
   return `🎯 Goal ${bodyDispW(g)}${u} · ${bodyDispW(Math.abs(left))}${u} to ${left < 0 ? 'lose' : 'gain'}${eta}`;
 }
@@ -30655,7 +30652,7 @@ function sleepChartHtml(A, nowMs) {
   const y = v => H - 14 - (v / top) * (H - 22), x = r => 26 + Math.max(0, Math.round(29 - (now - new Date(r.date).getTime()) / 864e5)) * ((W - 30) / 30);
   const ST = [['deepMin', 'Deep', '--s1'], ['remMin', 'REM', '--s2'], ['lightMin', 'Light', '--s3'], ['awakeMin', 'Awake', '--s4']];
   const bars = rows.map(r => {
-    const day = new Date(r.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    const day = new Date(r.date).toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric' });
     const tip = [day + ': ' + _fmtHm(r.sleepMin) + ' asleep', r.sleepScore != null ? 'score ' + r.sleepScore : '', r.bedtime && r.wakeTime ? r.bedtime + '–' + r.wakeTime : '',
       ...ST.filter(([k]) => r[k] != null).map(([k, l]) => l + ' ' + _fmtHm(r[k]))].filter(Boolean).join(' · ');
     const staged = r.deepMin != null && r.remMin != null && r.lightMin != null;
@@ -30919,7 +30916,7 @@ function stravaDescriptionFor(session) {
     lines.push(`• ${title}: ${sets.length} set${sets.length === 1 ? '' : 's'}, top ${tw}${u} × ${tr}`);
   });
   if (!lines.length) return '';
-  return `${lines.join('\n')}\n\n${Math.round(totVol).toLocaleString()} ${u} volume · ${totSets} sets · ${totReps} reps\n— logged in GymTracker315`;
+  return `${lines.join('\n')}\n\n${Math.round(totVol).toLocaleString(uiLocale())} ${u} volume · ${totSets} sets · ${totReps} reps\n— logged in GymTracker315`;
 }
 function copyStravaDescription(sessionDate) {
   const s = (state.sessions || []).find(x => x.date === sessionDate); if (!s) return;
@@ -30939,7 +30936,7 @@ function exportStravaPush() {
 let _stravaModalOpen = false;
 function openStravaModal() { renderStravaModal(); document.getElementById('strava-backdrop')?.classList.add('open'); document.getElementById('strava-modal')?.classList.add('open'); _stravaModalOpen = true; }
 function closeStravaModal() { document.getElementById('strava-backdrop')?.classList.remove('open'); document.getElementById('strava-modal')?.classList.remove('open'); _stravaModalOpen = false; }
-function _stFmt(dLike, extra) { const d = new Date(dLike); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + (extra || ''); }
+function _stFmt(dLike, extra) { const d = new Date(dLike); return d.toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(uiLocale(), { hour: 'numeric', minute: '2-digit' }) + (extra || ''); }
 function _stSessSummary(s) { const n = (s.exercises || []).length; return `${n} exercise${n === 1 ? '' : 's'}`; }
 function _stActExtra(a) { const mn = a.elapsedSec ? ` · ${Math.round(a.elapsedSec / 60)}m` : ''; return mn + (a.calories ? ` · ${a.calories}cal` : ''); }
 function renderStravaModal() {
@@ -31685,7 +31682,7 @@ function renderPicker() {
     ${planSteps}
     <div class="picker">
       ${modalState.supersetMode
-        ? `<div class="ss2-banner">⇄ ${ssKind(ssList(pending.superset).length + 1)} — pick exercise <b>${SS_LETTERS[ssList(pending.superset).length]}</b> <span class="ss2-cancel" id="trk-ss2-cancel">${modalState.supersetPick === 'more' ? 'back' : 'cancel'}</span></div>`
+        ? `<div class="ss2-banner">${t('⇄ {p1} — pick exercise <b>{p2}</b> <span class="ss2-cancel" id="trk-ss2-cancel">{p3}</span>', { p1: (ssKind(ssList(pending.superset).length + 1)), p2: (SS_LETTERS[ssList(pending.superset).length]), p3: (modalState.supersetPick === 'more' ? t('back') : t('cancel')) })}</div>`
         : `<div class="ss2-start" id="trk-ss2-start">${t('⇄ Superset / triset / circuit')}</div>`}
       <div class="picker-search">
         <input id="trk-picker-input" type="text" placeholder="${escapeAttr(t('Search exercises...'))}" value="${escapeAttr(modalState.pickerSearch)}" autocomplete="off">
@@ -32298,7 +32295,7 @@ function renderSetupBody(kind, ns) {
       ${smith ? `<div class="setup-bd" style="margin-top:5px;line-height:1.45;">${t('Smith bars are counterbalanced — set your machine\'s effective bar weight (often 15–30{u}, sometimes near 0).', { u: (u) })}</div>` : ''}
       <div class="setup-lbl">${t('Plates — per side (tap to add · tap ×N to remove)')}</div>${_plateGrid(ns, st)}
       ${renderBarbellSvg(st)}
-      <div class="setup-total">Total <b>${total} ${u}</b> <span class="setup-bd">${t('· bar {bar} + {perSide}/side · {bd}', { bar: (st.bar), perSide: (perSide), bd: (bd) })}</span></div>`;
+      <div class="setup-total">${t('Total <b>{total} {u}</b> <span class="setup-bd">{p3}</span>', { total: (total), u: (u), p3: (t('· bar {bar} + {perSide}/side · {bd}', { bar: (st.bar), perSide: (perSide), bd: (bd) })) })}</div>`;
   }
   if (kind === 'dumbbell') {
     return `<div class="setup-lbl">${t('Dumbbell — tap a weight')}</div>${_pillRow(dumbbellWeights(), st.weight, ns)}
@@ -32308,7 +32305,7 @@ function renderSetupBody(kind, ns) {
   if (kind === 'kettlebell') {
     return `<div class="setup-lbl">${t('Kettlebell — tap a weight')}</div>${_pillRow(kettlebellWeights(), st.weight, ns)}
       ${_stepperRow(ns, st.weight === '' ? '—' : st.weight, `<button class="setup-mode ${st.double ? 'on' : ''}" data-${ns}-mode="1">${st.double ? 'double ×2' : 'single'}</button>`)}
-      <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">${st.double ? `(${st.weight || 0} × 2 bells)` : '(one bell)'}</span></div>`;
+      <div class="setup-total">${t('Enter <b>{total} {u}</b> <span class="setup-bd">{p3}</span>', { total: (total), u: (u), p3: (st.double ? t('({p1} × 2 bells)', { p1: (st.weight || 0) }) : t('(one bell)')) })}</div>`;
   }
   if (kind === 'medicineball') {
     return `<div class="setup-lbl">${t('Medicine / slam ball — tap a weight')}</div>${_pillRow(medballWeights(), st.weight, ns)}
@@ -32317,7 +32314,7 @@ function renderSetupBody(kind, ns) {
   }
   if (kind === 'plate' || kind === 'landmine') {
     const bd = plateConfig().plates.filter(pl => st.plates[pl]).map(pl => `${st.plates[pl]}×${pl}`).join(' + ') || 'none';
-    return `<div class="setup-lbl">${kind === 'landmine' ? 'Plates on the loaded end' : 'Plates loaded'} (tap to add · tap ×N to remove)</div>${_plateGrid(ns, st)}
+    return `<div class="setup-lbl">${t('{p1} (tap to add · tap ×N to remove)', { p1: (kind === 'landmine' ? t('Plates on the loaded end') : t('Plates loaded')) })}</div>${_plateGrid(ns, st)}
       ${kind === 'landmine' ? `<div class="setup-row" style="margin-top:8px;"><button class="setup-mode ${st.addBar ? 'on' : ''}" data-${ns}-lmbar="1">${t('{p1}+ bar (~{p2} {u})', { p1: (st.addBar ? '✓ ' : ''), p2: (u === 'kg' ? 10 : 25), u: (u) })}</button></div>` : ''}
       <div class="setup-total">${t('Enter <b>{total} {u}</b> <span class="setup-bd">· {bd}</span>', { total: (total), u: (u), bd: (bd) })}</div>`;
   }
@@ -32327,11 +32324,11 @@ function renderSetupBody(kind, ns) {
     const sMin = u === 'kg' ? 2.5 : 5, sMax = u === 'kg' ? 12.5 : 25, sStep = u === 'kg' ? 2.5 : 5;
     const profs = state.pinProfiles || [];
     const profRow = `<div class="setup-lbl">${t('Machine profile (saved stacks)')}</div><div class="setup-pills">${profs.map(p => `<button class="setup-pill ${st.profileId === p.id ? 'active' : ''}" data-${ns}-pinprof="${p.id}">${escapeHtml(p.name)} <span class="setup-bd">·${p.inc}</span><span class="setup-x" data-${ns}-pinprofdel="${p.id}" title="${escapeAttr(t('Delete'))}">✕</span></button>`).join('')}<button class="setup-pill" data-${ns}-pinprofsave="1">${t('＋ Save')}</button></div>`;
-    return `${profRow}<div class="setup-lbl">Stack (pin) — first +${first}, then +${inc} ${u} <span class="setup-bd">${t('(max {max})', { max: (max) })}</span></div>${_stepperRow(ns, st.stack === '' ? '—' : st.stack)}
+    return `${profRow}<div class="setup-lbl">${t('Stack (pin) — first +{first}, then +{inc} {u} <span class="setup-bd">{p4}</span>', { first: (first), inc: (inc), u: (u), p4: (t('(max {max})', { max: (max) })) })}</div>${_stepperRow(ns, st.stack === '' ? '—' : st.stack)}
       <div class="setup-lbl">Main increment — <b data-${ns}-incval>${inc}</b> ${u}</div>
       <input type="range" class="setup-slider" min="${sMin}" max="${sMax}" step="${sStep}" value="${inc}" data-${ns}-pininc aria-label="${escapeAttr(t('Main pin increment'))}">
       <div class="setup-lbl">${t('Toppers — add-on plates on the stack (tap to add · tap ×N to remove)')}</div><div class="setup-pills">${topperWeights().map(w => { const n = st.toppers[w] || 0; return `<span class="setup-pill-grp${n ? ' has' : ''}"><button class="setup-pill big" data-${ns}-topper="${w}">+${w}</button>${n ? `<button class="setup-ct-btn" data-${ns}-toppersub="${w}" aria-label="Remove one +${w} topper">×${n}</button>` : ''}</span>`; }).join('')}</div>
-      <div class="setup-total">Enter <b>${total} ${u}</b> <span class="setup-bd">· stack ${st.stack || 0}${plateSum(st.toppers) ? ` + ${plateSum(st.toppers)} toppers` : ''}</span></div>`;
+      <div class="setup-total">${t('Enter <b>{total} {u}</b> <span class="setup-bd">· stack {p3}{p4}</span>', { total: (total), u: (u), p3: (st.stack || 0), p4: (plateSum(st.toppers) ? t(' + {toppers} toppers', { toppers: (plateSum(st.toppers)) }) : '') })}</div>`;
   }
   return '';
 }
@@ -33305,7 +33302,7 @@ function nextSetInnerHtml() {
     ${c.picked ? '' : `<button type="button" class="ns-use" data-ns-use="${c.w}" title="Put ${c.w}${state.unit} in the next set">${t('Use')}</button>`}
     <button type="button" class="ns-why-btn" data-ns-why aria-expanded="${_nsOpen}">${_nsOpen ? 'why ▴' : 'why ▾'}</button></div>
     ${R ? `<div class="ns-rest">⏱ At full rest${R.inSec > 0 ? ` (in ${formatDuration(R.inSec)})` : R.hr ? ' (once your HR settles)' : ''}: <b>${F(R.w, R.r)}</b> · ${R.odds}%${restSame ? ' — same ask, better odds' : ''}</div>` : ''}
-    ${c.beats.length ? `<div class="ns-beats">🏅 Would beat your ${escapeHtml(c.beats.join(' and '))}</div>` : ''}
+    ${c.beats.length ? `<div class="ns-beats">${t('🏅 Would beat your {p1}', { p1: (escapeHtml(c.beats.join(' and '))) })}</div>` : ''}
     ${c.sRank && !(c.sRank.w === c.w && c.sRank.r <= c.r) ? `<div class="ns-srank"><span class="session-grade g-S">S</span> set: <b>${F(c.sRank.w, c.sRank.r)}</b> · ${c.sRank.odds}%${c.sRank.restedOdds != null && c.sRank.restedOdds > c.sRank.odds ? ` (${c.sRank.restedOdds}% at full rest)` : ''}${c.picked ? '' : ` <button type="button" class="ns-use sm" data-ns-use="${c.sRank.w}" title="Put ${c.sRank.w}${state.unit} in the next set">${t('Go for it')}</button>`}</div>` : ''}
     ${_nsOpen ? `<ul class="ns-why">${c.why.map(x => `<li>${escapeHtml(x)}</li>`).join('')}<li>${t('🚀 Feeling good? {p1} is {odds}%', { p1: (F(c.stretch.w, c.stretch.r)), odds: (c.stretch.odds) })}</li></ul>
       <div class="ns-f-head">${t('Factors — tap to switch one off')}</div>${nsFactorChipsHtml()}` : ''}`;
@@ -33481,7 +33478,7 @@ function bindWtChart(root, rows, onLoad) {
   const W = parseFloat(svgs[0].getAttribute('width')), ML = 38, MR = 62;
   const w0 = asc[0].w, w1 = asc[asc.length - 1].w, xs = w => ML + ((w - w0) / ((w1 - w0) || 1)) * (W - ML - MR);
   const ro = root.querySelector('.wt-readout'), u = state.unit || 'lb';
-  const fd = d => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  const fd = d => new Date(d).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' });
   let sel = 0;
   const show = (i) => {
     sel = Math.max(0, Math.min(asc.length - 1, i)); const r = asc[sel], x = xs(r.w);
@@ -33530,7 +33527,7 @@ function showWeightTablePopup() {
   if (!R.rows.length) return;
   R.rows.forEach(r => { r.obj = objectiveSetTier(pending.varUuid, { w: r.w, r: r.best.r }); }); // feat 440 — 🌍 read at each weight's best reps
   _wtSort = { col: 'w', dir: -1 };
-  const fd = (d) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: '2-digit' });
+  const fd = (d) => new Date(d).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short', year: '2-digit' });
   const cell = (x) => x ? `${x.date ? '' : '~'}${Math.round(x.e)}<span class="wt-reps">×${x.r}</span><span class="wt-date">${x.date ? fd(x.date) : 'projected'}</span>` : '—'; // feat 440 — reps of the set behind each e1RM
   const hasObj = R.rows.some(r => r.obj); // biometrics present → show the 🌍 column
   const COLS = [['w', 'Weight'], ['best', 'Best e1RM'], ['last', 'Last'], ['d90', '90d best'], ...(hasObj ? [['obj', '🌍']] : []), ['pw', 'PR wt'], ['pv', 'PR all']];
@@ -33783,7 +33780,7 @@ function renderNeighborHints() {
   if (!lighter && !heavier) { el.innerHTML = e1Card; return; }
 
   function fmtDate(iso) {
-    try { return new Date(iso).toLocaleDateString(undefined, { month:'short', day:'numeric' }); }
+    try { return new Date(iso).toLocaleDateString(uiLocale(), { month:'short', day:'numeric' }); }
     catch(e) { return ''; }
   }
 
@@ -33817,7 +33814,7 @@ function recordHintText(wNum, rNum) {
     const rec = getBestRepsAtWeight(pending.varUuid, pending.subUuid, wNum);
     if (!rec) return `<span class="hint-action">${wNum}${state.unit}:</span> first time at this weight — set a baseline`;
     const exactnessNote = rec.exact ? '' : ` <span style="color:#6f88c0">${t('(at {weight}{unit})', { weight: (rec.weight), unit: (state.unit) })}</span>`;
-    return `<span class="hint-action">${tm ? 'Longest hold' : 'Best reps'} at ${wNum}${state.unit}:</span> <b>${rTxt(rec.reps)}</b> on ${fmtDate(rec.date)}${exactnessNote} — beat <b>${tm ? rTxt(rec.reps + 1) : rec.reps + 1}</b> for a record`;
+    return `<span class="hint-action">${t('{p1} at {wNum}{unit}:', { p1: (tm ? t('Longest hold') : t('Best reps')), wNum: (wNum), unit: (state.unit) })}</span> <b>${rTxt(rec.reps)}</b> on ${fmtDate(rec.date)}${exactnessNote} — beat <b>${tm ? rTxt(rec.reps + 1) : rec.reps + 1}</b> for a record`;
   }
   if (rNum > 0 && (wNum == null || wNum <= 0)) {
     const rec = getBestWeightAtReps(pending.varUuid, pending.subUuid, rNum);
@@ -34423,7 +34420,7 @@ function renderCardioForm() {
     </div>`;
   return `
     <div class="selected-exercise">
-      <div class="selected-ex-label">${modalState.isEditing ? 'Editing' : 'Logging'} cardio</div>
+      <div class="selected-ex-label">${t('{p1} cardio', { p1: (modalState.isEditing ? t('Editing') : t('Logging')) })}</div>
       <div class="selected-ex-name">${t('{title}<span class="ex-mode-tag">cardio</span>', { title: (escapeHtml(info.variation.title)) })}</div>
       <div class="selected-ex-family">${escapeHtml(info.family.title)}</div>
       <div class="ex-mode-hint">${t('Cardio is logged as <b>elapsed time</b> + optional metrics. It is kept out of volume, scoring and trends — but stays in your history.')}</div>
@@ -35068,7 +35065,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 488 · 2026-11-16 23:02';
+const APP_BUILD = 'build 489 · 2026-11-17 09:48';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -35241,9 +35238,9 @@ function renderSoundMenu() {
       <span class="snd-label">${t('Haptics')}</span>
       <span class="snd-state ${hOn ? 'on' : 'off'}">${hOn ? 'ON' : 'OFF'}</span>
     </div>
-    <div class="snd-src-title">Per sound ${(aOn || hOn) ? '' : '· all muted above'}</div>
+    <div class="snd-src-title">${t('Per sound {p1}', { p1: ((aOn || hOn) ? '' : t('· all muted above')) })}</div>
     ${srcRows}
-    <div class="snd-src-title">Metronome${metronomeRunning() ? ' · running' : ''}</div>
+    <div class="snd-src-title">${t('Metronome{p1}', { p1: (metronomeRunning() ? t(' · running') : '') })}</div>
     <div class="snd-metro">
       <button class="snd-chip wide ${metronomeRunning() ? 'active' : ''}" id="snd-metro-run">${metronomeRunning() ? '⏸ Stop' : '▶ Start'}</button>
       <button class="snd-chip" id="snd-metro-bpm-dn" aria-label="${escapeAttr(t('Slower'))}">−</button>
@@ -44271,7 +44268,7 @@ function renderGlossary() {
     if (!r) return '';
     const icon = r.src === 'listen' ? '🎧' : '✓';
     const how = r.src === 'listen' ? 'listened' : 'read';
-    return `<span class="gloss-read-note" title="${how} ${escapeAttr(new Date(r.at).toLocaleString())}">${icon} ${how} ${escapeHtml(fmtDate(r.at))}</span>`;
+    return `<span class="gloss-read-note" title="${how} ${escapeAttr(new Date(r.at).toLocaleString(uiLocale()))}">${icon} ${how} ${escapeHtml(fmtDate(r.at))}</span>`;
   };
 
   body.innerHTML = studyBar + `<div class="gloss-count">${t.n('{length} term', '{length} terms', (filtered.length), { length: (filtered.length) })}</div>` +
@@ -49496,7 +49493,7 @@ render();
 (function() {
   const now = new Date();
   const opts = { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
-  document.getElementById('ts').textContent = '· ' + now.toLocaleString(undefined, opts);
+  document.getElementById('ts').textContent = '· ' + now.toLocaleString(uiLocale(), opts);
 })();
 </script>
 

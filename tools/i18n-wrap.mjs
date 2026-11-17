@@ -126,7 +126,7 @@ if (process.argv.includes('--check')) {            // every existing t('…') ca
   for (const m of src.slice(A, B).matchAll(/(?<![\w$.])t(?:\.n)?\((['"`])/g)) if (shadowed(A + m.index)) { bad++; const mk = marked.find(([x, y]) => x < A + m.index && A + m.index < y); console.log('shadowed t() at line ' + src.slice(0, A + m.index).split('\n').length + ' by ' + JSON.stringify(src.slice(mk[2] - 30, mk[2] + 20))); }
   console.log(bad ? bad + ' call(s) sit in a block that uses t as a variable' : '✓ no t() call is shadowed'); process.exit(bad ? 1 : 0);
 }
-const skipped = [], edits = []; let nText = 0, nAttr = 0, nSec = 0, nRich = 0, nInterp = 0, nNested = 0, nPieces = 0, nPlural = 0;
+const skipped = [], edits = []; let nText = 0, nAttr = 0, nSec = 0, nRich = 0, nInterp = 0, nNested = 0, nPieces = 0, nPlural = 0, nClause = 0;
 
 // --- placeholders: a readable {name} for each ${expr} moved into a phrase
 function paramNames(exprs) {
@@ -166,7 +166,7 @@ if (process.argv.includes('--interp')) {
       const lead = raw.match(/^\s*/)[0], trail = raw.match(/\s*$/)[0], body = raw.slice(lead.length, raw.length - trail.length);
       const ks = [...body.matchAll(SENTG)].map((m) => m[0].charCodeAt(0) - 0xE100);
       const exprs = ks.map(exprOf);
-      if (exprs.some((e) => e.includes('`'))) { nNested++; return false; }   // a nested template: its own text is handled first
+      if (exprs.some((e) => e.includes('`'))) nNested++;   // a nested template rides along as a value; its own text is wrapped on the next run
       // a plural ending — session${n === 1 ? '' : 's'} — becomes a real plural: t.n('… session', '… sessions', n, …).
       // Only the === 1 / !== 1 shapes: those are exactly the rule t.n applies in English.
       const PL = /^\(?\s*(.+?)\s*(===?|!==?)\s*1\s*\?\s*'([a-z]{0,4})'\s*:\s*'([a-z]{0,4})'\s*\)?$/;
@@ -174,30 +174,68 @@ if (process.argv.includes('--interp')) {
       if (pl.some(Boolean)) {
         const counts = [...new Set(pl.filter(Boolean).map((m) => m[1].trim()))];
         const rest = exprs.filter((e, k) => !pl[k]);
-        if (counts.length !== 1 || rest.some((e) => /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(e))) { nPieces++; return false; }
+        if (counts.length !== 1 || rest.some((e) => /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(e))) { nPieces++; if (process.argv.includes('--pieces')) console.log('  pieces: ' + body.replace(SENTG, (c) => '${' + exprOf(c.charCodeAt(0) - 0xE100).trim().slice(0, 60) + '}').replace(/\s+/g, ' ').slice(0, 230)); return false; }
         const names = paramNames(rest);
         const form = (one) => { let k = 0, r = 0; return body.replace(SENTG, () => { const m = pl[k++]; if (!m) return '{' + names[r++] + '}'; const eq = m[2][0] === '='; return (eq === one) ? m[3] : m[4]; }).replace(/\s+/g, ' '); };
         const oneS = form(true), otherS = form(false);
-        if (/[A-Za-z]\{|\}[A-Za-z]/.test(otherS) || oneS === otherS) { nPieces++; return false; }   // still glued elsewhere
+        if (/[A-Za-z]\{|\}[A-Za-z]/.test(otherS) || oneS === otherS) { nPieces++; if (process.argv.includes('--pieces')) console.log('  pieces: ' + body.replace(SENTG, (c) => '${' + exprOf(c.charCodeAt(0) - 0xE100).trim().slice(0, 60) + '}').replace(/\s+/g, ' ').slice(0, 230)); return false; }   // still glued elsewhere
         const loose = pl.find(Boolean)[2].length === 2;                    // == / != compare loosely: so does +(x)
         const params = names.length ? `, { ${names.map((n, j) => `${n}: (${rest[j].trim()})`).join(', ')} }` : '';
         const s0 = toSrc(vs + lead.length, false), s1 = toSrc(vs + lead.length + body.length, true);
         edits.push([s0, s1, `\${${T}.n('${esc(oneS)}', '${esc(otherS)}', ${loose ? '+' : ''}(${counts[0]})${params})}`]); nPlural++;
         return true;
       }
+      // an optional clause — ${done ? ' · done ✓' : ''} — is a phrase of its own: the clause is wrapped inside the
+      // value, and the main phrase keeps one placeholder for it. Only a clause that starts with a space or a symbol
+      // (never a word glued on), and only a plain string on one side with '' on the other.
+      // The clause may be a plain string, a template or a + chain: it becomes its own phrase (with its own values).
+      const clauseOf = (K) => {                                    // K: which ${…} of this template
+        let a0 = qs[K][1] + 2, b0 = qs[K + 1][0] - 1;
+        while (a0 < b0 && /\s/.test(src[a0])) a0++; while (b0 > a0 && /\s/.test(src[b0 - 1])) b0--;
+        if (src[a0] === '(' && src[b0 - 1] === ')') { const pr = scan.parens.find(([x]) => x === a0); if (pr && pr[1] === b0 - 1) { a0++; b0--; } }
+        let i2 = a0, depth = 0, qm = -1, cm = -1;
+        while (i2 < b0) {
+          const c = src[i2];
+          if (c === "'" || c === '"') { i2++; while (i2 < b0 && src[i2] !== c) i2 += src[i2] === '\\' ? 2 : 1; i2++; continue; }
+          if (c === '`') { const q = scan.find((x) => x[0] === i2 + 1); if (!q) return null; i2 = scan.filter((x) => x[2] === q[2]).reduce((mx, x) => Math.max(mx, x[1]), 0) + 1; continue; }
+          if ('([{'.includes(c)) depth++; else if (')]}'.includes(c)) depth--;
+          else if (depth === 0 && c === '?') { if (src[i2 + 1] === '.' || src[i2 + 1] === '?' || src[i2 - 1] === '?' || qm >= 0) return null; qm = i2; }
+          else if (depth === 0 && c === ':' && qm >= 0) { if (cm >= 0) return null; cm = i2; }
+          i2++;
+        }
+        if (qm < 0 || cm < 0) return null;
+        const cond = src.slice(a0, qm).trim(), A1 = src.slice(qm + 1, cm).trim(), B1 = src.slice(cm + 1, b0).trim();
+        const emptyB = B1 === "''" || B1 === '""', emptyA = A1 === "''" || A1 === '""';
+        const conv = (from, to, stop) => { let st = from; while (/\s/.test(src[st])) st++; const r = chainToCall(st, stop, true); return r && src.slice(r.s1, to).trim() === '' && /[A-Za-z]{2}/.test(r.key.replace(/<[^>]*>|\{\w+\}/g, '')) ? r : null; };   // real words, not only markup and values
+        if (emptyA && emptyB) return null;
+        if (emptyB || emptyA) {                                    // a clause: cond ? ' · done ✓' : ''
+          const r = emptyB ? conv(qm + 1, cm, ':') : conv(cm + 1, b0, '');
+          if (!r) return null;
+          return { text: emptyB ? `${cond} ? ${r.text} : ''` : `${cond} ? '' : ${r.text}`, loose: /^[^A-Za-z0-9{]/.test(r.key) };
+        }
+        const r1 = conv(qm + 1, cm, ':'), r2 = conv(cm + 1, b0, '');   // a choice: cond ? 'projected' : 'so far'
+        if (!r1 || !r2) return null;
+        return { text: `${cond} ? ${r1.text} : ${r2.text}`, loose: false };
+      };
+      const app = ks.map((K) => clauseOf(K));
+      const exprs2 = exprs.map((e, q) => (app[q] ? app[q].text : e));
       // a value glued to a word ("session{s}", "{label}ly") or carrying its own English ("more" / "fewer") builds
       // the sentence from pieces: left for a hand rewrite
-      if (/[A-Za-z][-]|[-][A-Za-z]/.test(body) || exprs.some((e) => /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(e))) { nPieces++; return false; }
+      let glued = false, sk = 0;
+      for (const sm of body.matchAll(SENTG)) { const q = sk++; if (app[q] && app[q].loose) continue; if (/[A-Za-z]/.test(body[sm.index - 1] || '') || /[A-Za-z]/.test(body[sm.index + 1] || '')) glued = true; }
+      const shown = (e) => e.replace(/[!=]==?\s*(['"])(?:(?!\1)[^\\]|\\.)*\1/g, ' ').replace(/([\w$\]])\(\s*(['"])(?:(?!\2)[^\\]|\\.)*\2\s*(?=[,)])/g, '$1(').replace(/\[\s*(['"])(?:(?!\1)[^\\]|\\.)*\1\s*\]/g, '[]');
+      if (glued || exprs.some((e, q) => !app[q] && /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(shown(e)))) { nPieces++; if (process.argv.includes('--pieces')) console.log('  pieces: ' + body.replace(SENTG, (c) => '${' + exprOf(c.charCodeAt(0) - 0xE100).trim().slice(0, 60) + '}').replace(/\s+/g, ' ').slice(0, 230)); return false; }
+      if (app.some(Boolean)) nClause++;
       const names = paramNames(exprs); let i = 0;
       const key = body.replace(SENTG, () => '{' + names[i++] + '}').replace(/\s+/g, ' ');
-      const params = names.map((n, j) => `${n}: (${exprs[j].trim()})`).join(', ');
+      const params = names.map((n, j) => `${n}: (${exprs2[j].trim()})`).join(', ');
       const s0 = toSrc(vs + lead.length, false), s1 = toSrc(vs + lead.length + body.length, true);
       edits.push([s0, s1, `\${${T}('${esc(key)}', { ${params} })}`]); nInterp++;
       return true;
     };
     const tagBefore = (gtV) => V.slice(V.lastIndexOf('<', gtV), gtV + 1).match(/^<(\/?)([a-zA-Z][\w-]*)[\s\S]*>$/);
     const richDone = [];
-    if (RICH) for (const m of V.matchAll(/>((?:[^<>]|<\/?(?:b|i|em|strong|code|small|u|kbd|sup|sub|mark|a|span)(?:\s[^<>]*)?>|<br\s*\/?>)+)<\/(div|p|li|label|summary|td|th|button|span)>/g)) {
+    if (RICH) for (const m of V.matchAll(/>((?:[^<>]|<\/?(?:b|i|em|strong|code|small|u|kbd|sup|sub|mark|a|span)(?:\s[^<>]*)?>|<br\s*\/?>)+)<\/(div|p|li|label|summary|td|th|button|span|h[1-6]|a|dt|dd|legend|caption|figcaption|option)>/g)) {
       const inner = m[1];
       if (!isSent.test(inner)) continue;                        // no values in it: the plain pass does it
       const words = inner.replace(SENTG, '').replace(/<[^>]*>/g, '');
@@ -220,7 +258,7 @@ if (process.argv.includes('--interp')) {
       convert(m.index + 1, raw, false);
     }
   }
-  console.log(`${nInterp} phrase(s) with values in them, ${nPlural} plural(s); left: ${nNested} with a nested template, ${nPieces} built from pieces`);
+  console.log(`${nInterp} phrase(s) with values in them, ${nPlural} plural(s), ${nClause} with an optional clause; ${nNested} carry a nested template; left: ${nPieces} built from pieces`);
 }
 for (const [qa, qb] of quasis(src, A, B)) {
   const q = src.slice(qa, qb);
@@ -228,7 +266,7 @@ for (const [qa, qb] of quasis(src, A, B)) {
   // a whole sentence with inline markup ("Disconnect in <b>Data</b> to edit it.") becomes ONE phrase, tags
   // and all, so it is translated as a sentence (never by pieces)
   const rich = [];
-  if (RICH) for (const m of q.matchAll(/>((?:[^<>]|<\/?(?:b|i|em|strong|code|small|u|kbd|sup|sub|mark|a|span)(?:\s[^<>]*)?>|<br\s*\/?>)+)<\/(div|p|li|label|summary|td|th|button|span)>/g)) {
+  if (RICH) for (const m of q.matchAll(/>((?:[^<>]|<\/?(?:b|i|em|strong|code|small|u|kbd|sup|sub|mark|a|span)(?:\s[^<>]*)?>|<br\s*\/?>)+)<\/(div|p|li|label|summary|td|th|button|span|h[1-6]|a|dt|dd|legend|caption|figcaption|option)>/g)) {
     const inner = m[1], txt = inner.trim();
     if (notWords(inner) || /<(\w+)[^<>]*>\s*<\/\1>/.test(inner) || (inner.match(/</g) || []).length > 6) continue;   // layout, not a sentence
     if (!/<[a-z]/i.test(inner) || !/[A-Za-z]/.test(txt.replace(/<[^>]*>/g, '')) || /&[#\w]+;|[\\{}$`]/.test(inner)) continue;
@@ -301,7 +339,7 @@ function readChain(start, stops) {
   for (let k = 0; k < cuts.length - 1; k++) { const a = cuts[k] + (k ? 1 : 0), b = cuts[k + 1]; const tx = src.slice(a, b); const lead = tx.match(/^\s*/)[0].length, tr = tx.match(/\s*$/)[0].length; parts.push([a + lead, b - tr]); }
   return { end: parts.length ? parts[parts.length - 1][1] : i, parts };
 }
-function chainToCall(start, stops) {
+function chainToCall(start, stops, markup) {
   const ch = readChain(start, stops); if (!ch || !ch.parts.length) return null;
   const segs = [];                                               // { lit } | { expr }
   for (const [a, b] of ch.parts) {
@@ -320,7 +358,7 @@ function chainToCall(start, stops) {
     } else segs.push({ expr: tx });
   }
   const lits = segs.filter((x) => x.lit != null).map((x) => x.lit).join(' ');
-  if (!/[A-Za-z]{2}/.test(lits) || /[{}]|<[a-zA-Z\/]/.test(lits) || notWords(lits)) return null;       // no words, or markup
+  if (!/[A-Za-z]{2}/.test(lits) || /[{}]/.test(lits) || (!markup && /<[a-zA-Z\/]/.test(lits)) || notWords(lits)) return null;       // no words, or markup
   if (segs[0].expr != null && (segs.length < 2 || segs[1].expr != null)) return null;                    // a + b + '…' may be arithmetic
   const exprs = segs.filter((x) => x.expr != null).map((x) => x.expr);
   if (exprs.some((e) => e.includes('`') || /(['"])(?:(?!\1).)*[A-Za-z]{3}(?:(?!\1).)*\1/.test(e))) return null;   // nested template, or its own English
@@ -333,7 +371,7 @@ function chainToCall(start, stops) {
   const names = paramNames(exprs); let n = 0;
   const key = segs.map((x) => (x.lit != null ? x.lit : '{' + names[n++] + '}')).join('');
   const params = exprs.length ? `, { ${names.map((nm, j) => `${nm}: (${exprs[j].trim()})`).join(', ')} }` : '';
-  return { s0: ch.parts[0][0], s1: ch.end, text: `${T}('${key}'${params})`, plain: !exprs.length };
+  return { s0: ch.parts[0][0], s1: ch.end, text: `${T}('${key}'${params})`, plain: !exprs.length, key };
 }
 if (process.argv.includes('--calls')) {
   const region0 = src.slice(A, B), done = new Set();
@@ -369,6 +407,8 @@ if (process.argv.includes('--list')) { const ln = (o) => { let lo = 0, hi = line
 const shadowLines = []; let nShadow = 0; for (let i = edits.length - 1; i >= 0; i--) if ((/\$\{/.test(edits[i][2]) || edits[i][2].startsWith(T + '(')) && shadowed(edits[i][0])) { shadowLines.push(src.slice(0, edits[i][0]).split('\n').length); edits.splice(i, 1); nShadow++; }
 if (process.argv.includes('--shadow-lines')) console.log('shadowed at lines: ' + [...new Set(shadowLines)].sort((x, y) => x - y).join(' '));
 if (nShadow) console.log(`skipped ${nShadow} edit(s) inside functions that use t as a variable`);
+// an edit inside another edit (text of a nested template whose outer phrase was just rewritten) waits for the next run
+{ const before = edits.length; const outer = edits.filter((e) => e[1] > e[0]); for (let i = edits.length - 1; i >= 0; i--) { const e = edits[i]; if (outer.some((o) => o !== e && o[0] <= e[0] && e[1] <= o[1] && (o[1] - o[0]) > (e[1] - e[0]))) edits.splice(i, 1); } if (edits.length < before) console.log(`${before - edits.length} edit(s) inside a rewritten phrase wait for the next run: run again`); }
 edits.sort((x, y) => y[0] - x[0] || y[1] - x[1]);
 let out = src; for (const [s0, s1, r] of edits) out = out.slice(0, s0) + r + out.slice(s1);
 console.log(`lines ${from}-${to}: ${nText} text, ${nRich} whole sentence(s) with markup, ${nAttr} attribute, ${nSec} section id(s)${dry ? ' (dry run)' : ''}`);
