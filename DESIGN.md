@@ -5486,3 +5486,11 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   Presets set the switches and the budget; no preset is applied by default, so nothing changes until the user acts.
   UI: `coachTalkHtml()` at the top of Settings > Coach Voice, and a mute row in the sound menu.
   Speech stays English (`u.lang = 'en-US'`): the phrases are English text.
+- **Clips for any line, several per moment, recording (feat 578, phase 3 of the voice work):** a moment's clips are
+  keyed `<slot>`, `<slot>#2` … `<slot>#5` in the same `gymtracker-sounds` store (no schema change: the first clip
+  keeps the old key, so saved clips still play). `playCustomClip(slot)` plays the next in turn; a full key plays that
+  one. Each record carries `vol` (0.1 to 1, default 1). A coach line's clips live under `ev:<event id>` and its
+  `state.coachTalk.ev[id].snd` is `voice` (default), `clip` or `both`; `coachDeliver()` plays the clip and, for
+  `both`, speaks after it ends. "Clip" with no clip saved still speaks, so a line never goes silent by accident.
+  `recordClip()` uses MediaRecorder (8 s cap, the microphone is released on stop) and hands the take to the same
+  trim editor as an upload. Clips stay on the device; they are not synced.

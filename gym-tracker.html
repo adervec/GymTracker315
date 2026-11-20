@@ -2615,6 +2615,12 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .plan-edit-step-btns { display: flex; gap: 4px; }
   .plan-edit-step-btns button { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; line-height: 1; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text2); font-size: 15px; cursor: pointer; font-family: inherit; margin: 0; }
   .plan-edit-step-btns button.danger { color: var(--danger); background: var(--bg2); border-color: color-mix(in srgb, var(--danger) 45%, var(--border2)); }
+  /* feat 578 — clips: a list per moment, a volume each, a record button */
+  .csnd-clip { align-items: center; padding: 5px 0 5px 12px; gap: 8px; }
+  .csnd-clip .csnd-name { flex: 1; min-width: 0; font-size: 11.5px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .csnd-clip input[type=range] { width: 84px; flex-shrink: 0; }
+  .csnd-rec.rec { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .ct-snd.active { background: var(--accent-bg); border-color: var(--accent-border); }
   /* feat 577 — what the coach says */
   .ct-card { border: 1px solid var(--border2); border-radius: 10px; padding: 10px 12px; margin: 4px 0 12px; background: var(--bg3); }
   .ct-presets { margin: 8px 0 4px; }
@@ -35358,7 +35364,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 494 · 2026-11-20 17:13';
+const APP_BUILD = 'build 494 · 2026-11-20 17:52';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -35791,13 +35797,14 @@ function coachTalk() { const c = state.coachTalk; return { minGap: 0, perMin: 0,
 function coachEventCfg(id) {
   const e = coachEvent(id), st = coachTalk().ev[id] || {};
   const on = !e ? false : e.get ? !!e.get() : (st.on != null ? !!st.on : !!e.def);
-  return { on, freq: COACH_FREQS.some(f => f[0] === st.freq) ? st.freq : 'always' };
+  return { on, freq: COACH_FREQS.some(f => f[0] === st.freq) ? st.freq : 'always', snd: (st.snd === 'clip' || st.snd === 'both') ? st.snd : 'voice' };
 }
 function setCoachEvent(id, patch) {
   const e = coachEvent(id); if (!e) return;
   const c = coachTalk(), cur = { ...(c.ev[id] || {}) };
   if (patch && 'on' in patch) { if (e.set) e.set(!!patch.on); else cur.on = !!patch.on; }
   if (patch && patch.freq && COACH_FREQS.some(f => f[0] === patch.freq)) cur.freq = patch.freq;
+  if (patch && patch.snd && ['voice', 'clip', 'both'].indexOf(patch.snd) !== -1) cur.snd = patch.snd; // feat 578
   c.ev[id] = cur; state.coachTalk = c; saveState();
 }
 function setCoachBudget(patch) {
@@ -35855,10 +35862,23 @@ function coachAllow(id, text, opts) {
   _coachLastAt = now; _coachLastText = text || ''; _coachSaid.push(now);
   return true;
 }
+// feat 578 — deliver lines that have already been allowed: a line set to play a clip plays it (the next in turn);
+// 'clip' replaces the words, 'both' plays the clip and then says them. Only one clip per delivery.
+function coachDeliver(parts) {
+  let delay = 0; const texts = [];
+  parts.forEach(([id, txt]) => {
+    const snd = coachEventCfg(id).snd, slot = 'ev:' + id;
+    if (snd !== 'voice' && hasCustomClip(slot)) { if (!delay && playCustomClip(slot)) delay = Math.ceil((_clipLastSec || 1) * 1000) + 120; if (snd === 'clip') return; }
+    texts.push(txt);
+  });
+  if (!texts.length) return;
+  const say = () => annunce(texts.join('. '));
+  if (delay) setTimeout(say, delay); else say();
+}
 function coachSay(id, text, opts) {
   if (!text) return false;
   if (!coachAllow(id, String(text), opts)) return false;
-  annunce(text);
+  coachDeliver([[id, String(text)]]);
   return true;
 }
 // "205 for 8", or "40 seconds" on a hold — a set, said aloud
@@ -35906,6 +35926,7 @@ function coachTalkHtml() {
         ${e.pri > 0 ? `<select class="vw-select ct-freq" data-ct-freq="${e.id}" aria-label="${escapeAttr(t('How often'))}"${c.on ? '' : ' disabled'}>${COACH_FREQS.map(([v, l]) => `<option value="${v}"${c.freq === v ? ' selected' : ''}>${t(l)}</option>`).join('')}</select>` : ''}
         <div class="drawer-pill-group"><button class="drawer-pill ${c.on ? 'active' : ''}" data-ct-ev="${e.id}" data-ct-on="1">${t('On')}</button><button class="drawer-pill ${!c.on ? 'active' : ''}" data-ct-ev="${e.id}" data-ct-on="0">${t('Off')}</button></div>
         <button class="drawer-pill ct-test" data-ct-test="${e.id}" title="${escapeAttr(t('Hear it'))}" aria-label="${escapeAttr(t('Hear it'))}">▶</button>
+        <button class="drawer-pill ct-snd ${c.snd !== 'voice' && hasCustomClip('ev:' + e.id) ? 'active' : ''}" data-ct-snd="${e.id}" title="${escapeAttr(t('Sound for this line'))}" aria-label="${escapeAttr(t('Sound for this line'))}">🎵</button>
       </div></div>`; };
   return `<div class="ct-card">
     <div class="drawer-setting-label">${t('🎚 How much the coach talks')}</div>
@@ -35920,12 +35941,37 @@ function coachTalkHtml() {
     ${COACH_GROUPS.map(([g, name]) => `<div class="ct-group">${t(name)}</div>${COACH_EVENTS.filter(e => e.g === g).map(row).join('')}`).join('')}
   </div>`;
 }
+// feat 578 — the sound behind one coach line: say it, play a clip instead, or play the clip and then say it.
+function openCoachSoundSheet(id, onClose) {
+  const e = coachEvent(id); if (!e) return;
+  const back = document.createElement('div'); back.className = 'choice-backdrop';
+  const close = () => { back.classList.remove('open'); setTimeout(() => back.remove(), 200); if (onClose) onClose(); };
+  const draw = () => {
+    const c = coachEventCfg(id), has = hasCustomClip('ev:' + id);
+    back.innerHTML = `<div class="choice-sheet"><div class="choice-title">🎵 ${t(e.label)}</div>
+      <div class="choice-msg">${t('Choose what you hear for this line. A clip only plays once you have added one below.')}</div>
+      <div class="pud-seg" role="radiogroup" aria-label="${escapeAttr(t('Sound for this line'))}">
+        ${[['voice', t('Voice')], ['clip', t('Clip only')], ['both', t('Clip, then voice')]].map(([v, l]) => `<button type="button" role="radio" aria-checked="${c.snd === v}" class="${c.snd === v ? 'active' : ''}" data-cs-mode="${v}"><b>${l}</b></button>`).join('')}
+      </div>
+      ${c.snd !== 'voice' && !has ? `<div class="choice-msg">${t('No clip yet, so the voice still speaks this line.')}</div>` : ''}
+      ${clipSlotHtml('ev:' + id, t('Clips for this line'), t('None yet. Upload a file or record one.'))}
+      <div class="choice-actions"><button class="choice-btn" data-cs-test>${t('▶ Hear the line')}</button><button class="choice-btn primary" data-cs-close>${t('Done')}</button></div></div>`;
+    bindCustomSounds(back, draw);
+  };
+  back.addEventListener('click', (ev) => {
+    const m = ev.target.closest('[data-cs-mode]'); if (m) { setCoachEvent(id, { snd: m.dataset.csMode }); draw(); return; }
+    if (ev.target.closest('[data-cs-test]')) { coachSay(id, e.sample, { user: true }); return; }
+    if (ev.target === back || ev.target.closest('[data-cs-close]')) close();
+  });
+  draw(); document.body.appendChild(back); requestAnimationFrame(() => back.classList.add('open'));
+}
 function bindCoachTalk(body) {
   const again = () => { try { renderSettingsDrawer(); } catch (_) {} };
   body.querySelectorAll('[data-ct-preset]').forEach(b => b.addEventListener('click', () => { applyCoachPreset(b.dataset.ctPreset); again(); }));
   body.querySelectorAll('[data-ct-ev]').forEach(b => b.addEventListener('click', () => { setCoachEvent(b.dataset.ctEv, { on: b.dataset.ctOn === '1' }); again(); }));
   body.querySelectorAll('[data-ct-freq]').forEach(sl => sl.addEventListener('change', () => setCoachEvent(sl.dataset.ctFreq, { freq: sl.value })));
   body.querySelectorAll('[data-ct-test]').forEach(b => b.addEventListener('click', () => { const e = coachEvent(b.dataset.ctTest); if (e) coachSay(e.id, e.sample, { user: true }); }));
+  body.querySelectorAll('[data-ct-snd]').forEach(b => b.addEventListener('click', () => openCoachSoundSheet(b.dataset.ctSnd, again))); // feat 578
   body.querySelectorAll('[data-ct-mute]').forEach(b => b.addEventListener('click', () => { const m = b.dataset.ctMute; coachMute(m === 'workout' || m === 'off' ? m : +m); again(); }));
   const gap = body.querySelector('#ct-gap'); if (gap) gap.addEventListener('change', () => setCoachBudget({ minGap: +gap.value }));
   const pm = body.querySelector('#ct-permin'); if (pm) pm.addEventListener('change', () => setCoachBudget({ perMin: +pm.value }));
@@ -36044,7 +36090,7 @@ function annunceSetEnd(lvl, set) {
   }
   if (!parts.length) return;
   const spoken = parts.filter(([id, txt]) => coachAllow(id, txt));  // each line passes its own switch, frequency and the budget
-  if (spoken.length) annunce(spoken.map(x => x[1]).join('. '));
+  if (spoken.length) coachDeliver(spoken);
 }
 
 /* ---- Workout metronome (feat 69) — customizable audio + haptic; on/off is per-workout (runtime only). ---- */
@@ -36122,24 +36168,74 @@ async function soundClipsWarm() {
     const st = await _clipStore('readonly'), keys = await _idbReq(st.getAllKeys()), ctx = _clipCtx(); if (!ctx) return;
     for (const k of keys) {
       const rec = await _idbReq((await _clipStore('readonly')).get(k)); if (!rec || !rec.blob) continue;
-      _clipMeta[k] = { sec: rec.sec, name: rec.name, at: rec.at };
+      _clipMeta[k] = { sec: rec.sec, name: rec.name, at: rec.at, vol: rec.vol };
       _clipBufs[k] = await ctx.decodeAudioData(await rec.blob.arrayBuffer());
     }
   } catch (_) {}
 }
-function hasCustomClip(slot) { return !!(slot && _clipBufs[slot]); }
-// play a slot's clip if there is one; true when it played (so the caller skips the built-in sound)
+/* feat 578 — A MOMENT CAN HAVE SEVERAL CLIPS. The first keeps the moment's own key ('pr'); the others are 'pr#2' …
+   'pr#5'. They play in turn, so the same sound does not greet every record. Each clip carries its own volume.
+   A coach line's clips live under 'ev:<event id>' (feat 578 — any line can be a sound). */
+const CLIP_PER_SLOT = 5;
+let _clipTurn = {}, _clipLastSec = 0;
+function clipSlotOf(key) { return String(key || '').split('#')[0]; }
+function clipKeys(slot) { return slot ? Object.keys(_clipBufs).filter(k => k === slot || k.indexOf(slot + '#') === 0).sort() : []; }
+function clipFreeKey(slot) {
+  const have = new Set(clipKeys(slot));
+  if (!have.has(slot)) return slot;
+  for (let i = 2; i <= CLIP_PER_SLOT; i++) if (!have.has(slot + '#' + i)) return slot + '#' + i;
+  return null;
+}
+function clipSlotLabel(slot) {
+  const S = CLIP_SLOTS.find(x => x.id === slot); if (S) return S.label;
+  if (String(slot).indexOf('ev:') === 0) { const e = (typeof coachEvent === 'function') ? coachEvent(slot.slice(3)) : null; if (e) return '🗣 ' + t(e.label); }
+  return String(slot);
+}
+function hasCustomClip(slot) { return clipKeys(slot).length > 0; }
+// play a moment's clip if it has one (the next in turn); true when it played (so the caller skips the built-in
+// sound). Pass a full key ('pr#2') to hear that exact clip.
 function playCustomClip(slot) {
   try {
-    const buf = slot && _clipBufs[slot]; if (!buf) return false;
+    if (!slot) return false;
+    let key = null;
+    if (String(slot).indexOf('#') > 0) key = _clipBufs[slot] ? slot : null;
+    else { const keys = clipKeys(slot); if (keys.length) { _clipTurn[slot] = ((_clipTurn[slot] == null ? -1 : _clipTurn[slot]) + 1) % keys.length; key = keys[_clipTurn[slot]]; } }
+    const buf = key && _clipBufs[key]; if (!buf) return false;
+    _clipLastSec = buf.duration || 0;
     if (!sndAudioOn() || !headphoneGatePasses()) return true;          // muted: the clip still "owns" the moment
     const ctx = _clipCtx(); if (!ctx) return false;
     if (ctx.state === 'suspended') ctx.resume();
-    const src = ctx.createBufferSource(), g = ctx.createGain();
-    src.buffer = buf; g.gain.value = Math.max(0.01, Math.min(1, 0.9 * sndVol() * duckedVol()));
+    const src = ctx.createBufferSource(), g = ctx.createGain(), m = _clipMeta[key] || {};
+    const vol = (m.vol != null && !isNaN(m.vol)) ? Math.max(0.1, Math.min(1, m.vol)) : 1;
+    src.buffer = buf; g.gain.value = Math.max(0.01, Math.min(1, 0.9 * sndVol() * duckedVol() * vol));
     src.connect(g); g.connect(ctx.destination); src.start();
     return true;
   } catch (_) { return false; }
+}
+async function setClipVol(key, vol) {
+  const v = Math.max(0.1, Math.min(1, +vol || 1));
+  if (_clipMeta[key]) _clipMeta[key].vol = v;
+  try { const rec = await _idbReq((await _clipStore('readonly')).get(key)); if (rec) { rec.vol = v; await _idbReq((await _clipStore('readwrite')).put(rec, key)); } } catch (_) {}
+}
+// Record a clip from the microphone: press once to start, again to stop (8 s at most). The recording then opens in
+// the same editor as an uploaded file, to trim it.
+let _clipRec = null;
+async function recordClip(key, onDone, btn) {
+  if (_clipRec) { try { _clipRec.stop(); } catch (_) {} return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') { toast(t('Recording is not supported in this browser')); return; }
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (_) { toast(t('Microphone access was not allowed')); return; }
+  const chunks = [], rec = new MediaRecorder(stream); _clipRec = rec;
+  const tm = setTimeout(() => { try { rec.stop(); } catch (_) {} }, 8000);
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = () => {
+    clearTimeout(tm); try { stream.getTracks().forEach(tr => tr.stop()); } catch (_) {} _clipRec = null;
+    if (btn && btn.isConnected) { btn.classList.remove('rec'); btn.textContent = t('● Record'); }
+    const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' }); if (!blob.size) return;
+    openClipEditor(key, { name: t('Recording'), size: blob.size, arrayBuffer: () => blob.arrayBuffer() }, onDone);
+  };
+  rec.start();
+  if (btn) { btn.classList.add('rec'); btn.textContent = t('■ Stop'); }
+  toast(t('Recording… press Stop when you are done (8 s at most)'));
 }
 // the clip itself: [startSec, startSec + lenSec) of `buf`, mixed to mono at 22.05 kHz, peak-normalised to 0.9,
 // with a 120 ms fade-out — rendered through an OfflineAudioContext so the resample is a proper one
@@ -36163,7 +36259,7 @@ function encodeWav16(samples, rate) {
 }
 async function saveCustomClip(slot, buf, startSec, lenSec, name) {
   const { samples, sec } = await renderClip(buf, startSec, lenSec), blob = encodeWav16(samples, CLIP_RATE);
-  await _idbReq((await _clipStore('readwrite')).put({ blob, sec, name: String(name || '').slice(0, 80), at: new Date().toISOString() }, slot));
+  await _idbReq((await _clipStore('readwrite')).put({ blob, sec, name: String(name || '').slice(0, 80), at: new Date().toISOString(), vol: 1 }, slot));
   const ctx = _clipCtx(); _clipBufs[slot] = await ctx.decodeAudioData(await blob.arrayBuffer());
   _clipMeta[slot] = { sec, name, at: new Date().toISOString() };
   return { sec, bytes: blob.size };
@@ -36172,21 +36268,30 @@ async function removeCustomClip(slot) {
   try { await _idbReq((await _clipStore('readwrite')).delete(slot)); } catch (_) {}
   delete _clipBufs[slot]; delete _clipMeta[slot];
 }
+// One moment's row: what plays now, its clips (hear, volume, remove) and the ways to add one.
+function clipSlotHtml(slot, label, hint) {
+  const keys = clipKeys(slot), free = clipFreeKey(slot), m0 = keys.length === 1 ? (_clipMeta[keys[0]] || {}) : null;
+  const status = !keys.length ? escapeHtml(hint)
+    : m0 ? `Custom · ${m0.sec}s${m0.name ? ' · ' + escapeHtml(m0.name) : ''}`
+    : t('{count} custom clips, played in turn', { count: keys.length });
+  return `<div class="csnd-slot" data-csnd-slot="${escapeAttr(slot)}"><div class="cv-row csnd-row"><div style="min-width:0;flex:1;"><div style="font-size:13px;color:var(--text);">${label}</div>
+      <div style="font-size:10.5px;color:var(--text3);">${status}</div></div>
+      ${free ? `<button class="drawer-btn" data-csnd-up="${escapeAttr(free)}">${keys.length ? t('＋ Add') : t('Upload')}</button><button class="drawer-btn csnd-rec" data-csnd-rec="${escapeAttr(free)}">${t('● Record')}</button>` : ''}</div>
+    ${keys.map(k => { const m = _clipMeta[k] || {}; return `<div class="cv-row csnd-clip"><span class="csnd-name">${m.sec != null ? m.sec + 's' : ''}${m.name ? ' · ' + escapeHtml(m.name) : ''}</span>
+      <input type="range" min="20" max="100" step="10" value="${Math.round((m.vol != null ? m.vol : 1) * 100)}" data-csnd-vol="${escapeAttr(k)}" aria-label="${escapeAttr(t('Clip volume'))}" title="${escapeAttr(t('Clip volume'))}">
+      <button class="drawer-btn" data-csnd-play="${escapeAttr(k)}" aria-label="${escapeAttr(t('Hear it'))}">▶</button><button class="drawer-btn danger" data-csnd-del="${escapeAttr(k)}" aria-label="${escapeAttr(t('Remove'))}">✕</button></div>`; }).join('')}</div>`;
+}
 function customSoundsHtml() {
   return `<div class="drawer-setting-row" style="flex-wrap:wrap;"><div><div class="drawer-setting-label">${t('🔊 Custom sounds')}</div>
-    <div class="drawer-setting-sub">${t('Upload any audio and clip up to {CLIP_MAX_SEC} s of it. Saved on this device only.', { CLIP_MAX_SEC: (CLIP_MAX_SEC) })}</div></div></div>
-    ${CLIP_SLOTS.map(s => { const m = _clipMeta[s.id], on = hasCustomClip(s.id);
-      return `<div class="cv-row csnd-row"><div style="min-width:0;flex:1;"><div style="font-size:13px;color:var(--text);">${s.label}</div>
-        <div style="font-size:10.5px;color:var(--text3);">${on ? `Custom · ${m.sec}s${m.name ? ' · ' + escapeHtml(m.name) : ''}` : 'Built-in · ' + s.hint}</div></div>
-        ${on ? `<button class="drawer-btn" data-csnd-play="${s.id}">▶</button><button class="drawer-btn danger" data-csnd-del="${s.id}">✕</button>` : ''}
-        <button class="drawer-btn" data-csnd-up="${s.id}">${on ? 'Replace' : 'Upload'}</button></div>`; }).join('')}`;
+    <div class="drawer-setting-sub">${t('Upload any audio, or record one, and clip up to {CLIP_MAX_SEC} s of it. A moment can have up to {n} clips, played in turn. Saved on this device only. Any line the coach says can have clips too: tap 🎵 on its row under Coach voice.', { CLIP_MAX_SEC: (CLIP_MAX_SEC), n: CLIP_PER_SLOT })}</div></div></div>
+    ${CLIP_SLOTS.map(s => clipSlotHtml(s.id, s.label, 'Built-in · ' + s.hint)).join('')}`;
 }
 // the clip editor: waveform, start + length sliders (length capped at 5 s), preview, fade-out, save
 function openClipEditor(slot, file, onDone) {
   const ctx = _clipCtx(); if (!ctx) { toast(t('Audio is not supported in this browser')); return; }
   if (file.size > 30 * 1024 * 1024) { toast(t('That file is over 30 MB — trim it first')); return; }
   file.arrayBuffer().then(ab => ctx.decodeAudioData(ab)).then(buf => {
-    const S = CLIP_SLOTS.find(x => x.id === slot), dur = buf.duration;
+    const S = { label: clipSlotLabel(clipSlotOf(slot)) }, dur = buf.duration;
     const back = document.createElement('div'); back.className = 'choice-backdrop';
     const sheet = document.createElement('div'); sheet.className = 'choice-sheet';
     sheet.innerHTML = `<div class="choice-title">${t('{label} — clip {name}', { label: (S.label), name: (escapeHtml(file.name)) })}</div>
@@ -36222,7 +36327,9 @@ function bindCustomSounds(body, refresh) {
     inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; if (f) openClipEditor(b.dataset.csndUp, f, refresh); });
     inp.click();
   }));
+  body.querySelectorAll('[data-csnd-rec]').forEach(b => b.addEventListener('click', () => recordClip(b.dataset.csndRec, refresh, b)));   // feat 578
   body.querySelectorAll('[data-csnd-play]').forEach(b => b.addEventListener('click', () => playCustomClip(b.dataset.csndPlay)));
+  body.querySelectorAll('[data-csnd-vol]').forEach(r => r.addEventListener('change', async () => { await setClipVol(r.dataset.csndVol, (+r.value) / 100); playCustomClip(r.dataset.csndVol); }));
   body.querySelectorAll('[data-csnd-del]').forEach(b => b.addEventListener('click', async () => { await removeCustomClip(b.dataset.csndDel); refresh(); }));
 }
 // feat 92 — UI tap feedback: a crisp, soft click + short haptic on every interactive control.
