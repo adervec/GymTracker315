@@ -5442,3 +5442,36 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   **Step 8 (feat 569):** relative times are plural phrases, one helper per unit (`agoDays`, `agoMin`, `agoHr`, `agoD`,
   `agoWk`, `agoMo`, `agoYr`), with the number passed as `{count}` so English prints it raw. `fmtDate` now says
   "1 day ago" (was "1 days ago"), the one deliberate English change of the whole translation work.
+- **Plan editor fixes (feat 571):** three bugs, one cause each.
+  - *Backwards typing:* the step picker's exercise search redrew itself per keystroke and refocused with the caret
+    at 0. It now restores the caret.
+  - *Reset while typing:* every `render()` (after a sync, a save, a timer) ran `renderPlanCreatorPage`, which
+    treated it as a fresh visit and went back to the list. `renderCurrentPage` now sets `_pageIsEntry` (true only
+    when navigated to), and the plan page resets only then. `renderPlansOverlay` keeps the focused field and caret
+    across a redraw, and name / description / step note save on `input`, not only on `change`.
+  - *Sync overwrote the draft:* `planNewer` compared only the last COMMIT time, and a tie went to the incoming copy.
+    Edits now stamp `plan.draftAt`, and `planDraftTs` (newest of commit and draft) decides at the same revision.
+  - Layout: `.plan-editor` is one 760px column, step buttons are centred 32px squares, and a step's sets / min done /
+    load share one row.
+- **Fix weights, one fix at a time (feat 572):** the sheet has a three-way choice (`data-fixw-mode` = mult / squash /
+  change), shows only that fix's fields, previews the effect and has ONE apply button whose label names the action;
+  it is disabled until a fix is chosen. Holds have no All-weights table (feat 517), so they get their own
+  `#trk-fixw-open` button.
+- **Heavier card (feat 573):** of all heavier weights, the set with the most reps; a tie goes to the heavier weight.
+- **Plan requests (feat 574):** channel `planreq` (dir `plan-request`, reply `plan-request-output`). The request is
+  `state.planRequests` (`{ id, q, status, planIds, note }`), written on the Plans page. The reply is
+  `{ plans: [{ requestId, name, desc, intensity, steps }], notes: [{ requestId, note }] }`. `coworkImportPlanRequest`
+  accepts a plan only for an OPEN request (at most 8 each), validates it with `validateImportedPlan`, and stores it
+  with `source: 'cowork-request'` (never `'daily'`, so the daily pruning cannot remove it). Notes are clipped and
+  shown as text. It goes through the same review gate as every channel.
+  **Plan of the Day:** the instruction "if plans are routinely not done, make them easier to start" made each skipped
+  plan weaker; it now says a skipped plan is not a sign of fatigue. `podOptions.effort` (easy / normal / hard,
+  default normal) is new, and readiness chooses what to train, not how hard.
+- **Hand-written weight list (feat 575):** `state.wtRungs[varUuid]` is the list of weights an exercise can be set to.
+  When present, `exWeightGaps` projects exactly the listed weights that have no logged set (no even-step test, no
+  40-row cap); empty goes back to the automatic ladder. Edited from the All-weights sheet (`data-wt-rungs`).
+- **All-weights chart: switches and a carousel (feat 576):** every legend entry is a button that hides or shows its
+  line (`_wtHidden`, kept while the app is open; the last line in a plot stays on, and the y-axis rescales to what is
+  shown). The second plot is a carousel (`WT_SLIDES`, `_wtSlide`): PR odds, reps (most ever vs last time), days
+  (since the record vs since the last set at that weight). Arrows, dots and a sideways swipe turn it; the readout
+  lists the e1RM lines plus the current slide's. Legend and carousel clicks redraw in place and keep the selection.

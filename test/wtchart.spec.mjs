@@ -121,3 +121,78 @@ test('feat 565 — missing weights on an obvious step get projected rows, up to 
   await open(page, 'table', [[200, 8, 40], [207, 6, 30], [215, 4, 20], [222, 3, 10]]);
   expect((await rows()).filter(r => r.startsWith('p'))).toEqual([]);
 });
+
+test('feat 575 — a hand-written weight list replaces the worked-out one: odd pin positions show as projected rows', async ({ page }) => {
+  await page.evaluate(() => { state.exerciseMaxW = {}; state.wtHideProj = {}; state.wtRungs = {}; });
+  await open(page, 'table', [[200, 8, 40], [207, 6, 30], [215, 4, 20], [222, 3, 10]]);   // an uneven stack: nothing is projected on its own
+  const rows = () => page.evaluate(() => [...document.querySelectorAll('.choice-backdrop .wt-table tbody tr')].map(t => (t.classList.contains('wt-proj') ? 'p' : '') + t.dataset.wtW));
+  expect((await rows()).filter(r => r.startsWith('p'))).toEqual([]);
+  expect(await page.evaluate(() => document.querySelector('[data-wt-rungs]').textContent)).toMatch(/Set the weight list/);
+  await page.evaluate(() => document.querySelector('.choice-backdrop [data-wt-rungs]').click());
+  const prefill = await page.evaluate(() => [...document.querySelectorAll('.choice-backdrop')].pop().querySelector('input').value);
+  expect(prefill).toBe('200, 207, 215, 222');                     // starts from what is there
+  await page.evaluate(() => {
+    const dlg = [...document.querySelectorAll('.choice-backdrop')].pop(), inp = dlg.querySelector('input');
+    inp.value = '200, 207 212.5; 215, 222, 230, 230, junk, -5';
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    [...dlg.querySelectorAll('.choice-btn')].find(b => /primary/.test(b.className) || /ok|save/i.test(b.textContent)).click();
+  });
+  await page.waitForFunction(() => document.querySelectorAll('.wt-table tr.wt-proj').length === 2);
+  expect((await rows()).sort()).toEqual(['200', '207', '215', '222', 'p212.5', 'p230'].sort());
+  const saved = await page.evaluate(() => ({ list: Object.values(state.wtRungs)[0], label: document.querySelector('[data-wt-rungs]').textContent, parse: parseWeightRungs(' 5,5 ,10') }));
+  expect(saved.list).toEqual([200, 207, 212.5, 215, 222, 230]);   // sorted, de-duplicated, junk dropped
+  expect(saved.label).toMatch(/Edit my weight list/);
+  expect(saved.parse).toEqual([5, 10]);
+  // the hide switch still works on a hand-written list, and an empty list goes back to automatic
+  await page.evaluate(() => document.querySelector('.choice-backdrop [data-wt-proj]').click());
+  expect((await rows()).filter(r => r.startsWith('p'))).toEqual([]);
+  expect(await page.evaluate(() => { const v = Object.keys(state.wtRungs)[0]; setExWeightRungs(v, parseWeightRungs('')); return exWeightRungs(v); })).toBe(null);
+});
+
+test('feat 576 — legend entries switch their line off and on; the last one in a plot stays', async ({ page }) => {
+  await page.evaluate(() => { _wtHidden.clear(); _wtSlide = 0; });
+  await open(page, 'chart', HIST);
+  const paths = () => page.evaluate(() => document.querySelectorAll('svg[data-wt-plot="e1"] path').length);
+  const press = (k) => page.evaluate((k) => document.querySelector(`.wt-chart-wrap [data-wt-series="${k}"]`).click(), k);
+  expect(await paths()).toBe(3);
+  await press('d90');
+  expect(await paths()).toBe(2);
+  expect(await page.evaluate(() => document.querySelector('[data-wt-series="d90"]').getAttribute('aria-pressed'))).toBe('false');
+  await press('last'); await press('best');                       // best is the last one showing: it stays
+  expect(await paths()).toBe(1);
+  expect(await page.evaluate(() => [..._wtHidden].sort())).toEqual(['d90', 'last']);
+  await press('d90');
+  expect(await paths()).toBe(2);
+  expect(await page.evaluate(() => document.querySelector('.wt-readout .wt-ro-w').textContent)).toMatch(/^210/);   // the selection survives a redraw
+  await page.evaluate(() => _wtHidden.clear());
+});
+
+test('feat 576 — the second chart is a carousel: PR odds, reps (most ever, last time), days since', async ({ page }) => {
+  await page.evaluate(() => { _wtHidden.clear(); _wtSlide = 0; });
+  await open(page, 'chart', HIST);
+  const snap = () => page.evaluate(() => {
+    const svg = document.querySelectorAll('svg[data-wt-plot]')[1];
+    return { id: svg.dataset.wtPlot, title: document.getElementById('wt-car-title').textContent, dots: document.querySelectorAll('.wt-car-dot').length,
+      on: [...document.querySelectorAll('.wt-car-dot')].findIndex(d => d.classList.contains('on')),
+      legend: [...document.querySelectorAll('.wt-legend')].pop().textContent, lines: svg.querySelectorAll('path').length,
+      readout: [...document.querySelectorAll('.wt-readout .wt-ro-row')].map(r => r.querySelector('.wt-ro-v').textContent) };
+  });
+  const a = await snap();
+  expect(a).toMatchObject({ id: 'pr', dots: 3, on: 0 });
+  await page.evaluate(() => document.querySelector('[data-wt-car="1"]').click());
+  const b = await snap();
+  expect(b.id).toBe('reps');
+  expect(b.title).toMatch(/Reps at each weight/);
+  expect(b.legend).toMatch(/Most reps ever.*Reps last time/);
+  expect(b.lines).toBe(2);
+  expect(b.readout.slice(3)).toEqual(['5 reps', '5 reps']);       // 210×5, the weight the readout opens on
+  await page.evaluate(() => document.querySelector('[data-wt-slide="2"]').click());
+  const c = await snap();
+  expect(c.id).toBe('days');
+  expect(c.legend).toMatch(/Days since the record.*Days since you last did/);
+  expect(c.readout.slice(3)).toEqual(['30 days ago', '30 days ago']);
+  expect(c.on).toBe(2);
+  await page.evaluate(() => document.querySelector('[data-wt-car="1"]').click());   // wraps round
+  expect((await snap()).id).toBe('pr');
+  expect(await page.evaluate(() => document.querySelectorAll('svg[data-wt-plot]').length)).toBe(2);
+});

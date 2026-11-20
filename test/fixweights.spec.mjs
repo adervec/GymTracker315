@@ -75,6 +75,8 @@ test('feat 429 — the sheet previews, and Apply → confirm rewrites and closes
     document.querySelectorAll('.choice-backdrop').forEach(b => b.remove());
     showFixWeightsPopup();
     const sheet = [...document.querySelectorAll('.choice-backdrop')].pop();
+    const lockedFirst = sheet.querySelector('[data-fixw="apply"]').disabled;   // feat 572 — nothing to apply until a fix is chosen
+    sheet.querySelector('[data-fixw-mode="mult"]').click();
     const preview30 = sheet.querySelector('#fixw-preview').textContent;
     sheet.querySelector('[data-fixw-since="0"]').click();          // All time
     const previewAll = sheet.querySelector('#fixw-preview').textContent;
@@ -87,8 +89,9 @@ test('feat 429 — the sheet previews, and Apply → confirm rewrites and closes
     const weights = state.sessions[1].exercises[0].sets.map(s => s.w);
     closeLogModal();
     document.querySelectorAll('.choice-backdrop').forEach(b => b.remove());
-    return { preview30, previewAll, confirmMsg, weights };
+    return { preview30, previewAll, confirmMsg, weights, lockedFirst };
   }, ids);
+  expect(r.lockedFirst).toBe(true);
   expect(r.preview30).toContain('2 sets across 1 session');
   expect(r.previewAll).toContain('3 sets across 2 sessions');
   expect(r.confirmMsg).toContain('by 0.5');
@@ -180,8 +183,9 @@ test('feat 564 — squash (prefilled with the max) and retype a weight, across a
       showFixWeightsPopup();
       const sheet = [...document.querySelectorAll('.choice-backdrop')].pop();
       const pre = sheet.querySelector('#fixw-squash').value;
-      fill(sheet);
-      sheet.querySelector(`[data-fixw-op="${op}"]`).click();
+      sheet.querySelector(`[data-fixw-mode="${op === 'retype' ? 'change' : op}"]`).click();   // feat 572 — pick the one fix…
+      fill(sheet); sheet.dispatchEvent(new Event('input'));
+      sheet.querySelector('[data-fixw="apply"]').click();                                       // …then the single button
       await new Promise(r => setTimeout(r, 50));
       [...document.querySelectorAll('.choice-backdrop')].pop().querySelector('.choice-btn.danger').click();
       await new Promise(r => setTimeout(r, 300));
@@ -195,4 +199,58 @@ test('feat 564 — squash (prefilled with the max) and retype a weight, across a
   expect(r.pre).toBe('95');
   expect(r.afterSquash).toEqual([[95], [90, 95, ''], [50]]);   // the 40-day-old set too; other variation untouched
   expect(r.afterRetype).toEqual([[95], [92.5, 95, ''], [50]]);
+});
+
+// feat 572 — one fix at a time: choosing Squash can never run the multiply, and the button says what it will do
+test('feat 572 — the three fixes are mutually exclusive, with one button that names the action', async ({ page }) => {
+  const { target } = await seed(page);
+  const r = await page.evaluate(async (target) => {
+    state.exerciseMaxW = {}; setExMaxW(target, 95);
+    pending.varUuid = target; pending.subUuid = null; pending.sets = [{ w: '', r: '' }];
+    openLogModal(); modalState.showPicker = false; renderModal();
+    showFixWeightsPopup();
+    const sheet = [...document.querySelectorAll('.choice-backdrop')].pop(), btn = sheet.querySelector('[data-fixw="apply"]');
+    const shown = () => [...sheet.querySelectorAll('[data-fixw-panel]')].filter(p => !p.hidden).map(p => p.dataset.fixwPanel);
+    const out = { start: { shown: shown(), disabled: btn.disabled, label: btn.textContent, oldButtons: sheet.querySelectorAll('[data-fixw-op]').length } };
+    sheet.querySelector('[data-fixw-mode="squash"]').click();
+    out.squash = { shown: shown(), disabled: btn.disabled, label: btn.textContent, preview: sheet.querySelector('#fixw-preview').textContent };
+    sheet.querySelector('[data-fixw-mode="change"]').click();
+    out.changeEmpty = { shown: shown(), disabled: btn.disabled };
+    sheet.querySelector('[data-fixw-mode="squash"]').click();
+    btn.click(); await new Promise(res => setTimeout(res, 50));
+    out.confirm = [...document.querySelectorAll('.choice-backdrop')].pop().querySelector('.choice-msg').textContent;
+    document.querySelectorAll('.choice-backdrop').forEach(b => b.remove()); closeLogModal();
+    return out;
+  }, target);
+  expect(r.start).toEqual({ shown: [], disabled: true, label: 'Choose a fix', oldButtons: 0 });
+  expect(r.squash.shown).toEqual(['squash']);
+  expect(r.squash.disabled).toBe(false);
+  expect(r.squash.label).toContain('Squash to 95');
+  expect(r.squash.preview).toMatch(/over 95.* down to 95/);
+  expect(r.changeEmpty).toEqual({ shown: ['change'], disabled: true });   // no weights typed yet: nothing to apply
+  expect(r.confirm).toMatch(/^Change .* over 95/);                         // squash, never "Multiply"
+  expect(r.confirm).not.toMatch(/Multiply/);
+});
+
+test('feat 572 — a hold (no All-weights table) still has a way in to Fix weights', async ({ page }) => {
+  await page.goto('/gym-tracker.html', { waitUntil: 'load' });
+  await page.waitForFunction(() => typeof showFixWeightsPopup === 'function' && VAR_INDEX.size > 0, null, { timeout: 15000 });
+  const r = await page.evaluate(() => {
+    let hold; for (const [u] of VAR_INDEX) { if (exMode(u).mode === 'time') { hold = u; break; } }
+    if (!hold) return { none: true };
+    state.sessions = [{ id: 'h1', date: new Date(Date.now() - 3 * 864e5).toISOString(), endedAt: new Date(Date.now() - 3 * 864e5 + 3600e3).toISOString(),
+      exercises: [{ varUuid: hold, subUuid: null, sets: [{ w: 25, r: 40 }, { w: 45, r: 30 }] }] }];
+    saveState();
+    pending = { varUuid: hold, subUuid: null, sets: [{ w: '', r: '' }] };
+    openLogModal(); modalState.showPicker = false; renderModal();
+    const table = !!document.getElementById('trk-wt-expand'), btn = document.getElementById('trk-fixw-open');
+    if (btn) btn.click();
+    const opened = !!document.querySelector('.choice-backdrop #fixw-mode');
+    document.querySelectorAll('.choice-backdrop').forEach(b => b.remove()); closeLogModal();
+    return { table, hasBtn: !!btn, opened };
+  });
+  expect(r.none).toBeUndefined();
+  expect(r.table).toBe(false);     // the e1RM table makes no sense for a hold
+  expect(r.hasBtn).toBe(true);
+  expect(r.opened).toBe(true);
 });

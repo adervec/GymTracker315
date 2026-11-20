@@ -214,3 +214,15 @@ test('feat 563 — the heavier card shows the most impressive heavier set, not j
   expect(r.reps).toMatch(/11 reps/);
   expect(r.lighter).toMatch(/^190/);    // lighter is unchanged: the nearest one
 });
+
+test('feat 573 — of all heavier weights, the heavier card shows the one with the most reps', async ({ page }) => {
+  await openWith(page, [{ daysAgo: 2, sets: [[200, 12]] }, { daysAgo: 9, sets: [[250, 3]] }, { daysAgo: 16, sets: [[220, 9]] }, { daysAgo: 20, sets: [[230, 12]] }]);
+  const r = await page.evaluate(() => {
+    pending.sets = [{ w: 195, r: '' }]; savePending();
+    renderNeighborHints();
+    const h = document.querySelector('#trk-neighbor-hints .neighbor-hint.heavier');
+    return { w: h.querySelector('.neighbor-hint-weight').textContent.trim(), reps: h.querySelector('.neighbor-hint-reps').textContent.trim() };
+  });
+  expect(r.w).toMatch(/^230/);          // 12 reps at 200 and at 230 tie: the heavier weight wins; 3 @ 250 does not
+  expect(r.reps).toMatch(/12 reps/);
+});
