@@ -5475,3 +5475,14 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   shown). The second plot is a carousel (`WT_SLIDES`, `_wtSlide`): PR odds, reps (most ever vs last time), days
   (since the record vs since the last set at that weight). Arrows, dots and a sideways swipe turn it; the readout
   lists the e1RM lines plus the current slide's. Legend and carousel clicks redraw in place and keep the selection.
+- **What the coach says, routed (feat 577, phases 1 and 2 of the voice work):** every spoken line is an entry in
+  `COACH_EVENTS` (`id`, group, `pri` 0 timing / 1 information / 2 flavour, a sample) and goes through
+  `coachSay(id, text)` / `coachAllow(id, text)`. In order it checks: the event's switch (older lines map onto the
+  setting they always had via `get` / `set`; new ones live in `state.coachTalk.ev`), its frequency (always / half /
+  one in four), the mute (`coachMute`, runtime only: 10 minutes or this workout), the talk budget
+  (`minGap`, `perMin`; a line over budget is dropped, never queued; `pri` 0 is exempt) and "not the line just said".
+  A finished set is ONE utterance (record, then set-done, then a plan milestone): separate calls cut each other off.
+  New events, all off by default: `record.new`, `record.progress`, `target.open`, `plan.half`, `plan.last`.
+  Presets set the switches and the budget; no preset is applied by default, so nothing changes until the user acts.
+  UI: `coachTalkHtml()` at the top of Settings > Coach Voice, and a mute row in the sound menu.
+  Speech stays English (`u.lang = 'en-US'`): the phrases are English text.

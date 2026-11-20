@@ -2615,6 +2615,16 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .plan-edit-step-btns { display: flex; gap: 4px; }
   .plan-edit-step-btns button { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; line-height: 1; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text2); font-size: 15px; cursor: pointer; font-family: inherit; margin: 0; }
   .plan-edit-step-btns button.danger { color: var(--danger); background: var(--bg2); border-color: color-mix(in srgb, var(--danger) 45%, var(--border2)); }
+  /* feat 577 — what the coach says */
+  .ct-card { border: 1px solid var(--border2); border-radius: 10px; padding: 10px 12px; margin: 4px 0 12px; background: var(--bg3); }
+  .ct-presets { margin: 8px 0 4px; }
+  .ct-group { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); margin: 12px 0 2px; }
+  .ct-row { align-items: flex-start; }
+  .ct-ctl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
+  .ct-freq { max-width: 128px; }
+  .ct-pri { font-size: 10px; font-weight: 700; color: var(--text3); border: 1px solid var(--border2); border-radius: 999px; padding: 1px 6px; margin-inline-start: 4px; white-space: nowrap; }
+  .ct-test { min-width: 34px; }
+  @media (max-width: 520px) { .ct-row { flex-direction: column; gap: 6px; } .ct-ctl { justify-content: flex-start; } }
   /* feat 574 — plan requests */
   .preq-wrap { max-width: 760px; margin: 14px auto 0; }
   .preq-card textarea { width: 100%; box-sizing: border-box; padding: 9px 11px; font-size: 13.5px; line-height: 1.5; font-family: inherit; border-radius: 8px; background: var(--input-bg); border: 1px solid var(--border2); color: var(--text); resize: vertical; margin-top: 8px; }
@@ -9380,6 +9390,7 @@ function normalizeState() {
   if (!Array.isArray(state.gymMemberships)) state.gymMemberships = []; // feat 539
   if (!Array.isArray(state.analysisRequests)) state.analysisRequests = []; // feat 450 — cowork analysis-request queue
   if (!Array.isArray(state.planRequests)) state.planRequests = []; // feat 574 — cowork plan-request queue
+  if (!state.coachTalk || typeof state.coachTalk !== 'object' || Array.isArray(state.coachTalk)) state.coachTalk = { ev: {}, minGap: 0, perMin: 0 }; // feat 577 — what the coach says
   if (!state.logReview || typeof state.logReview !== 'object' || Array.isArray(state.logReview)) state.logReview = {}; // feat 513
   if (!state.periodReviews || typeof state.periodReviews !== 'object' || Array.isArray(state.periodReviews)) state.periodReviews = {}; // feat 545
   if (!state.sleepReviews || typeof state.sleepReviews !== 'object' || Array.isArray(state.sleepReviews)) state.sleepReviews = {}; // feat 566
@@ -13930,6 +13941,7 @@ function renderSettingsDrawer() {
     </div>
     <div class="drawer-section-title" data-sec-id="coach-voice">${t('🗣 Coach voice')}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">Everything the spoken coach says — its personality &amp; voice, the set-start / set-end annunciations, tip narration, the timed-hold "ready · set · go" count, and audio ducking.</div>
+    ${coachTalkHtml()}
     <div class="drawer-setting-row">
       <div>
         <div class="drawer-setting-label">${t('Speak a tip on select')}</div>
@@ -15373,6 +15385,7 @@ function renderSettingsDrawer() {
   // feat 321 — POD options controls persist IMMEDIATELY to state (the generic drawer-pill handler below
   // re-renders the drawer on every pill click, which would otherwise discard unsaved form edits / reset pills).
   body.querySelectorAll('[data-pod-mode]').forEach(b => b.addEventListener('click', () => { state.podOptions.targetMode = b.dataset.podMode; saveState(); renderSettingsDrawer(); }));
+  bindCoachTalk(body); // feat 577
   body.querySelectorAll('[data-pod-effort]').forEach(b => b.addEventListener('click', () => { state.podOptions.effort = b.dataset.podEffort; saveState(); renderSettingsDrawer(); })); // feat 574
   // feat 386 — dual-thumb available-time range; live-update BOTH displayed values on either thumb, commit on release
   { const lo = body.querySelector('#pod-min'), hi = body.querySelector('#pod-max');
@@ -17128,6 +17141,7 @@ function speakRandomTip(varUuid) {
   if (typeof _glossPod !== 'undefined' && _glossPod) return; // feat 274 — don't talk over the study podcast
   if (state.ttsTips === false) return;
   if (typeof sndAudioOn === 'function' && !sndAudioOn()) return;   // feat 74 — master audio gate
+  if (typeof coachAllow === 'function' && !coachAllow('tip.select', '')) return; // feat 577 — mute, frequency and the talk budget
   if (typeof headphoneGatePasses === 'function' && !headphoneGatePasses()) return; // feat 105 — headphone-only gate
   if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
   const tips = collectExerciseTips(varUuid);
@@ -32249,7 +32263,7 @@ function _applyPickedVar(varUuid, info) {
       }
       _planLoadCtx = null; // clear whether or not we used it
       savePending();
-      speakRandomTip(pending.varUuid); // feat 66 — annunciate a random tip for the picked exercise
+      if (!coachSayTarget(pending.varUuid, pending.subUuid)) speakRandomTip(pending.varUuid); // feat 66 — a random tip for the picked exercise (feat 577: the target line, when on, speaks instead)
       modalState.showPicker = false;
       modalState.planStepFilter = null; // feat 112/115 — leaving the picker clears the step filter
       modalState.exNoteEditing = false; // feat 54
@@ -34202,9 +34216,13 @@ function commitSetField(i, f, val) {
     const wasDone = !!s.ts; // feat 207 — annunce only on the rising edge, not on rep edits
     s.ts = rFilled ? new Date().toISOString() : undefined;          // reps entered → set done
     if (s.ts && holdCueActive()) cancelHoldCue();                   // feat 291 — the hold finished → stop counting
-    if (s.ts && !wasDone && parseFloat(s.r) > 0 && typeof annunceSetEnd === 'function') annunceSetEnd(); // feat 207
-    if (s.ts && !wasDone && parseFloat(s.r) > 0 && !modalState.isEditing && (setQualityToneEnabled() || hasCustomClip('pr') || hasCustomClip('progress'))) { // feat 435 — quality melody on the same rising edge
-      const sc = getOverloadScore(pending.varUuid, pending.subUuid, { w: s.w, r: s.r }, new Date().toISOString()), lvl = sc ? sc.level : 'baseline';
+    const _edge = s.ts && !wasDone && parseFloat(s.r) > 0;
+    // feat 577 — the set's quality is worked out once, for the spoken record line AND the melody / clip
+    const _wantLvl = _edge && !modalState.isEditing && (setQualityToneEnabled() || hasCustomClip('pr') || hasCustomClip('progress') || coachEventCfg('record.new').on || coachEventCfg('record.progress').on);
+    const _sc = _wantLvl ? getOverloadScore(pending.varUuid, pending.subUuid, { w: s.w, r: s.r }, new Date().toISOString()) : null, _lvl = _wantLvl ? (_sc ? _sc.level : 'baseline') : null;
+    if (_edge && typeof annunceSetEnd === 'function') annunceSetEnd(_lvl, s); // feat 207
+    if (_edge && !modalState.isEditing && (setQualityToneEnabled() || hasCustomClip('pr') || hasCustomClip('progress'))) { // feat 435 — quality melody on the same rising edge
+      const lvl = _lvl;
       // feat 550 — a custom PR / progress clip wins, and plays even with the melody off
       if (!playCustomClip(lvl === 'pr' ? 'pr' : lvl === 'progress' ? 'progress' : null) && setQualityToneEnabled()) playSetQualityTone(lvl);
     }
@@ -35340,7 +35358,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 493 · 2026-11-20 12:47';
+const APP_BUILD = 'build 494 · 2026-11-20 17:13';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -35523,6 +35541,10 @@ function renderSoundMenu() {
       <button class="snd-chip" id="snd-metro-bpm-up" aria-label="${escapeAttr(t('Faster'))}">+</button>
       <button class="snd-chip ${metroCfg().mantra ? 'active' : ''}" id="snd-metro-mantra" title="${escapeAttr(t('Mantranome — chant the exercise\'s setup cues instead of ticks (up to 4 cycles per set)'))}">🧘</button>
     </div>
+    <div class="snd-src-title">${t('Coach voice')}${coachMuted() ? ' · ' + escapeHtml(coachMuteLabel()) : ''}</div>
+    <div class="snd-metro">${coachMuted()
+      ? `<button class="snd-chip wide active" data-snd-cmute="off">${t('🔊 Unmute the coach')}</button>`
+      : `<button class="snd-chip wide" data-snd-cmute="10">${t('🤐 Mute 10 min')}</button><button class="snd-chip wide" data-snd-cmute="workout">${t('This workout')}</button>`}</div>
     <button class="snd-test" id="snd-test-btn">${t('▶ Test')}</button>
     <button class="snd-more" id="snd-more-btn">${t('Sound settings →')}</button>
   `;
@@ -35536,6 +35558,7 @@ function renderSoundMenu() {
     _metroMantraIdx = 0; renderSoundMenu();
     toast(m.mantra ? '🧘 Mantranome on — cues chant up to 4 cycles per set' : 'Mantranome off');
   };
+  menu.querySelectorAll('[data-snd-cmute]').forEach(b => { b.onclick = () => { const m = b.dataset.sndCmute; coachMute(m === 'workout' || m === 'off' ? m : +m); renderSoundMenu(); toast(coachMuted() ? t('🤐 Coach muted') : t('🔊 Coach unmuted')); }; }); // feat 577
   menu.querySelector('#snd-audio-row').onclick = () => { sndState().audio = !sndAudioOn(); persistSound(); if (sndAudioOn()) soundPreviewBeep(); };
   menu.querySelector('#snd-haptic-row').onclick = () => { sndState().haptics = !sndHapticOn(); persistSound(); if (sndHapticOn()) safeVibrate([30]); };
   const range = menu.querySelector('#snd-vol-range');
@@ -35725,6 +35748,188 @@ function duckedVol() { return sndVol() * (_annDuckActive ? 0.3 : 1); }
 function _setAudioSessionType(t) { try { if (typeof navigator !== 'undefined' && navigator.audioSession && 'type' in navigator.audioSession) navigator.audioSession.type = t; } catch (_) {} }
 function _annDuckOn() { _annDuckActive = true; _setAudioSessionType('transient'); clearTimeout(_annDuckTimer); _annDuckTimer = setTimeout(_annDuckOff, 6000); } // safety: never stick ducked
 function _annDuckOff() { _annDuckActive = false; _setAudioSessionType('auto'); clearTimeout(_annDuckTimer); }
+/* ============================================================
+   feat 577 — WHAT THE COACH SAYS, IN ONE PLACE. Every spoken line used to be fired straight at the speech engine
+   from wherever it was written, each behind its own switch, so two could land back to back and there was no way
+   to say "less talk". Now each line is a named EVENT in a catalogue and goes through coachSay(), which decides:
+     · is this event on (its own switch; older lines keep the setting they always had)?
+     · how often (always, half the time, one in four)?
+     · is the coach muted (10 minutes, or the rest of this workout)?
+     · is there room in the talk budget (a minimum gap between lines, a cap per minute)? Countdowns and counts
+       (priority 0) always play; everything else is DROPPED when the budget is spent, never queued.
+     · is it the line that was just said?
+   pri: 0 = timing you rely on · 1 = information · 2 = flavour.
+   ============================================================ */
+const COACH_GROUPS = [['sets', 'Sets'], ['plan', 'Plan'], ['records', 'Records and targets'], ['rest', 'Rest'], ['holds', 'Holds and HIIT'], ['tips', 'Tips']];
+// i18n-keys: Sets | Plan | Records and targets | Rest | Holds and HIIT | Tips
+const COACH_EVENTS = [
+  { id: 'set.start', g: 'sets', pri: 1, label: 'Set start', hint: 'Where you are when you enter a weight: "Set 2 of 4".', sample: 'Set 2 of 4',
+    get: () => !!annunciationCfg().start, set: v => { state.annunciation = { ...(state.annunciation || {}), start: !!v }; } },
+  { id: 'set.trend', g: 'sets', pri: 2, def: true, label: 'Trend note on the first set', hint: 'One sentence on how this lift has been trending, added to the first set start.', sample: "Trending up — strength's climbed 4 percent lately. Keep it rolling." },
+  { id: 'set.end', g: 'sets', pri: 1, label: 'Set done', hint: 'Progress when you log the reps: "Half done", "One more".', sample: 'Half done',
+    get: () => !!annunciationCfg().end, set: v => { state.annunciation = { ...(state.annunciation || {}), end: !!v }; } },
+  { id: 'plan.next', g: 'plan', pri: 1, def: true, label: 'Next exercise', hint: 'Names the next step as you finish one (part of the set-done line).', sample: 'All done — time for Seated Row' },
+  { id: 'plan.half', g: 'plan', pri: 2, def: false, label: 'Halfway through the plan', hint: 'Said once, when half the steps are done.', sample: 'Halfway through the plan' },
+  { id: 'plan.last', g: 'plan', pri: 2, def: false, label: 'Last exercise', hint: 'Said when one step is left.', sample: 'One exercise left' },
+  { id: 'record.new', g: 'records', pri: 1, def: false, label: 'New record', hint: 'When a set beats your record: "New record — 205 for 8".', sample: 'New record — 205 for 8' },
+  { id: 'record.progress', g: 'records', pri: 2, def: false, label: 'Better than last time', hint: 'When a set beats your last session but is not a record.', sample: 'Better than last time' },
+  { id: 'target.open', g: 'records', pri: 1, def: false, label: 'Target when you pick an exercise', hint: 'Your best set from the last session: "Last time: 200 for 9. Beat it."', sample: 'Last time: 200 for 9. Beat it.' },
+  { id: 'rest.count', g: 'rest', pri: 0, label: 'Rest timer in words', hint: 'The rest countdown spoken instead of beeped. Needs the rest timer cues on.', sample: 'Time. Go.',
+    get: () => !!restCueCfg().voice, set: v => { state.restCues = { ...restCueCfg(), voice: !!v }; } },
+  { id: 'hold.count', g: 'holds', pri: 0, label: 'Timed-hold count', hint: 'Ready, set, go and the running count on a hold.', sample: 'Ready. Set. Go.',
+    get: () => !!holdCueCfg().enabled, set: v => { state.holdCue = { ...holdCueCfg(), enabled: !!v }; } },
+  { id: 'hiit.step', g: 'holds', pri: 0, def: true, label: 'HIIT steps', hint: 'Each work and rest step of a HIIT block.', sample: 'Work — burpees' },
+  { id: 'tip.select', g: 'tips', pri: 2, label: 'A tip when you pick an exercise', hint: 'One random cue for the exercise you just opened.', sample: 'Shoulders down and back.',
+    get: () => state.ttsTips !== false, set: v => { state.ttsTips = !!v; } },
+];
+// i18n-keys: Set start | Trend note on the first set | Set done | Next exercise | Halfway through the plan | Last exercise | New record | Better than last time | Target when you pick an exercise | Rest timer in words | Timed-hold count | HIIT steps | A tip when you pick an exercise
+// i18n-keys: Where you are when you enter a weight: "Set 2 of 4". | One sentence on how this lift has been trending, added to the first set start. | Progress when you log the reps: "Half done", "One more". | Names the next step as you finish one (part of the set-done line). | Said once, when half the steps are done. | Said when one step is left. | When a set beats your record: "New record — 205 for 8". | When a set beats your last session but is not a record. | Your best set from the last session: "Last time: 200 for 9. Beat it." | The rest countdown spoken instead of beeped. Needs the rest timer cues on. | Ready, set, go and the running count on a hold. | Each work and rest step of a HIIT block. | One random cue for the exercise you just opened.
+const COACH_FREQS = [['always', 'Every time'], ['half', 'Half the time'], ['quarter', 'One in four']];
+// i18n-keys: Every time | Half the time | One in four
+function coachEvent(id) { return COACH_EVENTS.find(e => e.id === id) || null; }
+function coachTalk() { const c = state.coachTalk; return { minGap: 0, perMin: 0, ...(c && typeof c === 'object' ? c : {}), ev: { ...((c && c.ev) || {}) } }; }
+function coachEventCfg(id) {
+  const e = coachEvent(id), st = coachTalk().ev[id] || {};
+  const on = !e ? false : e.get ? !!e.get() : (st.on != null ? !!st.on : !!e.def);
+  return { on, freq: COACH_FREQS.some(f => f[0] === st.freq) ? st.freq : 'always' };
+}
+function setCoachEvent(id, patch) {
+  const e = coachEvent(id); if (!e) return;
+  const c = coachTalk(), cur = { ...(c.ev[id] || {}) };
+  if (patch && 'on' in patch) { if (e.set) e.set(!!patch.on); else cur.on = !!patch.on; }
+  if (patch && patch.freq && COACH_FREQS.some(f => f[0] === patch.freq)) cur.freq = patch.freq;
+  c.ev[id] = cur; state.coachTalk = c; saveState();
+}
+function setCoachBudget(patch) {
+  const c = coachTalk();
+  if (patch && 'minGap' in patch) c.minGap = Math.max(0, Math.min(120, +patch.minGap || 0));
+  if (patch && 'perMin' in patch) c.perMin = Math.max(0, Math.min(20, +patch.perMin || 0));
+  state.coachTalk = c; saveState();
+}
+// Presets set the switches (and the budget) in one go; every one of them can then be changed on its own.
+const COACH_PRESETS = {
+  quiet:  { on: ['set.end', 'record.new'], minGap: 20, perMin: 3 },
+  normal: { on: ['set.start', 'set.end', 'plan.next', 'record.new'], minGap: 0, perMin: 0 },
+  chatty: { on: null, minGap: 0, perMin: 0 },                    // null = everything
+};
+function applyCoachPreset(name) {
+  const P = COACH_PRESETS[name]; if (!P) return;
+  const c = coachTalk();
+  COACH_EVENTS.forEach(e => {
+    if (e.pri === 0) return;                                     // timing cues belong to their own feature switches
+    const on = !P.on || P.on.indexOf(e.id) !== -1;
+    if (e.set) e.set(on); else c.ev[e.id] = { ...(c.ev[e.id] || {}), on };
+  });
+  c.minGap = P.minGap; c.perMin = P.perMin; c.preset = name;
+  state.coachTalk = c; saveState();
+}
+// Mute: runtime only (never synced, gone on reload) — a mute you forgot about must not silence next week.
+let _coachMuteUntil = 0, _coachMuteSession = null, _coachSaid = [], _coachLastText = '', _coachLastAt = 0;
+function coachMuted() {
+  if (_coachMuteSession) { const a = (typeof getActiveSession === 'function') ? getActiveSession() : null; if (a && a.date === _coachMuteSession) return true; _coachMuteSession = null; }
+  return Date.now() < _coachMuteUntil;
+}
+function coachMute(mode) {                                       // 'off' · a number of minutes · 'workout'
+  _coachMuteUntil = 0; _coachMuteSession = null;
+  if (mode === 'workout') { const a = (typeof getActiveSession === 'function') ? getActiveSession() : null; if (a) _coachMuteSession = a.date; else _coachMuteUntil = Date.now() + 3 * 3600e3; }
+  else if (+mode > 0) _coachMuteUntil = Date.now() + (+mode) * 60000;
+  try { if (mode !== 'off' && window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
+}
+function coachMuteLabel() {
+  if (!coachMuted()) return '';
+  return _coachMuteSession ? t('muted for this workout') : t('muted for {n} more min', { n: Math.max(1, Math.ceil((_coachMuteUntil - Date.now()) / 60000)) });
+}
+// May this event speak right now? Records the line when it may. opts.user = you pressed a button to hear it.
+function coachAllow(id, text, opts) {
+  if (opts && opts.user) return true;
+  const e = coachEvent(id); if (!e) return true;
+  if (coachMuted()) return false;
+  const cfg = coachEventCfg(id); if (!cfg.on) return false;
+  if (cfg.freq !== 'always' && Math.random() >= (cfg.freq === 'half' ? 0.5 : 0.25)) return false;
+  const now = Date.now(), T = coachTalk();
+  if (e.pri > 0) {
+    if (T.minGap > 0 && _coachLastAt && now - _coachLastAt < T.minGap * 1000) return false;
+    if (T.perMin > 0) { _coachSaid = _coachSaid.filter(x => now - x < 60000); if (_coachSaid.length >= T.perMin) return false; }
+    if (text && text === _coachLastText && now - _coachLastAt < 60000) return false;
+  }
+  _coachLastAt = now; _coachLastText = text || ''; _coachSaid.push(now);
+  return true;
+}
+function coachSay(id, text, opts) {
+  if (!text) return false;
+  if (!coachAllow(id, String(text), opts)) return false;
+  annunce(text);
+  return true;
+}
+// "205 for 8", or "40 seconds" on a hold — a set, said aloud
+function coachSetSpoken(varUuid, w, r) {
+  const hold = (typeof exMode === 'function') && exMode(varUuid).mode === 'time', W = parseFloat(w), R = parseFloat(r);
+  if (hold) return R + ' seconds' + (W > 0 ? ' at ' + W : '');
+  return (W > 0 ? W + ' for ' : '') + R + (W > 0 ? '' : ' reps');
+}
+// The best set of the last session that has this exercise (not today's) — what there is to beat.
+function coachLastBest(varUuid, subUuid) {
+  const active = (typeof getActiveSession === 'function') ? getActiveSession() : null;
+  const sess = (state.sessions || []).filter(x => x && x !== active).slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  for (const se of sess) {
+    let best = null;
+    (se.exercises || []).forEach(ex => {
+      if (ex.varUuid !== varUuid || ex.cardio || (subUuid && ex.subUuid && ex.subUuid !== subUuid)) return;
+      (ex.sets || []).forEach(st => { const w = parseFloat(st.w) || 0, r = parseFloat(st.r) || 0; if (!(r > 0)) return; const e1 = w > 0 ? estimated1RM(w, r) : r; if (!best || e1 > best.e) best = { w, r, e: e1 }; });
+    });
+    if (best) return best;
+  }
+  return null;
+}
+function coachSayTarget(varUuid, subUuid) {
+  if (!coachEventCfg('target.open').on) return false;
+  const b = coachLastBest(varUuid, subUuid); if (!b) return false;
+  return coachSay('target.open', 'Last time: ' + coachSetSpoken(varUuid, b.w, b.r) + '. Beat it.');
+}
+// Where the plan stands once the current exercise's step is done: { done, total } (the current step counted as done).
+function coachPlanProgress() {
+  const plan = (typeof getActivePlan === 'function') ? getActivePlan() : null, session = (typeof getActiveSession === 'function') ? getActiveSession() : null;
+  if (!plan || !session || !pending.varUuid) return null;
+  const steps = plan.steps || [], i = planStepForVar(session, plan, pending.varUuid);
+  if (i < 0 || steps.length < 2) return null;
+  let done = 0; steps.forEach((st, j) => { if (j === i || stepStatus(session, st, plan).done) done++; });
+  return { done, total: steps.length };
+}
+// The settings card: presets, the talk budget, mute, and one row per event.
+function coachTalkHtml() {
+  const T = coachTalk(), muted = coachMuteLabel();
+  const sel = (id, opts, cur) => `<select class="vw-select" id="${id}" style="max-width:150px;">${opts.map(([v, l]) => `<option value="${v}"${+cur === +v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+  const row = (e) => { const c = coachEventCfg(e.id);
+    return `<div class="drawer-setting-row ct-row">
+      <div><div class="drawer-setting-label">${t(e.label)}${e.pri === 0 ? ` <span class="ct-pri">${t('always plays')}</span>` : ''}</div><div class="drawer-setting-sub">${t(e.hint)}</div></div>
+      <div class="ct-ctl">
+        ${e.pri > 0 ? `<select class="vw-select ct-freq" data-ct-freq="${e.id}" aria-label="${escapeAttr(t('How often'))}"${c.on ? '' : ' disabled'}>${COACH_FREQS.map(([v, l]) => `<option value="${v}"${c.freq === v ? ' selected' : ''}>${t(l)}</option>`).join('')}</select>` : ''}
+        <div class="drawer-pill-group"><button class="drawer-pill ${c.on ? 'active' : ''}" data-ct-ev="${e.id}" data-ct-on="1">${t('On')}</button><button class="drawer-pill ${!c.on ? 'active' : ''}" data-ct-ev="${e.id}" data-ct-on="0">${t('Off')}</button></div>
+        <button class="drawer-pill ct-test" data-ct-test="${e.id}" title="${escapeAttr(t('Hear it'))}" aria-label="${escapeAttr(t('Hear it'))}">▶</button>
+      </div></div>`; };
+  return `<div class="ct-card">
+    <div class="drawer-setting-label">${t('🎚 How much the coach talks')}</div>
+    <div class="drawer-setting-sub">${t('Start from a preset, then switch any single line on or off below. Lines marked "always plays" are timing you rely on, so the limits never drop them.')}</div>
+    <div class="drawer-pill-group ct-presets">${[['quiet', t('Quiet')], ['normal', t('Normal')], ['chatty', t('Chatty')]].map(([v, l]) => `<button class="drawer-pill ${T.preset === v ? 'active' : ''}" data-ct-preset="${v}">${l}</button>`).join('')}</div>
+    <div class="drawer-setting-row"><div><div class="drawer-setting-label">${t('Shortest gap between lines')}</div><div class="drawer-setting-sub">${t('A line that would come sooner is skipped, not saved for later.')}</div></div>
+      ${sel('ct-gap', [[0, t('No limit')], [5, '5 s'], [10, '10 s'], [20, '20 s'], [30, '30 s'], [60, '60 s']], T.minGap)}</div>
+    <div class="drawer-setting-row"><div><div class="drawer-setting-label">${t('Most lines a minute')}</div></div>
+      ${sel('ct-permin', [[0, t('No limit')], [2, '2'], [3, '3'], [4, '4'], [6, '6']], T.perMin)}</div>
+    <div class="drawer-setting-row"><div><div class="drawer-setting-label">${t('🤐 Mute the coach')}</div><div class="drawer-setting-sub">${muted ? escapeHtml(muted) : t('Silence every line for a while. Also on the sound button, top right.')}</div></div>
+      <div class="drawer-pill-group"><button class="drawer-pill" data-ct-mute="10">${t('10 min')}</button><button class="drawer-pill" data-ct-mute="workout">${t('This workout')}</button><button class="drawer-pill ${muted ? '' : 'active'}" data-ct-mute="off">${t('Unmuted')}</button></div></div>
+    ${COACH_GROUPS.map(([g, name]) => `<div class="ct-group">${t(name)}</div>${COACH_EVENTS.filter(e => e.g === g).map(row).join('')}`).join('')}
+  </div>`;
+}
+function bindCoachTalk(body) {
+  const again = () => { try { renderSettingsDrawer(); } catch (_) {} };
+  body.querySelectorAll('[data-ct-preset]').forEach(b => b.addEventListener('click', () => { applyCoachPreset(b.dataset.ctPreset); again(); }));
+  body.querySelectorAll('[data-ct-ev]').forEach(b => b.addEventListener('click', () => { setCoachEvent(b.dataset.ctEv, { on: b.dataset.ctOn === '1' }); again(); }));
+  body.querySelectorAll('[data-ct-freq]').forEach(sl => sl.addEventListener('change', () => setCoachEvent(sl.dataset.ctFreq, { freq: sl.value })));
+  body.querySelectorAll('[data-ct-test]').forEach(b => b.addEventListener('click', () => { const e = coachEvent(b.dataset.ctTest); if (e) coachSay(e.id, e.sample, { user: true }); }));
+  body.querySelectorAll('[data-ct-mute]').forEach(b => b.addEventListener('click', () => { const m = b.dataset.ctMute; coachMute(m === 'workout' || m === 'off' ? m : +m); again(); }));
+  const gap = body.querySelector('#ct-gap'); if (gap) gap.addEventListener('change', () => setCoachBudget({ minGap: +gap.value }));
+  const pm = body.querySelector('#ct-permin'); if (pm) pm.addEventListener('change', () => setCoachBudget({ perMin: +pm.value }));
+}
 // Shared speaker for annunciation cues (the feat-207 set-end cues reuse it).
 function annunce(text) {
   try {
@@ -35791,8 +35996,8 @@ function annunceSetStart() {
   const pos = setPositionInfo();
   if (!annunceWithinLimit(pos, c.startLimit)) return; // feat 208
   let phrase = coachPhrase('setStart', setStartPhrase(pos), { pos }); // feat 296 — persona flavour
-  if (pos.x === 1) { const tc = setStartTrendComment(pending.varUuid); if (tc) phrase += '. ' + tc; } // feat 333 — first-set trend note
-  annunce(phrase);
+  if (pos.x === 1 && coachEventCfg('set.trend').on) { const tc = setStartTrendComment(pending.varUuid); if (tc) phrase += '. ' + tc; } // feat 333 — first-set trend note (feat 577: its own switch)
+  coachSay('set.start', phrase);
 }
 // feat 207 — set-END cues, spoken when a set completes (reps land): "One down — 3 to go",
 // "2 of 4 down", "Half done", "One more, then Squat", "All done — time for Squat".
@@ -35820,14 +36025,26 @@ function setEndPhrase(pos, nextLabel) {
   }
   return pos.x === 1 ? 'One down' : pos.x + ' down';
 }
-function annunceSetEnd() {
-  const c = annunciationCfg();
-  if (!c.end) return;
+// feat 577 — ONE utterance when a set completes: a record line first (if that event is on), then the set-done
+// line, then a plan milestone. They used to be separate calls, and each new one cut the last one off.
+// lvl: the set's quality ('pr' | 'progress' | …) when the caller worked it out; set: the completed set.
+function annunceSetEnd(lvl, set) {
+  const c = annunciationCfg(), parts = [];
+  if (set && lvl === 'pr' && coachEventCfg('record.new').on) parts.push(['record.new', 'New record — ' + coachSetSpoken(pending.varUuid, set.w, set.r)]);
+  else if (set && lvl === 'progress' && coachEventCfg('record.progress').on) parts.push(['record.progress', 'Better than last time']);
   const pos = setPositionInfo('end');
-  if (!pos.x) return;
-  if (!annunceWithinLimit(pos, c.endLimit)) return; // feat 208
-  const next = (pos.y && pos.x >= pos.y - 1) ? nextStepLabelAfterCurrent() : null;
-  annunce(coachPhrase('setEnd', setEndPhrase(pos, next), { pos })); // feat 296 — persona flavour
+  if (c.end && pos.x && annunceWithinLimit(pos, c.endLimit)) { // feat 208
+    const next = (pos.y && pos.x >= pos.y - 1 && coachEventCfg('plan.next').on) ? nextStepLabelAfterCurrent() : null;
+    parts.push(['set.end', coachPhrase('setEnd', setEndPhrase(pos, next), { pos })]); // feat 296 — persona flavour
+  }
+  if (pos.y && pos.x === pos.y) {                                // this step just finished: a plan milestone?
+    const pp = coachPlanProgress();
+    if (pp && pp.total - pp.done === 1 && coachEventCfg('plan.last').on) parts.push(['plan.last', 'One exercise left']);
+    else if (pp && pp.done === Math.ceil(pp.total / 2) && pp.done < pp.total - 1 && coachEventCfg('plan.half').on) parts.push(['plan.half', 'Halfway through the plan']);
+  }
+  if (!parts.length) return;
+  const spoken = parts.filter(([id, txt]) => coachAllow(id, txt));  // each line passes its own switch, frequency and the budget
+  if (spoken.length) annunce(spoken.map(x => x[1]).join('. '));
 }
 
 /* ---- Workout metronome (feat 69) — customizable audio + haptic; on/off is per-workout (runtime only). ---- */
@@ -36063,6 +36280,7 @@ function metroNextMantraTip(ex) {
 function metroSpeakNextTip() {
   try {
     if (!sndAudioOn() || !headphoneGatePasses()) return;
+    if (coachMuted()) return; // feat 577
     if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
     if (_metroSpeaking) return;
     const tip = metroNextMantraTip(metroMantraExercise());
@@ -36139,7 +36357,7 @@ function startHoldCue(i) {
   const gen = ++_holdCueGen;
   _holdCue = { i, gen, t1: null, t2: null, iv: null };
   const alive = () => !!_holdCue && _holdCue.gen === gen;
-  const say = (txt) => { try { if (alive() && typeof annunce === 'function') annunce(txt); } catch (_) {} };
+  const say = (txt) => { try { if (alive()) coachSay('hold.count', txt); } catch (_) {} };
   say('Ready');                                         // t = 0
   _holdCue.t1 = setTimeout(() => say('Set'), 900);      // t ≈ 0.9 s
   _holdCue.t2 = setTimeout(() => {                       // t ≈ 1.8 s — "Go": the timer starts here
@@ -36236,7 +36454,7 @@ function hiitCueStep(step) {
   const ex = step.label || '';
   const base = step.kind === 'prep' ? 'Get ready' : step.kind === 'rest' ? 'Rest' : ('Work — ' + ex);
   const kind = step.kind === 'work' ? 'hiitWork' : step.kind === 'rest' ? 'hiitRest' : 'hiitPrep';
-  try { if (typeof annunce === 'function') annunce(coachPhrase(kind, base, { ex })); } catch (_) {} // feat 296 — persona flavour
+  try { coachSay('hiit.step', coachPhrase(kind, base, { ex })); } catch (_) {} // feat 296 — persona flavour
   try { if (typeof metroBeep === 'function') metroBeep(step.kind === 'work' ? 988 : 660, 0.4); } catch (_) {}
 }
 function hiitTick() {
@@ -36872,7 +37090,7 @@ function restCuePhrase(kind, sec, dir) {
 }
 function restCueFire(kind, sec, dir) { // kind: 'tick' | 'interval' | 'end' | 'over' | 'slow'
   const c = restCueCfg();
-  if (c.voice) { const say = restCuePhrase(kind, sec, dir); if (say) annunce(say); }
+  if (c.voice) { const say = restCuePhrase(kind, sec, dir); if (say) coachSay('rest.count', say); }
   // ponytail: with voice on the beeps talk over the words — keep only the end triad, as a landmark.
   if (c.audio && (!c.voice || kind === 'end')) {
     const f = c.freq || 784;
