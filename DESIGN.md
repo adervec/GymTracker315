@@ -5528,3 +5528,8 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   Version row (`limbRowHtml`) that switches exercise through `startExerciseFromSuggestion`. `varVisibleInPicker` is NOT
   changed: plan options and suggestions still see every version. To add a pair, add a row; pairs that do not resolve are
   skipped and `limbversions.spec` fails on a dangling one.
+- **Home Arsenal (feat 585):** five seed plans (`seed-home-push / -pull / -lower / -upper / -full`) for small home equipment,
+  13 steps and 43 sets each (120 minutes by the estimate). Every option is a specific variation (`_vrOpt`), two to four per
+  step, so nothing needing a rack, cable stack or pull-up bar can match. Order: heavy compounds, then the small tools, then
+  grip / neck and core. The weighted vest has no catalogue entries, so the notes call for it. A plan's category follows the
+  FIRST option of each step, which is why the Full Body plan leads its mixed steps with a main-muscle exercise.
