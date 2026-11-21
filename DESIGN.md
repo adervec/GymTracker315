@@ -5519,3 +5519,12 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   takes them as `planIds` and uses each one for its day (a deleted plan falls back to the normal pick).
 - **Plan view lists by allocation (feat 583):** `_allocSetsToSteps` also returns `by[step][unit]`, and the execution view lists
   an exercise only under the steps its sets were counted toward. The counting itself is unchanged.
+- **One-limb versions fold under their exercise (feat 584):** `LIMB_VERSIONS` pairs a single-arm / single-leg variation with
+  the two-limb variation it belongs to ('family/variationId', same family). It is a LINK, not a conversion: the one-limb
+  version keeps its uuid, so history, records, notes, reference text and plan steps are untouched and no saved workout
+  is rewritten (a true sub-option would lose the reference text and plan matching, which is why feat 462 retired the
+  options that duplicated a variation). The browse list drops a version only when its parent is in the same list
+  (`foldLimbVersions`; a search, the favourites filter and a plan step's list show everything), and the sheet shows a
+  Version row (`limbRowHtml`) that switches exercise through `startExerciseFromSuggestion`. `varVisibleInPicker` is NOT
+  changed: plan options and suggestions still see every version. To add a pair, add a row; pairs that do not resolve are
+  skipped and `limbversions.spec` fails on a dangling one.

@@ -8224,6 +8224,110 @@ function applyExtraSecondaryParents() {
     if (uuid) _addSecondaryParent(uuid, base);
   }));
 }
+/* feat 584 — ONE-LIMB VERSIONS FOLD UNDER THEIR EXERCISE. "Single-Arm Preacher Curl Machine" next to "Preacher Curl
+   Machine" reads as two exercises in a list, but it is one machine used two ways. Each pair below is
+   [one-limb version, the exercise it belongs to], as 'family/variationId'.
+
+   The one-limb version stays a variation of its own: its history, records, notes, reference text and plan matching
+   are untouched, and nothing in a saved workout is rewritten (feat 462 retired the opposite idea, an option that
+   duplicated a variation, for exactly those reasons). What changes is where you find it: the exercise list shows
+   only the parent, and the parent's sheet has a "Both arms / Single arm" row that switches between the two. A search
+   still finds a one-limb version by name, and a list the parent is filtered out of still shows it, so it can never
+   become unreachable. A pair whose ids no longer resolve is skipped. */
+const LIMB_VERSIONS = [
+  ['flat-bench-press/db-bench-1arm', 'flat-bench-press/db-flat-bench'],   // Single-Arm DB Bench Press -> Dumbbell Flat Bench
+  ['flat-bench-press/chest-press-machine-1arm', 'flat-bench-press/fixed-chest-press'],   // Single-Arm Chest Press Machine -> Fixed Chest Press Machine
+  ['flat-bench-press/seated-cable-chest-press-1arm', 'flat-bench-press/cable-seated-chest-press'],   // Single-Arm Seated Cable Chest Press -> Seated Cable Chest Press
+  ['incline-bench-press/incline-db-press-1arm', 'incline-bench-press/db-incline'],   // Single-Arm Incline DB Press -> Incline DB Press
+  ['incline-bench-press/incline-press-machine-1arm', 'incline-bench-press/fixed-incline-press'],   // Single-Arm Incline Press Machine -> Fixed Incline Press Machine
+  ['chest-fly/pec-deck-1arm', 'chest-fly/pec-deck'],   // Single-Arm Pec Deck -> Pec Deck Machine
+  ['chest-fly/freemotion-crossover-1arm', 'chest-fly/freemotion-crossover'],   // Single-Arm Freemotion Cable Crossover -> Freemotion Cable Crossover
+  ['shoulder-press/db-shoulder-press-1arm', 'shoulder-press/db-shoulder-press'],   // Single-Arm Seated DB Shoulder Press -> DB Shoulder Press (Seated)
+  ['shoulder-press/shoulder-press-machine-1arm', 'shoulder-press/machine-shoulder-press'],   // Single-Arm Shoulder Press Machine -> Machine Shoulder Press (Fixed)
+  ['lateral-raise/machine-lateral-1arm', 'lateral-raise/machine-lateral'],   // Single-Arm Machine Lateral Raise -> Machine Lateral Raise
+  ['rear-delt/reverse-pec-deck-1arm', 'rear-delt/reverse-pec-deck'],   // Single-Arm Reverse Pec Deck -> Reverse Pec Deck
+  ['rear-delt/face-pull-1arm', 'rear-delt/face-pull'],   // Single-Arm Face Pull -> Face Pull
+  ['tricep-extension/lifefitness-triceps-1arm', 'tricep-extension/lifefitness-triceps-extension'],   // Single-Arm Triceps Extension Machine (Life Fitness) -> Triceps Extension Machine (Life Fitness)
+  ['tricep-extension/reverse-grip-pushdown-1arm', 'tricep-extension/reverse-grip-pushdown'],   // Single-Arm Reverse-Grip Pushdown -> Reverse-Grip Pushdown
+  ['tricep-extension/freemotion-pushdown-1arm', 'tricep-extension/freemotion-pushdown'],   // Single-Arm Freemotion Cable Pushdown -> Freemotion Cable Pushdown
+  ['pull-up/one-arm-dead-hang', 'pull-up/dead-hang'],   // One-Arm Dead Hang -> Dead Hang
+  ['lat-pulldown/lf-dual-pulley-pulldown-1arm', 'lat-pulldown/lf-dual-pulley-pulldown'],   // Single-Arm Lat Pulldown (Life Fitness Dual Pulley) -> Lat Pulldown (Life Fitness Dual Pulley)
+  ['lat-pulldown/straight-arm-pulldown-1arm', 'lat-pulldown/straight-arm-pulldown'],   // Single-Arm Straight-Arm Pulldown -> Straight-Arm Pulldown
+  ['row/lf-dual-pulley-row-1arm', 'row/lf-dual-pulley-row'],   // Single-Arm LF Dual Pulley Row -> LF Dual Pulley Row
+  ['row/freemotion-1arm-seated-row', 'row/freemotion-seated-row'],   // Freemotion 1-Arm Seated Row -> Freemotion Seated Row
+  ['shrugs/cable-shrug-1arm', 'shrugs/cable-shrug'],   // Single-Arm Cable Shrug -> Cable Shrug
+  ['shrugs/db-shrug-1arm', 'shrugs/db-shrug'],   // Single-Arm DB Shrug -> Dumbbell Shrug
+  ['bicep-curl/lifefitness-preacher-curl-1arm', 'bicep-curl/lifefitness-preacher-curl'],   // Single-Arm Preacher Curl Machine (Life Fitness) -> Preacher Curl Machine (Life Fitness)
+  ['bicep-curl/machine-bicep-curl-1arm', 'bicep-curl/machine-curl'],   // Single-Arm Machine Bicep Curl -> Machine Bicep Curl
+  ['bicep-curl/freemotion-preacher-curl-1arm', 'bicep-curl/freemotion-preacher-curl'],   // Single-Arm Freemotion Cable Preacher Curl -> Freemotion Cable Preacher Curl
+  ['hammer-curl/lifefitness-preacher-hammer-1arm', 'hammer-curl/lifefitness-preacher-hammer'],   // Single-Arm Hammer Curl (Life Fitness Preacher) -> Hammer Curl (Life Fitness Preacher)
+  ['reverse-curl/lifefitness-preacher-reverse-1arm', 'reverse-curl/lifefitness-preacher-reverse'],   // Single-Arm Reverse Curl (Life Fitness Preacher) -> Reverse Curl (Life Fitness Preacher)
+  ['leg-press/hack-squat-1leg', 'leg-press/hack-squat'],   // Single-Leg Hack Squat -> Hack Squat
+  ['hip-thrust/glute-drive-1leg', 'hip-thrust/glute-drive-machine'],   // Single-Leg Glute Drive Machine -> Glute Drive Machine (Booty Builder)
+  ['hip-thrust/nautilus-glute-bridge-1leg', 'hip-thrust/nautilus-glute-bridge'],   // Single-Leg Nautilus Glute Bridge Machine -> Nautilus Glute Bridge Machine
+  ['calf-raise/horizontal-calf-raise-single', 'calf-raise/horizontal-calf-raise'],   // Single-Leg Horizontal Calf Raise (Machine) -> Horizontal Calf Raise (Machine)
+  ['back-extension/single-leg-reverse-hyper', 'back-extension/reverse-hyper-machine'],   // Single-Leg Reverse Hyper -> Reverse Hyper Machine
+  ['roman-chair/roman-single-leg-back-ext', 'roman-chair/roman-back-ext-bw'],   // Single-Leg Back Extension -> Bodyweight Back Extension
+  ['core-stability/ab-wheel-single-arm', 'core-stability/ab-wheel'],   // Single-Arm Ab Wheel Rollout -> Ab Wheel Rollout
+  ['plyometrics/single-leg-pogo', 'plyometrics/pogo-hops'],   // Single-Leg Pogo Hops -> Pogo Hops
+  ['plyometrics/single-leg-broad-jump', 'plyometrics/broad-jump'],   // Single-Leg Broad Jump -> Broad Jump
+  ['trx-work/trx-single-arm-row', 'trx-work/trx-row'],   // TRX Single-Arm Row -> TRX Row
+  ['trx-work/trx-single-arm-chest-press', 'trx-work/trx-chest-press'],   // TRX Single-Arm Chest Press -> TRX Chest Press
+  ['trx-work/trx-single-leg-squat', 'trx-work/trx-squat'],   // TRX Single-Leg Squat -> TRX Squat
+  ['trx-work/trx-single-leg-hip-press', 'trx-work/trx-hip-press'],   // TRX Single-Leg Hip Press -> TRX Hip Press
+  ['front-raise/cable-front-raise-1arm', 'front-raise/cable-front-raise'],   // Single-Arm Cable Front Raise -> Cable Front Raise
+  ['grip-training/wr-one-arm', 'grip-training/wrist-roller'],   // One-Arm Wrist Roller -> Wrist Roller
+  ['rotator-cuff/cuban-press-single-arm', 'rotator-cuff/cuban-press-db'],   // Single-Arm DB Cuban Press -> DB Cuban Press
+  ['specialty-implements/power-twister-single-arm', 'specialty-implements/power-twister-bend'],   // Power Twister Single-Arm Bend -> Power Twister Bend
+  ['mace-club-work/mace-360-single', 'mace-club-work/mace-360-detailed'],   // Single-Arm Mace 360 -> Mace 360
+  ['mace-club-work/mace-single-arm-press', 'mace-club-work/mace-press'],   // Mace Single-Arm Press -> Mace Press
+  ['swiss-ball-work/sb-single-leg-wall-squat', 'swiss-ball-work/sb-wall-squat'],   // Single-Leg Ball Wall Squat -> Ball Wall Squat
+];
+const _LIMB_PARENT = new Map(), _LIMB_KIDS = new Map();
+function applyLimbVersions() {
+  const byId = new Map();
+  FAMILIES.forEach(f => (f.variations || []).forEach(v => { if (v.uuid) byId.set(f.id + '/' + v.id, v.uuid); }));
+  LIMB_VERSIONS.forEach(([c, par]) => {
+    const cu = byId.get(c), pu = byId.get(par);
+    if (!cu || !pu || cu === pu || isSuppressedVar(cu) || isSuppressedVar(pu) || _LIMB_PARENT.has(cu) || _LIMB_PARENT.has(pu) || _LIMB_KIDS.has(cu)) return;
+    _LIMB_PARENT.set(cu, pu);
+    if (!_LIMB_KIDS.has(pu)) _LIMB_KIDS.set(pu, []);
+    _LIMB_KIDS.get(pu).push(cu);
+  });
+}
+function limbParent(uuid) { return _LIMB_PARENT.get(uuid) || null; }
+// The exercise and its one-limb versions, whichever of them `uuid` is; null when it has none.
+function limbGroup(uuid) {
+  const parent = _LIMB_PARENT.get(uuid) || (_LIMB_KIDS.has(uuid) ? uuid : null);
+  return parent ? { parent, kids: _LIMB_KIDS.get(parent) || [] } : null;
+}
+function limbIsLeg(uuid) { const i = VAR_INDEX.get(uuid); return !!(i && /\bleg\b/i.test(i.variation.title)); }
+function limbLabel(uuid) {
+  const g = limbGroup(uuid); if (!g) return '';
+  const leg = limbIsLeg(g.kids[0]);
+  if (uuid === g.parent) return leg ? t('Both legs') : t('Both arms');
+  return leg ? t('Single leg') : t('Single arm');
+}
+// In a list: drop a one-limb version when its parent is in the same list (the parent's sheet offers it).
+function foldLimbVersions(vars) {
+  const here = new Set(vars.map(v => v.uuid));
+  return vars.filter(v => { const par = _LIMB_PARENT.get(v.uuid); return !(par && here.has(par)); });
+}
+function limbRowHtml(uuid) {
+  const g = limbGroup(uuid); if (!g) return '';
+  const trained = {};
+  (state.sessions || []).forEach(se => (se.exercises || []).forEach(ex => { if ((ex.varUuid === g.parent || g.kids.indexOf(ex.varUuid) !== -1) && ex.sets && ex.sets.length) {
+    const e = trained[ex.varUuid] || (trained[ex.varUuid] = { n: 0, last: null }); e.n++; if (!e.last || new Date(se.date) > new Date(e.last)) e.last = se.date; } }));
+  return `<div class="sub-select-wrap">
+      <span class="sub-select-label">${t('Version')}</span>
+      <div class="sub-chips" id="trk-limb-select" role="radiogroup" aria-label="${escapeAttr(t('Version'))}">
+        ${[g.parent].concat(g.kids).map(u => { const tr = trained[u], on = u === uuid;
+          return `<button type="button" class="sub-chip${on ? ' active' : ''}${tr ? ' trained' : ''}" role="radio" aria-checked="${on}" data-limb-pick="${u}" title="${escapeAttr(displayName(u))}">
+            <span class="sub-chip-lbl">${escapeHtml(limbLabel(u))}</span>
+            <span class="sub-chip-meta">${tr ? `✓ ${tr.n}× · ${escapeHtml(fmtAgo(tr.last))}` : 'not trained yet'}</span></button>`; }).join('')}
+      </div>
+    </div>`;
+}
 function secondaryParentsOf(uuid) { return _SECONDARY_PARENTS.get(uuid) || []; }            // secondary parent family ids for a variation
 function secondaryVarsForFamily(famId) { return _FAMILY_SECONDARY.get(resolveFamilyId(famId)) || []; } // vars cross-listed INTO a family
 function isSuppressedVar(uuid) { return _VAR_SUPPRESS.has(uuid); }
@@ -31817,6 +31921,7 @@ function filterVariations() {
       if (!q) return true;
       return searchMatchTokens(q, pickerSearchHay(v, f)); // feat 419 word-order-free · 487 keywords · 533 subs/muscles/equipment · 534 aliases
     });
+    if (!q && !favOnly && !stepSet) { const kept = foldLimbVersions(matchingVars); matchingVars.length = 0; kept.forEach(v => matchingVars.push(v)); } // feat 584
     matchingVars.sort((a, b) => (isFavVar(b.uuid) ? 1 : 0) - (isFavVar(a.uuid) ? 1 : 0)); // feat 178 — favorites float to the top of the family
     // feat 167 — variations whose SECONDARY parent is this family, appended at the bottom with a link to their home movement.
     const secondaryVars = [];
@@ -33026,6 +33131,7 @@ function renderSetsForm() {
     ${''/* feat 481 — the rest-cue HUD; filled + shown/hidden by refreshRestCueHud on the 1 s tick */}
     <div class="rc-hud" id="trk-rc-hud" style="display:none;"></div>
 
+    ${!modalState.isEditing ? limbRowHtml(pending.varUuid) : ''}
     ${sub ? `<div class="sub-select-wrap">
       <span class="sub-select-label">${escapeHtml(sub.label)}</span>
       <div class="sub-chips" id="trk-sub-select" role="radiogroup" aria-label="${escapeAttr(sub.label)}">
@@ -34674,6 +34780,9 @@ function bindSetsForm() {
   document.getElementById('trk-wt-expand')?.addEventListener('click', showWeightTablePopup); // feat 422 — the all-weights table
   document.getElementById('trk-fixw-open')?.addEventListener('click', showFixWeightsPopup); // feat 572 — holds
 
+  document.querySelectorAll('#trk-limb-select [data-limb-pick]').forEach(b => b.addEventListener('click', () => { // feat 584 — the other version is its own exercise
+    if (pending.varUuid !== b.dataset.limbPick) startExerciseFromSuggestion(b.dataset.limbPick);
+  }));
   document.querySelectorAll('#trk-sub-select [data-sub-pick]').forEach(b => b.addEventListener('click', () => { // feat 532 — in-app chips, not the OS dropdown
     if (pending.subUuid === b.dataset.subPick) return;
     pending.subUuid = b.dataset.subPick;
@@ -35382,6 +35491,7 @@ reconcileVariationParents(); // feat 167 — cross-list duplicate variations (on
 applyExtraVariations();
 applyExtraSecondaryParents(); // feat 301 — additive cross-listings (after extras exist in VAR_INDEX)
 reconcileVariationParents(); // feat 570 — again, now that EXTRA_VARIATIONS exist, so pairs that involve them resolve too (idempotent)
+applyLimbVersions(); // feat 584 — one-limb versions fold under their exercise (after every catalogue row exists)
 applyCustomVariations();
 installGlossaryHighlight();
 setTimeout(hrTryReconnect, 0); // feat 72 — auto-reconnect last HR device; deferred so it runs after boot completes (this INIT block is above the `let _hrConnected` declaration, so calling synchronously here hit its temporal-dead-zone and silently rejected — auto-reconnect never actually ran)
@@ -35511,7 +35621,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 498 · 2026-11-21 00:16';
+const APP_BUILD = 'build 499 · 2026-11-21 08:30';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
