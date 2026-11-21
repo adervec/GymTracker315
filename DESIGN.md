@@ -5511,3 +5511,11 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   placeholders. `cleanCoachText` (no control characters or angle brackets, 120 characters) runs on save AND on read,
   since the text syncs. Composed lines (set start / done, counts, tips) have no `tpl` and are not editable: the
   persona engine writes those. Edited in the sheet behind the row's pencil, saved as typed without a redraw.
+- **The Iron Hexagon (feat 582):** six seed plans (`seed-hex-*`) written as ONE split: Push, Pull, Legs (quads), Chest & Back,
+  Shoulders & Arms, Legs (hips and hamstrings). Each is 15 steps and 54 sets, which the estimate turns into 150 minutes.
+  The rule that makes them fit: a day leads with what its twin does not (flat bench / incline, pull-ups / rows, light / heavy
+  overhead, squat / deadlift), hip adduction is on both leg days, both core steps offer dynamic abs, obliques or a hold, and
+  no lower-back work sits the day before a leg day. A themed split may now carry `plans: [ids]`; `buildRecommendedSplit`
+  takes them as `planIds` and uses each one for its day (a deleted plan falls back to the normal pick).
+- **Plan view lists by allocation (feat 583):** `_allocSetsToSteps` also returns `by[step][unit]`, and the execution view lists
+  an exercise only under the steps its sets were counted toward. The counting itself is unchanged.
