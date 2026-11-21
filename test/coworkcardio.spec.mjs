@@ -98,3 +98,63 @@ test('cardio fatigue is opt-in: per-muscle recovery is identical; only Training 
   expect(r.onScore).toBeLessThan(r.offScore);      // readiness drops when the toggle is on…
   expect(r.onPenalty).toBeGreaterThan(0);          // …by the cardio penalty
 });
+
+// feat 579 — a GPS activity from Strava shows its Strava name and a rough outline of the route
+test('feat 579 — the route is kept as a shape only: 64 points at most, 0..100, never coordinates', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    // the well-known sample polyline: (38.5,-120.2) (40.7,-120.95) (43.252,-126.453)
+    const dec = decodePolyline('_p~iF~ps|U_ulLnnqC_mqNvxq`@');
+    const three = stravaRoute({ summary_polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' });
+    const nested = stravaRoute({ map: { summary_polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' } });
+    const circle = []; for (let i = 0; i < 500; i++) circle.push([45 + 0.01 * Math.sin(i / 500 * 2 * Math.PI), -75 + 0.01 * Math.cos(i / 500 * 2 * Math.PI) / Math.cos(45 * Math.PI / 180)]);
+    const big = stravaRoute({ latlng: circle });
+    const xs = big.filter((_, i) => i % 2 === 0), ys = big.filter((_, i) => i % 2 === 1);
+    return { dec, three, same: JSON.stringify(nested) === JSON.stringify(three), n: big.length / 2, ints: big.every(v => Number.isInteger(v) && v >= 0 && v <= 100),
+      box: [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)],
+      bad: [stravaRoute({ summary_polyline: '<img src=x onerror=1>' }), stravaRoute({ summary_polyline: 'ab' }), stravaRoute({ latlng: [[999, 1], ['a', 2]] }), stravaRoute({ route: [1, 2, 300, 4] }), stravaRoute({}), stravaRoute({ latlng: [[45, -75], [45, -75]] })],
+      svg: routeSvg(three), noSvg: routeSvg(['<b>', 1, 2, 3]) };
+  });
+  expect(r.dec).toEqual([[38.5, -120.2], [40.7, -120.95], [43.252, -126.453]]);
+  expect(r.three).toHaveLength(6);
+  expect(r.three.slice(0, 2)).toEqual([100, 99]);           // the start is the south-east corner: north is up, west is left (centred on the short side)
+  expect(r.same).toBe(true);
+  expect(r.n).toBe(64);                                      // 500 points come down to 64
+  expect(r.ints).toBe(true);
+  expect(r.box[0]).toBeLessThanOrEqual(2); expect(r.box[1]).toBeGreaterThanOrEqual(98);   // a circle on the ground stays a circle
+  expect(r.box[2]).toBeLessThanOrEqual(2); expect(r.box[3]).toBeGreaterThanOrEqual(98);
+  expect(r.bad).toEqual([null, null, null, null, null, null]);
+  expect(r.svg).toContain('<polyline');
+  expect(r.noSvg).toBe('');
+});
+
+test('feat 579 — imported cardio shows the Strava name and the outline; older imports are filled in', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.sessions = []; state.stravaActivities = [];
+    // an activity synced before this build: no map, no name on the session
+    coworkImportStrava({ activities: [{ id: '9001', name: 'Canal loop', sport_type: 'Run', start_date: '2026-11-10T12:00:00Z', elapsed_time: 1800, distance: 5000 }] });
+    const s0 = state.sessions.find(x => x.stravaId === '9001'); delete s0.exercises[0].cardio.name;
+    const before = { route: s0.exercises[0].cardio.route, dist: s0.exercises[0].cardio.distance };
+    // the next sync brings the map; a second activity arrives complete
+    coworkImportStrava({ activities: [
+      { id: '9001', name: 'Canal loop', sport_type: 'Run', start_date: '2026-11-10T12:00:00Z', elapsed_time: 1800, distance: 5000, summary_polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' },
+      { id: '9002', name: '<b>Hill</b> ride', sport_type: 'Ride', start_date: '2026-11-12T12:00:00Z', elapsed_time: 3600, distance: 20000, map: { summary_polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' } }] });
+    // a later sync without the map must not lose it
+    coworkImportStrava({ activities: [{ id: '9001', name: 'Canal loop', sport_type: 'Run', start_date: '2026-11-10T12:00:00Z', elapsed_time: 1800 }] });
+    const c1 = state.sessions.find(x => x.stravaId === '9001').exercises[0].cardio, c2 = state.sessions.find(x => x.stravaId === '9002').exercises[0].cardio;
+    const el = document.createElement('div');
+    el.innerHTML = state.sessions.map((s, i) => renderSession(s, false, i)).join('');
+    const rows = [...el.querySelectorAll('.cardio-ex')].map(x => ({ name: x.querySelector('.session-ex-name').firstChild.textContent, sub: x.querySelectorAll('.session-ex-sub').length, svg: !!x.querySelector('svg.route-outline polyline'), bold: !!x.querySelector('.session-ex-name b') }));
+    return { before, count: state.sessions.length, c1: { name: c1.name, pts: c1.route && c1.route.length }, c2: { name: c2.name, pts: c2.route && c2.route.length, dist: c2.distance }, rows,
+      kept: (state.stravaActivities.find(a => a.id === '9001').route || []).length, instr: /summary_polyline/.test(buildInstructionsMd('strava')) };
+  });
+  expect(r.before.route).toBeUndefined();
+  expect(r.before.dist).toBe(5);                       // the distance is now kept from the activity
+  expect(r.count).toBe(2);                             // never duplicated
+  expect(r.c1).toEqual({ name: 'Canal loop', pts: 6 });
+  expect(r.c2).toEqual({ name: '<b>Hill</b> ride', pts: 6, dist: 20 });
+  expect(r.kept).toBe(6);
+  expect(r.rows).toHaveLength(2);
+  for (const row of r.rows) { expect(row.svg).toBe(true); expect(row.sub).toBe(1); expect(row.bold).toBe(false); }   // the name is text, never markup
+  expect(r.rows.map(x => x.name).sort()).toEqual(['<b>Hill</b> ride', 'Canal loop']);
+  expect(r.instr).toBe(true);
+});

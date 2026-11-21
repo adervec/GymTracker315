@@ -5494,3 +5494,11 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   `both`, speaks after it ends. "Clip" with no clip saved still speaks, so a line never goes silent by accident.
   `recordClip()` uses MediaRecorder (8 s cap, the microphone is released on stop) and hands the take to the same
   trim editor as an upload. Clips stay on the device; they are not synced.
+- **Strava cardio: its name and a rough outline of the route (feat 579):** `normStravaActivity` keeps `distance`
+  (it was dropped before, so imported cardio had none) and `route`, built by `stravaRoute()` from
+  `summary_polyline` / `map.summary_polyline` / `latlng`. A route is a SHAPE only: at most 64 points as a flat list
+  of whole numbers 0..100 (longitude scaled by cos(latitude), the longer side filling the box). No coordinates are
+  stored or synced. `cleanRoute()` validates it wherever it is read, since it arrives in a cowork reply. Both fields
+  are set only when given, so a later sync without the map keeps the outline. The cardio entry carries `name` and
+  `route`; `stravaBackfillCardio()` fills them on sessions imported earlier. History shows the name as the title
+  (the sport moves to the line below) and `routeSvg()` in place of the runner. The channel instructions ask for the map.
