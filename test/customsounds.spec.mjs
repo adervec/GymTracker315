@@ -220,3 +220,54 @@ test('feat 578 — recording: press to start, press to stop, and the take opens 
   expect(r.name).toBe('Recording');
   await wipeClips(page);
 });
+
+test('feat 587 — a sound pack carries every clip and each line\'s words and sound; importing checks everything', async ({ page }) => {
+  await wipeClips(page);
+  const r = await page.evaluate(async () => {
+    state.coachTalk = { ev: {}, minGap: 0, perMin: 0 };
+    await saveCustomClip('pr', _song, 0, 2, 'airhorn.mp3'); await saveCustomClip('pr#2', _song, 0, 1, 'bell.wav'); await setClipVol('pr#2', 0.4);
+    await saveCustomClip('ev:record.new', _song, 0, 1.5, 'yeah.mp3');
+    setCoachEvent('record.new', { snd: 'both', text: 'Boom {set}' });
+    const pack = await buildSoundPack(), text = JSON.stringify(pack);
+    const out = { kind: pack.kind, keys: pack.clips.map(c => c.key).sort(), lines: pack.lines, wav: pack.clips.every(c => atob(c.wav).slice(0, 4) === 'RIFF') };
+    // another device: nothing there yet
+    for (const k of Object.keys(_clipBufs)) await removeCustomClip(k);
+    state.coachTalk = { ev: {}, minGap: 0, perMin: 0 };
+    out.res = await importSoundPack(text);
+    out.back = { keys: Object.keys(_clipBufs).sort(), vol: _clipMeta['pr#2'].vol, sec: _clipMeta.pr.sec, name: _clipMeta.pr.name, cfg: coachEventCfg('record.new').snd, text: state.coachTalk.ev['record.new'].text,
+      stored: (await _idbReq((await _clipStore('readonly')).getAllKeys())).sort(), plays: playCustomClip('ev:record.new') };
+    // hostile and broken packs
+    const good = pack.clips[0];
+    const evil = { kind: 'gymtracker-sound-pack', version: 1, clips: [
+      { key: 'not-a-moment', wav: good.wav }, { key: 'pr#9', wav: good.wav }, { key: 'ev:no.such.line', wav: good.wav }, { key: '__proto__', wav: good.wav },
+      { key: 'finish', wav: btoa('this is not audio at all, not even close to a wav file header') }, { key: 'finish', wav: 12345 }, null,
+      { key: 'progress', wav: good.wav, name: '<img src=x onerror=1>', vol: 99 } ],
+      lines: { 'record.new': { snd: 'explode', text: '<b>x</b>' }, 'no.such.line': { text: 'x' }, 'set.end': { text: 'composed lines have no words' } } };
+    for (const k of Object.keys(_clipBufs)) await removeCustomClip(k);
+    state.coachTalk = { ev: {}, minGap: 0, perMin: 0 };
+    out.evil = await importSoundPack(JSON.stringify(evil));
+    out.evilKeys = Object.keys(_clipBufs).sort(); out.evilMeta = _clipMeta.progress; out.evilLine = [coachEventCfg('record.new').snd, (state.coachTalk.ev['record.new'] || {}).text, (state.coachTalk.ev['set.end'] || {}).text];
+    out.junk = [await importSoundPack('not json'), await importSoundPack('{"kind":"something-else","clips":[]}'), await importSoundPack('[]')];
+    return out;
+  });
+  expect(r.kind).toBe('gymtracker-sound-pack');
+  expect(r.keys).toEqual(['ev:record.new', 'pr', 'pr#2']);
+  expect(r.lines).toEqual({ 'record.new': { snd: 'both', text: 'Boom {set}' } });
+  expect(r.wav).toBe(true);
+  expect(r.res).toEqual({ ok: 3, bad: 0, lines: 1 });
+  expect(r.back).toEqual({ keys: ['ev:record.new', 'pr', 'pr#2'], vol: 0.4, sec: 2, name: 'airhorn.mp3', cfg: 'both', text: 'Boom {set}', stored: ['ev:record.new', 'pr', 'pr#2'], plays: true });
+  expect(r.evil.ok).toBe(1);                                             // only the one real clip on a real moment
+  expect(r.evil.bad).toBe(7);
+  expect(r.evilKeys).toEqual(['progress']);
+  expect(r.evilMeta.name).toBe(' img src=x onerror=1 ');                 // a name is text, never markup
+  expect(r.evilMeta.vol).toBe(1);
+  expect(r.evilLine).toEqual(['voice', 'b x /b', undefined]);            // an unknown sound choice is ignored; words are cleaned
+  expect(r.junk).toEqual([null, null, null]);
+  await wipeClips(page);
+});
+
+test('feat 587 — Export and Import sit under Custom sounds', async ({ page }) => {
+  const r = await page.evaluate(() => { const el = document.createElement('div'); el.innerHTML = customSoundsHtml();
+    return [...el.querySelectorAll('[data-csnd-pack]')].map(b => b.dataset.csndPack + ':' + b.textContent); });
+  expect(r).toEqual(['export:Export', 'import:Import']);
+});

@@ -5533,3 +5533,12 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   step, so nothing needing a rack, cable stack or pull-up bar can match. Order: heavy compounds, then the small tools, then
   grip / neck and core. The weighted vest has no catalogue entries, so the notes call for it. A plan's category follows the
   FIRST option of each step, which is why the Full Body plan leads its mixed steps with a main-muscle exercise.
+- **Voice dials (feat 586):** `state.sound.voiceVol` (0.1 to 1, a share of the master volume) and `state.coachTune[personaId]`
+  = `{ rate, pitch }` multipliers on that persona's built-in profile (0.6 to 1.6, 0.5 to 1.5; 1 = as designed, and a
+  persona at 1 / 1 is not stored). Applied in `coachTuneApply`, called at the end of `coachify` and `coachifyAs`, so every
+  spoken line follows; with the defaults an utterance is byte-for-byte what it was.
+- **Sound packs (feat 587):** `buildSoundPack()` gathers every clip (base64 WAV, name, volume) and each line's `snd` / `text`
+  into `{ kind: 'gymtracker-sound-pack', version: 1, clips, lines }`. `importSoundPack(text)` is an import of outside data:
+  size-capped `appFont.parseJSON`, `clipKeyOk` (a known moment or `ev:<known event>`, optional `#2..#5`), a RIFF header,
+  a successful decode no longer than a clip, names stripped of markup, and lines applied through `setCoachEvent` (which
+  validates). Same-key clips are replaced; nothing else on the device is touched. Clips still do not sync.

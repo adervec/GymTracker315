@@ -153,7 +153,7 @@ test('feat 577 — the settings card: a row per line with a switch, how often, a
     return out;
   });
   expect(r.rows).toBe(r.events);
-  expect(r.groups).toBe(6);
+  expect(r.groups).toBe(7);          // six groups of lines, plus the Voice dials (feat 586)
   expect(r.presets).toBe(3);
   expect(r.freqOnTiming).toBe(false);          // a countdown is not "sometimes"
   expect(r.switched).toBe(true);
@@ -243,4 +243,54 @@ test('feat 581 — the sheet on a line edits its words as you type; the button p
   expect(r.reset).toEqual([undefined, 'Last time: {set}. Beat it.']);
   expect(r.lit).toBe(true);
   expect(r.noBox).toBe(true);
+});
+
+test('feat 586 — voice volume of its own, and speed and pitch per coach; untouched until you move a dial', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const mk = () => ({ rate: 0.95, volume: 0.8, pitch: undefined });
+    const ids = COACH_PERSONAS.filter(p => !p.sys).map(p => p.id), A = ids[0], B = ids[1];
+    state.coachPersona = A; state.coachTune = {}; state.sound = { audio: true, haptics: true, volume: 0.8 };
+    const out = { base: coachify(mk()) };
+    setCoachTune(A, { rate: 1.2, pitch: 0.8 }); setVoiceGain(0.5);
+    out.tuned = coachify(mk());
+    out.other = coachifyAs(mk(), B);                                    // another coach keeps its own speed and pitch, shares the voice volume
+    out.stored = JSON.parse(JSON.stringify(state.coachTune)); out.vv = state.sound.voiceVol;
+    setCoachTune(A, { rate: 99, pitch: -5 }); out.clamped = coachTune(A);
+    setCoachTune(A, { rate: 1, pitch: 1 }); out.cleared = state.coachTune[A];
+    state.coachTune = { [A]: { rate: 'fast', pitch: null } }; out.junk = coachTune(A);
+    setCoachTune('no-such-coach', { rate: 1.5 }); out.unknown = state.coachTune['no-such-coach'];
+    return out;
+  });
+  expect(r.base.rate).toBeCloseTo(r.base.rate, 5);
+  expect(r.base.volume).toBe(0.8);                                       // nothing changes by default
+  expect(r.tuned.rate).toBeCloseTo(r.base.rate * 1.2, 5);
+  expect(r.tuned.pitch).toBeCloseTo(r.base.pitch * 0.8, 5);
+  expect(r.tuned.volume).toBeCloseTo(0.4, 5);
+  expect(r.other.volume).toBeCloseTo(0.4, 5);
+  expect(Object.keys(r.stored)).toHaveLength(1);
+  expect(r.vv).toBe(0.5);
+  expect(r.clamped).toEqual({ rate: 1.6, pitch: 0.5 });
+  expect(r.cleared).toBeUndefined();
+  expect(r.junk).toEqual({ rate: 1, pitch: 1 });
+  expect(r.unknown).toBeUndefined();
+});
+
+test('feat 586 — the dials in settings save as you let go, speak a sample, and reset', async ({ page }) => {
+  await page.evaluate(() => { state.coachTune = {}; state.sound = { audio: true, haptics: true, volume: 1 }; openSettingsDrawer(); });
+  await page.waitForSelector('.ct-card #ct-rate');
+  const r = await page.evaluate(() => {
+    const set = (id, v) => { const el = document.querySelector(id); el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+    const P = activeCoachPersona().id;
+    set('#ct-rate', 120); set('#ct-pitch', 90); set('#ct-vvol', 60);
+    const out = { tune: coachTune(P), vv: voiceGain(), label: document.querySelector('#ct-rate-v').textContent, heard: window._said.length };
+    document.querySelector('.ct-card [data-ct-tune="reset"]').click();
+    out.after = [coachTune(P), voiceGain(), document.querySelector('#ct-rate').value, document.querySelector('#ct-vvol').value];
+    closeSettingsDrawer();
+    return out;
+  });
+  expect(r.tune).toEqual({ rate: 1.2, pitch: 0.9 });
+  expect(r.vv).toBe(0.6);
+  expect(r.label).toBe('120%');
+  expect(r.heard).toBe(3);                                               // one sample per dial let go
+  expect(r.after).toEqual([{ rate: 1, pitch: 1 }, 1, '100', '100']);
 });
