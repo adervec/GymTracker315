@@ -181,3 +181,66 @@ test('feat 577 — the sound button mutes the coach from anywhere', async ({ pag
   expect(r.after).toEqual(['off']);
   expect(r.un).toBe(true);
 });
+
+test('feat 581 — your own words for a line: {set} is filled in, plain text only, empty goes back to the built-in line', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    let v; for (const [u] of VAR_INDEX) { if (exMode(u).mode === 'standard') { v = u; break; } }
+    pending = { varUuid: v, subUuid: null, sets: [{ w: 205, r: 8 }] };
+    setCoachEvent('record.new', { on: true });
+    const say = () => { window._said = []; _coachLastText = ''; _coachLastAt = 0; annunceSetEnd('pr', { w: 205, r: 8 }); return window._said.slice(); };
+    const out = { builtIn: say() };
+    setCoachEvent('record.new', { text: '  Boom!  {set}.   <b>New</b> best {nope} ' });
+    out.own = say(); out.stored = state.coachTalk.ev['record.new'].text; out.sample = coachSample(coachEvent('record.new'));
+    setCoachEvent('record.new', { text: 'x'.repeat(300) }); out.len = state.coachTalk.ev['record.new'].text.length;
+    setCoachEvent('record.new', { text: '   ' }); out.cleared = state.coachTalk.ev['record.new'].text; out.back = say();
+    setCoachEvent('set.end', { text: 'nope' }); out.noTpl = (state.coachTalk.ev['set.end'] || {}).text;      // a composed line has no words to edit
+    state.coachTalk.ev['plan.last'] = { on: true, text: '<img src=x onerror=1>' }; out.dirty = coachLine('plan.last');   // synced-in text is cleaned when read
+    return out;
+  });
+  expect(r.builtIn).toEqual(['New record — 205 for 8']);
+  expect(r.own).toEqual(['Boom! 205 for 8. b New /b best']);
+  expect(r.stored).toBe('Boom! {set}. b New /b best {nope}');
+  expect(r.sample).toBe('Boom! 205 for 8. b New /b best');
+  expect(r.len).toBe(120);
+  expect(r.cleared).toBeUndefined();
+  expect(r.back).toEqual(['New record — 205 for 8']);
+  expect(r.noTpl).toBeUndefined();
+  expect(r.dirty).toBe('img src=x onerror=1');
+});
+
+test('feat 581 — the sheet on a line edits its words as you type; the button plays your wording; reset restores it', async ({ page }) => {
+  await page.evaluate(() => { openSettingsDrawer(); });
+  await page.waitForSelector('.ct-card [data-ct-snd="target.open"]');
+  const r = await page.evaluate(async () => {
+    const sheet = () => [...document.querySelectorAll('.choice-backdrop')].pop();
+    const out = { plain: document.querySelector('.ct-card [data-ct-snd="set.end"]').textContent, words: document.querySelector('.ct-card [data-ct-snd="target.open"]').textContent };
+    document.querySelector('.ct-card [data-ct-snd="target.open"]').click();
+    const inp = sheet().querySelector('#cs-text');
+    out.prefill = inp.value; out.hint = /\{set\}/.test(sheet().querySelector('.cs-words-hint').textContent);
+    inp.value = 'Beat {set} today'; inp.dispatchEvent(new Event('input', { bubbles: true }));
+    out.saved = state.coachTalk.ev['target.open'].text; out.same = sheet().querySelector('#cs-text') === inp;   // not redrawn under the caret
+    sheet().querySelector('[data-cs-test]').click();
+    out.heard = window._said.slice();
+    sheet().querySelector('[data-cs-reset]').click();
+    out.reset = [(state.coachTalk.ev['target.open'] || {}).text, sheet().querySelector('#cs-text').value];
+    sheet().querySelector('#cs-text').value = 'Go get {set}'; sheet().querySelector('#cs-text').dispatchEvent(new Event('input', { bubbles: true }));
+    sheet().querySelector('[data-cs-close]').click();
+    await new Promise(res => setTimeout(res, 350));
+    out.lit = document.querySelector('.ct-card [data-ct-snd="target.open"]').classList.contains('active');
+    document.querySelector('.ct-card [data-ct-snd="set.end"]').click();
+    out.noBox = !sheet().querySelector('#cs-text');
+    sheet().querySelector('[data-cs-close]').click();
+    closeSettingsDrawer();
+    return out;
+  });
+  expect(r.plain).toBe('🎵');
+  expect(r.words).toBe('✏️');
+  expect(r.prefill).toBe('Last time: {set}. Beat it.');
+  expect(r.hint).toBe(true);
+  expect(r.saved).toBe('Beat {set} today');
+  expect(r.same).toBe(true);
+  expect(r.heard).toEqual(['Beat 200 for 9 today']);
+  expect(r.reset).toEqual([undefined, 'Last time: {set}. Beat it.']);
+  expect(r.lit).toBe(true);
+  expect(r.noBox).toBe(true);
+});

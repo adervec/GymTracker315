@@ -5506,3 +5506,8 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   a chip per weight (tap removes it; logged weights are outlined), an Add box that takes one or several, and
   from / to / step (`weightRun`, 120 at most). Nothing is saved until Save; "Work the list out for me" saves an
   empty list, which is the automatic one. Storage is unchanged (`state.wtRungs`).
+- **Your own words for a coach line (feat 581):** an event with fixed wording carries `tpl` (and sample `vars`);
+  `coachLine(id, vars)` speaks `state.coachTalk.ev[id].text` when set, else `tpl`, filling `{set}` and dropping unknown
+  placeholders. `cleanCoachText` (no control characters or angle brackets, 120 characters) runs on save AND on read,
+  since the text syncs. Composed lines (set start / done, counts, tips) have no `tpl` and are not editable: the
+  persona engine writes those. Edited in the sheet behind the row's pencil, saved as typed without a redraw.

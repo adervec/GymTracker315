@@ -2621,6 +2621,9 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .csnd-clip input[type=range] { width: 84px; flex-shrink: 0; }
   .csnd-rec.rec { background: var(--danger); border-color: var(--danger); color: #fff; }
   .ct-snd.active { background: var(--accent-bg); border-color: var(--accent-border); }
+  .cs-words { display: block; margin: 4px 0 2px; } .cs-words span { display: block; font-size: 11.5px; color: var(--text2); margin-bottom: 4px; }
+  .cs-words input { width: 100%; box-sizing: border-box; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg2, transparent); color: var(--text); font: inherit; font-size: 15px; }
+  .cs-words-hint .wt-proj-toggle { margin: 4px 0 0; }
   /* feat 577 — what the coach says */
   .ct-card { border: 1px solid var(--border2); border-radius: 10px; padding: 10px 12px; margin: 4px 0 12px; background: var(--bg3); }
   .ct-presets { margin: 8px 0 4px; }
@@ -35479,7 +35482,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 496 · 2026-11-20 22:57';
+const APP_BUILD = 'build 497 · 2026-11-20 23:41';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -35890,11 +35893,11 @@ const COACH_EVENTS = [
   { id: 'set.end', g: 'sets', pri: 1, label: 'Set done', hint: 'Progress when you log the reps: "Half done", "One more".', sample: 'Half done',
     get: () => !!annunciationCfg().end, set: v => { state.annunciation = { ...(state.annunciation || {}), end: !!v }; } },
   { id: 'plan.next', g: 'plan', pri: 1, def: true, label: 'Next exercise', hint: 'Names the next step as you finish one (part of the set-done line).', sample: 'All done — time for Seated Row' },
-  { id: 'plan.half', g: 'plan', pri: 2, def: false, label: 'Halfway through the plan', hint: 'Said once, when half the steps are done.', sample: 'Halfway through the plan' },
-  { id: 'plan.last', g: 'plan', pri: 2, def: false, label: 'Last exercise', hint: 'Said when one step is left.', sample: 'One exercise left' },
-  { id: 'record.new', g: 'records', pri: 1, def: false, label: 'New record', hint: 'When a set beats your record: "New record — 205 for 8".', sample: 'New record — 205 for 8' },
-  { id: 'record.progress', g: 'records', pri: 2, def: false, label: 'Better than last time', hint: 'When a set beats your last session but is not a record.', sample: 'Better than last time' },
-  { id: 'target.open', g: 'records', pri: 1, def: false, label: 'Target when you pick an exercise', hint: 'Your best set from the last session: "Last time: 200 for 9. Beat it."', sample: 'Last time: 200 for 9. Beat it.' },
+  { id: 'plan.half', g: 'plan', pri: 2, def: false, label: 'Halfway through the plan', hint: 'Said once, when half the steps are done.', sample: 'Halfway through the plan', tpl: 'Halfway through the plan' },
+  { id: 'plan.last', g: 'plan', pri: 2, def: false, label: 'Last exercise', hint: 'Said when one step is left.', sample: 'One exercise left', tpl: 'One exercise left' },
+  { id: 'record.new', g: 'records', pri: 1, def: false, label: 'New record', hint: 'When a set beats your record: "New record — 205 for 8".', sample: 'New record — 205 for 8', tpl: 'New record — {set}', vars: { set: '205 for 8' } },
+  { id: 'record.progress', g: 'records', pri: 2, def: false, label: 'Better than last time', hint: 'When a set beats your last session but is not a record.', sample: 'Better than last time', tpl: 'Better than last time', vars: { set: '205 for 8' } },
+  { id: 'target.open', g: 'records', pri: 1, def: false, label: 'Target when you pick an exercise', hint: 'Your best set from the last session: "Last time: 200 for 9. Beat it."', sample: 'Last time: 200 for 9. Beat it.', tpl: 'Last time: {set}. Beat it.', vars: { set: '200 for 9' } },
   { id: 'rest.count', g: 'rest', pri: 0, label: 'Rest timer in words', hint: 'The rest countdown spoken instead of beeped. Needs the rest timer cues on.', sample: 'Time. Go.',
     get: () => !!restCueCfg().voice, set: v => { state.restCues = { ...restCueCfg(), voice: !!v }; } },
   { id: 'hold.count', g: 'holds', pri: 0, label: 'Timed-hold count', hint: 'Ready, set, go and the running count on a hold.', sample: 'Ready. Set. Go.',
@@ -35908,6 +35911,16 @@ const COACH_EVENTS = [
 const COACH_FREQS = [['always', 'Every time'], ['half', 'Half the time'], ['quarter', 'One in four']];
 // i18n-keys: Every time | Half the time | One in four
 function coachEvent(id) { return COACH_EVENTS.find(e => e.id === id) || null; }
+/* feat 581 — YOUR OWN WORDS. A line with fixed wording (`tpl`) can be rewritten; {set} and the like are filled in
+   when it is spoken. Plain text only, 120 characters; an empty text goes back to the built-in line. */
+const COACH_TEXT_MAX = 120;
+function cleanCoachText(v) { return String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, COACH_TEXT_MAX); }
+function coachLine(id, vars) {
+  const e = coachEvent(id); if (!e || !e.tpl) return '';
+  const own = cleanCoachText((coachTalk().ev[id] || {}).text);
+  return (own || e.tpl).replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null) ? String(vars[k]) : '').replace(/\s+/g, ' ').trim();
+}
+function coachSample(e) { return e.tpl ? coachLine(e.id, e.vars || {}) : e.sample; }
 function coachTalk() { const c = state.coachTalk; return { minGap: 0, perMin: 0, ...(c && typeof c === 'object' ? c : {}), ev: { ...((c && c.ev) || {}) } }; }
 function coachEventCfg(id) {
   const e = coachEvent(id), st = coachTalk().ev[id] || {};
@@ -35920,6 +35933,7 @@ function setCoachEvent(id, patch) {
   if (patch && 'on' in patch) { if (e.set) e.set(!!patch.on); else cur.on = !!patch.on; }
   if (patch && patch.freq && COACH_FREQS.some(f => f[0] === patch.freq)) cur.freq = patch.freq;
   if (patch && patch.snd && ['voice', 'clip', 'both'].indexOf(patch.snd) !== -1) cur.snd = patch.snd; // feat 578
+  if (patch && patch.text != null && e && e.tpl) { const tx = cleanCoachText(patch.text); if (tx && tx !== e.tpl) cur.text = tx; else delete cur.text; } // feat 581
   c.ev[id] = cur; state.coachTalk = c; saveState();
 }
 function setCoachBudget(patch) {
@@ -36019,7 +36033,7 @@ function coachLastBest(varUuid, subUuid) {
 function coachSayTarget(varUuid, subUuid) {
   if (!coachEventCfg('target.open').on) return false;
   const b = coachLastBest(varUuid, subUuid); if (!b) return false;
-  return coachSay('target.open', 'Last time: ' + coachSetSpoken(varUuid, b.w, b.r) + '. Beat it.');
+  return coachSay('target.open', coachLine('target.open', { set: coachSetSpoken(varUuid, b.w, b.r) }));
 }
 // Where the plan stands once the current exercise's step is done: { done, total } (the current step counted as done).
 function coachPlanProgress() {
@@ -36041,7 +36055,7 @@ function coachTalkHtml() {
         ${e.pri > 0 ? `<select class="vw-select ct-freq" data-ct-freq="${e.id}" aria-label="${escapeAttr(t('How often'))}"${c.on ? '' : ' disabled'}>${COACH_FREQS.map(([v, l]) => `<option value="${v}"${c.freq === v ? ' selected' : ''}>${t(l)}</option>`).join('')}</select>` : ''}
         <div class="drawer-pill-group"><button class="drawer-pill ${c.on ? 'active' : ''}" data-ct-ev="${e.id}" data-ct-on="1">${t('On')}</button><button class="drawer-pill ${!c.on ? 'active' : ''}" data-ct-ev="${e.id}" data-ct-on="0">${t('Off')}</button></div>
         <button class="drawer-pill ct-test" data-ct-test="${e.id}" title="${escapeAttr(t('Hear it'))}" aria-label="${escapeAttr(t('Hear it'))}">▶</button>
-        <button class="drawer-pill ct-snd ${c.snd !== 'voice' && hasCustomClip('ev:' + e.id) ? 'active' : ''}" data-ct-snd="${e.id}" title="${escapeAttr(t('Sound for this line'))}" aria-label="${escapeAttr(t('Sound for this line'))}">🎵</button>
+        <button class="drawer-pill ct-snd ${(c.snd !== 'voice' && hasCustomClip('ev:' + e.id)) || (coachTalk().ev[e.id] || {}).text ? 'active' : ''}" data-ct-snd="${e.id}" title="${escapeAttr(e.tpl ? t('Words and sound for this line') : t('Sound for this line'))}" aria-label="${escapeAttr(e.tpl ? t('Words and sound for this line') : t('Sound for this line'))}">${e.tpl ? '✏️' : '🎵'}</button>
       </div></div>`; };
   return `<div class="ct-card">
     <div class="drawer-setting-label">${t('🎚 How much the coach talks')}</div>
@@ -36064,6 +36078,9 @@ function openCoachSoundSheet(id, onClose) {
   const draw = () => {
     const c = coachEventCfg(id), has = hasCustomClip('ev:' + id);
     back.innerHTML = `<div class="choice-sheet"><div class="choice-title">🎵 ${t(e.label)}</div>
+      ${e.tpl ? `<label class="cs-words"><span>${t('What the coach says')}</span>
+        <input type="text" id="cs-text" maxlength="${COACH_TEXT_MAX}" autocomplete="off" value="${escapeAttr((coachTalk().ev[id] || {}).text || e.tpl)}"></label>
+        <div class="choice-msg cs-words-hint">${e.vars ? t('{set} is replaced with the set, for example "{example}".', { set: '{set}', example: e.vars.set }) : ''} <button type="button" class="wt-proj-toggle" data-cs-reset>${t('Back to the built-in words')}</button></div>` : ''}
       <div class="choice-msg">${t('Choose what you hear for this line. A clip only plays once you have added one below.')}</div>
       <div class="pud-seg" role="radiogroup" aria-label="${escapeAttr(t('Sound for this line'))}">
         ${[['voice', t('Voice')], ['clip', t('Clip only')], ['both', t('Clip, then voice')]].map(([v, l]) => `<button type="button" role="radio" aria-checked="${c.snd === v}" class="${c.snd === v ? 'active' : ''}" data-cs-mode="${v}"><b>${l}</b></button>`).join('')}
@@ -36072,10 +36089,12 @@ function openCoachSoundSheet(id, onClose) {
       ${clipSlotHtml('ev:' + id, t('Clips for this line'), t('None yet. Upload a file or record one.'))}
       <div class="choice-actions"><button class="choice-btn" data-cs-test>${t('▶ Hear the line')}</button><button class="choice-btn primary" data-cs-close>${t('Done')}</button></div></div>`;
     bindCustomSounds(back, draw);
+    const tx = back.querySelector('#cs-text'); if (tx) tx.addEventListener('input', () => setCoachEvent(id, { text: tx.value }));   // saved as you type; no redraw, so the caret stays
   };
   back.addEventListener('click', (ev) => {
     const m = ev.target.closest('[data-cs-mode]'); if (m) { setCoachEvent(id, { snd: m.dataset.csMode }); draw(); return; }
-    if (ev.target.closest('[data-cs-test]')) { coachSay(id, e.sample, { user: true }); return; }
+    if (ev.target.closest('[data-cs-test]')) { coachSay(id, coachSample(e), { user: true }); return; }
+    if (ev.target.closest('[data-cs-reset]')) { setCoachEvent(id, { text: '' }); draw(); return; }
     if (ev.target === back || ev.target.closest('[data-cs-close]')) close();
   });
   draw(); document.body.appendChild(back); requestAnimationFrame(() => back.classList.add('open'));
@@ -36085,7 +36104,7 @@ function bindCoachTalk(body) {
   body.querySelectorAll('[data-ct-preset]').forEach(b => b.addEventListener('click', () => { applyCoachPreset(b.dataset.ctPreset); again(); }));
   body.querySelectorAll('[data-ct-ev]').forEach(b => b.addEventListener('click', () => { setCoachEvent(b.dataset.ctEv, { on: b.dataset.ctOn === '1' }); again(); }));
   body.querySelectorAll('[data-ct-freq]').forEach(sl => sl.addEventListener('change', () => setCoachEvent(sl.dataset.ctFreq, { freq: sl.value })));
-  body.querySelectorAll('[data-ct-test]').forEach(b => b.addEventListener('click', () => { const e = coachEvent(b.dataset.ctTest); if (e) coachSay(e.id, e.sample, { user: true }); }));
+  body.querySelectorAll('[data-ct-test]').forEach(b => b.addEventListener('click', () => { const e = coachEvent(b.dataset.ctTest); if (e) coachSay(e.id, coachSample(e), { user: true }); }));
   body.querySelectorAll('[data-ct-snd]').forEach(b => b.addEventListener('click', () => openCoachSoundSheet(b.dataset.ctSnd, again))); // feat 578
   body.querySelectorAll('[data-ct-mute]').forEach(b => b.addEventListener('click', () => { const m = b.dataset.ctMute; coachMute(m === 'workout' || m === 'off' ? m : +m); again(); }));
   const gap = body.querySelector('#ct-gap'); if (gap) gap.addEventListener('change', () => setCoachBudget({ minGap: +gap.value }));
@@ -36191,8 +36210,8 @@ function setEndPhrase(pos, nextLabel) {
 // lvl: the set's quality ('pr' | 'progress' | …) when the caller worked it out; set: the completed set.
 function annunceSetEnd(lvl, set) {
   const c = annunciationCfg(), parts = [];
-  if (set && lvl === 'pr' && coachEventCfg('record.new').on) parts.push(['record.new', 'New record — ' + coachSetSpoken(pending.varUuid, set.w, set.r)]);
-  else if (set && lvl === 'progress' && coachEventCfg('record.progress').on) parts.push(['record.progress', 'Better than last time']);
+  if (set && lvl === 'pr' && coachEventCfg('record.new').on) parts.push(['record.new', coachLine('record.new', { set: coachSetSpoken(pending.varUuid, set.w, set.r) })]);
+  else if (set && lvl === 'progress' && coachEventCfg('record.progress').on) parts.push(['record.progress', coachLine('record.progress', { set: coachSetSpoken(pending.varUuid, set.w, set.r) })]);
   const pos = setPositionInfo('end');
   if (c.end && pos.x && annunceWithinLimit(pos, c.endLimit)) { // feat 208
     const next = (pos.y && pos.x >= pos.y - 1 && coachEventCfg('plan.next').on) ? nextStepLabelAfterCurrent() : null;
@@ -36200,11 +36219,11 @@ function annunceSetEnd(lvl, set) {
   }
   if (pos.y && pos.x === pos.y) {                                // this step just finished: a plan milestone?
     const pp = coachPlanProgress();
-    if (pp && pp.total - pp.done === 1 && coachEventCfg('plan.last').on) parts.push(['plan.last', 'One exercise left']);
-    else if (pp && pp.done === Math.ceil(pp.total / 2) && pp.done < pp.total - 1 && coachEventCfg('plan.half').on) parts.push(['plan.half', 'Halfway through the plan']);
+    if (pp && pp.total - pp.done === 1 && coachEventCfg('plan.last').on) parts.push(['plan.last', coachLine('plan.last')]);
+    else if (pp && pp.done === Math.ceil(pp.total / 2) && pp.done < pp.total - 1 && coachEventCfg('plan.half').on) parts.push(['plan.half', coachLine('plan.half')]);
   }
   if (!parts.length) return;
-  const spoken = parts.filter(([id, txt]) => coachAllow(id, txt));  // each line passes its own switch, frequency and the budget
+  const spoken = parts.filter(([id, txt]) => txt && coachAllow(id, txt));  // each line passes its own switch, frequency and the budget
   if (spoken.length) coachDeliver(spoken);
 }
 
