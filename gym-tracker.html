@@ -4713,6 +4713,17 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .wt-table td { padding: 6px 5px; text-align: right; border-top: 1px solid var(--border2); white-space: nowrap; }
 .wt-table td.wt-w { font-weight: 800; color: var(--accent); }
 .wt-table tr.wt-proj td { font-style: italic; opacity: .6; } /* feat 565 — projected, never logged */
+/* feat 580 — the weight list editor */
+.wl-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 34vh; overflow-y: auto; padding: 8px; margin: 6px 0 10px; border: 1px solid var(--border); border-radius: 10px; }
+.wl-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; min-height: 32px; border-radius: 999px; border: 1px dashed var(--border2); background: transparent; color: var(--text); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.wl-chip.logged { border-style: solid; border-color: var(--accent-border); }
+.wl-chip span { font-size: 10px; color: var(--text3); }
+.wl-chip:hover { border-color: var(--danger); } .wl-chip:hover span { color: var(--danger); }
+.wl-empty, .wl-count { font-size: 11.5px; color: var(--text3); }
+.wl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.wl-row label { font-size: 12px; color: var(--text2); min-width: 64px; }
+.wl-in { flex: 1; width: 48px; min-width: 0; max-width: 110px; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg2, transparent); color: var(--text); font: inherit; font-size: 14px; }
+.wl-in.wide { max-width: none; }
 .wt-proj-toggle { margin: 0 0 6px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border2); background: transparent; color: var(--text2); font: inherit; font-size: 11px; cursor: pointer; }
 .wt-table tbody tr { cursor: pointer; }
 .wt-table tbody tr:active { background: var(--bg3); }
@@ -33180,6 +33191,51 @@ function setExWeightRungs(varUuid, list) {
   if (list && list.length) state.wtRungs[varUuid] = list; else delete state.wtRungs[varUuid];
   saveState();
 }
+/* feat 580 — THE WEIGHT LIST EDITOR. One chip per weight (tap to remove), a box to add one or a few, and a
+   "from / to / step" row for a whole run of plates or pins. Nothing is saved until Save. `logged` marks the weights
+   that already have sets, so it is clear which ones the table shows either way. */
+function weightRun(from, to, step) {
+  from = +from; to = +to; step = Math.abs(+step);
+  if (!(from > 0) || !(to > 0) || !(step > 0)) return [];
+  if (to < from) { const x = from; from = to; to = x; }
+  const out = []; for (let i = 0; i < 120 && from + i * step <= to + 1e-9; i++) out.push(Math.round((from + i * step) * 100) / 100);
+  return out;
+}
+function openWeightListEditor(start, logged, onSave) {
+  let list = parseWeightRungs((start || []).join(' '));
+  const has = new Set((logged || []).map(Number));
+  const back = document.createElement('div'); back.className = 'choice-backdrop';
+  const close = () => { back.classList.remove('open'); setTimeout(() => back.remove(), 200); };
+  const chips = () => list.length ? list.map(w => `<button type="button" class="wl-chip${has.has(w) ? ' logged' : ''}" data-wl-del="${w}" aria-label="${escapeAttr(t('Remove {w}', { w }))}">${w}<span aria-hidden="true">✕</span></button>`).join('')
+    : `<div class="wl-empty">${t('No weights yet. Add some below, or save it empty to have the list worked out for you.')}</div>`;
+  back.innerHTML = `<div class="choice-sheet wl-sheet"><div class="choice-title">${t('Weights on this exercise')}</div>
+    <div class="choice-msg">${t('Every weight this exercise can be set to. Tap a weight to remove it. Outlined weights are ones you have logged.')}</div>
+    <div class="wl-count" id="wl-count"></div>
+    <div class="wl-chips" id="wl-chips"></div>
+    <div class="wl-row"><label for="wl-one">${t('Add')}</label><input id="wl-one" class="wl-in wide" type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeAttr(t('e.g. 212.5 or 90 95 100'))}"><button type="button" class="drawer-btn" data-wl="add">${t('＋ Add')}</button></div>
+    <div class="wl-row"><label for="wl-from">${t('Add a run')}</label><input id="wl-from" class="wl-in" type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeAttr(t('from'))}" aria-label="${escapeAttr(t('from'))}"><input id="wl-to" class="wl-in" type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeAttr(t('to'))}" aria-label="${escapeAttr(t('to'))}"><input id="wl-step" class="wl-in" type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeAttr(t('step'))}" aria-label="${escapeAttr(t('step'))}"><button type="button" class="drawer-btn" data-wl="run">${t('＋ Add')}</button></div>
+    <div class="wl-row"><button type="button" class="drawer-btn" data-wl="logged">${t('Add the weights I have logged')}</button><button type="button" class="drawer-btn danger" data-wl="clear">${t('Remove all')}</button></div>
+    <div class="choice-actions"><button class="choice-btn primary" data-wl="save">${t('Save')}</button><button class="choice-btn" data-wl="auto">${t('Work the list out for me')}</button><button class="choice-btn" data-wl="cancel">${t('Cancel')}</button></div></div>`;
+  const q = sel => back.querySelector(sel);
+  const draw = () => { q('#wl-chips').innerHTML = chips(); q('#wl-count').textContent = t.n('{n} weight', '{n} weights', list.length, { n: list.length }); };
+  const add = (ws) => { const before = list.length; list = parseWeightRungs(list.concat(ws).join(' ')); draw(); return list.length - before; };
+  const addOne = () => { const inp = q('#wl-one'), ws = parseWeightRungs(inp.value); if (!ws.length) { toast(t('Type a weight first')); return; } add(ws); inp.value = ''; inp.focus(); };
+  const addRun = () => { const ws = weightRun(parseFloat(q('#wl-from').value), parseFloat(q('#wl-to').value), parseFloat(q('#wl-step').value));
+    if (!ws.length) { toast(t('Fill in from, to and step')); return; } add(ws); ['#wl-from', '#wl-to', '#wl-step'].forEach(x => { q(x).value = ''; }); };
+  back.addEventListener('click', (e) => {
+    const del = e.target.closest('[data-wl-del]'); if (del) { const w = +del.dataset.wlDel; list = list.filter(x => x !== w); draw(); return; }
+    const b = e.target.closest('[data-wl]'), act = b && b.dataset.wl;
+    if (act === 'add') addOne();
+    else if (act === 'run') addRun();
+    else if (act === 'logged') add([...has]);
+    else if (act === 'clear') { list = []; draw(); }
+    else if (act === 'save') { close(); onSave(list); }
+    else if (act === 'auto') { close(); onSave([]); }
+    else if (act === 'cancel' || e.target === back) close();
+  });
+  back.addEventListener('keydown', (e) => { if (e.key !== 'Enter') return; if (e.target.id === 'wl-one') { e.preventDefault(); addOne(); } else if (/^wl-(from|to|step)$/.test(e.target.id)) { e.preventDefault(); addRun(); } });
+  draw(); document.body.appendChild(back); requestAnimationFrame(() => back.classList.add('open'));
+}
 function exWeightGaps(R, varUuid) {
   const ws = R.rows.map(r => r.w).sort((a, b) => a - b);
   const projRow = (w) => { const r = Math.max(1, Math.round(30 * (R.cap / w - 1))); const odds = need => Math.round(100 / (1 + Math.exp(-((30 * (R.cap / w - 1)) - need) / 1.5)));
@@ -33880,11 +33936,10 @@ function showWeightTablePopup() {
       if (hideProj()) delete state.wtHideProj[pending.varUuid]; else state.wtHideProj[pending.varUuid] = true;
       saveState(); back.querySelector('.wt-proj-bar').innerHTML = projBtn(); back.querySelector('tbody').innerHTML = tbody(); return;
     }
-    if (e.target.closest('[data-wt-rungs]')) { // feat 575 — write the machine's real weights by hand
+    if (e.target.closest('[data-wt-rungs]')) { // feat 575 — the machine's real weights, by hand (feat 580: an editor, not a comma list)
       const v = pending.varUuid, cur = exWeightRungs(v) || R.rows.map(r => r.w).concat(gaps.map(g => g.w)).sort((a, b) => a - b);
-      promptDialog({ title: t('Weights on this exercise'), message: t('List every weight this exercise can be set to, separated by commas or spaces: odd pin positions, half steps, whatever the stack really has. Weights you have not logged yet show as projected rows. Leave it empty to have the missing weights worked out for you.'), value: cur.join(', '), placeholder: t('e.g. 10, 20, 27.5, 35, 50'), maxLength: 900 }).then(val => {
-        if (val == null) return;
-        setExWeightRungs(v, parseWeightRungs(val));
+      openWeightListEditor(cur, R.rows.map(r => r.w), (list) => {
+        setExWeightRungs(v, list);
         gaps = exWeightGaps(R, v);
         back.querySelector('.wt-proj-bar').innerHTML = projBtn(); back.querySelector('tbody').innerHTML = tbody();
         toast(exWeightRungs(v) ? t('Weight list saved') : t('Back to the automatic list'));
@@ -35424,7 +35479,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 495 · 2026-11-20 22:10';
+const APP_BUILD = 'build 496 · 2026-11-20 22:57';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

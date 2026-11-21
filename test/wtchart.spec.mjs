@@ -129,14 +129,19 @@ test('feat 575 — a hand-written weight list replaces the worked-out one: odd p
   expect((await rows()).filter(r => r.startsWith('p'))).toEqual([]);
   expect(await page.evaluate(() => document.querySelector('[data-wt-rungs]').textContent)).toMatch(/Set the weight list/);
   await page.evaluate(() => document.querySelector('.choice-backdrop [data-wt-rungs]').click());
-  const prefill = await page.evaluate(() => [...document.querySelectorAll('.choice-backdrop')].pop().querySelector('input').value);
-  expect(prefill).toBe('200, 207, 215, 222');                     // starts from what is there
+  // feat 580 — an editor, not a comma list: a chip per weight, add one or a few, add a run, remove by tapping
+  const ed = () => page.evaluate(() => { const d = [...document.querySelectorAll('.choice-backdrop')].pop(); return { chips: [...d.querySelectorAll('.wl-chip')].map(c => c.dataset.wlDel), logged: d.querySelectorAll('.wl-chip.logged').length, count: d.querySelector('#wl-count').textContent }; });
+  expect(await ed()).toEqual({ chips: ['200', '207', '215', '222'], logged: 4, count: '4 weights' });   // starts from what is there
   await page.evaluate(() => {
-    const dlg = [...document.querySelectorAll('.choice-backdrop')].pop(), inp = dlg.querySelector('input');
-    inp.value = '200, 207 212.5; 215, 222, 230, 230, junk, -5';
-    inp.dispatchEvent(new Event('input', { bubbles: true }));
-    [...dlg.querySelectorAll('.choice-btn')].find(b => /primary/.test(b.className) || /ok|save/i.test(b.textContent)).click();
+    const d = [...document.querySelectorAll('.choice-backdrop')].pop(), set = (id, v) => { d.querySelector(id).value = v; };
+    set('#wl-one', '212.5, junk -5 230 230'); d.querySelector('[data-wl="add"]').click();           // several at once; junk and repeats dropped
+    set('#wl-from', '240'); set('#wl-to', '250'); set('#wl-step', '5'); d.querySelector('[data-wl="run"]').click();   // a run: 240, 245, 250
+    d.querySelector('[data-wl-del="245"]').click(); d.querySelector('[data-wl-del="240"]').click(); d.querySelector('[data-wl-del="250"]').click();
   });
+  expect(await ed()).toEqual({ chips: ['200', '207', '212.5', '215', '222', '230'], logged: 4, count: '6 weights' });
+  expect(await page.evaluate(() => [weightRun(90, 105, 5), weightRun(10, 5, 2.5), weightRun(5, 10, 0), weightRun(1, 5000, 1).length])).toEqual([[90, 95, 100, 105], [5, 7.5, 10], [], 120]);
+  expect(await page.evaluate(() => Object.keys(state.wtRungs).length)).toBe(0);                     // nothing is saved until Save
+  await page.evaluate(() => [...document.querySelectorAll('.choice-backdrop')].pop().querySelector('[data-wl="save"]').click());
   await page.waitForFunction(() => document.querySelectorAll('.wt-table tr.wt-proj').length === 2);
   expect((await rows()).sort()).toEqual(['200', '207', '215', '222', 'p212.5', 'p230'].sort());
   const saved = await page.evaluate(() => ({ list: Object.values(state.wtRungs)[0], label: document.querySelector('[data-wt-rungs]').textContent, parse: parseWeightRungs(' 5,5 ,10') }));

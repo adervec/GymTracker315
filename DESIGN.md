@@ -5502,3 +5502,7 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   are set only when given, so a later sync without the map keeps the outline. The cardio entry carries `name` and
   `route`; `stravaBackfillCardio()` fills them on sessions imported earlier. History shows the name as the title
   (the sport moves to the line below) and `routeSvg()` in place of the runner. The channel instructions ask for the map.
+- **Weight list editor (feat 580):** the comma-separated prompt of feat 575 is replaced by `openWeightListEditor(start, logged, onSave)`:
+  a chip per weight (tap removes it; logged weights are outlined), an Add box that takes one or several, and
+  from / to / step (`weightRun`, 120 at most). Nothing is saved until Save; "Work the list out for me" saves an
+  empty list, which is the automatic one. Storage is unchanged (`state.wtRungs`).
