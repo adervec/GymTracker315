@@ -5549,3 +5549,23 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   log shows `appFont.fmt.iso(d).slice(11, 19)` (time with seconds). Do not call `toLocaleDateString` /
   `toLocaleTimeString` / `new Intl.DateTimeFormat` in the app; the standards check's `iso` column fails on them (the
   inlined font.js is skipped). Note: `appFont.fmt` needs a current font.js; re-embed with `tools/embed-fontjs.mjs`.
+- **Cowork through the cloud (feat 589, house standard 3, cowork protocol v5):** the folder method is gone. The I/O layer
+  writes and reads `appFont.cloud`: path `a/b.json` is the file `cowork-gymtracker--a--b.json` (`coworkCloudName`), the
+  runner (CoworkSyncHub/runner.py) finds the app by `cowork-gymtracker--cowork.json` and answers into each channel's
+  `inbox/`. Everything above the I/O is unchanged: channels, envelopes, requestHash, the review gate, undo, the device
+  ledger, the schedule and the designated device.
+  - **Only what changed is written** (`_coworkWriteFile`): the comparison leaves out the timestamps this run stamped
+    (`_coworkRunAt`) and the requestHash they feed, so an unchanged request is never a new request for the runner (each
+    new request is a paid AI call). `declared[dir]` moves only when context.json is really rewritten. A tap clears the
+    cache and sends everything. Do NOT log on a successful send: the analysis request carries the app log, so a log
+    line per send made every send a new request (found while testing).
+  - **Replies:** listed once per check, taken in name order, moved to `processed/` and recorded in `applied.json`
+    (`cowork-applied` v1, last 500 djb2 hashes, the same list cowork.js keeps), so a reply taken on one device is never
+    taken on another. A reply whose hash is in the device ledger or in applied.json is archived without applying.
+  - **Sign-in:** a scheduled run uses an existing `appFont.cloud` sign-in; only a tap may show Google's window
+    (`coworkCloudReady(tap)`), as cowork.js does. Works on the phone: no `showDirectoryPicker` gate any more.
+  - **The runner sends only request files.** The instructions no longer point at `../app-export.json`; the analysis
+    channel lists it as a request file instead (`'../app-export.json'` = root-relative in the manifest). The runner's
+    AI has no tools, so the Garmin and Strava channels cannot fetch from those services themselves.
+  - Settings: the cowork section is no longer nested under the desktop-only AI export folder. app-data.json declares
+    `cowork-gymtracker--*` in the drive list. The AI brief export folder (a plain export) stays.

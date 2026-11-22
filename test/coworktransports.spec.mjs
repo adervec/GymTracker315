@@ -169,10 +169,6 @@ test('feat 460 — every run records WHERE it went, and API spend accumulates', 
   const r = await page.evaluate(async () => {
     normalizeState();
     state.coworkLocal.history = [];
-    // the folder label is a device-local annotation; the leaf name is the fallback
-    const fallback = coworkFolderLabel({ name: 'Claude' });
-    state.coworkLocal.dirLabel = 'D:\Sync\Claude\GymTracker';
-    const labelled = coworkFolderLabel({ name: 'Claude' });
     // cloud + api runs carry their provider / model
     state.cloudSync = { ...(state.cloudSync || {}), provider: 'gdrive', enabled: false };
     await coworkCloudSyncRun(true);
@@ -188,11 +184,9 @@ test('feat 460 — every run records WHERE it went, and API spend accumulates', 
     const t1 = { ...aiApiCfg().totals };
     state.analysisRequests[0].status = 'pending';        // ask again → totals accumulate
     await coworkAnalysisViaApi(false);
-    return { fallback, labelled, cloudTarget: cloud.target, apiTarget: api.target, t1, t2: aiApiCfg().totals,
+    return { cloudTarget: cloud.target, apiTarget: api.target, t1, t2: aiApiCfg().totals,
       notSynced: !Object.keys(syncPayload()).includes('aiApi') };
   });
-  expect(r.fallback, 'with no annotation the leaf name stands in').toBe('Claude');
-  expect(r.labelled).toBe('D:\Sync\Claude\GymTracker');
   expect(r.cloudTarget).toBe('gdrive');
   expect(r.apiTarget).toBe('claude-haiku-4-5-20251001');
   expect(r.t1).toMatchObject({ calls: 1, inTok: 1000000, outTok: 200000 });

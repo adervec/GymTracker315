@@ -109,10 +109,8 @@ test('feat 511 — every hub export writes brief.json and BRIEF.md', async ({ pa
   await seed(page);
   const r = await page.evaluate(async () => {
     const written = [];
-    if (!('showDirectoryPicker' in window)) window.showDirectoryPicker = () => {};
-    const dir = () => ({ name: 'hub', getDirectoryHandle: async () => dir() });
-    coworkResolveRoot = async () => { const sub = {}; COWORK_DIRS.forEach(d => { sub[d] = dir(); }); return { root: dir(), sub, perm: 'granted' }; };
-    _coworkWriteFile = async (_d, name, text) => { written.push({ name, text }); };
+    coworkCloudReady = async () => true;                     // feat 589 — the cloud stands in for the folder
+    _coworkWriteFile = async (name, text) => { written.push({ name, text }); return true; };
     state.cowork = { ...(state.cowork || {}), enabled: true, minExportGapSec: 0 };
     state.coworkLocal = { ...(state.coworkLocal || {}), declared: {}, lastExportHash: null, lastBriefHash: null };
     const ok1 = await coworkExportNow(true);
@@ -133,12 +131,12 @@ test('feat 511 — the poll refresh skips an unchanged brief and rewrites a chan
   await seed(page);
   const r = await page.evaluate(async () => {
     let n = 0;
-    _coworkWriteFile = async (_d, name) => { if (name === 'brief.json') n++; };
+    _coworkWriteFile = async (name) => { if (name === 'brief.json') n++; return true; };
     state.coworkLocal = { ...(state.coworkLocal || {}), lastBriefHash: null };
-    const a = await coworkWriteBrief({}, false);           // first: writes
-    const b = await coworkWriteBrief({}, false);           // identical content: skipped
+    const a = await coworkWriteBrief(false);               // first: writes
+    const b = await coworkWriteBrief(false);               // identical content: skipped
     state.analysisRequests.push({ id: 'q2', q: 'Am I neglecting legs?', created: new Date().toISOString(), status: 'pending' });
-    const c = await coworkWriteBrief({}, false);           // new data: writes again
+    const c = await coworkWriteBrief(false);               // new data: writes again
     return { a, b, c, n };
   });
   expect(r.a).toBe(true);
