@@ -1,0 +1,23 @@
+#!/bin/sh
+# This repo points core.hooksPath at .githooks (for the build stamp in pre-commit), which hides the machine-wide
+# hooks set with `git config --global core.hooksPath`. So the machine-wide pre-push check (house standard 26:
+# nothing personal goes to GitHub) never ran here. This hook hands over to it, so GymTracker is checked exactly
+# like every other repo, by the same script.
+# To push past it once, knowingly: git push --no-verify
+g="$(git config --global --get core.hooksPath 2>/dev/null)"
+if [ -n "$g" ] && [ -x "$g/pre-push" ]; then exec "$g/pre-push" "$@"; fi
+
+# No machine-wide hook on this machine (a fresh clone, CI): run the same check directly when the hub is beside us.
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+hub="$(dirname "$top")/CoworkSyncHub"
+[ -f "$hub/leak-check.mjs" ] || exit 0
+command -v node >/dev/null 2>&1 || exit 0
+out=$(node "$hub/leak-check.mjs" "$top" --no-history 2>&1)
+if [ $? -ne 0 ]; then
+  echo "$out"
+  echo ""
+  echo "PUSH STOPPED: personal data found in this repo (house standard 26)."
+  echo "Remove it from git, or list a made-up file in .leak-ok. To push anyway: git push --no-verify"
+  exit 1
+fi
+exit 0

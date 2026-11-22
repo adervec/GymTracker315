@@ -5542,3 +5542,4 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   size-capped `appFont.parseJSON`, `clipKeyOk` (a known moment or `ev:<known event>`, optional `#2..#5`), a RIFF header,
   a successful decode no longer than a clip, names stripped of markup, and lines applied through `setCoachEvent` (which
   validates). Same-key clips are replaced; nothing else on the device is touched. Clips still do not sync.
+- **Pre-push check:** this repo sets `core.hooksPath` to `.githooks` (for the build stamp), which hides the machine-wide hooks. `.githooks/pre-push` hands over to the machine-wide `pre-push` (house standard 26, the leak check) so GymTracker is checked by the same script as every other repo; with no machine-wide hook it runs `../CoworkSyncHub/leak-check.mjs . --no-history` itself.
