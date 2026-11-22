@@ -36,19 +36,19 @@ test('feat 459 — a channel switched off is neither declared in the manifest no
     normalizeState();
     const allOn = buildCoworkManifest().channels.map(c => c.name);
     const defaults = COWORK_CHANNELS.map(c => coworkChannelOn(c.key));
-    state.cowork.channels.garmin = false;
-    state.cowork.channels.strava = false;
+    state.cowork.channels.gyms = false;
+    state.cowork.channels.summaries = false;
     const some = buildCoworkManifest().channels.map(c => c.name);
     const active = coworkActiveChannels().map(c => c.key);
     // an older synced state with no `channels` key keeps every channel live
     delete state.cowork.channels; normalizeState();
     return { allOn, defaults, some, active, afterMigrate: COWORK_CHANNELS.map(c => coworkChannelOn(c.key)) };
   });
-  expect(r.defaults, 'every channel is on by default').toEqual([true, true, true, true, true, true, true, true, true]); // feat 513/539/544/545/574 — nine channels
-  expect(r.allOn.length).toBe(9);
-  expect(r.some).toEqual(['plan-of-the-day', 'plan-request', 'analysis', 'log-review', 'gym-directory', 'workout-review', 'summary-review']);
-  expect(r.active).toEqual(['pod', 'planreq', 'analysis', 'logreview', 'gyms', 'review', 'summaries']);
-  expect(r.afterMigrate, 'an absent key reads as on, so existing folders keep working').toEqual([true, true, true, true, true, true, true, true, true]);
+  expect(r.defaults, 'every channel is on by default').toEqual([true, true, true, true, true, true, true]); // feat 590 — seven channels
+  expect(r.allOn.length).toBe(7);
+  expect(r.some).toEqual(['plan-of-the-day', 'plan-request', 'analysis', 'log-review', 'workout-review']);
+  expect(r.active).toEqual(['pod', 'planreq', 'analysis', 'logreview', 'review']);
+  expect(r.afterMigrate, 'an absent key reads as on, so existing folders keep working').toEqual([true, true, true, true, true, true, true]);
 });
 
 test('feat 459 — the activity calendar is a Monday-first 42-cell grid counting runs and failures', async ({ page }) => {

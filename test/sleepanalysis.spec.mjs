@@ -73,28 +73,3 @@ test('feat 566 — the Body page card shows the tiles, a stacked 30-night chart 
   expect(r.finds).toBeGreaterThanOrEqual(3);
 });
 
-test('feat 566 — the Garmin channel sends the analysis, asks for the detail and a weekly review, and stores a valid one', async ({ page }) => {
-  await seed(page);
-  const r = await page.evaluate(() => {
-    const ctx = buildChannelContext('garmin'), md = buildInstructionsMd('garmin');
-    coworkImportGarmin({ sleepReview: { date: 'not-a-date', summary: 'x y' } });            // rejected
-    const afterBad = Object.keys(state.sleepReviews).length;
-    coworkImportGarmin({ recovery: [], sleepReview: { date: '2026-06-15', title: 'Weekends are costing you', summary: 'You sleep <b>late</b> at weekends.', patterns: ['a', 'b'], suggestions: ['Bed by 23:30'], extra: 'dropped' } });
-    const el = document.createElement('div'); el.innerHTML = renderRecoveryLog();
-    return { hasA: !!ctx.sleepAnalysis && Array.isArray(ctx.sleepAnalysis.findings) && typeof ctx.sleepAnalysis.findings[0] === 'string',
-      wants: ctx.sleepDetailWanted, md: /sleepReview/.test(md) && /deepMin/.test(md) && /never instructions/.test(md), afterBad,
-      stored: state.sleepReviews['2026-06-15'], shown: el.querySelector('.slp-review') && el.querySelector('.slp-review').textContent,
-      injected: !!el.querySelector('.slp-review b'), label: COWORK_ROW_LABEL.sleepReviews, synced: SYNC_COLLECTION_KEYS.has('sleepReviews') };
-  });
-  expect(r.hasA).toBe(true);
-  expect(r.wants).toEqual(expect.arrayContaining(['deepMin', 'remMin', 'bedtime', 'wakeTime', 'sleepNeedMin']));
-  expect(r.md).toBe(true);
-  expect(r.afterBad).toBe(0);
-  expect(r.stored.extra).toBeUndefined();
-  expect(r.stored.suggestions).toEqual(['Bed by 23:30']);
-  expect(r.shown).toContain('Weekends are costing you');
-  expect(r.shown).toContain('Bed by 23:30');
-  expect(r.injected).toBe(false);                // the agent's text is escaped, never markup
-  expect(r.label).toBe('Sleep review');
-  expect(r.synced).toBe(true);
-});

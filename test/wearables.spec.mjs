@@ -129,12 +129,3 @@ test('feat 543 — the Body page trends each metric against your baseline', asyn
   expect(r.spark).toBe(true);
 });
 
-test('feat 543 — the cowork wearable channel asks for every metric', async ({ page }) => {
-  const r = await page.evaluate(() => {
-    normalizeState();
-    const ctx = buildChannelContext('garmin'), md = buildInstructionsMd('garmin');
-    return { wanted: ctx.fieldsWanted.map(f => f.key), md: ['readiness', 'skinTempDev', 'Whoop', 'Oura', 'recoveryScore'].every(k => md.includes(k)) };
-  });
-  expect(r.wanted).toEqual(expect.arrayContaining(['hrv', 'restingHr', 'sleepMin', 'readiness', 'strain', 'respiration', 'spo2', 'skinTempDev', 'vo2max']));
-  expect(r.md).toBe(true);
-});

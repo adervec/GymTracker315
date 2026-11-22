@@ -5569,3 +5569,15 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
     AI has no tools, so the Garmin and Strava channels cannot fetch from those services themselves.
   - Settings: the cowork section is no longer nested under the desktop-only AI export folder. app-data.json declares
     `cowork-gymtracker--*` in the drive list. The AI brief export folder (a plain export) stays.
+- **The runner's fitness feed (feat 590):** the Garmin and Strava cowork channels are gone (the runner's AI has no tools to
+  fetch them). `coworkReadFeed()` runs at the end of every cowork check: it reads `shared-activities.json` and
+  `shared-body.json` (owned by the runner, house standard 27; never written here) and skips them when their `updated`
+  stamps are unchanged. `feedToActivity` maps an activity to a Strava-list row (`strava:123` -> id `123`, so earlier
+  imports never double; `garmin:456` stays as is and `stravaActivityUrl` gives it no link) and validates every field.
+  Only ids not already in `state.stravaActivities` are added, because the feed has no name or map and must not replace a
+  Strava name or route outline. Strength rows link to logged sessions (`coworkAutoLinkStrava`); other rows become cardio
+  only from `coworkLocal.feedSince` (the first read minus 30 days), so a first read never floods History.
+  `coworkMergeFeedBody` adds weigh-in days that are missing and fills only EMPTY fields of an existing day (the old
+  importer replaced the whole day, losing tape measurements). Not in the feed: sleep, daily recovery, activity names and
+  maps (listed in OVERLAPS.md as ideas for the runner). `buildChannelContext` / `buildInstructionsMd` lost their Garmin
+  and Strava branches; `coworkImportGarmin` / `coworkImportStrava` stay for file imports and the review-gate tests.

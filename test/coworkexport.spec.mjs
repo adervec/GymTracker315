@@ -40,16 +40,12 @@ test('buildAppExportPayload includes context + a vocab of real ids', async ({ pa
 
 test('INSTRUCTIONS.md documents the envelope, inbox drop, and channel-specific schema', async ({ page }) => {
   const r = await page.evaluate(() => ({
-    garmin: buildInstructionsMd('garmin'), strava: buildInstructionsMd('strava'), pod: buildInstructionsMd('pod'),
+    pod: buildInstructionsMd('pod'), analysis: buildInstructionsMd('analysis'),   // feat 590 — no Garmin or Strava channel
   }));
-  for (const md of [r.garmin, r.strava, r.pod]) {
+  for (const md of [r.pod, r.analysis]) {
     expect(md).toContain('gymtracker-cowork');
     expect(md).toContain('inbox/');
   }
-  expect(r.garmin).toContain('garmin-output');
-  expect(r.garmin).toContain('bodyComp');
-  expect(r.strava).toContain('strava-output');
-  expect(r.strava).toContain('activities');
   expect(r.pod).toContain('pod-output');
   expect(r.pod).toContain('familyId');
   expect(r.pod).toMatch(/vocab/i); // tells the agent to use real ids
@@ -58,10 +54,8 @@ test('INSTRUCTIONS.md documents the envelope, inbox drop, and channel-specific s
 test('buildChannelContext returns the right shape per channel', async ({ page }) => {
   const r = await page.evaluate(() => {
     state.sessions = []; state.stravaActivities = [];
-    return { garmin: Object.keys(buildChannelContext('garmin')), strava: Object.keys(buildChannelContext('strava')), pod: Object.keys(buildChannelContext('pod')) };
+    return { pod: Object.keys(buildChannelContext('pod')) };
   });
-  expect(r.garmin).toEqual(expect.arrayContaining(['recentBodyComp', 'sleepGaps']));
-  expect(r.strava).toEqual(expect.arrayContaining(['activities', 'buckets']));
   expect(r.pod).toEqual(expect.arrayContaining(['recovery', 'options', 'recentMega']));
 });
 
@@ -74,7 +68,7 @@ test('POD options file round-trips, README mentions the channels, injury list is
     const readme = buildCoworkReadme();
     const inj = injuryOptionList();
     return { kind: file.kind, notes: applied.notes, injuries: applied.injuries, minutes: applied.availableMinutes,
-      readmeOk: /plan-of-the-day/.test(readme) && /strava-reconciliation/.test(readme),
+      readmeOk: /plan-of-the-day/.test(readme) && /workout-review/.test(readme) && !/strava-reconciliation|garmin-reconciliation/.test(readme),
       injCount: inj.length, facets: [...new Set(inj.map(i => i.facet))].sort(), sample: inj[0] };
   });
   expect(r.kind).toBe('pod-options');

@@ -145,7 +145,7 @@ test('feat 579 — imported cardio shows the Strava name and the outline; older 
     el.innerHTML = state.sessions.map((s, i) => renderSession(s, false, i)).join('');
     const rows = [...el.querySelectorAll('.cardio-ex')].map(x => ({ name: x.querySelector('.session-ex-name').firstChild.textContent, sub: x.querySelectorAll('.session-ex-sub').length, svg: !!x.querySelector('svg.route-outline polyline'), bold: !!x.querySelector('.session-ex-name b') }));
     return { before, count: state.sessions.length, c1: { name: c1.name, pts: c1.route && c1.route.length }, c2: { name: c2.name, pts: c2.route && c2.route.length, dist: c2.distance }, rows,
-      kept: (state.stravaActivities.find(a => a.id === '9001').route || []).length, instr: /summary_polyline/.test(buildInstructionsMd('strava')) };
+      kept: (state.stravaActivities.find(a => a.id === '9001').route || []).length };
   });
   expect(r.before.route).toBeUndefined();
   expect(r.before.dist).toBe(5);                       // the distance is now kept from the activity
@@ -156,5 +156,4 @@ test('feat 579 — imported cardio shows the Strava name and the outline; older 
   expect(r.rows).toHaveLength(2);
   for (const row of r.rows) { expect(row.svg).toBe(true); expect(row.sub).toBe(1); expect(row.bold).toBe(false); }   // the name is text, never markup
   expect(r.rows.map(x => x.name).sort()).toEqual(['<b>Hill</b> ride', 'Canal loop']);
-  expect(r.instr).toBe(true);
 });

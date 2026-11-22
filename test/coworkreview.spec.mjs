@@ -22,7 +22,7 @@ test.beforeEach(async ({ page }) => {
 test('feat 544 — the context asks about recent FINISHED workouts, with the app\'s own numbers', async ({ page }) => {
   const r = await page.evaluate(() => {
     const ctx = buildChannelContext('review');
-    const keys = COWORK_CHANNELS.map(c => c.key), last = ['garmin', 'strava', 'logreview', 'gyms'].every(k => keys.indexOf(k) < keys.indexOf('review')) ? 'review' : keys;
+    const keys = COWORK_CHANNELS.map(c => c.key), last = ['logreview', 'gyms'].every(k => keys.indexOf(k) < keys.indexOf('review')) ? 'review' : keys;
     const md = buildInstructionsMd('review');
     return { ids: ctx.due.map(d => d.id), s2: ctx.due.find(d => d.id === 's2'), recentN: ctx.recent.length, last, md: md.includes('LAST in the sweep') && md.includes('150-300 words') };
   });

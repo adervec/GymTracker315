@@ -85,17 +85,3 @@ test('the Body page renders the Sleep & Recovery section when there is a log', a
   expect(r.bits).toBe(true);
 });
 
-test('the cowork Garmin channel asks for + reports daily recovery', async ({ page }) => {
-  const r = await page.evaluate(() => {
-    state.sessions = [];
-    state.recoveryLog = [{ date: '2026-06-05T12:00:00.000Z', bodyBattery: 70 }];
-    const ctx = buildChannelContext('garmin');
-    const ins = buildInstructionsMd('garmin');
-    const n = coworkImportGarmin({ recovery: [{ date: '2026-06-06', restingHr: 50 }, { date: '2026-06-07', bodyBattery: 65 }] }).recovery;
-    return { lastRec: ctx.lastRecoveryDate, recentLen: (ctx.recentRecovery || []).length, insRecovery: /recovery/i.test(ins) && /bodyBattery/.test(ins), importedN: n };
-  });
-  expect(r.lastRec).toBe('2026-06-05');
-  expect(r.recentLen).toBe(1);
-  expect(r.insRecovery).toBe(true);
-  expect(r.importedN).toBe(2);
-});
