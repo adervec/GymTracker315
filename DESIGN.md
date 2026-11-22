@@ -5543,3 +5543,9 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   a successful decode no longer than a clip, names stripped of markup, and lines applied through `setCoachEvent` (which
   validates). Same-key clips are replaced; nothing else on the device is touched. Clips still do not sync.
 - **Pre-push check:** this repo sets `core.hooksPath` to `.githooks` (for the build stamp), which hides the machine-wide hooks. `.githooks/pre-push` hands over to the machine-wide `pre-push` (house standard 26, the leak check) so GymTracker is checked by the same script as every other repo; with no machine-wide hook it runs `../CoworkSyncHub/leak-check.mjs . --no-history` itself.
+- **ISO dates (feat 588, house standard 28):** every date or time the reader sees goes through `appFont.fmt`: `.date(d)`,
+  `.date(d, 'full')` (with the weekday), `.time(d)`, and `.custom(d, { month, year })` for a month heading (a name, not a
+  date). They print ISO (`2026-11-21`, `14:05`) unless the reader picks "Dates: Regional" under the font picker. The app
+  log shows `appFont.fmt.iso(d).slice(11, 19)` (time with seconds). Do not call `toLocaleDateString` /
+  `toLocaleTimeString` / `new Intl.DateTimeFormat` in the app; the standards check's `iso` column fails on them (the
+  inlined font.js is skipped). Note: `appFont.fmt` needs a current font.js; re-embed with `tools/embed-fontjs.mjs`.

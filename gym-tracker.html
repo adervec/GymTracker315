@@ -168,6 +168,7 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
           this.appendChild(row(tr('Units'), [['auto', auto + ' (' + (units() === 'imperial' ? tr('imperial') : tr('metric')) + ')'], ['metric', tr('Metric (km, kg)')], ['imperial', tr('Imperial (mi, lb)')]], store.get(UKEY) || 'auto', function (v) { setRegional(UKEY, v); }));
           var dayName = function (d) { return new Intl.DateTimeFormat(locale(), { weekday: 'long' }).format(new Date(2026, 0, 4 + d)); };
           this.appendChild(row(tr('First day of the week'), [['auto', auto + ' (' + dayName(weekStart()) + ')'], ['mon', dayName(1)], ['sun', dayName(0)], ['sat', dayName(6)]], store.get(WKEY) || 'auto', function (v) { setRegional(WKEY, v); }));
+          this.appendChild(row(tr('Dates'), [['iso', 'ISO 8601 (' + isoDate(new Date()) + ' ' + isoTime(new Date()) + ')'], ['regional', tr('Regional') + ' (' + new Intl.DateTimeFormat(locale(), { dateStyle: 'medium' }).format(new Date()) + ')']], dates(), function (v) { setRegional(DKEY, v === 'iso' ? null : v); }));
           this.appendChild(row(tr('Clock'), [['auto', auto + ' (' + (clock() === '12' ? tr('12-hour') : tr('24-hour')) + ')'], ['24', tr('24-hour')], ['12', tr('12-hour')]], store.get(CKEY) || 'auto', function (v) { setRegional(CKEY, v); }));
         }
         // Every app has this picker in its settings, so the running build is shown under it.
@@ -624,7 +625,10 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
     { id: 'bn', name: 'বাংলা' }, { id: 'id', name: 'Bahasa Indonesia' }, { id: 'ur', name: 'اردو', rtl: true },
     { id: 'fa', name: 'فارسی', rtl: true }, { id: 'ar', name: 'العربية', rtl: true },
   ];
-  var LKEY = 'maker-lang', UKEY = 'maker-units', WKEY = 'maker-week', CKEY = 'maker-clock', MTKEY = 'maker-mt-ack:';
+  var LKEY = 'maker-lang', UKEY = 'maker-units', WKEY = 'maker-week', CKEY = 'maker-clock', DKEY = 'maker-dates', MTKEY = 'maker-mt-ack:';
+  // House standard 28: dates and times are ISO 8601 (2026-11-21, 14:05, weeks from Monday) unless the
+  // reader picks "Regional" under the font picker. One choice for every app, like the language.
+  function dates() { return store.get(DKEY) === 'regional' ? 'regional' : 'iso'; }
   var langInfo = function (id) { return LANGS.filter(function (l) { return l.id === id; })[0] || LANGS[0]; };
   function deviceLang() {
     var ls = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'en'];
@@ -643,10 +647,11 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
   function weekStart() { // 0 = Sunday, 1 = Monday, 6 = Saturday
     var v = store.get(WKEY);
     if (v === 'sun') return 0; if (v === 'mon') return 1; if (v === 'sat') return 6;
+    if (dates() === 'iso') return 1; // ISO 8601: the week starts on Monday
     try { var L = new Intl.Locale(navigator.language || 'en'), w = L.getWeekInfo ? L.getWeekInfo() : L.weekInfo; if (w && w.firstDay) return w.firstDay % 7; } catch (e) { /* older browser */ }
     return 1;
   }
-  function clock() { var v = store.get(CKEY); if (v === '12' || v === '24') return v; try { return /h1[12]/.test(new Intl.DateTimeFormat(navigator.language || 'en', { hour: 'numeric' }).resolvedOptions().hourCycle) ? '12' : '24'; } catch (e) { return '24'; } }
+  function clock() { var v = store.get(CKEY); if (v === '12' || v === '24') return v; if (dates() === 'iso') return '24'; try { return /h1[12]/.test(new Intl.DateTimeFormat(navigator.language || 'en', { hour: 'numeric' }).resolvedOptions().hourCycle) ? '12' : '24'; } catch (e) { return '24'; } }
   // a regional change reloads the page, so every screen of every app redraws in it
   function setRegional(key, value) { store.set(key, value == null || value === 'auto' ? null : value); location.reload(); }
 
@@ -680,12 +685,36 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
   // formatting: always the shared locale, units, week start and clock
   function fmtNumber(n, o) { o = o || {}; try { return new Intl.NumberFormat(locale(), { maximumFractionDigits: o.max != null ? o.max : 2, minimumFractionDigits: o.min || 0 }).format(n); } catch (e) { return String(n); } }
   var asDate = function (d) { return d instanceof Date ? d : new Date(d); };
+  var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+  // ISO 8601 pieces, always in the reader's LOCAL day and time (house standards 10 and 28)
+  var isoDate = function (d) { d = asDate(d); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); };
+  var isoTime = function (d) { d = asDate(d); return p2(d.getHours()) + ':' + p2(d.getMinutes()); };
+  var clockTime = function (d) { return clock() === '12' ? new Intl.DateTimeFormat(locale(), { timeStyle: 'short', hour12: true }).format(asDate(d)) : isoTime(d); };
   var fmt = {
     number: fmtNumber,
     percent: function (x, max) { return new Intl.NumberFormat(locale(), { style: 'percent', maximumFractionDigits: max == null ? 0 : max }).format(x); },
-    date: function (d, style) { return new Intl.DateTimeFormat(locale(), { dateStyle: style || 'medium' }).format(asDate(d)); },
-    time: function (d) { return new Intl.DateTimeFormat(locale(), { timeStyle: 'short', hour12: clock() === '12' }).format(asDate(d)); },
-    dateTime: function (d, style) { return new Intl.DateTimeFormat(locale(), { dateStyle: style || 'medium', timeStyle: 'short', hour12: clock() === '12' }).format(asDate(d)); },
+    // What the reader sees. ISO by default: 2026-11-21, 14:05, 2026-11-21 14:05; style 'full' adds the weekday
+    // (Sat 2026-11-21). With "Regional" chosen these follow the language and region instead.
+    date: function (d, style) {
+      if (dates() === 'iso') return (style === 'full' ? new Intl.DateTimeFormat(locale(), { weekday: 'short' }).format(asDate(d)) + ' ' : '') + isoDate(d);
+      return new Intl.DateTimeFormat(locale(), { dateStyle: style || 'medium' }).format(asDate(d));
+    },
+    time: function (d) { return dates() === 'iso' ? clockTime(d) : new Intl.DateTimeFormat(locale(), { timeStyle: 'short', hour12: clock() === '12' }).format(asDate(d)); },
+    dateTime: function (d, style) {
+      if (dates() === 'iso') return fmt.date(d, style) + ' ' + clockTime(d);
+      return new Intl.DateTimeFormat(locale(), { dateStyle: style || 'medium', timeStyle: 'short', hour12: clock() === '12' }).format(asDate(d));
+    },
+    // What is stored, exported or put in a file name: never changes with the reader's choice.
+    isoDate: isoDate,                                   // 2026-11-21 (the local day)
+    iso: function (d) {                                 // 2026-11-21T14:05:09+01:00 (local time with its offset)
+      d = asDate(d); var o = -d.getTimezoneOffset(), a = Math.abs(o);
+      return isoDate(d) + 'T' + isoTime(d) + ':' + p2(d.getSeconds()) + (o === 0 ? 'Z' : (o < 0 ? '-' : '+') + p2(Math.floor(a / 60)) + ':' + p2(a % 60));
+    },
+    isoWeek: function (d) {                             // 2026-W47 (weeks from Monday; week 1 holds the year's first Thursday)
+      d = asDate(d); var t = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 3 - ((d.getDay() + 6) % 7)), y = t.getFullYear();
+      return y + '-W' + p2(1 + Math.round((t - new Date(y, 0, 4)) / 6048e5 + (((new Date(y, 0, 4).getDay() + 6) % 7) - 3) / 7));
+    },
+    // names only (a month, a weekday): a whole date or time goes through date / time / dateTime above
     custom: function (d, opts) { return new Intl.DateTimeFormat(locale(), Object.assign({ hour12: clock() === '12' }, opts)).format(asDate(d)); },
     relative: function (d) {
       var s = (asDate(d).getTime() - Date.now()) / 1000, a = Math.abs(s), rtf = new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' });
@@ -997,7 +1026,7 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
   // for every app and the hub (key maker-cloud); mixing vendors between apps is not supported.
   //   appFont.cloud.signIn({ silent })   -> a promise; silent never shows the vendor's window
   //   .read(name) -> text | null   .readBytes(nameOrEntry, signal) -> ArrayBuffer | null
-  //   .write(name, textOrBlob, mime)   .list(prefix) -> [{ name, size, modified, mime, id }]
+  //   .write(name, textOrBlob, mime)   .list(prefix) -> [{ name, size, modified, mime, id }]   .remove(name) -> bool
   //   .signedIn()  .signOut()  .provider() -> 'google'  .label() -> 'Google Drive'
   //   .providers() -> [{ id, label, current }]  .use(id)  .register(provider)
   // A vendor is one object with those same methods (plus id and label). Google Drive ships here; Dropbox,
@@ -1084,6 +1113,9 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
       };
       return page();
     },
+    remove: function (name) {
+      return gFind(name).then(function (id) { return id ? gApi('drive/v3/files/' + id, { method: 'DELETE' }).then(function () { return true; }) : false; });
+    },
     // body: text, or a Blob for a binary file; mime defaults to JSON
     write: function (name, body, mime) {
       mime = mime || 'application/json';
@@ -1099,25 +1131,30 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
 
   // -- the door: whichever vendor the reader chose
   var CLOUD_KEY = 'maker-cloud', CLOUDS = { google: GOOGLE };
+  var CLOUD_SOON = [{ id: 'dropbox', label: 'Dropbox' }, { id: 'onedrive', label: 'OneDrive' }]; // planned, not built: shown as "coming soon"
   var cloudNow = function () { return CLOUDS[store.get(CLOUD_KEY)] || GOOGLE; };
   var cloud = {
     provider: function () { return cloudNow().id; },
     label: function () { return cloudNow().label; },
-    providers: function () { return Object.keys(CLOUDS).map(function (k) { return { id: k, label: CLOUDS[k].label, current: CLOUDS[k] === cloudNow() }; }); },
+    // every vendor, ready or not: [{ id, label, current, soon }] (soon: true = not built yet, cannot be chosen)
+    providers: function () {
+      return Object.keys(CLOUDS).map(function (k) { return { id: k, label: CLOUDS[k].label, current: CLOUDS[k] === cloudNow(), soon: false }; })
+        .concat(CLOUD_SOON.filter(function (s) { return !CLOUDS[s.id]; }).map(function (s) { return { id: s.id, label: s.label, current: false, soon: true }; }));
+    },
     // one vendor for every app and the hub; changing it does not move any data (back up, switch, restore)
     use: function (id) {
-      if (!CLOUDS[id]) throw new Error('Unknown cloud: ' + id);
+      if (!CLOUDS[id]) throw new Error(CLOUD_SOON.some(function (s) { return s.id === id; }) ? 'That cloud is coming soon; it is not available yet.' : 'Unknown cloud: ' + id);
       if (CLOUDS[id] !== cloudNow()) cloudNow().signOut();
       store.set(CLOUD_KEY, id === 'google' ? null : id);
       document.dispatchEvent(new CustomEvent('app-cloud-change', { detail: id }));
     },
     register: function (p) {
-      var need = ['signIn', 'signedIn', 'signOut', 'read', 'readBytes', 'write', 'list'];
+      var need = ['signIn', 'signedIn', 'signOut', 'read', 'readBytes', 'write', 'list', 'remove'];
       if (!p || !/^[a-z][a-z0-9-]{1,20}$/.test(p.id || '') || !p.label || !need.every(function (m) { return typeof p[m] === 'function'; })) throw new Error('A cloud needs an id, a label and: ' + need.join(', '));
       CLOUDS[p.id] = p;
     },
   };
-  ['signIn', 'signedIn', 'signOut', 'read', 'readBytes', 'write', 'list'].forEach(function (m) { cloud[m] = function () { var c = cloudNow(); return c[m].apply(c, arguments); }; });
+  ['signIn', 'signedIn', 'signOut', 'read', 'readBytes', 'write', 'list', 'remove'].forEach(function (m) { cloud[m] = function () { var c = cloudNow(); return c[m].apply(c, arguments); }; });
   cloud.token = cloud.signIn; // the old name (appFont.google.token), kept for notes that still say it
 
   // ---- Cold backup (hub roadmap chunk 2a) ------------------------------------------------------------
@@ -1328,6 +1365,7 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
     languages: LANGS, lang: lang, locale: locale, units: units, weekStart: weekStart, clock: clock,
     setLanguage: function (id) { setRegional(LKEY, id); }, setUnits: function (v) { setRegional(UKEY, v); },
     setWeekStart: function (v) { setRegional(WKEY, v); }, setClock: function (v) { setRegional(CKEY, v); },
+    dates: dates, setDates: function (v) { setRegional(DKEY, v === 'regional' ? 'regional' : null); },
     t: t, fmt: fmt, ready: ready, applyDom: applyDom, machineTranslated: function () { return lang() !== 'en'; } };
   window.t = window.t || t; // the short name apps write their English with
 })();
@@ -11415,7 +11453,7 @@ function saveAnalysisRequest(text, id) {
   saveState();
 }
 function deleteAnalysisRequest(id) { state.analysisRequests = _analysisReqs().filter(r => r.id !== id); saveState(); }
-function _analysisWhen(d) { try { return new Date(d).toLocaleDateString(uiLocale()); } catch (_) { return ''; } }
+function _analysisWhen(d) { try { return appFont.fmt.date(new Date(d)); } catch (_) { return ''; } }
 function renderAnalysisCard(r) {
   const answered = r.status === 'answered' && r.answer;
   return `<div class="card">
@@ -11732,14 +11770,14 @@ const PERIOD_KINDS = {
 function weekKeyOf(startMs) { const d = new Date(startMs); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 // the complete period `off` back (off = 1 → the last finished one): { start, end, key, label }
 function periodRange(kind, off) {
-  const md = d => d.toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric' });
+  const md = d => appFont.fmt.date(d);
   if (kind === 'week') { const r = _weekRangeMs(off); return { ...r, key: weekKeyOf(r.start), label: 'Week of ' + md(new Date(r.start)) + ' – ' + md(new Date(r.end - 864e5)) }; }
   const now = new Date(), span = kind === 'month' ? 1 : 3, m0 = kind === 'month' ? now.getMonth() : Math.floor(now.getMonth() / 3) * 3;
   const a = new Date(now.getFullYear(), m0 - off * span, 1), b = new Date(a.getFullYear(), a.getMonth() + span, 1);
   const y = a.getFullYear(), q = Math.floor(a.getMonth() / 3) + 1;
   return { start: a.getTime(), end: b.getTime(),
     key: kind === 'month' ? y + '-' + String(a.getMonth() + 1).padStart(2, '0') : y + '-Q' + q,
-    label: kind === 'month' ? a.toLocaleDateString(uiLocale(), { month: 'long', year: 'numeric' }) : `Q${q} ${y} · ${md(a)} – ${md(new Date(b - 864e5))}` };
+    label: kind === 'month' ? appFont.fmt.custom(a, { month: 'long', year: 'numeric' }) : `Q${q} ${y} · ${md(a)} – ${md(new Date(b - 864e5))}` };
 }
 function _periodSessions(start, end) { return (state.sessions || []).filter(s => { const t = new Date(s.date).getTime(); return t >= start && t < end && _weekHasActivity(s); }); }
 function _weekBody(start, end) { return (state.bodyComp || []).filter(b => { const t = new Date(b.date).getTime(); return t >= start && t < end; }).sort((a, b) => String(a.date).localeCompare(String(b.date))); }
@@ -11926,7 +11964,7 @@ function _crDescribe(top, key, after, before) {
   if (top === 'sessions' && after) {
     const sets = (after.exercises || []).reduce((n, e) => n + ((e.sets || []).length), 0);
     const was = before ? (before.exercises || []).reduce((n, e) => n + ((e.sets || []).length), 0) : null;
-    const when = after.date ? new Date(after.date).toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric' }) : key;
+    const when = after.date ? appFont.fmt.date(new Date(after.date), 'full') : key;
     const hr = after.hr && after.hr.avg, extra = [hr && ('avg HR ' + hr), after.calories && (after.calories + ' kcal'), after.stravaId && !(before && before.stravaId) && 'linked to Strava', after.sleep && !(before && before.sleep) && ('sleep ' + after.sleep)].filter(Boolean).join(' · ');
     const note = _crText(after.coworkReview || {}, (before && before.coworkReview) || {});
     return { label: (before ? 'Update workout ' : 'Add workout ') + when, detail: (note ? note.slice(0, 600) + ' — ' : '') + (was != null && was !== sets ? was + ' → ' : '') + sets + ' set' + (sets === 1 ? '' : 's') + (extra ? ' · ' + extra : '') };
@@ -12500,7 +12538,7 @@ function coworkImportPlanOfDay(payload) {
 // this just persists + pushes options.json to the cowork folder.
 function coworkWritePodOptions() { saveState(); try { renderSettingsDrawer(); } catch (_) {} if (state.cowork && state.cowork.enabled) coworkExportNow(true).catch(() => {}); toast(t('🗓️ Plan-of-Day options saved')); }
 // feat 322 — short readable day for a Plan-of-the-Day badge (YYYY-MM-DD → "Sun Jun 22").
-function coworkFmtDay(ymd) { try { const d = /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? new Date(ymd + 'T12:00:00') : new Date(ymd); return isNaN(d.getTime()) ? String(ymd) : d.toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric' }); } catch (_) { return String(ymd); } }
+function coworkFmtDay(ymd) { try { const d = /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? new Date(ymd + 'T12:00:00') : new Date(ymd); return isNaN(d.getTime()) ? String(ymd) : appFont.fmt.date(d, 'full'); } catch (_) { return String(ymd); } }
 /* feat 458 — the hub's status panel: which machine owns the folder, each task's cadence and last run, and
    the recent run log. Before this the only feedback was a toast at the moment of a manual write — a hub that
    had silently stopped (forgotten permission, agent erroring nightly) looked exactly like a quiet one. */
@@ -12732,7 +12770,7 @@ let _cloudGoogleFileId = null;       // cached Drive fileId (also stashed in Ind
 const _cloudScriptPromises = {};     // src -> load promise (dedupe dynamic SDK loads)
 
 // ---- small helpers ----
-function cloudShortTime(iso) { try { return new Date(iso || Date.now()).toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; } }
+function cloudShortTime(iso) { try { return appFont.fmt.time(new Date(iso || Date.now())); } catch (_) { return ''; } }
 function cloudStatus(msg) { try { autoSaveSetStatus(msg); } catch (_) {} }
 function cloudPersist() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {} } // write WITHOUT re-triggering a push
 function cloudProviderActive() { const cs = state.cloudSync; return cs && cs.provider ? (CLOUD_PROVIDERS[cs.provider] || null) : null; }
@@ -13667,7 +13705,7 @@ function gymUsageHtml(st) {
   const byDay = {};
   used.forEach(r => { if (_gymHeatSel === 'all' || r.gym.id === _gymHeatSel) for (const k in r.byDay) (byDay[k] = byDay[k] || []).push(...r.byDay[k]); });
   const setsOn = list => list.reduce((n, s) => n + (s.exercises || []).reduce((a, e) => a + ((e.sets && e.sets.length) || (e.cardio ? 1 : 0)), 0), 0);
-  const month = t => new Date(t).toLocaleDateString(uiLocale(), { month: 'short', year: 'numeric' });
+  const month = t => appFont.fmt.custom(new Date(t), { month: 'short', year: 'numeric' });
   const home = gymHome(st);
   const untouched = st.rows.filter(r => !r.visits).map(r => ({ g: r.gym, d: home ? gpsDistanceKm(home.lat, home.lng, r.gym.lat, r.gym.lng) : Infinity }))
     .sort((a, b) => a.d - b.d || a.g.name.localeCompare(b.g.name));
@@ -14904,7 +14942,7 @@ function renderSettingsDrawer() {
     <div id="log-viewer" style="max-height:160px;overflow:auto;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:10.5px;line-height:1.55;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--text2);">
       ${_eventLog.length ? _eventLog.slice(-60).reverse().map(e => {
         const c = e.level==='error'?'var(--danger)':e.level==='warn'?'var(--warn)':'var(--text3)';
-        const t = new Date(e.ts).toLocaleTimeString(uiLocale(),{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        const t = appFont.fmt.iso(new Date(e.ts)).slice(11, 19);
         return `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span style="color:var(--text3);">${t}</span> <span style="color:${c};font-weight:600;">${e.level}</span> ${escapeHtml(e.msg)}${e.detail?` · ${escapeHtml(e.detail)}`:''}</div>`;
       }).join('') : '<div style="color:var(--text3);">No events logged yet.</div>'}
     </div>
@@ -15783,10 +15821,10 @@ function fmtDate(d) {
   if (dt.toDateString() === yesterday.toDateString()) return t('Yesterday');
   const diff = Math.floor((today - dt) / (1000*60*60*24));
   if (diff < 7) return agoDays(diff);
-  return dt.toLocaleDateString(uiLocale(), { month:'short', day:'numeric' });
+  return appFont.fmt.date(dt);
 }
 function fmtTime(d) {
-  return new Date(d).toLocaleTimeString(uiLocale(), { hour:'numeric', minute:'2-digit' });
+  return appFont.fmt.time(new Date(d));
 }
 function startOfWeek(d) {
   const dt = new Date(d);
@@ -15925,7 +15963,7 @@ ul{margin:0.15em 0 0.6em;padding-left:1.3em;}
 .meta{color:#666;font-size:0.85em;}
 </style></head><body>
 <h1>${t('Exercise Reference')}</h1>
-<p class="meta">${t('GymTracker315 · {p1} · exported {p2} · {nFam} movements, {nVar} variations', { p1: (esc(typeof APP_BUILD !== 'undefined' ? APP_BUILD : '')), p2: (esc(new Date().toLocaleDateString(uiLocale()))), nFam: (nFam), nVar: (nVar) })}</p>
+<p class="meta">${t('GymTracker315 · {p1} · exported {p2} · {nFam} movements, {nVar} variations', { p1: (esc(typeof APP_BUILD !== 'undefined' ? APP_BUILD : '')), p2: (esc(appFont.fmt.date(new Date()))), nFam: (nFam), nVar: (nVar) })}</p>
 ${body}
 </body></html>`;
 }
@@ -16713,7 +16751,7 @@ function weekSummary(weekOffset) {
   const unit = state.unit || 'kg';
   const fmt = n => n.toLocaleString(uiLocale());
   const dRange = (() => { const a = new Date(start), b = new Date(end - 86400000);
-    const md = d => d.toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric' });
+    const md = d => appFont.fmt.date(d);
     return md(a) + ' – ' + md(b); })();
   const highlights = [], lowlights = [];
   if (sessions.length === 0) {
@@ -21402,7 +21440,7 @@ function planUseDialog(plan) {
     const back = document.createElement('div'); back.className = 'choice-backdrop';
     const sheet = document.createElement('div'); sheet.className = 'choice-sheet';
     const scales = [[0.5, '½×', '50%'], [0.75, '¾×', '75%'], [1, '1×', '100%'], [1.25, '1¼×', '125%'], [1.5, '1½×', '150%'], [1.75, '1¾×', '175%'], [2, '2×', '200%']]; // feat 426 — quarter steps · feat 546 — 1½× was missing
-    const pace = planPace(), clock = m => new Date(Date.now() + m * 60000).toLocaleTimeString(uiLocale(), { hour: 'numeric', minute: '2-digit' });
+    const pace = planPace(), clock = m => appFont.fmt.time(new Date(Date.now() + m * 60000));
     sheet.innerHTML = `<div class="choice-title">${t('Start “{name}”', { name: (escapeHtml(plan.name)) })}</div>
       <div class="choice-msg">${t('Add a warm-up / cool-down and choose the volume for this session.')}</div>
       <div class="pud-tgls">
@@ -22165,7 +22203,7 @@ function renderPlanGuide(session) {
     compareHtml = `<div class="plan-compare">${parts.join(' · ')}</div>`;
   }
   const headEta = eta.remainingMin > 0
-    ? `ETC ~${eta.remainingMin} min · ETA ${eta.etaTime.toLocaleTimeString(uiLocale(),{hour:'numeric',minute:'2-digit'})}`
+    ? `ETC ~${eta.remainingMin} min · ETA ${appFont.fmt.time(eta.etaTime)}`
     : 'plan complete 🎉';
   // feat 144 — steps "done" = min-% satisfied; show "(N full)" when fewer were taken all the way to target.
   const fullHint = (sum.stepsFull < sum.stepsDone) ? ` <span class="plan-progress-full">${t('({stepsFull} full)', { stepsFull: (sum.stepsFull) })}</span>` : '';
@@ -22380,7 +22418,7 @@ function renderLogCalendar(main) {
   const first = new Date(cur.y, cur.m, 1);
   const startDow = first.getDay();                          // 0 = Sunday
   const daysInMonth = new Date(cur.y, cur.m + 1, 0).getDate();
-  const monthLabel = first.toLocaleDateString(uiLocale(), { month: 'long', year: 'numeric' });
+  const monthLabel = appFont.fmt.custom(first, { month: 'long', year: 'numeric' });
   const todayKey = _dayKey(now);
   const setsOn = (sess) => sess.reduce((c, s) => c + (s.exercises || []).reduce((n, e) => n + (e.sets || []).length, 0), 0);
   const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -22444,7 +22482,7 @@ function yearHeatmapHtml(byDay, setsOn) {
     const k = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(), n = byDay[k] ? setsOn(byDay[k]) : 0;
     if (n) days++;
     const lv = !n ? 0 : n < 10 ? 1 : n < 20 ? 2 : n < 30 ? 3 : 4;
-    const lbl = d.toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric', year: 'numeric' }) + (n ? ` · ${n} sets` : ' · rest');
+    const lbl = appFont.fmt.date(d) + (n ? ` · ${n} sets` : ' · rest');
     cells += `<span class="yh-c yh-${lv}"${n ? ` data-yh-day="${k}" role="button" tabindex="0"` : ''} title="${lbl}" aria-label="${lbl}"></span>`;
   }
   return `<div class="yh-card"><div class="yh-head">${t.n('Last 12 months · <b>{days}</b> training day', 'Last 12 months · <b>{days}</b> training days', (days), { days: (days) })}</div>
@@ -22517,7 +22555,7 @@ function exHistoryPreviewHtml(varUuid, subUuid) {
   if (!hist.length) return '<div class="excar-empty">No sessions logged yet for this exercise.</div>';
   const unit = state.unit || 'lb';
   return hist.map(h => {
-    const lbl = new Date(h.date).toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric' });
+    const lbl = appFont.fmt.date(new Date(h.date));
     const sets = (h.sets || []).map(s => `${s.w}×${s.r}`).join(' · ');
     return `<div class="excar-hist-row"><span class="excar-hist-date">${lbl}</span><span class="excar-hist-sets">${escapeHtml(sets)}</span><span class="excar-hist-vol">${(h.volume || 0).toLocaleString(uiLocale())} ${unit}</span></div>`;
   }).join('');
@@ -22700,7 +22738,7 @@ function renderLog(main) {
 
     // Ended banner — show if the today session has been ended
     if (today.endedAt) {
-      const endTime = new Date(today.endedAt).toLocaleTimeString(uiLocale(), { hour:'numeric', minute:'2-digit' });
+      const endTime = appFont.fmt.time(new Date(today.endedAt));
       const reason = today.endReason === 'auto-inactivity' ? 'auto · inactive' : 'manually ended';
       html += `<div class="ended-banner">
         <span>${t('Workout ended at {endTime}', { endTime: (endTime) })}</span>
@@ -23009,8 +23047,8 @@ function renderWorkoutTimeline(session) {
 
   // Time axis: show start, midpoint, end times
   const axisY = padT + innerH + 2;
-  const startLabel = new Date(tMin).toLocaleTimeString(uiLocale(), { hour:'numeric', minute:'2-digit' });
-  const endLabel = new Date(tMax).toLocaleTimeString(uiLocale(), { hour:'numeric', minute:'2-digit' });
+  const startLabel = appFont.fmt.time(new Date(tMin));
+  const endLabel = appFont.fmt.time(new Date(tMax));
   const totalMin = Math.round((tMax - tMin) / 60000);
   const durationLabel = totalMin >= 60 ? `${Math.floor(totalMin/60)}h ${totalMin%60}m` : `${totalMin}m`;
   marks += `<line class="timeline-axis" x1="${padL}" y1="${lineY2}" x2="${W - padR}" y2="${lineY2}"/>`;
@@ -23095,7 +23133,7 @@ function computeSessionStats(session) {
   const totalReps = session.exercises.reduce((s, ex) => s + ex.sets.reduce((r, set) => r + (set.r || 0), 0), 0);
   const totalVolume = session.exercises.reduce((s, ex) => s + exerciseVolume(ex), 0);
   return {
-    startTimeDisplay: start.toLocaleTimeString(uiLocale(), { hour:'numeric', minute:'2-digit' }),
+    startTimeDisplay: appFont.fmt.time(start),
     elapsedDisplay,
     elapsedMin,
     totalSets,
@@ -24890,7 +24928,7 @@ function renderRuckPage(main) {
     return _ruckSortDesc ? -d : d;
   });
   const rows = sorted.map(e => `<div class="ruck-row">
-      <span class="ruck-c-date">${new Date(e.date).toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric' })}</span>
+      <span class="ruck-c-date">${appFont.fmt.date(new Date(e.date))}</span>
       <span class="ruck-c-load">${n1(showW(e.loadKg))}<em>${u}</em></span>
       <span>${e.distanceKm ? n1(e.distanceKm) + ' km' : '—'}</span>
       <span>${pace(e.paceMinPerKm)}</span>
@@ -25175,7 +25213,7 @@ function renderReplayPage(main) {
   const barMax = Math.max.apply(null, topBars.map(x => x.sets).concat([1]));
   main.innerHTML = `<div id="replay-page">
     <div class="card heatmap-card">
-      <div class="card-title">${t('⏪ Historical replay <span style="font-size:10.5px;color:var(--text3);font-weight:600;">· week of {p1}{p2}</span>', { p1: (weekStart.toLocaleDateString(uiLocale(), { year: 'numeric', month: 'short', day: 'numeric' })), p2: (off === 0 ? t(' (now)') : '') })}</div>
+      <div class="card-title">${t('⏪ Historical replay <span style="font-size:10.5px;color:var(--text3);font-weight:600;">· week of {p1}{p2}</span>', { p1: (appFont.fmt.date(weekStart)), p2: (off === 0 ? t(' (now)') : '') })}</div>
       <div class="hm-controls">
         <button class="hm-lvl" id="replay-oldest" title="${escapeAttr(t('Jump to the oldest week'))}">⏮</button>
         <button class="hm-lvl ${_replayPlaying ? 'active' : ''}" id="replay-play">${_replayPlaying ? '⏸ Pause' : '▶ Play'}</button>
@@ -25200,7 +25238,7 @@ function renderReplayPage(main) {
       ${sessions.length ? sessions.map(s => {
         const sets = (s.exercises || []).reduce((m, e) => m + (e.sets || []).length, 0);
         const grade = s.finalScore && s.finalScore.grade ? ` · ${escapeHtml(s.finalScore.grade)}` : '';
-        return `<div class="replay-sess"><span>${new Date(s.date).toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric' })}</span><span>${(s.exercises || []).length} exercises · ${sets} sets${grade}</span></div>`;
+        return `<div class="replay-sess"><span>${appFont.fmt.date(new Date(s.date), 'full')}</span><span>${(s.exercises || []).length} exercises · ${sets} sets${grade}</span></div>`;
       }).join('') : '<div style="font-size:12px;color:var(--text3);">A rest week.</div>'}
     </div>
   </div>`;
@@ -25376,7 +25414,7 @@ function renderVolumeSplit(weekDate) {
   const vol = getWeeklySplitVolume(volWeekOffset);
   const cap = m => MEGA_LABELS[m] || (m.charAt(0).toUpperCase() + m.slice(1));
   let html = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
-    ${t('Sets per split · Week of {p1}', { p1: (weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})) })}
+    ${t('Sets per split · Week of {p1}', { p1: (appFont.fmt.date(weekDate)) })}
   </div>`;
   const total = Object.values(vol).reduce((a, b) => a + b, 0);
   if (!total) return html + `<div class="empty"><div class="empty-large">📊</div>${t('No sets logged this week')}</div>`;
@@ -25405,7 +25443,7 @@ function renderVolumeSplit(weekDate) {
 function renderVolumeGroup(weekDate) {
   const vol = getWeeklyVolume(volWeekOffset);
   let html = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
-    ${t('Sets per muscle group · Week of {p1}', { p1: (weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})) })}
+    ${t('Sets per muscle group · Week of {p1}', { p1: (appFont.fmt.date(weekDate)) })}
   </div>`;
   const hasVolume = Object.values(vol).some(v => v > 0);
   if (!hasVolume) return html + `<div class="empty"><div class="empty-large">📊</div>${t('No sets logged this week')}</div>`;
@@ -25450,7 +25488,7 @@ function renderVolumeMuscle(level, weekDate) {
 
   const totalSets = entries.reduce((s,e) => s+e.sets, 0);
   let html = `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 8px;">
-    ${t('Fractional sets per {p1} · Week of {p2}', { p1: (level==='head' ? t('muscle head') : t('muscle')), p2: (weekDate.toLocaleDateString(uiLocale(), {month:'short',day:'numeric'})) })}
+    ${t('Fractional sets per {p1} · Week of {p2}', { p1: (level==='head' ? t('muscle head') : t('muscle')), p2: (appFont.fmt.date(weekDate)) })}
   </div>
   <div class="vol-sort-row">
     <span class="vol-sort-pill ${volSort==='default'?'active':''}" data-sort="default">${t('Order')}</span>
@@ -25837,8 +25875,8 @@ function renderOverallChart(progress) {
             <text class="y-label" x="${padL-4}" y="${(y+3).toFixed(1)}" text-anchor="end">${v}</text>`;
   }).join('');
   // X-axis labels: first and last
-  const firstDate = new Date(data[0].date).toLocaleDateString(uiLocale(), { month:'short', day:'numeric' });
-  const lastDate = new Date(data[data.length-1].date).toLocaleDateString(uiLocale(), { month:'short', day:'numeric' });
+  const firstDate = appFont.fmt.date(new Date(data[0].date));
+  const lastDate = appFont.fmt.date(new Date(data[data.length-1].date));
   const trend = computeTrend(data.map(d => ({ date: d.date, oneRM: d.val })));
   let lineClass = 'flat';
   if (trend && trend.weeklySlope > 0.3) lineClass = 'up';
@@ -26200,14 +26238,14 @@ function selectSessionsForExport(opts) {
 function exportScopeLabel(opts, sessions) {
   if (opts.preset === 'session') {
     const s = sessions[0];
-    return s ? new Date(s.date).toLocaleDateString(uiLocale(), { weekday:'short', month:'short', day:'numeric', year:'numeric' }) : 'Workout';
+    return s ? appFont.fmt.date(new Date(s.date), 'full') : 'Workout';
   }
   if (opts.preset === 'week')   return 'This week';
   if (opts.preset === 'month')  return 'This month';
   if (opts.preset === 'last30') return 'Last 30 days';
   if (opts.preset === 'all')    return 'All time';
   if (opts.preset === 'custom') {
-    const fmt = s => new Date(s + 'T00:00:00').toLocaleDateString(uiLocale(), { month:'short', day:'numeric', year:'numeric' });
+    const fmt = s => appFont.fmt.date(new Date(s + 'T00:00:00'));
     if (opts.from && opts.to) return `${fmt(opts.from)} – ${fmt(opts.to)}`;
     if (opts.from) return `Since ${fmt(opts.from)}`;
     if (opts.to)   return `Up to ${fmt(opts.to)}`;
@@ -26235,7 +26273,7 @@ function summarizeSession(session) {
   const stats = computeSessionStats(session);
   const score = sessionScore(session);
   const start = new Date(session.date);
-  const dateAbs = start.toLocaleDateString(uiLocale(), { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+  const dateAbs = appFont.fmt.date(start, 'full');
   const startT = fmtTime(session.date);
   const timeRange = session.endedAt ? `${startT}–${fmtTime(session.endedAt)}` : `${startT} · in progress`;
   const hr = (session.hr && (session.hr.avg != null || session.hr.max != null || session.hr.calories != null)) ? session.hr : null;
@@ -26412,7 +26450,7 @@ function renderWorkoutCard(sessions, opts) {
       const scored  = summaries.map(x => x.score).filter(Boolean);
       const avgPts  = scored.length ? Math.round(scored.reduce((s,x) => s + x.points, 0) / scored.length) : null;
       const durDisp = totMin >= 60 ? `${Math.floor(totMin/60)}h ${totMin%60}m` : `${totMin}m`;
-      const fmtShort = d => new Date(d).toLocaleDateString(uiLocale(), { month:'short', day:'numeric' });
+      const fmtShort = d => appFont.fmt.date(new Date(d));
       title = exportScopeLabel(opts, sessions);
       subtitle = `${fmtShort(sessions[sessions.length-1].date)} – ${fmtShort(sessions[0].date)} · ${summaries.length} workouts`;
       cells = [
@@ -29053,7 +29091,7 @@ function buildWorkoutTimelapse(session, opts) {
     });
   });
   const totalSets = evs.length;
-  const dateLabel = new Date(session.date).toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric' });
+  const dateLabel = appFont.fmt.date(new Date(session.date), 'full');
   const base = { width: 480, height: 300, speed: SPEED, totalSets, synthetic: false, sampledNote: null, dateLabel,
     durationLabel: stats.elapsedDisplay, exerciseCount: stats.exerciseCount, totalVolume: stats.totalVolume,
     unit, plan: sessionPlanLabel(session), scoreGrade: score ? score.grade : null, scorePoints: score ? score.points : null,
@@ -29145,7 +29183,7 @@ function buildWorkoutTimelapse(session, opts) {
     const c = continuousAt(tMs);
     if (c.timeline) p.timeline = c.timeline;
     if (c.hr) p.hr = c.hr;
-    return { kind: 'composite', delayCs, setNo: e.setNo, totalSets, progress: Math.max(0, Math.min(1, tMs / spanMs)), elapsedLabel: fmtClock(tMs), clockLabel: new Date(t0 + tMs).toLocaleTimeString(uiLocale(), { hour: 'numeric', minute: '2-digit' }), cumVolume: e.cumVol, unit, speed: SPEED, tMs, panels: p };
+    return { kind: 'composite', delayCs, setNo: e.setNo, totalSets, progress: Math.max(0, Math.min(1, tMs / spanMs)), elapsedLabel: fmtClock(tMs), clockLabel: appFont.fmt.time(new Date(t0 + tMs)), cumVolume: e.cumVol, unit, speed: SPEED, tMs, panels: p };
   };
 
   // ---- composite frames: a keyframe at each set + interpolated tweens so the clock/timeline/HR sweep SMOOTHLY.
@@ -29174,7 +29212,7 @@ function buildWorkoutTimelapse(session, opts) {
   });
 
   const frames = [];
-  frames.push({ kind: 'title', delayCs: TITLE_CS, dateLabel, startClock: new Date(t0).toLocaleTimeString(uiLocale(), { hour: 'numeric', minute: '2-digit' }), exerciseCount: base.exerciseCount, totalSets,
+  frames.push({ kind: 'title', delayCs: TITLE_CS, dateLabel, startClock: appFont.fmt.time(new Date(t0)), exerciseCount: base.exerciseCount, totalSets,
     totalVolume: base.totalVolume, unit, durationLabel: base.durationLabel, speed: SPEED, synthetic: base.synthetic,
     sampledNote: base.sampledNote, plan: base.plan, panelNames: panels.map(c => TITLES[c]), photoCount: photos.length });
   comp.forEach(f => frames.push(f));
@@ -30527,7 +30565,7 @@ function bodyGoalLine(series) {
     const n = recent.length, mx = recent.reduce((a, p) => a + p.t, 0) / n, my = recent.reduce((a, p) => a + p.val, 0) / n;
     const sxx = recent.reduce((a, p) => a + (p.t - mx) ** 2, 0), slope = sxx ? recent.reduce((a, p) => a + (p.t - mx) * (p.val - my), 0) / sxx * 86400000 : 0;
     const days = slope ? left / slope : -1;
-    eta = (days > 0 && days < 730) ? ` · at this pace ~${new Date(Date.now() + days * 86400000).toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric', year: 'numeric' })}` : ' · not trending toward it';
+    eta = (days > 0 && days < 730) ? ` · at this pace ~${appFont.fmt.date(new Date(Date.now() + days * 86400000))}` : ' · not trending toward it';
   }
   return `🎯 Goal ${bodyDispW(g)}${u} · ${bodyDispW(Math.abs(left))}${u} to ${left < 0 ? 'lose' : 'gain'}${eta}`;
 }
@@ -31048,7 +31086,7 @@ function sleepChartHtml(A, nowMs) {
   const y = v => H - 14 - (v / top) * (H - 22), x = r => 26 + Math.max(0, Math.round(29 - (now - new Date(r.date).getTime()) / 864e5)) * ((W - 30) / 30);
   const ST = [['deepMin', 'Deep', '--s1'], ['remMin', 'REM', '--s2'], ['lightMin', 'Light', '--s3'], ['awakeMin', 'Awake', '--s4']];
   const bars = rows.map(r => {
-    const day = new Date(r.date).toLocaleDateString(uiLocale(), { weekday: 'short', month: 'short', day: 'numeric' });
+    const day = appFont.fmt.date(new Date(r.date), 'full');
     const tip = [day + ': ' + _fmtHm(r.sleepMin) + ' asleep', r.sleepScore != null ? 'score ' + r.sleepScore : '', r.bedtime && r.wakeTime ? r.bedtime + '–' + r.wakeTime : '',
       ...ST.filter(([k]) => r[k] != null).map(([k, l]) => l + ' ' + _fmtHm(r[k]))].filter(Boolean).join(' · ');
     const staged = r.deepMin != null && r.remMin != null && r.lightMin != null;
@@ -31388,7 +31426,7 @@ function exportStravaPush() {
 let _stravaModalOpen = false;
 function openStravaModal() { renderStravaModal(); document.getElementById('strava-backdrop')?.classList.add('open'); document.getElementById('strava-modal')?.classList.add('open'); _stravaModalOpen = true; }
 function closeStravaModal() { document.getElementById('strava-backdrop')?.classList.remove('open'); document.getElementById('strava-modal')?.classList.remove('open'); _stravaModalOpen = false; }
-function _stFmt(dLike, extra) { const d = new Date(dLike); return d.toLocaleDateString(uiLocale(), { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(uiLocale(), { hour: 'numeric', minute: '2-digit' }) + (extra || ''); }
+function _stFmt(dLike, extra) { const d = new Date(dLike); return appFont.fmt.date(d) + ' ' + appFont.fmt.time(d) + (extra || ''); }
 function _stSessSummary(s) { const n = (s.exercises || []).length; return `${n} exercise${n === 1 ? '' : 's'}`; }
 function _stActExtra(a) { const mn = a.elapsedSec ? ` · ${Math.round(a.elapsedSec / 60)}m` : ''; return mn + (a.calories ? ` · ${a.calories}cal` : ''); }
 function renderStravaModal() {
@@ -34021,7 +34059,7 @@ function bindWtChart(root, rows, onLoad, keepSel) {
   const W = parseFloat(svgs[0].getAttribute('width')), ML = 38, MR = 62;
   const w0 = asc[0].w, w1 = asc[asc.length - 1].w, xs = w => ML + ((w - w0) / ((w1 - w0) || 1)) * (W - ML - MR);
   const ro = root.querySelector('.wt-readout'), u = state.unit || 'lb';
-  const fd = d => new Date(d).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' });
+  const fd = d => appFont.fmt.date(new Date(d));
   let sel = 0;
   const slide = () => WT_SLIDES[_wtSlide] || WT_SLIDES[0];
   const fmtV = (k, v) => v == null ? '—' : (k === 'pw' || k === 'pv') ? Math.round(v) + '%' : (k === 'bestR' || k === 'lastR') ? t.n('{count} rep', '{count} reps', v, { count: v }) : (k === 'dPR' || k === 'dLast') ? (v === 0 ? t('today') : agoDays(v)) : String(Math.round(v));
@@ -34097,7 +34135,7 @@ function showWeightTablePopup() {
   if (!R.rows.length) return;
   R.rows.forEach(r => { r.obj = objectiveSetTier(pending.varUuid, { w: r.w, r: r.best.r }); }); // feat 440 — 🌍 read at each weight's best reps
   _wtSort = { col: 'w', dir: -1 };
-  const fd = (d) => new Date(d).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short', year: '2-digit' });
+  const fd = (d) => appFont.fmt.date(new Date(d));
   const cell = (x) => x ? `${x.date ? '' : '~'}${Math.round(x.e)}<span class="wt-reps">×${x.r}</span><span class="wt-date">${x.date ? fd(x.date) : 'projected'}</span>` : '—'; // feat 440 — reps of the set behind each e1RM
   const hasObj = R.rows.some(r => r.obj); // biometrics present → show the 🌍 column
   const COLS = [['w', 'Weight'], ['best', 'Best e1RM'], ['last', 'Last'], ['d90', '90d best'], ...(hasObj ? [['obj', '🌍']] : []), ['pw', 'PR wt'], ['pv', 'PR all']];
@@ -34390,7 +34428,7 @@ function renderNeighborHints() {
   if (!lighter && !heavier) { el.innerHTML = e1Card; return; }
 
   function fmtDate(iso) {
-    try { return new Date(iso).toLocaleDateString(uiLocale(), { month:'short', day:'numeric' }); }
+    try { return appFont.fmt.date(new Date(iso)); }
     catch(e) { return ''; }
   }
 
@@ -35684,7 +35722,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 502 · 2026-11-21 19:29';
+const APP_BUILD = 'build 503 · 2026-11-21 22:18';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
