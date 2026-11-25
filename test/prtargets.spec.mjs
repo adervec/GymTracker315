@@ -308,3 +308,47 @@ test('feat 501 — no rendered target tile asks for more than the ceiling', asyn
   expect(r.asks.length).toBeGreaterThan(1);
   r.asks.forEach(n => expect(n, 'every tile asks for a set a human would attempt').toBeLessThanOrEqual(r.ceiling));
 });
+
+test('feat 591 — holding the 🎯 tile steps it to another weight close to a PR, wraps, and a tap still loads the weight', async ({ page }) => {
+  const v = await seed(page);
+  const r = await page.evaluate(async (v) => {
+    const R = exWeightRows(v, null), B = exBestSets(v, null);
+    const claimed = [B.prevTop, B.bestE1, B.maxW, B.maxR].filter(x => x && x.w > 0).map(x => x.w);
+    const steps = [0, 1, 2, 3, 4, 5, 6].map(n => exPrTargets(v, null, claimed, n));
+    const tile = () => document.querySelector('[data-tgt-kind="vuln"]');
+    const hold = async () => { const el = tile(); el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); await new Promise(res => setTimeout(res, 700));
+      el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); el.click(); await new Promise(res => setTimeout(res, 50)); };
+    const before = tile().dataset.w0;
+    const setBefore = pending.sets[0].w;
+    await hold();
+    const after = tile().dataset.w0, setAfterHold = pending.sets[0].w;
+    await new Promise(res => setTimeout(res, 950));
+    tile().click();                                                           // a plain tap loads the weight, as before
+    const setAfterTap = pending.sets[0].w;
+    return { first: steps[0].vuln.w, picks: steps.map(p => p.vuln.w), choices: steps[0].choices, odds: steps.map(p => p.vuln.odds),
+      top: Math.max(...R.rows.filter(x => !claimed.includes(x.w)).map(x => x.pw)), claimed, before, after, setBefore, setAfterHold, setAfterTap };
+  }, v);
+  expect(r.first).toBe(r.picks[0]);
+  expect(r.choices).toBeGreaterThanOrEqual(2);
+  expect(new Set(r.picks.slice(0, r.choices)).size).toBe(r.choices);          // each step is a different weight
+  expect(r.picks[r.choices]).toBe(r.picks[0]);                                // and it wraps around
+  expect(r.picks.some(w => r.claimed.includes(w))).toBe(false);               // never a weight another tile shows
+  expect(r.odds[0]).toBe(r.top);                                              // the first pick is still the most vulnerable
+  expect(r.after).not.toBe(r.before);                                         // the hold moved the tile
+  expect(r.setAfterHold).toBe(r.setBefore);                                   // and loaded nothing
+  expect(String(r.setAfterTap)).toBe(String(r.after));                        // a tap still loads its weight
+});
+
+test('feat 591 — with only one weight to offer, a hold says so instead of moving', async ({ page }) => {
+  await seed(page);
+  const r = await page.evaluate(() => {
+    const msgs = []; const real = window.toast; toast = (m) => msgs.push(String(m));
+    _vulnPick = { w: 155, r: 9, odds: 60, choices: 1 };
+    const before = modalState.vulnShuffle;
+    shuffleVulnTarget();
+    toast = real;
+    return { msgs, same: modalState.vulnShuffle === before };
+  });
+  expect(r.msgs).toEqual(['No other weight is this close to a PR']);
+  expect(r.same).toBe(true);
+});

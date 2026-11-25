@@ -5581,3 +5581,9 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   importer replaced the whole day, losing tape measurements). Not in the feed: sleep, daily recovery, activity names and
   maps (listed in OVERLAPS.md as ideas for the runner). `buildChannelContext` / `buildInstructionsMd` lost their Garmin
   and Strava branches; `coworkImportGarmin` / `coworkImportStrava` stay for file imports and the review-gate tests.
+- **Hold the 🎯 tile for another weight (feat 591):** `exPrTargets(…, shuffle)` ranks the free weights by PR odds (`pw`, ties to
+  the heavier) and steps through a band: every weight within `VULN_BAND` (15) points of the best, at least the next-best,
+  at most `VULN_MAX` (6), wrapping around. Step 0 is the old pick exactly. The step lives in `modalState.vulnShuffle`
+  (runtime, keyed by exercise + option, so it resets on another exercise). The hold is bound per render on the fresh tile
+  (550 ms, with the fill ring); `_tgtHoldAt` makes the click after a hold load nothing. Mind the target loop: its
+  destructured `t` shadows the translator, so the tile's hint is built before the loop.

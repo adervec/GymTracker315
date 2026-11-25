@@ -1128,6 +1128,19 @@ window.appUpdateNotice = false; /* the app shows its own "Update ready — tap t
     write: function (name, body, mime) {
       mime = mime || 'application/json';
       return gFind(name).then(function (id) {
+        // simple and multipart uploads stop at 5 MB; a bigger file (a song with its audio) goes resumable
+        var size = typeof body === 'string' ? new Blob([body]).size : (body && body.size) || 0;
+        if (size > 4 * 1024 * 1024) {
+          return gApi(id ? 'upload/drive/v3/files/' + id + '?uploadType=resumable' : 'upload/drive/v3/files?uploadType=resumable', {
+            method: id ? 'PATCH' : 'POST',
+            headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': mime },
+            body: JSON.stringify(id ? {} : { name: name, parents: ['appDataFolder'] }),
+          }).then(function (r) {
+            var at = r.headers.get('Location');
+            if (!at) throw new Error('Google Drive did not start the upload.');
+            return fetch(at, { method: 'PUT', body: body }); // the session address carries its own pass
+          }).then(function (r) { if (!r.ok) throw new Error('Google Drive answered ' + r.status + '.'); });
+        }
         if (id) return gApi('upload/drive/v3/files/' + id + '?uploadType=media', { method: 'PATCH', headers: { 'Content-Type': mime }, body: body });
         var b = 'b' + randomId().replace(/-/g, '');
         var multi = new Blob(['--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ name: name, parents: ['appDataFolder'] }) +
@@ -33402,7 +33415,9 @@ function renderSetsForm() {
         ? ((wCap && t.w + wInc > wCap) ? beat(t) : { w: t.w + wInc, r: 1 }) : null; // −20 assist → −15: less help
       const T = { prevTop: beat(B.prevTop), bestE1: noE1 ? null : beat(B.bestE1), maxW: tm ? beat(B.maxW && B.maxW.w > 0 ? B.maxW : null) : heavier(B.maxW), maxR: beat(B.maxR) }; // a hold beats the heaviest by holding it longer
       const claimed = [T.prevTop, T.bestE1, T.maxW, T.maxR].filter(x => x && x.w > 0).map(x => x.w);
-      const P = noE1 ? { vuln: null, e1: null } : exPrTargets(pending.varUuid, pending.subUuid, claimed); // feat 477 — PR picks avoid taken weights
+      const vs = modalState.vulnShuffle, step = (vs && vs.varUuid === pending.varUuid && vs.subUuid === (pending.subUuid || null)) ? vs.n : 0;   // feat 591
+      const P = noE1 ? { vuln: null, e1: null } : exPrTargets(pending.varUuid, pending.subUuid, claimed, step); // feat 477 — PR picks avoid taken weights
+      _vulnPick = P.vuln ? { w: P.vuln.w, r: P.vuln.r, odds: P.vuln.odds, choices: P.choices || 1 } : null;
       // feat 504 — the 5th slot is the axis the tile advances along: Max wt climbs weight, the rest climb reps
       const defs = [['↩', 'Prev top', T.prevTop, null, 'reps'], ['🏆', 'Best e1RM', T.bestE1, null, 'reps'],
         ['🎯', 'Wt PR', P.vuln, P.vuln && P.vuln.odds, 'reps'], ['🚀', 'e1RM PR', P.e1, P.e1 && P.e1.odds, 'reps'],
@@ -33417,6 +33432,7 @@ function renderSetsForm() {
       const sortKeys = noE1 ? [['order', 'order'], ['w', 'weight'], ['r', tm ? 'time' : 'reps']]
         : [['order', 'order'], ['w', 'weight'], ['r', 'reps'], ['e1', 'e1RM'], ['vuln', '🎯 odds']]; // feat 517
       const tgtSort = sortKeys.some(([k]) => k === state.targetSort) ? state.targetSort : 'order';
+      const holdHint = t('Hold for another weight close to a PR');   // feat 591 — here, where t is still the translator
       sortTargetDefs(defs, tgtSort).forEach(d => { const [ico, lbl, t, odds, axis] = d;
         if (!t || !okW(t.w) || seen.has(t.w) || hardest.get(t.w) !== d) return; // same BASE weight twice = one button (identity is the base ask)
         seen.add(t.w);
@@ -33424,9 +33440,10 @@ function renderSetsForm() {
         const hit = pg.n > 0;
         if (hit) { hits++; prs++; }   // one PR per tile however many rungs you climb — un-juiceable
         const streak = pg.n > 1 ? '<span class="tb-streak" title="Beaten ' + pg.n + ' times this session">' + pg.n + '</span>' : '';
-        btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}" data-w="${pg.w}" data-r="${pg.r}"
+        const isVuln = lbl === 'Wt PR';   // feat 591 — the bullseye: hold it for another weight
+        btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}"${isVuln ? ' data-tgt-kind="vuln"' : ''} data-w="${pg.w}" data-r="${pg.r}"
           data-w0="${t.w}" data-r0="${t.r}" data-axis="${axis}" data-n="${pg.n}"
-          title="${escapeAttr(lbl + ' — ' + (noE1 ? fmtSetFor(pending.varUuid, pg.w, pg.r) : pg.w + state.unit + ' × ' + pg.r) + (odds != null ? ' · ' + odds + '% PR odds' : '') + (pg.n === 1 ? ' — beaten once this session; here is the next rung' : pg.n > 1 ? ' — beaten ' + pg.n + ' times this session' : ''))}"
+          title="${escapeAttr(lbl + ' — ' + (noE1 ? fmtSetFor(pending.varUuid, pg.w, pg.r) : pg.w + state.unit + ' × ' + pg.r) + (odds != null ? ' · ' + odds + '% PR odds' : '') + (pg.n === 1 ? ' — beaten once this session; here is the next rung' : pg.n > 1 ? ' — beaten ' + pg.n + ' times this session' : '') + (isVuln ? ' · ' + holdHint : ''))}"
           ><span class="tb-ico">${ico}</span><span class="tb-lbl">${lbl}</span><b>${fmtSetFor(pending.varUuid, pg.w, pg.r)}</b>${streak}</button>`);
         // the odds live in the tooltip and the All-weights table — on a 3-up tile they only ate the label
       });
@@ -33632,7 +33649,19 @@ function exWeightGaps(R, varUuid) {
      into a RUNG COUNT, so the tile advances and keeps a streak instead of becoming a receipt.
    • exSessionPrCount is gone (feat 504): it counted distinct weights, which the Max-wt ladder could mint a
      fresh PR on at every rung. The badge now counts tiles beaten, one apiece. */
-function exPrTargets(varUuid, subUuid, taken) {
+/* feat 591 — HOLD THE 🎯 TILE FOR ANOTHER WEIGHT. `shuffle` (0, 1, 2 …) steps the weight-PR pick through the weights
+   ranked by PR odds: those within VULN_BAND points of the best, and always at least the next-best one, so a hold
+   always moves somewhere; it wraps around. The pick still skips weights other tiles show. */
+const VULN_BAND = 15, VULN_MAX = 6;
+let _vulnPick = null, _tgtHoldAt = 0;
+function shuffleVulnTarget() {
+  if (!_vulnPick || _vulnPick.choices < 2) { toast(t('No other weight is this close to a PR')); return; }
+  const sub = pending.subUuid || null, vs = modalState.vulnShuffle;
+  modalState.vulnShuffle = { varUuid: pending.varUuid, subUuid: sub, n: (vs && vs.varUuid === pending.varUuid && vs.subUuid === sub ? vs.n : 0) + 1 };
+  renderModal();
+  if (_vulnPick) toast(t('🎯 {set} · {odds}% PR odds', { set: fmtSetFor(pending.varUuid, _vulnPick.w, _vulnPick.r), odds: _vulnPick.odds }));
+}
+function exPrTargets(varUuid, subUuid, taken, shuffle) {
   const R = exWeightRows(varUuid, subUuid);
   if (!R.rows.length) return { vuln: null, e1: null };
   const cap = exMaxW(varUuid);
@@ -33642,14 +33671,17 @@ function exPrTargets(varUuid, subUuid, taken) {
   if (!usable.length) return { vuln: null, e1: null };
   const pick = (rows, key, skip) => rows.reduce((b, r) => (r.w === skip) ? b
     : (!b || r[key] > b[key] || (r[key] === b[key] && r.w > b.w)) ? r : b, null);
-  const vRow = pick(usable, 'pw');
+  const ranked = usable.slice().sort((a, b) => (b.pw - a.pw) || (b.w - a.w));          // same first pick as before
+  const near = ranked.filter(r => r.pw >= ranked[0].pw - VULN_BAND).length;
+  const band = ranked.slice(0, Math.min(VULN_MAX, Math.max(near, Math.min(2, ranked.length))));
+  const vRow = band[(Math.max(0, shuffle | 0)) % band.length];
   // feat 501 — the vulnerability pick is grounded in a set you really did (its own record + 1 rep) so it can
   // never go absurd, but the e1RM path is solved from Epley: only offer weights whose ask is humanly plausible.
   const plausible = usable.filter(r => e1NeedAt(r.w, R.allBest) <= E1_PATH_MAX_REPS);
   const eRow = pick(plausible, 'pv', vRow && vRow.w) || pick(plausible, 'pv');
   const vuln = vRow ? { w: vRow.w, r: vRow.best.r + 1, odds: vRow.pw } : null;
   const e1 = eRow ? { w: eRow.w, r: e1NeedAt(eRow.w, R.allBest), odds: eRow.pv } : null;
-  return { vuln, e1 };
+  return { vuln, e1, choices: band.length };
 }
 // feat 482 — order the target tiles: 'order' keeps them as built; the rest sort descending by weight,
 // reps, e1RM, or vulnerability (PR odds — tiles without odds sink to the end).
@@ -35003,7 +35035,18 @@ function bindSetsForm() {
   // feat 234/420 — one-tap prefill: load a reference weight into the first incomplete set (weight only — you
   // still log the reps you actually do), and pre-seed the plate/loader picker for it. Bound to EVERY target
   // button (prev top · best e1RM · max weight · max reps).
-  document.querySelectorAll('.prog-prefill[data-w]').forEach(el => el.addEventListener('click', (e) => prefillTargetWeight(parseFloat(e.currentTarget.dataset.w))));
+  document.querySelectorAll('.prog-prefill[data-w]').forEach(el => el.addEventListener('click', (e) => { if (Date.now() - _tgtHoldAt < 900) return; prefillTargetWeight(parseFloat(e.currentTarget.dataset.w)); })); // feat 591 — not after a hold
+  // feat 591 — hold the 🎯 tile: another weight about as close to a PR. Bound per render on a fresh button, so nothing stacks.
+  document.querySelectorAll('[data-tgt-kind="vuln"]').forEach(el => {
+    let tm = null, raf = null, t0 = 0;
+    const stop = () => { clearTimeout(tm); cancelAnimationFrame(raf); el.classList.remove('lp-holding'); el.style.removeProperty('--lp'); };
+    el.addEventListener('pointerdown', () => { t0 = Date.now(); el.classList.add('lp-holding');
+      const tick = () => { const pct = Math.min(100, (Date.now() - t0) / 5.5); el.style.setProperty('--lp', pct.toFixed(0) + '%'); if (pct < 100) raf = requestAnimationFrame(tick); };
+      raf = requestAnimationFrame(tick);
+      tm = setTimeout(() => { stop(); _tgtHoldAt = Date.now(); try { safeVibrate(20); } catch (_) {} shuffleVulnTarget(); }, 550); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => el.addEventListener(ev, stop));
+    el.addEventListener('contextmenu', e => e.preventDefault());   // no phone long-press menu over the tile
+  });
   document.querySelectorAll('[data-tgt-sort]').forEach(el => el.addEventListener('click', (e) => { state.targetSort = e.currentTarget.dataset.tgtSort; saveState(); renderModal(); })); // feat 482
   document.getElementById('trk-wt-expand')?.addEventListener('click', showWeightTablePopup); // feat 422 — the all-weights table
   document.getElementById('trk-fixw-open')?.addEventListener('click', showFixWeightsPopup); // feat 572 — holds
@@ -35849,7 +35892,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 505 · 2026-11-22 09:57';
+const APP_BUILD = 'build 506 · 2026-11-25 11:14';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
