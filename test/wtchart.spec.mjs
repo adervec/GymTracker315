@@ -201,3 +201,40 @@ test('feat 576 — the second chart is a carousel: PR odds, reps (most ever, las
   expect((await snap()).id).toBe('pr');
   expect(await page.evaluate(() => document.querySelectorAll('svg[data-wt-plot]').length)).toBe(2);
 });
+
+test('feat 595 — the weight list can copy another exercise: a hand-written list first, then logged weights; use or add', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const vs = [...VAR_INDEX.keys()].filter(u => exMode(u).mode === 'standard' && !isCardioVar(u)).slice(0, 4);
+    const [me, listed, logged, few] = vs;
+    state.wtRungs = { [listed]: [10, 22.5, 35, 47.5] };
+    const sess = (sets) => ({ id: 's' + Math.random(), date: new Date().toISOString(), exercises: sets });
+    state.sessions = [sess([{ varUuid: logged, subUuid: null, sets: [{ w: 50, r: 5 }, { w: 60, r: 5 }, { w: 70, r: 5 }] }, { varUuid: few, subUuid: null, sets: [{ w: 5, r: 5 }] }])];
+    const src = weightListSources(me);
+    let saved = null;
+    openWeightListEditor([100, 110], [100], (l) => { saved = l; }, me);
+    const sheet = [...document.querySelectorAll('.choice-backdrop')].pop(), q = s => sheet.querySelector(s);
+    const options = [...q('#wl-src').options].map(o => o.textContent);
+    const preview = q('#wl-src-preview').textContent;
+    q('[data-wl="copy-add"]').click();                                   // add the hand-written list to mine
+    const added = [...sheet.querySelectorAll('.wl-chip')].map(c => +c.dataset.wlDel);
+    q('#wl-src').value = '1'; q('#wl-src').dispatchEvent(new Event('change'));
+    q('[data-wl="copy-use"]').click();                                   // replace with the logged weights
+    const used = [...sheet.querySelectorAll('.wl-chip')].map(c => +c.dataset.wlDel);
+    const before = saved;
+    q('[data-wl="save"]').click();
+    const none = weightListSources(few).every(x => x.u !== few);
+    let noVar = true; openWeightListEditor([1, 2], [], () => {}); noVar = ![...document.querySelectorAll('.choice-backdrop')].pop().querySelector('#wl-src');
+    return { kinds: src.map(x => x.kind), first: src[0].u === listed, hasFew: src.some(x => x.u === few), options: options.length, preview, added, used, before, saved, none, noVar };
+  });
+  expect(r.kinds).toEqual(['list', 'logged']);          // the one-weight exercise is not offered
+  expect(r.first).toBe(true);
+  expect(r.hasFew).toBe(false);
+  expect(r.options).toBe(2);
+  expect(r.preview).toBe('10 · 22.5 · 35 · 47.5');
+  expect(r.added).toEqual([10, 22.5, 35, 47.5, 100, 110]);
+  expect(r.used).toEqual([50, 60, 70]);
+  expect(r.before).toBe(null);                          // nothing saved until Save
+  expect(r.saved).toEqual([50, 60, 70]);
+  expect(r.none).toBe(true);                            // an exercise never offers itself
+  expect(r.noVar).toBe(true);                           // without an exercise the row is not shown
+});

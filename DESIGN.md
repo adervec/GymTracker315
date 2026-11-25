@@ -5618,3 +5618,8 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   `sets` list with `which`) migrate in `ssList`. A reload with a superset pending resumes it.
 - **Sub chips use the theme (feat 594):** `.sub-chip` and `.sub-select-wrap` had hard-coded dark colours, so the selected
   chip (pale accent background, near-white text) was unreadable in light themes.
+- **Copy another exercise's weights (feat 595):** `weightListSources(varUuid)` lists exercises with a hand-written list
+  (`state.wtRungs`) first, then exercises logged at three or more distinct weights (same movement first, then most recent;
+  at most 40), never the exercise itself. The editor (`openWeightListEditor(…, varUuid)`) shows them in a "Copy from" select
+  with a preview of the weights; "Use that list" replaces the editor's list, "Add to mine" merges. Weights only, and
+  nothing is stored until Save. Without a `varUuid` the row is not shown.

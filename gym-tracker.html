@@ -4929,6 +4929,8 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .wl-row label { font-size: 12px; color: var(--text2); min-width: 64px; }
 .wl-in { flex: 1; width: 48px; min-width: 0; max-width: 110px; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg2, transparent); color: var(--text); font: inherit; font-size: 14px; }
 .wl-in.wide { max-width: none; }
+.wl-src-preview { font-size: 11.5px; color: var(--text3); margin: -2px 0 8px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+select.wl-in { padding: 7px 6px; }
 .wt-proj-toggle { margin: 0 0 6px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border2); background: transparent; color: var(--text2); font: inherit; font-size: 11px; cursor: pointer; }
 .wt-table tbody tr { cursor: pointer; }
 .wt-table tbody tr:active { background: var(--bg3); }
@@ -33648,7 +33650,23 @@ function weightRun(from, to, step) {
   const out = []; for (let i = 0; i < 120 && from + i * step <= to + 1e-9; i++) out.push(Math.round((from + i * step) * 100) / 100);
   return out;
 }
-function openWeightListEditor(start, logged, onSave) {
+/* feat 595 — COPY ANOTHER EXERCISE'S WEIGHTS. Machines from one line share a stack, so the odd pin positions typed for one
+   are usually right for the next. Sources: exercises with a hand-written list first, then exercises logged at three or
+   more weights (same movement first, then the most recently trained). Weights only: never reps or records. */
+function weightListSources(varUuid) {
+  const out = [], seen = new Set([varUuid]), info = VAR_INDEX.get(varUuid), fam = info && info.family.id;
+  Object.keys(state.wtRungs || {}).forEach(u => { const l = exWeightRungs(u); if (!seen.has(u) && VAR_INDEX.get(u) && l && l.length) { seen.add(u); out.push({ u, ws: l.slice(), kind: 'list' }); } });
+  const last = {}, ws = {};
+  (state.sessions || []).forEach(se => { const tt = new Date(se.date).getTime() || 0;
+    (se.exercises || []).forEach(ex => { if (!ex || !ex.varUuid || ex.cardio || seen.has(ex.varUuid) || !VAR_INDEX.get(ex.varUuid)) return;
+      (ex.sets || []).forEach(st => { const w = parseFloat(st.w); if (w > 0) (ws[ex.varUuid] = ws[ex.varUuid] || new Set()).add(Math.round(w * 100) / 100); });
+      if (!(last[ex.varUuid] >= tt)) last[ex.varUuid] = tt; }); });
+  const sameFam = u => (VAR_INDEX.get(u).family.id === fam) ? 1 : 0;
+  Object.keys(ws).filter(u => ws[u].size >= 3).sort((a, b) => (sameFam(b) - sameFam(a)) || (last[b] - last[a])).slice(0, 40)
+    .forEach(u => out.push({ u, ws: [...ws[u]].sort((a, b) => a - b), kind: 'logged' }));
+  return out;
+}
+function openWeightListEditor(start, logged, onSave, varUuid) {
   let list = parseWeightRungs((start || []).join(' '));
   const has = new Set((logged || []).map(Number));
   const back = document.createElement('div'); back.className = 'choice-backdrop';
@@ -33661,9 +33679,15 @@ function openWeightListEditor(start, logged, onSave) {
     <div class="wl-chips" id="wl-chips"></div>
     <div class="wl-row"><label for="wl-one">${t('Add')}</label><input id="wl-one" class="wl-in wide" type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeAttr(t('e.g. 212.5 or 90 95 100'))}"><button type="button" class="drawer-btn" data-wl="add">${t('＋ Add')}</button></div>
     <div class="wl-row"><label for="wl-from">${t('Add a run')}</label><input id="wl-from" class="wl-in" type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeAttr(t('from'))}" aria-label="${escapeAttr(t('from'))}"><input id="wl-to" class="wl-in" type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeAttr(t('to'))}" aria-label="${escapeAttr(t('to'))}"><input id="wl-step" class="wl-in" type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeAttr(t('step'))}" aria-label="${escapeAttr(t('step'))}"><button type="button" class="drawer-btn" data-wl="run">${t('＋ Add')}</button></div>
+    ${(() => { const src = varUuid ? weightListSources(varUuid) : []; if (!src.length) return '';   // feat 595
+      return `<div class="wl-row wl-copy"><label for="wl-src">${t('Copy from')}</label><select id="wl-src" class="wl-in wide">${src.map((x, i) => `<option value="${i}">${escapeHtml(displayName(x.u))} · ${x.kind === 'list' ? t.n('{n} weight in your list', '{n} weights in your list', x.ws.length, { n: x.ws.length }) : t.n('{n} weight logged', '{n} weights logged', x.ws.length, { n: x.ws.length })}</option>`).join('')}</select></div>
+        <div class="wl-src-preview" id="wl-src-preview"></div>
+        <div class="wl-row"><button type="button" class="drawer-btn" data-wl="copy-use">${t('Use that list')}</button><button type="button" class="drawer-btn" data-wl="copy-add">${t('Add to mine')}</button></div>`; })()}
     <div class="wl-row"><button type="button" class="drawer-btn" data-wl="logged">${t('Add the weights I have logged')}</button><button type="button" class="drawer-btn danger" data-wl="clear">${t('Remove all')}</button></div>
     <div class="choice-actions"><button class="choice-btn primary" data-wl="save">${t('Save')}</button><button class="choice-btn" data-wl="auto">${t('Work the list out for me')}</button><button class="choice-btn" data-wl="cancel">${t('Cancel')}</button></div></div>`;
   const q = sel => back.querySelector(sel);
+  const sources = varUuid ? weightListSources(varUuid) : [], pickSrc = () => { const el = q('#wl-src'); return el ? sources[+el.value] : null; };
+  const preview = () => { const el = q('#wl-src-preview'), x = pickSrc(); if (el && x) el.textContent = x.ws.slice(0, 16).join(' · ') + (x.ws.length > 16 ? ' …' : ''); };
   const draw = () => { q('#wl-chips').innerHTML = chips(); q('#wl-count').textContent = t.n('{n} weight', '{n} weights', list.length, { n: list.length }); };
   const add = (ws) => { const before = list.length; list = parseWeightRungs(list.concat(ws).join(' ')); draw(); return list.length - before; };
   const addOne = () => { const inp = q('#wl-one'), ws = parseWeightRungs(inp.value); if (!ws.length) { toast(t('Type a weight first')); return; } add(ws); inp.value = ''; inp.focus(); };
@@ -33675,13 +33699,17 @@ function openWeightListEditor(start, logged, onSave) {
     if (act === 'add') addOne();
     else if (act === 'run') addRun();
     else if (act === 'logged') add([...has]);
+    else if (act === 'copy-use' || act === 'copy-add') { const x = pickSrc(); if (!x) return;   // feat 595
+      if (act === 'copy-use') { list = parseWeightRungs(x.ws.join(' ')); draw(); } else add(x.ws);
+      toast(t.n('{n} weight from {name}', '{n} weights from {name}', x.ws.length, { n: x.ws.length, name: displayName(x.u) })); }
     else if (act === 'clear') { list = []; draw(); }
     else if (act === 'save') { close(); onSave(list); }
     else if (act === 'auto') { close(); onSave([]); }
     else if (act === 'cancel' || e.target === back) close();
   });
   back.addEventListener('keydown', (e) => { if (e.key !== 'Enter') return; if (e.target.id === 'wl-one') { e.preventDefault(); addOne(); } else if (/^wl-(from|to|step)$/.test(e.target.id)) { e.preventDefault(); addRun(); } });
-  draw(); document.body.appendChild(back); requestAnimationFrame(() => back.classList.add('open'));
+  q('#wl-src')?.addEventListener('change', preview);
+  draw(); preview(); document.body.appendChild(back); requestAnimationFrame(() => back.classList.add('open'));
 }
 function exWeightGaps(R, varUuid) {
   const ws = R.rows.map(r => r.w).sort((a, b) => a - b);
@@ -34400,12 +34428,12 @@ function showWeightTablePopup() {
     }
     if (e.target.closest('[data-wt-rungs]')) { // feat 575 — the machine's real weights, by hand (feat 580: an editor, not a comma list)
       const v = pending.varUuid, cur = exWeightRungs(v) || R.rows.map(r => r.w).concat(gaps.map(g => g.w)).sort((a, b) => a - b);
-      openWeightListEditor(cur, R.rows.map(r => r.w), (list) => {
+      openWeightListEditor(cur, R.rows.map(r => r.w), (list) => {   // feat 595 — `v` lets it offer other exercises' weights
         setExWeightRungs(v, list);
         gaps = exWeightGaps(R, v);
         back.querySelector('.wt-proj-bar').innerHTML = projBtn(); back.querySelector('tbody').innerHTML = tbody();
         toast(exWeightRungs(v) ? t('Weight list saved') : t('Back to the automatic list'));
-      });
+      }, v);
       return;
     }
     const th = e.target.closest('[data-wt-col]');
@@ -36043,7 +36071,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 509 · 2026-11-25 16:44';
+const APP_BUILD = 'build 510 · 2026-11-25 18:49';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
