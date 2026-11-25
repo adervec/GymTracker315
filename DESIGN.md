@@ -5605,3 +5605,16 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   the newest: `revealLastSetRow` and `renderModal` set `-scrollHeight`. The position is remembered from the list's own
   scroll events (`modalState.setsScroll`, per exercise and set count) and re-applied a frame later, because the first draw
   can happen while the sheet is hidden, where setting it does nothing.
+- **Supersets in the normal sheet (feat 594):** the bare superset form is gone. `pending.superset = { list: [{ varUuid, subUuid,
+  sets }], active }`: each member keeps its own sets, and the sheet shows the active one through the ordinary
+  `pending.varUuid / subUuid / sets`, so every per-exercise feature (targets, history, rest, plan progress, numpad, the
+  attachment rules of feat 593) simply follows it and no counting code had to learn about members. `ssSync` copies the
+  sheet back into the active member, `ssLoad(i)` loads one, `ssSwitch(i)` does both. `ssMemberRowHtml` (chips like the
+  attachment chips, with set counts, ☆ Save, ＋ Exercise, ✕ End) sits above the version row; "Change exercise" is hidden.
+  `saveSuperset` files every member's valid sets, grouped by each set's attachment, under one supersetId. The ⇄ button
+  opens `openSupersetStart`: saved combinations, "New, starting with" the open exercise (its sets become A, you land on B),
+  or a blank pick. `state.savedSupersets` syncs through `mergeKeyedArray` (newest `updatedAt` wins); a removal is a
+  `deleted` tombstone so it reaches other devices; normalizeState cleans each entry. Older pendings ({a, b}, or one shared
+  `sets` list with `which`) migrate in `ssList`. A reload with a superset pending resumes it.
+- **Sub chips use the theme (feat 594):** `.sub-chip` and `.sub-select-wrap` had hard-coded dark colours, so the selected
+  chip (pale accent background, near-white text) was unreadable in light themes.

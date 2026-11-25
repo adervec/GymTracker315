@@ -90,13 +90,14 @@ test('feat 531 — a superset grows into a triset; all three save under one grou
     const vs = [...VAR_INDEX.entries()].filter(([, i]) => !isCardioVar(i.variation.uuid) && exMode(i.variation.uuid).mode === 'standard').slice(0, 3).map(([u]) => u);
     state.sessions = [];
     openLogModal(); modalState.showPicker = true; renderModal();
-    document.getElementById('trk-ss2-start').click();
-    pending.superset.list.push({ varUuid: vs[0], subUuid: null }, { varUuid: vs[1], subUuid: null }); modalState.supersetPick = 'done'; renderModal();
+    document.getElementById('trk-ss2-start').click();                         // feat 594 — a start sheet first
+    [...document.querySelectorAll('[data-ss-new]')].find(b => b.dataset.ssNew === 'blank').click();
+    pending.superset.list.push({ varUuid: vs[0], subUuid: null, sets: [] }, { varUuid: vs[1], subUuid: null, sets: [] }); modalState.supersetPick = 'done'; renderModal();
     document.getElementById('trk-ss2-more').click();
     const banner = document.querySelector('.ss2-banner').textContent;
-    pending.superset.list.push({ varUuid: vs[2], subUuid: null }); modalState.supersetPick = 'done'; renderModal();
-    const name = document.querySelector('.selected-ex-name').textContent, adds = document.querySelectorAll('[data-ss-add]').length;
-    pending.superset.sets = [0, 1, 2].map(i => ({ which: i, w: '50', r: '10' }));
+    pending.superset.list.push({ varUuid: vs[2], subUuid: null, sets: [] }); modalState.supersetPick = 'done'; ssLoad(2); renderModal();
+    const name = document.querySelector('.ss-kind').textContent, adds = document.querySelectorAll('[data-ss-member]').length;
+    [0, 1, 2].forEach(i => { ssSwitch(i); pending.sets = [{ w: '50', r: '10' }]; });
     saveSuperset();
     const ex = state.sessions[0].exercises;
     return { banner, name, adds, n: ex.length, oneGroup: new Set(ex.map(e => e.supersetId)).size === 1 && !!ex[0].supersetId };
@@ -115,7 +116,7 @@ test('feat 531 — an old two-exercise pending ({a, b}) still opens and saves', 
     state.sessions = [];
     pending.superset = { a: { varUuid: vs[0] }, b: { varUuid: vs[1] }, sets: [{ which: 'a', w: '50', r: '8' }, { which: 'b', w: '40', r: '8' }] };
     openLogModal(); modalState.supersetMode = true; modalState.supersetPick = 'done'; renderModal();
-    const name = document.querySelector('.selected-ex-name').textContent;
+    const name = document.querySelector('.ss-kind').textContent;
     saveSuperset();
     return { name, n: state.sessions[0].exercises.length };
   });

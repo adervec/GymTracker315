@@ -3547,6 +3547,16 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .sets-section { border: 1px solid var(--border2); border-radius: 9px; background: var(--bg2); padding: 6px 8px 4px; }
   .sets-section .set-header { position: sticky; top: 0; background: var(--bg2); z-index: 1; padding-top: 2px; }
   .sets-scroll { max-height: 40vh; min-height: 84px; overflow-y: auto; resize: vertical; }
+  /* feat 594 — superset member chips */
+  .ss-members { margin: 8px 0 4px; padding: 8px 10px; border: 1px solid var(--accent-border); background: var(--accent-bg); border-radius: 10px; }
+  .ss-members-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+  .ss-kind { flex: 1; min-width: 0; font-size: 12px; font-weight: 700; color: var(--accent); }
+  .ss-act { font: inherit; font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text2); cursor: pointer; }
+  .ss-act.on { color: var(--accent); border-color: var(--accent-border); }
+  .ss-letter { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 10.5px; margin-inline-end: 4px; }
+  .ss-saved-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 10px; }
+  .ss-saved-row { display: flex; gap: 6px; } .ss-saved-go { flex: 1; text-align: start; white-space: normal; line-height: 1.4; }
+  .ss-sep { color: var(--text3); }
   .set-sub-mark { font-size: 10.5px; font-weight: 700; color: var(--text3); padding: 5px 2px 2px; letter-spacing: .02em; }
   .set-sub-mark.change { color: var(--accent); }
   .set-row.sub-change { box-shadow: inset 3px 0 0 var(--accent); }
@@ -4490,12 +4500,12 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
 
   /* Subvariation in modal */
   .sub-chips { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
-  .sub-chip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 10px; min-height: 40px; border-radius: 8px; border: 1px solid #2e2640; background: #0e0e16; color: #e8e0ff; font: inherit; font-size: 12.5px; cursor: pointer; text-align: left; }
+  .sub-chip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 10px; min-height: 40px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; text-align: start; } /* feat 594 — theme colours: the hard-coded dark chip was unreadable when selected in a light theme */
   .sub-chip-meta { font-size: 10px; color: var(--text3); }
   .sub-chip.trained .sub-chip-meta { color: var(--good); }
-  .sub-chip.active { border-color: var(--accent); background: var(--accent-bg); box-shadow: 0 0 0 1px var(--accent) inset; }
-  .sub-select-wrap { background: #1f1a2a; border: 1px solid #2e2640; border-radius: 7px; padding: 6px 10px; margin: 0 0 8px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } /* feat 472 — trimmed */
-  .sub-select-label { font-size: 10px; color: #88b0ff; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; white-space: nowrap; }
+  .sub-chip.active { border-color: var(--accent); background: var(--accent-bg); color: var(--text); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .sub-select-wrap { background: var(--surface, var(--bg2)); border: 1px solid var(--border2); border-radius: 7px; padding: 6px 10px; margin: 0 0 8px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } /* feat 472 — trimmed */
+  .sub-select-label { font-size: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; white-space: nowrap; }
   .sub-select { flex: 1; min-width: 0; padding: 8px 28px 8px 10px; background: #0e0e16; border: 1px solid #2e2640; border-radius: 5px; color: #e8e0ff; font-size: 13px; font-family: inherit; cursor: pointer; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2388b0ff' stroke-width='2'%3e%3cpath d='m6 9 6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; background-size: 14px; }
 
   /* Toast */
@@ -9280,6 +9290,7 @@ function applyImport(data, mode) {
   // ponytail: no delete tombstone (same as gyms) — a delete may not reach a device still holding the row; add one if that bites.
   state.analysisRequests = mergeKeyedArray(state.analysisRequests, data.analysisRequests, r => r && r.id, (inc, cur) => ((inc && inc.updatedAt) || '') >= ((cur && cur.updatedAt) || ''));
   state.planRequests = mergeKeyedArray(state.planRequests, data.planRequests, r => r && r.id, (inc, cur) => ((inc && inc.updatedAt) || '') >= ((cur && cur.updatedAt) || '')); // feat 574
+  if ('savedSupersets' in data) state.savedSupersets = mergeKeyedArray(state.savedSupersets, data.savedSupersets, r => r && r.id, (inc, cur) => ((inc && inc.updatedAt) || '') >= ((cur && cur.updatedAt) || '')); // feat 594 (removals are tombstones)
   if ('seededPlanIds' in data) state.seededPlanIds = mergeIdSet(state.seededPlanIds, data.seededPlanIds);
   ['exerciseMedia','exerciseSetup','cardioGoals','favoritePlans','favoriteVars','hiddenVars','hiddenMovements',
    'hiddenCategories','mediaWatched','glossaryRead','studyRead','studyPod','logReview','periodReviews','sleepReviews'].forEach(k => { if (k in data) state[k] = mergeMap(state[k], data[k]); });
@@ -9705,6 +9716,9 @@ function normalizeState() {
   if (!Array.isArray(state.gymMemberships)) state.gymMemberships = []; // feat 539
   if (!Array.isArray(state.analysisRequests)) state.analysisRequests = []; // feat 450 — cowork analysis-request queue
   if (!Array.isArray(state.planRequests)) state.planRequests = []; // feat 574 — cowork plan-request queue
+  if (!Array.isArray(state.savedSupersets)) state.savedSupersets = []; // feat 594
+  state.savedSupersets = state.savedSupersets.filter(x => x && typeof x.id === 'string' && Array.isArray(x.members)).slice(-100)
+    .map(x => ({ id: x.id.slice(0, 64), name: String(x.name || '').slice(0, 160), members: x.members.filter(m => m && typeof m.varUuid === 'string').slice(0, SS_MAX).map(m => ({ varUuid: m.varUuid, subUuid: typeof m.subUuid === 'string' ? m.subUuid : null })), updatedAt: String(x.updatedAt || ''), ...(x.deleted ? { deleted: true } : {}) }));
   if (!state.coachTalk || typeof state.coachTalk !== 'object' || Array.isArray(state.coachTalk)) state.coachTalk = { ev: {}, minGap: 0, perMin: 0 }; // feat 577 — what the coach says
   if (!state.logReview || typeof state.logReview !== 'object' || Array.isArray(state.logReview)) state.logReview = {}; // feat 513
   if (!state.periodReviews || typeof state.periodReviews !== 'object' || Array.isArray(state.periodReviews)) state.periodReviews = {}; // feat 545
@@ -18555,9 +18569,9 @@ function updateSaveBtn() {
   const btn = document.getElementById('trk-save-btn');
   if (!btn) return;
   // Obscure superset (feat 43) — enabled once any A/B set is valid
-  if (modalState.supersetMode && modalState.supersetPick === 'done') {
-    const ss = pending.superset;
-    const list = ssList(ss), ok = ss && ss.sets.some(s => list[s.which] && isSetValid(s, list[s.which].varUuid));
+  if (ssReady()) {
+    const ss = pending.superset, list = ssList(ss), act = ss.active || 0;
+    const ok = list.some((m, i) => ((i === act ? pending.sets : m.sets) || []).some(x => isSetValid(x, m.varUuid)));
     btn.disabled = !ok;
     btn.title = ok ? '' : 'Add at least one set';
     btn.textContent = t('💾 Save {length}', { length: (ssKind(list.length)) });
@@ -31972,9 +31986,15 @@ function renderModal() {
   const body = document.getElementById('trk-modal-body');
   stopHoldTimers(); // feat 257 — drop any prior hold-timer interval; bindSetsForm re-arms it if a timed set is open
   let isSets = false; // feat 58 — track whether the strength sets form is showing (for the footer Add button)
-  if (modalState.supersetMode && modalState.supersetPick === 'done') {
-    body.innerHTML = renderSupersetForm();
-    bindSupersetForm();
+  if (pending.superset && !modalState.supersetMode && ssList(pending.superset).length >= 2) { modalState.supersetMode = true; modalState.supersetPick = 'done'; } // feat 594 — a reload resumes it
+  if (ssReady()) {
+    const ss = pending.superset, m = ssList(ss)[ss.active || 0];
+    if (!m || m.varUuid !== pending.varUuid) ssLoad(ss.active || 0);
+    body.innerHTML = renderSetsForm();
+    bindSetsForm();
+    bindSupersetMembers();
+    renderNeighborHints();
+    isSets = true;
   } else if (modalState.showPicker || !pending.varUuid || (modalState.supersetMode && modalState.supersetPick !== 'done')) {
     body.innerHTML = renderPicker();
     bindPicker();
@@ -32668,12 +32688,8 @@ function bindPicker() {
     pick.click(); // reuse the normal selection path (sets pending, opens the sets form)
   });
   // Obscure superset (feat 43): enter / cancel / pick the two exercises
-  document.getElementById('trk-ss2-start')?.addEventListener('click', () => {
-    modalState.supersetMode = true; modalState.supersetPick = 'a';
-    pending.superset = { list: [], sets: [] };
-    savePending(); renderModal();
-  });
-  document.getElementById('trk-ss2-cancel')?.addEventListener('click', () => { if (modalState.supersetPick === 'more') { modalState.supersetPick = 'done'; renderModal(); } else exitSuperset(); });
+  document.getElementById('trk-ss2-start')?.addEventListener('click', openSupersetStart);   // feat 594 — saved ones first
+  document.getElementById('trk-ss2-cancel')?.addEventListener('click', () => { if (modalState.supersetPick === 'more') { modalState.supersetPick = 'done'; ssLoad(pending.superset.active || 0); renderModal(); } else exitSuperset(); });
 
   bindPickerResults();
 }
@@ -32688,8 +32704,9 @@ function bindPickerResults() {
       // Superset pick path — fill A then B (feat 43)
       if (modalState.supersetMode && modalState.supersetPick !== 'done') {
         const sub = info ? defaultSubUuid(info.variation) : null; // feat 462
-        const list = ssList(pending.superset); list.push({ varUuid, subUuid: sub }); // feat 531 — any count, ≥2 opens the form
+        const list = ssList(pending.superset); list.push({ varUuid, subUuid: sub, sets: [] }); // feat 531 — any count, ≥2 opens the form
         modalState.supersetPick = list.length >= 2 ? 'done' : 'a';
+        if (list.length >= 2) ssLoad(list.length - 1);   // feat 594 — straight onto the member just added
         savePending(); renderModal(); updateSaveBtn();
         return;
       }
@@ -33411,13 +33428,14 @@ function renderSetsForm() {
         <button class="ex-media-btn ex-act" id="trk-ex-motion-btn" type="button" data-emoji="🏃" title="${escapeAttr(t('Animated motion figure'))}">${t('🏃 Motion')}</button>
         <button class="ex-media-btn ex-act" id="trk-podcast-btn" type="button" data-emoji="🎧" title="${escapeAttr(t('Play a 30-60s coach brief on this movement'))}">${t('🎧 Brief')}</button>
         ${speechRecSupported() ? `<button class="ex-media-btn ex-act${exVoiceEnabled() ? ' voice-on' : ''}" id="trk-ex-voice" type="button" data-emoji="🎤" title="${escapeAttr(t('Voice control for THIS page — say weight 120 · reps 8 · add set · save · close'))}">🎤${exVoiceEnabled() ? ' On' : ''}</button>` : ''}
-        ${!modalState.isEditing ? `<button type="button" class="selected-ex-change ex-act" id="trk-change-exercise" data-emoji="🔄">${t('🔄 Change exercise')}</button>` : ''}
+        ${!modalState.isEditing && !ssReady() ? `<button type="button" class="selected-ex-change ex-act" id="trk-change-exercise" data-emoji="🔄">${t('🔄 Change exercise')}</button>` : ''}
         <button type="button" class="ex-act-toggle" id="trk-ex-actions-toggle" title="${exActionsOpen() ? 'Collapse to icons' : 'Show labels'}" aria-expanded="${exActionsOpen()}">${exActionsOpen() ? '▴' : '⋯'}</button>
       </div>
     </div>
     ${''/* feat 481 — the rest-cue HUD; filled + shown/hidden by refreshRestCueHud on the 1 s tick */}
     <div class="rc-hud" id="trk-rc-hud" style="display:none;"></div>
 
+    ${ssReady() ? ssMemberRowHtml() : ''}
     ${!modalState.isEditing ? limbRowHtml(pending.varUuid) : ''}
     ${sub ? `<div class="sub-select-wrap">
       <span class="sub-select-label">${escapeHtml(sub.label)}</span>
@@ -35422,80 +35440,153 @@ function saveCardio() {
   clearPending(); closeLogModal(); render();
 }
 
-/* ----- Obscure superset form (feat 43) ----- */
-// feat 531 — any number of exercises (2 = superset, 3 = triset, 4+ = giant set / circuit), up to six.
-// Members live in ss.list; a set's `which` is its member index. Older pendings ({a, b}, which 'a'/'b') migrate on read.
+/* ----- Supersets (feat 43 · 531 · 594) -----
+   feat 594 — A SUPERSET IS THE NORMAL SHEET WITH MEMBER CHIPS. It used to be a separate bare form (letters and two inputs:
+   no targets, history, numpad or rest timer). Now each member (A, B, …, up to six) keeps its own sets, and the sheet
+   shows the member you are on, exactly as if you had opened that exercise: chips at the top switch member like the
+   attachment chips do. Everything per exercise (targets, history, rest, plan progress, the numpad) follows the member.
+   Saving files every member's sets under one supersetId, each set under its own attachment. A combination can be
+   saved (state.savedSupersets) and started again with one tap. Older pendings ({a, b} or a shared `sets` list with
+   `which`) migrate on read. */
 const SS_MAX = 6, SS_LETTERS = 'ABCDEF';
 function ssList(ss) {
   if (!ss) return [];
   if (!ss.list) { ss.list = [ss.a, ss.b].filter(Boolean); delete ss.a; delete ss.b; (ss.sets || []).forEach(s => { if (s.which === 'a') s.which = 0; else if (s.which === 'b') s.which = 1; }); }
+  if (Array.isArray(ss.sets)) {   // feat 594 — one shared list → each member's own
+    ss.sets.forEach(x => { const m = ss.list[x.which]; if (m) (m.sets = m.sets || []).push({ w: x.w, r: x.r }); });
+    delete ss.sets;
+  }
   return ss.list;
 }
 function ssKind(n) { return n >= 4 ? 'Giant set' : n === 3 ? 'Triset' : 'Superset'; }
-function renderSupersetForm() {
-  const ss = pending.superset, list = ssList(ss);
-  if (list.length < 2) return `<div class="empty">${t('Superset not set up.')} <button class="ghost sm" id="trk-ss2-exit">${t('← Back')}</button></div>`;
-  const rows = ss.sets.map((s, i) => {
-    const M = exMode(list[s.which].varUuid);
-    return `<div class="ss2-set">
-      <span class="ss2-which w${s.which}">${SS_LETTERS[s.which]}</span>
-      <input class="set-input" type="number" inputmode="decimal" step="any" placeholder="${M.wLabel}" value="${s.w}" data-ssi="${i}" data-ssf="w">
-      <input class="set-input" type="number" inputmode="${M.mode==='standard'||M.mode==='bodyweight'?'numeric':'decimal'}" step="any" placeholder="${M.rLabel}" value="${s.r}" data-ssi="${i}" data-ssf="r">
-      <button class="set-remove" data-ss-remove="${i}">×</button>
-    </div>`;
-  }).join('');
-  const kind = ssKind(list.length), letters = SS_LETTERS.slice(0, list.length).split('').join(' / ');
-  return `
-    <div class="selected-exercise">
-      <div class="selected-ex-label">${t('Logging {p1}', { p1: (kind.toLowerCase()) })}</div>
-      <div class="selected-ex-name">⇄ ${kind}</div>
-      <div class="ss2-pair">${list.map((m, i) => `<span><b>${SS_LETTERS[i]}</b> ${escapeHtml(displayName(m.varUuid, m.subUuid))}</span>`).join('')}</div>
-      <span class="selected-ex-change" id="trk-ss2-exit">${t('← Cancel {p1}', { p1: (kind.toLowerCase()) })}</span>
-    </div>
-    <div class="card-title" style="margin-top:14px;">${t('Sets — add {letters} in any order', { letters: (letters) })}</div>
-    <div id="trk-ss2-sets">${rows || `<div style="font-size:12px;color:var(--text3);padding:6px 0;">${t('No sets yet — add {letters} below.', { letters: (letters) })}</div>`}</div>
-    <div class="btn-row" style="margin-top:10px;flex-wrap:wrap;">
-      ${list.map((m, i) => `<button class="secondary" data-ss-add="${i}">${t('+ Set {p1}', { p1: (SS_LETTERS[i]) })}</button>`).join('')}
-      ${list.length < SS_MAX ? `<button class="ghost" id="trk-ss2-more">${t('+ Exercise {p1}', { p1: (SS_LETTERS[list.length]) })}</button>` : ''}
-    </div>
-    <div class="plate-note">${t('Changing an exercise discards the in-progress {p1}. A normal in-progress set can\'t be converted into one.', { p1: (kind.toLowerCase()) })}</div>
-  `;
+function ssReady() { return !!(modalState.supersetMode && modalState.supersetPick === 'done' && pending.superset && ssList(pending.superset).length >= 2); }
+// keep the member you are on in step with the sheet (the sheet edits pending.sets directly)
+function ssSync() {
+  const ss = pending.superset; if (!ss) return;
+  const m = ssList(ss)[ss.active || 0];
+  if (m && m.varUuid === pending.varUuid) { m.sets = (pending.sets || []).map(x => ({ ...x })); m.subUuid = pending.subUuid || null; }
 }
-function bindSupersetForm() {
-  const ss = pending.superset;
-  document.querySelectorAll('[data-ssi]').forEach(inp => inp.addEventListener('input', () => {
-    ss.sets[+inp.dataset.ssi][inp.dataset.ssf] = inp.value; savePending(); updateSaveBtn();
-  }));
-  document.querySelectorAll('[data-ss-remove]').forEach(b => b.addEventListener('click', () => { ss.sets.splice(+b.dataset.ssRemove, 1); savePending(); renderModal(); updateSaveBtn(); }));
-  document.querySelectorAll('[data-ss-add]').forEach(b => b.addEventListener('click', () => { ss.sets.push({ which: +b.dataset.ssAdd, w:'', r:'' }); savePending(); renderModal(); updateSaveBtn(); }));
-  document.getElementById('trk-ss2-more')?.addEventListener('click', () => { modalState.supersetPick = 'more'; savePending(); renderModal(); });
-  document.getElementById('trk-ss2-exit')?.addEventListener('click', exitSuperset);
+function ssLoad(i) {
+  const ss = pending.superset, m = ssList(ss)[i]; if (!m) return;
+  const info = VAR_INDEX.get(m.varUuid);
+  ss.active = i;
+  pending.varUuid = m.varUuid; pending.cardio = null; pending.defaultWeight = null;
+  pending.subUuid = m.subUuid || (info ? defaultSubUuid(info.variation) : null);
+  pending.sets = (m.sets && m.sets.length) ? m.sets.map(x => ({ ...x })) : [{ w: '', r: '' }];
+}
+function ssSwitch(i) {
+  const ss = pending.superset; if (!ss || i === (ss.active || 0)) return;
+  ssSync(); ssLoad(i); savePending(); renderModal(); updateFAB(); updateSaveBtn();
+}
+function ssEnteredCount(m, isActive) { return ((isActive ? pending.sets : m.sets) || []).filter(x => setEntered(x)).length; }
+function ssMemberRowHtml() {
+  const ss = pending.superset, list = ssList(ss), act = ss.active || 0, saved = ssSavedMatch(list);
+  return `<div class="ss-members">
+    <div class="ss-members-head"><span class="ss-kind">⇄ ${t(ssKind(list.length))}</span>
+      <button type="button" class="ss-act${saved ? ' on' : ''}" data-ss-saveset>${saved ? t('★ Saved') : t('☆ Save')}</button>
+      ${list.length < SS_MAX ? `<button type="button" class="ss-act" id="trk-ss2-more">${t('＋ Exercise')}</button>` : ''}
+      <button type="button" class="ss-act" id="trk-ss2-exit">${t('✕ End')}</button></div>
+    <div class="sub-chips ss-chips" role="radiogroup" aria-label="${escapeAttr(t(ssKind(list.length)))}">
+      ${list.map((m, i) => { const n = ssEnteredCount(m, i === act);
+        return `<button type="button" class="sub-chip ss-chip w${i}${i === act ? ' active' : ''}" role="radio" aria-checked="${i === act}" data-ss-member="${i}">
+          <span class="sub-chip-lbl"><b class="ss-letter">${SS_LETTERS[i]}</b> ${escapeHtml(displayName(m.varUuid, i === act ? pending.subUuid : m.subUuid))}</span>
+          <span class="sub-chip-meta">${n ? t.n('{n} set', '{n} sets', n, { n }) : t('no sets yet')}</span></button>`; }).join('')}
+    </div></div>`;
+}
+// i18n-keys: Superset | Triset | Giant set
+function bindSupersetMembers() {
+  document.querySelectorAll('[data-ss-member]').forEach(b => b.addEventListener('click', () => ssSwitch(+b.dataset.ssMember)));
+  document.getElementById('trk-ss2-more')?.addEventListener('click', () => { ssSync(); modalState.supersetPick = 'more'; savePending(); renderModal(); });
+  document.getElementById('trk-ss2-exit')?.addEventListener('click', async () => {
+    ssSync();
+    const any = ssList(pending.superset).some(m => (m.sets || []).some(x => setEntered(x)));
+    if (any && !(await confirmDialog(t('End the superset? Sets you have not saved are discarded.'), { danger: true, okLabel: t('End it') }))) return;
+    exitSuperset();
+  });
+  document.querySelector('[data-ss-saveset]')?.addEventListener('click', () => { ssToggleSaved(); renderModal(); });
   const saveBtn = document.getElementById('trk-save-btn');
   if (saveBtn) saveBtn.onclick = saveSuperset;
   updateSaveBtn();
 }
+// ---- saved supersets (synced; a removed one keeps a tombstone so the removal reaches every device) ----
+function ssSavedAll() { return (Array.isArray(state.savedSupersets) ? state.savedSupersets : []).filter(x => x && !x.deleted && Array.isArray(x.members) && x.members.filter(m => m && VAR_INDEX.get(m.varUuid)).length >= 2); }
+function ssKey(members) { return members.map(m => m.varUuid).join('>'); }
+function ssSavedMatch(list) { const k = ssKey(list); return ssSavedAll().find(x => ssKey(x.members) === k) || null; }
+function ssToggleSaved() {
+  const list = ssList(pending.superset); if (list.length < 2) return;
+  if (!Array.isArray(state.savedSupersets)) state.savedSupersets = [];
+  const hit = ssSavedMatch(list), now = new Date().toISOString();
+  if (hit) { hit.deleted = true; hit.updatedAt = now; toast(t('Superset removed from your saved ones')); }
+  else {
+    const members = list.map(m => ({ varUuid: m.varUuid, subUuid: m.subUuid || null }));
+    state.savedSupersets.push({ id: newUuid(), name: members.map(m => displayName(m.varUuid, m.subUuid)).join(' ⇄ ').slice(0, 160), members, updatedAt: now });
+    toast(t('⭐ Superset saved: start it again from ⇄ in the exercise list'));
+  }
+  saveState();
+}
+function ssStart(members, fromCurrent) {
+  modalState.supersetMode = true; modalState.showPicker = false;
+  pending.superset = { list: members.map(m => ({ varUuid: m.varUuid, subUuid: m.subUuid || null, sets: m.sets || [] })), active: 0 };
+  if (pending.superset.list.length >= 2) { modalState.supersetPick = 'done'; ssLoad(fromCurrent ? 1 : 0); }
+  else modalState.supersetPick = 'a';
+  savePending(); renderModal(); updateFAB(); updateSaveBtn();
+}
+// The ⇄ button: your saved supersets (one tap), a new one built on the exercise you have open, or a new one.
+function openSupersetStart() {
+  const saved = ssSavedAll(), cur = (pending.varUuid && !isCardioVar(pending.varUuid)) ? pending.varUuid : null;
+  const back = document.createElement('div'); back.className = 'choice-backdrop';
+  const close = () => { back.classList.remove('open'); setTimeout(() => back.remove(), 200); };
+  back.innerHTML = `<div class="choice-sheet"><div class="choice-title">${t('⇄ Superset / triset / circuit')}</div>
+    ${saved.length ? `<div class="choice-msg">${t('Your saved ones: tap to start.')}</div><div class="ss-saved-list">${saved.map(x => `<div class="ss-saved-row"><button type="button" class="drawer-btn ss-saved-go" data-ss-go="${escapeAttr(x.id)}">${x.members.map((m, i) => `<b>${SS_LETTERS[i]}</b> ${escapeHtml(displayName(m.varUuid, m.subUuid))}`).join(' <span class="ss-sep">⇄</span> ')}</button><button type="button" class="drawer-btn danger" data-ss-del="${escapeAttr(x.id)}" aria-label="${escapeAttr(t('Remove'))}">✕</button></div>`).join('')}</div>` : ''}
+    <div class="choice-actions">
+      ${cur ? `<button class="choice-btn primary" data-ss-new="cur">${t('New, starting with {name}', { name: escapeHtml(displayName(cur, pending.subUuid)) })}</button>` : ''}
+      <button class="choice-btn${cur ? '' : ' primary'}" data-ss-new="blank">${t('New: pick the exercises')}</button>
+      <button class="choice-btn" data-ss-cancel>${t('Cancel')}</button></div></div>`;
+  back.addEventListener('click', (e) => {
+    const go = e.target.closest('[data-ss-go]'), del = e.target.closest('[data-ss-del]'), nw = e.target.closest('[data-ss-new]');
+    if (go) { const x = saved.find(y => y.id === go.dataset.ssGo); close(); if (x) ssStart(x.members.filter(m => VAR_INDEX.get(m.varUuid)).map(m => ({ ...m }))); return; }
+    if (del) { const x = (state.savedSupersets || []).find(y => y.id === del.dataset.ssDel); if (x) { x.deleted = true; x.updatedAt = new Date().toISOString(); saveState(); } del.closest('.ss-saved-row').remove(); return; }
+    if (nw) { close();
+      if (nw.dataset.ssNew === 'cur') ssStart([{ varUuid: cur, subUuid: pending.subUuid || null, sets: (pending.sets || []).map(x => ({ ...x })) }], true);
+      else ssStart([]);
+      return; }
+    if (e.target === back || e.target.closest('[data-ss-cancel]')) close();
+  });
+  document.body.appendChild(back); requestAnimationFrame(() => back.classList.add('open'));
+}
 function exitSuperset() {
   modalState.supersetMode = false; modalState.supersetPick = null;
   pending.superset = null; modalState.showPicker = true;
+  pending.sets = [{ w: '', r: '' }];
   savePending(); renderModal(); updateFAB(); updateSaveBtn();
 }
 function saveSuperset() {
+  if (typeof modalState !== 'undefined' && modalState.numpad && modalState.numpad.open && typeof _numpadFlush === 'function') _numpadFlush(modalState.numpad);
+  ssSync();
   const ss = pending.superset, list = ssList(ss);
   if (list.length < 2) return;
-  const now = new Date().toISOString();
-  const valid = list.map((m, i) => ss.sets.filter(s => s.which === i && isSetValid(s, m.varUuid)).map(s => ({ w: s.w, r: s.r, ts: now })));
-  if (!valid.some(v => v.length)) { toast(t('Enter at least one set')); return; }
+  const now = new Date().toISOString(), groups = [];
+  list.forEach(m => {   // feat 594 — each member's sets, each under its own attachment (feat 593)
+    const by = {};
+    (m.sets || []).filter(x => isSetValid(x, m.varUuid)).forEach(x => {
+      const sub = x.subUuid || m.subUuid || null, k = sub || '';
+      const o = { w: x.w, r: x.r, ts: x.ts || now }; if (x.wTs) o.wTs = x.wTs; if (x.rpe != null && x.rpe !== '') o.rpe = x.rpe;
+      (by[k] = by[k] || { varUuid: m.varUuid, subUuid: sub, sets: [] }).sets.push(o);
+    });
+    Object.keys(by).forEach(k => groups.push(by[k]));
+  });
+  if (!groups.length) { toast(t('Enter at least one set')); return; }
   const todayStr = new Date().toDateString();
   let session = state.sessions.find(s => new Date(s.date).toDateString() === todayStr);
   if (!session) { session = newSession(); state.sessions.push(session); }
   const sid = 'ss-' + newUuid().slice(0, 8);
-  list.forEach((m, i) => { if (valid[i].length) session.exercises.push({ varUuid: m.varUuid, subUuid: m.subUuid, sets: valid[i], supersetId: sid }); });
+  groups.forEach(g => session.exercises.push({ ...g, supersetId: sid }));
   saveState();
   const kind = ssKind(list.length);
   logInfo(kind + ' logged', list.map(m => displayName(m.varUuid, m.subUuid)).join(' ⇄ '));
   modalState.supersetMode = false; modalState.supersetPick = null;
   clearPending(); closeLogModal(); render();
-  toast(t('{kind} saved', { kind: (kind) }));
+  toast(t('{kind} saved', { kind: t(kind) }));
 }
 
 // feat 51 — only one unfinished (open) set allowed at a time.
@@ -35952,7 +36043,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 508 · 2026-11-25 16:09';
+const APP_BUILD = 'build 509 · 2026-11-25 16:44';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
