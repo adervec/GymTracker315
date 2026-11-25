@@ -3547,9 +3547,15 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .sets-section { border: 1px solid var(--border2); border-radius: 9px; background: var(--bg2); padding: 6px 8px 4px; }
   .sets-section .set-header { position: sticky; top: 0; background: var(--bg2); z-index: 1; padding-top: 2px; }
   .sets-scroll { max-height: 40vh; min-height: 84px; overflow-y: auto; resize: vertical; }
+  .set-sub-mark { font-size: 10.5px; font-weight: 700; color: var(--text3); padding: 5px 2px 2px; letter-spacing: .02em; }
+  .set-sub-mark.change { color: var(--accent); }
+  .set-row.sub-change { box-shadow: inset 3px 0 0 var(--accent); }
   /* feat 457 — newest set first (default on). A pure VISUAL flip: DOM order is untouched, so every
      positional lookup (updateRowLive's rows[idx], the numpad's data-i selectors) still works. */
-  .sets-scroll.newest-first { display: flex; flex-direction: column-reverse; justify-content: flex-end; }
+  /* feat 593 — no justify-content:flex-end: with column-reverse it pushed overflow past the end you can scroll to, so set 1
+     was unreachable in a long list. The bottom-most set's auto margin keeps a short list at the top instead. */
+  .sets-scroll.newest-first { display: flex; flex-direction: column-reverse; }
+  .sets-scroll.newest-first > .set-block:first-of-type { margin-bottom: auto; }
   .sets-scroll.newest-first .set-block { flex: 0 0 auto; }
   .sets-scroll.newest-first .set-block:last-of-type .set-row { border-bottom: none; }
   .tip-block { margin-bottom: 10px; }
@@ -31981,6 +31987,16 @@ function renderModal() {
     renderNeighborHints();
     isSets = true;
   }
+  // feat 593 — the set list stays where you scrolled it across a redraw; a new exercise or a new row shows the newest set.
+  // Remembered from the list's own scroll events (the first draw can happen while the sheet is still hidden, where
+  // setting a position does nothing), and set again on the next frame, once the sheet is on screen.
+  if (isSets) { const c = document.getElementById('trk-sets-container');
+    if (c) {
+      const ms = modalState.setsScroll, keep = ms && ms.v === pending.varUuid && ms.n === (pending.sets || []).length;
+      const want = () => keep ? ms.top : (newestSetFirst() ? -c.scrollHeight : c.scrollHeight);
+      c.scrollTop = want(); requestAnimationFrame(() => { if (c.isConnected) c.scrollTop = want(); });
+      c.addEventListener('scroll', () => { modalState.setsScroll = { v: pending.varUuid, n: (pending.sets || []).length, top: c.scrollTop }; }, { passive: true });
+    } }
   // feat 58 — the footer "Add" button is sets-only (the footer is shared across picker/cardio/superset forms)
   const addFb = document.getElementById('trk-add-set');
   if (addFb) addFb.style.display = isSets ? '' : 'none';
@@ -32724,6 +32740,7 @@ function bindPickerResults() {
 
 // feat 499 — the picker's destruction point, split out so it can also run after a confirm.
 function _applyPickedVar(varUuid, info) {
+      if (pending.varUuid !== varUuid) (pending.sets || []).forEach(s => { delete s.subUuid; });   // feat 593
       pending.varUuid = varUuid;
       pending.subUuid = info ? defaultSubUuid(info.variation) : null; // feat 462
       modalState.setupOpen = false; pending.defaultWeight = null; // feat 85 — collapse the configurator on exercise switch, but KEEP the loaded setup (persists by type within the workout)
@@ -33265,6 +33282,10 @@ function renderSetsForm() {
   // feat 88 — per-set sub-variation selector (only with a subvariation, the setting on, and not while editing)
   const mixSub = !!(sub && state.workoutControls && state.workoutControls.mixSubvariations && !modalState.isEditing);
 
+  // feat 593 — when the sheet holds more than one attachment, each run of sets is labelled where it starts
+  const effSub = s => (s && s.subUuid) || pending.subUuid || null;
+  const subLabel = u => { const o = sub && info ? info.variation.subvariation.options.find(x => x.uuid === u) : null; return o ? o.label : ''; };
+  const mixedRun = !!sub && !modalState.isEditing && new Set(pending.sets.map(effSub)).size > 1;
   // Build set rows with overload coloring + record hint on the bottom-most set
   const setsHtml = pending.sets.map((s, i) => {
     const isLast = i === pending.sets.length - 1;
@@ -33278,7 +33299,7 @@ function renderSetsForm() {
 
     // Color row if both weight and reps specified (feat 517 — 0 / negative added load counts for holds + bodyweight)
     if ((wNum > 0 || (M.mode !== 'standard' && wNum != null && !isNaN(wNum)) || M.mode === 'bodyweight') && rNum > 0) { // feat 519 — blank = bodyweight
-      const score = getOverloadScore(pending.varUuid, pending.subUuid, { w: wNum, r: rNum }, currentSessionDate);
+      const score = getOverloadScore(pending.varUuid, effSub(s), { w: wNum, r: rNum }, currentSessionDate); // feat 593 — judged against its own attachment's history
       if (score) {
         rowClass += ` overload-${score.level}`;
         overloadTagHtml = `<div class="set-overload-tag ${score.level}">${score.label}</div>`;
@@ -33316,7 +33337,12 @@ function renderSetsForm() {
     // feat 457 — each set is one block (row + its hold timer + its sub-variation select) so newest-first can
     // flip the VISUAL order with flex column-reverse without touching DOM order. Every positional lookup in
     // the sheet (updateRowLive's rows[idx], the numpad's data-i selectors) keeps working untouched.
+    const runStart = mixedRun && (i === 0 || effSub(pending.sets[i - 1]) !== effSub(s));
+    if (runStart && i > 0) rowClass += ' sub-change';
+    const mark = runStart ? `<div class="set-sub-mark${i > 0 ? ' change' : ''}">${i > 0 ? '↪ ' : ''}${escapeHtml(subLabel(effSub(s)))}</div>` : '';
+    const markTop = mark && !newestSetFirst(), markBottom = mark && newestSetFirst();   // the label sits where the run begins in reading order
     return `<div class="set-block">
+      ${markTop ? mark : ''}
       <div class="${rowClass}">
         <div class="set-num">${i + 1}</div>
         ${M.load === 'none' ? `<div class="set-input set-bw-cell" title="${escapeAttr(t('Bodyweight — just log reps'))}">${t('BW')}</div>` /* feat 519 */
@@ -33328,6 +33354,7 @@ function renderSetsForm() {
         ${recordHintHtml}
       </div>
       ${holdTimerHtml}
+      ${markBottom ? mark : ''}
       ${mixSub ? `<div class="set-sub-row"><span class="set-sub-lbl">${escapeHtml(sub.label)}</span><select class="set-sub-select" data-set-sub="${i}">${subOptions(info.variation).map(o => `<option value="${o.uuid}" ${((s.subUuid || pending.subUuid) === o.uuid) ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select></div>` : ''}
     </div>`;
   }).join('');
@@ -34719,6 +34746,18 @@ function paintActiveSet() {
   const idx = (typeof modalState !== 'undefined' && modalState.isEditing) ? -1 : activeSetIndex(pending.sets);
   rows.forEach((row, i) => row.classList.toggle('set-active', i === idx));
 }
+/* feat 593 — ATTACHMENTS FOLLOW THE SET. Switching the attachment chip used to re-label every set in the sheet, because
+   a set without its own `subUuid` saved under whatever was selected at Save. Now a switch first stamps each set you
+   have already entered with the attachment it was done with; empty rows (and new ones) take the new one. Saving
+   groups by each set's attachment, so one sheet can hold V-bar sets and rope sets. Not while editing a saved entry:
+   that entry has one attachment. */
+function setEntered(s) { return !!s && ((s.w !== '' && s.w != null) || (s.r !== '' && s.r != null)); }
+function freezeSetAttachments() {
+  if (modalState.isEditing || !pending.subUuid) return 0;
+  let n = 0;
+  (pending.sets || []).forEach(s => { if (setEntered(s) && !s.subUuid) { s.subUuid = pending.subUuid; n++; } });
+  return n;
+}
 function flashSetField(i, f) {
   const inp = document.querySelector('#trk-sets-container .set-input[data-i="' + i + '"][data-field="' + f + '"]');
   if (!inp) return;
@@ -35075,7 +35114,9 @@ function bindSetsForm() {
   }));
   document.querySelectorAll('#trk-sub-select [data-sub-pick]').forEach(b => b.addEventListener('click', () => { // feat 532 — in-app chips, not the OS dropdown
     if (pending.subUuid === b.dataset.subPick) return;
+    const kept = freezeSetAttachments();   // feat 593 — the change is for the sets still to come
     pending.subUuid = b.dataset.subPick;
+    if (kept) { const o = subOptions(VAR_INDEX.get(pending.varUuid).variation).find(x => x.uuid === pending.subUuid); toast(t.n('{label} from the next set on · {n} set keeps its attachment', '{label} from the next set on · {n} sets keep their attachment', kept, { label: o ? o.label : '', n: kept }), 3500); }
     savePending();
     renderModal(); // feat 331 — no first-set prefill on sub-variation change (archived feat 58)
     updateFAB();
@@ -35584,7 +35625,7 @@ function revealLastSetRow() {
   requestAnimationFrame(() => {
     const c = document.getElementById('trk-sets-container');
     if (!c) return;
-    c.scrollTop = newestSetFirst() ? 0 : c.scrollHeight; // 1) reveal the newest row — it's at the TOP under feat 457
+    c.scrollTop = newestSetFirst() ? -c.scrollHeight : c.scrollHeight; // 1) reveal the newest row — at the TOP under feat 457 (a column-reverse box scrolls in negative numbers: its start is the bottom)
     requestAnimationFrame(() => {
       const modal = document.getElementById('trk-modal');
       const footer = document.getElementById('trk-modal-footer');
@@ -35632,7 +35673,7 @@ function saveSets(endingWorkout) {
   // Filter to valid sets, preserving each set's last-edit timestamp (fallback to save time)
   const validSets = pending.sets
     .filter(s => isSetValid(s, undefined, true)) // feat 364 — keep over-limit sets here; the soft confirm / hard block below decides their fate
-    .map(s => ({ w: s.w, r: s.r, wTs: s.wTs || undefined, ts: s.ts || nowIso, rpe: (s.rpe === '' || s.rpe == null) ? undefined : s.rpe, _sub: (mix ? (s.subUuid || pending.subUuid) : pending.subUuid) || null }));
+    .map(s => ({ w: s.w, r: s.r, wTs: s.wTs || undefined, ts: s.ts || nowIso, rpe: (s.rpe === '' || s.rpe == null) ? undefined : s.rpe, _sub: (s.subUuid || pending.subUuid) || null })); // feat 593 — a set keeps the attachment it was done with
   if (validSets.length === 0) { toast(t('Enter at least one set')); return Promise.resolve(false); }
   // feat 63 — a bodyweight exercise needs a recorded bodyweight to be meaningful; block until one exists.
   if (exMode(pending.varUuid).load === 'assist' && getCurrentBodyweightKg() == null) { // feat 519 — a crunch never needed it
@@ -35911,7 +35952,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 507 · 2026-11-25 13:06';
+const APP_BUILD = 'build 508 · 2026-11-25 16:09';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

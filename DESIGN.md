@@ -5591,3 +5591,17 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   at 300 px each): number badge, the FIRST option's name (one line, ellipsis), "+N more" in its own column so a long name
   never hides it, then a 34 px progress bar and logged/sets. The full "Step n: a / b / c" is the title and aria-label. The
   "✕ all exercises" button moved into the head row. Class `picker-step-chip` and `data-picker-step` stay for the binding.
+- **Attachments follow the set (feat 593):** a set without its own `subUuid` used to save under whatever attachment was selected
+  at Save, so switching the chip re-labelled every set. `freezeSetAttachments()` runs before a chip switch and stamps each
+  ENTERED set (`setEntered`) with the attachment in force; empty rows follow the new one. Saving now always groups by
+  `s.subUuid || pending.subUuid` (previously only with mixSubvariations on). Switching exercise drops per-set `subUuid`
+  (`_applyPickedVar`). Editing a saved entry is untouched. With more than one attachment in the sheet, each run is labelled
+  where it begins in reading order (`.set-sub-mark`, below the row under newest-first), the first set of a later run gets an
+  accent edge, and its overload tag is judged against its own attachment's history.
+- **Newest-first scroll fix (feat 593):** `justify-content: flex-end` on the column-reverse list put the overflow on the
+  unscrollable side, so set 1 of a long list could not be reached (the box did not even report overflow). Replaced by
+  `margin-bottom: auto` on the bottom-most block, which keeps a short list at the top.
+  Now that it scrolls, a column-reverse box rests at its START, the bottom (set 1), and scrolls in NEGATIVE scrollTop toward
+  the newest: `revealLastSetRow` and `renderModal` set `-scrollHeight`. The position is remembered from the list's own
+  scroll events (`modalState.setsScroll`, per exercise and set count) and re-applied a frame later, because the first draw
+  can happen while the sheet is hidden, where setting it does nothing.
