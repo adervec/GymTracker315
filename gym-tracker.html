@@ -4440,12 +4440,25 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   /* feat 107 — picker escape hatch back to the current exercise */
   .picker-back-current { display: block; width: 100%; padding: 9px 12px; margin-bottom: 8px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; color: var(--accent); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
   /* feat 112/115 — plan-step chips at the top of the picker */
-  .picker-steps { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; padding: 8px 10px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 8px; }
-  .picker-steps-label { flex-basis: 100%; font-size: 11px; font-weight: 700; color: var(--accent); }
-  .picker-step-chip { font-size: 11.5px; font-weight: 600; background: var(--bg2); border: 1px solid var(--border2); color: var(--text); padding: 5px 9px; border-radius: 999px; cursor: pointer; font-family: inherit; }
-  .picker-step-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .picker-step-chip.clear { color: var(--text3); }
-  .picker-step-chip .psc-sets { font-size: 10px; opacity: 0.75; font-variant-numeric: tabular-nums; }
+  .picker-steps { margin-bottom: 8px; padding: 8px 10px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 8px; }
+  .picker-steps-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .picker-steps-label { flex: 1; min-width: 0; font-size: 11px; font-weight: 700; color: var(--accent); }
+  .picker-step-chip.clear { flex-shrink: 0; font: inherit; font-size: 11px; font-weight: 600; color: var(--text3); background: none; border: 1px solid var(--border2); border-radius: 999px; padding: 3px 9px; cursor: pointer; }
+  /* feat 592 — an even list of steps: number · first exercise (+N more) · progress */
+  .pstep-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 5px; }
+  .pstep { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; min-height: 38px; padding: 5px 10px 5px 6px;
+    font: inherit; text-align: start; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; color: var(--text); cursor: pointer; }
+  .pstep-n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; background: var(--accent-bg); color: var(--accent); font-variant-numeric: tabular-nums; }
+  .pstep-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 600; }
+  .pstep-more { font-size: 10.5px; white-space: nowrap; font-weight: 500; color: var(--text3); }
+  .pstep-prog { display: flex; align-items: center; gap: 6px; }
+  .pstep-bar { width: 34px; height: 4px; border-radius: 2px; background: var(--border2); overflow: hidden; }
+  .pstep-bar i { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+  .pstep-ct { min-width: 26px; text-align: end; font-size: 10.5px; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .pstep.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pstep.active .pstep-n { background: rgba(255,255,255,0.22); color: #fff; }
+  .pstep.active .pstep-more, .pstep.active .pstep-ct { color: rgba(255,255,255,0.8); }
+  .pstep.active .pstep-bar { background: rgba(255,255,255,0.3); } .pstep.active .pstep-bar i { background: #fff; }
   /* feat 116 — current-step indicator on the Log-Sets form */
   .logstep { margin: 0 0 10px; padding: 8px 11px; border-radius: 9px; background: var(--accent-bg); border: 1px solid var(--accent-border); }
   .logstep.done { background: color-mix(in srgb, var(--good) 12%, transparent); border-color: color-mix(in srgb, var(--good) 40%, transparent); }
@@ -32301,11 +32314,17 @@ function renderPicker() {
     const chips = plan.steps.map((st, i) => {
       const ss = stepStatus(sess, st, plan);
       if (ss.done) return '';
-      const label = (st.options || []).map(optionLabel).join(' / ') || 'step';
-      return `<button class="picker-step-chip ${modalState.planStepFilter === i ? 'active' : ''}" data-picker-step="${i}">${t('Step {p1}: {label} <span class="psc-sets">{logged}/{sets}</span>', { p1: (i + 1), label: (escapeHtml(label)), logged: (ss.logged), sets: (st.sets) })}</button>`;
+      // feat 592 — one even row per step: number, the first exercise (+N more), and a small progress bar.
+      // Pills sized to their text wrapped into a ragged heap once a step listed five alternatives.
+      const names = (st.options || []).map(optionLabel), label = names.join(' / ') || 'step', more = Math.max(0, names.length - 1);
+      const full = t('Step {p1}: {label}', { p1: (i + 1), label: label }), pct = st.sets ? Math.min(100, Math.round(ss.logged / st.sets * 100)) : 0;
+      return `<button type="button" class="picker-step-chip pstep ${modalState.planStepFilter === i ? 'active' : ''}" data-picker-step="${i}" title="${escapeAttr(full)}" aria-label="${escapeAttr(full)}">
+        <span class="pstep-n">${i + 1}</span>
+        <span class="pstep-name">${escapeHtml(names[0] || 'step')}</span><span class="pstep-more">${more ? t('+{n} more', { n: more }) : ''}</span>
+        <span class="pstep-prog"><span class="pstep-bar"><i style="width:${pct}%"></i></span><span class="pstep-ct">${ss.logged}/${st.sets}</span></span></button>`;
     }).filter(Boolean).join('');
     if (chips || modalState.planStepFilter != null) {
-      planSteps = `<div class="picker-steps"><span class="picker-steps-label">${t('📋 {name} — pick a step or browse all:', { name: (escapeHtml(plan.name)) })}</span>${chips}${modalState.planStepFilter != null ? `<button class="picker-step-chip clear" data-picker-step="clear">${t('✕ all exercises')}</button>` : ''}</div>`;
+      planSteps = `<div class="picker-steps"><div class="picker-steps-head"><span class="picker-steps-label">${t('📋 {name} — pick a step or browse all:', { name: (escapeHtml(plan.name)) })}</span>${modalState.planStepFilter != null ? `<button type="button" class="picker-step-chip clear" data-picker-step="clear">${t('✕ all exercises')}</button>` : ''}</div><div class="pstep-list">${chips}</div></div>`;
     }
   }
   return `
@@ -35892,7 +35911,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 506 · 2026-11-25 11:14';
+const APP_BUILD = 'build 507 · 2026-11-25 13:06';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

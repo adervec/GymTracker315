@@ -5587,3 +5587,7 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   (runtime, keyed by exercise + option, so it resets on another exercise). The hold is bound per render on the fresh tile
   (550 ms, with the fill ring); `_tgtHoldAt` makes the click after a hold load nothing. Mind the target loop: its
   destructured `t` shadows the translator, so the tile's hint is built before the loop.
+- **Plan steps in the picker as an even list (feat 592):** `.pstep` rows in a `.pstep-list` grid (one column on a phone, up to three
+  at 300 px each): number badge, the FIRST option's name (one line, ellipsis), "+N more" in its own column so a long name
+  never hides it, then a 34 px progress bar and logged/sets. The full "Step n: a / b / c" is the title and aria-label. The
+  "✕ all exercises" button moved into the head row. Class `picker-step-chip` and `data-picker-step` stay for the binding.
