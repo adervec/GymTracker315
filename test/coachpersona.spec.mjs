@@ -63,11 +63,11 @@ test('feat 296 — coachPhrase reshapes the cue wording per persona', async ({ p
   expect(r.gruffStart).toBe('Last set');                   // gruff: voice only, base wording
   expect(r.hypeStart).toContain('Last set');
   expect(r.hypeStart).not.toBe('Last set');                // …but reshaped
-  expect(r.sergeantStart).toBe('LAST SET, MOVE!');         // shouts
+  expect(r.sergeantStart).toMatch(/^LAST SET[,!]/);       // shouts (feat 601: one of several wordings)
   expect(r.sergeantWork).toContain('BURPEE');
   expect(r.hypeWork).toContain('Burpee');
-  expect(r.zenRest).toMatch(/breath/i);
-  expect(r.analystGo).toBe('Execute.');
+  expect(r.zenRest).toMatch(/^Rest./);                  // calm rest wording (feat 601: one of several)
+  expect(['Execute.', 'Begin.']).toContain(r.analystGo);
 });
 
 test('feat 296 — the settings persona picker renders pills and selecting one persists + syncs the voice mode', async ({ page }) => {
@@ -152,4 +152,53 @@ test('feat 296 — coachPersona migrates from the legacy ttsVoice toggle', async
   });
   expect(r.fromSystem).toBe('neutral');
   expect(r.fromAuto).toBe('gruff');
+});
+
+test('feat 601 — capitals are said as words ("go", not "G. O."), initialisms stay spelled', async ({ page }) => {
+  const r = await page.evaluate(() => [sayable('Let’s GO! GO! GO!'), sayable('NEW RECORD! 205 FOR 8'), sayable('New PR on the RDL'), sayable('HIIT block, AMRAP'), sayable('DON’T STOP')]);
+  expect(r[0]).toBe('Let’s go! go! go!');
+  expect(r[1]).toBe('new record! 205 for 8');
+  expect(r[2]).toBe('New PR on the RDL');
+  expect(r[3]).toBe('HIIT block, AMRAP');
+  expect(r[4]).toBe('don’t stop');
+});
+
+test('feat 601 — every coach has wordings for the moments; pools never repeat back to back; {name} only when set', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const ids = ['commentator', 'oldschool', 'stoic'];
+    const have = ids.map(id => !!coachPersona(id));
+    state.coachTalk = { ...(state.coachTalk || {}) }; delete state.coachTalk.name;
+    state.coachPersona = 'hype';
+    const starts = Array.from({ length: 30 }, () => coachPhrase('setStart', 'Last set'));
+    const repeats = starts.some((x, i) => i && x === starts[i - 1]);
+    const noName = starts.every(x => !/\{name\}/.test(x) && !/, !$/.test(x));
+    state.coachTalk.name = 'Ace';
+    const named = Array.from({ length: 60 }, () => coachLine('workout.start')).some(x => x.includes('Ace'));
+    const rec = coachLine('record.new', { set: '205 for 8' });
+    state.coachPersona = 'neutral';
+    const plain = coachLine('plan.done');
+    const missing = [];
+    COACH_PERSONAS.forEach(p => { if (p.lines) ['workout.start', 'workout.end', 'record.new', 'plan.done', 'rest.long', 'rest.quip'].forEach(k => { if (!(p.lines[k] || []).length) missing.push(p.id + ' ' + k); }); });
+    return { have, repeats, noName, named, rec, plain, missing, events: ['workout.start', 'workout.end', 'plan.done', 'rest.quip', 'rest.long'].every(id => !!coachEvent(id)) };
+  });
+  expect(r.have).toEqual([true, true, true]);
+  expect(r.repeats).toBe(false);
+  expect(r.noName).toBe(true);
+  expect(r.named).toBe(true);
+  expect(r.rec).toContain('205 for 8');
+  expect(r.plain).toBe('Plan complete. Great work.');      // the device voice keeps the plain line
+  expect(r.missing).toEqual([]);
+  expect(r.events).toBe(true);
+});
+
+test('feat 601 — your own words still win over the coach’s pool', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    state.coachPersona = 'sergeant';
+    setCoachEvent('plan.done', { text: 'Done and dusted' });
+    const own = coachLine('plan.done');
+    setCoachEvent('plan.done', { text: '' });
+    return { own, back: coachLine('plan.done') };
+  });
+  expect(r.own).toBe('Done and dusted');
+  expect(r.back).not.toBe('Done and dusted');
 });

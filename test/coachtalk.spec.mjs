@@ -12,6 +12,7 @@ test.beforeEach(async ({ page }) => {
     window._said = []; window.annunce = (txt) => { window._said.push(String(txt)); };   // hear what would be spoken
     state.coachTalk = { ev: {}, minGap: 0, perMin: 0 }; state.annunciation = { start: false, end: false, startLimit: 0, endLimit: 0, duck: true };
     state.ttsTips = false; state.sound = { audio: true, haptics: true, volume: 1 };
+    state.coachPersona = 'neutral'; state.ttsVoice = 'system'; state.sessions = [];   // feat 601 — the built-in words (a coach has its own)
     coachMute('off'); _coachSaid = []; _coachLastText = ''; _coachLastAt = 0;
   });
 });
@@ -126,7 +127,7 @@ test('feat 577 — presets set the switches and the budget; timing cues are left
   expect(r.quiet).toEqual({ on: ['set.end', 'record.new'], gap: 20, perMin: 3, hold: false });
   expect(r.chatty.on).toHaveLength(r.all);
   expect(r.chatty.gap).toBe(0);
-  expect(r.normal.on).toEqual(['set.start', 'set.end', 'plan.next', 'record.new']);
+  expect(r.normal.on).toEqual(['workout.start', 'workout.end', 'set.start', 'set.end', 'plan.next', 'plan.done', 'record.new']);   // feat 601 adds start, end, plan complete
 });
 
 test('feat 577 — the settings card: a row per line with a switch, how often, and a button to hear it', async ({ page }) => {
@@ -153,7 +154,7 @@ test('feat 577 — the settings card: a row per line with a switch, how often, a
     return out;
   });
   expect(r.rows).toBe(r.events);
-  expect(r.groups).toBe(7);          // six groups of lines, plus the Voice dials (feat 586)
+  expect(r.groups).toBe(8);          // seven groups of lines (feat 601: workout start and end), plus the Voice dials (feat 586)
   expect(r.presets).toBe(3);
   expect(r.freqOnTiming).toBe(false);          // a countdown is not "sometimes"
   expect(r.switched).toBe(true);
@@ -293,4 +294,29 @@ test('feat 586 — the dials in settings save as you let go, speak a sample, and
   expect(r.label).toBe('120%');
   expect(r.heard).toBe(3);                                               // one sample per dial let go
   expect(r.after).toEqual([{ rate: 1, pitch: 1 }, 1, '100', '100']);
+});
+
+test('feat 601 — the new moments: workout start and end, plan complete, a word in rest, a nudge when rest runs long', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    ['workout.start', 'workout.end', 'rest.quip', 'rest.long'].forEach(id => setCoachEvent(id, { on: true }));
+    startWorkout();
+    const start = window._said.slice(); window._said = []; _coachLastAt = 0;
+    // a rest of 90 s: halfway → one word; a minute past → one nudge; neither repeats
+    const real = computeRestState, realT = restCueTarget;
+    let ms = 0; computeRestState = () => ({ mode: 'resting', restMs: ms, interExercise: false }); restCueTarget = () => ({ sec: 90 });
+    const at = s => { ms = s * 1000; coachRestTick(); };
+    at(20); const before = window._said.length;
+    at(46); at(50); const quip = window._said.length;
+    at(120); at(151); at(160); const nudged = window._said.length;
+    computeRestState = real; restCueTarget = realT;
+    window._said = [];
+    const a = getActiveSession(); a.exercises = [{ varUuid: [...VAR_INDEX.keys()][0], sets: [{ w: 100, r: 5 }, { w: 100, r: 5 }] }];
+    endWorkout(true);
+    return { start, before, quip, nudged, end: window._said.slice() };
+  });
+  expect(r.start).toEqual(['Let’s get to work.']);
+  expect(r.before).toBe(0);
+  expect(r.quip).toBe(1);
+  expect(r.nudged).toBe(2);
+  expect(r.end).toEqual(['Workout done. 2 sets.']);
 });

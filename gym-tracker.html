@@ -17551,7 +17551,7 @@ function speakRandomTip(varUuid) {
   const tip = tips[Math.floor(Math.random() * tips.length)];
   try {
     window.speechSynthesis.cancel();                 // never stack utterances
-    const u = new SpeechSynthesisUtterance(String(tip).slice(0, 240));
+    const u = new SpeechSynthesisUtterance(sayable(tip).slice(0, 240));
     u.rate = 1; u.lang = 'en-US'; u.volume = sndVol();
     coachify(u); // feat 210 — tips read in the gruff coach voice
     window.speechSynthesis.speak(u);
@@ -23528,6 +23528,7 @@ function startWorkout() {
   const warns = biometricWarnings();
   if (warns.length) { toast(t('⚠️ Workout started — {p1}', { p1: (warns.join(' · ')) })); logWarn('Stale/missing biometrics at workout start', warns.join('; ')); }
   else toast('💪 Workout started' + coachTag);
+  try { coachSay('workout.start', coachLine('workout.start')); } catch (_) {}   // feat 601
   logInfo('Workout started');
   // feat 371 — always record where the workout started (and reconcile to the nearest gym if one is within 2 km)
   captureWorkoutStartLocation(session);
@@ -23926,6 +23927,7 @@ function finalizeEndWorkout(active, skipConfirm) {
     // feat 528 — the end toast doubles as a one-tap recap: tap it to share (or copy) the workout as text
     toast((score ? `🏁 Workout ended · ${score.grade}` : '🏁 Workout ended') + ' — tap to share recap', 8000, () => shareWorkoutRecap(active));
     playCustomClip('finish'); // feat 550 — your workout-ended clip, if you set one
+    try { coachSay('workout.end', coachLine('workout.end', { sets: stats.totalSets })); } catch (_) {}   // feat 601
     // feat 338 — historize any archetype shift this workout produced, and celebrate it in a popup
     try { const shift = recordArchetypeShift(); if (shift) showArchetypeShiftDialog(shift); } catch (_) {}
   };
@@ -33669,10 +33671,18 @@ function renderSetsForm() {
       const heavier = t => (t && okW(t.w) && !(M.load === 'none') && !(M.load === 'vest' && !(t.w > 0))) // feat 519
         ? ((wCap && t.w + wInc > wCap) ? beat(t) : { w: t.w + wInc, r: 1 }) : null; // −20 assist → −15: less help
       const T = { prevTop: beat(B.prevTop), bestE1: noE1 ? null : beat(B.bestE1), maxW: tm ? beat(B.maxW && B.maxW.w > 0 ? B.maxW : null) : heavier(B.maxW), maxR: beat(B.maxR) }; // a hold beats the heaviest by holding it longer
+      // feat 600 — hold the 🔁 tile: step 0 is your max-reps set; then the other weights, most reps first, at one more rep
+      let repsChoices = 1;
+      if (!noE1 && B.maxR) {
+        const others = exWeightRows(pending.varUuid, pending.subUuid).rows.filter(r => r.w > 0 && r.best && r.w !== B.maxR.w).sort((a, b) => (b.best.r - a.best.r) || (b.w - a.w)).slice(0, VULN_MAX - 1);
+        repsChoices = 1 + others.length;
+        const k = tgtStep('reps') % repsChoices; if (k > 0) T.maxR = beat({ w: others[k - 1].w, r: others[k - 1].best.r });
+      }
+      _repsPick = T.maxR ? { w: T.maxR.w, r: T.maxR.r, choices: repsChoices } : null;
       const claimed = [T.prevTop, T.bestE1, T.maxW, T.maxR].filter(x => x && x.w > 0).map(x => x.w);
-      const vs = modalState.vulnShuffle, step = (vs && vs.varUuid === pending.varUuid && vs.subUuid === (pending.subUuid || null)) ? vs.n : 0;   // feat 591
-      const P = noE1 ? { vuln: null, e1: null } : exPrTargets(pending.varUuid, pending.subUuid, claimed, step); // feat 477 — PR picks avoid taken weights
+      const P = noE1 ? { vuln: null, e1: null } : exPrTargets(pending.varUuid, pending.subUuid, claimed, tgtStep('vuln'), tgtStep('e1')); // feat 477 — PR picks avoid taken weights; feat 591/599 — the held steps
       _vulnPick = P.vuln ? { w: P.vuln.w, r: P.vuln.r, odds: P.vuln.odds, choices: P.choices || 1 } : null;
+      _e1Pick = P.e1 ? { w: P.e1.w, r: P.e1.r, odds: P.e1.odds, choices: P.choicesE1 || 1 } : null;
       // feat 504 — the 5th slot is the axis the tile advances along: Max wt climbs weight, the rest climb reps
       const defs = [['↩', 'Prev top', T.prevTop, null, 'reps'], ['🏆', 'Best e1RM', T.bestE1, null, 'reps'],
         ['🎯', 'Wt PR', P.vuln, P.vuln && P.vuln.odds, 'reps'], ['🚀', 'e1RM PR', P.e1, P.e1 && P.e1.odds, 'reps'],
@@ -33687,7 +33697,7 @@ function renderSetsForm() {
       const sortKeys = noE1 ? [['order', 'order'], ['w', 'weight'], ['r', tm ? 'time' : 'reps']]
         : [['order', 'order'], ['w', 'weight'], ['r', 'reps'], ['e1', 'e1RM'], ['vuln', '🎯 odds']]; // feat 517
       const tgtSort = sortKeys.some(([k]) => k === state.targetSort) ? state.targetSort : 'order';
-      const holdHint = t('Hold for another weight close to a PR');   // feat 591 — here, where t is still the translator
+      const holdHint = t('Hold for another weight close to a PR'), holdHintE1 = t('Hold for another weight close to a new best e1RM'), holdHintR = t('Hold for another weight to beat your reps at');   // feat 591 / 599 — here, where t is still the translator
       sortTargetDefs(defs, tgtSort).forEach(d => { const [ico, lbl, t, odds, axis] = d;
         if (!t || !okW(t.w) || seen.has(t.w) || hardest.get(t.w) !== d) return; // same BASE weight twice = one button (identity is the base ask)
         seen.add(t.w);
@@ -33695,10 +33705,10 @@ function renderSetsForm() {
         const hit = pg.n > 0;
         if (hit) { hits++; prs++; }   // one PR per tile however many rungs you climb — un-juiceable
         const streak = pg.n > 1 ? '<span class="tb-streak" title="Beaten ' + pg.n + ' times this session">' + pg.n + '</span>' : '';
-        const isVuln = lbl === 'Wt PR';   // feat 591 — the bullseye: hold it for another weight
-        btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}"${isVuln ? ' data-tgt-kind="vuln"' : ''} data-w="${pg.w}" data-r="${pg.r}"
+        const isVuln = lbl === 'Wt PR', isE1 = lbl === 'e1RM PR', isReps = lbl === 'Max reps' && !noE1;   // feat 591 / 599 / 600 — bullseye, rocket, max reps: hold for another weight
+        btns.push(`<button type="button" class="prog-prefill target-btn${hit ? ' hit' : ''}"${isVuln ? ' data-tgt-kind="vuln"' : isE1 ? ' data-tgt-kind="e1"' : isReps ? ' data-tgt-kind="reps"' : ''} data-w="${pg.w}" data-r="${pg.r}"
           data-w0="${t.w}" data-r0="${t.r}" data-axis="${axis}" data-n="${pg.n}"
-          title="${escapeAttr(lbl + ' — ' + (noE1 ? fmtSetFor(pending.varUuid, pg.w, pg.r) : pg.w + state.unit + ' × ' + pg.r) + (odds != null ? ' · ' + odds + '% PR odds' : '') + (pg.n === 1 ? ' — beaten once this session; here is the next rung' : pg.n > 1 ? ' — beaten ' + pg.n + ' times this session' : '') + (isVuln ? ' · ' + holdHint : ''))}"
+          title="${escapeAttr(lbl + ' — ' + (noE1 ? fmtSetFor(pending.varUuid, pg.w, pg.r) : pg.w + state.unit + ' × ' + pg.r) + (odds != null ? ' · ' + odds + '% PR odds' : '') + (pg.n === 1 ? ' — beaten once this session; here is the next rung' : pg.n > 1 ? ' — beaten ' + pg.n + ' times this session' : '') + (isVuln ? ' · ' + holdHint : isE1 ? ' · ' + holdHintE1 : isReps ? ' · ' + holdHintR : ''))}"
           ><span class="tb-ico">${ico}</span><span class="tb-lbl">${lbl}</span><b>${fmtSetFor(pending.varUuid, pg.w, pg.r)}</b>${streak}</button>`);
         // the odds live in the tooltip and the All-weights table — on a 3-up tile they only ate the label
       });
@@ -33934,15 +33944,22 @@ function exWeightGaps(R, varUuid) {
    ranked by PR odds: those within VULN_BAND points of the best, and always at least the next-best one, so a hold
    always moves somewhere; it wraps around. The pick still skips weights other tiles show. */
 const VULN_BAND = 15, VULN_MAX = 6;
-let _vulnPick = null, _tgtHoldAt = 0;
-function shuffleVulnTarget() {
-  if (!_vulnPick || _vulnPick.choices < 2) { toast(t('No other weight is this close to a PR')); return; }
-  const sub = pending.subUuid || null, vs = modalState.vulnShuffle;
-  modalState.vulnShuffle = { varUuid: pending.varUuid, subUuid: sub, n: (vs && vs.varUuid === pending.varUuid && vs.subUuid === sub ? vs.n : 0) + 1 };
+let _vulnPick = null, _e1Pick = null, _repsPick = null, _tgtHoldAt = 0;
+// feat 591 / 599 — one hold for the 🎯 (kind 'vuln') and the 🚀 (kind 'e1') tiles; each keeps its own step per exercise
+const TGT_SHUFFLE_KEY = { vuln: 'vulnShuffle', e1: 'e1Shuffle', reps: 'repsShuffle' };
+function tgtStep(kind) { const vs = modalState[TGT_SHUFFLE_KEY[kind] || 'vulnShuffle']; return (vs && vs.varUuid === pending.varUuid && vs.subUuid === (pending.subUuid || null)) ? vs.n : 0; }
+function shuffleTarget(kind) {
+  const e1 = kind === 'e1', reps = kind === 'reps', cur = () => reps ? _repsPick : e1 ? _e1Pick : _vulnPick, pk = cur();
+  if (!pk || pk.choices < 2) { toast(reps ? t('No other weight to aim for more reps at') : e1 ? t('No other weight is this close to a new best e1RM') : t('No other weight is this close to a PR')); return; }
+  modalState[TGT_SHUFFLE_KEY[kind] || 'vulnShuffle'] = { varUuid: pending.varUuid, subUuid: pending.subUuid || null, n: tgtStep(kind) + 1 };
   renderModal();
-  if (_vulnPick) toast(t('🎯 {set} · {odds}% PR odds', { set: fmtSetFor(pending.varUuid, _vulnPick.w, _vulnPick.r), odds: _vulnPick.odds }));
+  const now = cur(); if (!now) return;
+  const set = fmtSetFor(pending.varUuid, now.w, now.r);
+  toast(reps ? t.n('🔁 {set} · your best there is {n} rep', '🔁 {set} · your best there is {n} reps', now.r - 1, { set, n: now.r - 1 })
+    : e1 ? t('🚀 {set} · {odds}% odds of a new best e1RM', { set, odds: now.odds }) : t('🎯 {set} · {odds}% PR odds', { set, odds: now.odds }));
 }
-function exPrTargets(varUuid, subUuid, taken, shuffle) {
+function shuffleVulnTarget() { shuffleTarget('vuln'); }
+function exPrTargets(varUuid, subUuid, taken, shuffle, shuffleE1) {
   const R = exWeightRows(varUuid, subUuid);
   if (!R.rows.length) return { vuln: null, e1: null };
   const cap = exMaxW(varUuid);
@@ -33959,10 +33976,16 @@ function exPrTargets(varUuid, subUuid, taken, shuffle) {
   // feat 501 — the vulnerability pick is grounded in a set you really did (its own record + 1 rep) so it can
   // never go absurd, but the e1RM path is solved from Epley: only offer weights whose ask is humanly plausible.
   const plausible = usable.filter(r => e1NeedAt(r.w, R.allBest) <= E1_PATH_MAX_REPS);
-  const eRow = pick(plausible, 'pv', vRow && vRow.w) || pick(plausible, 'pv');
+  // feat 599 — the 🚀 tile steps the same way: plausible weights ranked by their odds of a new best e1RM (pv), within
+  // VULN_BAND of the best, at least the next-best, at most VULN_MAX, wrapping. Step 0 is the old pick exactly.
+  const eFree = plausible.filter(r => !vRow || r.w !== vRow.w);
+  const eRanked = (eFree.length ? eFree : plausible).slice().sort((a, b) => (b.pv - a.pv) || (b.w - a.w));
+  const eNear = eRanked.filter(r => r.pv >= (eRanked[0] ? eRanked[0].pv : 0) - VULN_BAND).length;
+  const eBand = eRanked.slice(0, Math.min(VULN_MAX, Math.max(eNear, Math.min(2, eRanked.length))));
+  const eRow = eBand.length ? eBand[(Math.max(0, shuffleE1 | 0)) % eBand.length] : null;
   const vuln = vRow ? { w: vRow.w, r: vRow.best.r + 1, odds: vRow.pw } : null;
   const e1 = eRow ? { w: eRow.w, r: e1NeedAt(eRow.w, R.allBest), odds: eRow.pv } : null;
-  return { vuln, e1, choices: band.length };
+  return { vuln, e1, choices: band.length, choicesE1: eBand.length };
 }
 // feat 482 — order the target tiles: 'order' keeps them as built; the rest sort descending by weight,
 // reps, e1RM, or vulnerability (PR odds — tiles without odds sink to the end).
@@ -35330,13 +35353,13 @@ function bindSetsForm() {
   // button (prev top · best e1RM · max weight · max reps).
   document.querySelectorAll('.prog-prefill[data-w]').forEach(el => el.addEventListener('click', (e) => { if (Date.now() - _tgtHoldAt < 900) return; prefillTargetWeight(parseFloat(e.currentTarget.dataset.w)); })); // feat 591 — not after a hold
   // feat 591 — hold the 🎯 tile: another weight about as close to a PR. Bound per render on a fresh button, so nothing stacks.
-  document.querySelectorAll('[data-tgt-kind="vuln"]').forEach(el => {
+  document.querySelectorAll('[data-tgt-kind]').forEach(el => {   // feat 599 — the 🚀 tile too
     let tm = null, raf = null, t0 = 0;
     const stop = () => { clearTimeout(tm); cancelAnimationFrame(raf); el.classList.remove('lp-holding'); el.style.removeProperty('--lp'); };
     el.addEventListener('pointerdown', () => { t0 = Date.now(); el.classList.add('lp-holding');
       const tick = () => { const pct = Math.min(100, (Date.now() - t0) / 5.5); el.style.setProperty('--lp', pct.toFixed(0) + '%'); if (pct < 100) raf = requestAnimationFrame(tick); };
       raf = requestAnimationFrame(tick);
-      tm = setTimeout(() => { stop(); _tgtHoldAt = Date.now(); try { safeVibrate(20); } catch (_) {} shuffleVulnTarget(); }, 550); });
+      tm = setTimeout(() => { stop(); _tgtHoldAt = Date.now(); try { safeVibrate(20); } catch (_) {} shuffleTarget(el.dataset.tgtKind); }, 550); });
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => el.addEventListener(ev, stop));
     el.addEventListener('contextmenu', e => e.preventDefault());   // no phone long-press menu over the tile
   });
@@ -36111,17 +36134,124 @@ installErrorHandlers();
    work/rest/prep, the hold "go"). 'neutral' = the device's own voice, untouched (ttsVoice 'system'). */
 const COACH_PERSONAS = [
   { id:'neutral',  name:'Neutral',        emoji:'🎙️', tag:'system voice, untouched', desc:'Clean, calm announcements in your device’s own voice.', pitch:1, rate:1, sys:true, sample:'Neutral coach. Ready when you are.' },
-  { id:'gruff',    name:'Gruff Coach',    emoji:'💪', tag:'deep · tough but fair', desc:'Deep and gruff — the default. Get under the bar.', pitch:0.8, rate:0.95, sample:'Coach voice on. Get under the bar.', vbias:{ male:4, female:-4, gb:1, local:1, default:0.5 } },
-  { id:'hype',     name:'Hype Coach',     emoji:'🔥', tag:'high energy · all gas', desc:'Loud, fast and fired up — every set is a moment.', pitch:1.18, rate:1.12, sample:'Let’s GO! Big energy — leave nothing in the tank!', vbias:{ male:2, female:-1, us:1, local:1, default:1 },
-    flavor:{ setStart:(b)=>"Let’s go! "+b+"!", setEnd:(b)=>b+" — let’s GO!", hiitWork:(b,c)=>"Go go go! "+(c.ex||'work')+"!", hiitRest:()=>"Breathe — you earned it!", hiitPrep:()=>"Here we go!", go:()=>"GO!" } },
+  { id:'gruff',    name:'Gruff Coach',    emoji:'💪', tag:'deep · tough but fair', desc:'Deep and gruff — the default. Get under the bar.', pitch:0.8, rate:0.95, sample:'Coach voice on. Get under the bar.', vbias:{ male:4, female:-4, gb:1, local:1, default:0.5 },
+    lines:{ 'workout.start':['Alright. Get under the bar.', 'Warm up properly. Then we work.', 'Clock’s running. Let’s earn it, {name}.'],
+      'workout.end':['Done. {sets} sets. Go eat something.', 'That’ll do. {sets} sets in the book.', 'Good session, {name}. Recover well.'],
+      'record.new':['New record. {set}. Told you.', 'That’s a record — {set}.', '{set}. New best, {name}.'],
+      'record.progress':['Better than last time. Keep stacking.', 'Up on last time. That’s the job.'],
+      'target.open':['Last time: {set}. Beat it.', 'You did {set} last time. Do more.'],
+      'plan.half':['Halfway. No coasting.', 'Half done. The back half counts too.'],
+      'plan.last':['Last exercise. Finish it right.', 'One left. Empty the tank.'],
+      'plan.done':['Plan’s done. Good work.', 'That’s the whole plan. Nice, {name}.'],
+      'rest.long':['Rest’s over. Back to it.', 'You’ve rested enough. Next set.', 'Up, {name}. Bar’s waiting.'],
+      'rest.quip':['Breathe. Shake out the arms.', 'Sip of water. Then we go again.', 'Think about the next set. Clean reps.'] } },
+  { id:'hype',     name:'Hype Coach',     emoji:'🔥', tag:'high energy · all gas', desc:'Loud, fast and fired up — every set is a moment.', pitch:1.18, rate:1.12, sample:'Let’s go! Big energy — leave nothing in the tank!', vbias:{ male:2, female:-1, us:1, local:1, default:1 },
+    flavor:{ setStart:['Let’s go! {b}!', '{b} — here we go!', '{b}! Big energy!', '{b} — let’s go, {name}!'],
+      setEnd:['{b} — let’s go!', '{b}! Yes!', 'Huge! {b}!', '{b} — that’s what I’m talking about!'],
+      hiitWork:['Go go go! {ex}!', 'Let’s go! {ex}!', 'All gas! {ex}!', 'Go go go!'], hiitRest:['Breathe — you earned it!', 'Shake it out!', 'Recover — big one coming!'],
+      hiitPrep:['Here we go!', 'Get ready — this is it!'], go:['Go!', 'Let’s go!', 'Go time!'] },
+    lines:{ 'workout.start':['Let’s go! Big energy today!', 'Workout’s on — let’s make some noise!', 'Let’s go, {name}! Today’s a big day!'],
+      'workout.end':['That’s a wrap! {sets} sets — what a session!', 'Done and dusted! {sets} sets!', 'What a workout, {name}!'],
+      'record.new':['New record! {set}! Let’s go!', 'Personal record! {set}!', 'Are you kidding me? {set}! New record!'],
+      'record.progress':['Better than last time — let’s go!', 'Up on last time! Keep it rolling!'],
+      'target.open':['Last time was {set}. Let’s smash it!', 'Beat {set} today — you got it!'],
+      'plan.half':['Halfway there — keep that fire!', 'Half done! Second half, more energy!'],
+      'plan.last':['Last one — leave nothing in the tank!', 'Final exercise! Make it count!'],
+      'plan.done':['Plan complete! Let’s go!', 'You crushed the whole plan!'],
+      'rest.long':['Break’s over — let’s go!', 'Back on it! Let’s move!'],
+      'rest.quip':['Stay hyped, next set’s yours!', 'Get loud in your head — next set!', 'Shake it out — you’re on fire!'] } },
   { id:'zen',      name:'Zen Coach',      emoji:'🧘', tag:'calm · mindful', desc:'Soft and unhurried — steady breath, controlled tempo.', pitch:0.92, rate:0.84, sample:'Settle in. Steady breath, controlled tempo.', vbias:{ female:3, male:-1, gb:1, local:1, default:0.5 },
-    flavor:{ setStart:(b)=>b+". Breathe.", setEnd:(b)=>b+". Nice and easy.", hiitWork:(b,c)=>"Begin. "+(c.ex||''), hiitRest:()=>"Rest. Soften the breath.", hiitPrep:()=>"Settle in.", go:()=>"Begin." } },
+    flavor:{ setStart:['{b}. Breathe.', '{b}. Settle in.', '{b}. Slow and steady.'], setEnd:['{b}. Nice and easy.', '{b}. Let it go.', '{b}. Well done.'],
+      hiitWork:['Begin. {ex}.', 'Begin.', 'Move with the breath.'], hiitRest:['Rest. Soften the breath.', 'Rest. Let the shoulders drop.'], hiitPrep:['Settle in.', 'Find your breath.'], go:['Begin.', 'Now.'] },
+    lines:{ 'workout.start':['Arrive. One breath at a time.', 'Settle in, {name}. We begin.'],
+      'workout.end':['Practice complete. {sets} sets. Rest well.', 'Well done, {name}. Let it settle.'],
+      'record.new':['A new best. {set}. Notice how that feels.', '{set}. A new record, quietly earned.'],
+      'record.progress':['A little stronger than last time.', 'Progress. Gently.'],
+      'target.open':['Last time, {set}. See what today offers.'],
+      'plan.half':['Halfway. Stay present.', 'Half the practice is done.'],
+      'plan.last':['The last movement. Finish with care.'],
+      'plan.done':['The practice is complete.', 'All done. Well practiced, {name}.'],
+      'rest.long':['When you are ready, return to the bar.', 'Rest is complete. Gently, back to it.'],
+      'rest.quip':['Long breath out.', 'Relax the jaw. Relax the hands.', 'Notice the heartbeat slowing.'] } },
   { id:'sergeant', name:'Drill Sergeant', emoji:'🎖️', tag:'loud · no excuses', desc:'In your face — commands, not suggestions.', pitch:0.78, rate:1.06, sample:'On your feet! No excuses — you move when I say move!', vbias:{ male:5, female:-4, us:1, local:1 },
-    flavor:{ setStart:(b)=>b.toUpperCase()+", MOVE!", setEnd:(b)=>b.toUpperCase()+"!", hiitWork:(b,c)=>(c.ex||'WORK').toUpperCase()+", NOW! GO!", hiitRest:()=>"REST! SHAKE IT OUT!", hiitPrep:()=>"ON YOUR FEET!", go:()=>"GO! GO! GO!" } },
+    flavor:{ setStart:['{B}, MOVE!', '{B}! NOW!', '{B}! NO EXCUSES!', '{B}, {name}! MOVE IT!'], setEnd:['{B}!', '{B}! AGAIN!', '{B}! DID I SAY STOP?'],
+      hiitWork:['{EX}, NOW! GO!', 'WORK! NOW!', 'MOVE! MOVE! MOVE!'], hiitRest:['REST! SHAKE IT OUT!', 'BREATHE! YOU’RE NOT DONE!'], hiitPrep:['ON YOUR FEET!', 'GET READY!'], go:['GO! GO! GO!', 'MOVE!', 'NOW!'] },
+    lines:{ 'workout.start':['ON YOUR FEET! WE TRAIN NOW!', 'FALL IN, {name}! WORKOUT STARTS NOW!'],
+      'workout.end':['DISMISSED! {sets} SETS!', 'THAT’S IT FOR TODAY! HIT THE SHOWERS!'],
+      'record.new':['NEW RECORD! {set}! OUTSTANDING!', '{set}! THAT’S A RECORD, {name}!'],
+      'record.progress':['BETTER THAN LAST TIME! NOT GOOD ENOUGH YET!', 'IMPROVEMENT! KEEP IT COMING!'],
+      'target.open':['LAST TIME {set}! BEAT IT!', 'YOU DID {set}! I WANT MORE!'],
+      'plan.half':['HALFWAY! NO SLACKING!', 'HALF DONE! PICK IT UP!'],
+      'plan.last':['LAST EXERCISE! EMPTY THE TANK!', 'ONE LEFT! FINISH STRONG!'],
+      'plan.done':['MISSION COMPLETE!', 'PLAN DONE! GOOD WORK, {name}!'],
+      'rest.long':['REST IS OVER! MOVE!', 'ON THE BAR! NOW!', 'WHO SAID YOU COULD SIT DOWN?'],
+      'rest.quip':['DON’T GET COMFORTABLE!', 'CHIN UP! NEXT SET’S COMING!', 'PAIN IS WEAKNESS LEAVING THE BODY!'] } },
   { id:'analyst',  name:'The Analyst',    emoji:'🔬', tag:'precise · technical', desc:'Measured and methodical — cues tempo, form and output.', pitch:1, rate:0.98, sample:'Prepare. Control the tempo, own the output.', vbias:{ male:1, gb:1, local:1, default:1 },
-    flavor:{ setStart:(b)=>b+". Control the tempo.", setEnd:(b)=>b+". Log it.", hiitWork:(b,c)=>(c.ex||'work')+". Steady output.", hiitRest:()=>"Rest. Bring the heart rate down.", hiitPrep:()=>"Prepare. Set your position.", go:()=>"Execute." } },
+    flavor:{ setStart:['{b}. Control the tempo.', '{b}. Brace, then descend.', '{b}. Two seconds down.'], setEnd:['{b}. Log it.', '{b}. Data recorded.', '{b}. Within range.'],
+      hiitWork:['{ex}. Steady output.', 'Work interval.', '{ex}. Hold the pace.'], hiitRest:['Rest. Bring the heart rate down.', 'Recovery interval.'], hiitPrep:['Prepare. Set your position.', 'Interval begins shortly.'], go:['Execute.', 'Begin.'] },
+    lines:{ 'workout.start':['Session started. Warm-up sets first.', 'Recording, {name}. Begin with the warm-up.'],
+      'workout.end':['Session complete. {sets} sets logged.', 'End of session. {sets} sets. Prioritise protein and sleep.'],
+      'record.new':['New personal best. {set}.', 'Record logged: {set}. Trend confirmed.'],
+      'record.progress':['Above last session. Positive trend.', 'Improvement over last time.'],
+      'target.open':['Baseline from last time: {set}. Exceed it.'],
+      'plan.half':['Fifty percent of the plan complete.', 'Halfway point.'],
+      'plan.last':['Final exercise.', 'One exercise remaining.'],
+      'plan.done':['Plan complete. All steps logged.'],
+      'rest.long':['Rest exceeds target. Begin the next set.', 'Recovery window passed.'],
+      'rest.quip':['Heart rate falling. Prepare.', 'Visualise the next set.', 'Note the bar path for the next set.'] } },
   { id:'buddy',    name:'Hype Buddy',     emoji:'🤙', tag:'supportive · chill', desc:'Your encouraging gym partner — upbeat and easygoing.', pitch:1.06, rate:1, sample:'Alright, let’s do this — you got this.', vbias:{ male:2, local:1, default:1 },
-    flavor:{ setStart:(b)=>b+" — you got this.", setEnd:(b)=>"Nice! "+b, hiitWork:(b,c)=>"You got this — "+(c.ex||'go')+"!", hiitRest:()=>"Good work, breathe it out.", hiitPrep:()=>"Alright, let’s do this.", go:()=>"Let’s go!" } },
+    flavor:{ setStart:['{b} — you got this.', '{b}. Easy does it.', '{b} — I’m right here, {name}.'], setEnd:['Nice! {b}', '{b}. Looking good!', 'Sweet. {b}'],
+      hiitWork:['You got this — {ex}!', 'Here we go!', 'Go for it!'], hiitRest:['Good work, breathe it out.', 'Nice, take a breather.'], hiitPrep:['Alright, let’s do this.', 'Ready when you are.'], go:['Let’s go!', 'Go for it!'] },
+    lines:{ 'workout.start':['Alright, let’s do this!', 'Hey {name}! Good to see you. Let’s train.'],
+      'workout.end':['Nice one! {sets} sets. See you next time.', 'Great hang, {name}. Good workout!'],
+      'record.new':['No way — {set}! New record!', 'Dude! {set}! That’s a record!'],
+      'record.progress':['Better than last time — nice!', 'Look at you, beating last time!'],
+      'target.open':['Last time you did {set}. You got more in you.'],
+      'plan.half':['Halfway already — nice!', 'Half done. You’re doing great.'],
+      'plan.last':['Last one, buddy. Finish strong.', 'Last exercise — almost there!'],
+      'plan.done':['That’s the plan done! Proud of you.', 'All done, {name}! Great work.'],
+      'rest.long':['Whenever you’re ready — next set.', 'Ready for the next one?'],
+      'rest.quip':['Grab some water.', 'You’re doing great today.', 'Shake it out, buddy.'] } },
+  // feat 601 — three new coaches
+  { id:'commentator', name:'The Commentator', emoji:'📣', tag:'play-by-play · big moments', desc:'Calls your workout like a big game — every lift is a highlight.', pitch:1.05, rate:1.08, sample:'And here we go — the crowd is on its feet!', vbias:{ male:2, us:1, local:1, default:1 },
+    flavor:{ setStart:['{b} — and here we go!', '{b}. The crowd goes quiet.', '{b} — {name} steps up to the bar!'], setEnd:['{b} — and the crowd goes wild!', '{b}. What a performance!', '{b} — textbook!'],
+      hiitWork:['And they’re off! {ex}!', 'The whistle blows!', '{ex} — here we go!'], hiitRest:['A short break in play.', 'Time-out on the floor.'], hiitPrep:['The players take their positions.', 'Moments away from the start!'], go:['And they’re off!', 'Go!'] },
+    lines:{ 'workout.start':['Welcome to today’s session — and what a day for it!', 'Ladies and gentlemen, {name} has entered the building!'],
+      'workout.end':['And that’s the final whistle! {sets} sets!', 'What a game, folks! {name} takes it!'],
+      'record.new':['Unbelievable! {set}! A new record!', 'History is made — {set}!', 'Can you believe it? {set}! The record falls!'],
+      'record.progress':['Better than last time — the form is coming!', 'An improvement on the last outing!'],
+      'target.open':['The mark to beat today: {set}.', 'Last time out, {set}. Can we see more?'],
+      'plan.half':['And we’re into the second half!', 'Halftime, and it’s looking good!'],
+      'plan.last':['Final event of the day!', 'Last exercise — it all comes down to this!'],
+      'plan.done':['And that’s the plan complete — what a showing!'],
+      'rest.long':['The crowd is getting restless!', 'Back onto the field, please!'],
+      'rest.quip':['A quiet moment on the floor.', 'Players regrouping on the bench.', 'Let’s take a look at the replay — beautiful form.'] } },
+  { id:'oldschool', name:'Old-School Iron', emoji:'🏋️', tag:'golden-era · gritty', desc:'A dusty basement gym in a voice — chalk, iron and hard work.', pitch:0.86, rate:0.9, sample:'Chalk up. The iron never lies.', vbias:{ male:4, female:-2, us:1, local:1, default:0.5 },
+    flavor:{ setStart:['{b}. Chalk up.', '{b}. Grip it and rip it.', '{b}. Earn it, {name}.'], setEnd:['{b}. That’s the pump.', '{b}. Iron doesn’t lie.', '{b}. Good reps.'],
+      hiitWork:['Work. {ex}.', 'Get after it!'], hiitRest:['Catch your breath, champ.'], hiitPrep:['Get set.'], go:['Get after it.', 'Go.'] },
+    lines:{ 'workout.start':['Chalk up. Time to move some iron.', 'Into the dungeon, {name}. Let’s lift.'],
+      'workout.end':['Good day under the iron. {sets} sets.', 'That’s it. Eat big, sleep big.'],
+      'record.new':['New record. {set}. Feel that pump.', '{set}. That’s how champions are made.'],
+      'record.progress':['More than last time. That’s progressive overload.', 'Stronger than last week.'],
+      'target.open':['Last time: {set}. Add a rep, add some plates.'],
+      'plan.half':['Halfway. Keep the blood flowing.'],
+      'plan.last':['Last exercise. Squeeze every rep.'],
+      'plan.done':['Workout’s done. Go drink your milk.', 'Every set done, {name}. Old-school.'],
+      'rest.long':['Enough resting. Iron’s getting cold.', 'Back under the bar, champ.'],
+      'rest.quip':['Feel the pump.', 'Chalk your hands.', 'The last rep is where you grow.'] } },
+  { id:'stoic', name:'The Stoic', emoji:'🏛️', tag:'quiet · philosophical', desc:'Few words, all of them true. Discipline over feelings.', pitch:0.9, rate:0.88, sample:'The obstacle is the way. Begin.', vbias:{ male:2, gb:1, local:1, default:0.5 },
+    flavor:{ setStart:['{b}. Do your work.', '{b}. Only this set matters.', '{b}. Begin.'], setEnd:['{b}. Done.', '{b}. As it should be.', '{b}. Well done.'],
+      hiitWork:['Work.', 'Endure. {ex}.'], hiitRest:['Rest. It is earned.'], hiitPrep:['Prepare your mind.'], go:['Begin.', 'Now.'] },
+    lines:{ 'workout.start':['Begin. The work is the reward.', 'You showed up, {name}. That is the hardest part.'],
+      'workout.end':['The work is done. {sets} sets.', 'Enough for today. Tomorrow, again.'],
+      'record.new':['{set}. You are stronger than you were.', 'A new record. {set}. Do not let it go to your head.'],
+      'record.progress':['Better than before. Continue.'],
+      'target.open':['Last time: {set}. Compete only with yourself.'],
+      'plan.half':['Half the work is done. The rest is waiting.'],
+      'plan.last':['The last task. Do it well.'],
+      'plan.done':['Every step taken. Rest now.'],
+      'rest.long':['Rest has become delay. Return.', 'The bar is patient. You should not be.'],
+      'rest.quip':['What you do now is what you become.', 'Discomfort is the price. Pay it.', 'Breathe. Then do the next right thing.'] } },
 ];
 loadState();
 applyExtraFamilies(); // feat 90 — inject the new neck / jaw / climbing families first
@@ -36260,7 +36390,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 513 · 2026-11-26 13:44';
+const APP_BUILD = 'build 514 · 2026-11-26 14:28';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -36592,10 +36722,30 @@ function activeCoachPersona() {
   if (id) { const p = coachPersona(id); if (p) return p; }
   return coachPersona(state.ttsVoice === 'system' ? 'neutral' : 'gruff') || COACH_PERSONAS[1]; // back-compat fallback
 }
+// feat 601 — a persona line is a pool of wordings: {b} the plain cue ({B} shouted), {ex} the exercise, {name} what
+// the coach calls you, {set} {sets} the numbers. A wording that needs a blank value is left out, and the pick never
+// repeats the wording said last time for the same moment.
+const _coachLastPick = {};
+function coachName() { return cleanCoachText((state.coachTalk || {}).name).slice(0, 30); }
+function coachPick(key, pool, vars) {
+  if (!Array.isArray(pool) || !pool.length) return '';
+  const v = { name: coachName(), ...(vars || {}) };
+  const need = tpl => (tpl.match(/\{(\w+)\}/g) || []).every(m => { const k = m.slice(1, -1).toLowerCase(); return v[k] != null && String(v[k]) !== ''; });
+  let ok = pool.filter(need); if (!ok.length) ok = pool.filter(tpl => !/\{name\}/i.test(tpl)); if (!ok.length) return '';
+  const fresh = ok.length > 1 ? ok.filter(x => x !== _coachLastPick[key]) : ok;
+  const tpl = fresh[Math.floor(Math.random() * fresh.length)];
+  _coachLastPick[key] = tpl;
+  return tpl.replace(/\{(\w+)\}/g, (m, k) => { const val = v[k.toLowerCase()]; const str = val == null ? '' : String(val); return (k !== k.toLowerCase()) ? str.toUpperCase() : str; })
+    .replace(/\s+([.,!?])/g, '$1').replace(/\s+/g, ' ').trim();
+}
 // Flavour a neutral cue string through the active persona. kind ∈ setStart|setEnd|hiitWork|hiitRest|hiitPrep|go.
 function coachPhrase(kind, base, ctx) {
   const p = activeCoachPersona();
   const f = p && p.flavor && p.flavor[kind];
+  if (Array.isArray(f)) {                                       // a step that has an exercise always names it
+    const ex = (ctx && ctx.ex) || '', named = ex ? f.filter(x => /\{ex\}/i.test(x)) : [];
+    return coachPick(p.id + ':' + kind, named.length ? named : f, { b: base, ex }) || base;
+  }
   if (typeof f === 'function') { try { return f(base, ctx || {}) || base; } catch (_) { return base; } }
   return (typeof f === 'string') ? f : base;
 }
@@ -36689,9 +36839,11 @@ function _annDuckOff() { _annDuckActive = false; _setAudioSessionType('auto'); c
      · is it the line that was just said?
    pri: 0 = timing you rely on · 1 = information · 2 = flavour.
    ============================================================ */
-const COACH_GROUPS = [['sets', 'Sets'], ['plan', 'Plan'], ['records', 'Records and targets'], ['rest', 'Rest'], ['holds', 'Holds and HIIT'], ['tips', 'Tips']];
-// i18n-keys: Sets | Plan | Records and targets | Rest | Holds and HIIT | Tips
+const COACH_GROUPS = [['workout', 'Workout start and end'], ['sets', 'Sets'], ['plan', 'Plan'], ['records', 'Records and targets'], ['rest', 'Rest'], ['holds', 'Holds and HIIT'], ['tips', 'Tips']];
+// i18n-keys: Workout start and end | Sets | Plan | Records and targets | Rest | Holds and HIIT | Tips
 const COACH_EVENTS = [
+  { id: 'workout.start', g: 'workout', pri: 2, def: false, label: 'Workout start', hint: 'A line from your coach when you start a workout.', sample: 'Let’s get to work.', tpl: 'Let’s get to work.' },   // feat 601
+  { id: 'workout.end', g: 'workout', pri: 1, def: false, label: 'Workout end', hint: 'A sign-off with the number of sets when you end the workout.', sample: 'Workout done. 18 sets.', tpl: 'Workout done. {sets} sets.', vars: { sets: 18 } },
   { id: 'set.start', g: 'sets', pri: 1, label: 'Set start', hint: 'Where you are when you enter a weight: "Set 2 of 4".', sample: 'Set 2 of 4',
     get: () => !!annunciationCfg().start, set: v => { state.annunciation = { ...(state.annunciation || {}), start: !!v }; } },
   { id: 'set.trend', g: 'sets', pri: 2, def: true, label: 'Trend note on the first set', hint: 'One sentence on how this lift has been trending, added to the first set start.', sample: "Trending up — strength's climbed 4 percent lately. Keep it rolling." },
@@ -36699,12 +36851,15 @@ const COACH_EVENTS = [
     get: () => !!annunciationCfg().end, set: v => { state.annunciation = { ...(state.annunciation || {}), end: !!v }; } },
   { id: 'plan.next', g: 'plan', pri: 1, def: true, label: 'Next exercise', hint: 'Names the next step as you finish one (part of the set-done line).', sample: 'All done — time for Seated Row' },
   { id: 'plan.half', g: 'plan', pri: 2, def: false, label: 'Halfway through the plan', hint: 'Said once, when half the steps are done.', sample: 'Halfway through the plan', tpl: 'Halfway through the plan' },
+  { id: 'plan.done', g: 'plan', pri: 1, def: false, label: 'Plan complete', hint: 'Said when the last step of the plan is done.', sample: 'Plan complete. Great work.', tpl: 'Plan complete. Great work.' },   // feat 601
   { id: 'plan.last', g: 'plan', pri: 2, def: false, label: 'Last exercise', hint: 'Said when one step is left.', sample: 'One exercise left', tpl: 'One exercise left' },
   { id: 'record.new', g: 'records', pri: 1, def: false, label: 'New record', hint: 'When a set beats your record: "New record — 205 for 8".', sample: 'New record — 205 for 8', tpl: 'New record — {set}', vars: { set: '205 for 8' } },
   { id: 'record.progress', g: 'records', pri: 2, def: false, label: 'Better than last time', hint: 'When a set beats your last session but is not a record.', sample: 'Better than last time', tpl: 'Better than last time', vars: { set: '205 for 8' } },
   { id: 'target.open', g: 'records', pri: 1, def: false, label: 'Target when you pick an exercise', hint: 'Your best set from the last session: "Last time: 200 for 9. Beat it."', sample: 'Last time: 200 for 9. Beat it.', tpl: 'Last time: {set}. Beat it.', vars: { set: '200 for 9' } },
   { id: 'rest.count', g: 'rest', pri: 0, label: 'Rest timer in words', hint: 'The rest countdown spoken instead of beeped. Needs the rest timer cues on.', sample: 'Time. Go.',
     get: () => !!restCueCfg().voice, set: v => { state.restCues = { ...restCueCfg(), voice: !!v }; } },
+  { id: 'rest.quip', g: 'rest', pri: 2, def: false, label: 'A word during rest', hint: 'Once in a longer rest, halfway through: a short line from your coach.', sample: 'Breathe. Shake out the arms.', tpl: 'Breathe. Shake out the arms.' },   // feat 601
+  { id: 'rest.long', g: 'rest', pri: 1, def: false, label: 'Rest ran long', hint: 'Once, when you have rested a minute past your rest time.', sample: 'Rest is up. Back to it.', tpl: 'Rest is up. Back to it.' },
   { id: 'hold.count', g: 'holds', pri: 0, label: 'Timed-hold count', hint: 'Ready, set, go and the running count on a hold.', sample: 'Ready. Set. Go.',
     get: () => !!holdCueCfg().enabled, set: v => { state.holdCue = { ...holdCueCfg(), enabled: !!v }; } },
   { id: 'hiit.step', g: 'holds', pri: 0, def: true, label: 'HIIT steps', hint: 'Each work and rest step of a HIIT block.', sample: 'Work — burpees' },
@@ -36715,6 +36870,7 @@ const COACH_EVENTS = [
 // i18n-keys: Where you are when you enter a weight: "Set 2 of 4". | One sentence on how this lift has been trending, added to the first set start. | Progress when you log the reps: "Half done", "One more". | Names the next step as you finish one (part of the set-done line). | Said once, when half the steps are done. | Said when one step is left. | When a set beats your record: "New record — 205 for 8". | When a set beats your last session but is not a record. | Your best set from the last session: "Last time: 200 for 9. Beat it." | The rest countdown spoken instead of beeped. Needs the rest timer cues on. | Ready, set, go and the running count on a hold. | Each work and rest step of a HIIT block. | One random cue for the exercise you just opened.
 const COACH_FREQS = [['always', 'Every time'], ['half', 'Half the time'], ['quarter', 'One in four']];
 // i18n-keys: Every time | Half the time | One in four
+// i18n-keys: Workout start | Workout end | Plan complete | A word during rest | Rest ran long | A line from your coach when you start a workout. | A sign-off with the number of sets when you end the workout. | Said when the last step of the plan is done. | Once in a longer rest, halfway through: a short line from your coach. | Once, when you have rested a minute past your rest time.
 function coachEvent(id) { return COACH_EVENTS.find(e => e.id === id) || null; }
 /* feat 581 — YOUR OWN WORDS. A line with fixed wording (`tpl`) can be rewritten; {set} and the like are filled in
    when it is spoken. Plain text only, 120 characters; an empty text goes back to the built-in line. */
@@ -36723,6 +36879,7 @@ function cleanCoachText(v) { return String(v == null ? '' : v).replace(/[\u0000-
 function coachLine(id, vars) {
   const e = coachEvent(id); if (!e || !e.tpl) return '';
   const own = cleanCoachText((coachTalk().ev[id] || {}).text);
+  if (!own) { const P = activeCoachPersona(), pool = P && P.lines && P.lines[id]; const said = pool ? coachPick(P.id + ':' + id, pool, vars) : ''; if (said) return said; } // feat 601
   return (own || e.tpl).replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null) ? String(vars[k]) : '').replace(/\s+/g, ' ').trim();
 }
 function coachSample(e) { return e.tpl ? coachLine(e.id, e.vars || {}) : e.sample; }
@@ -36750,7 +36907,7 @@ function setCoachBudget(patch) {
 // Presets set the switches (and the budget) in one go; every one of them can then be changed on its own.
 const COACH_PRESETS = {
   quiet:  { on: ['set.end', 'record.new'], minGap: 20, perMin: 3 },
-  normal: { on: ['set.start', 'set.end', 'plan.next', 'record.new'], minGap: 0, perMin: 0 },
+  normal: { on: ['workout.start', 'workout.end', 'set.start', 'set.end', 'plan.next', 'plan.done', 'record.new'], minGap: 0, perMin: 0 },
   chatty: { on: null, minGap: 0, perMin: 0 },                    // null = everything
 };
 function applyCoachPreset(name) {
@@ -36879,6 +37036,8 @@ function coachTalkHtml() {
         ${dial('ct-vvol', t('Voice volume'), t('Next to the beeps and clips. 100% is as loud as they are.'), 10, 100, pc(voiceGain()))}
         ${dial('ct-rate', t('Speed'), t('Kept for each coach. This is for {name}.', { name: escapeHtml(P.name) }), 60, 160, pc(tn.rate))}
         ${dial('ct-pitch', t('Pitch'), '', 50, 150, pc(tn.pitch))}
+        <div class="drawer-setting-row"><div><div class="drawer-setting-label">${t('What the coach calls you')}</div><div class="drawer-setting-sub">${t('A name or nickname, said now and then. Leave it empty and the coach uses none.')}</div></div>
+          <input type="text" id="ct-name" class="vw-select" maxlength="30" autocomplete="off" style="max-width:150px;" value="${escapeAttr(coachName())}" aria-label="${escapeAttr(t('What the coach calls you'))}"></div>
         <div class="drawer-setting-row"><div></div><div class="drawer-pill-group"><button class="drawer-pill" data-ct-tune="test">${t('▶ Hear it')}</button><button class="drawer-pill" data-ct-tune="reset">${t('Reset the voice')}</button></div></div>`; })()}
     ${COACH_GROUPS.map(([g, name]) => `<div class="ct-group">${t(name)}</div>${COACH_EVENTS.filter(e => e.g === g).map(row).join('')}`).join('')}
   </div>`;
@@ -36893,7 +37052,7 @@ function openCoachSoundSheet(id, onClose) {
     back.innerHTML = `<div class="choice-sheet"><div class="choice-title">🎵 ${t(e.label)}</div>
       ${e.tpl ? `<label class="cs-words"><span>${t('What the coach says')}</span>
         <input type="text" id="cs-text" maxlength="${COACH_TEXT_MAX}" autocomplete="off" value="${escapeAttr((coachTalk().ev[id] || {}).text || e.tpl)}"></label>
-        <div class="choice-msg cs-words-hint">${e.vars ? t('{set} is replaced with the set, for example "{example}".', { set: '{set}', example: e.vars.set }) : ''} <button type="button" class="wt-proj-toggle" data-cs-reset>${t('Back to the built-in words')}</button></div>` : ''}
+        <div class="choice-msg cs-words-hint">${e.vars && e.vars.set ? t('{set} is replaced with the set, for example "{example}".', { set: '{set}', example: e.vars.set }) : ''}${e.vars && e.vars.sets != null ? t('{sets} is replaced with the number of sets.', { sets: '{sets}' }) : ''} ${t('{name} is what the coach calls you.', { name: '{name}' })} <button type="button" class="wt-proj-toggle" data-cs-reset>${t('Back to the built-in words')}</button></div>` : ''}
       <div class="choice-msg">${t('Choose what you hear for this line. A clip only plays once you have added one below.')}</div>
       <div class="pud-seg" role="radiogroup" aria-label="${escapeAttr(t('Sound for this line'))}">
         ${[['voice', t('Voice')], ['clip', t('Clip only')], ['both', t('Clip, then voice')]].map(([v, l]) => `<button type="button" role="radio" aria-checked="${c.snd === v}" class="${c.snd === v ? 'active' : ''}" data-cs-mode="${v}"><b>${l}</b></button>`).join('')}
@@ -36922,6 +37081,9 @@ function bindCoachTalk(body) {
   body.querySelectorAll('[data-ct-mute]').forEach(b => b.addEventListener('click', () => { const m = b.dataset.ctMute; coachMute(m === 'workout' || m === 'off' ? m : +m); again(); }));
   const gap = body.querySelector('#ct-gap'); if (gap) gap.addEventListener('change', () => setCoachBudget({ minGap: +gap.value }));
   const pm = body.querySelector('#ct-permin'); if (pm) pm.addEventListener('change', () => setCoachBudget({ perMin: +pm.value }));
+  const nm = body.querySelector('#ct-name'); if (nm) nm.addEventListener('change', () => {   // feat 601
+    const c = coachTalk(), v = cleanCoachText(nm.value).slice(0, 30); if (v) c.name = v; else delete c.name;
+    state.coachTalk = c; saveState(); if (v) { try { annunce(coachPick('name-test', ['Got it, {name}.', 'Alright, {name}.'], {})); } catch (_) {} } });
   // feat 586 — the voice dials: the number follows the slider as it moves; letting go saves and speaks a sample
   const hearTune = () => { const P = activeCoachPersona(); try { annunce(P.sample || P.name); } catch (_) {} };
   [['#ct-vvol', v => setVoiceGain(v / 100)], ['#ct-rate', v => setCoachTune(activeCoachPersona().id, { rate: v / 100 })], ['#ct-pitch', v => setCoachTune(activeCoachPersona().id, { pitch: v / 100 })]].forEach(([q, save]) => {
@@ -36933,6 +37095,10 @@ function bindCoachTalk(body) {
     if (b.dataset.ctTune === 'reset') { setVoiceGain(1); setCoachTune(activeCoachPersona().id, { rate: 1, pitch: 1 }); again(); }
     hearTune(); }));
 }
+// feat 601 — speech engines spell out a word in capitals ("GO" became "G. O."), so every spoken line is lower-cased
+// word by word before it is said, except the real initialisms, which should be spelled.
+const SAY_INITIALS = new Set(['PR', 'PRS', 'RPE', 'RIR', 'AMRAP', 'EMOM', 'HIIT', 'RDL', 'OHP', 'DB', 'BB', 'KB', 'EZ', 'TRX', 'HR', 'BPM', 'GHD', 'SL', 'AI']);
+function sayable(text) { return String(text == null ? '' : text).replace(/\b[A-Z][A-Z’']*[A-Z]\b/g, w => SAY_INITIALS.has(w.replace(/[’']/g, '')) ? w : w.toLowerCase()); }
 // Shared speaker for annunciation cues (the feat-207 set-end cues reuse it).
 function annunce(text) {
   try {
@@ -36940,7 +37106,7 @@ function annunce(text) {
     if (typeof _glossPod !== 'undefined' && _glossPod) return; // feat 274 — don't interrupt the study podcast
     if (!sndAudioOn() || !headphoneGatePasses()) return;
     if (typeof window === 'undefined' || !window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
-    const u = new SpeechSynthesisUtterance(String(text).slice(0, 120));
+    const u = new SpeechSynthesisUtterance(sayable(text).slice(0, 160));
     u.rate = 0.95; u.lang = 'en-US'; u.volume = sndVol(); // the speech itself never ducks
     coachify(u); // feat 210 — the gruff coach voice profile
     if (annunciationCfg().duck) { _annDuckOn(); u.onend = _annDuckOff; u.onerror = _annDuckOff; } // feat 209
@@ -37042,7 +37208,8 @@ function annunceSetEnd(lvl, set) {
   }
   if (pos.y && pos.x === pos.y) {                                // this step just finished: a plan milestone?
     const pp = coachPlanProgress();
-    if (pp && pp.total - pp.done === 1 && coachEventCfg('plan.last').on) parts.push(['plan.last', coachLine('plan.last')]);
+    if (pp && pp.done >= pp.total && coachEventCfg('plan.done').on) parts.push(['plan.done', coachLine('plan.done')]);   // feat 601
+    else if (pp && pp.total - pp.done === 1 && coachEventCfg('plan.last').on) parts.push(['plan.last', coachLine('plan.last')]);
     else if (pp && pp.done === Math.ceil(pp.total / 2) && pp.done < pp.total - 1 && coachEventCfg('plan.half').on) parts.push(['plan.half', coachLine('plan.half')]);
   }
   if (!parts.length) return;
@@ -37413,7 +37580,7 @@ function metroSpeakNextTip() {
     if (_metroSpeaking) return;
     const tip = metroNextMantraTip(metroMantraExercise());
     if (!tip) return;
-    const u = new SpeechSynthesisUtterance(String(tip).slice(0, 180));
+    const u = new SpeechSynthesisUtterance(sayable(tip).slice(0, 180));
     u.rate = 0.92; u.lang = 'en-US'; u.volume = sndVol();
     coachify(u); // feat 210 — the Mantranome chants in the coach voice too
     _metroSpeaking = true;
@@ -38345,6 +38512,19 @@ function refreshRestCueHud() {
   el.style.display = html ? 'flex' : 'none';
 }
 let _restTickId = null;
+// feat 601 — each said at most once per rest. The rest is known by when it began (to 10 s).
+let _coachRestSaid = {};
+function coachRestTick() {
+  if (!coachEventCfg('rest.quip').on && !coachEventCfg('rest.long').on) return;
+  let st; try { st = computeRestState(); } catch (_) { return; }
+  if (!st || st.mode !== 'resting' || st.interExercise) return;
+  const sec = Math.floor((st.restMs || 0) / 1000), target = restCueTarget(st).sec || 0;
+  if (!(target > 0)) return;
+  const key = Math.round((Date.now() - (st.restMs || 0)) / 10000);
+  if (_coachRestSaid.key !== key) _coachRestSaid = { key };
+  if (!_coachRestSaid.quip && target >= 60 && sec >= Math.floor(target / 2) && sec < target - 10) { _coachRestSaid.quip = true; coachSay('rest.quip', coachLine('rest.quip')); }
+  if (!_coachRestSaid.long && sec >= target + 60) { _coachRestSaid.long = true; coachSay('rest.long', coachLine('rest.long')); }
+}
 function restTick() {
   try {
     // feat 403 — auto-end an inactive workout from the 1 s tick too, not only when the workout page renders, so the
@@ -38357,6 +38537,7 @@ function restTick() {
     refreshRestBar();
     refreshNextSet();                               // feat 538 — the next-set ask moves with rest and heart rate
     restCueTick();                                  // feat 104 — configurable audible rest cues
+    coachRestTick();                                // feat 601
   } catch(e) { if (typeof logError === 'function') logError('restTick failed', e && e.message); }
 }
 // feat 244 — live HR (💓 bpm + sparkline, while a monitor is connected) + workout elapsed (⏱, while active),

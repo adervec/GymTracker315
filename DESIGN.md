@@ -5641,3 +5641,12 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   (`state.dashboard.planCollapsed`) draws only the unfinished steps under the progress line, with a "✓ n finished steps
   hidden · show all" button that expands the card; the meta, history comparison and actions stay in the hidden body.
   Expanded is unchanged.
+- **Target holds for 🚀 and 🔁 (feats 599–600):** `shuffleTarget(kind)` with kinds vuln / e1 / reps, each with its own step in
+  `modalState` (`tgtStep`). The rocket ranks plausible weights by e1RM-PR odds (same band rules as the bullseye,
+  `choicesE1`); Max reps starts at your max-reps set, then other weights by their rep record, asking record + 1.
+- **Coach words (feat 601):** `sayable()` lower-cases all-caps words before speech (engines spell them: "GO" → "G. O."),
+  keeping `SAY_INITIALS`. Persona `flavor` and `lines` are pools of templates picked by `coachPick` ({b}/{B}, {ex}/{EX},
+  {name}, {set}, {sets}; a wording with a blank value is skipped; never the same wording twice in a row). `coachLine`:
+  your own words, else the active coach's pool, else the built-in `tpl`. New events start OFF (the feat 577 rule):
+  workout.start/end, plan.done, rest.quip (halfway through a rest of 60 s or more), rest.long (a minute past the rest
+  time), the last two from `coachRestTick`. `state.coachTalk.name` = what the coach calls you.

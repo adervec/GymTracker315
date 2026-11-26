@@ -352,3 +352,52 @@ test('feat 591 — with only one weight to offer, a hold says so instead of movi
   expect(r.msgs).toEqual(['No other weight is this close to a PR']);
   expect(r.same).toBe(true);
 });
+
+test('feat 599 — holding the 🚀 tile steps it to another weight close to a new best e1RM, independent of the 🎯', async ({ page }) => {
+  const v = await seed(page);
+  const r = await page.evaluate(async (v) => {
+    // more weights near the top, so the rocket has a few plausible ones of its own
+    state.sessions.push({ date: new Date(Date.now() - 25 * 86400000).toISOString(), exercises: [{ varUuid: v, subUuid: null, sets: [[176, 4], [170, 5], [160, 7], [150, 8]].map(([w, r]) => ({ w, r })) }] });
+    renderModal();
+    const B = exBestSets(v, null);
+    const claimed = [B.prevTop, B.bestE1, B.maxW, B.maxR].filter(x => x && x.w > 0).map(x => x.w);
+    const steps = [0, 1, 2, 3, 4, 5, 6].map(n => exPrTargets(v, null, claimed, 0, n));
+    const tile = () => document.querySelector('[data-tgt-kind="e1"]');
+    const vulnBefore = document.querySelector('[data-tgt-kind="vuln"]') && document.querySelector('[data-tgt-kind="vuln"]').dataset.w0;
+    const before = tile() && tile().dataset.w0;
+    const el = tile(); el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); await new Promise(res => setTimeout(res, 700));
+    el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); await new Promise(res => setTimeout(res, 50));
+    const after = tile() && tile().dataset.w0;
+    const vulnAfter = document.querySelector('[data-tgt-kind="vuln"]') && document.querySelector('[data-tgt-kind="vuln"]').dataset.w0;
+    return { picks: steps.map(p => p.e1 && p.e1.w), n: steps[0].choicesE1, vulnSame: steps.every(p => p.vuln.w === steps[0].vuln.w), before, after, vulnBefore, vulnAfter,
+      e1Step: tgtStep('e1'), vulnStep: tgtStep('vuln') };
+  }, v);
+  expect(r.n).toBeGreaterThanOrEqual(2);
+  expect(new Set(r.picks.slice(0, r.n)).size).toBe(r.n);    // each step a different weight…
+  expect(r.picks[r.n]).toBe(r.picks[0]);                    // …and it wraps
+  expect(r.vulnSame).toBe(true);                            // stepping the rocket leaves the bullseye where it was
+  expect(r.after).not.toBe(r.before);
+  expect(r.vulnAfter).toBe(r.vulnBefore);
+  expect(r.e1Step).toBe(1);
+  expect(r.vulnStep).toBe(0);
+});
+
+test('feat 600 — holding the 🔁 Max reps tile steps through the other weights by their rep record', async ({ page }) => {
+  const v = await seed(page);
+  const r = await page.evaluate(async (v) => {
+    const tile = () => document.querySelector('[data-tgt-kind="reps"]');
+    const B = exBestSets(v, null), first = tile() && { w: +tile().dataset.w0, r: +tile().dataset.r0 };
+    const msgs = []; const real = window.toast; toast = (m) => msgs.push(String(m));
+    shuffleTarget('reps');
+    const second = tile() && { w: +tile().dataset.w0, r: +tile().dataset.r0 };
+    toast = real;
+    const rows = exWeightRows(v, null).rows;
+    const recordAt = w => (rows.find(x => x.w === w) || {}).best.r;
+    return { first, maxR: { w: +B.maxR.w, r: +B.maxR.r + 1 }, second, plusOne: second && second.r === recordAt(second.w) + 1, msg: msgs[0], steps: [tgtStep('reps'), tgtStep('vuln'), tgtStep('e1')] };
+  }, v);
+  expect(r.first).toEqual(r.maxR);                     // step 0 is still your max-reps set, plus one
+  expect(r.second.w).not.toBe(r.first.w);
+  expect(r.plusOne).toBe(true);                        // one more rep than your record at that weight
+  expect(r.msg).toMatch(/^🔁 .* · your best there is \d+ reps?$/);
+  expect(r.steps).toEqual([1, 0, 0]);
+});
