@@ -4401,6 +4401,11 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .picker-trend.pt-down { color: var(--warn); }
   .picker-trend.pt-flat { color: var(--text3); }
   /* feat 381 — which variation you used last / the time before, for this movement */
+  /* feat 596 — when a plan last ran */
+  .pud-last { font-size: 12px; color: var(--text2); background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; padding: 6px 9px; margin: 4px 0 8px; line-height: 1.45; }
+  .pud-last.first { color: var(--text3); }
+  #pud-scale button.was-last { outline: 1px dashed var(--accent-border); outline-offset: -3px; }
+  .pud-was { display: block; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--accent); line-height: 1.2; }
   .lastdone-badge { display: inline-flex; align-items: center; gap: 2px; font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 999px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.3px; }
   .lastdone-badge.last { color: #0a0a0a; background: var(--accent); border: 1px solid var(--accent); }
   .lastdone-badge.prev { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
@@ -21609,6 +21614,28 @@ function planScaleForTime(plan, scales, targetMin, bookends, pace) {
 }
 // feat 398 — a confirmation sheet shown when you tap "Use": pick warm-up / cool-down and the volume (½ / normal / 2×).
 // Resolves to { warmup, cooldown, scale } or null if cancelled.
+/* feat 596 — WHEN A PLAN WAS LAST RUN, said the three ways that matter when you pick one: calendar days ago, the days you
+   have trained since (a week off is not the same as five workouts), and the volume it ran at (planScale, feat 398).
+   Days are LOCAL calendar days (standard 10). A finished run only (findPlanExecutions). */
+const PLAN_SCALE_LABEL = { 0.5: '½×', 0.75: '¾×', 1: '1×', 1.25: '1¼×', 1.5: '1½×', 1.75: '1¾×', 2: '2×' };
+function planScaleLabel(v) { v = +v || 1; return PLAN_SCALE_LABEL[v] || (Math.round(v * 100) / 100 + '×'); }
+function planLastRunInfo(planId) {
+  const e = findPlanExecutions(planId); if (!e.count) return null;
+  const last = e.recent, lt = new Date(last.date);
+  const day0 = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); };
+  const days = Math.max(0, Math.round((day0(Date.now()) - day0(lt)) / 864e5));
+  const lastDay = day0(lt), trained = new Set();
+  (state.sessions || []).forEach(se => { if (!se || !se.date) return; const d = day0(se.date);
+    if (d > lastDay && (se.exercises || []).some(x => (x.sets || []).length || x.cardio)) trained.add(d); });
+  return { count: e.count, days, active: trained.size, scale: last.planScale || 1, date: last.date };
+}
+function planLastRunText(i, short) {
+  if (!i) return t('Not run yet');
+  const when = i.days === 0 ? t('today') : i.days === 1 ? t('yesterday') : t.n('{n} day ago', '{n} days ago', i.days, { n: i.days });
+  const since = i.active === 0 ? t('no workouts since') : t.n('{n} workout day since', '{n} workout days since', i.active, { n: i.active });
+  return short ? t('last {when} · {since} · {scale}', { when, since, scale: planScaleLabel(i.scale) })
+    : t('Last done {when} · {since} · at {scale} volume · {count}× in all', { when, since, scale: planScaleLabel(i.scale), count: i.count });
+}
 function planUseDialog(plan) {
   const def = planBookendDefaults();
   return new Promise(resolve => {
@@ -21616,14 +21643,16 @@ function planUseDialog(plan) {
     const sheet = document.createElement('div'); sheet.className = 'choice-sheet';
     const scales = [[0.5, '½×', '50%'], [0.75, '¾×', '75%'], [1, '1×', '100%'], [1.25, '1¼×', '125%'], [1.5, '1½×', '150%'], [1.75, '1¾×', '175%'], [2, '2×', '200%']]; // feat 426 — quarter steps · feat 546 — 1½× was missing
     const pace = planPace(), clock = m => appFont.fmt.time(new Date(Date.now() + m * 60000));
+    const lastRun = planLastRunInfo(plan.id);   // feat 596
     sheet.innerHTML = `<div class="choice-title">${t('Start “{name}”', { name: (escapeHtml(plan.name)) })}</div>
+      <div class="pud-last${lastRun ? '' : ' first'}">🕑 ${escapeHtml(lastRun ? planLastRunText(lastRun) : t('First time with this plan'))}</div>
       <div class="choice-msg">${t('Add a warm-up / cool-down and choose the volume for this session.')}</div>
       <div class="pud-tgls">
         <label class="pud-tgl"><input type="checkbox" id="pud-warmup" ${def.warmup ? 'checked' : ''}> <span>${t('🔥 Warm-up')}</span></label>
         <label class="pud-tgl"><input type="checkbox" id="pud-cooldown" ${def.cooldown ? 'checked' : ''}> <span>${t('🧊 Cool-down')}</span></label>
       </div>
       <div class="pud-seg" id="pud-scale" role="group" aria-label="${escapeAttr(t('Volume'))}">
-        ${scales.map(([v, big, lbl]) => `<button type="button" class="${v === 1 ? 'active' : ''}" data-scale="${v}"><b>${big}</b><span>${lbl}</span><span class="pud-eta" data-eta="${v}"></span></button>`).join('')}
+        ${scales.map(([v, big, lbl]) => `<button type="button" class="${v === 1 ? 'active' : ''}${lastRun && lastRun.scale === v ? ' was-last' : ''}" data-scale="${v}"${lastRun && lastRun.scale === v ? ` title="${escapeAttr(t('The volume you used last time'))}"` : ''}><b>${big}</b><span>${lbl}</span><span class="pud-eta" data-eta="${v}"></span>${lastRun && lastRun.scale === v ? `<span class="pud-was">${t('last')}</span>` : ''}</button>`).join('')}
       </div>
       <div class="pud-by">
         <span class="pud-by-lbl">⏱ Finish by</span>
@@ -21737,7 +21766,7 @@ const _planRowHtml = (p) => {
     </div>
     ${open ? `<div class="plan-row-detail">
       ${p.desc ? `<div class="plan-row-desc">${escapeHtml(p.desc)}</div>` : ''}
-      <div class="plan-row-sub">${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets · ~${estimatePlanMinutes(p)} min${(() => { const e = findPlanExecutions(p.id); return e.count ? ` · ${e.count}× done, last ${escapeHtml(fmtDate(e.recent.date))}` : ' · not run yet'; })()}</div>
+      <div class="plan-row-sub">${p.steps.length} step${p.steps.length===1?'':'s'} · ~${planTotalSets(p)} sets · ~${estimatePlanMinutes(p)} min${(() => { const i = planLastRunInfo(p.id); return ' · ' + (i ? escapeHtml(t('{count}× done', { count: i.count }) + ' · ' + planLastRunText(i, true)) : escapeHtml(t('Not run yet'))); })()}</div>
       <div class="plan-row-actions">
         ${p.media ? `<button class="drawer-btn" data-plan-media="${p.id}" title="${escapeAttr(t('Watch attached video'))}">🎬</button>` : ''}
         <button class="drawer-btn" data-plan-use="${p.id}">${t('Use')}</button>
@@ -21784,8 +21813,8 @@ function quickPickHtml() {
   if (!recs.length) return '';
   const times = PLAN_PICK_TIMES.map(m => `<button class="qp-time ${mins === m ? 'active' : ''}" data-pick-min="${m}" aria-pressed="${mins === m}">${m}<span class="qp-time-u">m</span></button>`).join('');
   const recCards = recs.map(r => {
-    const ex = findPlanExecutions(r.plan.id); // feat 395 — show how often / how recently you've run it
-    const usage = ex.count ? `${ex.count}× done · last ${escapeHtml(fmtDate(ex.recent.date))}` : 'Not run yet';
+    const li = planLastRunInfo(r.plan.id); // feat 395 — how often / how recently you've run it; feat 596 — + workout days since and the volume
+    const usage = escapeHtml(li ? t('{count}× done', { count: li.count }) + ' · ' + planLastRunText(li, true) : t('Not run yet'));
     return `<div class="qp-rec">
       <div class="qp-rec-main"><div class="qp-rec-name">${escapeHtml(r.plan.name)}${isFavPlan(r.plan.id) ? ' <span class="qp-fav">★</span>' : ''}</div><div class="qp-rec-reason">${escapeHtml(r.reason)}</div><div class="qp-rec-usage">${usage}</div></div>
       <button class="qp-use" data-plan-use="${escapeAttr(r.plan.id)}">${t('Use')}</button>
@@ -22136,7 +22165,8 @@ function renderPlanEditor(body, plan) {
         <button class="prb-btn" id="plan-revert-btn" ${dirty ? '' : 'disabled'}>${t('↩ Revert')}</button>
         <button class="prb-btn" id="plan-history-btn">${t('🕘 History ({p1})', { p1: ((plan.revisions || []).length) })}</button>
       </div></div>`;
-  const _roBanner = ro ? `<div class="plan-ro-banner">👁 <b>Read-only view</b> — nothing here can be changed. <button class="drawer-btn" id="plan-ro-edit">${t('✎ Edit plan')}</button></div>` : ''; // feat 276
+  const _roBanner = ro ? `<div class="plan-ro-banner">👁 <b>Read-only view</b> — nothing here can be changed. <button class="drawer-btn" id="plan-ro-edit">${t('✎ Edit plan')}</button></div>
+    <div class="pud-last">🕑 ${escapeHtml(planLastRunText(planLastRunInfo(plan.id)))}</div>` : ''; // feat 276 · feat 596
   const _content = `<button class="drawer-btn" id="plan-back-btn">${t('← All plans')}</button>
     ${revBar}
     <input type="text" id="plan-name-input" value="${escapeAttr(plan.name)}" placeholder="${escapeAttr(t('Plan name'))}" style="width:100%;margin:10px 0 6px;padding:9px 11px;font-size:15px;border-radius:8px;font-family:inherit;background:var(--input-bg);border:1px solid var(--border2);color:var(--text);">
@@ -36071,7 +36101,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 510 · 2026-11-25 18:49';
+const APP_BUILD = 'build 511 · 2026-11-26 00:03';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

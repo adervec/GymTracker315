@@ -5623,3 +5623,7 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   at most 40), never the exercise itself. The editor (`openWeightListEditor(…, varUuid)`) shows them in a "Copy from" select
   with a preview of the weights; "Use that list" replaces the editor's list, "Add to mine" merges. Weights only, and
   nothing is stored until Save. Without a `varUuid` the row is not shown.
+- **When a plan last ran (feat 596):** `planLastRunInfo(planId)` → `{ count, days, active, scale, date }` from the latest FINISHED
+  run (`findPlanExecutions`): `days` in local calendar days, `active` = distinct local days with a non-empty session after
+  that day, `scale` = its `planScale` (1 when none). `planLastRunText(i, short)` words it. Shown in the Start sheet (with the
+  last volume tagged, the default still 1×), each plan row, Quick Pick and the read-only plan view.
