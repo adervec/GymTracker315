@@ -52,8 +52,9 @@ test('the Volume page renders the heatmap card with all regions and working leve
     const card = document.getElementById('vol-heatmap');
     const ellipses = card.querySelectorAll('.hm-region').length;
     const naCount = card.querySelectorAll('.hm-region.na').length;
-    const expected = ANATOMY_REGIONS.reduce((n, x) => n + x.e.length, 0);
-    const naExpected = ANATOMY_REGIONS.filter(x => !HEAT_REGION_MODEL[x.term]).reduce((n, x) => n + x.e.length, 0);
+    // feat 597 — one anatomical shape per atlas entry and side (detail shapes are not regions)
+    const expected = MUSCLE_ATLAS.filter(m => !m.deco).length * 2;
+    const naExpected = MUSCLE_ATLAS.filter(m => !m.deco && !HEAT_REGION_MODEL[m.term]).length * 2;
     card.querySelector('[data-hm-level="head"]').click();   // switch resolution (re-renders)
     const after = { level: _heatLevel, active: document.querySelector('#vol-heatmap [data-hm-level="head"]').classList.contains('active') };
     return { ellipses, expected, naCount, naExpected, after };
@@ -64,26 +65,30 @@ test('the Volume page renders the heatmap card with all regions and working leve
   expect(r.after.active).toBe(true);
 });
 
-test('feat 228 — finer resolution splits regions into MORE ovals (group < muscle < head)', async ({ page }) => {
+test('feat 228 · 597 — finer resolution shows MORE distinct parts on the same anatomical shapes (group < muscle < head)', async ({ page }) => {
   await seedChestWeek(page);
   const r = await page.evaluate(() => {
-    const count = (level) => (anatomyHeatmapSvg(heatRegionValues(level, 0)).match(/class="hm-region/g) || []).length;
-    // a multi-head region (Delts → front/side/rear) splits at head level; subs carry the resolution
+    const svg = (level) => anatomyHeatmapSvg(heatRegionValues(level, 0));
+    const count = (level) => (svg(level).match(/class="hm-region/g) || []).length;
+    const subs = (level) => new Set((svg(level).match(/data-hm-sub="[^"]*"/g) || [])).size;
     const delt = (level) => { const v = heatRegionValues(level, 0).find(x => x.term === 'Delts'); return v && v.subs ? v.subs.length : 0; };
-    // a chest set spreads across multiple chest muscles at finer resolution → multiple non-zero sub-ovals
-    const svgHead = anatomyHeatmapSvg(heatRegionValues('head', 0));
-    return {
-      group: count('group'), muscle: count('muscle'), head: count('head'),
-      deltGroup: delt('group'), deltMuscle: delt('muscle'), deltHead: delt('head'),
-      headHasSubLabels: svgHead.includes('data-hm-sub='),
-    };
+    // a chest set: at head level the two pec heads carry their own values
+    const pecVals = new Set([...svg('head').matchAll(/data-hm-term="Pec \/ Pectorals" data-hm-v="([^"]*)"/g)].map(m => m[1]));
+    return { counts: [count('group'), count('muscle'), count('head')], subs: [subs('group'), subs('muscle'), subs('head')],
+      deltGroup: delt('group'), deltMuscle: delt('muscle'), deltHead: delt('head'), pecVals: pecVals.size,
+      noEllipse: !/<ellipse/.test(svg('head')), paths: /<path class="hm-region/.test(svg('group')) };
   });
-  expect(r.muscle).toBeGreaterThan(r.group);  // muscles split the group regions
-  expect(r.head).toBeGreaterThan(r.muscle);   // heads split further
-  expect(r.deltGroup).toBe(1);                 // one oval for the shoulders group…
-  expect(r.deltMuscle).toBe(3);                // …front/side/rear delt at muscle level…
-  expect(r.deltHead).toBeGreaterThanOrEqual(3); // …and at least that many at head level
-  expect(r.headHasSubLabels).toBe(true);       // split ovals carry their sub-component label
+  expect(r.counts[0]).toBe(r.counts[1]);          // the same shapes at every resolution…
+  expect(r.counts[1]).toBe(r.counts[2]);
+  expect(r.subs[0]).toBe(0);                       // …labelled by group, then muscle, then head
+  expect(r.subs[2]).toBeGreaterThan(r.subs[1]);
+  expect(r.subs[1]).toBeGreaterThan(0);
+  expect(r.deltGroup).toBe(1);
+  expect(r.deltMuscle).toBe(3);
+  expect(r.deltHead).toBeGreaterThanOrEqual(3);
+  expect(r.pecVals).toBeGreaterThanOrEqual(1);
+  expect(r.noEllipse).toBe(true);                  // no ovals any more
+  expect(r.paths).toBe(true);
 });
 
 test('auto-cycle advances the resolution and stops once the card leaves the DOM', async ({ page }) => {
@@ -97,4 +102,26 @@ test('auto-cycle advances the resolution and stops once the card leaves the DOM'
   await page.evaluate(() => { navTo('workout'); });                                    // leave the page…
   await page.waitForFunction(() => !_heatCycleOn, null, { timeout: 3000 });            // …the next tick shuts the cycle down
   await page.evaluate(() => { _heatStopCycle(); _heatLevel = 'group'; _heatCycleMs = 3500; state.sessions = []; });
+});
+
+test('feat 597 — every muscle and head the volume model tracks is drawn, and the drawing follows the avatar', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    // every unit a region reads at head level: each head where a muscle has heads, else the muscle
+    const want = new Set();
+    Object.values(HEAT_REGION_MODEL).forEach(m => { if (!m) return; m.muscles.forEach(id => { const inf = MUSCLE_INDEX[id]; if (inf.heads && inf.heads.length) inf.heads.forEach(h => want.add(h.id)); else want.add(id); }); });
+    const drawn = new Set(MUSCLE_ATLAS.filter(m => m.id).map(m => m.id));
+    const missing = [...want].filter(id => !drawn.has(id));
+    const unknown = [...drawn].filter(id => !MUSCLE_INDEX[id]);
+    const terms = MUSCLE_ATLAS.filter(m => !m.deco).map(m => m.term).filter(t => !ANATOMY_TERMS.has(t));
+    const slim = atlasShapes(50, 'F', atlasBuild({ ...figDefaultP(), thigh: 0.8, armW: 0.8 })).map(x => x.d).join('');
+    const wide = atlasShapes(50, 'F', atlasBuild({ ...figDefaultP(), thigh: 1.4, armW: 1.6 })).map(x => x.d).join('');
+    const chart = anatomyBodyHtml(null);
+    return { missing, unknown, terms, reshapes: slim !== wide, chartPaths: (chart.match(/class="amus/g) || []).length, chartEllipses: /<ellipse/.test(chart) };
+  });
+  expect(r.missing).toEqual([]);
+  expect(r.unknown).toEqual([]);
+  expect(r.terms).toEqual([]);            // every shape belongs to a glossary term the chart can open
+  expect(r.reshapes).toBe(true);
+  expect(r.chartPaths).toBeGreaterThan(40);   // the anatomy chart uses the same shapes as tap targets
+  expect(r.chartEllipses).toBe(false);
 });

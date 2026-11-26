@@ -5627,3 +5627,13 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   run (`findPlanExecutions`): `days` in local calendar days, `active` = distinct local days with a non-empty session after
   that day, `scale` = its `planScale` (1 when none). `planLastRunText(i, short)` words it. Shown in the Start sheet (with the
   last volume tagged, the default still 1×), each plan row, Quick Pick and the read-only plan view.
+- **The muscle atlas (feat 597):** the heatmaps and the anatomy chart draw `MUSCLE_ATLAS`, ~45 anatomical shapes per figure (both
+  sides), instead of ovals split into smaller ovals. Each entry is written in the frame of the part it sits on, so it follows
+  the avatar's proportions and pose: limbs in (u along the segment, v across it, with figMusclePath's taper and belly),
+  the torso in (fraction of the half-width at height y, y). `atlasBuild(p)` broadens the avatar's own proportions toward
+  a real body for these views only (the avatar is drawn slender). Smooth closed curves (Catmull-Rom → cubic Bézier);
+  optional faint fibre lines; `deco` entries (serratus, SCM, infraspinatus, teres) are drawn but never scored or tapped.
+  `id` is the finest model unit (a head where the muscle has heads): group colours by the region total, muscle by
+  `parent || id`, head by `id` (`atlasValue`, which reads the `acc` + `level` now carried on each region value). The body
+  under the muscles is one opaque skin tone with no outline, so limb segments join without seams. To add a muscle: add an
+  entry; heatmap.spec fails if a modelled head or muscle has no shape or a shape names an unknown id or term.

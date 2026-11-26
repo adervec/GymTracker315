@@ -4946,8 +4946,9 @@ select.wl-in { padding: 7px 6px; }
 .neighbor-hint.e1rm .neighbor-hint-dir { color: var(--accent); }
 .anat-fig-label { font-size: 9px; fill: var(--text2); font-weight: 700; text-anchor: middle; }
 .amus { cursor: pointer; fill: var(--bg4); stroke: var(--border2); stroke-width: 0.8; transition: fill 0.15s; }
-.amus:hover { fill: var(--accent2); }
-.amus.active { fill: var(--accent); }
+.anat-svg.atlas .amus { fill: color-mix(in srgb, var(--text) 16%, transparent); stroke: color-mix(in srgb, var(--text) 40%, transparent); stroke-width: 0.35; stroke-linejoin: round; } /* feat 597 */
+.amus:hover, .anat-svg.atlas .amus:hover { fill: var(--accent2); }
+.amus.active, .anat-svg.atlas .amus.active { fill: var(--accent); }
 .gloss-chart-toggle { background: var(--bg4); border: 1px solid var(--border2); color: var(--text2); padding: 5px 9px; border-radius: 7px; font-size: 11px; cursor: pointer; margin-left: auto; margin-right: 8px; white-space: nowrap; }
 .gloss-chart-toggle.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
 .gloss-chart-link { font-size: 11px; color: var(--accent); cursor: pointer; margin-top: 4px; display: inline-block; }
@@ -4983,8 +4984,12 @@ select.wl-in { padding: 7px 6px; }
 .anat-viewer-zoom .anat-svg { margin-bottom: 0; }
 /* feat 217 — the anatomy volume heatmap (Volume page; feat 218 reuses it on the live workout) */
 .heatmap-card .anat-svg { width: 100%; max-width: 430px; display: block; margin: 4px auto 0; }
-.hm-region { stroke: var(--border2); fill: transparent; transition: fill 0.4s; }
-.hm-region.na { stroke-dasharray: 2 2; opacity: 0.4; }
+/* feat 597 — the muscle atlas */
+.anat-svg.atlas .fig-torso, .anat-svg.atlas .fig-arm, .anat-svg.atlas .fig-leg, .anat-svg.atlas .fig-head, .anat-svg.atlas .fig-neck, .anat-svg.atlas .fig-foot { fill: color-mix(in srgb, var(--text) 9%, var(--bg)); stroke: none; } /* one opaque skin: limb segments join without seams */
+.hm-region { stroke: color-mix(in srgb, var(--text) 38%, transparent); stroke-width: 0.35; stroke-linejoin: round; fill: color-mix(in srgb, var(--text) 13%, transparent); transition: fill 0.4s; }
+.hm-deco { fill: color-mix(in srgb, var(--text) 10%, transparent); stroke: color-mix(in srgb, var(--text) 26%, transparent); stroke-width: 0.3; pointer-events: none; }
+.hm-fibre { fill: none; stroke: color-mix(in srgb, var(--text) 22%, transparent); stroke-width: 0.22; stroke-linecap: round; pointer-events: none; }
+.hm-region.na { fill: color-mix(in srgb, var(--text) 7%, transparent); stroke: color-mix(in srgb, var(--text) 24%, transparent); }
 .hm-controls { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
 .hm-lvl { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 7px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
 .hm-lvl.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
@@ -25213,7 +25218,7 @@ function heatValuesFromAcc(acc, level) {
     const m = HEAT_REGION_MODEL[r.term];
     if (!m) return { term: r.term, v: null, subs: null }; // not modeled → "n/a"
     const subs = regionSubsFor(m, level, acc, groupAcc);
-    return { term: r.term, v: _r1(subs.reduce((s, x) => s + x.v, 0)), subs };
+    return { term: r.term, v: _r1(subs.reduce((s, x) => s + x.v, 0)), subs, acc, level }; // feat 597 — acc + level: each atlas shape reads its own muscle
   });
 }
 function heatRegionValues(level, weekOffset) {
@@ -25237,24 +25242,168 @@ function _splitEllipse(cx, cy, rx, ry, k) {
   }
   return out;
 }
-function anatomyHeatmapSvg(values) {
-  const max = Math.max.apply(null, values.flatMap(x => x.subs ? x.subs.map(s => s.v) : [0]).concat([0.0001]));
-  const byTerm = {}; values.forEach(x => { byTerm[x.term] = x; });
-  const region = (r) => {
-    const val = byTerm[r.term] || { v: null, subs: null };
-    if (!val.subs) { // not modeled — a single n/a oval per bilateral placement
-      return r.e.map(([cx, cy, rx, ry]) =>
-        `<ellipse class="hm-region na" data-hm-term="${escapeAttr(r.term)}" data-hm-v="" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"><title>${t('{term} — not in the volume model', { term: (escapeHtml(r.term)) })}</title></ellipse>`).join('');
-    }
-    const subs = val.subs, multi = subs.length > 1;
-    return r.e.map(([cx, cy, rx, ry]) => _splitEllipse(cx, cy, rx, ry, subs.length).map((s, k) => {
-      const sub = subs[k] || { v: 0, label: '' };
-      return `<ellipse class="hm-region" data-hm-term="${escapeAttr(r.term)}" data-hm-v="${sub.v}"${multi ? ` data-hm-sub="${escapeAttr(sub.label)}"` : ''} cx="${s[0]}" cy="${s[1]}" rx="${s[2]}" ry="${s[3]}" style="fill:${heatColor(sub.v, max)};"><title>${escapeHtml(r.term)}${multi ? ' · ' + escapeHtml(sub.label) : ''} — ${sub.v} sets</title></ellipse>`;
-    }).join('')).join('');
+/* ============================================================
+   feat 597 — THE MUSCLE ATLAS. The heatmaps and the anatomy chart used to mark each muscle with an oval (and, at a
+   finer resolution, split it into more ovals). Now every muscle and head is an anatomical shape: pec heads, the
+   three delts, biceps and triceps heads, brachialis, forearm flexors and extensors, a segmented rectus abdominis,
+   obliques, upper / mid / lower traps, rhomboids, lats, erectors, glute max and med, the four quad heads,
+   adductors, hamstrings, both gastrocnemius heads, soleus and tibialis.
+
+   Each shape is written in the frame of the body part it sits on, so it follows the avatar's proportions and
+   pose: limb shapes in (u, v) where u runs 0 → 1 from the upper joint to the lower one and v runs −1 (inner) → +1
+   (outer) across the limb's width at that point (the same taper and belly figMusclePath draws); torso shapes in
+   (f, y) where f is the fraction of the torso's half-width at height y (from the avatar's shoulder / chest /
+   waist / hip widths). Every entry is drawn for both sides. A smooth closed curve (Catmull-Rom → cubic Bézier)
+   runs through the points; a few large muscles get faint fibre lines.
+
+   `id` is the finest unit of the volume model the shape belongs to (a head where the muscle has heads), so one
+   drawing serves every resolution: group colours by the group, muscle by `parent || id`, head by `id`.
+   ============================================================ */
+const MUSCLE_ATLAS = [
+  // ---- front ----
+  { v: 'F', f: 'torso', term: 'Traps', id: 'traps-upper', p: [[0.36, 23.4], [0.62, 26.2], [0.96, 29.8], [0.72, 31.3], [0.42, 29.6]] },
+  { v: 'F', f: 'torso', term: 'Pec / Pectorals', id: 'upper-chest', p: [[0.05, 33.2], [0.35, 31.6], [0.74, 32.6], [0.96, 35.4], [0.86, 38.6], [0.5, 39.7], [0.07, 38.8]],
+    fib: [[[0.1, 36.2], [0.5, 35.6], [0.88, 35.9]]] },
+  { v: 'F', f: 'torso', term: 'Pec / Pectorals', id: 'mid-lower-chest', p: [[0.05, 39.8], [0.5, 40.6], [0.9, 37.8], [0.99, 41.2], [0.92, 46.8], [0.72, 52.4], [0.42, 54.6], [0.12, 53.4], [0.05, 46.5]],
+    fib: [[[0.1, 44.5], [0.55, 44.2], [0.93, 41.3]], [[0.14, 50.5], [0.5, 49.5], [0.9, 43]]] },
+  { v: 'F', f: 'torso', term: 'Core', id: 'rectus-abdominis', p: [[0.04, 55.6], [0.29, 55.9], [0.31, 61.6], [0.05, 62]] },
+  { v: 'F', f: 'torso', term: 'Core', id: 'rectus-abdominis', p: [[0.04, 63.1], [0.3, 63.2], [0.32, 69.4], [0.05, 69.6]] },
+  { v: 'F', f: 'torso', term: 'Core', id: 'rectus-abdominis', p: [[0.04, 70.8], [0.31, 70.9], [0.31, 78.3], [0.05, 78.5]] },
+  { v: 'F', f: 'torso', term: 'Core', id: 'rectus-abdominis', p: [[0.04, 79.7], [0.3, 79.9], [0.26, 91.5], [0.14, 98], [0.05, 99.5]] },
+  { v: 'F', f: 'torso', term: 'Obliques', id: 'obliques', p: [[0.42, 60], [0.66, 57.8], [0.93, 62], [0.99, 74.5], [0.96, 87], [0.82, 94.5], [0.58, 95.5], [0.42, 88], [0.38, 72]],
+    fib: [[[0.45, 62], [0.75, 70], [0.92, 82]], [[0.42, 74], [0.68, 82], [0.88, 92]]] },
+  { v: 'F', f: 'arm', term: 'Delts', id: 'front-delt', p: [[-0.16, -0.05], [-0.1, -0.7], [0.04, -1.02], [0.2, -0.9], [0.36, -0.2], [0.44, 0.3], [0.24, 0.16], [0.02, 0.12]],
+    fib: [[[0.0, -0.5], [0.2, -0.3], [0.38, 0.15]]] },
+  { v: 'F', f: 'arm', term: 'Delts', id: 'side-delt', p: [[-0.14, 0.2], [-0.06, 0.95], [0.1, 1.28], [0.28, 1.2], [0.42, 0.75], [0.46, 0.4], [0.26, 0.3], [0.04, 0.26]],
+    fib: [[[0.02, 0.6], [0.2, 0.7], [0.4, 0.5]]] },
+  { v: 'F', f: 'arm', term: 'Bis / Biceps', id: 'biceps-short', p: [[0.34, -0.12], [0.36, -0.7], [0.52, -0.92], [0.72, -0.76], [0.86, -0.3], [0.9, -0.06], [0.62, -0.04]] },
+  { v: 'F', f: 'arm', term: 'Bis / Biceps', id: 'biceps-long', p: [[0.4, 0.04], [0.46, 0.46], [0.58, 0.72], [0.74, 0.6], [0.87, 0.16], [0.9, 0.02], [0.62, 0.04]] },
+  { v: 'F', f: 'arm', term: 'Bis / Biceps', id: 'brachialis', p: [[0.62, 0.78], [0.78, 0.98], [0.94, 0.78], [0.92, 0.32], [0.8, 0.62]] },
+  { v: 'F', f: 'fore', term: 'Forearms', id: null, p: [[0.0, 0.28], [0.04, 0.96], [0.3, 1.02], [0.62, 0.56], [0.56, 0.2], [0.22, 0.14]] },
+  { v: 'F', f: 'fore', term: 'Forearms', id: null, p: [[0.02, -0.18], [0.05, -0.92], [0.36, -1.0], [0.76, -0.54], [0.9, -0.08], [0.6, 0.08], [0.3, 0.02]] },
+  { v: 'F', f: 'thigh', term: 'Adductors', id: null, p: [[0.02, -0.42], [0.07, -1.0], [0.3, -1.04], [0.55, -0.76], [0.6, -0.5], [0.38, -0.42], [0.14, -0.38]] },
+  { v: 'F', f: 'thigh', term: 'Quads / Quadriceps', id: 'rectus-femoris', p: [[0.06, 0.0], [0.16, -0.34], [0.45, -0.42], [0.78, -0.24], [0.92, 0.02], [0.78, 0.26], [0.45, 0.34], [0.16, 0.28]],
+    fib: [[[0.15, 0.0], [0.5, -0.02], [0.88, 0.0]]] },
+  { v: 'F', f: 'thigh', term: 'Quads / Quadriceps', id: 'vastus-intermedius', p: [[0.32, 0.36], [0.55, 0.42], [0.78, 0.33], [0.7, 0.29], [0.5, 0.36]] },
+  { v: 'F', f: 'thigh', term: 'Quads / Quadriceps', id: 'vastus-lateralis', p: [[0.16, 0.44], [0.3, 0.92], [0.55, 1.05], [0.8, 0.86], [0.95, 0.46], [0.84, 0.34], [0.56, 0.47], [0.28, 0.42]],
+    fib: [[[0.25, 0.7], [0.55, 0.78], [0.85, 0.6]]] },
+  { v: 'F', f: 'thigh', term: 'Quads / Quadriceps', id: 'vastus-medialis', p: [[0.55, -0.46], [0.68, -0.96], [0.86, -1.0], [0.98, -0.56], [0.95, -0.2], [0.82, -0.26], [0.68, -0.42]] },
+  { v: 'F', f: 'shin', term: 'Tibialis Anterior', id: null, p: [[0.08, 0.06], [0.1, 0.52], [0.4, 0.56], [0.76, 0.3], [0.8, 0.06], [0.45, -0.04]] },
+  { v: 'F', f: 'shin', term: 'Calves', id: 'gastrocnemius', p: [[0.08, -0.5], [0.14, -1.0], [0.44, -0.96], [0.6, -0.6], [0.4, -0.3]] },
+  { v: 'F', f: 'torso', deco: 1, p: [[0.12, 21.2], [0.3, 21.6], [0.6, 30.4], [0.42, 31.6]] },                                   // sternocleidomastoid
+  { v: 'F', f: 'torso', deco: 1, p: [[0.84, 44.6], [0.99, 43.6], [0.99, 47.8], [0.86, 48.2]] },                                   // serratus anterior, three slips
+  { v: 'F', f: 'torso', deco: 1, p: [[0.8, 49.2], [0.98, 48.6], [0.98, 52.8], [0.82, 53.4]] },
+  { v: 'F', f: 'torso', deco: 1, p: [[0.74, 54.4], [0.95, 53.8], [0.95, 57.8], [0.76, 58.6]] },
+  // ---- back ----
+  { v: 'B', f: 'torso', term: 'Traps', id: 'traps-upper', p: [[0.02, 22.2], [0.4, 23.2], [0.7, 27], [0.98, 31], [0.7, 33.2], [0.3, 33.2], [0.02, 33.2]],
+    fib: [[[0.08, 28], [0.5, 29], [0.9, 31.2]]] },
+  { v: 'B', f: 'torso', term: 'Traps', id: 'traps-mid', p: [[0.02, 33.8], [0.35, 33.8], [0.72, 34.8], [0.6, 40], [0.3, 45], [0.02, 47]] },
+  { v: 'B', f: 'torso', term: 'Traps', id: 'traps-lower', p: [[0.02, 47.6], [0.3, 45.6], [0.45, 48], [0.26, 58], [0.02, 68]] },
+  { v: 'B', f: 'torso', deco: 1, p: [[0.5, 36.4], [0.82, 35.4], [0.97, 39.5], [0.84, 45.4], [0.58, 46.2], [0.46, 42]] },          // infraspinatus
+  { v: 'B', f: 'torso', deco: 1, p: [[0.74, 45.6], [0.98, 41.4], [1.02, 45.2], [0.84, 48.6]] },                                   // teres major
+  { v: 'B', f: 'torso', term: 'Traps', id: 'rhomboids', p: [[0.1, 44.4], [0.32, 41.2], [0.42, 46], [0.33, 52.8], [0.12, 55]] },
+  { v: 'B', f: 'torso', term: 'Lats', id: 'lats', p: [[0.4, 50], [0.62, 44.5], [0.86, 41.5], [1.03, 44], [1.06, 52], [1.03, 62], [0.95, 71], [0.76, 80], [0.46, 87.5], [0.16, 90], [0.08, 84], [0.13, 72], [0.24, 60]],
+    fib: [[[0.9, 48], [0.6, 62], [0.35, 80]], [[0.96, 56], [0.72, 68], [0.45, 84]]] },
+  { v: 'B', f: 'torso', term: 'Erectors', id: 'erectors', p: [[0.03, 62], [0.2, 60], [0.25, 75], [0.22, 92], [0.15, 100], [0.04, 100]] },
+  { v: 'B', f: 'torso', term: 'Glutes', id: 'glute-med-min', p: [[0.4, 90], [0.8, 88.2], [1.0, 94], [0.96, 99], [0.7, 97.4], [0.45, 96.2]] },
+  { v: 'B', f: 'torso', term: 'Glutes', id: 'glute-max', p: [[0.05, 97.2], [0.4, 95.4], [0.84, 97.2], [1.0, 103], [0.9, 111], [0.55, 114], [0.2, 112], [0.05, 106]],
+    fib: [[[0.15, 101], [0.55, 104], [0.92, 108]]] },
+  { v: 'B', f: 'arm', term: 'Delts', id: 'rear-delt', p: [[-0.16, -0.05], [-0.1, -0.7], [0.04, -1.02], [0.2, -0.9], [0.36, -0.2], [0.44, 0.3], [0.24, 0.16], [0.02, 0.12]],
+    fib: [[[0.0, -0.5], [0.2, -0.3], [0.38, 0.15]]] },
+  { v: 'B', f: 'arm', term: 'Delts', id: 'side-delt', p: [[-0.14, 0.2], [-0.06, 0.95], [0.1, 1.28], [0.28, 1.2], [0.42, 0.75], [0.46, 0.4], [0.26, 0.3], [0.04, 0.26]] },
+  { v: 'B', f: 'arm', term: 'Tris / Triceps', id: 'tri-long', p: [[0.3, -0.1], [0.32, -0.76], [0.47, -0.96], [0.7, -0.76], [0.82, -0.3], [0.78, -0.04]] },
+  { v: 'B', f: 'arm', term: 'Tris / Triceps', id: 'tri-lateral', p: [[0.36, 0.1], [0.38, 0.8], [0.5, 0.96], [0.64, 0.7], [0.73, 0.3], [0.66, 0.06]] },
+  { v: 'B', f: 'arm', term: 'Tris / Triceps', id: 'tri-medial', p: [[0.73, -0.4], [0.85, -0.66], [0.95, -0.22], [0.92, 0.34], [0.8, 0.26], [0.76, -0.04]] },
+  { v: 'B', f: 'fore', term: 'Forearms', id: null, p: [[0.0, 0.2], [0.04, 0.96], [0.32, 1.0], [0.7, 0.5], [0.62, 0.1], [0.25, 0.08]] },
+  { v: 'B', f: 'fore', term: 'Forearms', id: null, p: [[0.02, -0.1], [0.05, -0.92], [0.36, -1.0], [0.8, -0.5], [0.88, -0.06], [0.6, -0.02]] },
+  { v: 'B', f: 'thigh', term: 'Adductors', id: null, p: [[0.02, -0.5], [0.07, -1.0], [0.3, -0.96], [0.32, -0.62], [0.14, -0.52]] },
+  { v: 'B', f: 'thigh', term: 'Hams / Hamstrings', id: 'hamstrings', p: [[0.12, 0.1], [0.2, 0.85], [0.5, 1.0], [0.82, 0.74], [0.95, 0.3], [0.82, 0.1], [0.5, 0.12]],
+    fib: [[[0.2, 0.45], [0.55, 0.55], [0.88, 0.4]]] },
+  { v: 'B', f: 'thigh', term: 'Hams / Hamstrings', id: 'hamstrings', p: [[0.36, -0.04], [0.4, -0.66], [0.55, -0.94], [0.82, -0.74], [0.95, -0.3], [0.82, -0.08], [0.55, -0.06]],
+    fib: [[[0.42, -0.4], [0.65, -0.5], [0.9, -0.36]]] },
+  { v: 'B', f: 'shin', term: 'Calves', id: 'gastrocnemius', p: [[0.05, -0.05], [0.1, -0.96], [0.35, -1.05], [0.56, -0.7], [0.58, -0.1], [0.35, 0.0]],
+    fib: [[[0.1, -0.5], [0.3, -0.55], [0.52, -0.45]]] },
+  { v: 'B', f: 'shin', term: 'Calves', id: 'gastrocnemius', p: [[0.05, 0.05], [0.1, 0.9], [0.32, 1.0], [0.5, 0.66], [0.52, 0.1], [0.3, 0.05]] },
+  { v: 'B', f: 'shin', term: 'Calves', id: 'soleus', p: [[0.5, -0.7], [0.62, -1.0], [0.85, -0.62], [0.88, -0.16], [0.68, -0.22]] },
+  { v: 'B', f: 'shin', term: 'Calves', id: 'soleus', p: [[0.48, 0.66], [0.6, 1.0], [0.84, 0.62], [0.88, 0.16], [0.66, 0.2]] },
+];
+// i18n-keys: Upper Chest | Mid / Lower Chest | Front Delt | Side Delt | Rear Delt | Brachialis | Rectus Abdominis | Obliques | Lats | Rhomboids | Spinal Erectors | Glute Max | Glute Med / Min | Hamstrings | Gastrocnemius | Soleus
+// i18n-keys: Traps | Biceps | Triceps | Quads | Upper Traps | Mid Traps | Lower Traps | Long Head (outer/peak) | Short Head (inner) | Long Head | Lateral Head | Medial Head | Rectus Femoris | Vastus Lateralis | Vastus Medialis (VMO) | Vastus Intermedius
+// The avatar is drawn slender (shoulders about an eighth of its height); a muscle chart needs a real body's breadth.
+// The atlas build scales the avatar's OWN proportions up, so a broader or slimmer avatar still reads as such.
+function atlasBuild(p) {
+  p = p || figDefaultP();
+  return { ...p, shoulder: p.shoulder * 1.32, chest: p.chest * 1.32, waist: p.waist * 1.16, hip: p.hip * 1.24,
+    armW: p.armW * 1.5, thigh: p.thigh * 1.36, calf: p.calf * 1.4, neck: (p.neck || 1) * 1.25 };
+}
+// a smooth closed curve through the points (Catmull-Rom, written as cubic Béziers)
+function _atlasPath(pts) {
+  const n = pts.length, f = q => _figN(q[0]) + ' ' + _figN(q[1]);
+  let d = 'M ' + f(pts[0]);
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ' C ' + f(c1) + ' ' + f(c2) + ' ' + f(p2);
+  }
+  return d + ' Z';
+}
+function _atlasLine(pts) { const f = q => _figN(q[0]) + ' ' + _figN(q[1]); return pts.length === 3 ? `M ${f(pts[0])} Q ${f(pts[1])} ${f(pts[2])}` : 'M ' + pts.map(f).join(' L '); }
+// the frames: a limb segment (with figMusclePath's taper and belly) and the torso (the avatar's half-widths by height)
+function _atlasLimb(a, b, wA, wB, bulge, cx) {
+  let n = _figPerp(a, b); const mid = (a[0] + b[0]) / 2;
+  if (n[0] * (mid - cx) < 0) n = [-n[0], -n[1]];                 // v > 0 always points away from the body
+  const rA = wA / 2, rB = wB / 2, W = Math.max(wA, wB) * bulge / 2;
+  const hw = u => u <= 0 ? rA : u <= 0.42 ? rA + (W - rA) * Math.sin((u / 0.42) * Math.PI / 2) : W + (rB - W) * (1 - Math.cos(((u - 0.42) / 0.58) * Math.PI / 2));
+  return ([u, v]) => { const c = _figLerp(a, b, u), h = hw(Math.min(1, u)) * 0.94; return [c[0] + n[0] * v * h, c[1] + n[1] * v * h]; };
+}
+function _atlasTorso(cx, p, side) {
+  const pts = [[20, 3.4 * (p.neck || 1)], [30, p.shoulder], [55, p.chest], [75, p.waist], [95, p.hip], [116, p.hip]];
+  const hw = y => { for (let i = 1; i < pts.length; i++) if (y <= pts[i][0]) { const [y0, w0] = pts[i - 1], [y1, w1] = pts[i]; return w0 + (w1 - w0) * Math.max(0, (y - y0) / (y1 - y0)); } return pts[pts.length - 1][1]; };
+  return ([fx, y]) => [cx + side * fx * hw(y) * 0.97, y];
+}
+// every shape of one figure (front or back) with its frame applied, for both sides
+function atlasShapes(cx, view, p) {
+  p = p || figDefaultP();
+  const J = figStandingJoints(cx, p), out = [];
+  const aw1 = 5.5 * p.armW, aw2 = 4.2 * p.armW, lw1 = 8.5 * p.thigh, lw2 = 6 * p.calf;
+  const frames = side => {
+    const a = J.arms[side < 0 ? 0 : 1], l = J.legs[side < 0 ? 0 : 1];
+    return { torso: _atlasTorso(cx, p, side),
+      arm: _atlasLimb(a.sh, a.el, aw1, aw2 * 0.92, 1.28, cx), fore: _atlasLimb(a.el, a.wr, aw2, aw2 * 0.58, 1.18, cx),
+      thigh: _atlasLimb(l.hip, l.kn, lw1, lw2 * 0.92, 1.28, cx), shin: _atlasLimb(l.kn, l.an, lw2, lw2 * 0.58, 1.18, cx) };
   };
-  return `<svg class="anat-svg heatmap" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
-    ${anatomyOutline(50)}${anatomyOutline(150)}
-    ${ANATOMY_REGIONS.map(region).join('')}
+  [-1, 1].forEach(side => { const F = frames(side);
+    MUSCLE_ATLAS.forEach(m => { if (m.v !== view) return; const map = F[m.f];
+      out.push({ m, d: _atlasPath(m.p.map(map)), fib: (m.fib || []).map(l => _atlasLine(l.map(map))) }); }); });
+  return out;
+}
+// the value one shape shows at a resolution: the region's group total, the muscle (a head reports its parent), or the head itself
+function atlasValue(region, id, level) {
+  if (!region || !region.subs) return null;
+  if (level === 'group' || !id) return region.v;
+  const acc = region.acc || {}, inf = MUSCLE_INDEX[id];
+  if (level === 'muscle') { const mid = (inf && inf.parent) || id; return _r1(acc[mid] || 0); }
+  return _r1(acc[id] != null ? acc[id] : (inf && inf.parent && acc[inf.parent]) || 0);
+}
+function atlasLabel(id, level) { const inf = MUSCLE_INDEX[id]; if (!inf) return ''; const shown = (level === 'muscle' && inf.parent) ? MUSCLE_INDEX[inf.parent] : inf; return shown ? t(shown.label) : ''; }
+function anatomyHeatmapSvg(values) {
+  const byTerm = {}; values.forEach(x => { byTerm[x.term] = x; });
+  const level = (values.find(x => x && x.level) || {}).level || 'group', P = atlasBuild((typeof avatarProportions === 'function' ? avatarProportions() : null) || figDefaultP());
+  const figs = [[50, 'F'], [150, 'B']].map(([cx, view]) => ({ cx, shapes: atlasShapes(cx, view, P) }));
+  let max = 0.0001;
+  figs.forEach(g => g.shapes.forEach(sh => { if (sh.m.deco) return; const v = atlasValue(byTerm[sh.m.term], sh.m.id, level); if (v > max) max = v; }));
+  const draw = (sh) => {
+    if (sh.m.deco) return `<path class="hm-deco" d="${sh.d}"/>`;   // detail anatomy the model does not score
+    const r = byTerm[sh.m.term], v = atlasValue(r, sh.m.id, level);
+    if (v == null) return `<path class="hm-region na" data-hm-term="${escapeAttr(sh.m.term)}" data-hm-v="" d="${sh.d}"><title>${t('{term} — not in the volume model', { term: (escapeHtml(sh.m.term)) })}</title></path>`;
+    const lbl = level !== 'group' && sh.m.id ? atlasLabel(sh.m.id, level) : '';
+    const col = heatColor(v, max);
+    return `<path class="hm-region" data-hm-term="${escapeAttr(sh.m.term)}" data-hm-v="${v}"${sh.m.id ? ` data-hm-mus="${escapeAttr(sh.m.id)}"` : ''}${lbl ? ` data-hm-sub="${escapeAttr(lbl)}"` : ''} d="${sh.d}"${col && col !== 'transparent' ? ` style="fill:${col};"` : ''}><title>${escapeHtml(sh.m.term)}${lbl ? ' · ' + escapeHtml(lbl) : ''} — ${v} sets</title></path>`
+      + sh.fib.map(d => `<path class="hm-fibre" d="${d}"/>`).join('');
+  };
+  return `<svg class="anat-svg heatmap atlas" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
+    ${anatomyOutline(50, P)}${anatomyOutline(150, P)}
+    ${figs.map(g => g.shapes.map(draw).join('')).join('')}
     <text class="anat-fig-label" x="50" y="190">${t('Front')}</text>
     <text class="anat-fig-label" x="150" y="190">${t('Back')}</text>
   </svg>`;
@@ -36101,7 +36250,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 511 · 2026-11-26 00:03';
+const APP_BUILD = 'build 512 · 2026-11-26 13:08';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -45994,11 +46143,11 @@ function anatomyBodyHtml(activeTerm) {
     }).join('');
     return `<div class="anat-detailed"><img class="anat-img" src="${escapeAttr(anatomyImageSrc())}" alt="Anatomy chart">${hotspots}</div>`;
   }
-  const region = r => r.e.map(([cx, cy, rx, ry]) =>
-    `<ellipse class="amus ${activeTerm === r.term ? 'active' : ''}" data-term="${escapeAttr(r.term)}" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"><title>${escapeHtml(r.term)}</title></ellipse>`).join('');
-  return `<svg class="anat-svg" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
-        ${anatomyOutline(50)}${anatomyOutline(150)}
-        ${ANATOMY_REGIONS.map(region).join('')}
+  const P = atlasBuild((typeof avatarProportions === 'function' ? avatarProportions() : null) || figDefaultP());   // feat 597 — anatomical shapes, not ovals
+  const shape = sh => sh.m.deco ? `<path class="hm-deco" d="${sh.d}"/>` : `<path class="amus ${activeTerm === sh.m.term ? 'active' : ''}" data-term="${escapeAttr(sh.m.term)}" d="${sh.d}"><title>${escapeHtml(sh.m.term)}</title></path>` + sh.fib.map(d => `<path class="hm-fibre" d="${d}"/>`).join('');
+  return `<svg class="anat-svg atlas" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
+        ${anatomyOutline(50, P)}${anatomyOutline(150, P)}
+        ${atlasShapes(50, 'F', P).map(shape).join('')}${atlasShapes(150, 'B', P).map(shape).join('')}
         <text class="anat-fig-label" x="50" y="190">${t('Front')}</text>
         <text class="anat-fig-label" x="150" y="190">${t('Back')}</text>
       </svg>`;
