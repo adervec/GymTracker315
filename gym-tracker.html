@@ -2926,6 +2926,8 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .plan-media-attached { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 8px; }
   .plan-media-attached .pme-info { flex: 1; font-size: 12px; font-weight: 700; color: var(--accent); }
   .plan-watch { font-size: 11px; font-weight: 800; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 3px 10px; border-radius: 999px; cursor: pointer; font-family: inherit; margin-left: auto; }
+  .plan-card-left { margin-top: 6px; }
+  .plan-steps-hidden { display: block; width: 100%; margin: 2px 0 6px; padding: 6px 10px; font: inherit; font-size: 12px; color: var(--text3); background: none; border: 1px dashed var(--border2); border-radius: 8px; cursor: pointer; text-align: start; }  /* feat 598 */
   .plan-steps { display: flex; flex-direction: column; gap: 5px; }
   .plan-step { padding: 6px 8px; border-radius: 7px; background: var(--bg3); border: 1px solid transparent; cursor: pointer; }
   .plan-step:hover { border-color: var(--border2); }
@@ -22374,12 +22376,14 @@ function renderPlanGuide(session) {
   const curIdx = currentPlanStepIndex(session, plan);
   const sum = planExecutionSummary(session, plan);
   const dups = planDuplicateSteps(plan); // feat 213 — steps a single exercise could double-serve
+  const stepDone = [];   // feat 598 — which steps are finished, for the collapsed view
   const steps = plan.steps.map((st, i) => {
     const s = stepStatus(session, st, plan), impossible = stepImpossibleInGym(st);
     // feat 144 — the CURRENT step (full-target pointer) keeps the 'current' look even once its min-% is met,
     // so following the plan exactly isn't visually "ended" early; a satisfied non-current step shows 'done'.
     const isCurrent = (i === curIdx && !s.done);
     const cls = isCurrent ? 'current' : ((s.done || s.satisfied) ? 'done' : '');
+    stepDone[i] = cls === 'done';
     const opts = (st.options || []).map((o, oi) => `<button class="plan-opt" data-plan-step="${i}" data-plan-opt="${oi}">${escapeHtml(optionLabel(o))}</button>`).join('<span class="plan-opt-or">or</span>');
     const load = st.load || 'moderate';
     // feat 161 — a LOOSE weight×reps suggestion (tuned to your recent sets for this exercise), not a target.
@@ -22400,7 +22404,7 @@ function renderPlanGuide(session) {
       <div class="plan-step-opts">${opts || '<span style="color:var(--text3);font-size:11px;">(no exercises)</span>'}</div>
       ${st.desc ? `<div class="plan-step-desc">${escapeHtml(st.desc)}</div>` : ''}
     </div>`;
-  }).join('');
+  });
   // feat 111 — comparison to prior runs of this plan (either may be absent / the same workout)
   const exec = findPlanExecutions(plan.id, session.id, session.planRev); // feat 162 — same-revision only
   const summ = (s) => `${_execSets(s)} sets${s.finalScore && s.finalScore.grade ? ' · ' + s.finalScore.grade : ''} · ${fmtDate(s.date)}`;
@@ -22420,14 +22424,19 @@ function renderPlanGuide(session) {
   const progLine = `<div class="plan-progress-line plan-progress-open" id="plan-progress-open" role="button" tabindex="0" title="${escapeAttr(t('Open the full plan'))}">${t('<b>{setsDone}/{setsTarget}</b> sets · {p3}{fullHint}{p5}<span class="plan-progress-chev">›</span>', { setsDone: (sum.setsDone), setsTarget: (sum.setsTarget), p3: (stepsFracHtml(sum.stepsDone, sum.stepsTotal)), fullHint: (fullHint), p5: (sum.effortApplicable ? t(' · 💪 {effortHits}/{effortApplicable} effort', { effortHits: (sum.effortHits), effortApplicable: (sum.effortApplicable) }) : '') })}</div>`;
   // feat 127 — collapsible: tap the header to fold the plan card down to just its name + progress line.
   const collapsed = !!(state.dashboard && state.dashboard.planCollapsed);
+  // feat 598 — collapsed = only what is left: the finished steps fold away (and the meta, history and actions with them)
+  const stepList = Array.isArray(steps) ? steps : [], nDone = stepDone.filter(Boolean).length;
+  const stepsShown = collapsed ? stepList.filter((_, i) => !stepDone[i]).join('') : stepList.join('');
+  const hiddenNote = (collapsed && nDone) ? `<button type="button" class="plan-steps-hidden" id="plan-show-all">${t.n('✓ {n} finished step hidden · show all', '✓ {n} finished steps hidden · show all', nDone, { n: nDone })}</button>` : '';
   return `<div class="plan-card${sum.complete ? ' complete' : ''}${collapsed ? ' collapsed' : ''}">
     <div class="plan-card-head" id="plan-collapse-toggle" role="button" tabindex="0" title="${collapsed ? 'Expand plan' : 'Collapse plan'}"><span class="plan-card-name"><span class="plan-collapse-chevron">${collapsed ? '▸' : '▾'}</span> 📋 ${escapeHtml(plan.name)}</span><span class="plan-card-eta">${headEta}</span></div>
     ${progLine}
+    ${collapsed ? `<div class="plan-card-left">${hiddenNote}<div class="plan-steps">${stepsShown}</div></div>` : ''}
     <div class="plan-card-body"${collapsed ? ' hidden' : ''}>
     <div class="plan-card-meta"><span class="plan-intensity" title="Intensity ${planIntensity(plan)}/5">${intensityDots(plan)}</span><span class="plan-est">${t('~{plan} min · {plan_} sets', { plan: (estimatePlanMinutes(plan)), plan_: (planTotalSets(plan)) })}</span>${plan.media ? `<button class="plan-watch" id="plan-watch-btn">${t('🎬 Watch')}</button>` : ''}</div>
     ${compareHtml}
     ${plan.desc ? `<div class="plan-card-desc">${escapeHtml(plan.desc)}</div>` : ''}
-    <div class="plan-steps">${steps}</div>
+    <div class="plan-steps">${collapsed ? '' : stepsShown}</div>
     ${sum.complete ? `<div class="plan-complete-banner">🎉 Plan complete!<span class="pcb-actions"><button class="plan-act primary" id="plan-complete-end">${t('🏁 End')}</button><button class="plan-act" id="plan-complete-summary">${t('Summary')}</button></span></div>` : ''}
     <div class="plan-card-actions"><button class="plan-act" id="plan-exec-btn">${t('📊 Execution')}</button><button class="plan-act" id="plan-change-btn">${t('Change plan')}</button><button class="plan-act danger" id="plan-abandon-btn">${t('Abandon')}</button></div>
     </div>
@@ -22776,6 +22785,7 @@ function exHistoryPreviewHtml(varUuid, subUuid) {
 function bindPlanGuide(main) {
   if (!main) return;
   main.querySelector('#plan-collapse-toggle')?.addEventListener('click', togglePlanCollapsed); // feat 127
+  main.querySelector('#plan-show-all')?.addEventListener('click', togglePlanCollapsed); // feat 598
   main.querySelector('#plan-collapse-toggle')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePlanCollapsed(); } });
   main.querySelector('#plan-progress-open')?.addEventListener('click', () => { const p = getActivePlan(); if (p) openPlanFull(p.id); }); // feat 138 — tap the progress line → full plan editor
   main.querySelector('#plan-progress-open')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const p = getActivePlan(); if (p) openPlanFull(p.id); } });
@@ -36250,7 +36260,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 512 · 2026-11-26 13:08';
+const APP_BUILD = 'build 513 · 2026-11-26 13:44';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

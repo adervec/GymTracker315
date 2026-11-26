@@ -5637,3 +5637,7 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   `parent || id`, head by `id` (`atlasValue`, which reads the `acc` + `level` now carried on each region value). The body
   under the muscles is one opaque skin tone with no outline, so limb segments join without seams. To add a muscle: add an
   entry; heatmap.spec fails if a modelled head or muscle has no shape or a shape names an unknown id or term.
+- **Collapsed plan card = what is left (feat 598):** `renderPlanGuide` keeps its steps as a list with a `stepDone` flag each. Collapsed
+  (`state.dashboard.planCollapsed`) draws only the unfinished steps under the progress line, with a "✓ n finished steps
+  hidden · show all" button that expands the card; the meta, history comparison and actions stay in the hidden body.
+  Expanded is unchanged.

@@ -207,3 +207,23 @@ test('feat 252 — the plan strip + the plan-progress line carry the .steps-frac
   expect(r.stripSf).toBe('0.2500');
   expect(r.lineSf).toBe('0.2500');
 });
+
+test('feat 598 — collapsed shows only the steps still to do; finished ones fold behind a "show all"', async ({ page }) => {
+  const { a } = await seedPlan(page);
+  const r = await page.evaluate((a) => {
+    state.sessions = [{ id: 'today', date: new Date().toISOString(), planId: 'P', exercises: [{ varUuid: a, subUuid: null, sets: [{ w: 100, r: 5 }, { w: 100, r: 5 }] }] }];   // step 1 done
+    const steps = html => { const d = document.createElement('div'); d.innerHTML = html; return [...d.querySelectorAll('.plan-step')].map(x => x.dataset.planStepIdx); };
+    state.dashboard = { ...state.dashboard, planCollapsed: false };
+    const open = renderPlanGuide(state.sessions[0]);
+    state.dashboard = { ...state.dashboard, planCollapsed: true };
+    const shut = renderPlanGuide(state.sessions[0]);
+    const d = document.createElement('div'); d.innerHTML = shut;
+    return { open: steps(open), shut: steps(shut), note: (d.querySelector('#plan-show-all') || {}).textContent, actionsHidden: !!d.querySelector('.plan-card-body[hidden] .plan-card-actions'),
+      openNote: open.includes('plan-show-all') };
+  }, a);
+  expect(r.open).toEqual(['0', '1']);
+  expect(r.shut).toEqual(['1']);                       // only what is left
+  expect(r.note).toBe('✓ 1 finished step hidden · show all');
+  expect(r.actionsHidden).toBe(true);
+  expect(r.openNote).toBe(false);
+});
