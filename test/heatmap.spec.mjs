@@ -26,9 +26,9 @@ test('heatRegionValues: bench work heats the chest region; unmodeled regions are
     const get = (t) => vals.find(x => x.term === t);
     return { pec: get('Pec / Pectorals').v, forearms: get('Forearms').v, hams: get('Hams / Hamstrings').v, n: vals.length };
   });
-  expect(r.n).toBe(16);            // every wireframe region gets a value entry
+  expect(r.n).toBe(18);            // every wireframe region gets a value entry (feat 602: + neck, jaw)
   expect(r.pec).toBeGreaterThan(0);  // bench heats the pecs
-  expect(r.forearms).toBe(null);     // not in the volume model
+  expect(r.forearms).toBe(0);        // feat 602 — modeled now (grip), untouched this week
   expect(r.hams).toBe(0);            // untouched this week
 });
 
@@ -124,4 +124,21 @@ test('feat 597 — every muscle and head the volume model tracks is drawn, and t
   expect(r.reshapes).toBe(true);
   expect(r.chartPaths).toBeGreaterThan(40);   // the anatomy chart uses the same shapes as tap targets
   expect(r.chartEllipses).toBe(false);
+});
+
+test('feat 602 — grip, neck and jaw work colours the forearms, neck and jaw', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const fam = id => FAMILIES.find(f => f.id === id), v = id => fam(id).variations[0].uuid;
+    const day = new Date().toISOString();
+    state.sessions = [{ id: 'g', date: day, exercises: [['grip-training', 4], ['wrist-curl', 3], ['neck-training', 3], ['jaw-training', 2]].map(([f, n]) => ({ varUuid: v(f), sets: Array.from({ length: n }, () => ({ w: 20, r: 12 })) })) }];
+    const vals = heatRegionValues('muscle', 0), get = t => vals.find(x => x.term === t);
+    const svg = anatomyHeatmapSvg(heatRegionValues('head', 0));
+    return { fore: get('Forearms').v, neck: get('Neck').v, jaw: get('Jaw').v, wristToBrach: (MUSCLE_CONTRIB['wrist-curl'] || {}).brachialis || 0,
+      painted: ['forearm-flexors', 'forearm-extensors', 'neck-flexors', 'neck-extensors', 'masseter'].map(id => new RegExp(`data-hm-mus="${id}"[^>]*style="fill:hsla`).test(svg)) };
+  });
+  expect(r.fore).toBeGreaterThan(0);
+  expect(r.neck).toBeGreaterThan(0);
+  expect(r.jaw).toBeGreaterThan(0);
+  expect(r.wristToBrach).toBe(0);
+  expect(r.painted).toEqual([true, true, true, true, true]);
 });

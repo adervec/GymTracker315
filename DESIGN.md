@@ -5650,3 +5650,8 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   your own words, else the active coach's pool, else the built-in `tpl`. New events start OFF (the feat 577 rule):
   workout.start/end, plan.done, rest.quip (halfway through a rest of 60 s or more), rest.long (a minute past the rest
   time), the last two from `coachRestTick`. `state.coachTalk.name` = what the coach calls you.
+- **Grip, neck, jaw (feat 602):** model groups forearms (forearm-flexors, forearm-extensors), neck (neck-flexors,
+  neck-extensors), jaw (masseter). Only direct work credits them (grip-training, wrist-curl — which used to credit
+  brachialis — neck-training, jaw-training); compound lifts do not, so their back/leg shares are unchanged. Atlas: the
+  forearm shapes are scored, the SCM is the scored neck front, a splenius shape on the back, and the masseter in a
+  new `head` frame (head centre, radius 7). ANATOMY_REGIONS has Neck and Jaw; the glossary has entries for both.

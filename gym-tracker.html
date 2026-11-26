@@ -8794,6 +8794,18 @@ const MUSCLE_GROUPS_MODEL = [
     { id:'rectus-abdominis', label:'Rectus Abdominis', mav:9 },
     { id:'obliques', label:'Obliques', mav:6 },
   ]},
+  // feat 602 — the small ones the map left grey: grip, neck and jaw
+  { group:'forearms', label:'Forearms', muscles:[
+    { id:'forearm-flexors', label:'Forearm Flexors (grip)', mav:6 },
+    { id:'forearm-extensors', label:'Forearm Extensors', mav:4 },
+  ]},
+  { group:'neck', label:'Neck', muscles:[
+    { id:'neck-flexors', label:'Neck Flexors (SCM)', mav:4 },
+    { id:'neck-extensors', label:'Neck Extensors', mav:4 },
+  ]},
+  { group:'jaw', label:'Jaw', muscles:[
+    { id:'masseter', label:'Masseter', mav:4 },
+  ]},
 ];
 // Flat lookup: muscleId → {label, group, mav, parent?}
 const MUSCLE_INDEX = (() => {
@@ -8827,7 +8839,8 @@ const MUSCLE_CONTRIB = {
   'bicep-curl':         { 'biceps-long':0.45, 'biceps-short':0.45, 'brachialis':0.1 },
   'hammer-curl':        { 'brachialis':0.55, 'biceps-long':0.3, 'biceps-short':0.15 },
   'reverse-curl':       { 'brachialis':0.7, 'biceps-long':0.3 },
-  'wrist-curl':         { 'brachialis':1 },
+  'wrist-curl':         { 'forearm-flexors':0.85, 'forearm-extensors':0.15 },   // feat 602 — was brachialis: a wrist curl trains the forearm, not the elbow flexor
+  'grip-training':      { 'forearm-flexors':0.8, 'forearm-extensors':0.2 },
   'squat':              { 'quads':0.55, 'glute-max':0.25, 'hamstrings':0.1, 'erectors':0.1 },
   'leg-press':          { 'quads':0.6, 'glute-max':0.3, 'hamstrings':0.1 },
   'leg-extension':      { 'rectus-femoris':0.25, 'vastus-lateralis':0.3, 'vastus-medialis':0.25, 'vastus-intermedius':0.2 },
@@ -25203,7 +25216,10 @@ const HEAT_REGION_MODEL = {
   'Glutes': { group: 'glutes', muscles: ['glute-max', 'glute-med-min'] },
   'Hams / Hamstrings': { group: 'hamstrings', muscles: ['hamstrings'] },
   'Calves': { group: 'calves', muscles: ['gastrocnemius', 'soleus'] },
-  'Forearms': null, 'Adductors': null, 'Tibialis Anterior': null, // not in the volume model → "n/a" style
+  'Forearms': { group: 'forearms', muscles: ['forearm-flexors', 'forearm-extensors'] },   // feat 602
+  'Neck': { group: 'neck', muscles: ['neck-flexors', 'neck-extensors'] },
+  'Jaw': { group: 'jaw', muscles: ['masseter'] },
+  'Adductors': null, 'Tibialis Anterior': null, // not in the volume model → "n/a" style
 };
 // Per-region value at a resolution, from any muscle-level accumulator (weekly or live).
 // feat 228 — a region's SUB-COMPONENTS at the chosen resolution, each with its own value. group → one
@@ -25291,8 +25307,8 @@ const MUSCLE_ATLAS = [
   { v: 'F', f: 'arm', term: 'Bis / Biceps', id: 'biceps-short', p: [[0.34, -0.12], [0.36, -0.7], [0.52, -0.92], [0.72, -0.76], [0.86, -0.3], [0.9, -0.06], [0.62, -0.04]] },
   { v: 'F', f: 'arm', term: 'Bis / Biceps', id: 'biceps-long', p: [[0.4, 0.04], [0.46, 0.46], [0.58, 0.72], [0.74, 0.6], [0.87, 0.16], [0.9, 0.02], [0.62, 0.04]] },
   { v: 'F', f: 'arm', term: 'Bis / Biceps', id: 'brachialis', p: [[0.62, 0.78], [0.78, 0.98], [0.94, 0.78], [0.92, 0.32], [0.8, 0.62]] },
-  { v: 'F', f: 'fore', term: 'Forearms', id: null, p: [[0.0, 0.28], [0.04, 0.96], [0.3, 1.02], [0.62, 0.56], [0.56, 0.2], [0.22, 0.14]] },
-  { v: 'F', f: 'fore', term: 'Forearms', id: null, p: [[0.02, -0.18], [0.05, -0.92], [0.36, -1.0], [0.76, -0.54], [0.9, -0.08], [0.6, 0.08], [0.3, 0.02]] },
+  { v: 'F', f: 'fore', term: 'Forearms', id: 'forearm-extensors', p: [[0.0, 0.28], [0.04, 0.96], [0.3, 1.02], [0.62, 0.56], [0.56, 0.2], [0.22, 0.14]] },   // brachioradialis side
+  { v: 'F', f: 'fore', term: 'Forearms', id: 'forearm-flexors', p: [[0.02, -0.18], [0.05, -0.92], [0.36, -1.0], [0.76, -0.54], [0.9, -0.08], [0.6, 0.08], [0.3, 0.02]] },
   { v: 'F', f: 'thigh', term: 'Adductors', id: null, p: [[0.02, -0.42], [0.07, -1.0], [0.3, -1.04], [0.55, -0.76], [0.6, -0.5], [0.38, -0.42], [0.14, -0.38]] },
   { v: 'F', f: 'thigh', term: 'Quads / Quadriceps', id: 'rectus-femoris', p: [[0.06, 0.0], [0.16, -0.34], [0.45, -0.42], [0.78, -0.24], [0.92, 0.02], [0.78, 0.26], [0.45, 0.34], [0.16, 0.28]],
     fib: [[[0.15, 0.0], [0.5, -0.02], [0.88, 0.0]]] },
@@ -25302,13 +25318,15 @@ const MUSCLE_ATLAS = [
   { v: 'F', f: 'thigh', term: 'Quads / Quadriceps', id: 'vastus-medialis', p: [[0.55, -0.46], [0.68, -0.96], [0.86, -1.0], [0.98, -0.56], [0.95, -0.2], [0.82, -0.26], [0.68, -0.42]] },
   { v: 'F', f: 'shin', term: 'Tibialis Anterior', id: null, p: [[0.08, 0.06], [0.1, 0.52], [0.4, 0.56], [0.76, 0.3], [0.8, 0.06], [0.45, -0.04]] },
   { v: 'F', f: 'shin', term: 'Calves', id: 'gastrocnemius', p: [[0.08, -0.5], [0.14, -1.0], [0.44, -0.96], [0.6, -0.6], [0.4, -0.3]] },
-  { v: 'F', f: 'torso', deco: 1, p: [[0.12, 21.2], [0.3, 21.6], [0.6, 30.4], [0.42, 31.6]] },                                   // sternocleidomastoid
+  { v: 'F', f: 'torso', term: 'Neck', id: 'neck-flexors', p: [[0.12, 19.6], [0.42, 20.2], [0.66, 30.2], [0.46, 31.6], [0.2, 25]] },   // feat 602 — sternocleidomastoid, now scored
+  { v: 'F', f: 'head', term: 'Jaw', id: 'masseter', p: [[0.5, 13.8], [0.84, 13.2], [0.98, 16.4], [0.8, 19.4], [0.5, 18.8], [0.44, 16.2]] },   // masseter, on the jaw line
   { v: 'F', f: 'torso', deco: 1, p: [[0.84, 44.6], [0.99, 43.6], [0.99, 47.8], [0.86, 48.2]] },                                   // serratus anterior, three slips
   { v: 'F', f: 'torso', deco: 1, p: [[0.8, 49.2], [0.98, 48.6], [0.98, 52.8], [0.82, 53.4]] },
   { v: 'F', f: 'torso', deco: 1, p: [[0.74, 54.4], [0.95, 53.8], [0.95, 57.8], [0.76, 58.6]] },
   // ---- back ----
   { v: 'B', f: 'torso', term: 'Traps', id: 'traps-upper', p: [[0.02, 22.2], [0.4, 23.2], [0.7, 27], [0.98, 31], [0.7, 33.2], [0.3, 33.2], [0.02, 33.2]],
     fib: [[[0.08, 28], [0.5, 29], [0.9, 31.2]]] },
+  { v: 'B', f: 'torso', term: 'Neck', id: 'neck-extensors', p: [[0.04, 17.6], [0.5, 17.4], [0.72, 20.6], [0.4, 22.2], [0.04, 22]] },   // feat 602 — splenius, above the traps
   { v: 'B', f: 'torso', term: 'Traps', id: 'traps-mid', p: [[0.02, 33.8], [0.35, 33.8], [0.72, 34.8], [0.6, 40], [0.3, 45], [0.02, 47]] },
   { v: 'B', f: 'torso', term: 'Traps', id: 'traps-lower', p: [[0.02, 47.6], [0.3, 45.6], [0.45, 48], [0.26, 58], [0.02, 68]] },
   { v: 'B', f: 'torso', deco: 1, p: [[0.5, 36.4], [0.82, 35.4], [0.97, 39.5], [0.84, 45.4], [0.58, 46.2], [0.46, 42]] },          // infraspinatus
@@ -25326,8 +25344,8 @@ const MUSCLE_ATLAS = [
   { v: 'B', f: 'arm', term: 'Tris / Triceps', id: 'tri-long', p: [[0.3, -0.1], [0.32, -0.76], [0.47, -0.96], [0.7, -0.76], [0.82, -0.3], [0.78, -0.04]] },
   { v: 'B', f: 'arm', term: 'Tris / Triceps', id: 'tri-lateral', p: [[0.36, 0.1], [0.38, 0.8], [0.5, 0.96], [0.64, 0.7], [0.73, 0.3], [0.66, 0.06]] },
   { v: 'B', f: 'arm', term: 'Tris / Triceps', id: 'tri-medial', p: [[0.73, -0.4], [0.85, -0.66], [0.95, -0.22], [0.92, 0.34], [0.8, 0.26], [0.76, -0.04]] },
-  { v: 'B', f: 'fore', term: 'Forearms', id: null, p: [[0.0, 0.2], [0.04, 0.96], [0.32, 1.0], [0.7, 0.5], [0.62, 0.1], [0.25, 0.08]] },
-  { v: 'B', f: 'fore', term: 'Forearms', id: null, p: [[0.02, -0.1], [0.05, -0.92], [0.36, -1.0], [0.8, -0.5], [0.88, -0.06], [0.6, -0.02]] },
+  { v: 'B', f: 'fore', term: 'Forearms', id: 'forearm-extensors', p: [[0.0, 0.2], [0.04, 0.96], [0.32, 1.0], [0.7, 0.5], [0.62, 0.1], [0.25, 0.08]] },
+  { v: 'B', f: 'fore', term: 'Forearms', id: 'forearm-flexors', p: [[0.02, -0.1], [0.05, -0.92], [0.36, -1.0], [0.8, -0.5], [0.88, -0.06], [0.6, -0.02]] },
   { v: 'B', f: 'thigh', term: 'Adductors', id: null, p: [[0.02, -0.5], [0.07, -1.0], [0.3, -0.96], [0.32, -0.62], [0.14, -0.52]] },
   { v: 'B', f: 'thigh', term: 'Hams / Hamstrings', id: 'hamstrings', p: [[0.12, 0.1], [0.2, 0.85], [0.5, 1.0], [0.82, 0.74], [0.95, 0.3], [0.82, 0.1], [0.5, 0.12]],
     fib: [[[0.2, 0.45], [0.55, 0.55], [0.88, 0.4]]] },
@@ -25339,6 +25357,7 @@ const MUSCLE_ATLAS = [
   { v: 'B', f: 'shin', term: 'Calves', id: 'soleus', p: [[0.5, -0.7], [0.62, -1.0], [0.85, -0.62], [0.88, -0.16], [0.68, -0.22]] },
   { v: 'B', f: 'shin', term: 'Calves', id: 'soleus', p: [[0.48, 0.66], [0.6, 1.0], [0.84, 0.62], [0.88, 0.16], [0.66, 0.2]] },
 ];
+// i18n-keys: Forearm Flexors (grip) | Forearm Extensors | Neck Flexors (SCM) | Neck Extensors | Masseter | Forearms | Neck | Jaw
 // i18n-keys: Upper Chest | Mid / Lower Chest | Front Delt | Side Delt | Rear Delt | Brachialis | Rectus Abdominis | Obliques | Lats | Rhomboids | Spinal Erectors | Glute Max | Glute Med / Min | Hamstrings | Gastrocnemius | Soleus
 // i18n-keys: Traps | Biceps | Triceps | Quads | Upper Traps | Mid Traps | Lower Traps | Long Head (outer/peak) | Short Head (inner) | Long Head | Lateral Head | Medial Head | Rectus Femoris | Vastus Lateralis | Vastus Medialis (VMO) | Vastus Intermedius
 // The avatar is drawn slender (shoulders about an eighth of its height); a muscle chart needs a real body's breadth.
@@ -25380,7 +25399,7 @@ function atlasShapes(cx, view, p) {
   const aw1 = 5.5 * p.armW, aw2 = 4.2 * p.armW, lw1 = 8.5 * p.thigh, lw2 = 6 * p.calf;
   const frames = side => {
     const a = J.arms[side < 0 ? 0 : 1], l = J.legs[side < 0 ? 0 : 1];
-    return { torso: _atlasTorso(cx, p, side),
+    return { torso: _atlasTorso(cx, p, side), head: ([fx, y]) => [cx + side * fx * (J.hr || 7), y],   // feat 602 — the face (head radius)
       arm: _atlasLimb(a.sh, a.el, aw1, aw2 * 0.92, 1.28, cx), fore: _atlasLimb(a.el, a.wr, aw2, aw2 * 0.58, 1.18, cx),
       thigh: _atlasLimb(l.hip, l.kn, lw1, lw2 * 0.92, 1.28, cx), shin: _atlasLimb(l.kn, l.an, lw2, lw2 * 0.58, 1.18, cx) };
   };
@@ -36390,7 +36409,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 514 · 2026-11-26 14:28';
+const APP_BUILD = 'build 515 · 2026-11-26 15:04';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -45310,6 +45329,8 @@ const glossary = [
   { term:'Bis / Biceps', cat:'anatomy', def:'Front upper arm. Two heads: long head (outer, gives the peak) and short head (inner). Flex elbow and supinate forearm.' },
   { term:'Tris / Triceps', cat:'anatomy', def:'Back of upper arm. Three heads: long (largest, hit by overhead extensions), lateral, medial. Make up ~2/3 of arm size.' },
   { term:'Brachialis', cat:'anatomy', def:'Muscle under the biceps. Hit best by hammer curls and pinwheel curls. Pushes biceps up — key to peak arm size.' },
+  { term:'Neck', cat:'anatomy', def:'The sternocleidomastoid at the front and the splenius and other extensors at the back: they bend, turn and brace the head. Train with neck curls and extensions, a harness or a band.' },   // feat 602
+  { term:'Jaw', aka:'Masseter', cat:'anatomy', def:'The masseter closes the jaw and is among the strongest muscles for its size. Train with a jaw exerciser, chewing holds or clenching isometrics.' },
   { term:'Forearms', cat:'anatomy', def:'Multiple muscles controlling grip, wrist, and finger movement. Train with reverse curls, wrist curls, dead hangs, farmer\'s walks.' },
   { term:'Quads / Quadriceps', cat:'anatomy', def:'Front thigh muscles. 4 heads: rectus femoris (crosses hip), vastus lateralis (outer), medialis (inner, the "teardrop"), intermedius (under rectus).' },
   { term:'Hams / Hamstrings', cat:'anatomy', def:'Back thigh. 3 muscles: biceps femoris, semitendinosus, semimembranosus. Cross both hip and knee — flex knee, extend hip.' },
@@ -46173,6 +46194,8 @@ const ANATOMY_REGIONS = [
   { term:'Adductors',            e:[[47,110,3,11],[53,110,3,11]] },
   { term:'Quads / Quadriceps',   e:[[43,115,6,17],[57,115,6,17]] },
   { term:'Tibialis Anterior',    e:[[44,158,4,13],[56,158,4,13]] },
+  { term:'Jaw',                  e:[[45,16,2,3],[55,16,2,3]] },     // feat 602
+  { term:'Neck',                 e:[[46,24,2,3],[54,24,2,3],[150,20,5,3]] },
   // Back figure (centred at x≈150)
   { term:'Traps',                e:[[150,42,10,8]] },
   { term:'Lats',                 e:[[139,66,6,12],[161,66,6,12]] },
