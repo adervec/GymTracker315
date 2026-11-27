@@ -5666,3 +5666,10 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   words. `pickerQueryMatch`: plain words on name + family title by default (`state.pickerSearchScope` 'name', synced),
   on everything with 'all'. Family keywords were why "pallof" listed all 87 core-stability exercises.
   `renderPickerResults` widens to 'all' when the name finds nothing (`_pickerWidened`, with a line saying so).
+- **Club sheet (feat 605):** the `gym-directory` reply may carry `profile` per gym (hours {kind 24/7|24/5|set, text},
+  opened, access, amenities, tiers, parking, phone, website, rating {stars,count,source,at}, note, sources; deep look:
+  feedback {keep[{text,src}], cut}, photos {floor[], read, src}). `cleanGymProfile` validates and caps every field
+  (https links only, via safeUrl) and merges onto the club's previous sheet, so a facts-only pass keeps the deep look.
+  The context sends `profileAt` / `deepAt` per club (facts every 90 days, deep look every 60) and `deepLook` (your
+  most-visited gym + clubs flagged `g.deepLook`, max 6). Gym list rows show ★ and key badges and a Sheet button; the
+  Compare clubs card sorts by distance / rating / amenity count and filters by needs.
