@@ -130,3 +130,60 @@ test('feat 625 — the wizard: views, options, make, preview and download', asyn
   expect(r.size).toBeGreaterThan(20000);
   expect(r.playing, 'the player resumes').toBe('1');
 });
+
+test('feat 626 — a name changes the picture: kneeling, wall, ball, preacher, deficit, alternating, a held squat', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const S = id => repStudioSpec(id), pr = (sp, s) => (typeof sp.props === 'function' ? sp.props(rsFrame(sp, s)) : sp.props) || [];
+    const kinds = (sp, s) => [...new Set(pr(sp, s).map(q => q[0] + ':' + (q[0] === 'box' ? q[7] : q[0] === 'cap' ? q[5] : q[3])))];
+    const ids = ['half-kneeling-press', 'kneeling-pulldown', 'barbell-kneeling-squat', 'wall-squat-iso', 'preacher-curl', 'deficit-push-up', 'blaster-db-alt-curl', 'swiss-ball-curl', 'seated-db-lateral', 'handstand-push-up'];
+    const bad = ids.filter(id => { const sp = S(id); return !sp || ['side', 'three', 'front', 'back'].some(v => /NaN|undefined/.test(rsStageSvg(sp, rsTotal(sp) * 0.4, v))); });
+    const hk = S(ids[0]), kp = S(ids[1]), ks = S(ids[2]), ws = S(ids[3]), pc = S(ids[4]), dp = S(ids[5]), pu = RS_MOTIONS['push-up']('none', {}), ac = S(ids[6]), sb = S(ids[7]), sl = S(ids[8]);
+    const bb = RS_MOTIONS['bench-press']('dumbbell', { ball: 1 }); bb.rig = true; rsApplyMods(bb, { ball: 1 });
+    const h0 = rsFrame(hk, 0), k0 = rsFrame(ks, 0), k1 = rsFrame(ks, 1), w0 = rsFrame(ws, 0), a0 = rsFrame(ac, 0), a1 = rsFrame(ac, 1), p0 = rsFrame(pc, 0), hold = ws.phases.find(x => x.id === 'bottom');
+    return { bad, half: hk.low && hk.low.kind, rearKnee: h0.xf(h0.legs[1].knee)[1], kpHip: rsFrame(kp, 0).hip[1], kpKinds: kinds(kp, 0), ksKnee: Math.max(k0.legs[0].knee[1], k1.legs[0].knee[1]), ksRise: k1.hip[1] - k0.hip[1],
+      wsHold: [hold.sec, hold.label], wsLevel: Math.abs(w0.legs[0].hip[1] - w0.legs[0].knee[1]), wsKinds: kinds(ws, 0), pcKinds: kinds(pc, 0), pcFwd: p0.arms[0].el[0] - p0.arms[0].sh[0],
+      dpKinds: kinds(dp, 0), dpUp: rsFrame(dp, 0).arms[0].grip[1] - rsFrame(pu, 0).arms[0].grip[1], alt: ac.alt, altGap: [a0.arms[0].grip[1] - a0.arms[1].grip[1], a1.arms[0].grip[1] - a1.arms[1].grip[1]],
+      sbKinds: kinds(sb, 0), bbKinds: kinds(bb, 0.5), seat: sl.low && sl.low.kind };
+  });
+  expect(r.bad, 'every variant draws from every side').toEqual([]);
+  expect(r.half).toBe('half');
+  expect(r.rearKnee, 'the rear knee is on the floor').toBeLessThan(9);
+  expect(r.kpHip, 'a kneeling pulldown has no seat').toBeCloseTo(50.2, 1);
+  expect(r.kpKinds).not.toContain('box:pad');
+  expect(r.ksKnee, 'the kneeling squat keeps its knees down').toBeLessThan(9);
+  expect(r.ksRise).toBeGreaterThan(15);
+  expect(r.wsHold, 'a wall sit is held sitting, not standing').toEqual([10, 'Hold']);
+  expect(r.wsLevel, 'thighs level').toBeLessThan(4);
+  expect(r.wsKinds).toContain('box:wall');
+  expect(r.pcKinds).toContain('cap:pad');
+  expect(r.pcFwd, 'the upper arm lies forward on the pad').toBeGreaterThan(15);
+  expect(r.dpKinds).toContain('box:wood');
+  expect(r.dpUp, 'hands on blocks').toBeGreaterThan(8);
+  expect(r.alt).toBe(true);
+  expect(r.altGap[0] * r.altGap[1], 'the arms take turns').toBeLessThan(-400);
+  expect(r.sbKinds).toContain('ball:swiss');
+  expect(r.bbKinds, 'the ball replaces the bench').toEqual(['ball:swiss']);
+  expect(r.seat).toBe('seat');
+});
+
+test('feat 626 — continuous playback: nothing pops in or out between one frame and the next', async ({ page }) => {
+  test.setTimeout(240000);
+  const r = await page.evaluate(async () => {
+    const W = 200, H = 182, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d', { willReadFrequently: true }), out = [];
+    const sq = RS_MOTIONS['squat']('barbell', {}); sq.rig = true;
+    for (const [name, spec, view, fps] of [['squat', sq, 'side', 30], ['deadlift', REP_STUDIO['conventional-dl'], 'three', 30]]) {
+      const n = Math.round(rsTotal(spec) * fps), ch = []; let prev = null;
+      for (let i = 0; i <= n; i++) { await rsGifFrame(ctx, spec, i / fps, [view], [W, H], { path: false }); const d = ctx.getImageData(0, 0, W, H).data; let c = 0;
+        if (prev) { const m = new Uint8Array(W * H); for (let q = 0, k = 0; q < d.length; q += 4, k++) m[k] = (Math.abs(d[q] - prev[q]) + Math.abs(d[q + 1] - prev[q + 1]) + Math.abs(d[q + 2] - prev[q + 2])) > 90 ? 1 : 0;
+          for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const k = y * W + x; if (m[k] && m[k - 1] && m[k + 1] && m[k - W] && m[k + W]) c++; } }   // a changed pixel counts only inside a changed patch
+        ch.push(c); prev = d; }
+      const spikes = []; for (let i = 3; i < ch.length - 3; i++) { const nb = [ch[i - 3], ch[i - 2], ch[i - 1], ch[i + 1], ch[i + 2], ch[i + 3]].sort((a, c) => a - c), med = (nb[2] + nb[3]) / 2; if (ch[i] > med * 2.5 + 20) spikes.push([+(i / fps).toFixed(3), ch[i], med]); }
+      out.push({ name, steps: n, moved: ch.reduce((a, x) => a + x, 0), spikes }); }
+    // the glow of a working muscle changes over a third of a second at a phase boundary, not in one frame
+    const dl = REP_STUDIO['conventional-dl'], host = document.createElement('div'), op = t => { host.innerHTML = rsStageSvg(dl, t, 'side'); const e = host.querySelector('.rs-muscle.on[data-m="glutes"]'); return e ? +(e.getAttribute('opacity') || 1) : 0; };
+    let acc = 0, glow = 0; dl.phases.forEach(p => { glow = Math.max(glow, Math.abs(op(acc + 1 / 60) - op(acc - 1 / 60 + (acc ? 0 : rsTotal(dl))))); acc += p.sec; });
+    return { out, glow };
+  });
+  r.out.forEach(x => { expect(x.moved, x.name + ' moves').toBeGreaterThan(20); expect(x.spikes, x.name + ': a patch changed all at once at these times [s, pixels, usual]').toEqual([]); });
+  expect(r.glow, 'glow step across a phase boundary').toBeLessThan(0.15);
+});

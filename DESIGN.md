@@ -5744,3 +5744,21 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
 - **GIF export (feat 625):** `rsGifWizard(el)` (3 steps) -> `rsGifBuild` (frames from `rsStageSvg` via data-URL image
   to canvas, palette picked from the animation's own 15-bit histogram, `rsGifEncode` LZW writer). `rsGifTimes` samples
   moving phases at the chosen fps and writes each hold as ONE frame with the hold's delay, so the loop equals the rep.
+- **No pops (feat 626):** the scene is still one painter's sort, but a detail no longer competes with its limb by
+  centre depth. Inside `open(axis)` … `flush()` a shape is `base` (the limb's own sections), `cover` (shorts: 0.3 over
+  the nearest of the limb's sections within 20 cm, drawn with a flat hem so it cannot overlap the next section),
+  `detail` (ordered by which side of the limb's axis it is on, and cross-faded over ~1.6 cm as it comes round: a full
+  copy behind the limb keeps the outline, a fading copy on top; details within reach of a cover are packed in under
+  it), `top` (a detail that clears every cover: the glute glow) or `free` (hands, shoes: plain depth). Limb gradients
+  come from `cstops(mat, c)`, c = how squarely the limb's edge faces the light in sixteenths, so the sheen slides
+  instead of swapping edges. Muscle glow is blended across a phase boundary in `rsStageSvg` (0.3 s) and comes up from
+  zero opacity. Near lockout `rsPose` averages the hip over a short stretch of s (the two-circle hip closes like a
+  square root and used to stop dead). How to check: difference consecutive frames at 60 a second and count changed
+  pixels that sit inside a changed patch; a step far above its neighbours is a pop (test `feat 626 — continuous
+  playback`). Lessons: lifting a cover well clear of its limb makes it cut in front of other limbs; widening what a
+  cover stays above drags it over other groups. Keep covers close and square off their ends instead.
+- **Variant modifiers (feat 626):** `rsApplyMods` also reads `alt`, `kneel` (`1` / `'half'`), `seat`, `wall`, `ball`,
+  `support`; a standing movement is set down with `spec.low = { dy, kind }` (legs replaced in `rsRigFrame`, body
+  shifted by `J.xf`). Movements that need their own pose handle the opt themselves and say so (`seated`, `supported`,
+  the squat's `kneel` / `wall`, the pulldown's `kneel`, the curl's preacher pad, the push-up's `deficit`).
+  `spec.holdAt` names the phase an isometric holds (the squat: `bottom`).
