@@ -21,25 +21,19 @@ test('anatomyChart defaults exist and the setting is preserved', async ({ page }
   expect(r.inKeys).toBe(true);
 });
 
-test('importing an OCR map populates clickable hotspots in the Detailed view', async ({ page }) => {
+test('feat 613 — the layer switches toggle skeleton, deep, surface and labels, and never leave an empty body', async ({ page }) => {
   const r = await page.evaluate(() => {
-    anatomyImportMap(JSON.stringify({ version: 1, terms: [
-      { term: 'Lats', label: 'Latissimus Dorsi', x: 0.3, y: 0.4 },
-      { term: 'Glutes', label: 'Gluteus Maximus', x: 0.7, y: 0.6 },
-      { term: 'bad' }, // missing coords -> dropped
-    ] }));
-    const mapLen = state.anatomyChart.map.length;
-    _anatomyImg = 'data:image/png;base64,iVBORw0KGgo=';   // pretend an image was uploaded
-    _anatomyImgTried = true;
-    state.anatomyChart.view = 'detailed';
     renderAnatomyChart();
-    const chart = document.getElementById('ref-gloss-chart');
-    return { mapLen, hotspots: chart.querySelectorAll('.anat-hotspot').length, hasImg: !!chart.querySelector('.anat-img'), view: anatomyView() };
+    const q = k => document.querySelector(`#ref-gloss-chart [data-anat-layer="${k}"]`);
+    q('deep').click(); const deepOn = !!document.querySelector('#ref-gloss-chart .amus.ab-deep');
+    q('surf').click(); const surfOff = !document.querySelector('#ref-gloss-chart .amus.ab-surf');
+    q('bone').click(); q('deep').click();           // everything off → the surface comes back
+    return { deepOn, surfOff, surfBack: !!document.querySelector('#ref-gloss-chart .amus.ab-surf'), saved: state.anatomyChart.layers };
   });
-  expect(r.mapLen).toBe(2);       // the coordinate-less entry was dropped
-  expect(r.hotspots).toBe(2);
-  expect(r.hasImg).toBe(true);
-  expect(r.view).toBe('detailed');
+  expect(r.deepOn).toBe(true);
+  expect(r.surfOff).toBe(true);
+  expect(r.surfBack).toBe(true);
+  expect(r.saved.surf).toBe(true);
 });
 
 test('view falls back to Simple (wireframe) without an image, and toggles', async ({ page }) => {
@@ -61,15 +55,12 @@ test('view falls back to Simple (wireframe) without an image, and toggles', asyn
   expect(r.detailedView).toBe('detailed');
 });
 
-test('tapping a hotspot opens the glossary for that term', async ({ page }) => {
+test('tapping a muscle opens the glossary for that term', async ({ page }) => {
   const term = await page.evaluate(() => {
     let captured = null; window.openGlossaryTo = (t) => { captured = t; };
-    state.anatomyChart.map = [{ term: 'Lats', x: 0.3, y: 0.4 }];
-    _anatomyImg = 'data:image/png;base64,iVBORw0KGgo='; _anatomyImgTried = true;
-    state.anatomyChart.view = 'detailed';
     renderAnatomyChart();
-    document.querySelector('#ref-gloss-chart .anat-hotspot').click();
+    document.querySelector('#ref-gloss-chart .amus[data-term="Glutes"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     return captured;
   });
-  expect(term).toBe('Lats');
+  expect(term).toBe('Glutes');
 });

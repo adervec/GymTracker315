@@ -106,8 +106,8 @@ test('feat 509 — Tiers is a real carousel tab on the sheet', async ({ page }) 
       hasTable: !!(slide && slide.querySelector('.tiers-tbl')),
       oneRow: new Set(tops).size === 1, n: tops.length };
   }, v);
-  expect(r.n).toBe(7);
-  expect(r.oneRow, 'seven tabs still sit on one row, as feat 470 designed').toBe(true);
+  expect(r.n).toBe(8); // feat 608 — 🌌 Map
+  expect(r.oneRow, 'eight tabs still sit on one row (feat 608 tightened the spacing)').toBe(true);
   expect(r.tab).toBe(true);
   expect(r.shown).toBe(true);
   expect(r.hasTable).toBe(true);

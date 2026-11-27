@@ -19,24 +19,20 @@ const seedDetailed = (page) => page.evaluate((png) => {
   renderAnatomyChart();
 }, PNG);
 
-test('feat 455 — the toolbar offers ⛶ in both views and it opens the viewer with the same chart body', async ({ page }) => {
+test('feat 455 · 613 — the toolbar offers ⛶ and it opens the viewer with the same layered chart', async ({ page }) => {
   await seedDetailed(page);
   const r = await page.evaluate(() => {
-    const btn = document.querySelector('#ref-gloss-chart #anat-fullscreen-btn');
-    btn.click();
-    const ov = document.getElementById('anat-viewer');
-    const box = ov.querySelector('#anat-viewer-zoom');
-    // and the simple wireframe view gets the button too
-    _anatomyImg = null; state.anatomyChart.view = 'simple'; renderAnatomyChart();
-    return { open: ov.classList.contains('open'),
-      img: !!box.querySelector('.anat-img'), hotspots: box.querySelectorAll('.anat-hotspot').length,
-      bodyLocked: document.body.style.overflow, simpleHasBtn: !!document.querySelector('#anat-fullscreen-btn') };
+    document.querySelector('#ref-gloss-chart #anat-fullscreen-btn').click();
+    const ov = document.getElementById('anat-viewer'), box = ov.querySelector('#anat-viewer-zoom');
+    return { open: ov.classList.contains('open'), layered: !!box.querySelector('svg.anat-layered'), img: !!box.querySelector('img'),
+      muscles: box.querySelectorAll('.amus').length, bodyLocked: document.body.style.overflow, layers: document.querySelectorAll('#ref-gloss-chart [data-anat-layer]').length };
   });
   expect(r.open).toBe(true);
-  expect(r.img).toBe(true);
-  expect(r.hotspots).toBe(1);
+  expect(r.layered).toBe(true);
+  expect(r.img).toBe(false);               // feat 613 — the uploaded-image view is retired
+  expect(r.muscles).toBeGreaterThan(50);
   expect(r.bodyLocked).toBe('hidden');
-  expect(r.simpleHasBtn).toBe(true);
+  expect(r.layers).toBe(4);
 });
 
 test('feat 455 — zoom steps the wrapper width, clamps at both ends, and resets to fit on reopen', async ({ page }) => {
@@ -65,12 +61,12 @@ test('feat 455 — zoom steps the wrapper width, clamps at both ends, and resets
   expect(r.reopened).toBe('100%');
 });
 
-test('feat 455 — tapping a hotspot in the viewer closes it and opens that glossary entry', async ({ page }) => {
+test('feat 455 · 613 — tapping a muscle in the viewer closes it and opens that glossary entry', async ({ page }) => {
   await seedDetailed(page);
   const r = await page.evaluate(() => {
     let captured = null; window.openGlossaryTo = (t) => { captured = t; };
     openAnatomyViewer();
-    document.querySelector('#anat-viewer-zoom .anat-hotspot').click();
+    const el = document.querySelector('#anat-viewer-zoom .amus[data-term="Lats"]'); el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     return { captured, open: isAnatomyViewerOpen(), bodyLocked: document.body.style.overflow };
   });
   expect(r.captured).toBe('Lats');
@@ -95,9 +91,9 @@ test('feat 455 — Escape and the phone Back button both close the viewer', asyn
 test('feat 455 — the inline panel and the viewer render identical chart markup', async ({ page }) => {
   await seedDetailed(page);
   const r = await page.evaluate(() => {
-    const inline = document.querySelector('#ref-gloss-chart .anat-detailed').outerHTML;
+    const inline = document.querySelector('#ref-gloss-chart svg.anat-layered').outerHTML;
     openAnatomyViewer();
-    return { inline, viewer: document.querySelector('#anat-viewer-zoom .anat-detailed').outerHTML };
+    return { inline, viewer: document.querySelector('#anat-viewer-zoom svg.anat-layered').outerHTML };
   });
   expect(r.viewer).toBe(r.inline);
 });

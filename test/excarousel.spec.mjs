@@ -22,7 +22,7 @@ const openFor = `(() => {
   return u;
 })()`;
 
-test('the tips area carries the seven carousel tabs; Tips shows by default, others are hidden', async ({ page }) => {
+test('the tips area carries the eight carousel tabs; Tips shows by default, others are hidden', async ({ page }) => {
   const r = await page.evaluate((openFor) => {
     eval(openFor);
     const sec = document.getElementById('trk-tips-section');
@@ -32,8 +32,9 @@ test('the tips area carries the seven carousel tabs; Tips shows by default, othe
   }, openFor);
   // feat 474 — Motion moved out of the tips row to its own 🏃 button + carousel beside 🎬
   // feat 509 — 🌍 Tiers joins as the seventh tab (feat 470 sized the row for seven)
-  expect(r.tabs).toEqual(['tips', 'full', 'trends', 'history', 'alts', 'brief', 'tiers']);
-  expect(r.vis).toEqual({ tips: true, full: false, trends: false, history: false, alts: false, brief: false, tiers: false });
+  // feat 608 — 🌌 Map is the eighth
+  expect(r.tabs).toEqual(['tips', 'full', 'trends', 'history', 'alts', 'brief', 'tiers', 'map']);
+  expect(r.vis).toEqual({ tips: true, full: false, trends: false, history: false, alts: false, brief: false, tiers: false, map: false });
   expect(r.hasTips).toBe(true);
   expect(r.oldBtnGone).toBe(true);      // the 📈 Trends button is replaced by the Trends slide
   expect(r.modeBtnGone).toBe(true);     // feat 418 — the concise/full header toggle became the Full slide

@@ -5673,3 +5673,27 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   The context sends `profileAt` / `deepAt` per club (facts every 90 days, deep look every 60) and `deepLook` (your
   most-visited gym + clubs flagged `g.deepLook`, max 6). Gym list rows show ★ and key badges and a Sheet button; the
   Compare clubs card sorts by distance / rating / amenity count and filters by needs.
+- **Live heatmap views (feat 606):** `liveWorkoutMuscleAcc(level, keep)` takes a filter; `planOffPlanMuscleAcc` keeps
+  exercises with no plan step (`planStepForVar < 0`); `planRemainingMuscleAcc` is the unfinished sets of each step's
+  first option; projection = so far + remaining.
+- **Archetypes of one thing (feat 607):** `archetypeOfTally` over `_focusTally`: `sessionArchetype(session)`,
+  `planArchetype(plan)` (each step's sets at `PLAN_LOAD_REPS` — heavy 5, light 12, else 10), `exerciseArchetypes(uuid)`
+  (your average reps, else 10). `workoutReportHtml` leads the end-workout dialog: archetype + mix bar, new e1RM bests,
+  volume vs the median of the last 6 workouts, top muscles.
+- **Exercise Map tab (feat 608):** the eighth tips tab, filled on demand (`fillExerciseMapSlide`); the constellation
+  layout is cached (`constellationNodesCached`, keyed on catalogue size + session count); the peek draws the 24 nearest
+  stars as a golden-angle sunflower by closeness (the real layout packs them along one arm).
+- **Constellation (feat 609):** wedge = √(arm size), at least ~half the even share; short arms reach less far.
+  LEAN_ROWS (slots 0x3EB-0x409) add 31 exercises to triceps, hamstrings, calves, tibialis, low back, neck, jaw, breathing.
+- **Trend chart (feat 610):** `trendChartSvg(points, {unit, index})` draws every e1RM trend card and the overall index:
+  round-number value axis with gridlines, 4 dated ticks (`appFont.fmt.custom`), faint dots, a centred moving average
+  (`trendSmooth`), the best point ringed, the latest value labelled, no stretched text. `buildGroupedSeries` is an
+  INDEX now (each exercise / its first top e1RM × 100, averaged per day) — the per-day max mixed unrelated lifts.
+- **App explorer (feat 611):** `APP_MILESTONES` (test from existing data + `go` to the feature); `checkAppMilestones()`
+  runs from `render()` at most every 15 s, records earned ids in `state.appMilestones`; the first check is silent.
+- **Media stable (feat 612):** `state.mediaSources` (synced with mergeKeyedArray); channels `media-sources`
+  (proposals + audit) and `media-gallery` (clips for `wanted` exercises). The gallery import refuses any clip whose
+  stated source is not approved, whose own creator is a different source, or whose platform differs.
+- **Anatomy chart (feat 613):** `anatomyLayeredSvg` = skeleton + `ANATOMY_LAYERS` deep muscles + the atlas surface, in the
+  atlas frames, with leader-line labels from the top visible layer; layers in `state.anatomyChart.layers`. The
+  uploaded-image view and OCR hotspots are retired from the UI (the stored image is left in IndexedDB).
