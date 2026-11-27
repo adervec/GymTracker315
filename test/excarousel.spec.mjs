@@ -81,20 +81,17 @@ test('feat 418 — the Tips-detail setting picks the default slide on modal open
   expect(r.concise).toBe('tips');
 });
 
-test('feat 474 — the 🏃 button opens the motion CAROUSEL: one media-style slide per viewpoint', async ({ page }) => {
+test('feat 474 — the 🏃 button opens the animation (feat 623: the Rep Studio player, with its four views)', async ({ page }) => {
   const r = await page.evaluate((openFor) => {
     eval(openFor);
     document.getElementById('trk-ex-motion-btn').click();
-    const modal = document.getElementById('motion-modal');
-    const stages = [...modal.querySelectorAll('.motion-stage')];
-    stages.forEach(st => motionRenderStage(st, 0.5));
+    const modal = document.getElementById('motion-modal'), el = modal.querySelector('.rs');
     const out = {
       open: modal.classList.contains('open'),
-      slides: modal.querySelectorAll('.media-slide').length,
-      views: stages.map(st => st.dataset.view),
-      motion: stages[0] && stages[0].dataset.motion,
-      dots: modal.querySelectorAll('.media-dot').length,
-      painted: stages.every(st => st.innerHTML.includes('<svg') && st.innerHTML.includes('fig-torso')),
+      views: el ? [...el.querySelectorAll('[data-rs-view]')].map(b => b.dataset.rsView) : [],
+      motion: el && repStudioSpec(el.dataset.rs).motion,
+      painted: !!(el && el.querySelector('.rs-stage svg .rs-man')),
+      bench: !!(el && el.querySelector('.rs-stage svg .rs-pad')),
       nextToMedia: (() => { const acts = [...document.querySelectorAll('#trk-ex-actions .ex-act')].map(b => b.id);
         return acts.indexOf('trk-ex-motion-btn') === acts.indexOf('trk-ex-media-btn') + 1; })(),
     };
@@ -103,11 +100,10 @@ test('feat 474 — the 🏃 button opens the motion CAROUSEL: one media-style sl
     return out;
   }, openFor);
   expect(r.open).toBe(true);
-  expect(r.slides, 'one slide per viewpoint').toBeGreaterThanOrEqual(2);
-  expect(r.views).toEqual(['side', 'front']);
+  expect(r.views, 'one button per viewpoint').toEqual(['side', 'three', 'front', 'back']);
   expect(r.motion).toBe('bench-press');
-  expect(r.dots, 'dots like the media carousel').toBe(r.slides);
-  expect(r.painted, 'every view animates from the shared loop').toBe(true);
+  expect(r.painted, 'the lifter is drawn').toBe(true);
+  expect(r.bench, 'on a bench').toBe(true);
   expect(r.nextToMedia, 'the 🏃 button sits right after 🎬').toBe(true);
   expect(r.closed).toBe(true);
 });

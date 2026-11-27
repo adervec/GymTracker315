@@ -5727,3 +5727,20 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   view and Back is new. Positions and timings are unchanged.
 - **Sheet order (feat 620):** sets, then next-set and targets, then grade / suggestion / plateau, then tips. 🔢 is hidden
   while editing a past session.
+- **The gold figure (feat 622):** `RS_MAT.skin` is gold, `mane` burnished; the lifter block is ~3x the shapes. Add-on
+  muscles are `bump`s (edge fades, shared gradients) so they read as swells, not stuck-on balls; `capsule` draws long
+  limbs in short sections (one gradient) so the painter's order cannot flip a whole limb; hair is a cap of small locks.
+- **The general rig (feat 623):** `rsRigFrame(spec, s)` poses any movement from `spec.keys` ([s, pose] pairs): pelvis,
+  trunk (+curl, twist, lean, shrug, roll/tilt of the whole body), and per limb either a reach target (two-bone IK in
+  3D, `rsIk3`, toward a pole) or joint angles (`local: true` = measured from the trunk). `RS_MOTIONS[motionId](equip,
+  opts)` builds a spec for each of the 100 `MOTIONS` ids; `rsRoutedSpec(variationId)` routes through
+  `motionForVariation` (so the existing motion/equip/opts assignment decides) and `rsApplyMods` applies tempo, grip
+  and one-arm modifiers. `rsProp.*` are scenery primitives; `spec.props` may be a function of the frame (levers,
+  cables, pads that follow the body). `REP_STUDIO` (the 27 solved deadlifts) still wins where it has an entry.
+  Reference lists show a `rs-lazy` button and build the player on tap. The old `MOTIONS` stick figure is no longer
+  shown anywhere (only its routing is used); deleting its drawing code is a follow-up.
+- **Map twinkle (feat 624):** neighbours 6+ in `constellationPeekHtml` carry `cpk-tw` and fade in by turns (5 groups,
+  13 s cycle, CSS only; off under reduced motion).
+- **GIF export (feat 625):** `rsGifWizard(el)` (3 steps) -> `rsGifBuild` (frames from `rsStageSvg` via data-URL image
+  to canvas, palette picked from the animation's own 15-bit histogram, `rsGifEncode` LZW writer). `rsGifTimes` samples
+  moving phases at the chosen fps and writes each hold as ONE frame with the hold's delay, so the loop equals the rep.

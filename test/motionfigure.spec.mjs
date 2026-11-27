@@ -234,7 +234,11 @@ test('feat 415 — brief modifiers: pause/hold/slow tempo, grip width, floor/Lar
         !== JSON.stringify(motionPoseShapes('lat-pulldown', 'back', 0.5, 'cable', undefined, { grip: 1.3 }).shapes),
       floorLighter: motionPoseShapes('bench-press', 'side', 0.5, 'barbell', undefined, { floor: 1 }).shapes.length
         < motionPoseShapes('bench-press', 'side', 0.5, 'barbell').shapes.length, // no bench, no rack on the floor press
-      badge: motionPanelHtml(vOf('paused-bench')).includes('pause at bottom') && motionPanelHtml(vOf('paused-bench')).includes('data-tempo="pause"'),
+      // feat 623 — the same modifiers reach the Rep Studio player: a paused bench holds the bottom, a slow rep takes 5 s down,
+      // a floor press has no bench, and a close grip brings the hands in
+      badge: repStudioSpec('paused-bench').phases.find(p => p.id === 'bottom').sec >= 2 && rsTotal(repStudioSpec('paused-bench')) > rsTotal(repStudioSpec('bb-flat-bench'))
+        && !/rs-pad/.test(rsStageSvg(repStudioSpec('floor-press'), 1, 'side'))
+        && Math.abs(rsFrame(repStudioSpec('close-grip-bench'), 0).arms[0].grip[2]) < Math.abs(rsFrame(repStudioSpec('bb-flat-bench'), 0).arms[0].grip[2]),
     };
   });
   expect(r.paused).toEqual({ tempo: 'pause' });
@@ -334,37 +338,27 @@ test('feat 412 — full coverage: every exercise variation resolves to a motion 
   expect(r.motions).toBeGreaterThanOrEqual(30);
 });
 
-test('feat 408 — the full reference embeds an animated motion stage per mapped variation, with view pills', async ({ page }) => {
-  test.slow(); // renders the detailed reference: one animated SVG stage per covered variation (1000+)
+test('feat 408 — the full reference offers an animation for every mapped variation (feat 623: built on demand)', async ({ page }) => {
+  test.slow(); // renders the detailed reference
   const r = await page.evaluate(() => {
     state.refView = 'detailed';
     navTo('reference');
-    const stages = [...document.querySelectorAll('#panel-reference .motion-stage')];
-    const benchPanel = document.querySelector('.exercise[data-id="ref-flat-bench-press"] .motion-panel');
-    const pullPanel = document.querySelector('.exercise[data-id="ref-lat-pulldown"] .motion-panel');
-    const pills = pullPanel ? [...pullPanel.querySelectorAll('.motion-view')].map(b => b.textContent) : [];
-    // drive the stage directly (the rAF loop only paints visible stages)
-    const st = benchPanel.querySelector('.motion-stage');
-    motionRenderStage(st, 0); const f0 = st.innerHTML;
-    motionRenderStage(st, 1); const f1 = st.innerHTML;
-    const sideBtn = pullPanel.querySelector('.motion-view[data-mv="side"]');
-    motionSetView(sideBtn);
-    // feat 412 — every rendered variation with a motion gets a stage
-    const expected = [...document.querySelectorAll('#panel-reference .variation')].filter(el => motionForVariation(el.dataset.uuid)).length;
-    return {
-      stageCount: stages.length + document.querySelectorAll('#panel-reference .rs').length, expected,   // feat 615 — the deadlifts wear the Rep Studio instead
-      hasSvg: f0.includes('<svg') && f0.includes('fig-torso'),
-      animates: f0 !== f1,
-      pills,
-      switched: pullPanel.querySelector('.motion-stage').dataset.view === 'side' && sideBtn.classList.contains('active'),
-      loopArmed: typeof _motionRaf !== 'undefined',
-    };
+    const ref = document.getElementById('panel-reference');
+    const expected = [...ref.querySelectorAll('.variation')].filter(el => motionForVariation(el.dataset.uuid) || repStudioFor(el.dataset.uuid)).length;
+    const built = ref.querySelectorAll('.rs').length, lazy = ref.querySelectorAll('.rs-lazy').length;
+    const btn = ref.querySelector('.exercise[data-id="ref-lat-pulldown"] .rs-lazy'), host = btn.parentElement; btn.click();
+    const el = host.querySelector('.rs'), stage = el.querySelector('.rs-stage');
+    el._rsT = 0.2; rsPaint(el); const f0 = stage.innerHTML; el._rsT = 2.4; rsPaint(el); const f1 = stage.innerHTML;
+    el.querySelector('[data-rs-view="side"]').click();
+    return { stageCount: built + lazy, expected, built, hasSvg: f0.includes('<svg') && f0.includes('rs-man'), animates: f0 !== f1,
+      pills: [...el.querySelectorAll('[data-rs-view]')].map(b => b.dataset.rsView), switched: el.dataset.view === 'side' };
   });
-  expect(r.stageCount).toBe(r.expected); // feat 412 — one animated stage per covered variation (700+)
-  expect(r.expected).toBeGreaterThan(700);
+  expect(r.stageCount).toBe(r.expected); // one animation per covered variation
+  expect(r.expected).toBeGreaterThan(1000);
+  expect(r.built, 'only the hand-solved deadlifts are built up front').toBeLessThan(40);
   expect(r.hasSvg).toBe(true);
-  expect(r.animates).toBe(true);       // rep phase 0 vs 1 renders different frames
-  expect(r.pills).toEqual(['Back', 'Side']);
+  expect(r.animates).toBe(true);
+  expect(r.pills).toEqual(['side', 'three', 'front', 'back']);
   expect(r.switched).toBe(true);
 });
 
