@@ -5703,3 +5703,27 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   note, level }. Shown first on the 📖 Full tab and in the reference entry, with a standing "approximate" caveat;
   "credited to" is left empty rather than guessed. `exerciseSearchLinksHtml` = plain links (Google, YouTube results),
   new tab, noopener noreferrer: nothing is requested until the reader taps. Origin text is catalogue content (English).
+- **Rep Studio (feat 615):** `REP_STUDIO[variationId]` = a lift spec (bar x `xb`, bottom height `y0`, stance `zs`, grip `zg`,
+  shin schedule `alpha` or knee-bend schedule `flex`, shoulders-ahead schedule `sx`, load, phases [{label, sec, from, to,
+  m: muscle levels, cue}], main: the working phases). `rsPose` solves a 180 cm lifter (RS proportions, cm) each frame:
+  shoulders from the bar + straight arms, knee from the shin angle, hips by two-circle intersection; `rsPoseFree` for
+  lifts with no hanging bar (good morning, Jefferson curl). `rsBalance` = centre of mass, used by the test. Drawing:
+  `rsScene` projects 3D joints (views side / three / front), depth-sorts shaded capsules, balls, discs and muscle
+  ellipses sized as a fraction of the limb radius; ids are unique per render. Player: `repStudioHtml` / `rsBind` /
+  `rsPaint`, one rAF loop at ~30 fps. Opened by `openMotionCarousel` when a spec exists; other families keep MOTIONS.
+  The spec test checks every lift at 41 points: limb lengths, vertical bar, bar never inside a leg, balance, lockout.
+- **Rep counting (feat 616):** 🔢 toggle (`workoutControls.repCount`); `repCountHear` takes interim transcripts, counts
+  only n+1 / n+2, speaks `repCountLine` (record and e1RM thresholds from `exWeightRows`) through coach event
+  `rep.count`, goes deaf while the coach talks, commits on "done"/"rack" or 8 s quiet. Its recognizer also feeds the 🎤
+  commands (one mic session).
+- **Lull (feat 617):** `lullDetect` compares the median of the last 3 set gaps with the early-workout median (×1.5 and
+  +45 s), or idle ≥ 2.2× base; `lullTick` (15 s, from restTick) records `session.lull` once, toasts, shows 🫥 in the top
+  bar; `lullUsualMinute` (median over ≥3 past sessions) gives a heads-up 4 min before. `workoutControls.lullWatch`.
+- **Picker, second pass (feat 618):** `.picker-results` grows with the screen; names clamp to 2 lines; a search leads with
+  `🎯 Best matches` (exact > starts-with > phrase > all words; logged and favourite rank up; copies carry `.usual` so 🎲 skips
+  them) and marks typed words (`.pk-hl`); flat-trend dashes are gone; off-screen movements use `content-visibility`.
+- **Rep Studio look (feats 619, 621):** the lifter is a golden-era build on the same skeleton (volumes only). One key light
+  (`LX, LY`) for every gradient, no outlines, muscles as soft bellies (`mgrad`), `crease` lines, Front is a true front
+  view and Back is new. Positions and timings are unchanged.
+- **Sheet order (feat 620):** sets, then next-set and targets, then grade / suggestion / plateau, then tips. 🔢 is hidden
+  while editing a past session.

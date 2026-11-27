@@ -41,8 +41,8 @@ test('feat 469 — the bar starts collapsed: one row, icons only, every action s
   await openSheet(page);
   const r = await barState(page);
   expect(r.open, 'collapsed is the default').toBe(false);
-  expect(r.count, 'all seven actions survive the collapse (feat 474 added 🏃 Motion)').toBe(7);
-  expect(r.ids).toEqual(['trk-ex-note-edit', 'trk-ex-maxw', 'trk-ex-media-btn', 'trk-ex-motion-btn', 'trk-podcast-btn', 'trk-ex-voice', 'trk-change-exercise']);
+  expect(r.count, 'all eight actions survive the collapse (feat 474 added 🏃 Motion, feat 616 🔢 count aloud)').toBe(8);
+  expect(r.ids).toEqual(['trk-ex-note-edit', 'trk-ex-maxw', 'trk-ex-media-btn', 'trk-ex-motion-btn', 'trk-podcast-btn', 'trk-rep-count-btn', 'trk-ex-voice', 'trk-change-exercise']);
   expect(r.everyHasEmoji, 'the icon comes from data-emoji, so dynamic labels need no surgery').toBe(true);
   expect(r.rows, 'a bar, not a block').toBe(1);
   expect(r.labelFont.every(f => f === '0px'), 'the label text is zeroed, not deleted — bindings stay').toBe(true);

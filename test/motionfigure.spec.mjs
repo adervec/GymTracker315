@@ -352,7 +352,7 @@ test('feat 408 — the full reference embeds an animated motion stage per mapped
     // feat 412 — every rendered variation with a motion gets a stage
     const expected = [...document.querySelectorAll('#panel-reference .variation')].filter(el => motionForVariation(el.dataset.uuid)).length;
     return {
-      stageCount: stages.length, expected,
+      stageCount: stages.length + document.querySelectorAll('#panel-reference .rs').length, expected,   // feat 615 — the deadlifts wear the Rep Studio instead
       hasSvg: f0.includes('<svg') && f0.includes('fig-torso'),
       animates: f0 !== f1,
       pills,
