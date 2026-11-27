@@ -3013,6 +3013,9 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .anat-layered .ab-lead { fill: none; stroke: var(--text3); stroke-width: 0.25; opacity: .8; }
   .anat-layered .ab-lbl { fill: var(--text2); font-size: 4.3px; font-family: inherit; }
   .anat-layered .anat-fig-label { font-size: 5px; }
+  .ex-origin-lvl { font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 10.5px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--border2); color: var(--text3); margin-inline-start: 4px; }   /* feat 614 */
+  .ex-origin-note { color: var(--text3); } .ex-origin-caveat { font-size: 10.5px; color: var(--text3); margin-top: 4px; }
+  .ex-search { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; } .ex-search a { text-decoration: none; display: inline-block; }
   .plan-steps { display: flex; flex-direction: column; gap: 5px; }
   .plan-step { padding: 6px 8px; border-radius: 7px; background: var(--bg3); border: 1px solid transparent; cursor: pointer; }
   .plan-step:hover { border-color: var(--border2); }
@@ -19364,6 +19367,225 @@ function constellationPeekHtml(varUuid, n) {
     <div class="cpk-note">${t('Nearest on the constellation: bright = you have logged it. Tap one for its card.')}</div>
     <div class="cpk-chips">${others}</div>`;
 }
+/* ============================================================
+   feat 614 — WHERE EACH EXERCISE COMES FROM. The full details now say which training system an exercise belongs to,
+   where it comes from, who is credited and roughly when. Two levels: a NAMED rule when the exercise itself has a
+   known history (matched on its title and "best for" line, first match wins), else the origin of its MOVEMENT
+   family, labelled as such. Rows: [pattern | family id, system, place, credited to, when, note].
+   These are approximate by nature: most exercises have no single inventor, so "when" is when it was introduced or
+   made popular, and "credited to" is left empty rather than guessed.
+   ============================================================ */
+const EX_ORIGIN_NAMED = [
+  // --- named lifts ---
+  [/arnold press/, 'Bodybuilding', 'USA (California)', 'Arnold Schwarzenegger', 'c. 1970', ''],
+  [/bulgarian|rear.foot.elevated/, 'Olympic weightlifting assistance', 'Bulgaria; named in the USA', 'the Bulgarian national team; popularised by coach Angel Spassov', 'c. 1980s', 'The name stuck after Spassov\'s lecture tours; how much the Bulgarians really used it is debated.'],
+  [/romanian deadlift|\brdl\b/, 'Olympic weightlifting', 'Romania; named in the USA', 'Nicu Vlad and coach Dragomir Cioroslan', '1990', 'American lifters saw Vlad doing it at the US Olympic Training Center and named it after his country.'],
+  [/zercher/, 'Old-time strongman / odd lifts', 'USA (St. Louis)', 'Ed Zercher', 'c. 1930s', ''],
+  [/jefferson curl/, 'Gymnastics strength training', 'USA', 'popularised by coach Christopher Sommer', 'c. 2000s', 'Named after the older Jefferson lift.'],
+  [/jefferson/, 'Circus strongman', 'USA', 'Charles Jefferson', 'c. 1880s', ''],
+  [/hack squat/, 'Physical culture', 'Russian Empire (Estonia), then Europe', 'George Hackenschmidt', 'c. 1900s', 'The barbell-behind-the-legs lift came first; the sled machine followed decades later.'],
+  [/zottman/, 'Old-time strongman', 'USA (Philadelphia)', 'George Zottman', 'c. 1880s', ''],
+  [/pallof/, 'Physical therapy / core training', 'USA (Massachusetts)', 'John Pallof; popularised by Eric Cressey and Tony Gentilcore', 'c. 2000s', ''],
+  [/turkish get-?up|\btgu\b/, 'Wrestling and strongman tradition; kettlebell revival', 'Attributed to Ottoman Turkey; revived in the USA', '', 'traditional; revived c. 2000s', 'The Turkish attribution is traditional rather than documented.'],
+  [/reverse nordic/, 'Knee-strength training', '', '', 'popularised c. 2010s', 'The quad-side counterpart of the Nordic curl.'],
+  [/nordic.*(curl|ham)/, 'Sports medicine (football injury prevention)', 'Scandinavia (Norway, Denmark)', 'studied by Mjølsnes, Arnason and Bahr', 'popularised c. 2000s', 'An older form was known as the Russian leg curl.'],
+  [/copenhagen/, 'Sports medicine (groin injury prevention)', 'Denmark (Copenhagen)', 'the Hölmich and Serner research groups', 'c. 2010s', ''],
+  [/meadows row/, 'Bodybuilding', 'USA', 'John Meadows', 'c. 2000s', ''],
+  [/kroc row/, 'Powerlifting', 'USA', 'Matt Kroczaleski', 'c. 2000s', ''],
+  [/helms row/, 'Evidence-based bodybuilding', 'USA / New Zealand', 'Eric Helms', 'c. 2010s', ''],
+  [/pendlay/, 'Olympic weightlifting', 'USA', 'Glenn Pendlay', 'c. 1990s', ''],
+  [/tate press/, 'Powerlifting (Westside Barbell)', 'USA (Ohio)', 'Dave Tate', 'c. 1990s', ''],
+  [/jm press/, 'Powerlifting', 'USA', 'JM Blakley', 'c. 1990s', ''],
+  [/skull ?crusher|lying.*extension/, 'Bodybuilding', 'USA', '', 'mid-20th century', ''],
+  [/preacher|scott curl/, 'Bodybuilding', 'USA (Vince\'s Gym, California)', 'Vince Gironda; made famous by Larry Scott', 'c. 1960s', 'Also called the Scott curl.'],
+  [/bayesian/, 'Evidence-based bodybuilding', 'Netherlands', 'Menno Henselmans', 'c. 2010s', ''],
+  [/drag curl/, 'Bodybuilding', 'USA (Vince\'s Gym, California)', 'Vince Gironda', 'c. 1960s', ''],
+  [/sissy squat/, 'Bodybuilding', 'USA', 'popularised by Vince Gironda', 'c. 1960s', 'Named after Sisyphus, not an insult.'],
+  [/svend press/, 'Strongman', 'Norway', 'Svend Karlsen', 'c. 2000s', ''],
+  [/cuban press|cuban rotation/, 'Olympic weightlifting assistance', 'Attributed to Cuba', 'the Cuban weightlifting team', 'c. 1960s–70s', ''],
+  [/\bz[- ]press/, 'Strongman', 'Lithuania', 'Žydrūnas Savickas', 'c. 2000s', ''],
+  [/bradford/, 'Olympic weightlifting / bodybuilding', 'USA', 'Jim Bradford', 'c. 1950s', ''],
+  [/hip thrust/, 'Strength and conditioning', 'USA (Arizona)', 'Bret Contreras', '2006', ''],
+  [/reverse hyper/, 'Powerlifting (Westside Barbell)', 'USA (Ohio)', 'Louie Simmons', 'c. 1970s; patented 1990s', ''],
+  [/glute.ham|\bghr\b|\bghd\b/, 'Olympic weightlifting', 'Soviet Union; brought to the USA', 'introduced to the West by Bud Charniga', 'c. 1970s', ''],
+  [/sorensen/, 'Clinical back testing', 'Denmark', 'Fin Biering-Sørensen', '1984', 'Designed as a test of back endurance.'],
+  [/box squat/, 'Powerlifting', 'USA', 'the original Westside Barbell (Culver City); later Louie Simmons', 'c. 1960s–80s', ''],
+  [/anderson|pin (squat|press)|dead.?stop bench/, 'Weightlifting / powerlifting', 'USA (Georgia)', 'Paul Anderson', 'c. 1950s', ''],
+  [/goblet/, 'Kettlebell and strength coaching', 'USA', 'Dan John', 'c. 2000s', ''],
+  [/cossack/, 'Folk dance and martial tradition', 'Ukraine / Russia', '', 'traditional', ''],
+  [/pistol/, 'Calisthenics and gymnastics', 'Eastern Europe', 'name popularised by Pavel Tsatsouline', 'traditional; named c. 2000s', ''],
+  [/poliquin/, 'Strength coaching', 'Canada', 'Charles Poliquin', 'c. 1990s', ''],
+  [/dragon flag/, 'Martial arts conditioning', 'USA / Hong Kong', 'Bruce Lee', 'c. 1970', ''],
+  [/\bl-?sit|planche|front lever|back lever|muscle-?up|iron cross|handstand|hollow (body|hold)|v-?sit|manna|skin the cat/, 'Artistic gymnastics', 'Germany and Sweden (the Turnen and Ling systems)', '', '19th century', ''],
+  [/burpee/, 'Fitness testing', 'USA (New York)', 'physiologist Royal H. Burpee', '1939', 'The original was a four-count test; the push-up and jump were added later.'],
+  [/jumping jack/, 'Military calisthenics', 'USA', 'often credited to General John J. Pershing; popularised by Jack LaLanne', 'c. 1900s–1950s', ''],
+  [/mcgill|curl-up|bird.?dog|stir the pot/, 'Spine biomechanics', 'Canada (University of Waterloo)', 'Stuart McGill', 'c. 1990s–2000s', ''],
+  [/dead.?bug/, 'Physical therapy', 'USA', '', 'late 20th century', ''],
+  [/thruster|wall ball|kipping|toes.to.bar|double.?under/, 'CrossFit', 'USA (California)', 'Greg Glassman\'s CrossFit', 'c. 2000s', ''],
+  [/american swing/, 'CrossFit', 'USA', '', 'c. 2000s', 'The overhead variant of the Russian kettlebell swing.'],
+  [/depth jump|drop jump|shock/, 'Plyometrics (the "shock method")', 'Soviet Union', 'Yuri Verkhoshansky', 'c. 1960s', ''],
+  [/farmer|yoke|atlas stone|log press|tire flip|\bkeg\b|husafell|axle|circus dumbbell|conan/, 'Strongman', 'Scottish, Basque, Icelandic and Scandinavian heavy events; World\'s Strongest Man', '', 'traditional; the modern sport from 1977', ''],
+  [/sun salutation|surya/, 'Modern yoga', 'India (Aundh, Maharashtra)', 'Bhawanrao Pant Pratinidhi, the Raja of Aundh', 'c. 1920s', ''],
+  [/\bpose\b|asana|yoga|downward|upward dog|warrior|pigeon|cobra|malasana|child's|lizard|camel|\bbow pose|half moon|navasana/, 'Hatha yoga', 'India', 'modern postural practice shaped by T. Krishnamacharya (Mysore)', 'medieval roots; modern form c. 1930s', '', 1],
+  [/tai chi|cloud hands/, 'Tai chi chuan', 'China (Chen Village, Henan)', 'Chen Wangting', 'c. 1670s', ''],
+  [/pilates/, 'Pilates ("Contrology")', 'Germany, then the USA (New York)', 'Joseph Pilates', 'c. 1920s', ''],
+  [/zhan zhuang|standing post/, 'Chinese internal martial arts (Yiquan)', 'China', 'Wang Xiangzhai', 'traditional; taught openly from the 1920s', ''],
+  [/horse stance|mabu/, 'Chinese martial arts', 'China', '', 'traditional', ''],
+  [/world's greatest stretch/, 'Sports performance warm-ups', 'USA', 'popularised by Mark Verstegen (EXOS)', 'c. 2000s', ''],
+  [/couch stretch/, 'Mobility (MobilityWOD)', 'USA (San Francisco)', 'Kelly Starrett', 'c. 2010', ''],
+  [/90\/90/, 'Functional Range Conditioning and physiotherapy', 'Canada / USA', 'popularised by Andreo Spina', 'c. 2010s', ''],
+  [/\bcars\b|controlled articular/, 'Functional Range Conditioning', 'Canada (Toronto)', 'Andreo Spina', 'c. 2010s', ''],
+  [/box breathing/, 'Military stress training', 'USA', 'popularised by Navy SEAL Mark Divine', 'c. 2000s', ''],
+  [/4-7-8/, 'Integrative medicine, from yogic pranayama', 'USA', 'Andrew Weil', 'c. 1990s', ''],
+  [/physiological sigh|cyclic sigh/, 'Respiratory neuroscience', 'USA (Stanford)', 'studied by David Spiegel and Andrew Huberman', 'named c. 2020; trial published 2023', 'The sigh itself is a reflex described in the 1930s.'],
+  [/resonance/, 'Heart-rate-variability biofeedback', 'Russia / USA', 'Evgeny Vaschillo and Paul Lehrer', 'c. 1990s–2000s', ''],
+  [/nasal/, 'Breathing retraining', 'Soviet Union', 'Konstantin Buteyko', 'c. 1950s', ''],
+  [/eccentric heel drop|alfredson/, 'Sports medicine (tendon rehabilitation)', 'Sweden (Umeå)', 'Håkan Alfredson', '1998', ''],
+  [/tib bar|tibialis raise/, 'ATG / Knees Over Toes', 'USA', 'popularised by Ben Patrick', 'c. 2020', 'Shin raises are older; the tib bar made them loadable.'],
+  [/captains of crush|\bcoc\b|hand gripper/, 'Grip strength', 'USA (California)', 'IronMind (Randall Strossen); earlier grippers by Warren Tetting', 'c. 1990', ''],
+  [/rolling thunder/, 'Grip strength', 'USA (California)', 'IronMind', '1993', ''],
+  [/fat.?grip|thick.?bar|axle/, 'Old-time strongman grip work', 'Europe / USA', 'strongmen such as Thomas Inch and Hermann Görner', 'c. 1900s', ''],
+  [/plate pinch|pinch/, 'Old-time strongman grip work', 'Europe / USA', '', 'c. 1900s', ''],
+  [/hangboard|campus/, 'Rock-climbing training', 'Germany / USA', 'the campus board is Wolfgang Güllich\'s (1988)', 'c. 1980s', ''],
+  [/wrestler'?s? bridge|neck bridge/, 'Wrestling conditioning', 'India, Japan and catch wrestling', '', 'traditional', ''],
+  [/mastic/, 'Traditional chewing resin', 'Greece (Chios)', '', 'ancient', ''],
+  [/jaw exerciser/, 'Consumer jaw trainers', 'USA', '', 'c. 2010s', ''],
+  [/battle ?rope/, 'Conditioning', 'USA', 'John Brookfield', 'c. 2006', ''],
+  [/\bsled (push|drag|pull)|sled pull|prowler/, 'American football and strongman conditioning', 'USA', '', '20th century', ''],
+  [/skierg/, 'Cardio machines', 'USA (Vermont)', 'Concept2', '2009', ''],
+  [/versaclimber/, 'Cardio machines', 'USA (California)', 'Heart Rate Inc.', '1981', ''],
+  [/echo bike|air ?bike|assault bike|airdyne/, 'Cardio machines', 'USA', 'Schwinn Airdyne; later Assault Fitness and Rogue', '1978; modern versions c. 2010s', ''],
+  // --- equipment makers (after the named lifts, so "Smith Machine JM Press" stays a JM press) ---
+  [/hammer strength|\bmts\b|iso-lateral/, 'Machine training (Hammer Strength)', 'USA (Cincinnati)', 'Gary Jones, son of Nautilus founder Arthur Jones', '1989', ''],
+  [/nautilus/, 'Machine training (Nautilus)', 'USA (Florida)', 'Arthur Jones', '1970', ''],
+  [/life ?fitness/, 'Machine training (Life Fitness)', 'USA', 'Life Fitness, from Keene Dimick\'s Lifecycle', '1977', ''],
+  [/roc-it|hoist/, 'Machine training (Hoist Roc-It)', 'USA (San Diego)', 'Hoist Fitness', 'c. 2000s', ''],
+  [/freemotion/, 'Cable machines (Freemotion)', 'USA (Colorado)', 'Roy Simonson', '1999', ''],
+  [/smith/, 'Machine training (Smith machine)', 'USA (California)', 'Jack LaLanne\'s idea, built by Rudy Smith', 'c. 1950s', ''],
+  [/trap bar|hex bar/, 'Specialty bars', 'USA', 'Al Gerard', '1985', ''],
+  [/safety (squat )?bar|\bssb\b/, 'Specialty bars', 'USA', 'Jesse Hoagland', 'c. 1980s', ''],
+  [/bosu/, 'Balance training', 'USA', 'David Weck', '1999', ''],
+  [/landmine/, 'Landmine training', 'USA (South Carolina)', 'Bert Sorin (Sorinex)', '1999', 'A barbell wedged in a corner is older; the pivot made it a system.'],
+];
+const EX_ORIGIN_FAMILY = {
+  'flat-bench-press': ['Physical culture, then powerlifting', 'Europe, then the USA', 'the floor press of George Hackenschmidt (1899); the racked bench is American', 'c. 1899; modern form c. 1930s–50s', 'A powerlifting event since the 1960s.'],
+  'incline-bench-press': ['Bodybuilding', 'USA', '', 'c. 1940s', ''],
+  'decline-bench-press': ['Bodybuilding', 'USA', '', 'c. 1950s', ''],
+  'chest-fly': ['Bodybuilding', 'USA', '', 'mid-20th century', 'The cable crossover arrived with the pulley stations of the 1960s–70s.'],
+  'shoulder-press': ['Weightlifting', 'Europe', '', '19th century', 'The clean and press was an Olympic lift until 1972.'],
+  'lateral-raise': ['Bodybuilding', 'USA', '', 'mid-20th century', ''],
+  'front-raise': ['Bodybuilding', 'USA', '', 'mid-20th century', ''],
+  'rear-delt': ['Bodybuilding and shoulder rehabilitation', 'USA', '', 'mid-20th century', ''],
+  'tricep-extension': ['Bodybuilding', 'USA', '', 'mid-20th century', 'Pushdowns came with selectorized pulley machines.'],
+  'dips': ['Gymnastics (parallel bars)', 'Germany', 'Friedrich Ludwig Jahn\'s Turnen', 'c. 1810s', ''],
+  'push-ups': ['Wrestling and military calisthenics', 'India (the dand) and Europe', '', 'traditional; modern form c. 1900', ''],
+  'pull-up': ['Gymnastics (horizontal bar)', 'Germany', 'Friedrich Ludwig Jahn\'s Turnen', 'c. 1811', ''],
+  'lat-pulldown': ['Machine training (pulley machines)', 'USA', 'Jack LaLanne\'s early pulley machines; Harold Zinkin\'s Universal Gym', 'c. 1930s–1957', ''],
+  'row': ['Weightlifting and bodybuilding', 'Europe and the USA', '', 'early 20th century', ''],
+  'shrugs': ['Weightlifting assistance', 'Europe and the USA', '', 'early 20th century', ''],
+  'bicep-curl': ['Physical culture', 'Europe and the USA', '', 'late 19th century', 'Dumbbell curls are as old as the dumbbell.'],
+  'hammer-curl': ['Bodybuilding', 'USA', '', 'mid-20th century', ''],
+  'reverse-curl': ['Physical culture', 'Europe and the USA', '', 'c. 1900s', ''],
+  'wrist-curl': ['Physical culture grip work', 'Europe and the USA', '', 'c. 1900s', ''],
+  'squat': ['Wrestling tradition, then weightlifting', 'India (the bethak); the barbell squat from Germany', 'Henry "Milo" Steinborn brought the heavy barbell squat to the USA', 'traditional; barbell form c. 1920s', ''],
+  'leg-press': ['Machine training', 'USA', '', 'mid-20th century', ''],
+  'leg-extension': ['Machine training', 'USA (California)', 'attributed to Jack LaLanne', 'c. 1936–1950s', ''],
+  'leg-curl': ['Machine training', 'USA', 'attributed to Jack LaLanne; refined by Nautilus', 'c. 1950s–70s', ''],
+  'deadlift': ['Physical culture, then powerlifting', 'Europe and the USA', 'the "health lift" of George Barker Windship; later Hermann Görner', 'c. 1860s; named deadlift c. 1900s', ''],
+  'hip-thrust': ['Strength and conditioning', 'USA (Arizona)', 'Bret Contreras for the loaded hip thrust; the glute bridge comes from physiotherapy', '2006', ''],
+  'glute-accessories': ['Physiotherapy and glute-focused training', 'USA', 'popularised by Bret Contreras', 'c. 2000s–2010s', ''],
+  'lunge': ['Fencing and Swedish gymnastics', 'Europe (Sweden)', 'Pehr Henrik Ling\'s gymnastics', 'early 19th century', ''],
+  'calf-raise': ['Bodybuilding', 'Europe and the USA', '', 'early 20th century', ''],
+  'back-extension': ['Physical culture (the Roman chair)', 'Italy and France', 'seen in Rome and popularised by Edmond Desbonnet', 'c. 1900s', 'The 45° bench is a later American design.'],
+  'roman-chair': ['Physical culture (the Roman chair)', 'Italy and France', 'seen in Rome and popularised by Edmond Desbonnet', 'c. 1900s', ''],
+  'abs-dynamic': ['Military physical training and bodybuilding', 'Europe and the USA', '', '20th century', 'The crunch replaced the full sit-up in the 1980s.'],
+  'core-stability': ['Spine biomechanics and physiotherapy', 'Canada / Australia / USA', 'Stuart McGill; the Queensland stabilisation research', 'c. 1990s', ''],
+  'obliques': ['Bodybuilding and athletic training', 'Europe and the USA', '', '20th century', ''],
+  'gymnastics-core': ['Artistic gymnastics', 'Germany and Sweden (the Turnen and Ling systems)', '', '19th century', ''],
+  'pilates-mat': ['Pilates ("Contrology")', 'Germany, then the USA (New York)', 'Joseph Pilates', 'c. 1920s', ''],
+  'treadmill': ['Cardio machines', 'England; the home treadmill from the USA', 'William Cubitt\'s prison treadwheel (1818); William Staub\'s PaceMaster', '1818; exercise form 1968', ''],
+  'stairmaster': ['Cardio machines', 'USA (Tulsa, Oklahoma)', 'Lanny Potts', '1983', ''],
+  'rower': ['Cardio machines', 'USA (Vermont)', 'Dick and Pete Dreissigacker (Concept2)', '1981', 'Rowing machines go back to the 19th century.'],
+  'bike': ['Cardio machines', 'Europe; indoor cycling from the USA', 'Francis Lowndes\'s Gymnasticon; Johnny G\'s Spinning', '1796; Spinning c. 1989', ''],
+  'assault-bike': ['Cardio machines', 'USA', 'Schwinn Airdyne; later Assault Fitness', '1978; modern versions c. 2010s', ''],
+  'elliptical': ['Cardio machines', 'USA', 'Larry Miller; Precor EFX', '1995', ''],
+  'cardio-machine-extras': ['Cardio machines', 'USA', '', 'c. 1980s–2000s', ''],
+  'cardio-machines-extra': ['Cardio machines', 'USA', '', 'c. 1980s–2000s', ''],
+  'plyometrics': ['Plyometrics', 'Soviet Union; named in the USA', 'Yuri Verkhoshansky; the word is Fred Wilt\'s', 'c. 1960s; named 1975', ''],
+  'plyo-advanced': ['Plyometrics (the "shock method")', 'Soviet Union', 'Yuri Verkhoshansky', 'c. 1960s', ''],
+  'conditioning': ['General physical preparation', 'USA / Soviet Union', '', '20th century', ''],
+  'olympic-lifts': ['Olympic weightlifting', 'Europe (Germany, Austria, France)', '', '19th century; Olympic sport since 1896', ''],
+  'crossfit-moves': ['CrossFit', 'USA (Santa Cruz, California)', 'Greg Glassman', '2000', ''],
+  'benchmark-wods': ['CrossFit benchmark workouts', 'USA', 'Greg Glassman', '2003 (the "Girls")', ''],
+  'hyrox': ['Hyrox fitness racing', 'Germany (Hamburg)', 'Christian Toetzke and Moritz Fürste', '2017', ''],
+  'strongman': ['Strongman', 'Scottish, Basque, Icelandic and Scandinavian heavy events', '', 'traditional; World\'s Strongest Man from 1977', ''],
+  'specialty-implements': ['Strongman', 'Europe and the USA', '', 'traditional; the modern sport from 1977', ''],
+  'loaded-carries': ['Strongman and farm work', 'Europe and the USA', 'brought into general training by Dan John and Stuart McGill', 'traditional; popularised c. 2000s', ''],
+  'specialty-bars': ['Powerlifting equipment', 'USA', '', 'c. 1980s', ''],
+  'pin-lifts': ['Weightlifting / power-rack training', 'USA', 'Paul Anderson; Bob Hoffman\'s York power rack', 'c. 1950s–60s', ''],
+  'tempo-methods': ['High-intensity and tempo training', 'USA / Canada', 'Arthur Jones (HIT); Charles Poliquin\'s tempo notation', 'c. 1970s–90s', ''],
+  'mobility-warmup': ['Sports performance warm-ups', 'USA / Europe', '', 'c. 1990s–2000s', 'Dynamic warm-ups replaced long static stretching before sport.'],
+  'static-stretch': ['Physical education and physiotherapy', 'Europe and the USA', '', '19th–20th century', ''],
+  'iso-poses': ['Yoga and martial-arts stance training', 'India and China', '', 'traditional', ''],
+  'foam-rolling': ['Self-myofascial release', 'Israel, then the USA', 'rollers from Moshé Feldenkrais; popularised by Sean Gallagher and Michael Clark', 'c. 1950s; popular from the 1990s', ''],
+  'mobility-system': ['Supple Leopard mobility system', 'USA (San Francisco)', 'Kelly Starrett', '2010 (MobilityWOD); the book 2013', ''],
+  'movement-flow': ['Ground-based movement (Animal Flow)', 'USA', 'Mike Fitch', 'c. 2010', 'Crawling drills themselves are far older.'],
+  'tai-chi': ['Tai chi chuan', 'China (Chen Village, Henan)', 'Chen Wangting', 'c. 1670s', ''],
+  'systema': ['Systema', 'Russia / Soviet Union', 'Mikhail Ryabko and Vladimir Vasiliev; Aleksey Kadochnikov', 'late 20th century', ''],
+  'trx-work': ['Suspension training (TRX)', 'USA', 'Randy Hetrick, a Navy SEAL', '1997', ''],
+  'adductor': ['Machine training and physiotherapy', 'USA', '', 'c. 1970s', ''],
+  'tibialis': ['Physiotherapy; ATG / Knees Over Toes', 'USA', 'popularised by Ben Patrick', 'popularised c. 2020', ''],
+  'atg-knees-over-toes': ['ATG / Knees Over Toes', 'USA (Florida)', 'Ben Patrick, building on Charles Poliquin', 'c. 2018–2020', ''],
+  'pullover': ['Physical culture', 'USA / Europe', 'the Nautilus pullover was Arthur Jones\'s first machine (1970)', 'c. 1900s', ''],
+  'grip-training': ['Old-time strongman grip work', 'Europe and the USA', '', 'c. 1900s', ''],
+  'serratus-scap': ['Shoulder physiotherapy', 'USA / Europe', '', 'late 20th century', ''],
+  'rotator-cuff': ['Shoulder physiotherapy', 'USA', '', 'c. 1970s–80s', ''],
+  'breathing': ['Breathing practice (pranayama and clinical breathing)', 'India; modern protocols from the USA and Russia', '', 'traditional; modern protocols 20th century', ''],
+  'corrective': ['Corrective exercise', 'Czechoslovakia, then the USA', 'Vladimír Janda\'s muscle-imbalance work; NASM', 'c. 1970s–90s', ''],
+  'recovery-protocols': ['Sports recovery', 'Europe / USA', '', '20th century', ''],
+  'workout-templates': ['Bodybuilding programming', 'USA', '', '20th century', ''],
+  'session-templates': ['Bodybuilding programming', 'USA', '', '20th century', ''],
+  'warmup-templates': ['Sports performance warm-ups', 'USA / Europe', '', 'c. 1990s–2000s', ''],
+  'kettlebell-specific': ['Kettlebell lifting (girevoy sport)', 'Russia', 'brought West by Pavel Tsatsouline', '18th century; a sport from 1948; in the West from c. 1998', ''],
+  'cable-attachments': ['Pulley machines', 'Sweden, then the USA', 'Gustav Zander\'s mechanotherapy machines', 'c. 1860s; modern stations c. 1950s', ''],
+  'resistance-bands': ['Elastic resistance', 'Switzerland, then the USA', 'Gustav Gossweiler\'s patent; Thera-Band', 'c. 1895; therapy bands 1978', ''],
+  'medicine-ball': ['Medicine ball training', 'Ancient Greece and Persia; named in the USA', '', 'ancient; named in the 19th century', ''],
+  'mace-club-work': ['Mace and club swinging', 'India (the gada and jori) and Persia (the meel)', 'Indian clubs spread through the British army', 'ancient; in the West from the 19th century', ''],
+  'landmine-work': ['Landmine training', 'USA (South Carolina)', 'Bert Sorin (Sorinex)', '1999', ''],
+  'equipment-hacks': ['Gym-floor improvisation', 'no single origin', '', '', ''],
+  'ybell-work': ['YBell', 'Australia', 'Aaron Laurence', 'c. 2018', ''],
+  'swiss-ball-work': ['Swiss ball training', 'Italy, then Switzerland and the USA', 'Aquilino Cosani made the ball; Swiss physiotherapists used it', '1963', 'American therapists named it the Swiss ball in the 1980s.'],
+  'sandbag-work': ['Sandbag training', 'wrestling and military conditioning; modern systems from the USA', '', 'traditional; modern systems c. 2000s', ''],
+  'slider-work': ['Slider training', 'USA', 'Valerie Waters (Valslide)', 'c. 2000s', ''],
+  'neck-training': ['Wrestling, boxing and football neck conditioning', 'worldwide; the 4-way machine from the USA', 'Nautilus built the first neck machines', 'traditional; machines c. 1970s', ''],
+  'jaw-training': ['Jaw training', 'USA', '', 'c. 2010s', ''],
+  'outdoor-cardio': ['Endurance training', 'worldwide; jogging from New Zealand and the USA', 'Arthur Lydiard and Bill Bowerman popularised jogging', 'ancient; jogging c. 1960s', ''],
+  'climbing': ['Rock climbing and bouldering', 'France (Fontainebleau), then the USA', 'modern bouldering is John Gill\'s', 'late 19th century; modern c. 1950s', ''],
+  'boxing-bag': ['Boxing', 'England', '', '18th–19th century (Queensberry rules 1867)', ''],
+  'jump-rope-skills': ['Rope skipping', 'worldwide; boxing training', '', 'ancient; a boxing staple from c. 1900', ''],
+};
+// the origin of one exercise: { sys, where, by, when, note, level: 'exercise' | 'movement' } — never null for a known family
+function exerciseOrigin(v, fam) {
+  if (!v || !fam) return null;
+  const hay = String(v.title || '').toLowerCase(), hayB = hay + ' · ' + String(v.best || '').toLowerCase();
+  const n = EX_ORIGIN_NAMED.find(r => r[0].test(r[6] ? hayB : hay));   // r[6]: also read the "best for" line
+  if (n) return { sys: n[1], where: n[2], by: n[3], when: n[4], note: n[5], level: 'exercise' };
+  const f = EX_ORIGIN_FAMILY[fam.id];
+  return f ? { sys: f[0], where: f[1], by: f[2], when: f[3], note: f[4], level: 'movement' } : null;
+}
+function exerciseOriginHtml(v, fam, cls) {
+  const o = exerciseOrigin(v, fam); if (!o) return '';
+  const line = [o.where, o.by, o.when].filter(Boolean).map(escapeHtml).join(' · ');
+  return `<div class="${cls || 'tip-block'} ex-origin"><div class="tip-block-label var-section-title">${t('🧭 Origin')} <span class="ex-origin-lvl">${o.level === 'exercise' ? t('this exercise') : t('its movement')}</span></div>
+    <div class="tip-block-text var-section-content"><b>${escapeHtml(o.sys)}</b>${line ? '<br>' + line : ''}${o.note ? `<br><span class="ex-origin-note">${escapeHtml(o.note)}</span>` : ''}
+    <div class="ex-origin-caveat">${t('Approximate: most exercises have no single inventor, so the date is when it was introduced or made popular.')}</div></div></div>`;
+}
+// feat 614 — look the exercise up outside the app: opens your browser's search in a new tab (nothing is sent until you tap)
+function exerciseSearchLinksHtml(title) {
+  const q = encodeURIComponent(String(title || '').trim() + ' exercise');
+  return `<div class="ex-search"><a class="tips-ref-link" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener noreferrer">${t('🔎 Search the web')}</a>
+    <a class="tips-ref-link" href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener noreferrer">${t('▶ Search videos')}</a></div>`;
+}
 function exerciseMapSlideHtml(varUuid) {
   const A = exerciseArchetypes(varUuid), dim = A && FITNESS_DIMS.find(d => d.key === A.dim);
   return `${A ? `<div class="exm-arch"><div class="exm-h">${t('Archetypes this exercise feeds')}</div>
@@ -34173,7 +34395,7 @@ function renderSetsForm() {
       </div>`;
     }
     // feat 418 — the reference deep-dive is its own 📖 Full slide (no more concise/full toggle)
-    let fullBlocks = '';
+    let fullBlocks = exerciseOriginHtml(v, fam);   // feat 614 — where it comes from
     {
       const refEx = exercises.find(e => e.id === fam.id);
       if (refEx) {
@@ -34265,7 +34487,7 @@ function renderSetsForm() {
       return `<button class="tips-ref-link" id="trk-brief-play" type="button">${t('🎧 Play this brief aloud →')}</button>` + setupBtn +
         built.segs.map(s => `<div class="tip-block"><div class="tip-block-label">${escapeHtml(s.label)}</div><div class="tip-block-text">${escapeHtml(s.text)}</div></div>`).join('');
     })();
-    const SLIDES = { tips: `<button class="tips-ref-link" id="trk-tips-ref-btn" type="button">${t('📚 Open full reference entry →')}</button>${tipBlocks}`,
+    const SLIDES = { tips: `<button class="tips-ref-link" id="trk-tips-ref-btn" type="button">${t('📚 Open full reference entry →')}</button>${exerciseSearchLinksHtml(v.title)}${tipBlocks}`,
       full: fullBlocks, trends: trendSlide, history: exHistoryPreviewHtml(pending.varUuid, pending.subUuid), alts: altsSlide, brief: briefSlide,
       tiers: tiersSlideHtml(pending.varUuid, pending.subUuid), map: '' }; // feat 509 · 608 — the map slide fills itself when opened
     // feat 472 — the "Tips & Insights" banner and the tab row are ONE row: the tabs are the header,
@@ -36189,6 +36411,7 @@ function bindSetsForm() {
   // Tips section toggle
   document.getElementById('trk-tips-ref-btn')?.addEventListener('click', (e) => { e.stopPropagation(); openReferenceFor(pending.varUuid); });
   try { fillExerciseMapSlide(); } catch (_) {}   // feat 608 — when the Map tab was the open one
+  document.querySelectorAll('#trk-tips-section .ex-search a').forEach(a => a.addEventListener('click', e => e.stopPropagation()));   // feat 614 — a link must not fold the panel
   document.getElementById('trk-podcast-btn')?.addEventListener('click', () => startVariationPodcast(pending.varUuid)); // feat 304
   document.getElementById('trk-ex-voice')?.addEventListener('click', exVoiceToggle); // feat 436 — page-scoped voice control
   document.getElementById('trk-ex-actions-toggle')?.addEventListener('click', toggleExActions); // feat 469
@@ -37197,7 +37420,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 519 · 2026-11-26 23:24';
+const APP_BUILD = 'build 520 · 2026-11-27 03:28';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -45852,6 +46075,7 @@ function renderRef() {
                       </select>
                     </div>` : ''}
                     ${renderPosition(ex.id + '-' + v.id, getPosition(v, ex.id), v.uuid)}
+                    ${exerciseOriginHtml(v, (v.uuid && VAR_INDEX.get(v.uuid) && VAR_INDEX.get(v.uuid).family) || ex, 'var-section')}${exerciseSearchLinksHtml(v.title)}
                     ${v.setup ? `<div class="var-section"><div class="var-section-title">${t('Setup')}</div><div class="var-section-content"><ul>${v.setup.map(s => `<li>${s}</li>`).join('')}</ul></div></div>` : ''}
                     ${v.movement ? `<div class="var-section"><div class="var-section-title">${t('Movement')}</div><div class="var-section-content"><ul>${v.movement.map(s => `<li>${s}</li>`).join('')}</ul></div></div>` : ''}
                     ${v.mistakes ? `<div class="var-section"><div class="var-section-title warn">${t('Mistakes')}</div><div class="var-section-content"><ul>${v.mistakes.map(s => `<li>${s}</li>`).join('')}</ul></div></div>` : ''}

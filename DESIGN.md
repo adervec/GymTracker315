@@ -5697,3 +5697,9 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
 - **Anatomy chart (feat 613):** `anatomyLayeredSvg` = skeleton + `ANATOMY_LAYERS` deep muscles + the atlas surface, in the
   atlas frames, with leader-line labels from the top visible layer; layers in `state.anatomyChart.layers`. The
   uploaded-image view and OCR hotspots are retired from the UI (the stored image is left in IndexedDB).
+- **Origins and web search (feat 614):** `EX_ORIGIN_NAMED` (regex on the title, first match wins; only the yoga rule
+  also reads `best`; named lifts come before equipment makers so "Smith Machine JM Press" is a JM press) and
+  `EX_ORIGIN_FAMILY` (one fallback per movement family, all 95). `exerciseOrigin(v, fam)` → { sys, where, by, when,
+  note, level }. Shown first on the 📖 Full tab and in the reference entry, with a standing "approximate" caveat;
+  "credited to" is left empty rather than guessed. `exerciseSearchLinksHtml` = plain links (Google, YouTube results),
+  new tab, noopener noreferrer: nothing is requested until the reader taps. Origin text is catalogue content (English).
