@@ -62,7 +62,7 @@ test('feat 487 — off restores the strict pre-487 behaviour, and the toggle is 
 
 test('feat 487 — the exercise picker finds "dumbell press" and reaches family keywords', async ({ page }) => {
   const r = await page.evaluate(() => {
-    normalizeState(); state.fuzzySearch = true;
+    normalizeState(); state.fuzzySearch = true; state.pickerSearchScope = 'all';   // feat 604 — these reach family keywords: the All-fields search
     const titlesFor = (q) => {
       modalState.pickerSearch = q;
       return filterVariations().flatMap(g => g.variations.map(v => v.title)).slice(0, 200);

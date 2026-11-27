@@ -4367,6 +4367,13 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .picker { position: sticky; top: 48px; background: #0a0a0a; padding-bottom: 8px; z-index: 5; }
   .picker-search { margin-bottom: 8px; position: relative; }
   .picker-search input { padding-right: 36px; }
+  .picker-scope { display: flex; align-items: center; gap: 4px; margin: -2px 0 8px; }   /* feat 604 */
+  .picker-scope-btn { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border2); background: none; color: var(--text3); cursor: pointer; }
+  .picker-scope-btn.active { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .picker-scope-help { font: inherit; font-size: 12px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--border2); background: none; color: var(--text3); cursor: pointer; margin-inline-start: auto; }
+  .picker-search-tips { font-size: 12px; color: var(--text3); line-height: 1.6; margin: 0 0 8px; padding: 6px 10px; border: 1px dashed var(--border2); border-radius: 8px; }
+  .picker-search-tips code { font-size: 11.5px; padding: 0 4px; border-radius: 4px; background: var(--surface2, rgba(127,127,127,.15)); color: var(--text); }
+  .picker-widened { font-size: 12px; color: var(--text3); margin: 2px 0 2px 2px; }
   .picker-clear-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: #2a2a2a; border: none; color: #aaa; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; cursor: pointer; display: none; align-items: center; justify-content: center; }
   .picker-clear-btn.show { display: flex; }
   .pill-row { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 6px; -webkit-overflow-scrolling: touch; }
@@ -9209,7 +9216,7 @@ const PENDING_KEY = 'overload_tracker_pending_v2';
 // Keys that are considered "settings" (everything except sessions).
 // On merge imports, these are preserved from local state.
 // On overwrite imports, these are replaced with the file's values.
-const SETTINGS_KEYS = ['coworkReview','unit','tipsExpanded','tipsMode','maxWeightLb','maxWeightHard','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
+const SETTINGS_KEYS = ['pickerSearchScope','coworkReview','unit','tipsExpanded','tipsMode','maxWeightLb','maxWeightHard','alwaysConfirm','theme','autoSave','autoLoad','workoutControls',
   'profile','dashboard','longPressConfirm','bodyComp','bodyCompUnit','muscleWeights','muscleWeightPreset',
   'hiddenVars','hiddenMovements','customVariations','gyms','activeGymId','gymMemberships','glossaryHighlight','glossaryAsPage','settingsCollapse','lang',
   'readonly','warnStaleBodyweight','warnOtherBiometrics','biometricStaleDays','calcMode','ttsTips','ttsVoice','coachPersona','coachVoices','coachAuto','reflectPills','metronome','annunciation','plans','seededPlanIds','hrDevice',
@@ -32456,21 +32463,63 @@ const EX_ALIASES = [
   [/frankenstein/, 'zombie'], [/t-spine rotation|thoracic rotation/, 'blind spot'], [/spartan uppercut/, 'kettlebell uppercut rotational'], // feat 554 [/stiff.leg/, 'sldl'], [/hip thrust/, 'glute bridge hip thruster'],
   [/sissy/, 'sissy squat'], [/goblet/, 'goblet'], [/zercher/, 'zercher'],
 ];
-let _pickHay = new Map();
+let _pickHay = new Map(), _pickFields = new Map();
+// feat 604 — each field on its own: name (the exercise's title, its other names and its attachment options),
+// movement (the family), muscles, equipment, body part and description (the family's keywords)
+function pickerSearchFields(v, f) {
+  const key = v.uuid || v.title;
+  let F = _pickFields.get(key); if (F) return F;
+  const name = [v.title]; subOptions(v).forEach(o => name.push(o.label));
+  const own = String(v.title).toLowerCase();
+  EX_ALIASES.forEach(([re, w]) => { if (re.test(own)) name.push(w); });
+  const mus = [], mc = (v.uuid && muscleContribForVar(v.uuid)) || {};
+  for (const id in mc) {
+    const mu = MUSCLE_INDEX[id]; if (!mu || mc[id] < 0.25) continue;
+    mus.push(mu.label, mu.group); if (mu.parent && MUSCLE_INDEX[mu.parent]) mus.push(MUSCLE_INDEX[mu.parent].label);
+  }
+  const fam = String(f.title + ' ' + v.title).toLowerCase(), famAlias = [];
+  EX_ALIASES.forEach(([re, w]) => { if (!re.test(own) && re.test(fam)) famAlias.push(w); });
+  F = { name: name.join(' '), family: [f.title].concat(famAlias).join(' '), muscle: mus.join(' '), equip: (f.equip || []).join(' '),
+    part: getBP(f) || '', desc: [f.keywords || '', v.best || ''].join(' ') };
+  _pickFields.set(key, F); return F;
+}
 function pickerSearchHay(v, f) {
   const key = v.uuid || v.title;
   let h = _pickHay.get(key); if (h != null) return h;
-  const parts = [v.title, f.title, f.keywords || '', (f.equip || []).join(' '), getBP(f) || ''];
-  subOptions(v).forEach(o => parts.push(o.label));
-  const mc = (v.uuid && muscleContribForVar(v.uuid)) || {};
-  for (const id in mc) {
-    const mu = MUSCLE_INDEX[id]; if (!mu || mc[id] < 0.25) continue;
-    parts.push(mu.label, mu.group); if (mu.parent && MUSCLE_INDEX[mu.parent]) parts.push(MUSCLE_INDEX[mu.parent].label);
-  }
-  const name = (v.title + ' ' + f.title).toLowerCase();
-  EX_ALIASES.forEach(([re, w]) => { if (re.test(name)) parts.push(w); });
-  h = parts.join(' '); _pickHay.set(key, h); return h;
+  const F = pickerSearchFields(v, f);
+  h = [F.name, F.family, F.desc, F.equip, F.part, F.muscle].join(' '); _pickHay.set(key, h); return h;
 }
+/* feat 604 — STRICT BY DEFAULT. Plain words look at the exercise's NAME only, so "pallof" finds the Pallof
+   exercises and not every core exercise whose family mentions Pallof. A query can aim at a field ("m:glute",
+   "e:cable", "f:row", "d:anti-rotation", "bp:core"), ask for an exact phrase ("single arm"), or be a regular
+   expression (/^cable.*row$/). "All fields" searches everything, as before; and when the name finds nothing,
+   the search widens on its own and says so. */
+const PICK_FIELDS = { n: 'name', name: 'name', m: 'muscle', muscle: 'muscle', e: 'equip', eq: 'equip', equip: 'equip',
+  f: 'family', fam: 'family', family: 'family', d: 'desc', desc: 'desc', bp: 'part', part: 'part' };
+function parsePickerQuery(q) {
+  const out = { words: [], fields: [], phrases: [], res: [] };
+  const re = /(\w+):("([^"]*)"|\S+)|"([^"]*)"|\/((?:\\.|[^/])+)\/i?|(\S+)/g; let m;
+  while ((m = re.exec(String(q || '')))) {
+    if (m[1] && PICK_FIELDS[m[1].toLowerCase()]) { const val = (m[3] != null ? m[3] : m[2]).trim(); if (val) out.fields.push({ f: PICK_FIELDS[m[1].toLowerCase()], v: val.toLowerCase() }); }
+    else if (m[1]) out.words.push(m[0]);
+    else if (m[4] != null) { if (m[4].trim()) out.phrases.push(m[4].trim().toLowerCase()); }
+    else if (m[5] != null) { try { out.res.push(new RegExp(m[5], 'i')); } catch (_) { out.words.push(m[5]); } }   // a broken pattern is just text
+    else if (m[6]) out.words.push(m[6]);
+  }
+  return out;
+}
+function pickerScope() { return state.pickerSearchScope === 'all' ? 'all' : 'name'; }
+// does this exercise match the query? scope: 'name' (plain words on the name) or 'all' (plain words anywhere)
+function pickerQueryMatch(Q, v, f, scope, extra) {
+  const F = pickerSearchFields(v, f);
+  const plainHay = scope === 'all' ? [pickerSearchHay(v, f)].concat(extra || []).join(' ') : F.name + ' ' + F.family;   // the name: the exercise's and its movement's
+  if (Q.words.length && !searchMatchTokens(Q.words.join(' '), plainHay)) return false;
+  const fold = x => ' ' + String(x).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + ' ', low = fold(plainHay);   // "single arm" finds Single-Arm
+  if (Q.phrases.some(ph => !low.includes(fold(ph)))) return false;
+  if (Q.res.some(r => !r.test(v.title))) return false;
+  return Q.fields.every(({ f: k, v: val }) => searchMatchTokens(val, F[k] || ''));
+}
+let _pickerWidened = false;   // the last name search found nothing and the list shows all-field matches
 // feat 535 — nothing matched: suggest the query with each unmatched word swapped for the closest word the
 // catalogue actually uses — offered only when that suggestion really finds something.
 function pickerDidYouMean(q) {
@@ -32490,8 +32539,9 @@ function pickerDidYouMean(q) {
   modalState.pickerSearch = sug; const ok = filterVariations().length > 0; modalState.pickerSearch = prev;
   return ok ? sug : null;
 }
-function filterVariations() {
-  const q = modalState.pickerSearch.trim().toLowerCase();
+function filterVariations(scopeOverride) {
+  const q = modalState.pickerSearch.trim();
+  const Q = q ? parsePickerQuery(q) : null, scope = scopeOverride || pickerScope();   // feat 604
   const stepSet = activePlanStepFilterSet(); // feat 112/115 — limits to the step's variations; feat 179 — the mega/sub/equip pills STACK with it
   // feat 378 — explored / unexplored filter: a variation is "explored" once you've actually logged it (it's in the
   // touch map). Build the map only when the filter is active.
@@ -32527,7 +32577,7 @@ function filterVariations() {
       if (trendMap && varLastTrendDir(trendMap.get(v.uuid)) !== trendMode) return false; // feat 385 — trended up/down last time
       if (stepSet && !stepSet.has(v.uuid)) return false; // restrict to exactly the step's exercises
       if (!q) return true;
-      return searchMatchTokens(q, pickerSearchHay(v, f)); // feat 419 word-order-free · 487 keywords · 533 subs/muscles/equipment · 534 aliases
+      return pickerQueryMatch(Q, v, f, scope); // feat 419 word-order-free · 487 keywords · 533 subs/muscles/equipment · 534 aliases · 604 name first
     });
     if (!q && !favOnly && !stepSet) { const kept = foldLimbVersions(matchingVars); matchingVars.length = 0; kept.forEach(v => matchingVars.push(v)); } // feat 584
     matchingVars.sort((a, b) => (isFavVar(b.uuid) ? 1 : 0) - (isFavVar(a.uuid) ? 1 : 0)); // feat 178 — favorites float to the top of the family
@@ -32544,7 +32594,7 @@ function filterVariations() {
       if (volStatus && varVolStatus(uuid, volStatus) !== volMode) return; // feat 383
       if (trendMap && varLastTrendDir(trendMap.get(uuid)) !== trendMode) return; // feat 385
       if (stepSet && !stepSet.has(uuid)) return;
-      if (q && !searchMatchTokens(q, pickerSearchHay(v, i.family), f.title, f.keywords || '', primaryTitle || '')) return; // feat 419/487/533
+      if (q && !pickerQueryMatch(Q, v, i.family, scope, [f.title, f.keywords || '', primaryTitle || ''])) return; // feat 419/487/533/604
       secondaryVars.push({ v, primaryId, primaryTitle });
     });
     if (matchingVars.length > 0 || secondaryVars.length > 0) results.push({ family: f, variations: matchingVars, secondaryVars });
@@ -32692,6 +32742,15 @@ function renderPicker() {
         <input id="trk-picker-input" type="text" placeholder="${escapeAttr(t('Search exercises...'))}" value="${escapeAttr(modalState.pickerSearch)}" autocomplete="off">
         <button class="picker-clear-btn ${modalState.pickerSearch ? 'show' : ''}" id="trk-picker-clear-search">✕</button>
       </div>
+      <div class="picker-scope" role="group" aria-label="${escapeAttr(t('Search in'))}">
+        <button type="button" class="picker-scope-btn ${pickerScope() === 'name' ? 'active' : ''}" data-pick-scope="name" aria-pressed="${pickerScope() === 'name'}">${t('Name')}</button><button type="button" class="picker-scope-btn ${pickerScope() === 'all' ? 'active' : ''}" data-pick-scope="all" aria-pressed="${pickerScope() === 'all'}">${t('All fields')}</button>
+        <button type="button" class="picker-scope-help" id="trk-picker-search-help" aria-expanded="${!!modalState.pickerSearchHelp}" title="${escapeAttr(t('Search tips'))}">?</button>
+      </div>
+      ${modalState.pickerSearchHelp ? `<div class="picker-search-tips">
+        <div>${t('Plain words search the exercise name. Add a field to look somewhere else:')}</div>
+        <div><code>m:glute</code> ${t('muscle')} · <code>e:cable</code> ${t('equipment')} · <code>f:row</code> ${t('movement')} · <code>d:anti-rotation</code> ${t('description')} · <code>bp:core</code> ${t('body part')}</div>
+        <div><code>"single arm"</code> ${t('exact phrase')} · <code>/^cable.*row$/</code> ${t('pattern on the name')}</div>
+      </div>` : ''}
       <div class="pill-row">
         <div class="pill mega-toggle ${modalState.pickerMega !== 'all' ? 'active' : ''}" id="trk-picker-mega" data-mega="${modalState.pickerMega}" title="${escapeAttr(t('Category — tap to cycle · hold to reset to All'))}">${escapeHtml(MEGA_LABELS[modalState.pickerMega] || modalState.pickerMega)}${modalState.pickerMega === 'all' ? '' : ' ▸'}</div>
         ${pickerCyclePillHtml('sub')}
@@ -32894,7 +32953,9 @@ function coachChoiceForStep(results, maps) {
 // feat 68 — results are a separate fragment so typing re-renders only the list, leaving the search
 // input and its ✕ button untouched (fixes the jiggly/inconsistent clear button + focus juggling).
 function renderPickerResults() {
-  const results = filterVariations();
+  let results = filterVariations();
+  _pickerWidened = false;   // feat 604 — nothing by name: look in every field instead, and say so
+  if (!results.length && modalState.pickerSearch.trim() && pickerScope() === 'name') { results = filterVariations('all'); _pickerWidened = results.length > 0; }
   const touch = buildTouchMap(); // feat 121
   const trend = buildVarTrendMap(); // feat 332 — discrete e1RM trend per variation
   const lastVar = buildFamilyLastVarMap(); // feat 381 — the variation used last / the time before, per movement
@@ -32936,7 +32997,8 @@ function renderPickerResults() {
   const coach = cc ? `<div class="picker-family-group picker-usual picker-coach"><div class="picker-family-header">${t('🧠 Coach\'s choice')}</div>${varRow(cc.v, cc.fam, ' usual coach',
     `<div class="picker-var-secfrom">${escapeHtml(cc.fam.title)}${cc.why.length ? ' · ' + escapeHtml(cc.why.slice(0, 3).join(' · ')) : ''}</div>`)}</div>` : '';
   const dym = !results.length && modalState.pickerSearch.trim() ? pickerDidYouMean(modalState.pickerSearch.trim()) : null;
-  return `<div style="font-size:10.5px;color:#666;margin:4px 0 6px 2px;">${countLabel}</div>
+  const widened = _pickerWidened ? `<div class="picker-widened">${t('No exercise is called that — showing matches in muscles, equipment and descriptions.')}</div>` : '';   // feat 604
+  return `${widened}<div style="font-size:10.5px;color:#666;margin:4px 0 6px 2px;">${countLabel}</div>
     <div class="picker-results">
       ${results.length === 0
         ? `<div class="picker-empty">No exercises match${dym ? `<br><button type="button" class="pf-chip picker-dym" data-dym="${escapeAttr(dym)}">${t('Did you mean “{dym}”?', { dym: (escapeHtml(dym)) })}</button>` : ''}</div>`
@@ -32970,6 +33032,10 @@ function bindPicker() {
       if (wrap) { wrap.innerHTML = renderPickerResults(); bindPickerResults(); }
     });
   }
+  document.querySelectorAll('[data-pick-scope]').forEach(b => b.addEventListener('click', () => {   // feat 604
+    state.pickerSearchScope = b.dataset.pickScope === 'all' ? 'all' : 'name'; saveState(); renderModal();
+  }));
+  document.getElementById('trk-picker-search-help')?.addEventListener('click', () => { modalState.pickerSearchHelp = !modalState.pickerSearchHelp; renderModal(); });
   document.getElementById('trk-picker-clear-search')?.addEventListener('click', () => {
     modalState.pickerSearch = '';
     renderModal();
@@ -36515,7 +36581,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 516 · 2026-11-26 20:34';
+const APP_BUILD = 'build 517 · 2026-11-26 21:16';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

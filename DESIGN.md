@@ -5660,3 +5660,9 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   every set counts once per area reached. `weeklyMobilityAreas(week)` → sets per area + days since each was last
   worked. `renderMobilityMapCard` sits under the volume heatmap (Volume page), teal scale, rings at the joints, and
   lists areas not worked for 14+ days. Breathing and stance drills reach no area on purpose.
+- **Strict picker search (feat 604):** `pickerSearchFields(v, f)` keeps name (title + attachment options + the
+  exercise's own aliases), family, muscle, equip, part and desc (family keywords + `best`) apart. `parsePickerQuery`:
+  `field:value` (m/e/f/d/bp/n), `"phrase"` (punctuation-folded), `/regex/` (on the title; a broken one is text), plain
+  words. `pickerQueryMatch`: plain words on name + family title by default (`state.pickerSearchScope` 'name', synced),
+  on everything with 'all'. Family keywords were why "pallof" listed all 87 core-stability exercises.
+  `renderPickerResults` widens to 'all' when the name finds nothing (`_pickerWidened`, with a line saying so).

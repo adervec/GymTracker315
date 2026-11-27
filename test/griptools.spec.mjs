@@ -121,7 +121,7 @@ test('feat 486 - the pin isometrics log as weight x seconds (time mode), the str
 
 test('feat 488 - the twister and ab roller vocabulary is reachable from the search bars', async ({ page }) => {
   const r = await page.evaluate(() => {
-    normalizeState(); state.fuzzySearch = true;
+    normalizeState(); state.fuzzySearch = true; state.pickerSearchScope = 'all';   // feat 604 — these reach family keywords: the All-fields search
     const titlesFor = (q) => { modalState.pickerSearch = q;
       return filterVariations().flatMap(g => g.variations.map(v => v.title)); };
     const twister = titlesFor('twister');
@@ -155,7 +155,7 @@ test('feat 492 - the hangs, holds and the plank jack route to time mode; everyth
 
 test('feat 492 - sliders, hangboard, expander, claw and the reel moves are reachable from search', async ({ page }) => {
   const r = await page.evaluate(() => {
-    normalizeState(); state.fuzzySearch = true;
+    normalizeState(); state.fuzzySearch = true; state.pickerSearchScope = 'all';   // feat 604 — these reach family keywords: the All-fields search
     const titlesFor = (q) => { modalState.pickerSearch = q;
       return filterVariations().flatMap(g => g.variations.map(v => v.title)); };
     const slider = titlesFor('slider');
@@ -197,7 +197,7 @@ test('feat 493 - the balance holds go to time, the BOSU push-up to bodyweight, t
 
 test('feat 493 - BFR, the ladder, the balance tools and the recovery drawer are reachable from search', async ({ page }) => {
   const r = await page.evaluate(() => {
-    normalizeState(); state.fuzzySearch = true;
+    normalizeState(); state.fuzzySearch = true; state.pickerSearchScope = 'all';   // feat 604 — these reach family keywords: the All-fields search
     const titlesFor = (q) => { modalState.pickerSearch = q;
       return filterVariations().flatMap(g => g.variations.map(v => v.title)); };
     const bfr = titlesFor('bfr');
@@ -236,7 +236,7 @@ test('feat 495 - the Sorensen hold goes to time, the rest stay reps', async ({ p
 
 test('feat 495 - the reverse hyper corner and the roman chair moves are reachable from search', async ({ page }) => {
   const r = await page.evaluate(() => {
-    normalizeState(); state.fuzzySearch = true;
+    normalizeState(); state.fuzzySearch = true; state.pickerSearchScope = 'all';   // feat 604 — these reach family keywords: the All-fields search
     const titlesFor = (q) => { modalState.pickerSearch = q;
       return filterVariations().flatMap(g => g.variations.map(v => v.title)); };
     const revHyper = titlesFor('reverse hyper');
