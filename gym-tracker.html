@@ -2928,6 +2928,14 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .plan-watch { font-size: 11px; font-weight: 800; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--accent); padding: 3px 10px; border-radius: 999px; cursor: pointer; font-family: inherit; margin-left: auto; }
   .plan-card-left { margin-top: 6px; }
   .plan-steps-hidden { display: block; width: 100%; margin: 2px 0 6px; padding: 6px 10px; font: inherit; font-size: 12px; color: var(--text3); background: none; border: 1px dashed var(--border2); border-radius: 8px; cursor: pointer; text-align: start; }  /* feat 598 */
+  .mob-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .mob-chip { font-size: 12px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border2); color: var(--text3); }
+  .mob-chip.on { color: var(--text); border-color: hsla(190, 80%, 55%, 0.7); background: hsla(190, 80%, 55%, 0.14); }
+  .mob-chip b { font-weight: 700; }
+  .mob-stale { margin-top: 6px; font-size: 12px; color: var(--text3); }
+  .mob-grad { background: linear-gradient(90deg, hsla(195, 80%, 62%, 0.35), hsla(170, 80%, 48%, 0.85)) !important; }
+  .mob-joint { fill: none; stroke: var(--text3); stroke-width: 0.6; stroke-opacity: 0.6; }
+  .mob-joint.on { stroke: hsla(175, 80%, 70%, 0.9); }  /* feat 603 */
   .plan-steps { display: flex; flex-direction: column; gap: 5px; }
   .plan-step { padding: 6px 8px; border-radius: 7px; background: var(--bg3); border: 1px solid transparent; cursor: pointer; }
   .plan-step:hover { border-color: var(--border2); }
@@ -25453,6 +25461,103 @@ function heatmapCardHtml(values, level, title, opts) {
     <div class="hm-legend"><span>0</span><span class="hm-grad"></span><span>${t('max')}</span><span class="hm-na">${t('▨ not modeled')}</span></div>
   </div>`;
 }
+/* ============================================================
+   feat 603 — THE MOBILITY MAP. The heatmap shows what you loaded; this shows what you stretched, rolled and moved
+   through. A mobility exercise is matched to body areas by its name and its "best for" hint (the Supple Leopard
+   system names its area outright: "Area 13 · Calf"); each set counts once for every area it reaches. The areas
+   colour the same atlas shapes as the heatmap; knees and ankles, which are joints, get a ring.
+   ============================================================ */
+const MOBILITY_AREAS = [
+  { id: 'neck', label: 'Neck', kw: /neck/, ids: ['neck-flexors', 'neck-extensors'] },
+  { id: 'tspine', label: 'Upper back', kw: /t-spine|upper back|thoracic|puppy|child's pose|thread the needle|cat-cow|paraspinal|\barea 2\b|world's greatest|spiderman/, ids: ['traps-mid', 'traps-lower', 'rhomboids'] },
+  { id: 'shoulders', label: 'Shoulders', kw: /shoulder|arm circle|pass-through|cow-face|downward|inchworm|crab walk|\barea 3\b|\barea 4\b/, ids: ['front-delt', 'side-delt', 'rear-delt'] },
+  { id: 'chest', label: 'Chest', kw: /\bpec|chest|open the front|camel|bow pose|\barea 4\b/, ids: ['upper-chest', 'mid-lower-chest'] },
+  { id: 'lats', label: 'Lats', kw: /\blats?\b|side bend|crescent|child's pose|\barea 3\b/, ids: ['lats'] },
+  { id: 'arms', label: 'Arms and wrists', kw: /\barms?\b(?! circle)|wrist|forearm|tricep|bicep|\barea 5\b/, ids: ['biceps-long', 'biceps-short', 'brachialis', 'tri-long', 'tri-lateral', 'tri-medial', 'forearm-flexors', 'forearm-extensors'] },
+  { id: 'trunk', label: 'Spine and trunk', kw: /(?<!t-)spine|spinal|trunk|oblique|twist|waist|lower back|core|locust|bridge|cobra|\babs\b|roll-up|posterior chain|backbend|\barea 6\b/, ids: ['erectors', 'obliques', 'rectus-abdominis'] },
+  { id: 'hips', label: 'Glutes and hips', kw: /glute|\bhips?\b|hip (joint|rotation|mobility|pain|opener)|piriformis|pigeon|90\/90|figure-4|lizard|squat hold|malasana|garland|cossack|duck walk|horse stance|warrior|goddess|leg swing|world's greatest|spiderman|child's pose|half moon|\barea 7\b/, ids: ['glute-max', 'glute-med-min'] },
+  { id: 'hipflex', label: 'Hip flexors and quads', kw: /hip flexor|\bquads?\b|couch|lunge|front splits|hanumanasana|camel|it band|chair pose|\barea 8\b/, ids: ['rectus-femoris', 'vastus-lateralis', 'vastus-medialis', 'vastus-intermedius'] },
+  { id: 'adductors', label: 'Adductors', kw: /adduct|groin|butterfly|frog|middle splits|side splits|pancake|straddle|cossack|goddess|\barea 9\b/, terms: ['Adductors'] },
+  { id: 'hams', label: 'Hamstrings', kw: /\bhams?\b|hamstring|forward fold|inchworm|frankenstein|toy soldier|downward|pancake|front splits|leg swing|world's greatest|\barea 10\b/, ids: ['hamstrings'] },
+  { id: 'knee', label: 'Knees', kw: /\bknee|\barea 11\b/, joint: 'kn' },
+  { id: 'calves', label: 'Calves and shins', kw: /calf|calves|shin|lower leg|tibialis|downward|\barea 12\b|\barea 13\b/, ids: ['gastrocnemius', 'soleus'], terms: ['Tibialis Anterior'] },
+  { id: 'ankles', label: 'Ankles', kw: /ankle|tree pose|one leg|half moon|\barea 14\b/, joint: 'an' },
+];
+// i18n-keys: Neck | Upper back | Shoulders | Chest | Lats | Arms and wrists | Spine and trunk | Glutes and hips | Hip flexors and quads | Adductors | Hamstrings | Knees | Calves and shins | Ankles
+const _mobAreaCache = new Map();
+// the areas one exercise reaches ([] for anything that is not mobility work)
+function mobilityAreasForVar(varUuid) {
+  if (_mobAreaCache.has(varUuid)) return _mobAreaCache.get(varUuid);
+  const info = VAR_INDEX.get(varUuid); let out = [];
+  if (info && info.family && info.family.mega === 'mobility') {
+    const txt = ((info.variation && info.variation.title) || '') + ' · ' + ((info.variation && info.variation.best) || '');
+    const low = txt.toLowerCase();
+    out = MOBILITY_AREAS.filter(a => a.kw.test(low)).map(a => a.id);
+    if (!out.length && /full[- ]body|flow|salutation/.test(low)) out = ['tspine', 'shoulders', 'trunk', 'hips', 'hams'];   // a whole-body flow
+  }
+  _mobAreaCache.set(varUuid, out);
+  return out;
+}
+// sets per area in one week (0 = this week), and the days since each area was last worked (up to 60)
+function weeklyMobilityAreas(weekOffset) {
+  const start = startOfWeek(new Date()) - (weekOffset || 0) * 7 * 86400000, end = start + 7 * 86400000, now = Date.now();
+  const sets = {}, last = {};
+  MOBILITY_AREAS.forEach(a => { sets[a.id] = 0; });
+  (state.sessions || []).forEach(se => {
+    const at = new Date(se.date).getTime(); if (!(at > 0)) return;
+    (se.exercises || []).forEach(ex => {
+      const areas = mobilityAreasForVar(ex.varUuid); if (!areas.length) return;
+      const n = (ex.sets || []).length || 1;
+      areas.forEach(id => {
+        if (at >= start && at < end) sets[id] += n;
+        if (at <= now && (last[id] == null || at > last[id])) last[id] = at;
+      });
+    });
+  });
+  const ago = {}; MOBILITY_AREAS.forEach(a => { ago[a.id] = last[a.id] != null ? Math.floor((now - last[a.id]) / 86400000) : null; });
+  return { sets, ago };
+}
+function mobilityColor(v, max) {
+  if (!(v > 0)) return null;
+  const k = Math.min(1, v / (max || 1));
+  return `hsla(${Math.round(195 - 25 * k)}, 80%, ${Math.round(62 - 14 * k)}%, ${(0.35 + 0.5 * k).toFixed(2)})`;
+}
+function mobilityMapSvg(sets) {
+  const P = atlasBuild((typeof avatarProportions === 'function' ? avatarProportions() : null) || figDefaultP());
+  const byId = {}, byTerm = {}; let max = 0;
+  MOBILITY_AREAS.forEach(a => { const v = sets[a.id] || 0; if (v > max) max = v; (a.ids || []).forEach(id => { byId[id] = a; }); (a.terms || []).forEach(tm => { byTerm[tm] = a; }); });
+  const shape = sh => {
+    if (sh.m.deco) return `<path class="hm-deco" d="${sh.d}"/>`;
+    const a = (sh.m.id && byId[sh.m.id]) || byTerm[sh.m.term]; if (!a) return `<path class="hm-region" d="${sh.d}"/>`;
+    const v = sets[a.id] || 0, col = mobilityColor(v, max);
+    return `<path class="hm-region" data-mob-area="${a.id}" d="${sh.d}"${col ? ` style="fill:${col};"` : ''}><title>${escapeHtml(t(a.label))} — ${escapeHtml(t.n('{n} set', '{n} sets', v, { n: v }))}</title></path>`;
+  };
+  const joints = (cx) => { const J = figStandingJoints(cx, P);
+    return MOBILITY_AREAS.filter(a => a.joint).map(a => J.legs.map(l => { const v = sets[a.id] || 0, col = mobilityColor(v, max), c = l[a.joint];
+      return `<circle class="mob-joint${col ? ' on' : ''}" data-mob-area="${a.id}" cx="${_figN(c[0])}" cy="${_figN(c[1])}" r="2.6"${col ? ` style="fill:${col};"` : ''}><title>${escapeHtml(t(a.label))} — ${escapeHtml(t.n('{n} set', '{n} sets', v, { n: v }))}</title></circle>`; }).join('')).join(''); };
+  return `<svg class="anat-svg heatmap atlas mobility" viewBox="0 0 200 192" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1">
+    ${anatomyOutline(50, P)}${anatomyOutline(150, P)}
+    ${atlasShapes(50, 'F', P).map(shape).join('')}${joints(50)}
+    ${atlasShapes(150, 'B', P).map(shape).join('')}${joints(150)}
+    <text class="anat-fig-label" x="50" y="190">${t('Front')}</text>
+    <text class="anat-fig-label" x="150" y="190">${t('Back')}</text>
+  </svg>`;
+}
+function renderMobilityMapCard() {
+  const M = weeklyMobilityAreas(typeof volWeekOffset !== 'undefined' ? volWeekOffset : 0);
+  const total = Object.values(M.sets).reduce((x, y) => x + y, 0);
+  const chips = MOBILITY_AREAS.map(a => { const v = M.sets[a.id] || 0;
+    return `<span class="mob-chip${v ? ' on' : ''}" data-mob-chip="${a.id}">${escapeHtml(t(a.label))}${v ? ` <b>${v}</b>` : ''}</span>`; }).join('');
+  const stale = MOBILITY_AREAS.filter(a => M.ago[a.id] == null || M.ago[a.id] >= 14).map(a => t(a.label));
+  return `<div class="card heatmap-card mob-card" id="mob-map">
+    <div class="card-title">${t('🧘 Mobility map')}</div>
+    <div class="drawer-setting-sub">${total ? t('Sets of stretching, rolling and mobility work this week, by the area they reach.') : t('No mobility work this week. Stretches, foam rolling and mobility drills show up here by the area they reach.')}</div>
+    ${mobilityMapSvg(M.sets)}
+    <div class="hm-legend"><span>0</span><span class="hm-grad mob-grad"></span><span>${t('max')}</span></div>
+    <div class="mob-chips">${chips}</div>
+    ${stale.length ? `<div class="mob-stale">${t('Not worked for 2 weeks or more: {areas}', { areas: escapeHtml(stale.join(', ')) })}</div>` : ''}
+  </div>`;
+}
 function renderVolumeHeatmapCard() {
   const values = heatRegionValues(_heatLevel, volWeekOffset);
   const name = _heatLevel === 'group' ? 'muscle groups' : (_heatLevel === 'muscle' ? 'muscles' : 'muscle heads');
@@ -25750,6 +25855,7 @@ function renderVolume(main) {
     <div class="sub-tab ${volLevel==='head'?'active':''}" data-vollevel="head">${t('Heads')}</div>
   </div>`;
   html += renderVolumeHeatmapCard(); // feat 217 — the anatomy heatmap rides above the bars
+  html += renderMobilityMapCard();   // feat 603 — and what you stretched, beside what you loaded
   html += renderReadinessCard();     // feat 299 — composite training-readiness score (sits above the breakdown)
   html += renderRecoveryCard();      // feat 262 — recovery readiness per muscle group
 
@@ -36409,7 +36515,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 515 · 2026-11-26 15:04';
+const APP_BUILD = 'build 516 · 2026-11-26 20:34';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

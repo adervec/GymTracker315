@@ -5655,3 +5655,8 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   brachialis — neck-training, jaw-training); compound lifts do not, so their back/leg shares are unchanged. Atlas: the
   forearm shapes are scored, the SCM is the scored neck front, a splenius shape on the back, and the masseter in a
   new `head` frame (head centre, radius 7). ANATOMY_REGIONS has Neck and Jaw; the glossary has entries for both.
+- **Mobility map (feat 603):** `MOBILITY_AREAS` (14 areas, each a keyword regex over the variation's title + `best`
+  hint, plus the atlas ids/terms it colours, or a `joint` for knees and ankles). Only `mega: 'mobility'` families count;
+  every set counts once per area reached. `weeklyMobilityAreas(week)` → sets per area + days since each was last
+  worked. `renderMobilityMapCard` sits under the volume heatmap (Volume page), teal scale, rings at the joints, and
+  lists areas not worked for 14+ days. Breathing and stance drills reach no area on purpose.
