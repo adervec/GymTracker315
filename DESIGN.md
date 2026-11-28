@@ -5808,3 +5808,12 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   on nordic / quadruped / sled; machine parts on leg press, back extension, rowing erg), the rest are a thin bright
   edge moving or sit on the threshold. Tried and reverted: one fixed order for a limb's visible details (cleared the
   thigh swap, caused pops in 14 other runs). The thigh swap needs true per-pixel depth or merged shapes, not a sort key.
+- **No shape changes places in one frame (feat 634):** the scene is painted back to front, so two overlapping shapes
+  that pass in depth swapped in a single frame (thigh/shin at a folded knee, rail/plate, seat/shorts). `rsSmoothOrder`
+  keeps the last frame's order per spec and view; for each overlapping pair that inverted it draws a copy of the shape
+  that went behind, clipped to the outline of the shape it passed, fading out over `RS_SWAP_SEC` (0.2 s). Clipping makes
+  the first frame identical to the old order and stops a see-through shape (mat, wall) being laid down twice. A shape's
+  id is its class plus its turn among that class, so a glow that comes and goes renumbers only the glows; a class whose
+  count changed is left out that frame. A time jump over 0.12 s (scrub, still) starts clean; the loop seam is continuous.
+  Pixel scan at 60 fps, 100 types x 4 views plus loaded and female sets: 440 runs, 10 flagged, all inspected: fast real
+  motion (burpee) or a thin bar moving one pixel; none is a pop. The six real ones from feat 633 scan clean.
