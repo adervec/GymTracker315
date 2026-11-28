@@ -3717,7 +3717,9 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
 
   .set-row:last-child { border-bottom: none; }
   .set-num { font-size: 12px; color: #666; text-align: center; font-weight: 700; }
-  .set-input { padding: 9px 10px; font-size: 16.5px; text-align: center; } /* feat 249 — bump the weight/reps figures (was 15px) for legibility while logging */
+  .set-input { padding: 9px 10px; font-size: 16.5px; text-align: center; }
+  .set-row.set-active .set-input { font-size: 22px; font-weight: 700; padding: 12px 10px; }
+  .set-row:not(.set-active) { padding: 3px 0; } .set-row:not(.set-active) .set-input { padding: 5px 8px; font-size: 15px; } /* feat 249 — bump the weight/reps figures (was 15px) for legibility while logging */
   /* feat 149 — brief border flash when a set/reps value changes (box-shadow ring; .set-input border-color is
      !important elsewhere, which would beat an animated border-color, so we animate the ring instead). */
   .set-input.field-flash { animation: field-flash 0.5s ease-out; }
@@ -4486,6 +4488,9 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
     min-width: 44px; transition: background 0.15s, color 0.15s;
   }
   .modal-footer .mf-btn:hover { background: #242424; color: #ccc; }
+  .modal-footer { flex-wrap: wrap; } .modal-footer:not(.more) #trk-copy-last, .modal-footer:not(.more) #trk-modal-clear { display: none; }
+  .modal-footer.more #trk-copy-last, .modal-footer.more #trk-modal-clear { order: 9; flex: 1 1 40%; flex-direction: row; gap: 8px; justify-content: center; }
+  .modal-footer #trk-add-set { min-width: 64px; } .modal-footer .mf-more .mf-icon { font-size: 20px; }
   .modal-footer .mf-btn .mf-icon { font-size: 15px; line-height: 1; }
   .modal-footer .mf-btn .mf-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; }
 
@@ -4596,6 +4601,11 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .ex-actions:not(.open) .ex-act.voice-on::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .85; margin-left: 3px; flex-shrink: 0; }
   .ex-act-toggle { font-family: inherit; font-size: 13px; line-height: 1; color: var(--text3, #777); background: none; border: 1px solid var(--border2, #242424); border-radius: 8px; padding: 7px 9px; cursor: pointer; flex: 0 0 auto; margin-left: auto; -webkit-tap-highlight-color: transparent; }
   .ex-act-toggle:active { background: var(--bg3, #131313); }
+  .ex-actions:not(.open) { gap: 6px; }
+  .ex-actions:not(.open) .ex-act { display: none; }
+  .ex-actions:not(.open) #trk-ex-motion-btn, .ex-actions:not(.open) #trk-podcast-btn, .ex-actions:not(.open) #trk-rep-count-btn { display: inline-flex; font-size: 12.5px; gap: 4px; padding: 7px 10px; }
+  .ex-actions:not(.open) #trk-ex-motion-btn::before, .ex-actions:not(.open) #trk-podcast-btn::before, .ex-actions:not(.open) #trk-rep-count-btn::before { content: none; }
+  .ex-actions:not(.open) #trk-change-exercise { display: inline-flex; padding: 7px 9px; }
   .ex-note { font-size: 11px; color: #cdbff0; margin-top: 6px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
   .ex-note-text { color: #cdbff0; }
   .ex-note-add { font-family: inherit; font-size: 12px; font-weight: 600; color: #b48aff; cursor: pointer; margin-top: 8px; display: inline-block; padding: 7px 12px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; text-decoration: none; -webkit-tap-highlight-color: transparent; }
@@ -4656,6 +4666,9 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .sub-chip.active { border-color: var(--accent); background: var(--accent-bg); color: var(--text); box-shadow: 0 0 0 1px var(--accent) inset; }
   .sub-select-wrap { background: var(--surface, var(--bg2)); border: 1px solid var(--border2); border-radius: 7px; padding: 6px 10px; margin: 0 0 8px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } /* feat 472 — trimmed */
   .sub-select-label { font-size: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; white-space: nowrap; }
+  .sub-summary { font: inherit; font-size: 13px; color: var(--text); background: none; border: 0; padding: 4px 0; min-height: 30px; display: flex; align-items: center; gap: 8px; cursor: pointer; width: 100%; text-align: start; }
+  .sub-summary b { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .sub-summary .sub-chev { color: var(--text3); font-size: 11px; }
+  .sub-select-wrap:not(.open) .sub-chips { display: none; }
   .sub-select { flex: 1; min-width: 0; padding: 8px 28px 8px 10px; background: #0e0e16; border: 1px solid #2e2640; border-radius: 5px; color: #e8e0ff; font-size: 13px; font-family: inherit; cursor: pointer; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2388b0ff' stroke-width='2'%3e%3cpath d='m6 9 6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; background-size: 14px; }
 
   /* Toast */
@@ -4985,9 +4998,9 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .targets-chev { margin-left: auto; flex-shrink: 0; color: var(--text3); font-size: 11px; }
 .targets-sec.collapsed .targets-body { display: none; }
 /* feat 477 — six targets in at most TWO rows: a 3-up grid, so the row height is predictable. */
-.target-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 8px 0 4px; }
+.target-row { display: flex; gap: 6px; margin: 6px 0 2px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; } .target-row::-webkit-scrollbar { display: none; }
 /* minmax(0,1fr) — a plain 1fr refuses to shrink below its content and the third tile slides off the card */
-.target-btn { position: relative; font-size: 10.5px; padding: 6px 4px; display: flex; align-items: baseline; justify-content: center; gap: 3px; min-width: 0; width: 100%; overflow: hidden; white-space: nowrap; }
+.target-btn { position: relative; font-size: 11.5px; padding: 7px 10px; display: flex; align-items: baseline; justify-content: center; gap: 4px; min-width: 0; width: auto; flex: 0 0 auto; overflow: hidden; white-space: nowrap; }
 .target-btn > * { flex-shrink: 0; }
 .target-btn .tb-lbl { overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; min-width: 0; }
 .target-btn .tb-ico { font-size: 11px; }
@@ -5357,6 +5370,7 @@ select.wl-in { padding: 7px 6px; }
   <div class="modal-footer" id="trk-modal-footer">
     <button class="mf-save" id="trk-save-btn" disabled>💾 Save Sets</button>
     <button class="mf-btn" id="trk-add-set" title="Add a set" data-t-attr="title"><span class="mf-icon">➕</span><span class="mf-label" data-t>Add</span></button>
+    <button class="mf-btn mf-more" id="trk-footer-more" title="More: copy, clear" data-t-attr="title" aria-expanded="false"><span class="mf-icon">⋯</span></button>
     <button class="mf-btn" id="trk-copy-last" title="Tap: copy weight to next set · Hold: copy previous reps into the open set" data-t-attr="title"><span class="mf-icon">📋</span><span class="mf-label" data-t>Copy</span></button>
     <button class="mf-btn" id="trk-modal-clear" title="Clear all sets" data-t-attr="title"><span class="mf-icon">🗑</span><span class="mf-label" data-t>Clear</span></button>
     <button class="mf-btn" id="trk-footer-close" title="Close" data-t-attr="title"><span class="mf-icon">✕</span><span class="mf-label" data-t>Close</span></button>
@@ -36837,7 +36851,7 @@ function renderSetsForm() {
         <button class="ex-media-btn ex-act ${_mediaCombinedCount(pending.varUuid, info.family && info.family.id) ? 'has-media' : 'no-media'}${getExerciseMedia(pending.varUuid).length ? ' var-media' : ''}" id="trk-ex-media-btn" type="button" data-emoji="🎬" ${getExerciseMedia(pending.varUuid).length ? 'title="Includes media for this exact variation" ' : ''}data-media-uuid="${escapeAttr(pending.varUuid || '')}" data-media-mov="${escapeAttr((info.family && info.family.id) || '')}">${escapeHtml(exMediaBtnLabel(pending.varUuid, info.family && info.family.id))}</button>
         <button class="ex-media-btn ex-act" id="trk-ex-motion-btn" type="button" data-emoji="🏃" title="${escapeAttr(t('Animated motion figure'))}">${t('🏃 Motion')}</button>
         <button class="ex-media-btn ex-act" id="trk-podcast-btn" type="button" data-emoji="🎧" title="${escapeAttr(t('Play a 30-60s coach brief on this movement'))}">${t('🎧 Brief')}</button>
-        ${speechRecSupported() && !modalState.isEditing ? `<button class="ex-media-btn ex-act${repCountEnabled() ? ' voice-on' : ''}" id="trk-rep-count-btn" type="button" data-emoji="🔢" title="${escapeAttr(t('Count your reps out loud; the coach talks you toward a record'))}" aria-pressed="${repCountEnabled()}">🔢</button>` : ''}
+        ${speechRecSupported() && !modalState.isEditing ? `<button class="ex-media-btn ex-act${repCountEnabled() ? ' voice-on' : ''}" id="trk-rep-count-btn" type="button" data-emoji="🔢" title="${escapeAttr(t('Count your reps out loud; the coach talks you toward a record'))}" aria-pressed="${repCountEnabled()}">🔢 ${t('Count')}</button>` : ''}
         ${speechRecSupported() ? `<button class="ex-media-btn ex-act${exVoiceEnabled() ? ' voice-on' : ''}" id="trk-ex-voice" type="button" data-emoji="🎤" title="${escapeAttr(t('Voice control for THIS page — say weight 120 · reps 8 · add set · save · close'))}">🎤${exVoiceEnabled() ? ' On' : ''}</button>` : ''}
         ${!modalState.isEditing && !ssReady() ? `<button type="button" class="selected-ex-change ex-act" id="trk-change-exercise" data-emoji="🔄">${t('🔄 Change exercise')}</button>` : ''}
         <button type="button" class="ex-act-toggle" id="trk-ex-actions-toggle" title="${exActionsOpen() ? 'Collapse to icons' : 'Show labels'}" aria-expanded="${exActionsOpen()}">${exActionsOpen() ? '▴' : '⋯'}</button>
@@ -36849,8 +36863,8 @@ function renderSetsForm() {
 
     ${ssReady() ? ssMemberRowHtml() : ''}
     ${!modalState.isEditing ? limbRowHtml(pending.varUuid) : ''}
-    ${sub ? `<div class="sub-select-wrap">
-      <span class="sub-select-label">${escapeHtml(sub.label)}</span>
+    ${sub ? `<div class="sub-select-wrap${subPickerOpen() ? ' open' : ''}">
+      <button type="button" class="sub-summary" id="trk-sub-toggle" aria-expanded="${subPickerOpen()}"><span class="sub-select-label">${escapeHtml(sub.label)}</span><b>${escapeHtml((subOptions(info.variation).find(o => o.uuid === pending.subUuid) || {}).label || '—')}</b><span class="sub-chev">${subPickerOpen() ? '▴' : '▾'}</span></button>
       <div class="sub-chips" id="trk-sub-select" role="radiogroup" aria-label="${escapeAttr(sub.label)}">
         ${(() => { const tr = subTrainedMap(pending.varUuid); return subOptions(info.variation).map(o => { const t = tr[o.uuid], on = pending.subUuid === o.uuid;
           return `<button type="button" class="sub-chip${on ? ' active' : ''}${t ? ' trained' : ''}" role="radio" aria-checked="${on}" data-sub-pick="${o.uuid}" title="${escapeAttr(o.note || '')}">
@@ -38138,6 +38152,19 @@ function renderNeighborHints() {
 // so both the native-input path and the on-screen numpad can refresh the row.
 // The hint under the open bottom set: weight only → the best reps (a hold: the longest time) at that weight;
 // reps only → the best weight at those reps. feat 517 — was two drifting copies that said "reps" on holds.
+/* feat 631 — THE EXERCISE PAGE, REDESIGNED. Measured on a phone: 46 controls, the first set input half-way down the
+   screen, five blocks answering the same two questions. Now: the options (grip, stance) are one line until opened; the
+   tools are three labelled buttons and a ⋯; the set you are about to do is large and the finished ones are slim; the
+   targets are one swipeable line (they still fold away once all are hit); the bottom bar is Save, Add, ⋯ and ✕, with Copy and Clear behind the ⋯. Every
+   control keeps its id and its handler: only where it sits and when it shows has changed. */
+function subPickerOpen() { return !!modalState.subOpen; }
+document.addEventListener('click', (e) => {
+  const el = e.target && e.target.closest ? e.target : null; if (!el) return;
+  if (el.closest('#trk-sub-toggle')) { modalState.subOpen = !modalState.subOpen; renderModal(); return; }
+  if (el.closest('[data-sub-pick]')) { modalState.subOpen = false; return; }                      // choosing closes it (the chip's own handler then re-renders)
+  const more = el.closest('#trk-footer-more'); if (more) { const f = document.getElementById('trk-modal-footer'), on = !f.classList.contains('more'); f.classList.toggle('more', on); more.setAttribute('aria-expanded', on); return; }
+  if (el.closest('#trk-copy-last, #trk-modal-clear')) { const f = document.getElementById('trk-modal-footer'); if (f) { f.classList.remove('more'); const m = document.getElementById('trk-footer-more'); if (m) m.setAttribute('aria-expanded', 'false'); } }
+}, true);
 function recordHintText(wNum, rNum) {
   const tm = exMode(pending.varUuid).mode === 'time';
   const rTxt = n => tm ? formatSecondsClock(n) : n + ' reps';
@@ -39618,7 +39645,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 526 · 2026-11-27 20:26';
+const APP_BUILD = 'build 527 · 2026-11-27 22:18';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
@@ -40873,6 +40900,7 @@ function cancelHoldCue() {
   if (!_holdCue) return;
   try { clearTimeout(_holdCue.t1); } catch (_) {}
   try { clearTimeout(_holdCue.t2); } catch (_) {}
+  try { clearTimeout(_holdCue.t3); } catch (_) {}
   try { clearInterval(_holdCue.iv); } catch (_) {}
   _holdCue = null;
   try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) {}
@@ -40896,12 +40924,19 @@ function startHoldCue(i) {
     try { savePending(); } catch (_) {}
     try { if (typeof refreshRestBar === 'function') refreshRestBar(); } catch (_) {}
     try { if (typeof modalState !== 'undefined' && modalState.open && typeof renderModal === 'function') renderModal(); } catch (_) {} // surface the live hold timer (feat 257)
+    /* feat 632 — the moment the hold passes your longest at this weight, the voice says so in place of that second's
+       number. Armed before the count so that on the same tick the record line is the one that speaks. */
+    try { const w0 = parseFloat(s.w) || 0, rec = { reps: 0 };   // the longest hold at exactly this load (0 = bodyweight), earlier sets of this session included
+      getHistoryByKey(pending.varUuid, pending.subUuid).forEach(h => h.sets.forEach(q => { if ((parseFloat(q.w) || 0) === w0 && +q.r > rec.reps) rec.reps = +q.r; }));
+      pending.sets.forEach((q, j) => { if (j !== i && q.ts != null && (parseFloat(q.w) || 0) === w0 && +q.r > rec.reps) rec.reps = +q.r; });
+      if (rec.reps > 0) _holdCue.t3 = setTimeout(() => { if (!alive()) return; const c = pending.sets[i]; if (!c || c.wTs == null || c.ts != null) return; _holdCue.prAt = Date.now(); say('New record!'); }, (rec.reps + 1) * 1000 - 20); } catch (_) {}
     let n = 0;
     _holdCue.iv = setInterval(() => {                    // count up: 1, 2, 3… every `every` seconds
       if (!alive()) return;
       const cur = pending.sets[i];
       if (!cur || cur.wTs == null || cur.ts != null || cur.w === '' || cur.w == null) { cancelHoldCue(); return; } // set ended / cleared
       n += cfg.every;
+      if (_holdCue.prAt && Date.now() - _holdCue.prAt < 600) return;   // the record line took this beat
       say(String(n));
     }, cfg.every * 1000);
   }, 1800);

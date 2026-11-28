@@ -106,3 +106,23 @@ test('feat 291 — the Metronome settings expose the hold-cue toggle + interval'
   expect(r.onActive).toBe(true);
   expect(r.every).toBe('5');
 });
+
+test('feat 632 — the count says "New record!" the second a hold passes your longest at that weight', async ({ page }) => {
+  const v = await timedVar(page);
+  const said = await page.evaluate(async (v) => {
+    const out = []; window.coachSay = (k, t) => { out.push(t); };
+    state.sessions = [{ id: 'old', date: new Date(Date.now() - 3 * 864e5).toISOString(), endedAt: new Date(Date.now() - 3 * 864e5 + 6e5).toISOString(), exercises: [{ varUuid: v, subUuid: null, sets: [{ w: 0, r: 2 }] }] },
+      { id: 'now', date: new Date().toISOString(), exercises: [] }];
+    state.holdCue = { enabled: true, every: 1 }; cancelHoldCue();
+    pending = { varUuid: v, subUuid: null, sets: [{ w: 0, r: '' }] }; if (typeof modalState !== 'undefined') modalState.isEditing = false;
+    startHoldCue(0);
+    await new Promise(r => setTimeout(r, 1800 + 4400));
+    cancelHoldCue(); return out;
+  }, v);
+  const i = said.indexOf('New record!');
+  expect(said.slice(0, 2)).toEqual(['Ready', 'Set']);
+  expect(i, said.join(' | ')).toBeGreaterThan(0);
+  expect(said.slice(i - 2, i)).toEqual(['1', '2']);          // the longest so far was 2 s
+  expect(said).not.toContain('3');                           // the record line took that beat
+  expect(said[i + 1]).toBe('4');
+});

@@ -61,3 +61,6 @@ test('a hold with nothing pending toasts and is a no-op', async ({ page }) => {
   expect(r.sets).toEqual([{ w: '', r: '' }]);
   expect(await page.locator('.choice-backdrop').count()).toBe(0);
 });
+
+// feat 631 — Copy and Clear live behind the footer's ⋯; these tests are about the buttons, so open it first
+test.beforeEach(async ({ page }) => { await page.evaluate(() => document.getElementById('trk-modal-footer').classList.add('more')); });

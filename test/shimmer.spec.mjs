@@ -63,3 +63,6 @@ test('the shimmer animation targets the other holdables via CSS', async ({ page 
   expect(r.anim).toBe('lp-shimmer');
   expect(r.animOff).toBe('none');
 });
+
+// feat 631 — Copy and Clear live behind the footer's ⋯; these tests are about the buttons, so open it first
+test.beforeEach(async ({ page }) => { await page.evaluate(() => document.getElementById('trk-modal-footer').classList.add('more')); });

@@ -30,7 +30,8 @@ const barState = page => page.evaluate(() => {
     ids: acts.map(b => b.id),
     everyHasEmoji: acts.every(b => !!(b.dataset.emoji || '').trim()),
     // one row when collapsed: every button shares a top edge
-    rows: new Set(acts.map(b => Math.round(b.getBoundingClientRect().top))).size,
+    rows: new Set(acts.filter(b => b.offsetParent).map(b => { const q = b.getBoundingClientRect(); return Math.round((q.top + q.bottom) / 16); })).size,   // of the ones on screen, by their middle (a named button is taller than an icon)
+    shown: acts.filter(b => b.offsetParent).map(b => b.id),
     labelFont: acts.map(b => getComputedStyle(b).fontSize),
     barHeight: Math.round(bar.getBoundingClientRect().height),
     toggle: document.getElementById('trk-ex-actions-toggle').textContent.trim(),
@@ -45,7 +46,10 @@ test('feat 469 — the bar starts collapsed: one row, icons only, every action s
   expect(r.ids).toEqual(['trk-ex-note-edit', 'trk-ex-maxw', 'trk-ex-media-btn', 'trk-ex-motion-btn', 'trk-podcast-btn', 'trk-rep-count-btn', 'trk-ex-voice', 'trk-change-exercise']);
   expect(r.everyHasEmoji, 'the icon comes from data-emoji, so dynamic labels need no surgery').toBe(true);
   expect(r.rows, 'a bar, not a block').toBe(1);
-  expect(r.labelFont.every(f => f === '0px'), 'the label text is zeroed, not deleted — bindings stay').toBe(true);
+  // feat 631 — collapsed is three named tools and Change; the rest wait behind ⋯ (still in the page, bindings intact)
+  expect(r.shown).toEqual(['trk-ex-motion-btn', 'trk-podcast-btn', 'trk-rep-count-btn', 'trk-change-exercise']);
+  expect(r.labelFont.slice(3, 6).every(f => f !== '0px'), 'Motion, Brief and Count carry their names').toBe(true);
+  expect(r.labelFont[7], 'Change is an icon').toBe('0px');
   expect(r.toggle).toBe('⋯');
 });
 
@@ -147,7 +151,7 @@ test('feat 469 — editing a past session drops 🔄 and the bar still holds tog
     const bar = document.getElementById('trk-ex-actions');
     const acts = [...bar.querySelectorAll('.ex-act')];
     return { count: acts.length, hasChange: !!document.getElementById('trk-change-exercise'),
-      rows: new Set(acts.map(b => Math.round(b.getBoundingClientRect().top))).size };
+      rows: new Set(acts.filter(b => b.offsetParent).map(b => Math.round(b.getBoundingClientRect().top))).size };
   });
   expect(r.hasChange, 'you cannot change the exercise of a logged set').toBe(false);
   expect(r.count).toBe(6); // feat 474 — 🏃 Motion joined the bar

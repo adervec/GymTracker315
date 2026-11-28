@@ -5789,3 +5789,13 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   and numbers, with the number to act on largest, and keeps the full sentence as the `title` tooltip: `recordHintText`
   (🏅 weight ×reps · when → target 🏆; 🆕 for a first time) and the next-set card (🧠 Next, ⚖ = at your weight, 🔋 =
   reps in reserve, ⏱ wait → full-rest ask, 🏅 records it would beat). Apply the same pattern to other verbose rows.
+- **The exercise page, first pass (feat 631):** audit on a 390 px phone found 46 controls, the first set input half-way
+  down, and five blocks answering "what next / how am I doing". Changed where things sit, not what they are (every id
+  and handler is kept): options (`sub-select-wrap`) are one summary line (`modalState.subOpen`); the action bar's
+  collapsed state shows Motion, Brief, Count by name plus Change, the rest behind ⋯; `.set-active` inputs are large
+  and other rows slim; `.target-row` is one flex line that scrolls sideways; the footer shows Save, Add, ⋯, Close and
+  `.modal-footer.more` reveals Copy and Clear. 957 px -> 763 px. Tried and dropped: making "collapsed" targets the
+  one-line default (it fights the fold-when-all-hit rule and three tests that encode it). Second pass still to do:
+  finished sets as a chip strip, one coach row merging grade / progress / best e1RM, Close as the back arrow.
+- **Hold record call (feat 632):** `startHoldCue` arms a one-shot at (longest hold at exactly this load + 1) seconds
+  after "Go" that says "New record!" in place of that second's number.

@@ -122,13 +122,15 @@ test('feat 477 — every target tile fits, in at most two rows', async ({ page }
     return {
       n: btns.length,
       rows: new Set(btns.map(b => Math.round(b.getBoundingClientRect().top))).size,
-      overflows: btns.filter(b => b.getBoundingClientRect().right > row.getBoundingClientRect().right + 1).length,
+      firstFits: btns[0].getBoundingClientRect().right <= row.getBoundingClientRect().right + 1, rowScrolls: getComputedStyle(row).overflowX, pageWide: document.documentElement.scrollWidth > innerWidth + 1,
       labelsClipped: [...document.querySelectorAll('.target-btn .tb-lbl')].filter(e => e.scrollWidth > e.clientWidth + 1).length,
     };
   });
   expect(r.n, 'the row carries several suggestions').toBeGreaterThan(3);
-  expect(r.rows, 'two rows maximum').toBeLessThanOrEqual(2);
-  expect(r.overflows, 'no tile slides off the card').toBe(0);
+  expect(r.rows, 'feat 631 — one line, swiped sideways').toBe(1);
+  expect(r.firstFits).toBe(true);
+  expect(r.rowScrolls).toBe('auto');
+  expect(r.pageWide, 'the row scrolls, the page does not').toBe(false);
   expect(r.labelsClipped, 'and none of the labels are cut').toBe(0);
 });
 
