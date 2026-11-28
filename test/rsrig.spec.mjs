@@ -206,10 +206,10 @@ test('feat 626 — every named variant draws differently from the plain movement
   });
   expect(r.errs).toEqual([]);
   // the only ones left alike are movements that are already in that position (a seated row is seated, a kneeling crunch kneels, a preacher machine has its pad)
-  const inherent = ['floor-stretch', 'kneel-crunch', 'lsit', 'lunge-stretch', 'machine-abduction', 'machine-curl', 'seated-row', 'skull', 'smash'];
+  const inherent = ['floor-stretch', 'kneel-crunch', 'lsit', 'lunge-stretch', 'machine-abduction', 'machine-curl', 'seated-row', 'smash'];
   expect(r.same.filter(m => !inherent.includes(m))).toEqual([]);
   expect(r.fam).toBeGreaterThan(70);
-  expect(r.noBall.length, 'stability-ball exercises drawn without a ball: ' + r.noBall.join(', ')).toBeLessThanOrEqual(3);
+  expect(r.noBall, 'stability-ball exercises drawn without a ball').toEqual([]);
 });
 
 test('feat 626 — no joint or foot jumps in one frame, in any of the movement types', async ({ page }) => {
@@ -222,7 +222,7 @@ test('feat 626 — no joint or foot jumps in one frame, in any of the movement t
     names.forEach(m => { const spec = RS_MOTIONS[m]('none', {}); spec.rig = true; if (!spec.equip) spec.equip = 'none'; const full = rsTotal(spec), T = Math.min(full, 20), N = Math.round(T * 60), d = [], who = []; let prev = null;
       for (let i = 0; i <= N; i++) { const q = pts(rsFrameAt(spec, i / 60)); if (prev) { const e = dist(q, prev); d.push(e[0]); who.push(e[1]); } else { d.push(0); who.push(''); } prev = q; }
       for (let i = 4; i < d.length - 4; i++) { const q = [d[i - 4], d[i - 3], d[i - 2], d[i + 2], d[i + 3], d[i + 4]].sort((x, y) => x - y), nb = (q[2] + q[3]) / 2; if (d[i] > 3.5 && d[i] > nb * 2.5 + 1.5 && d[i] >= d[i - 1] && d[i] >= d[i + 1]) out.push(m + ' ' + (i / 60).toFixed(2) + 's ' + who[i] + ' ' + d[i].toFixed(1) + 'cm'); }
-      if (T === full && m !== 'jump') { const e = dist(pts(rsFrameAt(spec, T - 1 / 60)), pts(rsFrameAt(spec, 0))); if (e[0] > 6) out.push(m + ' loop ' + e[1] + ' ' + e[0].toFixed(1) + 'cm'); } });   // a box jump starts again from the floor: the one deliberate cut
+      if (T === full) { const e = dist(pts(rsFrameAt(spec, T - 1 / 60)), pts(rsFrameAt(spec, 0))); if (e[0] > 6) out.push(m + ' loop ' + e[1] + ' ' + e[0].toFixed(1) + 'cm'); } });   // feat 633 — the box jump steps back down, so every loop closes
     return { n: names.length, out }; });
   expect(r.n).toBe(100);
   expect(r.out).toEqual([]);

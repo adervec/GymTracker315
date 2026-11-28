@@ -18766,7 +18766,7 @@ RS_MOTIONS['lunge'] = (eq, o) => {
 // ---- hinge (everything that is not one of the 27 hand-solved deadlifts) ----
 RS_MOTIONS['hinge'] = (eq, o) => {
   eq = _mEq(eq, ['barbell', 'dumbbell', 'kettlebell', 'cable', 'band'], 'dumbbell');
-  return _mSpec({ keys: [[0, { pelvis: [-23, 87], trunk: 28, legs: _mFeet(13), arms: { f: 0, a: 5, e: 3 }, look: 20 }], [1, { pelvis: [-2, RS_HIP - 0.5], trunk: 87, legs: _mFeet(13), arms: { f: 0, a: 5, e: 3 } }]],
+  return _mSpec({ keys: [[0, { pelvis: [-23, 87], trunk: 28, legs: _mFeet(13), arms: { f: 0, a: 11, e: 3 }, look: 20 }], [1, { pelvis: [-2, RS_HIP - 0.5], trunk: 87, legs: _mFeet(13), arms: { f: 0, a: 11, e: 3 } }]],
     equip: eq, load: _mLoad(eq, [25, 10], 24), dbAxis: 'z', zs: 13, kbOne: eq === 'kettlebell', lineFrom: eq === 'band' ? [0, 2, 0] : [-96, 14, 0], props: eq === 'cable' ? rsProp.tower(-100, 60) : null },
     { t: [2.6, 0.5, 1.4, 0.5], m: { hams: 1, glutes: 0.9, erectors: 0.8, lats: 0.4, forearms: 0.5 }, lab: ['Hinge down', 'Stretch', 'Drive up', 'Top'],
       cue: ['Push the hips straight back with soft knees; the weight stays close to the legs.', 'Stop when the hamstrings stop you, back still flat.', 'Hips forward to stand: pull with the hamstrings, finish with the glutes.', 'Tall and tight. Reset the breath.'] });
@@ -18839,7 +18839,14 @@ RS_MOTIONS['overhead-ext'] = (eq, o) => {
 };
 
 RS_MOTIONS['skull'] = (eq, o) => {
-  eq = _mEq(eq, ['barbell', 'dumbbell', 'kettlebell', 'cable'], 'barbell'); const body = _mSupine(45), R = Math.PI / 180, sh = [20 + RS.trunk * Math.cos(177 * R), 51 + RS.trunk * Math.sin(177 * R)];
+  eq = _mEq(eq, ['barbell', 'dumbbell', 'kettlebell', 'cable'], 'barbell');
+  if (o.support) { const st = _mStand({ zs: 12, trunk: 80 }), e2 = eq === 'cable' ? 'barbell' : eq;   // feat 633
+    const pad = (J) => { const a = J.arms[0], el = a.el || a.grip, u = _rv.norm([el[0] - a.sh[0], el[1] - a.sh[1], 0]), n = [u[1], -u[0]], at = (t) => [a.sh[0] + (el[0] - a.sh[0]) * t + n[0] * 10.5, a.sh[1] + (el[1] - a.sh[1]) * t + n[1] * 10.5], p = at(0.12), q = at(1.12);
+      return [-13, 0, 13].map(z => ['cap', [p[0], p[1], z], [q[0], q[1], z], 5.2, 5.2, 'pad']).concat([['cap', [(p[0] + q[0]) / 2 + 4, 0, 0], [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2 - 5, 0], 3, 3, 'machine'], ['box', (p[0] + q[0]) / 2 - 10, (p[0] + q[0]) / 2 + 18, 0, 3, -18, 18, 'machine']]); };
+    return _mSpec({ keys: [[0, Object.assign({}, st, { arms: { f: 48, a: 5, e: 132, hint: [1, 0.3, 0] } })], [1, Object.assign({}, st, { arms: { f: 48, a: 5, e: 12, hint: [1, 0.3, 0] } })]], equip: e2, load: _mLoad(e2, [10], 12), smallPlates: true, dbAxis: 'z', supported: true, props: pad },
+      { start: 'bottom', t: [2.4, 0.3, 1.2, 0.5], m: { triceps: 1, forearms: 0.3 }, lab: ['Lower', 'Stretch', 'Extend', 'Lockout'],
+        cue: ['Let the weight come back toward the forehead slowly; the upper arms stay on the pad.', 'Elbows bent deep, upper arms pinned to the pad.', 'Straighten the elbows only: nothing else moves.', 'Arms long, triceps squeezed. Do not let the elbows lift off the pad.'] }); }
+  const body = _mSupine(45), R = Math.PI / 180, sh = [20 + RS.trunk * Math.cos(177 * R), 51 + RS.trunk * Math.sin(177 * R)];
   return _mSpec({ keys: [[0, Object.assign({}, body, { bar: [sh[0] - 17, sh[1] + 9], arms: { grip: 13, pole: [0.2, 1, 0.3] } })], [1, Object.assign({}, body, { bar: [sh[0] - 6, sh[1] + 66.5], arms: { grip: 13, pole: [0.6, 0.6, 0.4] } })]],
     equip: eq === 'cable' ? 'barbell' : eq, load: _mLoad(eq === 'cable' ? 'barbell' : eq, [10], 12), smallPlates: true, dbAxis: 'x', props: rsProp.bench(sh[0] - 30, 38, 45) },
     { start: 'bottom', t: [2.4, 0.3, 1.2, 0.5], m: { triceps: 1, forearms: 0.3 }, lab: ['Lower', 'Stretch', 'Extend', 'Lockout'],
@@ -19177,7 +19184,7 @@ RS_MOTIONS['machine-crunch'] = (eq, o) => {
 
 RS_MOTIONS['side-bend'] = (eq, o) => {
   eq = _mEq(eq, ['dumbbell', 'kettlebell', 'cable', 'band', 'plate'], 'dumbbell'); const body = _mStand({ zs: 14 });
-  return _mSpec({ keys: [[0, Object.assign({}, body, { lean: 20, arms: [{ f: 0, a: 4, e: 3 }, { f: 0, a: 30, e: 130, hint: [0, 1, 0.3] }] })], [1, Object.assign({}, body, { lean: -16, arms: [{ f: 0, a: 4, e: 3 }, { f: 0, a: 30, e: 130, hint: [0, 1, 0.3] }] })]], equip: eq === 'plate' ? 'dumbbell' : eq, load: 22, uni: true, dbAxis: 'x', view0: 'front', lineFrom: [0, 8, 70] },
+  return _mSpec({ keys: [[0, Object.assign({}, body, { lean: 20, arms: [{ f: 0, a: 14, e: 3 }, { f: 0, a: 30, e: 130, hint: [0, 1, 0.3] }] })], [1, Object.assign({}, body, { lean: -16, arms: [{ f: 0, a: 26, e: 3 }, { f: 0, a: 30, e: 130, hint: [0, 1, 0.3] }] })]], equip: eq === 'plate' ? 'dumbbell' : eq, load: 22, uni: true, dbAxis: 'x', view0: 'front', lineFrom: [0, 8, 70] },
     { start: 'bottom', t: [2.2, 0.4, 1.4, 0.6], m: { obliques: 1, abs: 0.4, erectors: 0.4, forearms: 0.4 }, lab: ['Lower', 'Stretch', 'Bend away', 'Top'],
       cue: ['Slide the weight down the thigh; bend straight to the side, not forward.', 'Feel the opposite side stretch. Hips stay over the feet.', 'Pull back up with the side opposite the weight.', 'A little past upright, then stop.'] });
 };
@@ -19330,7 +19337,7 @@ const _mAbs = (pel, t, off) => { const s = _mShd(pel, t); return [s[0] + off[0],
 const _mPull = { quads: 0.9, glutes: 0.8, hams: 0.7, erectors: 0.9, traps: 0.6, lats: 0.6, forearms: 0.7 };
 
 RS_MOTIONS['oly'] = (eq, o) => {
-  eq = _mEq(eq, ['barbell', 'dumbbell', 'kettlebell'], 'barbell'); const g = eq === 'barbell' ? 27 : 20, feet = _mFeet(14), rackA = { grip: g, pole: [1, -0.4, 0.2] }, pullA = { grip: g, pole: [0, 0.6, 1] };
+  eq = _mEq(eq, ['barbell', 'dumbbell', 'kettlebell'], 'barbell'); const g = eq === 'barbell' ? 27 : 20, feet = _mFeet(14), rackA = { grip: g, pole: eq === 'barbell' ? [1, -0.4, 0.2] : [1, -0.3, 0.7] }, pullA = { grip: g, pole: eq === 'barbell' ? [0, 0.6, 1] : [0.3, 0.3, 1] };   // with dumbbells or a kettlebell the two poles were opposite and the elbow flipped between them: a quarter-turn apart it sweeps under
   const K = [[0, [-28, 60], 35, [7.5, eq === 'barbell' ? 22.5 : 24], pullA, 0], [0.32, [-29, 80], 36, [8, 44], pullA, 0], [0.56, [-1, 97], 94, [11, 104], pullA, 7], [0.78, [-12, 78], 82, null, rackA, 0], [1, [-2, RS_HIP - 0.6], 88, null, rackA, 0]];
   return Object.assign({ zs: 14, keys: K.map(k => [k[0], { pelvis: k[1], trunk: k[2], legs: feet, bar: k[3] || _mAbs(k[1], k[2], [9, 1]), arms: k[4], shrug: k[5] }]), equip: eq, load: _mLoad(eq, [25, 15], 20), dbAxis: 'z', cam: { k: 0.86 } },
     _mSeq([['Set', 1.0, 0, 0, { erectors: 0.6, lats: 0.6, abs: 0.6, forearms: 0.5 }, 'Shoulders over the bar, back flat, arms long and loose like ropes.'],
@@ -19361,13 +19368,17 @@ RS_MOTIONS['jump'] = (eq, o) => {
   const B = o.kneel ? 0 : 50, K = o.kneel
     ? [[0, [-28, 39], 60, [-RS.shank, 4.6], 180, { f: -42, a: 8, e: 14 }], [0.3, [-10, 66], 86, [-30, 16], 120, { f: 150, a: 8, e: 10 }], [0.62, [-2, 76], 80, [2, 26], -16, { f: 120, a: 8, e: 30 }], [1, [-14, 62], 56, [0, RS.ankleY], 0, { f: 70, a: 8, e: 30 }]]   // from the knees to the feet
     : [[0, o.seat ? [-34, 47] : [-14, 62], o.seat ? 78 : 52, [0, RS.ankleY], 0, { f: -42, a: 8, e: 14 }], [0.3, [2, 99], 86, [0, 12], -34, { f: 150, a: 8, e: 10 }], [0.62, [34, 132], 80, [36, 78], -20, { f: 120, a: 8, e: 30 }], [1, [52, B + 68], 62, [66, B + RS.ankleY], 0, { f: 70, a: 8, e: 30 }]];
+  /* feat 633 — the rep now ends where it began: the jump takes the first four fifths, then a step back down (or back
+     onto the knees). It used to cut from the top of the box to the floor when the loop restarted. */
+  K.forEach(k => { k[0] *= 0.8; }); if (!o.kneel) K.push([0.9, [22, B + 66], 80, [36, B + RS.ankleY + 4], 0, { f: 20, a: 8, e: 20 }]); K.push([1].concat(K[0].slice(1)));
   return Object.assign({ zs: 13, keys: K.map((k, i) => [k[0], { pelvis: k[1], trunk: k[2], legs: { to: [k[3][0], k[3][1], 13], pole: o.kneel && i === 0 ? [1, -0.7, 0] : [1, 0.1, 0.3], fdir: k[4] }, arms: k[5] }]), equip: 'none', track: 'hip', cam: o.kneel ? { k: 0.86 } : { k: 0.72, dx: -30 }, seated: !!o.seat,
     props: o.kneel ? rsProp.mat(-70, 40) : rsProp.box(44, 100, B, 30).concat(o.seat ? rsProp.box(-56, -22, 41, 24) : []) },
-    _mSeq([['Load', 0.5, 0.05, 0, { quads: 0.6, glutes: 0.6, hams: 0.5 }, 'Dip fast: hips back, arms swing behind you.'],
+    _mSeq([['Load', 0.5, 0, 0, { quads: 0.6, glutes: 0.6, hams: 0.5 }, 'Dip fast: hips back, arms swing behind you.'],
       ['Explode', 0.25, 0, 0.3, { quads: 1, glutes: 1, calves: 1, hams: 0.6 }, 'Throw the arms up and push the floor away until the ankles are fully extended.'],
       ['Flight', 0.35, 0.3, 0.62, { abs: 0.6, quads: 0.5 }, 'Pull the knees up; eyes on the landing spot.'],
       ['Land', 0.35, 0.62, 1, { quads: 0.9, glutes: 0.8, calves: 0.5 }, 'Land softly on the whole foot in a quarter squat, knees over the toes.'],
-      ['Stand', 0.8, 1, 1, { quads: 0.5, glutes: 0.5 }, 'Stand tall on the box, then step down: never jump down backward.']], [1, 3]));
+      ['Stand', 0.8, 1, 1, { quads: 0.5, glutes: 0.5 }, 'Stand tall on the box, then step down: never jump down backward.'],
+      ['Reset', 1.1, 1, 1.25, { quads: 0.3, calves: 0.2 }, o.kneel ? 'Kneel back down and set up for the next one.' : 'Step down one foot at a time and set up again.']].map(r => { r[2] *= 0.8; r[3] *= 0.8; return r; }), [1, 3]));
 };
 
 RS_MOTIONS['burpee'] = (eq, o) => {
@@ -19630,8 +19641,9 @@ function rsApplyMods(spec, o) {
       spec.keys.forEach(k => { const l = k[1].legs; k[1] = Object.assign({}, k[1], { legs: [l[0], Object.assign({}, l[1], { to: [l[1].to[0], 2 * r + 3, l[1].to[2]], fdir: 172 })] }); });
       spec.props = (J) => base(J).concat(rsProp.swiss([t0[0] - 6, r, -t0[2]], r)); }
     else if (Math.max.apply(null, spec.keys.map(k => k[1].pelvis[1])) > 70 && k0.trunk > 45 && k0.trunk < 135 && (spec.equip === 'none' || !spec.equip || (o.ball === 'sb' && (spec.equip === 'dumbbell' || spec.equip === 'kettlebell')))) { spec.equip = 'ball'; spec.ballR = 17; spec.oneDb = false; spec.kbOne = false; spec.uni = false; }                                         // standing with nothing else in the hands: the ball is held
+    else if (k0.roll || k0.tilt) { spec.props = (J) => { const x = J.xf || (q => q), h = x([J.hip[0], J.hip[1], 0]), sh = x([J.shd[0], J.shd[1], 0]), r = Math.max(8, Math.min(28, ((h[1] + sh[1]) / 2 - 10) / 2)); return base(J).concat(rsProp.swiss([(h[0] + sh[0]) / 2, r, (h[2] + sh[2]) / 2], r)); }; }   // rolled or tipped: under the trunk, wherever that is
     else if (!k0.roll && !k0.tilt) { const J0 = rsRigFrame(spec, 0), r0 = ((J0.hip[1] + J0.shd[1]) / 2 - 10) / 2;                                      // anything else: the trunk rests on it
-      if (r0 > 30) { if (spec.equip === 'none' || !spec.equip) { spec.equip = 'ball'; spec.ballR = 17; } }
+      if (r0 > 30) { if (spec.equip === 'none' || !spec.equip || o.ball === 'sb') { if (spec.equip === 'cable' || spec.equip === 'band') spec.props = null; spec.equip = 'ball'; spec.ballR = 17; spec.oneDb = false; spec.kbOne = false; spec.uni = false; } }
       else if (r0 >= 9) spec.props = (J) => { const r = Math.max(9, Math.min(30, ((J.hip[1] + J.shd[1]) / 2 - 10) / 2)); return base(J).concat(rsProp.swiss([(J.hip[0] + J.shd[0]) / 2, r, 0], r)); };
       else { spec.rise = 30; spec.props = (J) => base(J).concat(rsProp.swiss([J.hip[0] + (k0.trunk > 90 ? -10 : 10), 17, 0], 17)); } }   // lying flat: lifted onto it
   }
@@ -19692,10 +19704,10 @@ function rsScene(spec, J, view, phase, fig) {
     .map(x => `<stop offset="${x[0]}" stop-color="${x[1]}"/>`).join(''));
   /* feat 626 — a limb used to be lit on one edge or the other, so its shading swapped sides in a single frame as it swung
      past the light's direction. Now the sheen slides across: c is how squarely the limb's +n edge faces the light
-     (−1…1, taken a sixteenth at a time), and the same profile is laid out either side of wherever the sheen falls. */
-  const cstops = (m, c) => { const q = Math.max(-16, Math.min(16, Math.round(c * 16))); m._cs = m._cs || {}; if (m._cs[q]) return m._cs[q];
+     (−1…1, taken a sixty-fourth at a time: at sixteenths a big thigh visibly stepped), and the same profile is laid out either side of wherever the sheen falls. */
+  const cstops = (m, c) => { const q = Math.max(-64, Math.min(64, Math.round(c * 64))); m._cs = m._cs || {}; if (m._cs[q]) return m._cs[q];
     const kn = m._kn || (m._kn = [[0, rsMix(m[0], '#ffffff', m === RS_MAT.shorts ? 0.1 : isSkin(m) ? 0.62 : 0.55)], [0.09, m[0]], [0.34, m[1]], [0.5, isSkin(m) ? rsMix(m[1], '#8a4a00', 0.34) : rsMix(m[1], m[2], 0.5)], [0.68, m[2]], [0.78, isSkin(m) ? rsMix(m[2], '#ffcf6a', 0.36) : rsMix(m[2], '#7d9cc4', 0.3)]]);
-    const oh = 0.5 - 0.28 * q / 16, colAt = d => { for (let i = 1; i < kn.length; i++) if (d <= kn[i][0]) return rsMix(kn[i - 1][1], kn[i][1], Math.round((d - kn[i - 1][0]) / (kn[i][0] - kn[i - 1][0]) * 20) / 20); return kn[kn.length - 1][1]; };
+    const oh = 0.5 - 0.28 * q / 64, colAt = d => { for (let i = 1; i < kn.length; i++) if (d <= kn[i][0]) return rsMix(kn[i - 1][1], kn[i][1], Math.round((d - kn[i - 1][0]) / (kn[i][0] - kn[i - 1][0]) * 20) / 20); return kn[kn.length - 1][1]; };
     const st = [[0, colAt(oh)]]; for (let i = kn.length - 1; i >= 0; i--) if (oh - kn[i][0] > 0.001) st.push([oh - kn[i][0], kn[i][1]]);
     for (let i = 1; i < kn.length; i++) if (oh + kn[i][0] < 0.999) st.push([oh + kn[i][0], kn[i][1]]); st.push([1, colAt(1 - oh)]);
     return (m._cs[q] = st.map(x => `<stop offset="${+x[0].toFixed(3)}" stop-color="${x[1]}"/>`).join('')); };
@@ -19707,18 +19719,18 @@ function rsScene(spec, J, view, phase, fig) {
      over the last centimetre as it comes round to the camera's side instead of jumping in front all at once. While it
      fades, a full copy stays behind the limb so the outline never changes. Shorts are a cover: always over their limb. */
   let G = null, GK = 'detail';
-  const add = (depth, svg, c, bias, ext) => { if (!G || !c || GK === 'free') items.push({ depth, svg }); else G.buf.push({ z: depth - (bias || 0), bias: bias || 0, svg, c, ext: ext || 0, kind: GK }); };   // ext: half the shape's length, for a long one
-  const onAxis = (ax, c) => { let best = ax[0], bd = Infinity; for (let i = 0; i < Math.max(1, ax.length - 1); i++) { const a = ax[i], b = ax[i + 1] || a, d = [b[0] - a[0], b[1] - a[1], (b[2] || 0) - (a[2] || 0)], l2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
-      const t = l2 ? Math.max(0, Math.min(1, ((c[0] - a[0]) * d[0] + (c[1] - a[1]) * d[1] + ((c[2] || 0) - (a[2] || 0)) * d[2]) / l2)) : 0, q = [a[0] + d[0] * t, a[1] + d[1] * t, (a[2] || 0) + d[2] * t], dd = (c[0] - q[0]) ** 2 + (c[1] - q[1]) ** 2 + ((c[2] || 0) - q[2]) ** 2; if (dd < bd) { bd = dd; best = q; } } return [best, Math.sqrt(bd)]; };
+  const add = (depth, svg, c, bias, ext, seg) => { if (!G || !c || GK === 'free') items.push({ depth, svg }); else G.buf.push({ z: depth - (bias || 0), bias: bias || 0, svg, c, ext: ext || 0, kind: GK, hint: seg == null ? -1 : seg }); };   // ext: half the shape's length, for a long one
+  const onAxis = (ax, c) => { let best = ax[0], bd = Infinity, bi = 0; for (let i = 0; i < Math.max(1, ax.length - 1); i++) { const a = ax[i], b = ax[i + 1] || a, d = [b[0] - a[0], b[1] - a[1], (b[2] || 0) - (a[2] || 0)], l2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+      const t = l2 ? Math.max(0, Math.min(1, ((c[0] - a[0]) * d[0] + (c[1] - a[1]) * d[1] + ((c[2] || 0) - (a[2] || 0)) * d[2]) / l2)) : 0, q = [a[0] + d[0] * t, a[1] + d[1] * t, (a[2] || 0) + d[2] * t], dd = (c[0] - q[0]) ** 2 + (c[1] - q[1]) ** 2 + ((c[2] || 0) - q[2]) ** 2; if (dd < bd) { bd = dd; best = q; bi = i; } } return [best, Math.sqrt(bd), bi]; };
   const open = axis => { G = { axis, buf: [] }; GK = 'detail'; };
-  const flush = () => { const g = G; G = null; GK = 'detail'; const bases = g.buf.filter(x => x.kind === 'base'); let coverTop = -Infinity;   // the nearest cover: a 'top' detail clears every one of them
-    const near = x => { let D = 0, bd = Infinity, DM = -Infinity; bases.forEach(q => { const d = (q.c[0] - x.c[0]) ** 2 + (q.c[1] - x.c[1]) ** 2 + ((q.c[2] || 0) - (x.c[2] || 0)) ** 2; if (d < bd) { bd = d; D = q.z + q.bias; } if (d < 400) DM = Math.max(DM, q.z + q.bias); }); return [D, Math.max(DM, D)]; };
+  const flush = () => { const g = G; G = null; GK = 'detail'; g.buf.forEach(x => { x.seg = x.hint >= 0 ? x.hint : onAxis(g.axis, x.c)[2]; });   /* a muscle names its bone (hint): with the knee folded, the back of the thigh is as near the shin as the thigh, and measured against the wrong one it jumped */ const bases = g.buf.filter(x => x.kind === 'base'); let coverTop = -Infinity;   // the nearest cover: a 'top' detail clears every one of them
+    const near = x => { let D = 0, bd = Infinity, DM = -Infinity; const own = bases.filter(q => q.seg === x.seg); (own.length ? own : bases).forEach(q => {   /* feat 633 — its own bone's sections only */ const d = (q.c[0] - x.c[0]) ** 2 + (q.c[1] - x.c[1]) ** 2 + ((q.c[2] || 0) - (x.c[2] || 0)) ** 2; if (d < bd) { bd = d; D = q.z + q.bias; } if (d < 400) DM = Math.max(DM, q.z + q.bias); }); return [D, Math.max(DM, D)]; };
     if (bases.length) g.buf.forEach(x => { if (x.kind === 'cover') coverTop = Math.max(coverTop, near(x)[1] + 0.3 + x.bias * 0.2); });
     const covers = g.buf.filter(x => x.kind === 'cover'), sq = d => 0.25 * (1 - Math.exp(-Math.max(0, d) / 3)), under = x => covers.some(q => (q.c[0] - x.c[0]) ** 2 + (q.c[1] - x.c[1]) ** 2 + ((q.c[2] || 0) - (x.c[2] || 0)) ** 2 < (16 + x.ext) ** 2);   /* shorts sit just over their limb, so a hand hanging beside the thigh is still in front of them; the details within reach of the shorts are packed in under them (same order, a quarter-centimetre deep), the rest keep their true depth */
     g.buf.forEach(x => { if (x.kind === 'base' || !bases.length) { items.push({ depth: x.z + x.bias, svg: x.svg }); return; }
       const nb = near(x), D = nb[0], DM = nb[1];
       if (x.kind === 'cover') { items.push({ depth: DM + 0.3 + x.bias * 0.2, svg: x.svg }); return; }
-      const qa = onAxis(g.axis, x.c), dz = x.z - P(qa[0])[2], w = Math.max(1.6, 0.35 * qa[1]), v = dz / w + 0.5, lift = x.kind === 'top' ? Math.max(DM + 0.3, coverTop) - D + 4 : 0;   /* clear of the waistband and the other leg's shorts as well */
+      const qa = onAxis(x.hint >= 0 ? [g.axis[x.hint], g.axis[x.hint + 1] || g.axis[x.hint]] : g.axis, x.c), dz = x.z - P(qa[0])[2], w = Math.max(1.6, 0.35 * qa[1]), v = dz / w + 0.5, lift = x.kind === 'top' ? Math.max(DM + 0.3, coverTop) - D + 4 : 0;   /* clear of the waistband and the other leg's shorts as well */
       if (v < 1) items.push({ depth: D + Math.min(-0.02, dz + x.bias), svg: x.svg });
       if (v > 0) items.push({ depth: D + lift + (lift || under(x) ? 0.02 + sq(dz + x.bias) : Math.max(0.02, dz + x.bias)), svg: v < 1 ? `<g opacity="${(v * v * (3 - 2 * v)).toFixed(3)}">${x.svg}</g>` : x.svg }); }); };
   // a tapered, shaded limb between two 3D points
@@ -19754,7 +19766,7 @@ function rsScene(spec, J, view, phase, fig) {
     const C = P(c), A = P(a), B = P(b), rad = Math.atan2(B[1] - A[1], B[0] - A[0]), ang = rad * 180 / Math.PI, pl = Math.hypot(B[0] - A[0], B[1] - A[1]);
     const act = lv(name), hot = act > 0.01, q = ((Math.round((Math.atan2(LY, LX) - rad) / (Math.PI / 12)) % 24) + 24) % 24, bz = 0.6 + (wF + Math.abs(fF)) * 0.05;
     const el = (h, op) => `<ellipse class="rs-muscle${h ? ' on' : ''}" data-m="${name}" cx="${f(C[0])}" cy="${f(C[1])}" rx="${f(Math.max(2, pl * len / 2))}" ry="${f(wF * r * C[3])}" transform="rotate(${f(ang)} ${f(C[0])} ${f(C[1])})" fill="url(#${mgrad(h, q)})"${op < 1 ? ` opacity="${op.toFixed(2)}"` : ''}/>`;
-    add(C[2] + bz, (act < 0.25 ? el(false, 1) : '') + (hot ? el(true, act < 0.25 ? act * 2.2 : 0.4 + 0.6 * act) : ''), c, bz, len * Math.hypot(b[0] - a[0], b[1] - a[1], (b[2] || 0) - (a[2] || 0)) / 2);   // the glow comes up from nothing: no switch-on
+    add(C[2] + bz, (act < 0.25 ? el(false, 1) : '') + (hot ? el(true, act < 0.25 ? act * 2.2 : 0.4 + 0.6 * act) : ''), c, bz, len * Math.hypot(b[0] - a[0], b[1] - a[1], (b[2] || 0) - (a[2] || 0)) / 2, G ? G.axis.findIndex((q, i) => q === a && G.axis[i + 1] === b) : -1);   // the glow comes up from nothing: no switch-on
   };
   const poly = (pts, mat, cls, depthBias, fillOverride) => { const Q = pts.map(P), depth = Q.reduce((a, q) => a + q[2], 0) / Q.length;
     const xs = Q.map(q => q[0]), ys = Q.map(q => q[1]), g = fillOverride || `url(#${grad(mat, Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys))})`;
@@ -39645,7 +39657,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 527 · 2026-11-27 22:18';
+const APP_BUILD = 'build 528 · 2026-11-28 01:39';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

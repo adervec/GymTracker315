@@ -5799,3 +5799,12 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   finished sets as a chip strip, one coach row merging grade / progress / best e1RM, Close as the back arrow.
 - **Hold record call (feat 632):** `startHoldCue` arms a one-shot at (longest hold at exactly this load + 1) seconds
   after "Go" that says "New record!" in place of that second's number.
+- **Animation finishing pass (feat 633):** the jump's keys take the first four fifths of s and a Reset phase steps
+  back to the start, so every loop closes (joint check: 0 jumps in 574 distinct animations, no exceptions). In a limb
+  group a muscle names its bone (`hint`) and details look for their base section on their own bone only: with the knee
+  folded the back of the thigh is as near the shin as the thigh. Limb shading steps in sixty-fourths. The ball family
+  also places a ball under a rolled or tipped trunk and swaps a cable for a held ball. Pixel scan, all 100 types plus
+  the barbell set: 432 runs, 113,608 steps, 21 flagged; 6 are real and small (two neighbouring thigh shapes swapping
+  on nordic / quadruped / sled; machine parts on leg press, back extension, rowing erg), the rest are a thin bright
+  edge moving or sit on the threshold. Tried and reverted: one fixed order for a limb's visible details (cleared the
+  thigh swap, caused pops in 14 other runs). The thigh swap needs true per-pixel depth or merged shapes, not a sort key.
