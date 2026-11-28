@@ -5817,3 +5817,8 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   count changed is left out that frame. A time jump over 0.12 s (scrub, still) starts clean; the loop seam is continuous.
   Pixel scan at 60 fps, 100 types x 4 views plus loaded and female sets: 440 runs, 10 flagged, all inspected: fast real
   motion (burpee) or a thin bar moving one pixel; none is a pop. The six real ones from feat 633 scan clean.
+- **A shape keeps its name between frames (feat 635):** the cross-fade of feat 634 needs to know which shape is which
+  from one frame to the next. A shape's number is its turn among its kind, and a kind's count changes often (a limb
+  drawn in three sections, then four; a muscle that turns out of sight), which used to leave that whole kind out of
+  the fade for the frame. Now, when a count changes, the old and new rows are lined up in order by screen position
+  and each shape takes the name of its partner. Found on the rowing machine, female figure, back view.

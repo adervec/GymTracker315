@@ -31,6 +31,17 @@ test('feat 634 — a swap leaves a fading copy of the shape that went behind', a
   expect(r.loop).toContain('opacity="1.000"><path class="rs-b"');
 });
 
+test('feat 635 — a shape keeps its name when another of its kind appears before it, so its swap still fades', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const A = '<ellipse class="rs-a" cx="50" cy="50" rx="10" ry="10"/>', B = '<path class="rs-b" d="M45 45 L70 45 L70 70 Z"/>', NEW = '<ellipse class="rs-a" cx="300" cy="300" rx="5" ry="5"/>';
+    const s = { phases: [{ sec: 4 }] };
+    rsSmoothOrder(s, 0, 'side', 'm', [{ depth: 1, svg: A, id: 'rs-a#1' }, { depth: 2, svg: B, id: 'rs-b#1' }]);
+    // a new rs-a is drawn first, so the old one is now the second of its kind; in the same frame it passes in front of B
+    return rsSmoothOrder(s, 0.05, 'side', 'm', [{ depth: 0, svg: NEW, id: 'rs-a#1' }, { depth: 2, svg: A, id: 'rs-a#2' }, { depth: 1, svg: B, id: 'rs-b#1' }]); });
+  expect(r).toMatch(/<clipPath id="[^"]+"><ellipse class="rs-a" cx="50"[^>]*><\/clipPath><g clip-path="url\(#[^"]+\)" opacity="1\.000"><path class="rs-b"/);
+  expect((r.match(/<g clip-path=/g) || []).length).toBe(1);
+});
+
 test('feat 634 — a real animation still draws every frame, and its swaps fade', async ({ page }) => {
   const r = await page.evaluate(() => { const spec = RS_MOTIONS['nordic']('none', {}); spec.rig = true; spec.equip = 'none'; rsApplyMods(spec, {});
     let ghosts = 0, bad = 0; const T = rsTotal(spec); for (let i = 0; i <= T * 30; i++) { const s = rsStageSvg(spec, i / 30, 'three', { path: false }); if (!/^<svg/.test(s) || /NaN|undefined/.test(s)) bad++; ghosts += (s.match(/<g clip-path=/g) || []).length; }
