@@ -18541,10 +18541,15 @@ function rsIk3(a, b, la, lb, pole) {
   return { j: _rv.add(_rv.add(a, _rv.mul(u, k)), _rv.mul(p, h)), end: L > la + lb ? _rv.add(a, _rv.mul(u, la + lb)) : (L < Math.abs(la - lb) ? _rv.add(a, _rv.mul(u, Math.abs(la - lb))) : b), reach: L <= la + lb + 0.05 };
 }
 // blend two poses value by value
-function rsMixPose(a, b, t) {
+// where the eyes go when a pose does not say: level with the horizon while the trunk is up, easing to straight along the
+// spine as it lies down (it used to switch between the two at one trunk angle)
+function _rsLookOf(q) { if (q.look != null) return q.look; const ang = q.trunk - (q.curl || 0) * 54, u = Math.sin(ang * Math.PI / 180), k = _rsClamp((u - 0.3) / 0.3, 0, 1); return -(90 - ang) * 0.45 * k * k * (3 - 2 * k); }
+function rsMixPose(a, b, t, deep) {   // feat 626 — at the top level a number one pose has and the other lacks (curl, twist, look, roll…) blends from zero; it used to snap on at the first step
   if (typeof a === 'number' && typeof b === 'number') return a + (b - a) * t;
-  if (Array.isArray(a) && Array.isArray(b) && a.length === b.length) return a.map((x, i) => rsMixPose(x, b[i], t));
-  if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) { const o = {}; Object.keys(a).forEach(k => { o[k] = (k in b) ? rsMixPose(a[k], b[k], t) : a[k]; }); Object.keys(b).forEach(k => { if (!(k in o)) o[k] = b[k]; }); return o; }
+  if (Array.isArray(a) && Array.isArray(b) && a.length === b.length) return a.map((x, i) => rsMixPose(x, b[i], t, true));
+  if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) { const o = {}; Object.keys(a).forEach(k => { o[k] = (k in b) ? rsMixPose(a[k], b[k], t, true) : (!deep && typeof a[k] === 'number') ? a[k] * (1 - t) : a[k]; }); Object.keys(b).forEach(k => { if (!(k in o)) o[k] = (!deep && typeof b[k] === 'number') ? b[k] * t : b[k]; });
+    if (!deep && ('look' in a) !== ('look' in b) && a.trunk != null && b.trunk != null) o.look = _rsLookOf(a) + (_rsLookOf(b) - _rsLookOf(a)) * t;   // one pose names its gaze, the other takes the default: blend between the two
+    return o; }
   return t < 0.5 ? a : b;
 }
 function rsPoseAt(spec, s) {
@@ -18561,7 +18566,7 @@ function rsRigFrame(spec, s) {
   const J = { s, hip: [hip[0], hip[1]], shd: [shd[0], shd[1]], spine: (curl || lean || hip[2]) ? spine.map(q => [q[0], q[1], q[2]]) : null, reach: true, rig: true, zc: shd[2] };
   J.torso = Math.atan2(shd[1] - hip[1], shd[0] - hip[0]) / R;
   // the head: along the last spinal segment, tipped by look (default: eyes level when the trunk is up, in line when it is down)
-  const look = (Q.look != null ? Q.look : (up[1] > 0.45 ? -(90 - ang) * 0.45 : 0)) * R, hd = [up[0] * Math.cos(look) + chestF[0] * Math.sin(look), up[1] * Math.cos(look) + chestF[1] * Math.sin(look)];
+  const look = _rsLookOf(Q) * R, hd = [up[0] * Math.cos(look) + chestF[0] * Math.sin(look), up[1] * Math.cos(look) + chestF[1] * Math.sin(look)];
   J.neck = [shd[0] + up[0] * 2, shd[1] + up[1] * 2, shd[2]];
   J.head = [J.neck[0] + hd[0] * (RS.neck + RS.headR * 0.8), J.neck[1] + hd[1] * (RS.neck + RS.headR * 0.8), shd[2]];
   const rotL = (v, on, deg) => { if (!on) return v; const r = ((deg != null ? deg : Q.trunk) - 90) * R, c = Math.cos(r), sn = Math.sin(r); return [v[0] * c - v[1] * sn, v[0] * sn + v[1] * c, v[2]]; };
@@ -18587,12 +18592,13 @@ function rsRigFrame(spec, s) {
     else { const f = (L.f || 0) * R, a = (L.a || 0) * R, d = rotL([Math.sin(f) * Math.cos(a), -Math.cos(f) * Math.cos(a), sd * Math.sin(a)], L.local), k = (L.k || 0) * R, b = _rv.perp(d, rotL(mz(L.hint || [-1, -0.2, 0], sd), L.local));
       knee = _rv.add(hp, _rv.mul(d, RS.thigh)); ankle = _rv.add(knee, _rv.add(_rv.mul(d, Math.cos(k) * RS.shank), _rv.mul(b, Math.sin(k) * RS.shank))); }
     sh2 = _rv.norm([ankle[0] - knee[0], ankle[1] - knee[1], 0]);
-    const flat = L.flat != null ? L.flat : (L.pf == null && L.fdir == null && Math.abs(ankle[1] - (RS.ankleY + plat)) < 2.5);
-    const pf = (L.pf || 0) * R, fd = L.fdir != null ? [Math.cos(L.fdir * R), Math.sin(L.fdir * R)] : flat ? [1, 0] : [(-sh2[1]) * Math.cos(pf) + sh2[0] * Math.sin(pf), sh2[0] * Math.cos(pf) + sh2[1] * Math.sin(pf)];
+    const offF = Math.abs(ankle[1] - (RS.ankleY + plat)), auto = L.flat == null && L.pf == null && L.fdir == null, flat = L.flat != null ? L.flat : (auto && offF < 2.5);
+    const pf = (L.pf || 0) * R, shinF = [(-sh2[1]) * Math.cos(pf) + sh2[0] * Math.sin(pf), sh2[0] * Math.cos(pf) + sh2[1] * Math.sin(pf)], wF = _rsClamp((offF - 1) / 9, 0, 1), eF = wF * wF * (3 - 2 * wF), mixF = [1 + (shinF[0] - 1) * eF, shinF[1] * eF], lF = Math.hypot(mixF[0], mixF[1]);
+    const fd = L.fdir != null ? [Math.cos(L.fdir * R), Math.sin(L.fdir * R)] : (auto && lF > 0.2) ? [mixF[0] / lF, mixF[1] / lF] : flat ? [1, 0] : shinF;
     return { hip: hp, knee, ankle, toeOut: L.toeOut != null ? L.toeOut : 12, fd: (L.back ? [-fd[0], fd[1]] : fd), free: false };
   });
   if (spec.track === 'foot') J.bar = [J.legs[0].ankle[0], J.legs[0].ankle[1]];
-  if (spec.low && !Q.roll && !Q.tilt) { const dyl = spec.low.dy; J.xf = (q) => [q[0], q[1] - dyl, q[2] || 0]; }
+  if ((spec.low || spec.rise) && !Q.roll && !Q.tilt) { const dyl = (spec.low ? spec.low.dy : 0) - (spec.rise || 0); J.xf = (q) => [q[0], q[1] - dyl, q[2] || 0]; }
   if (Q.roll || Q.tilt) { const rr = (Q.roll || 0) * R, cr = Math.cos(rr), sr = Math.sin(rr), c = Q.rollC || 0, tt = (Q.tilt || 0) * R, ct = Math.cos(tt), st = Math.sin(tt), tp = Q.tiltP || [0, 0];
     J.xf = (q) => { const y0 = q[1] - c, z0 = q[2] || 0, y1 = c + y0 * cr - z0 * sr, z1 = y0 * sr + z0 * cr, dx = q[0] - tp[0], dy = y1 - tp[1]; return [tp[0] + dx * ct - dy * st, tp[1] + dx * st + dy * ct, z1]; }; }
   return J;
@@ -18700,8 +18706,9 @@ RS_MOTIONS['pull-up'] = (eq, o) => {
 RS_MOTIONS['lat-pulldown'] = (eq, o) => {
   const zg = 40, py = o.kneel ? 50.2 : 56, body = (t) => ({ pelvis: [0, py], trunk: t, legs: o.kneel ? { f: 0, a: 2, k: 90, hint: [-1, 0, 0], fdir: 180 } : { to: [40, RS.ankleY, 14], pole: [0.3, 1, 0.2] } }), R = Math.PI / 180;
   const sh0 = [51.8 * Math.cos(95 * R), py + 51.8 * Math.sin(95 * R)], sh1 = [51.8 * Math.cos(103 * R), py + 51.8 * Math.sin(103 * R)], reach = Math.sqrt(RS.arm ** 2 - (zg - RS.shHalf) ** 2);
-  return _mSpec({ keys: [[0, Object.assign(body(95), { bar: [sh0[0] + 8, sh0[1] + reach - 0.6], arms: { grip: zg, pole: [0.4, -1, 0.9] }, look: -6 })], [1, Object.assign(body(103), { bar: [sh1[0] + 15, sh1[1] + 3], arms: { grip: zg, pole: [-0.5, -1, 0.8] }, look: -12 })]],
-    equip: 'cable', lineFrom: [8, 222, 0], cam: { k: 0.76 }, load: 60,
+  const aUp = { to: [sh0[0] + 8, sh0[1] + reach - 2, zg - 8], pole: [0.4, -1, 0.9] }, aDn = { to: [sh1[0] + 13, sh1[1] + 2, zg - 14], pole: [-0.5, -1, 0.8] };
+  return _mSpec({ keys: [[0, Object.assign(body(o.alt ? 98 : 95), { bar: [sh0[0] + 8, sh0[1] + reach - 0.6], arms: o.alt ? [aUp, aDn] : { grip: zg, pole: [0.4, -1, 0.9] }, look: -6 })], [1, Object.assign(body(o.alt ? 98 : 103), { bar: [sh1[0] + 15, sh1[1] + 3], arms: o.alt ? [aDn, aUp] : { grip: zg, pole: [-0.5, -1, 0.8] }, look: -12 })]],
+    equip: 'cable', lineSplit: !!o.alt, alt: !!o.alt, noPath: !!o.alt, lineFrom: [8, 222, 0], cam: { k: 0.76 }, load: 60,
     props: (o.kneel ? rsProp.mat(-62, 22) : rsProp.seat(-14, 18, 50).concat([['cap', [24, 68, -18], [24, 68, 18], 4.5, 4.5, 'pad']])).concat([['cap', [-40, 0, 0], [-40, 224, 0], 4, 4, 'machine'], ['cap', [-40, 224, 0], [10, 224, 0], 3, 3, 'machine'], ['ball', [8, 222, 0], 4, 'steel']]) },
     { start: 'bottom', t: [2.2, 0.4, 1.2, 0.6], m: { lats: 1, biceps: 0.7, traps: 0.6, delts: 0.4, forearms: 0.6 }, lab: ['Return', 'Stretch', 'Pull', 'Squeeze'],
       cue: ['Let the bar rise under control until the arms are long again.', 'Tall chest, a slight lean back, shoulders reaching up into a full stretch.', 'Blades down first, then drive the elbows to the back pockets: bar to the top of the chest.', 'Hold with the chest lifted. Do not roll the shoulders forward.'] });
@@ -18722,7 +18729,7 @@ RS_MOTIONS['biceps-curl'] = (eq, o) => {
 RS_MOTIONS['push-up'] = (eq, o) => {
   const R = Math.PI / 180, L = RS.shank + RS.thigh, pose = (deg) => { const u = [Math.cos(deg * R), Math.sin(deg * R)]; return { pelvis: [u[0] * L, 19 + u[1] * L], trunk: deg, legs: { to: [0, 19, 8], pole: [0, 1, 0], fdir: -76 }, look: -10 }; };
   const dh = o.deficit ? 12 : 0, hx = Math.cos(20 * R) * (L + RS.trunk) + 2, arms = { to: [hx, 3 + dh, 27], pole: [-1, 0.5, 0.7] };
-  return _mSpec({ keys: [[0, Object.assign(pose(dh ? 1.2 : 3.2), { arms })], [1, Object.assign(pose(dh ? 23.5 : 20), { arms })]], equip: 'none', track: 'shd', cam: { dx: -92, k: 0.9, fx: 0 },
+  return _mSpec({ keys: [[0, Object.assign(pose(dh ? 1.2 : 3.2), { arms })], [1, Object.assign(pose(dh ? 23.5 : 20), { arms })]], equip: 'none', track: 'shd', cam: { dx: -92, k: 0.9, fx: 0 }, deficit: !!dh,
     props: dh ? [['box', hx - 12, hx + 12, 0, dh - 2, 17, 37, 'wood'], ['box', hx - 12, hx + 12, 0, dh - 2, -37, -17, 'wood']] : null },
     { t: [2.0, 0.3, 1.2, 0.5], m: { pecs: 1, triceps: 0.85, delts: 0.7, abs: 0.6 }, lab: ['Lower', 'Bottom', 'Press', 'Top'],
       cue: ['Lower as one plank: elbows about 45° from the ribs, chest between the hands.', 'Chest just off the floor, glutes and abs tight. No sagging hips.', 'Push the floor away and keep the body rigid from heels to head.', 'Finish by spreading the shoulder blades: push the upper back to the ceiling.'] });
@@ -18731,9 +18738,10 @@ RS_MOTIONS['push-up'] = (eq, o) => {
 // ---- lunge / split squat ----
 RS_MOTIONS['lunge'] = (eq, o) => {
   eq = _mEq(eq, ['barbell', 'dumbbell', 'kettlebell', 'none'], 'none');
-  const legs = [{ to: [32, RS.ankleY, 10], pole: [1, 0.3, 0.2] }, { to: [-44, 17, 10], pole: [1, -1, 0.1], fdir: -62 }];
+  const df = o.deficit ? 8 : 0, legs = [{ to: [32, RS.ankleY, 10], pole: [1, 0.3, 0.2] }, { to: [-44, 17 - df, 10], pole: [1, -1, 0.1], fdir: -62 }];   // feat 626 — deficit: the front foot is on a block, so the back knee drops further
   const arms = eq === 'barbell' ? { grip: 40, pole: [-0.6, -1, 0.3] } : { f: 0, a: 9, e: 5 }, bar = eq === 'barbell' ? { barS: [-5, 3] } : {};
-  return _mSpec({ keys: [[0, Object.assign({ pelvis: [1, 51], trunk: 86, legs, arms }, bar)], [1, Object.assign({ pelvis: [-2, 84], trunk: 88, legs, arms }, bar)]], equip: eq, load: _mLoad(eq, [20, 10], 18), dbAxis: 'x', track: eq === 'barbell' ? null : 'hip' },
+  return _mSpec({ keys: [[0, Object.assign({ pelvis: [1, 51 - df * 0.6], trunk: 86, legs, arms }, bar)], [1, Object.assign({ pelvis: [-2, 84], trunk: 88, legs, arms }, bar)]], equip: eq, load: _mLoad(eq, [20, 10], 18), dbAxis: 'x', track: eq === 'barbell' ? null : 'hip',
+    rise: df, deficit: !!df, props: df ? [['box', 12, 54, 0, df, -6, 26, 'wood']] : null },
     { t: [1.8, 0.3, 1.3, 0.5], m: { quads: 1, glutes: 0.9, adductors: 0.5, hams: 0.4, calves: 0.3, abs: 0.4 }, lab: ['Lower', 'Bottom', 'Drive', 'Stand'],
       cue: ['Drop the back knee straight down. Front shin near vertical, trunk tall.', 'Back knee hovers above the floor; weight through the whole front foot.', 'Push the floor away through the front heel and mid-foot: hips rise straight up.', 'Stand tall with the hips square to the front.'] });
 };
@@ -18861,8 +18869,8 @@ RS_MOTIONS['pec-deck'] = (eq, o) => {
 
 RS_MOTIONS['chest-press'] = (eq, o) => {
   const body = o.seat ? _mSeat(94) : { pelvis: [-6, RS_HIP - 2], trunk: 84, legs: [{ to: [16, RS.ankleY, 10], pole: [1, 0.2, 0.2] }, { to: [-26, 12, 10], pole: [1, -0.6, 0.1], fdir: -40 }] };
-  return _mSpec({ keys: [[0, Object.assign({}, body, { arms: { to: [10, -8, 7], rel: true, pole: [-0.5, -0.3, 1] } })], [1, Object.assign({}, body, { arms: { to: [63, -4, -8], rel: true, pole: [-0.2, -0.4, 1] } })]], equip: eq === 'band' ? 'band' : 'cable', seated: true, load: 25, lineSplit: true, lineFrom: [-58, 132, 42],
-    props: [['cap', [-60, 0, 42], [-60, 150, 42], 4, 4, 'machine'], ['cap', [-60, 0, -42], [-60, 150, -42], 4, 4, 'machine']].concat(o.seat ? rsProp.seat(-14, 18, 50, { h: 60 }) : []) },
+  return _mSpec({ keys: [[0, Object.assign({}, body, { arms: { to: [10, -8, o.ball ? -9 : 7], rel: true, pole: [-0.5, -0.3, 1] } })], [1, Object.assign({}, body, { arms: { to: [63, -4, o.ball ? -9 : -8], rel: true, pole: [-0.2, -0.4, 1] } })]], equip: o.ball ? 'ball' : eq === 'band' ? 'band' : 'cable', seated: true, onBall: !!o.ball, ballR: 11, load: o.ball ? 5 : 25, lineSplit: true, lineFrom: [-58, 132, 42],   // feat 626 — a chest pass: a medicine ball, no cables
+    props: (o.ball ? [] : [['cap', [-60, 0, 42], [-60, 150, 42], 4, 4, 'machine'], ['cap', [-60, 0, -42], [-60, 150, -42], 4, 4, 'machine']]).concat(o.seat ? rsProp.seat(-14, 18, 50, { h: 60 }) : []) },
     { start: 'bottom', t: [2.0, 0.3, 1.2, 0.5], m: { pecs: 1, triceps: 0.7, delts: 0.6, abs: 0.5 }, lab: ['Return', 'Loaded', 'Press', 'Reach'],
       cue: ['Let the hands come back beside the chest, elbows below the shoulders.', 'Staggered stance, ribs down. The cables must not pull you backward.', 'Press straight ahead from the chest; the trunk stays still.', 'Reach long without shrugging; the hands finish close together.'] });
 };
@@ -18892,7 +18900,8 @@ RS_MOTIONS['wrist'] = (eq, o) => {
 RS_MOTIONS['wrist-roller'] = (eq, o) => {
   const body = _mStand();
   return _mSpec({ keys: [[0, Object.assign({}, body, { arms: { f: 86, a: 2, e: 5 } })], [1, Object.assign({}, body, { arms: { f: 88, a: 2, e: 5 } })]], equip: 'none', noPath: true,
-    props: (J) => { const g0 = J.arms[0].grip, g1 = J.arms[1].grip, c = [(g0[0] + g1[0]) / 2, (g0[1] + g1[1]) / 2, 0], y = 36 + 70 * J.s; return [['cap', [c[0], c[1], -22], [c[0], c[1], 22], 2, 2, 'steel', 0.6], ['cap', c, [c[0], y, 0], 0.5, 0.5, 'cable', 0.3], ['disc', [c[0], y - 2, 0], 11, 'y', 'p10', 3]]; } },
+    props: (J) => { const g0 = J.arms[0].grip, g1 = J.arms[1].grip, c = [(g0[0] + g1[0]) / 2, (g0[1] + g1[1]) / 2, 0], y = 36 + 70 * J.s, sx = J.shd[0];
+      return (o.support ? [-14, 0, 14].map(z => ['cap', [sx + 16, c[1] - 9.5, z], [c[0] - 10, c[1] - 9.5, z], 5, 5, 'pad']).concat([['cap', [(sx + c[0]) / 2 + 6, 0, 0], [(sx + c[0]) / 2 + 3, c[1] - 15, 0], 3, 3, 'machine']]) : []).concat([['cap', [c[0], c[1], -22], [c[0], c[1], 22], 2, 2, 'steel', 0.6], ['cap', c, [c[0], y, 0], 0.5, 0.5, 'cable', 0.3], ['disc', [c[0], y - 2, 0], 11, 'y', 'p10', 3]]); }, supported: !!o.support },
     { start: 'bottom', t: [5.0, 0.5, 5.0, 0.5], m: { forearms: 1, delts: 0.6 }, lab: ['Unwind', 'Bottom', 'Roll up', 'Top'],
       cue: ['Unwind just as slowly: the forearms control the weight all the way down.', 'Arms straight out at shoulder height. They stay there.', 'Roll the bar hand over hand with full wrist turns; the weight climbs.', 'Weight at the bar. The shoulders will want to drop: do not let them.'] });
 };
@@ -18941,17 +18950,22 @@ RS_MOTIONS['leg-curl'] = (eq, o) => {
       { start: 'bottom', t: [2.4, 0.2, 1.2, 0.7], m: { hams: 1, calves: 0.4 }, lab: ['Return', 'Start', 'Curl', 'Squeeze'],
         cue: ['Let the legs straighten slowly; feel the hamstrings lengthen.', 'Thigh pad snug, back against the seat.', 'Pull the heels down and back under the seat.', 'Squeeze with the knees fully bent.'] });
   }
-  const body = { pelvis: [0, 57], trunk: 2, look: -10, arms: { to: [16, -14, 10], rel: true, pole: [-1, 0, 1] } }, leg = (k) => ({ f: -90, a: 3, k, hint: [0, 1, 0] });
+  const kn = !!o.kneel, st = { to: [0, RS.ankleY, 9], pole: [1, 0.1, 0.3] };   // feat 626 — the kneeling / standing machine: lean on the chest pad, one leg curls
+  const body = kn ? { pelvis: [-8, RS_HIP - 2], trunk: 62, look: 12, arms: { to: [30, -26, 8], rel: true, pole: [-1, -0.4, 0.6] } } : { pelvis: [0, 57], trunk: 2, look: -10, arms: { to: [16, -14, 10], rel: true, pole: [-1, 0, 1] } }, leg = (k) => kn ? [{ f: -6, a: 3, k: k + 4, hint: [-1, 0, 0] }, st] : ({ f: -90, a: 3, k, hint: [0, 1, 0] });
   return _mSpec({ keys: [[0, Object.assign({}, body, { legs: leg(6) })], [1, Object.assign({}, body, { legs: leg(112) })]], equip: 'machine', load: 40, track: 'foot', cam: { dx: 10 },
-    props: (J) => rsProp.bench(-50, 70, 50).concat([_mPadAt(J), ['cap', [-44, 50, 22], [J.legs[0].ankle[0], J.legs[0].ankle[1], 22], 1.8, 1.8, 'machine']]) },
+    props: (J) => (kn ? [['cap', [J.shd[0] + 4, J.shd[1] - 20, -13], [J.shd[0] + 4, J.shd[1] - 20, 13], 6, 6, 'pad'], ['cap', [J.shd[0] + 8, 0, 0], [J.shd[0] + 6, J.shd[1] - 26, 0], 3, 3, 'machine'], ['cap', [J.legs[0].knee[0] + 9, J.legs[0].knee[1] + 4, -4], [J.legs[0].knee[0] + 9, J.legs[0].knee[1] + 4, 22], 4.5, 4.5, 'pad']] : rsProp.bench(-50, 70, 50)).concat([_mPadAt(J), ['cap', [-44, 50, 22], [J.legs[0].ankle[0], J.legs[0].ankle[1], 22], 1.8, 1.8, 'machine']]) },
     { start: 'bottom', t: [2.4, 0.2, 1.2, 0.7], m: { hams: 1, calves: 0.4, glutes: 0.3 }, lab: ['Lower', 'Start', 'Curl', 'Squeeze'],
       cue: ['Lower slowly to straight legs; the hips stay down.', 'Hips pressed into the bench, knees just off the edge.', 'Pull the heels to the glutes without the hips lifting.', 'Squeeze the hamstrings at the top.'] });
 };
 
 RS_MOTIONS['calf-raise'] = (eq, o) => {
   eq = _mEq(eq, ['barbell', 'dumbbell', 'kettlebell', 'machine'], 'none');
-  const P8 = 8, pose = (ay, fd) => Object.assign({ pelvis: [-1, ay + RS.shank + RS.thigh - 0.6], trunk: 89, legs: { to: [0, ay, 11], pole: [1, 0, 0.3], fdir: fd, toeOut: 6 } }, eq === 'barbell' ? { barS: [-5, 3], arms: { grip: 40, pole: [-0.6, -1, 0.3] } } : { arms: { f: 0, a: 8, e: 5 } });
-  return _mSpec({ keys: [[0, pose(P8 + 4, 12)], [1, pose(P8 + 18.6, -35)]], equip: eq === 'machine' ? 'none' : eq, load: _mLoad(eq, [25, 20], 24), dbAxis: 'x', track: 'hip', cam: { k: 0.92 }, props: [['box', 6, 42, 0, P8, -30, 30, 'wood']] },
+  const P8 = 8, sit = !!o.seat, pose = (ay, fd) => sit
+    ? { pelvis: [-41, 57], trunk: 88, legs: { to: [0, ay, 11], pole: [0.3, 1, 0.2], fdir: fd, toeOut: 6 }, arms: { to: [-6, ay + RS.shank + 5, 11], pole: [-1, -0.2, 0.6] } }   // feat 626 — seated: the knees are bent, so the soleus does the work
+    : Object.assign({ pelvis: [-1, ay + RS.shank + RS.thigh - 0.6], trunk: 89, legs: { to: [0, ay, 11], pole: [1, 0, 0.3], fdir: fd, toeOut: 6 } }, eq === 'barbell' ? { barS: [-5, 3], arms: { grip: 40, pole: [-0.6, -1, 0.3] } } : { arms: { f: 0, a: 8, e: 5 } });
+  const kneePad = (J) => { const k = J.legs[0].knee; return eq === 'machine' ? [['cap', [k[0] - 4, k[1] + 9, -20], [k[0] - 4, k[1] + 9, 20], 4.5, 4.5, 'pad'], ['cap', [k[0] - 4, k[1] + 9, 0], [k[0] + 30, k[1] + 16, 0], 2.4, 2.4, 'machine']] : []; };
+  return _mSpec({ keys: [[0, pose(o.deficit ? P8 + 1 : P8 + 4, o.deficit ? 24 : 12)], [1, pose(P8 + (sit ? 15 : 18.6), sit ? -30 : -35)]], equip: eq === 'machine' ? 'none' : (sit && eq === 'barbell') ? 'dumbbell' : eq, load: _mLoad(eq, [25, 20], 24), dbAxis: 'x', track: sit ? 'foot' : 'hip', cam: { k: 0.92 }, seated: sit, deficit: !!o.deficit,
+    props: sit ? (J) => [['box', 6, 42, 0, P8, -30, 30, 'wood']].concat(rsProp.seat(-58, -26, 51), kneePad(J)) : [['box', 6, 42, 0, o.deficit ? P8 + 5 : P8, -30, 30, 'wood']] },
     { start: 'bottom', t: [2.2, 0.8, 1.0, 1.0], m: { calves: 1 }, lab: ['Lower', 'Stretch', 'Rise', 'Squeeze'],
       cue: ['Lower the heels slowly below the edge.', 'Full stretch; pause so there is no bounce out of the bottom.', 'Rise straight up onto the big-toe side of the foot. Knees stay straight.', 'As high as the ankles go. Hold a full second.'] });
 };
@@ -19050,8 +19064,9 @@ RS_MOTIONS['quadruped'] = (eq, o) => {
 };
 
 RS_MOTIONS['balance'] = (eq, o) => {
-  const st = { to: [0, RS.ankleY, 9], pole: [1, 0.1, 0.3] };
-  return _mSpec({ keys: [[0, { pelvis: [-1, RS_HIP - 0.6], trunk: 88, legs: [{ f: 4, a: 3, k: 8 }, st], arms: { f: 4, a: 14, e: 8 } }], [1, { pelvis: [-1, RS_HIP - 0.4], trunk: 89, legs: [{ f: 84, a: 3, k: 92 }, st], arms: { f: 6, a: 62, e: 10 } }]], equip: 'none', noPath: true },
+  const st = { to: [0, RS.ankleY, 9], pole: [1, 0.1, 0.3] }, ss = { to: [40, RS.ankleY, 12], pole: [0.3, 1, 0.2] };
+  return _mSpec({ keys: o.seat ? [[0, { pelvis: [0, 56], trunk: 90, legs: [ss, ss], arms: { f: 4, a: 14, e: 8 } }], [1, { pelvis: [0, 56], trunk: 91, legs: [{ to: [50, 34, 12], pole: [0.3, 1, 0.2], fdir: -20 }, ss], arms: { f: 6, a: 58, e: 10 } }]]   // feat 626 — sat down (on a ball): one foot leaves the floor
+    : [[0, { pelvis: [-1, RS_HIP - 0.6], trunk: 88, legs: [{ f: 4, a: 3, k: 8 }, st], arms: { f: 4, a: 14, e: 8 } }], [1, { pelvis: [-1, RS_HIP - 0.4], trunk: 89, legs: [{ f: 84, a: 3, k: 92 }, st], arms: { f: 6, a: 62, e: 10 } }]], equip: 'none', noPath: true, seated: !!o.seat, props: o.seat && !o.ball ? rsProp.seat(-14, 18, 50) : null },
     { start: 'bottom', t: [1.5, 0.5, 1.5, 6.0], m: { glutes: 0.7, calves: 0.7, abs: 0.6, quads: 0.5, shins: 0.6 }, lab: ['Lower', 'Two feet', 'Lift', 'Balance'],
       cue: ['Set the foot down softly.', 'Weight on one foot: big toe, little toe and heel all pressing down.', 'Lift the other knee to hip height without leaning.', 'Hold. Hips level, eyes on one point, standing knee soft.'] });
 };
@@ -19105,16 +19120,17 @@ RS_MOTIONS['side-plank'] = (eq, o) => {
 
 RS_MOTIONS['mountain-climber'] = (eq, o) => {
   const pl = _mPlankLine(20), hx = Math.cos(20 * Math.PI / 180) * (RS.shank + RS.thigh + RS.trunk) + 2, arms = { to: [hx, 3, 22], pole: [-1, 0.3, 0.6] };
-  const up = { to: [66, 20, 8], pole: [1, -0.4, 0], fdir: -70 }, back = { to: [0, 19, 8], pole: [0, 1, 0], fdir: -76 };
+  const up = { to: [66, 20, 8], pole: [1, -0.4, 0], fdir: -70 }, back = { to: [0, 19, 8], pole: [1, -0.4, 0], fdir: -76 };   // the same pole as the driving knee: two poles blended through each other flipped the knee mid-switch
   return _mSpec({ keys: [[0, Object.assign({}, pl, { arms, legs: [up, back], look: -8 })], [1, Object.assign({}, pl, { arms, legs: [back, up], look: -8 })]], equip: 'none', track: 'foot', cam: { dx: -92, k: 0.9 } },
     { start: 'bottom', t: [0.45, 0.05, 0.45, 0.05], m: { abs: 1, quads: 0.7, delts: 0.6, obliques: 0.5, glutes: 0.4 }, lab: ['Switch', 'Left', 'Switch', 'Right'],
       cue: ['Switch legs: drive the other knee to the chest.', 'Shoulders over the wrists, hips level with the shoulders.', 'Drive the knee forward fast; the hips do not bounce.', 'Light feet, tight middle.'] });
 };
 
 RS_MOTIONS['rollout'] = (eq, o) => {
-  const legs = { to: [-40, 8, 9], pole: [0.3, -1, 0], fdir: 180 };
-  return _mSpec({ keys: [[0, { pelvis: [30, 36], trunk: 8, legs, arms: { to: [136, 12, 13], pole: [0, 1, 0.3] }, look: -4 }], [1, { pelvis: [6, 49], trunk: 20, curl: 0.25, legs, arms: { to: [60, 12, 13], pole: [0, 1, 0.3] }, look: 6 }]], equip: 'none', cam: { dx: -40 },
-    props: (J) => { const g = J.bar3; return rsProp.mat(-60, 170).concat([['disc', [g[0], 10, 0], 10, 'z', 'p5', 4], ['cap', [g[0], 11, -17], [g[0], 11, 17], 1.3, 1.3, 'steel', 0.4]]); } },
+  const legs = { to: [-40, 8, 9], pole: [0.3, -1, 0], fdir: 180 }, sb = !!o.ball;
+  return _mSpec({ keys: sb ? [[0, { pelvis: [26, 44], trunk: 14, legs, arms: { to: [112, 47, 11], pole: [0, -1, 0.4] }, look: -4 }], [1, { pelvis: [8, 51], trunk: 24, curl: 0.2, legs, arms: { to: [74, 47, 11], pole: [0, -1, 0.4] }, look: 6 }]]   // feat 626 — on a stability ball: the hands ride on top of it
+    : [[0, { pelvis: [30, 36], trunk: 8, legs, arms: { to: [136, 12, 13], pole: [0, 1, 0.3] }, look: -4 }], [1, { pelvis: [6, 49], trunk: 20, curl: 0.25, legs, arms: { to: [60, 12, 13], pole: [0, 1, 0.3] }, look: 6 }]], equip: 'none', cam: { dx: -40 }, onBall: sb,
+    props: (J) => { const g = J.bar3; return rsProp.mat(-60, 170).concat(sb ? rsProp.swiss([g[0] - 6, 23.5, 0], 23.5) : [['disc', [g[0], 10, 0], 10, 'z', 'p5', 4], ['cap', [g[0], 11, -17], [g[0], 11, 17], 1.3, 1.3, 'steel', 0.4]]); } },
     { t: [3.0, 0.4, 1.8, 0.5], m: { abs: 1, lats: 0.7, obliques: 0.5, delts: 0.4, triceps: 0.4 }, lab: ['Roll out', 'Long', 'Pull back', 'Top'],
       cue: ['Roll out slowly; hips and shoulders travel forward together. Ribs tucked.', 'As far as you can go without the lower back sagging.', 'Pull the wheel back with the lats and abs, not by bending at the hips first.', 'Finish with the back slightly rounded and tight.'] });
 };
@@ -19152,7 +19168,7 @@ RS_MOTIONS['side-bend'] = (eq, o) => {
 RS_MOTIONS['rotation'] = (eq, o) => {
   eq = _mEq(eq, ['cable', 'band', 'dumbbell', 'kettlebell', 'plate'], 'cable'); const body = _mStand({ zs: 20 }), held = eq === 'dumbbell' || eq === 'kettlebell' || eq === 'plate';
   const hi = o.plane === 'up', a = hi ? [22, 62, 46] : [22, 158, 46], b = hi ? [26, 166, -46] : [26, 66, -46];
-  return _mSpec({ keys: [[0, Object.assign({}, body, { twist: 44, arms: [{ to: a, pole: [0, -1, 0.5] }, { to: [a[0], a[1], -a[2]], pole: [0, -1, 0.5] }] })], [1, Object.assign({}, body, { twist: -44, pelvis: [-1, hi ? RS_HIP - 0.4 : RS_HIP - 6], arms: [{ to: b, pole: [0, -1, 0.5] }, { to: [b[0], b[1], -b[2]], pole: [0, -1, 0.5] }] })]],
+  return _mSpec({ keys: [[0, Object.assign({}, body, { twist: 44, arms: [{ to: a, pole: [0, -1, 0.5] }, o.alt ? { f: -8, a: 12, e: 96 } : { to: [a[0], a[1], -a[2]], pole: [0, -1, 0.5] }] })], [1, Object.assign({}, body, { twist: -44, pelvis: [-1, hi ? RS_HIP - 0.4 : RS_HIP - 6], arms: [{ to: b, pole: [0, -1, 0.5] }, o.alt ? { f: -8, a: 12, e: 96 } : { to: [b[0], b[1], -b[2]], pole: [0, -1, 0.5] }] })]], alt: !!o.alt,
     equip: held ? (eq === 'plate' ? 'plate' : eq) : eq, load: 18, oneDb: true, kbOne: true, dbAxis: 'y', plateR: 14, uni: !held, view0: 'front', zs: 20, cam: { k: 0.82 }, lineFrom: [0, hi ? 10 : 200, 118],
     props: held ? null : [['cap', [0, 0, 122], [0, 206, 122], 4, 4, 'machine']] },
     { start: 'bottom', t: [2.0, 0.3, 1.1, 0.6], m: { obliques: 1, abs: 0.7, delts: 0.5, glutes: 0.4, lats: 0.3 }, lab: ['Return', 'Loaded', 'Rotate', 'Finish'],
@@ -19309,9 +19325,9 @@ RS_MOTIONS['oly'] = (eq, o) => {
 };
 
 RS_MOTIONS['thruster'] = (eq, o) => {
-  eq = _mEq(eq, ['barbell', 'dumbbell', 'kettlebell', 'ball'], 'barbell'); const g = eq === 'barbell' ? 27 : eq === 'ball' ? 9 : 22, feet = Object.assign(_mFeet(20), { toeOut: 22 }), reach = Math.sqrt(RS.arm ** 2 - (g - RS.shHalf) ** 2);
+  eq = o.ball ? 'ball' : _mEq(eq, ['barbell', 'dumbbell', 'kettlebell', 'ball'], 'barbell'); const g = eq === 'barbell' ? 27 : eq === 'ball' ? 9 : 22, feet = Object.assign(_mFeet(20), { toeOut: 22 }), reach = Math.sqrt(RS.arm ** 2 - (g - RS.shHalf) ** 2);
   const K = [[0, [-17, 47], 70, [9, 1], [1, -0.5, 0.2]], [0.55, [-2, RS_HIP - 0.6], 88, [9, 1], [1, -0.5, 0.2]], [1, [-1, RS_HIP - 0.4], 90, [0, reach - 0.6], [0.5, -1, 0.9]]];
-  return Object.assign({ zs: 20, keys: K.map(k => [k[0], { pelvis: k[1], trunk: k[2], legs: feet, bar: _mAbs(k[1], k[2], k[3]), arms: { grip: g, pole: k[4] } }]), equip: eq, load: _mLoad(eq, [15, 10], 16), dbAxis: 'z', ballR: 12, cam: { k: 0.72 } },
+  return Object.assign({ zs: 20, keys: K.map(k => [k[0], { pelvis: k[1], trunk: k[2], legs: feet, bar: _mAbs(k[1], k[2], k[3]), arms: { grip: g, pole: k[4] } }]), equip: eq, load: _mLoad(eq, [15, 10], 16), dbAxis: 'z', ballR: 12, cam: { k: 0.72 }, onBall: !!o.ball },
     _mSeq([['Descend', 1.2, 0.55, 0, { quads: 0.7, glutes: 0.6, abs: 0.6 }, 'Sit straight down with the elbows high and the chest tall.'],
       ['Drive', 0.7, 0, 0.55, { quads: 1, glutes: 0.9, abs: 0.7, erectors: 0.6 }, 'Explode up out of the squat; the legs launch the weight.'],
       ['Press', 0.6, 0.55, 1, { delts: 1, triceps: 0.9, traps: 0.6, abs: 0.6 }, 'As the hips finish, punch the weight straight overhead in one motion.'],
@@ -19320,8 +19336,16 @@ RS_MOTIONS['thruster'] = (eq, o) => {
 };
 
 RS_MOTIONS['jump'] = (eq, o) => {
-  const B = 50, K = [[0, [-14, 62], 52, [0, RS.ankleY], 0, { f: -42, a: 8, e: 14 }], [0.3, [2, 99], 86, [0, 12], -34, { f: 150, a: 8, e: 10 }], [0.62, [34, 132], 80, [36, 78], -20, { f: 120, a: 8, e: 30 }], [1, [52, B + 68], 62, [66, B + RS.ankleY], 0, { f: 70, a: 8, e: 30 }]];
-  return Object.assign({ zs: 13, keys: K.map(k => [k[0], { pelvis: k[1], trunk: k[2], legs: { to: [k[3][0], k[3][1], 13], pole: [1, 0.1, 0.3], fdir: k[4] }, arms: k[5] }]), equip: 'none', track: 'hip', cam: { k: 0.72, dx: -30 }, props: rsProp.box(44, 100, B, 30) },
+  if (o.alt) {   // feat 626 — alternating: a skip from one foot to the other
+    const up = { to: [-4, 30, 9], pole: [1, 0.2, 0.2], fdir: -40 }, dn = (h) => ({ to: [0, RS.ankleY + h, 9], pole: [1, 0.1, 0.3], fdir: h ? -30 : 0 }), arms = { f: 4, a: 10, e: 86, hint: [1, 0, 0] };
+    return Object.assign({ zs: 9, keys: [[0, { pelvis: [0, RS_HIP - 3], trunk: 88, legs: [dn(0), up], arms }], [0.5, { pelvis: [0, RS_HIP + 5], trunk: 88, legs: [dn(8), dn(8)], arms }], [1, { pelvis: [0, RS_HIP - 3], trunk: 88, legs: [up, dn(0)], arms }]], equip: 'none', track: 'hip', alt: true },
+      _mSeq([['Hop', 0.3, 0, 1, { calves: 1, quads: 0.5, glutes: 0.4, abs: 0.4 }, 'Stay on the balls of the feet: a small quick hop from one foot to the other.'], ['Hop', 0.3, 1, 0, { calves: 1, quads: 0.5, glutes: 0.4, abs: 0.4 }, 'Soft knees, elbows close to the ribs, the wrists do the turning.']], [0, 1]));
+  }
+  const B = o.kneel ? 0 : 50, K = o.kneel
+    ? [[0, [-28, 39], 60, [-RS.shank, 4.6], 180, { f: -42, a: 8, e: 14 }], [0.3, [-10, 66], 86, [-30, 16], 120, { f: 150, a: 8, e: 10 }], [0.62, [-2, 76], 80, [2, 26], -16, { f: 120, a: 8, e: 30 }], [1, [-14, 62], 56, [0, RS.ankleY], 0, { f: 70, a: 8, e: 30 }]]   // from the knees to the feet
+    : [[0, o.seat ? [-34, 47] : [-14, 62], o.seat ? 78 : 52, [0, RS.ankleY], 0, { f: -42, a: 8, e: 14 }], [0.3, [2, 99], 86, [0, 12], -34, { f: 150, a: 8, e: 10 }], [0.62, [34, 132], 80, [36, 78], -20, { f: 120, a: 8, e: 30 }], [1, [52, B + 68], 62, [66, B + RS.ankleY], 0, { f: 70, a: 8, e: 30 }]];
+  return Object.assign({ zs: 13, keys: K.map((k, i) => [k[0], { pelvis: k[1], trunk: k[2], legs: { to: [k[3][0], k[3][1], 13], pole: o.kneel && i === 0 ? [1, -0.7, 0] : [1, 0.1, 0.3], fdir: k[4] }, arms: k[5] }]), equip: 'none', track: 'hip', cam: o.kneel ? { k: 0.86 } : { k: 0.72, dx: -30 }, seated: !!o.seat,
+    props: o.kneel ? rsProp.mat(-70, 40) : rsProp.box(44, 100, B, 30).concat(o.seat ? rsProp.box(-56, -22, 41, 24) : []) },
     _mSeq([['Load', 0.5, 0.05, 0, { quads: 0.6, glutes: 0.6, hams: 0.5 }, 'Dip fast: hips back, arms swing behind you.'],
       ['Explode', 0.25, 0, 0.3, { quads: 1, glutes: 1, calves: 1, hams: 0.6 }, 'Throw the arms up and push the floor away until the ankles are fully extended.'],
       ['Flight', 0.35, 0.3, 0.62, { abs: 0.6, quads: 0.5 }, 'Pull the knees up; eyes on the landing spot.'],
@@ -19343,7 +19367,7 @@ RS_MOTIONS['burpee'] = (eq, o) => {
 
 RS_MOTIONS['slam'] = (eq, o) => {
   const feet = _mFeet(16), reach = RS.arm - 3;
-  return Object.assign({ zs: 16, keys: [[0, { pelvis: [-16, 70], trunk: 52, legs: feet, arms: { to: [16, 22, 8], pole: [0, -1, 0.6] }, look: 20 }], [1, { pelvis: [-1, RS_HIP + 1], trunk: 92, legs: Object.assign({}, feet, { to: [0, RS.ankleY + 3, 16], fdir: -18 }), arms: { to: [-4, RS_HIP + 1 + RS.trunk + reach, 8], pole: [0.5, -0.3, 1] }, look: -8 }]], equip: 'ball', ballR: 12, load: 9, cam: { k: 0.72 } },
+  return Object.assign({ zs: 16, keys: [[0, { pelvis: [-16, 70], trunk: 52, legs: feet, arms: { to: [16, 22, 8], pole: [0, -1, 0.6] }, look: 20 }], [0.5, { pelvis: [-9, 86], trunk: 74, legs: feet, arms: { to: [44, 120, 8], pole: [0.2, -0.8, 0.7] }, look: 6 }], [1, { pelvis: [-1, RS_HIP + 1], trunk: 92, legs: Object.assign({}, feet, { to: [0, RS.ankleY + 3, 16], fdir: -18 }), arms: { to: [-4, RS_HIP + 1 + RS.trunk + reach, 8], pole: [0.5, -0.3, 1] }, look: -8 }]], equip: 'ball', ballR: 12, load: 9, cam: { k: 0.72 } },
     _mSeq([['Lift', 0.9, 0, 1, { delts: 0.8, traps: 0.5, glutes: 0.6, quads: 0.5, abs: 0.5 }, 'Scoop the ball up and reach tall, rising onto the toes.'],
       ['Overhead', 0.2, 1, 1, { abs: 0.7, lats: 0.7, delts: 0.5 }, 'Fully stretched: arms long, ribs down.'],
       ['Slam', 0.3, 1, 0, { abs: 1, lats: 1, triceps: 0.6, glutes: 0.5 }, 'Throw the ball at the floor with the whole body: hips back, abs crunch, arms follow through.'],
@@ -19522,8 +19546,11 @@ RS_MOTIONS['floor-stretch'] = (eq, o) => {
 };
 
 RS_MOTIONS['rest'] = (eq, o) => {
-  const body = { pelvis: [20, 11], trunk: 180, legs: _mKneesUp, look: 0 };
-  return Object.assign({ zs: 12, keys: [[0, Object.assign({}, body, { arms: { to: [8, 22, 6], pole: [0, 0.3, 1] } })], [1, Object.assign({}, body, { arms: { to: [8, 27, 6], pole: [0, 0.3, 1] } })]], equip: 'none', noPath: true, props: rsProp.mat(-90, 110) },
+  const up = o.kneel ? 'kneel' : (o.seat || o.ball) ? 'sit' : '', R0 = 30;   // feat 626 — sat or knelt (on a ball) instead of lying down
+  const body = up === 'kneel' ? { pelvis: [0, (o.ball ? 2 * R0 - 3 : 0) + 5.6 + RS.thigh], trunk: 90, legs: { f: 0, a: 4, k: 96, hint: [-1, 0, 0], fdir: 180 }, look: 0 } : up === 'sit' ? { pelvis: [0, 56], trunk: 90, legs: { to: [40, RS.ankleY, 14], pole: [0.3, 1, 0.2] }, look: 0 } : { pelvis: [20, 11], trunk: 180, legs: _mKneesUp, look: 0 };
+  const arm = (k) => up ? { f: 6, a: 20 + 26 * k, e: 12 } : { to: [8, 22 + 5 * k, 6], pole: [0, 0.3, 1] };
+  return Object.assign({ zs: 12, keys: [[0, Object.assign({}, body, { arms: arm(0) })], [1, Object.assign({}, body, { arms: arm(1) })]], equip: 'none', noPath: true, seated: up === 'sit', onBall: up === 'kneel',
+    props: up === 'kneel' ? (o.ball ? rsProp.swiss([-14, R0, 0], R0) : rsProp.mat(-70, 40)) : up === 'sit' ? (o.ball ? null : rsProp.seat(-14, 18, 50)) : rsProp.mat(-90, 110) },
     _mSeq([['Breathe in', 4, 0, 1, { abs: 0.2 }, 'In through the nose for four. The belly rises into the hands first, then the ribs widen.'],
       ['Hold', 4, 1, 1, {}, 'Hold for four. Shoulders and jaw stay soft.'],
       ['Breathe out', 4, 1, 0, { abs: 0.6 }, 'Out for four, slow and steady, until the ribs come all the way down.'],
@@ -19557,34 +19584,54 @@ function rsApplyMods(spec, o) {
      Deficit work is each movement's own (the push-up raises the hands). */
   const k0 = spec.keys[0][1], kN = spec.keys[spec.keys.length - 1][1], oneLimb = v => v && !Array.isArray(v);
   const standing = spec.keys.every(k => k[1].pelvis[1] > 84 && oneLimb(k[1].legs) && k[1].legs.to && Math.abs(k[1].legs.to[1] - RS.ankleY) < 1 && !k[1].roll);
-  if (o.alt && spec.keys.length === 2 && oneLimb(k0.arms) && oneLimb(kN.arms) && k0.arms.grip == null && !spec.oneDb && !spec.kbOne) {
+  if (o.alt && !spec.alt && spec.keys.length === 2 && oneLimb(k0.arms) && oneLimb(kN.arms) && k0.arms.grip == null && !spec.oneDb && JSON.stringify(k0.arms) === JSON.stringify(kN.arms)) {
+    if (k0.arms.f != null) { spec.keys.forEach(k => { k[1] = Object.assign({}, k[1], { arms: [k[1].arms, { f: -6, a: 10, e: 14 }] }); }); spec.uni = true; spec.kbOne = false; spec.alt = true; }   // the arms do not move, so there is nothing to take turns with: one hand holds the weight (it changes hands rep to rep)
+    else if (k0.arms.to && !k0.arms.rel) { const t = k0.arms.to; spec.keys.forEach(k => { const a = k[1].arms; k[1] = Object.assign({}, k[1], { arms: [Object.assign({}, a, { to: [a.to[0], a.to[1] + 11, a.to[2]] }), a] }); });   // hands planted: one of them is up on a block (or a kettlebell), swapping sides rep to rep
+      const p0 = spec.props, pb = (J) => (typeof p0 === 'function' ? p0(J) : p0) || []; spec.props = (J) => pb(J).concat([['box', t[0] - 10, t[0] + 10, 0, t[1] + 8, t[2] - 9, t[2] + 9, 'wood']]); spec.alt = true; } }
+  if (o.alt && !spec.alt && spec.keys.length === 2 && oneLimb(k0.arms) && oneLimb(kN.arms) && k0.arms.grip == null && !spec.oneDb && !spec.kbOne) {
     const a0 = k0.arms, a1 = kN.arms; spec.keys[0][1] = Object.assign({}, k0, { arms: [a0, a1] }); spec.keys[1][1] = Object.assign({}, kN, { arms: [a1, a0] }); spec.alt = true; }
   if (standing && !spec.low && (o.kneel || (o.seat && !spec.seated))) {
     spec.low = o.kneel ? { dy: RS_HIP - 0.4 - 50.2, kind: o.kneel === 'half' ? 'half' : 'kneel' } : { dy: RS_HIP - 0.4 - 56, kind: 'seat' };
     const p0 = spec.props, base = (J) => (typeof p0 === 'function' ? p0(J) : p0) || [];
     spec.props = (J) => base(J).concat(spec.low.kind === 'seat' ? rsProp.seat(-14, 18, 50) : rsProp.mat(-70, 60)); }
+  if (o.deficit && !spec.deficit && !spec.low && spec.keys.every(k => oneLimb(k[1].legs) && k[1].legs.to && Math.abs(k[1].legs.to[1] - RS.ankleY) < 1 && !k[1].roll && !k[1].tilt)) {   // deficit: stood on a block, so the weight travels further
+    const fx = k0.legs.to[0], p0 = spec.props, pb = (J) => (typeof p0 === 'function' ? p0(J) : p0) || []; spec.rise = 8; spec.deficit = true; spec.props = (J) => pb(J).concat([['box', fx - 20, fx + 24, 0, 8, -28, 28, 'wood']]); }
   if (o.wall) { const xs = spec.keys.map(k => k[1].pelvis[0]), x = Math.min.apply(null, xs.concat(spec.keys.map(k => k[1].pelvis[0] + RS.trunk * Math.cos(k[1].trunk * Math.PI / 180)))) - 15;
     const p0 = spec.props, base = (J) => (typeof p0 === 'function' ? p0(J) : p0) || []; spec.props = (J) => base(J).concat(rsProp.wall(x - 4)); }
-  if (o.ball) { const py = k0.pelvis[1], p0 = spec.props, base = (J) => (typeof p0 === 'function' ? p0(J) : p0) || [];
-    if (py >= 40 && py < 70) { const r = Math.max(22, Math.min(33, (py - 8) / 2 + 4));      // sat or lying on it: the ball replaces the bench
-      spec.props = (J) => base(J).filter(q => q[5] !== 'pad' && q[7] !== 'pad' && !(q[0] === 'cap' && q[5] === 'machine' && q[1][1] === 0 && q[3] <= 3 && q[2][1] < 60)).concat(rsProp.swiss([(J.hip[0] + (py > 50 && k0.trunk > 150 ? J.shd[0] : J.hip[0])) / 2, r, 0], r)); }
-    else if (py < 40 && spec.keys.every(k => oneLimb(k[1].legs) && k[1].legs.to && k[1].legs.to[1] < 12)) { const r = 24;                         // on the floor: the feet go up onto it
-      spec.keys.forEach(k => { k[1] = Object.assign({}, k[1], { legs: Object.assign({}, k[1].legs, { to: [k[1].legs.to[0] + 14, 2 * r - 2, k[1].legs.to[2]], fdir: 40 }) }); });
-      const fx = k0.legs.to[0] + 18; spec.props = (J) => base(J).concat(rsProp.swiss([fx, r, 0], r)); }
-    else spec.props = (J) => base(J).concat(rsProp.swiss([J.hip[0] - 70, 28, 46], 28)); }
+  if (o.ball && !spec.onBall && (spec.motion !== 'smash' || o.ball === 'sb')) { const py = k0.pelvis[1], p0 = spec.props, base = (J) => (typeof p0 === 'function' ? p0(J) : p0) || [];   // a movement that holds or rides the ball itself says onBall; a massage ball is the smash's own
+    const padded = spec.seated || base(rsRigFrame(spec, 0)).some(q => q[5] === 'pad' || q[7] === 'pad');
+    const noSeat = (J) => base(J).filter(q => q[5] !== 'pad' && q[7] !== 'pad' && !(q[0] === 'cap' && q[5] === 'machine' && q[1][1] === 0 && q[3] <= 3 && q[2][1] < 60));
+    if (spec.low && spec.low.kind === 'seat') spec.props = (J) => noSeat(J).concat(rsProp.swiss([2, 27, 0], 27));                                // a standing movement sat down: it sits on the ball
+    else if (spec.low) { /* kneeling beside it: nothing to add */ }
+    else if (py >= 40 && py < 70 && padded) { const r = Math.max(22, Math.min(33, (py - 8) / 2 + 4));      // sat or lying on it: the ball replaces the bench
+      spec.props = (J) => noSeat(J).concat(rsProp.swiss([(J.hip[0] + (py > 50 && k0.trunk > 150 ? J.shd[0] : J.hip[0])) / 2, r, 0], r)); }
+    else if (o.wall && py > 40) spec.props = (J) => base(J).concat(rsProp.swiss([J.hip[0] - 17, J.hip[1] + 20, 0], 13));                           // a wall squat: the ball rolls between the back and the wall
+    else if (py < 55 && (k0.trunk < 45 || k0.trunk > 135) && spec.keys.every(k => oneLimb(k[1].legs) && k[1].legs.to && k[1].legs.to[1] < 25 && !k[1].roll)) { const r = 24, prone = k0.trunk < 45;   // on the floor, face up or in a plank: the feet go up onto it
+      spec.keys.forEach(k => { const t = k[1].legs.to, up = 2 * r - 2 - t[1]; k[1] = Object.assign({}, k[1], { legs: Object.assign({}, k[1].legs, { to: [t[0] + (prone ? 0 : 14), 2 * r - 2, t[2]], fdir: prone ? k[1].legs.fdir : 40 }) }, prone ? { pelvis: [k[1].pelvis[0], k[1].pelvis[1] + up * 0.55] } : {}); });
+      const fx = k0.legs.to[0] + (prone ? -2 : 18); spec.props = (J) => base(J).concat(rsProp.swiss([fx, r, 0], r)); }
+    else if (py > 45 && Array.isArray(k0.legs) && k0.legs[1] && k0.legs[1].to && spec.keys.every(k => Array.isArray(k[1].legs) && k[1].legs[1] && k[1].legs[1].to)) { const r = 19, t0 = k0.legs[1].to;   // a split stance: the back foot rests on it
+      spec.keys.forEach(k => { const l = k[1].legs; k[1] = Object.assign({}, k[1], { legs: [l[0], Object.assign({}, l[1], { to: [l[1].to[0], 2 * r + 3, l[1].to[2]], fdir: 172 })] }); });
+      spec.props = (J) => base(J).concat(rsProp.swiss([t0[0] - 6, r, -t0[2]], r)); }
+    else if (Math.max.apply(null, spec.keys.map(k => k[1].pelvis[1])) > 70 && k0.trunk > 45 && k0.trunk < 135 && (spec.equip === 'none' || !spec.equip || (o.ball === 'sb' && (spec.equip === 'dumbbell' || spec.equip === 'kettlebell')))) { spec.equip = 'ball'; spec.ballR = 17; spec.oneDb = false; spec.kbOne = false; spec.uni = false; }                                         // standing with nothing else in the hands: the ball is held
+    else if (!k0.roll && !k0.tilt) { const J0 = rsRigFrame(spec, 0), r0 = ((J0.hip[1] + J0.shd[1]) / 2 - 10) / 2;                                      // anything else: the trunk rests on it
+      if (r0 > 30) { if (spec.equip === 'none' || !spec.equip) { spec.equip = 'ball'; spec.ballR = 17; } }
+      else if (r0 >= 9) spec.props = (J) => { const r = Math.max(9, Math.min(30, ((J.hip[1] + J.shd[1]) / 2 - 10) / 2)); return base(J).concat(rsProp.swiss([(J.hip[0] + J.shd[0]) / 2, r, 0], r)); };
+      else { spec.rise = 30; spec.props = (J) => base(J).concat(rsProp.swiss([J.hip[0] + (k0.trunk > 90 ? -10 : 10), 17, 0], 17)); } }   // lying flat: lifted onto it
+  }
   if (o.support && !spec.supported && spec.keys.every(k => k[1].trunk > 5 && k[1].trunk < 80 && !k[1].roll)) {                                    // chest-supported: an incline pad under the chest
     const p0 = spec.props, base = (J) => (typeof p0 === 'function' ? p0(J) : p0) || [];
     spec.props = (J) => { const u = _rv.norm([J.shd[0] - J.hip[0], J.shd[1] - J.hip[1], 0]), cf = [u[1], -u[0]], at = (t) => [J.hip[0] + u[0] * RS.trunk * t + cf[0] * 15, J.hip[1] + u[1] * RS.trunk * t + cf[1] * 15, 0], a = at(0.25), c = at(0.98);
       return base(J).concat([['cap', a, c, 5.5, 5.5, 'pad'], ['cap', [a[0], a[1], 9], [c[0], c[1], 9], 5, 5, 'pad'], ['cap', [a[0], a[1], -9], [c[0], c[1], -9], 5, 5, 'pad'], ['cap', [c[0] + 4, 0, 0], [c[0], c[1] - 5, 0], 3, 3, 'machine'], ['cap', [a[0] - 2, 0, 0], [a[0], a[1] - 5, 0], 3, 3, 'machine']]); }; }
   return spec;
 }
-const _rsRouted = new Map(); let _rsIdToUuid = null;
+const _rsRouted = new Map(), _rsBallIds = new Set(); let _rsIdToUuid = null;
 function rsRoutedSpec(variationId) {
   if (_rsRouted.has(variationId)) return _rsRouted.get(variationId);
-  if (!_rsIdToUuid) { _rsIdToUuid = new Map(); ((typeof FAMILIES !== 'undefined' && FAMILIES) || []).forEach(f => (f.variations || []).forEach(v => { if (v.uuid && !_rsIdToUuid.has(v.id)) _rsIdToUuid.set(v.id, v.uuid); })); }
+  if (!_rsIdToUuid) { _rsIdToUuid = new Map(); ((typeof FAMILIES !== 'undefined' && FAMILIES) || []).forEach(f => (f.variations || []).forEach(v => { if (v.uuid && !_rsIdToUuid.has(v.id)) { _rsIdToUuid.set(v.id, v.uuid); if (f.id === 'swiss-ball-work') _rsBallIds.add(v.id); } })); }
   let spec = null;
   try { const u = _rsIdToUuid.get(variationId), r = u && typeof motionForVariation === 'function' && motionForVariation(u), mk = r && RS_MOTIONS[r.motion];
-    if (mk) { spec = mk(r.equip || 'none', r.opts || {}); if (spec) { spec.rig = true; spec.motion = r.motion; if (!spec.equip) spec.equip = 'none'; rsApplyMods(spec, r.opts || {}); } } } catch (e) { spec = null; }
+    const o = Object.assign({}, (r && r.opts) || {}); if (_rsBallIds.has(variationId)) o.ball = o.ball || 'sb';   // feat 626
+    if (mk) { spec = mk(r.equip || 'none', o); if (spec) { spec.rig = true; spec.motion = r.motion; if (!spec.equip) spec.equip = 'none'; rsApplyMods(spec, o); } } } catch (e) { spec = null; }
   _rsRouted.set(variationId, spec); return spec;
 }
 /* RS_RIG_END */
@@ -19592,7 +19639,7 @@ function rsRoutedSpec(variationId) {
 const RS_VIEWS = { side: { yaw: 0, pitch: 0 }, three: { yaw: 26, pitch: 9 }, front: { yaw: -80, pitch: 6 }, back: { yaw: 80, pitch: 6 } };
 const RS_MAT = {
   skin: ['#ffe08a', '#d9a22e', '#7d520c'], skinFar: ['#e2bd62', '#b17f1c', '#5f3d08'],   // feat 622 — cast in gold
-  shorts: ['#4a5166', '#262b3a', '#10131c'], shoe: ['#5a5f68', '#32363d', '#1b1d22'], hair: ['#e9a93c', '#a8660f', '#553005'], mane: ['#f3bb4e', '#cf8f25', '#9a6410'], skinS: ['#ffe08a', '#e6b445', '#b98a26'], skinFarS: ['#e2bd62', '#c2932e', '#96701c'],
+  shorts: ['#363c4e', '#262b3a', '#1a1e2a'], shoe: ['#5a5f68', '#32363d', '#1b1d22'], hair: ['#e9a93c', '#a8660f', '#553005'], mane: ['#f3bb4e', '#cf8f25', '#9a6410'], skinS: ['#ffe08a', '#e6b445', '#b98a26'], skinFarS: ['#e2bd62', '#c2932e', '#96701c'],
   pad: ['#59607a', '#333a50', '#161a26'], wall: ['#3a3f4a', '#2c3039', '#20232a'], mat: ['#4b6a8c', '#34506e', '#223649'], swiss: ['#8fc0ea', '#4f8fc9', '#275a8c'],
   steel: ['#f4f6f8', '#aeb6bf', '#5d6670'], iron: ['#6b7078', '#3b3f46', '#1d1f24'], machine: ['#7fa0c4', '#4a6c93', '#2a4563'],
   wood: ['#c9a071', '#a57b4d', '#7a5632'], band: ['#f1c14a', '#d19a1c', '#96690a'], cable: ['#d5d8dc', '#8c939b', '#4b5158'],
@@ -19712,7 +19759,7 @@ function rsScene(spec, J, view, phase) {
   const sh0 = P([J.rig ? (J.hip[0] + J.shd[0]) / 2 : 4, 0.1, 0]), shW = (view === 'front' || view === 'back') ? 0.9 : 1;
   add(-860, `<ellipse class="rs-pool" cx="${f(sh0[0])}" cy="${f(sh0[1])}" rx="${f(118 * sh0[3] * shW)}" ry="${f(30 * sh0[3])}" fill="url(#${uid}lp)"/>`);
   add(-800, `<ellipse class="rs-shadow" cx="${f(sh0[0] + 5)}" cy="${f(sh0[1] + 1)}" rx="${f(64 * sh0[3] * shW)}" ry="${f(14 * sh0[3])}" fill="url(#${uid}sh)"/>`);
-  const box = (x0, x1, y0, y1, z0, z1, mat, cls) => { poly([[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], mat, cls, 0.2); poly([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], mat, cls, 0); poly([[x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]], mat, cls, 0.1); };
+  const box = (x0, x1, y0, y1, z0, z1, mat, cls, db) => { db = db || 0; poly([[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], mat, cls, 0.2 + db); poly([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], mat, cls, db); poly([[x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]], mat, cls, 0.1 + db); };
   if (plat) box(-22, 32, 0, plat, -(spec.zs + 16), spec.zs + 16, RS_MAT.wood, 'platform');
   const loaded = Array.isArray(spec.load), plateZ = 62;
   if (spec.blocks) [1, -1].forEach(sd => box(spec.xb - 26, spec.xb + 26, 0, spec.y0 - RS.plateR, sd * plateZ - 14, sd * plateZ + 22, RS_MAT.wood, 'platform'));
@@ -19723,7 +19770,7 @@ function rsScene(spec, J, view, phase) {
 
   // ---- props (feat 623): the scenery a movement declares ----
   { const pr = typeof spec.props === 'function' ? spec.props(J) : spec.props, M = k => RS_MAT[k] || RS_MAT.machine;
-    (pr || []).forEach(q => { if (q[0] === 'box') box(q[1], q[2], q[3], q[4], q[5], q[6], M(q[7]), q[7] === 'pad' ? 'pad' : q[7] === 'wall' ? 'wall' : 'machine');   // a wall is a pane you can see through: from behind it would hide the lifter
+    (pr || []).forEach(q => { if (q[0] === 'box') box(q[1], q[2], q[3], q[4], q[5], q[6], M(q[7]), q[7] === 'pad' ? 'pad' : q[7] === 'wall' ? 'wall' : 'machine', q[7] === 'mat' ? -700 : 0);   // a wall is a pane you can see through: from behind it would hide the lifter
       else if (q[0] === 'cap') capsule(q[1], q[2], q[3], q[4], M(q[5]), q[5] === 'pad' ? 'pad' : q[5] === 'steel' ? 'bar' : 'machine', q[6] || 0);
       else if (q[0] === 'ball') ball(q[1], q[2], M(q[3]), 'machine', q[4] || 0);
       else if (q[0] === 'disc') disc(q[1], q[2], q[3], M(q[4]), 'plate', q[5]); }); }
@@ -19902,11 +19949,25 @@ function rsScene(spec, J, view, phase) {
   XF = null;
   return { items, defs, P: (q) => J.xf ? P0(J.xf(q)) : P0(q) };
 }
+/* feat 626 — the pose that is drawn at time t is the mean of the poses from two sixtieths of a second before to two
+   after. Keyframes meet at corners, a limb reaching full stretch closes its last centimetres all at once, and an
+   elbow can change sides between two targets: each of those was a jump in a single frame. Over 83 ms they become a
+   quick, smooth move, and anything already smooth or still is unchanged. A neighbour more than 20 cm away at the
+   hips is a deliberate cut (a box jump starting again) and is left out. */
+function rsFrameAt(spec, t) {
+  const c = rsFrame(spec, rsAt(spec, t).s); if (!(rsTotal(spec) > 0.3) || spec.fixedS != null) return c;
+  const nb = [-2, -1, 1, 2].map(k => rsFrame(spec, rsAt(spec, t + k / 60).s)).filter(q => Math.hypot(q.hip[0] - c.hip[0], q.hip[1] - c.hip[1]) < 20 && !!q.xf === !!c.xf); if (!nb.length) return c;
+  const avg = (a, os) => typeof a === 'number' ? os.reduce((x, y) => x + (typeof y === 'number' ? y : a), a) / (os.length + 1)
+    : Array.isArray(a) ? a.map((v, i) => avg(v, os.map(o => (o && o[i] !== undefined) ? o[i] : v)))
+    : (a && typeof a === 'object') ? Object.keys(a).reduce((o, k) => { o[k] = k === 's' ? a[k] : avg(a[k], os.map(q => (q && q[k] !== undefined) ? q[k] : a[k])); return o; }, {}) : a;
+  return avg(c, nb);
+}
 // the whole stage as SVG: the scene, the bar's path through the rep, and where the bar is now
 function rsStageSvg(spec, t, view, opts) {
-  opts = opts || {}; const at = rsAt(spec, t), J = rsFrame(spec, at.s), wide = view === 'front' || view === 'back';
-  let ph = at.phase; { const n = spec.phases.length, pv = spec.phases[(at.i - 1 + n) % n], fb = Math.min(1, at.k * ph.sec / Math.min(0.3, ph.sec * 0.6));   // the glow of one phase gives way to the next over a third of a second
-    if (fb < 1 && n > 1) { const m = {}, a = pv.m || {}, b = ph.m || {}, e = fb * fb * (3 - 2 * fb); new Set(Object.keys(a).concat(Object.keys(b))).forEach(k => { m[k] = _rsLerp(a[k] || 0, b[k] || 0, e); }); ph = { m }; } }
+  opts = opts || {}; const at = rsAt(spec, t), J = rsFrameAt(spec, t), wide = view === 'front' || view === 'back';
+  /* the glow of the working muscles is the mean of the last third of a second, so it rises and fades across a phase
+     boundary however short the phases are (a two-phase blend jumped when a phase lasted less than the fade) */
+  let ph = at.phase; if (spec.phases.length > 1) { const m = {}, N = 20; for (let k = 0; k < N; k++) { const q = rsAt(spec, t - k * 0.015).phase.m || {}; Object.keys(q).forEach(n => { m[n] = (m[n] || 0) + q[n] / N; }); } ph = { m }; }
   const sc = rsScene(spec, J, view, ph);
   const path = []; if (!opts.noPath) { for (let i = 0; i <= 24; i++) { const j = rsFrame(spec, i / 24), q = rsProject(view, spec.cam)((j.xf || (x => x))([j.bar[0], j.bar[1], (wide || (spec.rig && spec.equip !== 'barbell')) ? ((j.bar3 && spec.rig && spec.equip !== 'barbell') ? j.bar3[2] || 0 : 0) : 70])); path.push(q[0].toFixed(1) + ' ' + q[1].toFixed(1)); } }
   const now = sc.P([J.bar[0], J.bar[1], (wide || (spec.rig && spec.equip !== 'barbell')) ? ((J.bar3 && spec.rig && spec.equip !== 'barbell') ? J.bar3[2] || 0 : 0) : 70]);
@@ -39530,7 +39591,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 523 · 2026-11-27 14:38';
+const APP_BUILD = 'build 524 · 2026-11-27 19:10';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

@@ -5762,3 +5762,20 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   shifted by `J.xf`). Movements that need their own pose handle the opt themselves and say so (`seated`, `supported`,
   the squat's `kneel` / `wall`, the pulldown's `kneel`, the curl's preacher pad, the push-up's `deficit`).
   `spec.holdAt` names the phase an isometric holds (the squat: `bottom`).
+- **Smooth poses (feat 627):** what is drawn at time t is `rsFrameAt(spec, t)`: the mean of the poses from two
+  sixtieths of a second before to two after (neighbours over 20 cm away at the hips are a deliberate cut and are left
+  out). It turns keyframe corners, a limb snapping straight and an elbow changing sides into a quick smooth move.
+  `rsMixPose` blends a top-level number one key has and the other lacks from zero (it used to snap), and the default
+  gaze (`_rsLookOf`) and the flat-foot rule ease in instead of switching at a threshold. Muscle glow is the mean of
+  the last 0.3 s. Checks: `node_modules/.rs/jump.mjs` logic lives in the test `no joint or foot jumps`; the pixel scan
+  over all 100 types (432 runs, 113,344 steps) leaves 22 flagged runs: 13 are a thin bright edge moving, 9 are small
+  real pops (thigh detail on nordic / quadruped / sled; forearm against the shorts on hinge and side bend, where the
+  model's arm passes through the hip; machine parts on leg press, back extension, rowing erg). Tried and reverted:
+  ordering packed details against the nearest of several sections fixed those thighs and broke five other movements.
+- **Stability ball and the rest of the variants (feat 627):** the `swiss-ball-work` family gets `ball: 'sb'` in
+  `rsRoutedSpec`. `rsApplyMods` places the ball by posture: replaces a seat or bench, under the feet when lying or
+  in a plank, behind the back on a wall squat, under the back foot in a split stance, held when standing, under the
+  trunk otherwise. A movement that handles the ball itself sets `onBall` (rollout, thruster, chest pass, kneeling
+  on it). Generic `deficit` stands the lifter on a block (`spec.rise`); `alt` with nothing to alternate makes it
+  one-handed, or puts one planted hand on a block. Still plain: ball Russian twist, side plank and reverse hyper;
+  the preacher skull crusher.

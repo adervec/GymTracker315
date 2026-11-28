@@ -187,3 +187,41 @@ test('feat 626 — continuous playback: nothing pops in or out between one frame
   r.out.forEach(x => { expect(x.moved, x.name + ' moves').toBeGreaterThan(20); expect(x.spikes, x.name + ': a patch changed all at once at these times [s, pixels, usual]').toEqual([]); });
   expect(r.glow, 'glow step across a phase boundary').toBeLessThan(0.15);
 });
+
+test('feat 626 — every named variant draws differently from the plain movement, and stability-ball work has its ball', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const want = ['kneel', 'wall', 'ball', 'support', 'deficit', 'alt', 'seat'], same = [], errs = [];
+    const mk = (m, e, o) => { const sp = RS_MOTIONS[m](e || 'none', o); sp.rig = true; sp.motion = m; if (!sp.equip) sp.equip = 'none'; rsApplyMods(sp, o); return sp; };
+    const props = (sp, J) => (typeof sp.props === 'function' ? sp.props(J) : sp.props) || [];
+    const sig = sp => [0, 0.5, 1].map(s => { const J = rsFrame(sp, s), x = J.xf || (q => q), rr = q => x(q).map(v => Math.round(v)).join(',');
+      return J.legs.map(l => rr(l.knee) + ';' + rr(l.ankle)).join('|') + '/' + J.arms.map(a => rr(a.grip)).join('|') + '/' + rr([J.hip[0], J.hip[1], 0]) + '/' + props(sp, J).map(q => q[0] + (q[0] === 'box' ? q[7] : q[0] === 'cap' ? q[5] : q[3])).join(''); }).join('#') + sp.equip + sp.phases.map(q => q.sec).join(',');
+    FAMILIES.forEach(f => f.variations.forEach(v => { const mv = motionForVariation(v.uuid); if (!mv || !RS_MOTIONS[mv.motion] || REP_STUDIO[v.id]) return; const o = mv.opts || {};
+      want.forEach(k => { if (!o[k]) return; const o2 = Object.assign({}, o); delete o2[k];
+        try { if (sig(mk(mv.motion, mv.equip, o)) === sig(mk(mv.motion, mv.equip, o2))) same.push(mv.motion); } catch (e) { errs.push(v.id + ' ' + String(e).slice(0, 60)); } }); }));
+    const fam = FAMILIES.find(f => f.id === 'swiss-ball-work').variations, noBall = [];
+    fam.forEach(v => { const sp = repStudioSpec(v.id); try { const J = rsFrame(sp, 0.5); if (!(props(sp, J).some(q => q[0] === 'ball' && q[3] === 'swiss') || sp.equip === 'ball')) noBall.push(v.id); if (/NaN|undefined/.test(rsStageSvg(sp, 1, 'three'))) errs.push(v.id + ' svg'); } catch (e) { errs.push(v.id + ' ' + String(e).slice(0, 60)); } });
+    return { same: [...new Set(same)].sort(), errs, fam: fam.length, noBall };
+  });
+  expect(r.errs).toEqual([]);
+  // the only ones left alike are movements that are already in that position (a seated row is seated, a kneeling crunch kneels, a preacher machine has its pad)
+  const inherent = ['floor-stretch', 'kneel-crunch', 'lsit', 'lunge-stretch', 'machine-abduction', 'machine-curl', 'seated-row', 'skull', 'smash'];
+  expect(r.same.filter(m => !inherent.includes(m))).toEqual([]);
+  expect(r.fam).toBeGreaterThan(70);
+  expect(r.noBall.length, 'stability-ball exercises drawn without a ball: ' + r.noBall.join(', ')).toBeLessThanOrEqual(3);
+});
+
+test('feat 626 — no joint or foot jumps in one frame, in any of the movement types', async ({ page }) => {
+  test.slow();
+  const r = await page.evaluate(() => { const out = [];
+    const pts = (J) => { const x = J.xf || (q => q), o = {}; J.legs.forEach((l, i) => { const fd = l.fd || [1, 0]; o['knee' + i] = x(l.knee); o['ankle' + i] = x(l.ankle); o['toe' + i] = x([l.ankle[0] + fd[0] * 16, l.ankle[1] + fd[1] * 16, l.ankle[2]]); o['hip' + i] = x(l.hip); });
+      J.arms.forEach((a, i) => { o['grip' + i] = x(a.grip); o['el' + i] = x(a.el || a.grip); o['sh' + i] = x(a.sh); }); o.head = x([J.head[0], J.head[1], 0]); return o; };
+    const dist = (a, b) => { let m = 0, w = ''; Object.keys(a).forEach(k => { const e = Math.hypot(a[k][0] - b[k][0], a[k][1] - b[k][1], (a[k][2] || 0) - (b[k][2] || 0)); if (e > m) { m = e; w = k; } }); return [m, w]; };
+    const names = Object.keys(RS_MOTIONS).sort();
+    names.forEach(m => { const spec = RS_MOTIONS[m]('none', {}); spec.rig = true; if (!spec.equip) spec.equip = 'none'; const full = rsTotal(spec), T = Math.min(full, 20), N = Math.round(T * 60), d = [], who = []; let prev = null;
+      for (let i = 0; i <= N; i++) { const q = pts(rsFrameAt(spec, i / 60)); if (prev) { const e = dist(q, prev); d.push(e[0]); who.push(e[1]); } else { d.push(0); who.push(''); } prev = q; }
+      for (let i = 4; i < d.length - 4; i++) { const q = [d[i - 4], d[i - 3], d[i - 2], d[i + 2], d[i + 3], d[i + 4]].sort((x, y) => x - y), nb = (q[2] + q[3]) / 2; if (d[i] > 3.5 && d[i] > nb * 2.5 + 1.5 && d[i] >= d[i - 1] && d[i] >= d[i + 1]) out.push(m + ' ' + (i / 60).toFixed(2) + 's ' + who[i] + ' ' + d[i].toFixed(1) + 'cm'); }
+      if (T === full && m !== 'jump') { const e = dist(pts(rsFrameAt(spec, T - 1 / 60)), pts(rsFrameAt(spec, 0))); if (e[0] > 6) out.push(m + ' loop ' + e[1] + ' ' + e[0].toFixed(1) + 'cm'); } });   // a box jump starts again from the floor: the one deliberate cut
+    return { n: names.length, out }; });
+  expect(r.n).toBe(100);
+  expect(r.out).toEqual([]);
+});
