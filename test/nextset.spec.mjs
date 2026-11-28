@@ -124,7 +124,7 @@ test('feat 540 — only weights you have used are offered, a typed weight is wor
     const card = document.getElementById('trk-nextset');
     return { allUsed: asks.every(c => used.has(c.w)), early: early.rested, restedNow: rested.rested,
       at80: [at80.w, at80.r, at80.picked], at105: [at105.w, at105.r], noUse: !card.querySelector('[data-ns-use]'),
-      lbl: card.querySelector('.ns-lbl').textContent };
+      lbl: card.querySelector('.ns-lbl').title + ' | ' + card.querySelector('.ns-lbl').textContent };
   });
   expect(r.allUsed).toBe(true);
   expect(r.early).not.toBeNull();                       // resting → the full-rest ask is previewed
@@ -135,7 +135,8 @@ test('feat 540 — only weights you have used are offered, a typed weight is wor
   expect(r.at80[1]).toBeGreaterThan(r.at105[1]);        // lighter → more reps
   expect(r.at105[0]).toBe(105);
   expect(r.noUse).toBe(true);                           // the weight is already in: no Use button
-  expect(r.lbl).toContain('at your weight');
+  expect(r.lbl).toContain('at your weight');   // feat 629 — said by the ⚖ mark; the words are its tooltip
+  expect(r.lbl).toContain('⚖');
 });
 
 test('feat 540 — the card shows the full-rest preview line while resting', async ({ page }) => {
@@ -143,9 +144,10 @@ test('feat 540 — the card shows the full-rest preview line while resting', asy
     _done(100, 7, 20);
     openLogModal(); modalState.showPicker = false; modalState.isEditing = false; renderModal();
     const el = document.querySelector('#trk-nextset .ns-rest');
-    return el ? el.textContent : null;
+    return el ? el.title + ' | ' + el.textContent : null;
   });
   expect(r).toMatch(/At full rest \(in \d/);
+  expect(r).toMatch(/⏱ \d.* → /);   // feat 629 — shown as ⏱ 20s → 100×8 70%
 });
 
 test('feat 547 — the S-rank set: the cheapest new e1RM best, only while realistic and not yet earned', async ({ page }) => {
@@ -172,4 +174,25 @@ test('feat 547 — the S-rank set: the cheapest new e1RM best, only while realis
   expect(r.picked.w).toBe(97.5);
   expect(r.earned).toBeNull();
   expect(r.line).toMatch(/S set: .* · \d+%/);
+});
+
+test('feat 629 — the record hint and the next-set card say it in symbols; the sentences are tooltips', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    _done(100, 7, 20);
+    openLogModal(); modalState.showPicker = false; modalState.isEditing = false; renderModal();
+    const strip = h => { const d = document.createElement('div'); d.innerHTML = h; return { text: d.textContent.replace(/\s+/g, ' ').trim(), title: (d.querySelector('[title]') || {}).title || '' }; };
+    const known = strip(recordHintText(100, null)), fresh = strip(recordHintText(555, null)), byReps = strip(recordHintText(null, 7));
+    const card = document.getElementById('trk-nextset'), rir = card.querySelector('.ns-rir');
+    return { known, fresh, byReps, rir: rir.textContent.trim(), rirTitle: rir.title, card: card.textContent.replace(/\s+/g, ' ') };
+  });
+  const m = r.known.text.match(/^🏅 100kg ×(\d+) .*→ (\d+) 🏆$/);
+  expect(m, r.known.text).not.toBeNull();
+  expect(+m[2]).toBe(+m[1] + 1);
+  expect(r.known.text).not.toMatch(/for a record|Best reps/);
+  expect(r.known.title).toMatch(/Best reps at 100kg: \d+ reps on .* beat \d+ for a record/);
+  expect(r.fresh.text).toMatch(/^🆕 555kg first time$/);
+  expect(r.byReps.text).toMatch(/^(🏅 ×7 [\d.]+kg .*→ ▲ 🏆|🆕 ×7 first time)$/);
+  expect(r.rir).toMatch(/^🔋 [\d.]+$/);
+  expect(r.rirTitle).toMatch(/in reserve/);
+  expect(r.card).not.toMatch(/in reserve|At full rest|Would beat/);
 });

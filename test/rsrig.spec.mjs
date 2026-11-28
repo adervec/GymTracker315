@@ -168,6 +168,7 @@ test('feat 626 — a name changes the picture: kneeling, wall, ball, preacher, d
 
 test('feat 626 — continuous playback: nothing pops in or out between one frame and the next', async ({ page }) => {
   test.setTimeout(240000);
+  await page.bringToFront();   // a page in the background can stop painting images, and this test draws 300 of them
   const r = await page.evaluate(async () => {
     const W = 200, H = 182, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d', { willReadFrequently: true }), out = [];
     const sq = RS_MOTIONS['squat']('barbell', {}); sq.rig = true;
@@ -224,4 +225,25 @@ test('feat 626 — no joint or foot jumps in one frame, in any of the movement t
     return { n: names.length, out }; });
   expect(r.n).toBe(100);
   expect(r.out).toEqual([]);
+});
+
+test('feat 628 — every movement has a female figure, and the player remembers which one you chose', async ({ page }) => {
+  test.slow();
+  const r = await page.evaluate(() => {
+    const bad = [], host = document.createElement('div'); let same = 0;
+    Object.keys(RS_MOTIONS).forEach(m => { const sp = RS_MOTIONS[m]('none', {}); sp.rig = true; if (!sp.equip) sp.equip = 'none';
+      try { const f = rsStageSvg(sp, rsTotal(sp) * 0.4, 'three', { fig: 'f' }), h = rsStageSvg(sp, rsTotal(sp) * 0.4, 'three', { fig: 'm' }); if (/NaN|undefined/.test(f)) bad.push(m); if (f.replace(/rs\d+g/g, '') === h.replace(/rs\d+g/g, '')) same++; } catch (e) { bad.push(m + ' ' + String(e).slice(0, 50)); } });
+    const dl = REP_STUDIO['conventional-dl'], count = (fig, sel) => { host.innerHTML = rsStageSvg(dl, 2, 'side', { fig }); return host.querySelectorAll(sel).length; };
+    const before = rsFigure(); openMotionCarousel(FAMILIES.find(f => f.id === 'squat').variations[0].uuid);
+    const el = document.querySelector('#motion-modal .rs'), shorts = () => el.querySelectorAll('.rs-stage .rs-shorts').length, s0 = shorts();
+    el.querySelector('[data-rs-fig="f"]').click(); const s1 = shorts(), saved = state.rsFigure, active = el.querySelector('[data-rs-fig].active').dataset.rsFig;
+    el.querySelector('[data-rs-fig="m"]').click();
+    return { bad, same, topM: count('m', '.rs-shorts'), topF: count('f', '.rs-shorts'), before, s0, s1, saved, active, after: rsFigure() };
+  });
+  expect(r.bad).toEqual([]);
+  expect(r.same, 'movements where she draws exactly as he does').toBe(0);
+  expect(r.topF, 'she wears a top as well as shorts').toBeGreaterThan(r.topM);
+  expect(r.before).toBe('m');
+  expect(r.s1).toBeGreaterThan(r.s0);
+  expect([r.saved, r.active, r.after]).toEqual(['f', 'f', 'm']);
 });

@@ -5779,3 +5779,13 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   on it). Generic `deficit` stands the lifter on a block (`spec.rise`); `alt` with nothing to alternate makes it
   one-handed, or puts one planted hand on a block. Still plain: ball Russian twist, side plank and reverse hyper;
   the preacher skull crusher.
+- **The female figure (feat 628):** `state.rsFigure` ('m' default, 'f'), read by `rsFigure()`; `rsStageSvg(.., { fig })`
+  passes it to `rsScene`. Same skeleton, poses and timing (every movement is solved for one set of bones); only the
+  surface differs: `SC` scales every radius and offset of the part being drawn (legs 0.97, trunk 0.84, neck 0.8,
+  head 0.95, arms 0.78), the trunk has its own widths (narrow waist, wider hips), plus a cropped top (a `cover`, like
+  the shorts) and a ponytail in place of the mane. Not done: a narrower shoulder girdle (the arms attach where the
+  solved poses put them, so her shoulders read a little square), different limb lengths or height.
+- **Symbols over sentences (feat 629):** on the exercise sheet a line that repeats every set says its facts as symbols
+  and numbers, with the number to act on largest, and keeps the full sentence as the `title` tooltip: `recordHintText`
+  (🏅 weight ×reps · when → target 🏆; 🆕 for a first time) and the next-set card (🧠 Next, ⚖ = at your weight, 🔋 =
+  reps in reserve, ⏱ wait → full-rest ask, 🏅 records it would beat). Apply the same pattern to other verbose rows.

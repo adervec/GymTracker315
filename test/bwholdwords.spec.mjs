@@ -35,7 +35,7 @@ test('feat 517 — a hold page says time, never reps or e1RM', async ({ page }) 
   const sheet = r.text.slice(0, r.text.indexOf('Save Sets'));
   expect(sheet).not.toMatch(/\breps?\b|e1RM|1RM/i);
   expect(sheet).toMatch(/Up 33\.3% longest hold/);
-  expect(sheet).toMatch(/Longest hold at 10lb: 0:45 .* beat 0:46/i);     // the record hint under the open set
+  expect(sheet).toMatch(/🏅 10lb 0:45 .*→ 0:46 🏆/);     // the record hint under the open set
   expect(r.sort).toEqual(['order', 'weight', 'time']);
   expect(r.wt, 'the All-weights table is all e1RM + Epley odds — not offered for a hold').toBe(false);
 });

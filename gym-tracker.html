@@ -3022,7 +3022,7 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   .ex-origin-note { color: var(--text3); } .ex-origin-caveat { font-size: 10.5px; color: var(--text3); margin-top: 4px; }
   .ex-search { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; } .ex-search a { text-decoration: none; display: inline-block; }
   .rs { --rs-floor: color-mix(in srgb, #a58a66 26%, transparent); display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 460px; margin: 0 auto; text-align: start; }   /* feat 615 */
-  .rs-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .rs-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
   .rs-seg { display: inline-flex; border: 1px solid var(--border2); border-radius: 9px; overflow: hidden; }
   .rs-seg button, .rs-speed, .rs-play { font: inherit; font-size: 12px; padding: 5px 11px; background: none; border: 0; color: var(--text3); cursor: pointer; min-height: 30px; }
   .rs-seg button.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--text); font-weight: 600; }
@@ -3643,7 +3643,9 @@ body.workout-active.on-workout-page .topbar-shortcut-row { display: flex; } /* f
   /* Record hint shown next to the bottom-most set */
   .record-hint { grid-column: 2 / 4; font-size: 10.5px; color: #88b0ff; background: #161a26; border: 1px solid #2a3340; border-left: 3px solid #88b0ff; padding: 5px 8px; border-radius: 5px; justify-self: stretch; margin-top: 4px; font-variant-numeric: tabular-nums; line-height: 1.4; }
   .record-hint b { color: #fff; font-weight: 700; }
-  .record-hint .hint-action { font-size: 9.5px; color: #6f88c0; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; margin-right: 5px; }
+  .record-hint .hint-action { font-size: 12px; color: #9db4e6; font-weight: 700; margin-inline-end: 4px; }
+  .record-hint .hint-when { font-size: 10.5px; color: var(--text3); margin-inline-start: 4px; }
+  .record-hint .hint-go { margin-inline-start: 8px; white-space: nowrap; color: var(--good); } .record-hint .hint-go b { font-size: 15px; }
   /* Neighbor baseline reference hints (shown below sets when no baseline for current weight) */
   #trk-neighbor-hints {
     /* feat 477 — align-items:flex-start so a chip sizes to ITS content; the default stretch made every
@@ -4964,12 +4966,13 @@ input[type=text], input[type=number], input[type=file], select, textarea {
 .ns-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--accent); }
 .ns-ask { font-size: 16px; }
 .ns-odds { font-size: 12px; }
-.ns-rir { font-size: 11px; color: var(--text3); }
+.ns-rir { font-size: 12px; color: var(--text2); white-space: nowrap; }
 .ns-use, .ns-why-btn { font: inherit; font-size: 11px; padding: 4px 10px; border-radius: 12px; cursor: pointer; }
 .ns-use { margin-left: auto; border: 1px solid var(--accent); background: var(--accent); color: #fff; }
 .ns-why-btn { border: 1px solid var(--border2); background: transparent; color: var(--text3); }
-.ns-beats { font-size: 11px; color: var(--good); margin-top: 4px; }
-.ns-rest { font-size: 11.5px; color: var(--text2); margin-top: 4px; }
+.ns-more { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
+.ns-beats { font-size: 11.5px; color: var(--good); }
+.ns-rest { font-size: 11.5px; color: var(--text2); }
 .ns-srank { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text2); margin-top: 4px; }
 .ns-use.sm { padding: 2px 8px; font-size: 10.5px; }
 .ns-why { margin: 6px 0 0; padding-left: 4px; list-style: none; font-size: 11px; line-height: 1.5; color: var(--text2); }
@@ -19655,7 +19658,13 @@ function rsProject(view, cam) {
 const _rsMixC = new Map();
 function rsMix(a, b, t) { const k = a + b + t; let v = _rsMixC.get(k); if (!v) { const h = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16)), A = h(a), B = h(b); v = '#' + A.map((c, i) => Math.round(c + (B[i] - c) * t).toString(16).padStart(2, '0')).join(''); _rsMixC.set(k, v); } return v; }
 let _rsUid = 0;
-function rsScene(spec, J, view, phase) {
+/* feat 628 — the second figure. The skeleton, the poses and the timing are shared (every movement was solved for one
+   set of bones), so she is the same rig with a different surface: slimmer arms, neck and waist, a smaller ribcage
+   and shoulders, fuller hips and glutes, a cropped top, and a ponytail in place of the mane. SC scales every radius
+   and every offset of the part being drawn, so the muscles stay on the limb they belong to. */
+function rsFigure() { return (typeof state !== 'undefined' && state && state.rsFigure === 'f') ? 'f' : 'm'; }
+function rsScene(spec, J, view, phase, fig) {
+  const FEM = fig === 'f'; let SC = 1;
   const P0 = rsProject(view, spec.cam); let XF = null; const P = (q) => XF ? P0(XF(q)) : P0(q), items = [], defs = [], uid = 'rs' + ((_rsUid = (_rsUid + 1) % 1e6)) + 'g'; let gid = 0;   // ids are unique per render: several stages share a page
   const f = n => (Math.round(n * 10) / 10).toString();
   /* feat 621 — THE LIGHTING. One key light, up and to the left of the screen, for every surface: each limb and ball is
@@ -19700,18 +19709,18 @@ function rsScene(spec, J, view, phase) {
       if (v > 0) items.push({ depth: D + lift + (lift || under(x) ? 0.02 + sq(dz + x.bias) : Math.max(0.02, dz + x.bias)), svg: v < 1 ? `<g opacity="${(v * v * (3 - 2 * v)).toFixed(3)}">${x.svg}</g>` : x.svg }); }); };
   // a tapered, shaded limb between two 3D points
   const capsule = (a, b, ra, rb, mat, cls, bias, flat) => {   // flat: 'b' squares off the far end (a hem), so it cannot overlap the next section of the limb
-    const A = P(a), B = P(b), K = A[3], dx = B[0] - A[0], dy = B[1] - A[1], d = Math.hypot(dx, dy) || 1e-3, nx = -dy / d, ny = dx / d;
+    ra *= SC; rb *= SC; const A = P(a), B = P(b), K = A[3], dx = B[0] - A[0], dy = B[1] - A[1], d = Math.hypot(dx, dy) || 1e-3, nx = -dy / d, ny = dx / d;
     const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2, R = Math.max(ra, rb) * K;
     const g = d < 1 ? rgrad(mat, mx, my, R) : gradC(mat, mx + nx * R, my + ny * R, mx - nx * R, my - ny * R, nx * LX + ny * LY);
     const len = Math.hypot(b[0] - a[0], b[1] - a[1], (b[2] || 0) - (a[2] || 0)), n = Math.max(1, Math.min(5, Math.round(len / 14)));   // feat 622 — short sections sort truer than one long piece
     for (let k = 0; k < n; k++) { const t0 = k / n, t1 = (k + 1) / n, X0 = A[0] + dx * t0, Y0 = A[1] + dy * t0, X1 = A[0] + dx * t1, Y1 = A[1] + dy * t1, Ra = (ra + (rb - ra) * t0) * K, Rb = (ra + (rb - ra) * t1) * K;
       add(A[2] + (B[2] - A[2]) * (t0 + t1) / 2 + (bias || 0), `<path class="rs-${cls}" fill="url(#${g})" d="M${f(X0 + nx * Ra)} ${f(Y0 + ny * Ra)} L${f(X1 + nx * Rb)} ${f(Y1 + ny * Rb)} ${flat === 'b' && k === n - 1 ? 'L' : `A${f(Rb)} ${f(Rb)} 0 0 0 `}${f(X1 - nx * Rb)} ${f(Y1 - ny * Rb)} L${f(X0 - nx * Ra)} ${f(Y0 - ny * Ra)} A${f(Ra)} ${f(Ra)} 0 0 0 ${f(X0 + nx * Ra)} ${f(Y0 + ny * Ra)} Z"/>`, G ? [a[0] + (b[0] - a[0]) * (t0 + t1) / 2, a[1] + (b[1] - a[1]) * (t0 + t1) / 2, (a[2] || 0) + ((b[2] || 0) - (a[2] || 0)) * (t0 + t1) / 2] : null, bias || 0, len / n / 2); }
   };
-  const ball = (c, r, mat, cls, bias, ry) => { const C = P(c), R = r * C[3]; add(C[2] + (bias || 0), `<ellipse class="rs-${cls}" cx="${f(C[0])}" cy="${f(C[1])}" rx="${f(R)}" ry="${f((ry || r) * C[3])}" fill="url(#${rgrad(mat, C[0], C[1], Math.max(R, (ry || r) * C[3]))})"/>`, c, bias || 0); };
+  const ball = (c, r, mat, cls, bias, ry) => { r *= SC; if (ry) ry *= SC; const C = P(c), R = r * C[3]; add(C[2] + (bias || 0), `<ellipse class="rs-${cls}" cx="${f(C[0])}" cy="${f(C[1])}" rx="${f(R)}" ry="${f((ry || r) * C[3])}" fill="url(#${rgrad(mat, C[0], C[1], Math.max(R, (ry || r) * C[3]))})"/>`, c, bias || 0); };
   // a bump: a muscle that rises out of the form under it. Its edge fades away, so it reads as a swell of the same
   // surface and never as a ball stuck on; two shared gradients (near side, far side) serve every bump.
   let bumpDefs = false;
-  const bump = (c, r, mat, cls, bias, ry) => { const C = P(c), farM = mat === RS_MAT.skinFar;
+  const bump = (c, r, mat, cls, bias, ry) => { r *= SC; if (ry) ry *= SC; const C = P(c), farM = mat === RS_MAT.skinFar;
     if (!bumpDefs) { bumpDefs = true; [RS_MAT.skin, RS_MAT.skinFar].forEach((m, k) => defs.push(`<radialGradient id="${uid}b${k}" cx=".5" cy=".5" r=".5" fx=".34" fy=".24"><stop offset="0" stop-color="${rsMix(m[0], '#ffffff', 0.6)}"/><stop offset=".2" stop-color="${m[0]}"/><stop offset=".62" stop-color="${m[1]}" stop-opacity=".92"/><stop offset=".86" stop-color="${rsMix(m[1], m[2], 0.55)}" stop-opacity=".5"/><stop offset="1" stop-color="${m[2]}" stop-opacity="0"/></radialGradient>`)); }
     add(C[2] + (bias || 0), `<ellipse class="rs-${cls}" cx="${f(C[0])}" cy="${f(C[1])}" rx="${f(r * C[3])}" ry="${f((ry || r) * C[3])}" fill="url(#${uid}b${farM ? 1 : 0})"/>`, c, bias || 0); };
   // a crease: the line where two forms meet (between the abs, under the chest, down the spine)
@@ -19724,7 +19733,7 @@ function rsScene(spec, J, view, phase) {
       defs.push(`<radialGradient id="${id}" cx=".5" cy=".5" r=".5" fx="${fx}" fy="${fy}">` + (hot
         ? '<stop offset="0" stop-color="#ffe0b0" stop-opacity=".95"/><stop offset=".28" stop-color="#ff6a45" stop-opacity=".9"/><stop offset=".68" stop-color="#e3261a" stop-opacity=".6"/><stop offset="1" stop-color="#a80f08" stop-opacity="0"/>'
         : '<stop offset="0" stop-color="#fff0dc" stop-opacity=".36"/><stop offset=".4" stop-color="#fff0dc" stop-opacity=".06"/><stop offset=".6" stop-color="#4a2414" stop-opacity="0"/><stop offset=".86" stop-color="#4a2414" stop-opacity=".2"/><stop offset="1" stop-color="#4a2414" stop-opacity="0"/>') + '</radialGradient>'); } return id; };
-  const muscle = (name, a, b, u, len, wF, fF, zc, limb, r) => {
+  const muscle = (name, a, b, u, len, wF, fF, zc, limb, r) => { r *= SC; zc = (zc || 0) * SC;
     const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1e-3;
     const n = limb ? [-dy / d, dx / d] : [dy / d, -dx / d];                       // the body's front for a limb / for the trunk
     const c = [_rsLerp(a[0], b[0], u) + n[0] * fF * r, _rsLerp(a[1], b[1], u) + n[1] * fF * r, _rsLerp(a[2] || 0, b[2] || 0, u) + (zc || 0)];
@@ -19785,7 +19794,8 @@ function rsScene(spec, J, view, phase) {
   const far = sd => P([0, 0, sd])[2] < P([0, 0, 0])[2];
   const skin = sd => far(sd) ? RS_MAT.skinFar : RS_MAT.skin, soft = sd => far(sd) ? RS_MAT.skinFarS : RS_MAT.skinS;
   const at3 = (a, b, t) => [_rsLerp(a[0], b[0], t), _rsLerp(a[1], b[1], t), _rsLerp(a[2] || 0, b[2] || 0, t)];
-  const off = (pt, v, d, dz) => [pt[0] + v[0] * d, pt[1] + v[1] * d, (pt[2] || 0) + (dz || 0)];
+  const off = (pt, v, d, dz) => [pt[0] + v[0] * d * SC, pt[1] + v[1] * d * SC, (pt[2] || 0) + (dz || 0) * SC];
+  SC = FEM ? 0.97 : 1;
   J.legs.forEach((l, i) => { const sd = i ? -1 : 1, sk = skin(sd), sks = soft(sd), to = (l.toeOut || 0) * Math.PI / 180 * sd;
     const tb = [(l.knee[0] - l.hip[0]), (l.knee[1] - l.hip[1])], tl = Math.hypot(tb[0], tb[1]) || 1, back = tl < 8 ? [-1, 0] : [tb[1] / tl, -tb[0] / tl], front = [-back[0], -back[1]];
     const sb = [(l.ankle[0] - l.knee[0]), (l.ankle[1] - l.knee[1])], sl = Math.hypot(sb[0], sb[1]) || 1, cback = sl < 8 ? [-1, 0] : [sb[1] / sl, -sb[0] / sl], cfront = [-cback[0], -cback[1]];
@@ -19802,7 +19812,7 @@ function rsScene(spec, J, view, phase) {
     bump(off(l.knee, front, 3.2, sd * 0.6), 3.6, sk, 'man', 0.3, 4.2);                                                                               // the kneecap
     bump(off(l.ankle, cfront, 0, sd * 2.6), 2.4, sk, 'man', 0.2); bump(off(l.ankle, cfront, 0, -sd * 2.6), 2.4, sk, 'man', 0.2);                     // ankle bones
     // shorts: seat, and a leg down to the upper thigh
-    GK = 'cover'; ball([l.hip[0] + back[0] * 2.4, l.hip[1] + back[1] * 2.4 + 1, l.hip[2] + sd * 1], 10.6, RS_MAT.shorts, 'shorts', 0.25);
+    GK = 'cover'; ball([l.hip[0] + back[0] * 2.4, l.hip[1] + back[1] * 2.4 + 1, l.hip[2] + sd * 1], FEM ? 12.2 : 10.6, RS_MAT.shorts, 'shorts', 0.25);
     capsule(l.hip, at3(l.hip, l.knee, 0.3), 10.9, 9.9, RS_MAT.shorts, 'shorts', 0.3, 'b'); GK = 'free';
     const heel = [l.ankle[0] + RS.heel * Math.cos(to), l.ankle[1] - RS.ankleY + 3.6, l.ankle[2] + RS.heel * Math.sin(to)], toe = [l.ankle[0] + RS.toe * Math.cos(to), l.ankle[1] - RS.ankleY + 2.7, l.ankle[2] + RS.toe * Math.sin(to)];
     if (l.fd && !(l.fd[0] === 1 && l.fd[1] === 0)) { const fx = l.fd[0], fy = l.fd[1], nxf = fy, nyf = -fx, cz = Math.cos(to), sz = Math.sin(to);   // feat 623 — a foot in the air, on its toes, or under a kneeling shin
@@ -19821,9 +19831,9 @@ function rsScene(spec, J, view, phase) {
   });
   // the trunk on the spine (straight, or rolled for the Jefferson curl): a small waist under a big ribcage
   const sp = J.spine ? J.spine.map(p => [p[0], p[1], p[2] || 0]) : [0, 1 / 3, 2 / 3, 1].map(t => [_rsLerp(J.hip[0], J.shd[0], t), _rsLerp(J.hip[1], J.shd[1], t), 0]);
-  const tz = [6.6, 5.4, 8.6, 9.6], tr = [10.6, 9.4, 13.6, 11.6];
+  const tz = FEM ? [8.6, 4.9, 7.4, 8.2] : [6.6, 5.4, 8.6, 9.6], tr = FEM ? [12.8, 9.4, 12.8, 10.6] : [10.6, 9.4, 13.6, 11.6], SHN = FEM ? 3.6 : 1; SC = FEM ? 0.84 : 1;
   const su = [sp[3][0] - sp[2][0], sp[3][1] - sp[2][1]], sul = Math.hypot(su[0], su[1]) || 1, up = [su[0] / sul, su[1] / sul], chestF = [up[1], -up[0]], backF = [-up[1], up[0]];
-  const T = (t, dir, d, z) => { const i = Math.min(2, Math.max(0, Math.floor(t))), q = at3(sp[i], sp[i + 1], t - i); return [q[0] + dir[0] * d, q[1] + dir[1] * d, (q[2] || 0) + (z || 0)]; };
+  const T = (t, dir, d, z) => { const i = Math.min(2, Math.max(0, Math.floor(t))), q = at3(sp[i], sp[i + 1], t - i); return [q[0] + dir[0] * d * SC, q[1] + dir[1] * d * SC, (q[2] || 0) + (z || 0) * SC]; };
   [1, -1].forEach(sd => { const sk = skin(sd), sks = soft(sd);
     open(sp.map((q, i) => [q[0], q[1], q[2] + sd * tz[i]])); GK = 'base'; for (let i = 0; i < 3; i++) capsule([sp[i][0], sp[i][1], sp[i][2] + sd * tz[i]], [sp[i + 1][0], sp[i + 1][1], sp[i + 1][2] + sd * tz[i + 1]], tr[i], tr[i + 1], sk, 'man'); GK = 'detail';
     capsule(off(sp[3], backF, 2.5, sd * 17.5), off(sp[1], backF, 1.5, sd * 9.5), 7.2, 3.6, sks, 'man', 0.05);                                        // the lat: armpit to waist, the V
@@ -19835,13 +19845,15 @@ function rsScene(spec, J, view, phase) {
     [1.92, 1.64, 1.36].forEach((t, k) => capsule(T(t, chestF, 4.6 + k, sd * (11.6 - k * 1.3)), T(t - 0.14, chestF, 7.6 + k * 0.5, sd * (9.4 - k * 1.2)), 1.7, 1.4, sks, 'man', 0.26)); // serratus
     bump(T(0.7, chestF, 3.6, sd * 9.0), 4.2, sk, 'man', 0.2, 6.4);                                                                                  // the oblique
     GK = 'cover'; capsule([sp[0][0], sp[0][1] - 2, sp[0][2] + sd * 6.8], at3([sp[0][0], sp[0][1], sp[0][2] + sd * 6.6], [sp[1][0], sp[1][1], sp[1][2] + sd * 5.4], 0.42), 11.2, 10.4, RS_MAT.shorts, 'shorts', 0.32, 'b');   // shorts: the waistband
+    if (FEM) { const c2 = [sp[2][0], sp[2][1], sp[2][2] + sd * tz[2]], c3 = [sp[3][0], sp[3][1], sp[3][2] + sd * tz[3]]; GK = 'cover';   // the cropped top
+      capsule(at3(c2, c3, 0.02), at3(c2, c3, 0.8), tr[2] + 0.7, (tr[2] + tr[3]) / 2 + 0.7, RS_MAT.shorts, 'shorts', 0.33, 'b'); ball(T(2.34, chestF, 10.4, sd * 6.6), 6.8, RS_MAT.shorts, 'shorts', 0.34, 6.0); }
     GK = 'detail'; muscle('erectors', sp[0], sp[3], 0.38, 0.72, 0.18, -0.76, sd * 3.0, false, 11.4); muscle('lats', sp[1], sp[3], 0.5, 0.82, 0.36, -0.3, sd * 15, false, 13); muscle('lats', sp[1], sp[2], 0.6, 0.6, 0.24, -0.52, sd * 9, false, 11);
     muscle('traps', sp[2], sp[3], 0.86, 0.7, 0.24, -0.68, sd * 6.5, false, 12.4); muscle('traps', sp[2], sp[3], 0.3, 0.7, 0.2, -0.74, sd * 4.0, false, 12.4);
     [0.52, 0.98, 1.44].forEach(t => muscle('abs', T(t - 0.2, chestF, 0), T(t + 0.2, chestF, 0), 0.5, 0.9, 0.22, 0.8, sd * 2.9, false, 10.2));
     muscle('obliques', sp[0], sp[2], 0.5, 0.56, 0.26, 0.4, sd * 11.6, false, 10.4);
     muscle('pecs', sp[2], sp[3], 0.66, 0.4, 0.3, 0.98, sd * 8.2, false, 13.4); muscle('pecs', sp[2], sp[3], 0.3, 0.42, 0.32, 1.0, sd * 9.0, false, 13.4); flush();
   });
-  capsule([J.shd[0], J.shd[1], (J.zc || 0) + RS.shHalf - 1], [J.shd[0], J.shd[1], (J.zc || 0) - RS.shHalf + 1], 8.2, 8.2, RS_MAT.skin, 'man', -0.2);
+  capsule([J.shd[0], J.shd[1], (J.zc || 0) + RS.shHalf - SHN], [J.shd[0], J.shd[1], (J.zc || 0) - RS.shHalf + SHN], FEM ? 6.6 : 8.2, FEM ? 6.6 : 8.2, RS_MAT.skin, 'man', -0.2);
   { // the lines a lean torso shows
     crease(T(0.25, chestF, 9.6), T(1.95, chestF, 10.6), 0.7, 0.5);
     crease(T(2.32, chestF, 13.4), T(2.95, chestF, 12.2), 0.8, 0.5);
@@ -19851,12 +19863,12 @@ function rsScene(spec, J, view, phase) {
     crease(T(0.3, backF, 9.6), T(2.9, backF, 10.4), 1.0, 0.5);
   }
   // the neck and its cords, then the head: every part of the head is placed in the head's own frame
-  capsule(J.neck, at3(J.neck, J.head, 0.6), 6.6, 6.0, RS_MAT.skin, 'man');
+  SC = FEM ? 0.8 : 1; capsule(J.neck, at3(J.neck, J.head, 0.6), 6.6, 6.0, RS_MAT.skin, 'man');
   { const hx = J.head[0] - J.neck[0], hy = J.head[1] - J.neck[1], hl = Math.hypot(hx, hy) || 1, hu = [hx / hl, hy / hl], fw = [hu[1], -hu[0]];
     const hp = (fo, uo, z) => [J.head[0] + fw[0] * fo + hu[0] * uo, J.head[1] + fw[1] * fo + hu[1] * uo, z || 0];
     [1, -1].forEach(sd => { capsule(hp(-1.5, -6.5, sd * 5.6), off(off(sp[3], chestF, 8.4, sd * 1.8), up, 4), 1.8, 1.6, soft(sd), 'man', 0.2);       // the cord from ear to collarbone
       capsule(off(off(sp[3], chestF, 9.2, sd * 1.6), up, 2.6), [J.shd[0] + chestF[0] * 4, J.shd[1] + chestF[1] * 4 + 3, sd * (RS.shHalf - 3)], 1.3, 1.2, soft(sd), 'man', 0.34); });   // the collarbone
-    open([J.head]); GK = 'base'; ball(J.head, 9.4, RS_MAT.skin, 'man head', 0, 11.2);
+    SC = FEM ? 0.95 : 1; open([J.head]); GK = 'base'; ball(J.head, 9.4, RS_MAT.skin, 'man head', 0, 11.2);
     ball(hp(3.6, -7.2), 6.6, RS_MAT.skin, 'man jaw', 0.02, 5.2); GK = 'detail'; bump(hp(6.4, -9.0), 2.6, RS_MAT.skin, 'man chin', 0.04);
     [1, -1].forEach(sd => { bump(hp(5.6, -1.6, sd * 5.4), 2.8, skin(sd), 'man cheek', 0.03); ball(hp(-0.6, -0.4, sd * 9.0), 2.2, skin(sd), 'man ear', 0.02, 3);
       ball(hp(7.4, 1.5, sd * 3.5), 1.05, RS_MAT.hair, 'eye', 0.05); crease(hp(8.0, 3.3, sd * 1.6), hp(7.3, 3.6, sd * 5.4), 1.1, 0.9, 0.06, RS_MAT.hair[2]); });
@@ -19871,8 +19883,11 @@ function rsScene(spec, J, view, phase) {
     for (let th = 128; th <= 232; th += 26) lock(th, -2.6, 8.2, 3.9);
     lock(24, 8.8, 6.4, 3.6); lock(-24, 8.8, 6.4, 3.6); ball(hp(6.4, 9.6), 3.4, RS_MAT.mane, 'hair', 0.02, 2.6);
     flush();
-    [-7.4, -3.7, 0, 3.7, 7.4].forEach(z => { const a = hp(-8.4, -2.4, z), m = off(off(J.neck, backF, 8.6, z * 1.1), up, 1.5), e = T(2.5, backF, 12.2, z * 1.25);
+    if (FEM) { const q0 = hp(-9.4, 4.8), q1 = hp(-17.5, -2), q2 = [J.neck[0] + backF[0] * 14 - up[0] * 4, J.neck[1] + backF[1] * 14 - up[1] * 4, 0], q3 = T(2.2, backF, 17, 0);   // a ponytail, tied high
+      ball(q0, 4.8, RS_MAT.mane, 'hair', 0.02); capsule(q0, q1, 3.8, 3.5, RS_MAT.mane, 'hair', -0.02); capsule(q1, q2, 3.5, 3.0, RS_MAT.mane, 'hair', -0.02); capsule(q2, q3, 3.0, 1.5, RS_MAT.mane, 'hair', -0.02); }
+    else [-7.4, -3.7, 0, 3.7, 7.4].forEach(z => { const a = hp(-8.4, -2.4, z), m = off(off(J.neck, backF, 8.6, z * 1.1), up, 1.5), e = T(2.5, backF, 12.2, z * 1.25);
       capsule(a, m, 3.7, 3.2, RS_MAT.mane, 'hair', -0.02); capsule(m, e, 3.2, 1.9, RS_MAT.mane, 'hair', -0.02); }); }
+  SC = FEM ? 0.78 : 1;
   J.arms.forEach((a, i) => { const sd = i ? -1 : 1, sk = skin(sd), sks = soft(sd), el = a.el || at3(a.sh, a.grip, RS.upArm / RS.arm);
     const ab = [el[0] - a.sh[0], el[1] - a.sh[1]], al = Math.hypot(ab[0], ab[1]) || 1, afront = al < 8 ? [1, 0] : [-ab[1] / al, ab[0] / al];
     const fb = [a.grip[0] - el[0], a.grip[1] - el[1]], fl = Math.hypot(fb[0], fb[1]) || 1, ffront = fl < 6 ? [1, 0] : [-fb[1] / fl, fb[0] / fl];
@@ -19896,6 +19911,7 @@ function rsScene(spec, J, view, phase) {
   });
 
   // ---- the load ----
+  SC = 1;
   const b = J.bar3 || J.bar, plate = k => RS_MAT['p' + k] || RS_MAT.p5, pr = k => spec.smallPlates ? Math.min(14, k >= 10 ? 14 : 10) : k >= 10 ? RS.plateR : 11.5;
   if (spec.rig && spec.equip === 'dumbbell') {                                                    // feat 623 — a dumbbell in each working hand, along the axis the grip gives it
     J.arms.forEach((a, i) => { if (a.free || ((spec.uni || spec.oneDb) && i === 1)) return; const g = spec.oneDb ? [b[0], b[1], b[2] || 0] : a.grip, ax = spec.dbAxis === 'z' ? [0, 0, 1] : spec.dbAxis === 'y' ? [0, 1, 0] : [1, 0, 0], q = (k) => [g[0] + ax[0] * k, g[1] + ax[1] * k, g[2] + ax[2] * k];
@@ -19968,7 +19984,7 @@ function rsStageSvg(spec, t, view, opts) {
   /* the glow of the working muscles is the mean of the last third of a second, so it rises and fades across a phase
      boundary however short the phases are (a two-phase blend jumped when a phase lasted less than the fade) */
   let ph = at.phase; if (spec.phases.length > 1) { const m = {}, N = 20; for (let k = 0; k < N; k++) { const q = rsAt(spec, t - k * 0.015).phase.m || {}; Object.keys(q).forEach(n => { m[n] = (m[n] || 0) + q[n] / N; }); } ph = { m }; }
-  const sc = rsScene(spec, J, view, ph);
+  const sc = rsScene(spec, J, view, ph, opts.fig || rsFigure());
   const path = []; if (!opts.noPath) { for (let i = 0; i <= 24; i++) { const j = rsFrame(spec, i / 24), q = rsProject(view, spec.cam)((j.xf || (x => x))([j.bar[0], j.bar[1], (wide || (spec.rig && spec.equip !== 'barbell')) ? ((j.bar3 && spec.rig && spec.equip !== 'barbell') ? j.bar3[2] || 0 : 0) : 70])); path.push(q[0].toFixed(1) + ' ' + q[1].toFixed(1)); } }
   const now = sc.P([J.bar[0], J.bar[1], (wide || (spec.rig && spec.equip !== 'barbell')) ? ((J.bar3 && spec.rig && spec.equip !== 'barbell') ? J.bar3[2] || 0 : 0) : 70]);
   const body = sc.items.sort((a, b) => a.depth - b.depth).map(x => x.svg).join('');
@@ -19991,6 +20007,7 @@ function repStudioHtml(uuid) {
   const lg = (cls, label) => `<span class="rs-lg"><i class="${cls}"></i>${label}</span>`;
   return `<div class="rs" data-rs="${escapeAttr(info.variation.id)}" data-view="${spec.view0 || 'three'}" data-playing="1" data-speed="1">
     <div class="rs-top"><div class="rs-seg" role="group" aria-label="${escapeAttr(t('View'))}">${[['side', t('Side')], ['three', t('3D')], ['front', t('Front')], ['back', t('Back')]].map(([v, l]) => `<button type="button" class="${v === (spec.view0 || 'three') ? 'active' : ''}" data-rs-view="${v}">${l}</button>`).join('')}</div>
+      <div class="rs-seg" role="group" aria-label="${escapeAttr(t('Figure'))}">${[['m', t('Male')], ['f', t('Female')]].map(([v, l]) => `<button type="button" class="${v === rsFigure() ? 'active' : ''}" data-rs-fig="${v}">${l}</button>`).join('')}</div>
       <button type="button" class="rs-speed" data-rs-speed title="${escapeAttr(t('Playback speed'))}">1×</button></div>
     <div class="rs-stage" aria-live="off"></div>
     <div class="rs-legend">${lg('lg-man', t('Lifter'))}${lg('lg-muscle', t('Working muscle'))}${spec.rig && (spec.equip === 'none' || spec.equip === 'machine') ? '' : lg('lg-bar', t('Bar')) + lg('lg-plate', t('Weight'))}${spec.rack || spec.equip === 'cable' || spec.equip === 'machine' || spec.props ? lg('lg-machine', t('Equipment')) : ''}${spec.noPath ? '' : lg('lg-path', spec.rig && spec.equip !== 'barbell' ? t('Path') : t('Bar path'))}</div>
@@ -20034,6 +20051,8 @@ function rsBind(root) {
     const spec = repStudioSpec(el.dataset.rs), T = rsTotal(spec), stop = e => e.stopPropagation();
     el.addEventListener('click', stop);
     el.querySelector('[data-rs-play]').addEventListener('click', () => rsSetPlaying(el, el.dataset.playing !== '1'));
+    el.querySelectorAll('[data-rs-fig]').forEach(b => b.addEventListener('click', () => { state.rsFigure = b.dataset.rsFig === 'f' ? 'f' : 'm'; if (typeof saveState === 'function') saveState();   // feat 628 — one choice for every player on the page
+      document.querySelectorAll('.rs').forEach(r => { r.querySelectorAll('[data-rs-fig]').forEach(x => x.classList.toggle('active', x.dataset.rsFig === state.rsFigure)); if (r.querySelector('.rs-stage svg')) rsPaint(r); }); }));
     el.querySelectorAll('[data-rs-view]').forEach(b => b.addEventListener('click', () => { el.dataset.view = b.dataset.rsView; el.querySelectorAll('[data-rs-view]').forEach(x => x.classList.toggle('active', x === b)); rsPaint(el); }));
     el.querySelector('[data-rs-speed]').addEventListener('click', e => { const next = { '1': '0.5', '0.5': '0.25', '0.25': '1' }[el.dataset.speed] || '1'; el.dataset.speed = next; e.currentTarget.textContent = next === '1' ? '1×' : next === '0.5' ? '½×' : '¼×'; });
     const bar = el.querySelector('[data-rs-bar]'), seek = e => { const r = bar.getBoundingClientRect(), rtl = getComputedStyle(bar).direction === 'rtl'; let k = (e.clientX - r.left) / (r.width || 1); if (rtl) k = 1 - k; el._rsT = _rsClamp(k, 0, 0.9999) * T; rsSetPlaying(el, false); rsPaint(el); };
@@ -37508,13 +37527,13 @@ function nextSetInnerHtml() {
   const c = pending.varUuid ? nextSetCoach(pending.varUuid, pending.subUuid) : null; if (!c) return '';
   const F = (w, r) => escapeHtml(fmtSetFor(pending.varUuid, w, r));
   const R = c.rested, restSame = R && R.w === c.w && R.r === c.r;
-  return `<div class="ns-row"><span class="ns-lbl">🧠 Next set${c.picked ? ' at your weight' : ''}</span><b class="ns-ask">${F(c.w, c.r)}</b>
+  const restWhen = R ? (R.inSec > 0 ? formatDuration(R.inSec) : R.hr ? '❤' : '') : '', restTitle = R ? 'At full rest' + (R.inSec > 0 ? ' (in ' + formatDuration(R.inSec) + ')' : R.hr ? ' (once your HR settles)' : '') + (restSame ? ' — same ask, better odds' : '') : '';
+  return `<div class="ns-row"><span class="ns-lbl" title="${escapeAttr('Next set' + (c.picked ? ' at your weight' : ''))}">🧠 ${t('Next')}${c.picked ? ' ⚖' : ''}</span><b class="ns-ask">${F(c.w, c.r)}</b>
     <span class="ns-odds" style="${_wtPctColor(c.odds)}" title="Odds you make all ${c.r} reps">${c.odds}%</span>
-    <span class="ns-rir">${t('~{rir} in reserve', { rir: (c.rir) })}</span>
+    <span class="ns-rir" title="${escapeAttr(t('~{rir} in reserve', { rir: (c.rir) }))}">🔋 ${c.rir}</span>
     ${c.picked ? '' : `<button type="button" class="ns-use" data-ns-use="${c.w}" title="Put ${c.w}${state.unit} in the next set">${t('Use')}</button>`}
     <button type="button" class="ns-why-btn" data-ns-why aria-expanded="${_nsOpen}">${_nsOpen ? 'why ▴' : 'why ▾'}</button></div>
-    ${R ? `<div class="ns-rest">⏱ At full rest${R.inSec > 0 ? ` (in ${formatDuration(R.inSec)})` : R.hr ? ' (once your HR settles)' : ''}: <b>${F(R.w, R.r)}</b> · ${R.odds}%${restSame ? ' — same ask, better odds' : ''}</div>` : ''}
-    ${c.beats.length ? `<div class="ns-beats">${t('🏅 Would beat your {p1}', { p1: (escapeHtml(c.beats.join(' and '))) })}</div>` : ''}
+    ${R || c.beats.length ? `<div class="ns-more">${R ? `<span class="ns-rest" title="${escapeAttr(restTitle)}">⏱ ${restWhen} → <b>${F(R.w, R.r)}</b> ${R.odds}%${restSame ? ' ↑' : ''}</span>` : ''}${c.beats.length ? `<span class="ns-beats" title="${escapeAttr(t('🏅 Would beat your {p1}', { p1: c.beats.join(' and ') }))}">🏅 ${escapeHtml(c.beats.join(' + '))}</span>` : ''}</div>` : ''}
     ${c.sRank && !(c.sRank.w === c.w && c.sRank.r <= c.r) ? `<div class="ns-srank">${t('<span class="session-grade g-S">S</span> set: <b>{p1}</b>', { p1: (F(c.sRank.w, c.sRank.r)) })} · ${c.sRank.odds}%${c.sRank.restedOdds != null && c.sRank.restedOdds > c.sRank.odds ? ` (${c.sRank.restedOdds}% at full rest)` : ''}${c.picked ? '' : ` <button type="button" class="ns-use sm" data-ns-use="${c.sRank.w}" title="Put ${c.sRank.w}${state.unit} in the next set">${t('Go for it')}</button>`}</div>` : ''}
     ${_nsOpen ? `<ul class="ns-why">${c.why.map(x => `<li>${escapeHtml(x)}</li>`).join('')}<li>${t('🚀 Feeling good? {p1} is {odds}%', { p1: (F(c.stretch.w, c.stretch.r)), odds: (c.stretch.odds) })}</li></ul>
       <div class="ns-f-head">${t('Factors — tap to switch one off')}</div>${nsFactorChipsHtml()}` : ''}`;
@@ -38119,14 +38138,17 @@ function recordHintText(wNum, rNum) {
   const rTxt = n => tm ? formatSecondsClock(n) : n + ' reps';
   if (wNum > 0 && (rNum == null || rNum <= 0)) {
     const rec = getBestRepsAtWeight(pending.varUuid, pending.subUuid, wNum);
-    if (!rec) return `<span class="hint-action">${wNum}${state.unit}:</span> first time at this weight — set a baseline`;
+    if (!rec) return `<span class="hint-action" title="${escapeAttr(wNum + state.unit + ': first time at this weight — set a baseline')}">🆕 ${wNum}${state.unit}</span> <span class="hint-when">${t('first time')}</span>`;
     const exactnessNote = rec.exact ? '' : ` <span style="color:#6f88c0">${t('(at {weight}{unit})', { weight: (rec.weight), unit: (state.unit) })}</span>`;
-    return `<span class="hint-action">${t('{p1} at {wNum}{unit}:', { p1: (tm ? t('Longest hold') : t('Best reps')), wNum: (wNum), unit: (state.unit) })}</span> <b>${rTxt(rec.reps)}</b> on ${fmtDate(rec.date)}${exactnessNote} — beat <b>${tm ? rTxt(rec.reps + 1) : rec.reps + 1}</b> for a record`;
+    /* feat 629 — "BEST REPS AT 85LB: 21 reps on 2026-11-12 — beat 22 for a record" became "🏅 85lb ×21 · 2026-11-12 → 22 🏆":
+       the same facts in a third of the space, with the number to beat as the thing that stands out. The full sentence is the tooltip. */
+    const full = t('{p1} at {wNum}{unit}:', { p1: (tm ? t('Longest hold') : t('Best reps')), wNum: (wNum), unit: (state.unit) }) + ' ' + rTxt(rec.reps) + ' on ' + fmtDate(rec.date) + ' — beat ' + (tm ? rTxt(rec.reps + 1) : rec.reps + 1) + ' for a record';
+    return `<span class="hint-action" title="${escapeAttr(full)}">🏅 ${wNum}${state.unit}</span> <b>${tm ? rTxt(rec.reps) : '×' + rec.reps}</b> <span class="hint-when">${fmtDate(rec.date)}</span>${exactnessNote} <span class="hint-go">→ <b>${tm ? rTxt(rec.reps + 1) : rec.reps + 1}</b> 🏆</span>`;
   }
   if (rNum > 0 && (wNum == null || wNum <= 0)) {
     const rec = getBestWeightAtReps(pending.varUuid, pending.subUuid, rNum);
-    if (!rec) return `<span class="hint-action">${rTxt(rNum)}:</span> first time at this ${tm ? 'length' : 'rep count'} — set a baseline`;
-    return `<span class="hint-action">${t('Best weight at {rNum}:', { rNum: (rTxt(rNum)) })}</span> <b>${rec.weight}${state.unit}</b> on ${fmtDate(rec.date)} — beat it to set a record`;
+    if (!rec) return `<span class="hint-action" title="${escapeAttr(rTxt(rNum) + ': first time at this ' + (tm ? 'length' : 'rep count') + ' — set a baseline')}">🆕 ${tm ? rTxt(rNum) : '×' + rNum}</span> <span class="hint-when">${t('first time')}</span>`;
+    return `<span class="hint-action" title="${escapeAttr(t('Best weight at {rNum}:', { rNum: (rTxt(rNum)) }) + ' ' + rec.weight + state.unit + ' on ' + fmtDate(rec.date) + ' — beat it to set a record')}">🏅 ${tm ? rTxt(rNum) : '×' + rNum}</span> <b>${rec.weight}${state.unit}</b> <span class="hint-when">${fmtDate(rec.date)}</span> <span class="hint-go">→ <b>▲</b> 🏆</span>`;
   }
   return null;
 }
@@ -39591,7 +39613,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 524 · 2026-11-27 19:10';
+const APP_BUILD = 'build 525 · 2026-11-27 20:22';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
