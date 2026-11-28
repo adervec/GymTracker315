@@ -248,3 +248,42 @@ test('feat 628 — every movement has a female figure, and the player remembers 
   expect(r.s1).toBeGreaterThan(r.s0);
   expect([r.saved, r.active, r.after]).toEqual(['f', 'f', 'm']);
 });
+
+test('feat 636 — the reel: a camera that drifts, pushes in, cuts square-on and orbits back, for every movement', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const out = { bad: [], loops: [], n: 0 }; let sq = null;
+    Object.keys(RS_MOTIONS).forEach(id => { const spec = RS_MOTIONS[id]('none', {}); spec.rig = true; if (!spec.equip) spec.equip = 'none'; rsApplyMods(spec, {}); out.n++;
+      const pl = rsReelPlan(spec), T = rsTotal(spec), reps = pl.C / T; if (Math.abs(reps - Math.round(reps)) > 1e-6 || pl.L < 1.5 || pl.L > 8) out.loops.push(id + ' ' + pl.L.toFixed(2));
+      for (let k = 0; k < 4; k++) { const s = rsStageSvg(spec, (k + 0.6) * pl.L, 'reel', { noPath: true }); if (!/^<svg/.test(s) || /NaN|undefined/.test(s)) out.bad.push(id + ' shot ' + k); }
+      if (id === 'squat') sq = spec; });
+    const pl = rsReelPlan(sq), cam = k => rsReelCam(sq, (k + 0.6) * pl.L), vb = t => /viewBox="([^"]+)"/.exec(rsStageSvg(sq, t, 'reel', { noPath: true }))[1];
+    out.snap = pl.snap; out.cams = [0, 1, 2, 3].map(cam); out.seam = [rsReelCam(sq, pl.C - 1e-6), rsReelCam(sq, 0)];
+    out.wide = vb(0.5 * pl.L); out.close = vb(1.8 * pl.L); out.fixed = /viewBox="([^"]+)"/.exec(rsStageSvg(sq, 1, 'three', { noPath: true }))[1];
+    out.gif = rsGifTimes(sq, 10, 1, true).reduce((a, x) => a + x[1], 0) / 100; out.C = pl.C; out.one = rsGifTimes(sq, 10, 1).reduce((a, x) => a + x[1], 0) / 100; out.T = rsTotal(sq);
+    return out; });
+  expect(r.n).toBeGreaterThan(90);
+  expect(r.bad, 'every shot of every movement draws').toEqual([]);
+  expect(r.loops, 'the reel is a whole number of reps, in shots of a watchable length').toEqual([]);
+  expect(r.snap, 'a squat is quads first: the square-on shot is from the front').toBe('front');
+  expect(r.cams.map(c => c.cut)).toEqual(['a', 'a', 'b', 'a']);
+  expect(r.cams[0].z).toBe(1); expect(r.cams[1].z).toBeGreaterThan(1.5);
+  expect(r.cams[2].yaw).toBe(-80);
+  expect(Math.abs(r.seam[0].yaw - r.seam[1].yaw), 'the orbit ends where the first shot begins').toBeLessThan(0.01); expect(Math.abs(r.seam[0].z - r.seam[1].z)).toBeLessThan(0.01);
+  expect(r.wide).toBe(r.fixed);
+  expect(+r.close.split(' ')[2], 'the push-in shows less of the stage').toBeLessThan(220);
+  expect(Math.abs(r.gif - r.C), 'a reel GIF lasts the whole reel').toBeLessThan(0.05); expect(Math.abs(r.one - r.T)).toBeLessThan(0.05);
+});
+
+test('feat 636 — the player has a Reel view, and reduced motion gets the still 3D camera', async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    const u = FAMILIES.find(f => f.id === 'bicep-curl').variations[0].uuid; openMotionCarousel(u);
+    const el = document.querySelector('#motion-modal .rs'); el.querySelector('[data-rs-view="reel"]').click(); rsSetPlaying(el, false);
+    const spec = repStudioSpec(el.dataset.rs), pl = rsReelPlan(spec), vb = () => el.querySelector('.rs-stage svg').getAttribute('viewBox');
+    el._rsT = 0.5 * pl.L; rsPaint(el); const a = vb(); el._rsT = 1.8 * pl.L; rsPaint(el); const b = vb();
+    return { view: el.dataset.view, active: el.querySelector('[data-rs-view].active').dataset.rsView, a, b, fits: el.querySelector('.rs-top').scrollWidth <= el.querySelector('.rs-top').clientWidth + 1 }; });
+  expect(r.view).toBe('reel'); expect(r.active).toBe('reel'); expect(r.a).not.toBe(r.b); expect(r.fits, 'five view buttons fit').toBe(true);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const still = await page.evaluate(() => { const spec = RS_MOTIONS['squat']('none', {}); spec.rig = true; spec.equip = 'none'; rsApplyMods(spec, {}); const pl = rsReelPlan(spec);
+    const strip = s => s.replace(/rs\d+g/g, 'G').replace(/rsc\d+/g, 'C'); return strip(rsStageSvg(spec, 1.8 * pl.L, 'reel', { noPath: true })) === strip(rsStageSvg(spec, 1.8 * pl.L, 'three', { noPath: true })); });
+  expect(still).toBe(true);
+});

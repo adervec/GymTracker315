@@ -5822,3 +5822,11 @@ Python 3, `npm ci`, then `playwright install chromium`), uploading the Playwrigh
   drawn in three sections, then four; a muscle that turns out of sight), which used to leave that whole kind out of
   the fade for the frame. Now, when a count changes, the old and new rows are lined up in order by screen position
   and each shape takes the name of its partner. Found on the rowing machine, female figure, back view.
+- **The reel (feat 636):** a fifth view whose camera moves like a coach's video. Nothing is hand-written per
+  movement. `rsReelPlan(spec)` derives it: shots near 3.4 s, preferring shots that last whole reps, with the loop a
+  whole number of reps; the hardest-working muscle picks the square-on angle (front, back or side) and which side
+  the moving shots keep to. Four shots repeat: a wide drift, a push in, a cut square-on, a cut to an orbit that
+  pulls back to where the drift begins. Yaw and pitch go through `rsProject` (which now takes a camera as well as a
+  named view); zoom and pan are the SVG viewBox, closed on `rsReelFocus` (the working muscles' places on the
+  skeleton, half following the body) and clamped inside the full frame. A cut starts a new cross-fade run (feat 634)
+  so nothing fades across it. Reduced motion gets the still 3D view. The GIF samples a reel evenly over its loop.

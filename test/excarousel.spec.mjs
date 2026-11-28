@@ -100,7 +100,7 @@ test('feat 474 — the 🏃 button opens the animation (feat 623: the Rep Studio
     return out;
   }, openFor);
   expect(r.open).toBe(true);
-  expect(r.views, 'one button per viewpoint').toEqual(['side', 'three', 'front', 'back']);
+  expect(r.views, 'one button per viewpoint').toEqual(['side', 'three', 'front', 'back', 'reel']);
   expect(r.motion).toBe('bench-press');
   expect(r.painted, 'the lifter is drawn').toBe(true);
   expect(r.bench, 'on a bench').toBe(true);

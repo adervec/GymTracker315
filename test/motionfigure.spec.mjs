@@ -358,7 +358,7 @@ test('feat 408 — the full reference offers an animation for every mapped varia
   expect(r.built, 'only the hand-solved deadlifts are built up front').toBeLessThan(40);
   expect(r.hasSvg).toBe(true);
   expect(r.animates).toBe(true);
-  expect(r.pills).toEqual(['side', 'three', 'front', 'back']);
+  expect(r.pills).toEqual(['side', 'three', 'front', 'back', 'reel']);
   expect(r.switched).toBe(true);
 });
 

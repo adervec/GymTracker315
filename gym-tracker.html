@@ -19676,8 +19676,10 @@ const RS_MAT = {
 };
 const RS_MUSCLE_IDLE = '#b0584c', RS_MUSCLE_HOT = '#ff3b2f';
 function rsProject(view, cam) {
-  const v = RS_VIEWS[view] || RS_VIEWS.three, cy = Math.cos(v.yaw * Math.PI / 180), sy = Math.sin(v.yaw * Math.PI / 180), cp = Math.cos(v.pitch * Math.PI / 180), sp = Math.sin(v.pitch * Math.PI / 180);
-  const wideV = view === 'front' || view === 'back', K = 1.42 * ((cam && cam.k) || 1), OX = (wideV ? 180 : 150) + (cam ? (wideV ? (cam.fx || 0) : (cam.dx || 0)) : 0), OY = 268 + ((cam && cam.dy) || 0);
+  const free = !!view && view.yaw != null, v = free ? view : RS_VIEWS[view] || RS_VIEWS.three, cy = Math.cos(v.yaw * Math.PI / 180), sy = Math.sin(v.yaw * Math.PI / 180), cp = Math.cos(v.pitch * Math.PI / 180), sp = Math.sin(v.pitch * Math.PI / 180);
+  const wideV = view === 'front' || view === 'back', K = 1.42 * ((cam && cam.k) || 1), OY = 268 + ((cam && cam.dy) || 0);
+  /* a movement is slid sideways to sit in the frame, by one amount seen from the side and another seen end on; a free camera is somewhere between the two */
+  const OX = free ? 150 + (cam ? (cam.dx || 0) * cy * cy + (cam.fx || 0) * sy * sy : 0) : (wideV ? 180 : 150) + (cam ? (wideV ? (cam.fx || 0) : (cam.dx || 0)) : 0);
   return p => { const x = p[0], y = p[1], z = p[2] || 0, x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
     return [OX + K * x1, OY - K * (y * cp - z1 * sp), z1 * cp + y * sp, K]; };
 }
@@ -20052,17 +20054,52 @@ function rsSmoothOrder(spec, t, view, fig, items) {
   all[key] = { t, rank, fades: [], names };
   return items.map(x => x.svg).join('');
 }
+/* feat 636 — the reel: a camera that moves the way a coach's video is cut. Nothing is written by hand for a movement:
+   the shots come from what the movement already says about itself (how long a rep is, which muscles work, which
+   side shows it best). Four shots, each close to three and a half seconds and a whole number of them to a loop:
+   a wide establishing shot that drifts; a push in on the working muscles; a cut to the square-on angle that shows
+   the movement best; a cut to a slow orbit that pulls back out to where the first shot begins. */
+const _rsReelC = new WeakMap();
+function rsReelFocus(J, w) {   // where the work is, in the body's own space: the working muscles' places, the hardest-working counting most
+  const m3 = q => [q[0], q[1], q[2] || 0], mid = (a, b, k) => [0, 1, 2].map(i => (a[i] || 0) + ((b[i] || 0) - (a[i] || 0)) * k), both = (list, f) => { const q = (list || []).map(f).filter(Boolean); return q.length ? [0, 1, 2].map(i => q.reduce((a, v) => a + (v[i] || 0), 0) / q.length) : null; };
+  const hip = m3(J.hip), shd = m3(J.shd), tr = k => mid(hip, shd, k), thigh = k => both(J.legs, l => l.hip && l.knee && mid(l.hip, l.knee, k)), shank = both(J.legs, l => l.knee && l.ankle && mid(l.knee, l.ankle, 0.5)), upper = both(J.arms, a => a.sh && a.el && mid(a.sh, a.el, 0.5)), fore = both(J.arms, a => a.el && a.grip && mid(a.el, a.grip, 0.5));
+  const at = { quads: thigh(0.55), hams: thigh(0.5), adductors: thigh(0.3), glutes: hip, calves: shank, shins: shank, abs: tr(0.4), obliques: tr(0.4), erectors: tr(0.5), lats: tr(0.7), pecs: tr(0.88), traps: tr(1), delts: both(J.arms, a => a.sh), biceps: upper, triceps: upper, forearms: fore };
+  let sum = 0; const f = [0, 0, 0]; Object.keys(w).forEach(m => { const q = at[m], k = w[m] * w[m]; if (!q || !(k > 0)) return; sum += k; for (let i = 0; i < 3; i++) f[i] += q[i] * k; });
+  return sum ? f.map(v => v / sum) : tr(0.5); }
+function rsReelPlan(spec) { let pl = _rsReelC.get(spec); if (pl) return pl;
+  const T = rsTotal(spec) || 1; let best = null;
+  [1, 2, 3, 4, 6, 8, 12, 16, 24].forEach(n => [4, 8, 12].forEach(S => { const L = n * T / S, e = Math.abs(Math.log(L / 3.4)) + n * S * 1e-4 - (n % S ? 0 : 0.3);   /* a shot that lasts whole reps is worth some length: its cuts then fall where a rep begins */ if (!best || e < best.e) best = { e, S, L, C: n * T }; }));
+  const w = {}; spec.phases.forEach(ph => Object.keys(ph.m || {}).forEach(m => { w[m] = (w[m] || 0) + ph.m[m] * ph.sec; }));
+  const top = Object.keys(w).sort((a, b) => w[b] - w[a])[0] || '';   // the muscle that works hardest says which side to stand on
+  const snap = spec.view0 === 'front' ? 'front' : ['lats', 'traps', 'erectors', 'glutes', 'hams'].includes(top) ? 'back' : ['pecs', 'abs', 'quads', 'obliques', 'adductors'].includes(top) ? 'front' : 'side';
+  let mean = [0, 0, 0]; const N = 12; for (let i = 0; i < N; i++) { const f = rsReelFocus(rsFrameAt(spec, (i + 0.5) / N * T), w); mean = mean.map((v, k) => v + f[k] / N); }
+  pl = { S: best.S, L: best.L, C: best.C, w, snap, mean, g: snap === 'back' ? 1 : -1 };   /* g: the moving shots keep to the side the work is on */ _rsReelC.set(spec, pl); return pl; }
+function rsReelLen(spec) { return rsReelPlan(spec).C; }
+// the camera at a moment of the reel: where it looks from, how close, and which run of unbroken footage it is in
+function rsReelCam(spec, t) {
+  const pl = rsReelPlan(spec), tc = ((t % pl.C) + pl.C) % pl.C, n = Math.min(pl.S - 1, Math.floor(tc / pl.L)), u = _rsClamp(tc / pl.L - n, 0, 1), e = x => { x = _rsClamp(x, 0, 1); return x * x * (3 - 2 * x); }, sv = RS_VIEWS[pl.snap];
+  switch (n % 4) {
+    case 0: return { yaw: pl.g * (18 + 16 * u), pitch: 9, z: 1, cut: 'a', shot: n };
+    case 1: return { yaw: pl.g * (34 + 8 * u), pitch: 9 + 3 * e(u / 0.5), z: 1 + 0.75 * e(u / 0.5), cut: 'a', shot: n };
+    case 2: return { yaw: sv.yaw, pitch: sv.pitch, z: 1.2 + 0.2 * u, cut: 'b', shot: n };
+    default: return { yaw: pl.g * (-50 + 68 * e(u)), pitch: 12 - 3 * e(u), z: 1.5 - 0.5 * e((u - 0.45) / 0.55), cut: 'a', shot: n }; }
+}
 // the whole stage as SVG: the scene, the bar's path through the rep, and where the bar is now
 function rsStageSvg(spec, t, view, opts) {
-  opts = opts || {}; const at = rsAt(spec, t), J = rsFrameAt(spec, t), wide = view === 'front' || view === 'back';
+  opts = opts || {}; if (view === 'reel' && typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) view = 'three';   // a moving camera is motion the reader asked not to have
+  const cam = view === 'reel' ? rsReelCam(spec, t) : null, V = cam || view; { const T = rsTotal(spec) || 1; t = ((t % T) + T) % T; }
+  const at = rsAt(spec, t), J = rsFrameAt(spec, t), wide = view === 'front' || view === 'back';
   /* the glow of the working muscles is the mean of the last third of a second, so it rises and fades across a phase
      boundary however short the phases are (a two-phase blend jumped when a phase lasted less than the fade) */
   let ph = at.phase; if (spec.phases.length > 1) { const m = {}, N = 20; for (let k = 0; k < N; k++) { const q = rsAt(spec, t - k * 0.015).phase.m || {}; Object.keys(q).forEach(n => { m[n] = (m[n] || 0) + q[n] / N; }); } ph = { m }; }
-  const sc = rsScene(spec, J, view, ph, opts.fig || rsFigure());
-  const path = []; if (!opts.noPath) { for (let i = 0; i <= 24; i++) { const j = rsFrame(spec, i / 24), q = rsProject(view, spec.cam)((j.xf || (x => x))([j.bar[0], j.bar[1], (wide || (spec.rig && spec.equip !== 'barbell')) ? ((j.bar3 && spec.rig && spec.equip !== 'barbell') ? j.bar3[2] || 0 : 0) : 70])); path.push(q[0].toFixed(1) + ' ' + q[1].toFixed(1)); } }
+  const sc = rsScene(spec, J, V, ph, opts.fig || rsFigure());
+  const path = []; if (!opts.noPath) { for (let i = 0; i <= 24; i++) { const j = rsFrame(spec, i / 24), q = rsProject(V, spec.cam)((j.xf || (x => x))([j.bar[0], j.bar[1], (wide || (spec.rig && spec.equip !== 'barbell')) ? ((j.bar3 && spec.rig && spec.equip !== 'barbell') ? j.bar3[2] || 0 : 0) : 70])); path.push(q[0].toFixed(1) + ' ' + q[1].toFixed(1)); } }
   const now = sc.P([J.bar[0], J.bar[1], (wide || (spec.rig && spec.equip !== 'barbell')) ? ((J.bar3 && spec.rig && spec.equip !== 'barbell') ? J.bar3[2] || 0 : 0) : 70]);
-  const body = rsSmoothOrder(spec, t, view, opts.fig || rsFigure(), sc.items);
-  return `<svg class="rs-svg" viewBox="${wide ? '0 0 360 300' : '-6 0 330 300'}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeAttr(opts.label || '')}"><defs>${sc.defs.join('')}</defs>${body}
+  const body = rsSmoothOrder(spec, t, cam ? 'reel' + cam.cut : view, opts.fig || rsFigure(), sc.items);   // a cut starts a new run: nothing fades across it
+  let vb = wide ? '0 0 360 300' : '-6 0 330 300';
+  if (cam && cam.z > 1) { const pl = rsReelPlan(spec), cur = rsReelFocus(J, pl.w), f = sc.P(cur.map((v, i) => (v + pl.mean[i]) / 2)), w = 330 / cam.z, h = 300 / cam.z;   /* the frame closes on the work, following the body half way so the picture neither swims nor loses it; it never leaves the full frame */
+    vb = [_rsClamp(f[0] - w / 2, -6, 324 - w), _rsClamp(f[1] - h / 2, 0, 300 - h), w, h].map(v => v.toFixed(1)).join(' '); }
+  return `<svg class="rs-svg" viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeAttr(opts.label || '')}"><defs>${sc.defs.join('')}</defs>${body}
     ${path.length && !spec.pinned && !spec.noPath ? `<path class="rs-path" d="M${path.join(' L')}" fill="none"/><circle class="rs-path-now" cx="${now[0].toFixed(1)}" cy="${now[1].toFixed(1)}" r="2.6"/>` : ''}</svg>`;
 }
 /* ---------------- the player ---------------- */
@@ -20080,7 +20117,7 @@ function repStudioHtml(uuid) {
   let acc = 0; const ticks = spec.phases.map(p => { acc += p.sec; return acc; }).slice(0, -1).map(x => `<i style="inset-inline-start:${(x / T * 100).toFixed(2)}%"></i>`).join('');
   const lg = (cls, label) => `<span class="rs-lg"><i class="${cls}"></i>${label}</span>`;
   return `<div class="rs" data-rs="${escapeAttr(info.variation.id)}" data-view="${spec.view0 || 'three'}" data-playing="1" data-speed="1">
-    <div class="rs-top"><div class="rs-seg" role="group" aria-label="${escapeAttr(t('View'))}">${[['side', t('Side')], ['three', t('3D')], ['front', t('Front')], ['back', t('Back')]].map(([v, l]) => `<button type="button" class="${v === (spec.view0 || 'three') ? 'active' : ''}" data-rs-view="${v}">${l}</button>`).join('')}</div>
+    <div class="rs-top"><div class="rs-seg" role="group" aria-label="${escapeAttr(t('View'))}">${[['side', t('Side')], ['three', t('3D')], ['front', t('Front')], ['back', t('Back')], ['reel', t('Reel')]].map(([v, l]) => `<button type="button" class="${v === (spec.view0 || 'three') ? 'active' : ''}" data-rs-view="${v}">${l}</button>`).join('')}</div>
       <div class="rs-seg" role="group" aria-label="${escapeAttr(t('Figure'))}">${[['m', t('Male')], ['f', t('Female')]].map(([v, l]) => `<button type="button" class="${v === rsFigure() ? 'active' : ''}" data-rs-fig="${v}">${l}</button>`).join('')}</div>
       <button type="button" class="rs-speed" data-rs-speed title="${escapeAttr(t('Playback speed'))}">1×</button></div>
     <div class="rs-stage" aria-live="off"></div>
@@ -20099,7 +20136,7 @@ function repStudioHtml(uuid) {
 function rsPaint(el) {
   const spec = repStudioSpec(el.dataset.rs); if (!spec) return;
   const T = rsTotal(spec), tt = ((+el._rsT || 0) % T + T) % T, at = rsAt(spec, tt);
-  el.querySelector('.rs-stage').innerHTML = rsStageSvg(spec, tt, el.dataset.view);
+  el.querySelector('.rs-stage').innerHTML = rsStageSvg(spec, el.dataset.view === 'reel' ? (+el._rsT || 0) : tt, el.dataset.view);   // the reel runs over several reps, so it is given the running time
   el.querySelector('.rs-fill').style.width = (tt / T * 100).toFixed(2) + '%';
   el.querySelector('[data-rs-time]').textContent = t('{t} of {T} s', { t: tt.toFixed(1), T: T.toFixed(1) });
   el.querySelector('[data-rs-bar]').setAttribute('aria-valuenow', tt.toFixed(1));
@@ -20179,8 +20216,9 @@ function rsGifEncode(w, h, frames, palette) {
   b(0x3B); return new Uint8Array(out);
 }
 // the frames of one rep: [time in seconds, delay in 1/100 s]. A hold is a single long frame.
-function rsGifTimes(spec, fps, speed) {
+function rsGifTimes(spec, fps, speed, reel) {
   const list = []; let acc = 0;
+  if (reel) { const C = rsReelLen(spec), n = Math.max(2, Math.min(360, Math.round(C / speed * fps))); for (let i = 0; i < n; i++) list.push([(i + 0.5) / n * C, C / speed / n * 100]); return list; }   // the camera moves through a hold too, so the reel is sampled evenly over its whole loop
   spec.phases.forEach(p => { const still = p.from === p.to;
     if (still) list.push([acc + p.sec / 2, p.sec / speed * 100]);
     else { const n = Math.max(2, Math.round(p.sec / speed * fps)); for (let i = 0; i < n; i++) list.push([acc + (i + 0.5) / n * p.sec, p.sec / speed / n * 100]); }
@@ -20209,7 +20247,7 @@ async function rsGifFrame(ctx, spec, t, views, cell, opt) {
 async function rsGifBuild(spec, views, opt, onProgress) {
   const wide = v => v === 'front' || v === 'back', W = opt.size, H = Math.round(W * 300 / (views.every(wide) ? 360 : 330));
   const cv = document.createElement('canvas'); cv.width = W * views.length; cv.height = H; const ctx = cv.getContext('2d', { willReadFrequently: true });
-  const times = rsGifTimes(spec, opt.fps, opt.speed), n = times.length;
+  const times = rsGifTimes(spec, opt.fps, opt.speed, views.includes('reel')), n = times.length;
   // pass 1: the palette, from a sample of the frames
   const hist = new Uint32Array(32768), step = Math.max(1, Math.floor(n / 10));
   for (let i = 0; i < n; i += step) { await rsGifFrame(ctx, spec, times[i][0], views, [W, H], opt); const d = ctx.getImageData(0, 0, cv.width, H).data;
@@ -20232,21 +20270,21 @@ async function rsGifBuild(spec, views, opt, onProgress) {
   const bytes = rsGifEncode(cv.width, H, frames, pal); if (onProgress) onProgress(1);
   return new Blob([bytes], { type: 'image/gif' });
 }
-const RS_GIF_VIEWS = [['side', 'Side'], ['three', '3D'], ['front', 'Front'], ['back', 'Back']];   // i18n-keys: Side | 3D | Front | Back
+const RS_GIF_VIEWS = [['side', 'Side'], ['three', '3D'], ['front', 'Front'], ['back', 'Back'], ['reel', 'Reel']];   // i18n-keys: Side | 3D | Front | Back | Reel
 function rsGifWizard(el) {
   const spec = repStudioSpec(el.dataset.rs), host = el.querySelector('.rs-wiz'); if (!spec || !host) return;
   const st = el._gif || (el._gif = { step: 1, views: [el.dataset.view || 'three'], layout: 'separate', size: 360, fps: 15, speed: 1, caption: true, path: true, out: [] });
   const chip = (on, attrs, label) => `<button type="button" class="rs-wchip${on ? ' on' : ''}" aria-pressed="${on}" ${attrs}>${label}</button>`;
   const info = [...VAR_INDEX.values()].find(x => x.variation.id === el.dataset.rs), title = info ? info.variation.title : '';
-  const frames = rsGifTimes(spec, st.fps, st.speed).length, files = st.layout === 'row' ? 1 : st.views.length;
+  const hasReel = st.views.includes('reel'), frames = rsGifTimes(spec, st.fps, st.speed, hasReel && (st.layout === 'row' || st.views.length === 1)).length, files = st.layout === 'row' ? 1 : st.views.length;
   let body = '';
-  if (st.step === 1) body = `<div class="rs-wq">${t('Which views?')}</div><div class="rs-wrow">${RS_GIF_VIEWS.map(([v, l]) => chip(st.views.includes(v), `data-gv="${v}"`, t(l))).join('')}${chip(st.views.length === 4, 'data-gv="*"', t('All four'))}</div>
+  if (st.step === 1) body = `<div class="rs-wq">${t('Which views?')}</div><div class="rs-wrow">${RS_GIF_VIEWS.map(([v, l]) => chip(st.views.includes(v), `data-gv="${v}"`, t(l))).join('')}${chip(st.views.length === RS_GIF_VIEWS.length, 'data-gv="*"', t('All views'))}</div>
       <div class="rs-wq">${t('How should they be saved?')}</div><div class="rs-wrow">${chip(st.layout === 'separate', 'data-gl="separate"', t('One GIF per view'))}${chip(st.layout === 'row', 'data-gl="row"', t('Side by side in one GIF'))}</div>`;
   else if (st.step === 2) body = `<div class="rs-wq">${t('Size')}</div><div class="rs-wrow">${[[240, t('Small')], [360, t('Medium')], [480, t('Large')]].map(([v, l]) => chip(st.size === v, `data-gs="${v}"`, `${l} · ${v} px`)).join('')}</div>
       <div class="rs-wq">${t('Smoothness')}</div><div class="rs-wrow">${[10, 15, 20].map(v => chip(st.fps === v, `data-gf="${v}"`, t('{n} frames a second', { n: v }))).join('')}</div>
       <div class="rs-wq">${t('Speed')}</div><div class="rs-wrow">${[[1, t('Real time')], [0.5, t('Half speed')]].map(([v, l]) => chip(st.speed === v, `data-gp="${v}"`, l)).join('')}</div>
       <div class="rs-wq">${t('Show on it')}</div><div class="rs-wrow">${chip(st.caption, 'data-gt="caption"', t('Name and phase'))}${chip(st.path, 'data-gt="path"', t('Path line'))}</div>
-      <div class="rs-wsum">${t.n('{n} file', '{n} files', files)} · ${t.n('{n} frame each', '{n} frames each', frames)} · ${t('{sec} s loop', { sec: (rsTotal(spec) / st.speed).toFixed(1) })}</div>`;
+      <div class="rs-wsum">${t.n('{n} file', '{n} files', files)} · ${t.n('{n} frame each', '{n} frames each', frames)} · ${t('{sec} s loop', { sec: ((hasReel && (st.layout === 'row' || st.views.length === 1) ? rsReelLen(spec) : rsTotal(spec)) / st.speed).toFixed(1) })}</div>`;
   else if (st.busy) body = `<div class="rs-wq">${t('Making your GIF…')}</div><div class="rs-wprog"><span style="width:${Math.round((st.prog || 0) * 100)}%"></span></div>`;
   else body = st.err ? `<div class="rs-wq">${t('The GIF could not be made on this device.')}</div>` : st.out.map((o, i) => `<div class="rs-wout"><img src="${o.url}" alt="${escapeAttr(o.name)}" loading="lazy">
         <div class="rs-wrow"><span class="rs-wname">${escapeHtml(o.name)} · ${appFont && appFont.fmt && appFont.fmt.bytes ? escapeHtml(appFont.fmt.bytes(o.blob.size)) : Math.round(o.blob.size / 1024) + ' kB'}</span>
@@ -20259,7 +20297,7 @@ function rsGifWizard(el) {
   if (host._bound) return; host._bound = true;
   host.addEventListener('click', async (e) => { const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
     if ('gx' in d) { host.hidden = true; return; }
-    if (d.gv) { if (d.gv === '*') st.views = st.views.length === 4 ? [el.dataset.view || 'three'] : RS_GIF_VIEWS.map(x => x[0]); else st.views = st.views.includes(d.gv) ? st.views.filter(x => x !== d.gv) : RS_GIF_VIEWS.map(x => x[0]).filter(x => x === d.gv || st.views.includes(x)); }
+    if (d.gv) { if (d.gv === '*') st.views = st.views.length === RS_GIF_VIEWS.length ? [el.dataset.view || 'three'] : RS_GIF_VIEWS.map(x => x[0]); else st.views = st.views.includes(d.gv) ? st.views.filter(x => x !== d.gv) : RS_GIF_VIEWS.map(x => x[0]).filter(x => x === d.gv || st.views.includes(x)); }
     else if (d.gl) st.layout = d.gl; else if (d.gs) st.size = +d.gs; else if (d.gf) st.fps = +d.gf; else if (d.gp) st.speed = +d.gp; else if (d.gt) st[d.gt] = !st[d.gt];
     else if ('gn' in d) st.step = 2; else if ('gb' in d) st.step = Math.max(1, st.step - 1);
     else if (d.gd != null) { const o = st.out[+d.gd]; if (o) downloadBlob(o.blob, o.name); return; }
@@ -39705,7 +39743,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 530 · 2026-11-28 11:40';
+const APP_BUILD = 'build 531 · 2026-11-28 13:03';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.
