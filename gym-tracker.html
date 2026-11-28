@@ -35741,7 +35741,7 @@ function renderPicker() {
         ? `<div class="ss2-banner">${t('⇄ {p1} — pick exercise <b>{p2}</b> <span class="ss2-cancel" id="trk-ss2-cancel">{p3}</span>', { p1: (ssKind(ssList(pending.superset).length + 1)), p2: (SS_LETTERS[ssList(pending.superset).length]), p3: (modalState.supersetPick === 'more' ? t('back') : t('cancel')) })}</div>`
         : `<div class="ss2-start" id="trk-ss2-start">${t('⇄ Superset / triset / circuit')}</div>`}
       <div class="picker-search">
-        <input id="trk-picker-input" type="text" placeholder="${escapeAttr(t('Search exercises...'))}" value="${escapeAttr(modalState.pickerSearch)}" autocomplete="off">
+        <input id="trk-picker-input" type="text" placeholder="${escapeAttr(t('Search exercises...'))}" value="${escapeAttr(modalState.pickerSearch)}" autocomplete="off" enterkeyhint="done">
         <button class="picker-clear-btn ${modalState.pickerSearch ? 'show' : ''}" id="trk-picker-clear-search">✕</button>
       </div>
       <div class="picker-scope" role="group" aria-label="${escapeAttr(t('Search in'))}">
@@ -36044,6 +36044,11 @@ function renderPickerResults() {
 function bindPicker() {
   const input = document.getElementById('trk-picker-input');
   if (input) {
+    /* feat 630 — Go / Enter on the search field: the keyboard goes away so the results have the screen, and when what
+       you typed is exactly an exercise's name (or only one exercise is left) it is chosen, which closes the picker. */
+    input.addEventListener('keydown', (e) => { if (e.key !== 'Enter' || e.isComposing) return; e.preventDefault(); input.blur();
+      const rows = [...document.querySelectorAll('#trk-picker-results-wrap .picker-var')], ids = new Set(rows.map(r => r.dataset.varuuid)), q = input.value.trim().toLowerCase();
+      const exact = q && rows.find(r => { const i = VAR_INDEX.get(r.dataset.varuuid); return i && i.variation && String(i.variation.title || '').toLowerCase() === q; }); if (exact) exact.click(); else if (ids.size === 1) rows[0].click(); });
     input.addEventListener('input', () => {
       modalState.pickerSearch = input.value;
       document.getElementById('trk-picker-clear-search').classList.toggle('show', !!input.value);
@@ -39613,7 +39618,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('click', uiTapFeedback, true);
 
 // feat 53 — single source of truth for the build stamp; auto-rewritten by the .githooks pre-commit hook.
-const APP_BUILD = 'build 525 · 2026-11-27 20:22';
+const APP_BUILD = 'build 526 · 2026-11-27 20:26';
 
 /* ============================================================
    REST TIMER RUNTIME (feat 51) — global bar + 1s tick.

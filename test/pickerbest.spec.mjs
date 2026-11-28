@@ -43,3 +43,22 @@ test('feat 620 — on the exercise sheet the set rows come before the next-set c
   for (const k of ['tips', 'next', 'targets']) if (r[k] != null) expect(r.sets, 'sets above ' + k).toBeLessThan(r[k]);
   expect(r.tips).not.toBeNull();
 });
+
+test('feat 630 — Go on the search field puts the keyboard away, and picks the exercise when you typed its exact name', async ({ page }) => {
+  await page.evaluate(() => { state.sessions = [{ id: 'now', date: new Date().toISOString(), exercises: [] }];
+    pending = { varUuid: null, subUuid: null, sets: [] }; openLogModal(); modalState.showPicker = true; modalState.open = true; modalState.pickerSearch = ''; renderModal(); });
+  const input = page.locator('#trk-picker-input');
+  expect(await input.getAttribute('enterkeyhint')).toBe('done');
+  await input.fill('press'); await input.press('Enter');
+  const many = await page.evaluate(() => ({ open: modalState.showPicker, focused: document.activeElement && document.activeElement.id, rows: new Set([...document.querySelectorAll('#trk-picker-results-wrap .picker-var')].map(r => r.dataset.varuuid)).size }));
+  expect(many.rows).toBeGreaterThan(1);
+  expect(many.open, 'several matches: the list stays for you to choose').toBe(true);
+  expect(many.focused, 'the field lets go, so the keyboard closes').not.toBe('trk-picker-input');
+  // typing an exercise's exact name and pressing Go chooses it
+  const name = await page.evaluate(() => FAMILIES.find(f => f.id === 'flat-bench-press').variations[0].title);
+  expect(name).not.toBeNull();
+  await page.locator('#trk-picker-input').fill(name); await page.locator('#trk-picker-input').press('Enter');
+  const one = await page.evaluate(() => ({ open: modalState.showPicker, picked: pending.varUuid && VAR_INDEX.get(pending.varUuid).variation.title }));
+  expect(one.open).toBe(false);
+  expect(one.picked).toBe(name);
+});
